@@ -70,6 +70,11 @@ echo "  Copying initialize-project skill..."
 cp -r "$AI_STORE_DIR/skills/010-foundation/initialize-project" \
       "$PROJECT_PATH/.claude/skills/"
 
+# Copy initialize-project command
+echo "  Copying initialize-project command..."
+cp "$AI_STORE_DIR/commands/initialize-project.md" \
+   "$PROJECT_PATH/.claude/commands/"
+
 # Create .gitignore for .claude/
 cat > "$PROJECT_PATH/.claude/.gitignore" <<'EOF'
 # AI Framework - Ignore generated files
