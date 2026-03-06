@@ -1,0 +1,90 @@
+/* text input */
+.form-control {
+  padding: 0.875rem 1rem;
+  width: 100%;
+  font-size: 0.875rem;
+  box-sizing: border-box;
+  border-radius: 8px;
+  transition: border-color 0.2s;
+  outline: none;
+  background-color: transparent;
+  border: 1px solid var(--input-text-border-color);
+  color: var(--input-text-color);
+  box-shadow: 0 1px 2px var(--input-base-shadow-color);
+  font-family: var(--font-family-secondary);
+}
+/* Text input focused */
+.form-control:focus {
+  border-color: var(--input-text-focus-border-color);
+  box-shadow: var(--input-text-border-color-focus-shadow) 0px 0px 0px 4px;
+}
+/* Test input disabled */
+.form-control:disabled {
+  background-color: var(--input-disabled-background-color);
+  color: var(--input-disabled-text-color);
+}
+
+.form-control::placeholder {
+  color: var(--input-text-placeholder-color);
+}
+
+/* input label styles */
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--base-black);
+  font-family: var(--font-family-secondary);
+  font-size: 0.875em;
+}
+
+/* Required label  */
+.form-group label .required {
+  color: var(--input-error-message-color);
+}
+
+.form-group .info-message {
+  font-weight: 400;
+  color: var(--input-text-placeholder-color);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.form-group .error-message {
+  font-weight: 400;
+  color: var(--input-error-message-color);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* Common utility styles */
+.form-group {
+  margin-bottom: 1rem;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.form-group-password {
+  position: relative;
+}
+
+.password-input-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.password-visibility-toggle {
+  position: absolute;
+  right: var(--spacing-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+}

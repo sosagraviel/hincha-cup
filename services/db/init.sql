@@ -1,0 +1,7 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE USER keycloak WITH PASSWORD 'keycloak';
+CREATE DATABASE keycloak;
+GRANT ALL PRIVILEGES ON DATABASE keycloak TO keycloak;
+\c keycloak;
+CREATE SCHEMA IF NOT EXISTS keycloak;
+GRANT ALL PRIVILEGES ON SCHEMA keycloak TO keycloak;

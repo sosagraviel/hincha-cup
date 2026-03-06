@@ -1,0 +1,12 @@
+node_modules
+dist
+.env*
+!.env.*.example
+.next
+.DS_Store
+services/keycloak/realms/*
+test-results/
+*.tsbuildinfo
+seeds/scripts/.env*
+!seeds/scripts/.env.*.example
+playwright-report/

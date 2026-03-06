@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "deleteOutDir": false,
+    "assets": [
+      {
+        "include": "**/*.sql",
+        "outDir": "./dist",
+        "watchAssets": true
+      },
+      {
+        "include": "**/*.hbs",
+        "outDir": "./dist",
+        "watchAssets": true
+      },
+      {
+        "include": "**/*.csv",
+        "outDir": "./dist",
+        "watchAssets": true
+      }
+    ]
+  },
+  "watchOptions": {
+    "watchDirectories": ["../../packages/shared/src"]
+  }
+}

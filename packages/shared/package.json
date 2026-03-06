@@ -1,0 +1,76 @@
+{
+  "name": "@livonit/shared",
+  "version": "1.0.0",
+  "description": "Shared TypeScript package",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./base": {
+      "types": "./src/base/index.ts",
+      "development": "./src/base/index.ts",
+      "default": "./dist/base/index.js"
+    },
+    "./dtos": {
+      "types": "./src/dtos/index.ts",
+      "development": "./src/dtos/index.ts",
+      "default": "./dist/dtos/index.js"
+    },
+    "./utils": {
+      "types": "./src/utils/index.ts",
+      "development": "./src/utils/index.ts",
+      "default": "./dist/utils/index.js"
+    }
+  },
+  "publishConfig": {
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      },
+      "./base": {
+        "types": "./dist/base/index.d.ts",
+        "import": "./dist/base/index.js",
+        "default": "./dist/base/index.js"
+      },
+      "./dtos": {
+        "types": "./dist/dtos/index.d.ts",
+        "import": "./dist/dtos/index.js",
+        "default": "./dist/dtos/index.js"
+      },
+      "./utils": {
+        "types": "./dist/utils/index.d.ts",
+        "import": "./dist/utils/index.js",
+        "default": "./dist/utils/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "tsc:watch": "tsc --watch",
+    "test": "jest"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.22.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.5.3",
+    "ts-jest": "^29.2.6",
+    "ts-node-dev": "^1.1.8",
+    "typescript": "^5.8.2"
+  },
+  "keywords": []
+}

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://docs.reliveonitbot.com/reliveonit-schema.json",
+  "extends": ["config:recommended"],
+  "dependencyDashboard": true,
+  "timezone": "America/Montevideo"
+}

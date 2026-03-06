@@ -1,0 +1,733 @@
+/**
+ * Skill Selection Module
+ *
+ * Automatically selects which skills to copy from ai-agentic-framework to a project's
+ * .claude/skills/ directory based on stack detection results.
+ *
+ * @version 1.0.0
+ * @author AI Framework Team
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+// Always-copied skills (foundational, copied to every project)
+const ALWAYS_COPIED_SKILLS = [
+  // Foundation (010)
+  { name: 'initialize-project', category: '010-foundation' },
+  { name: 'project-context', category: '010-foundation' },
+
+  // Workflow (020)
+  { name: 'implement-ticket', category: '020-development-workflow' },
+  { name: 'analyze-requirements', category: '020-development-workflow' },
+  { name: 'code-implementation', category: '020-development-workflow' },
+  { name: 'create-sdd-ticket', category: '020-development-workflow' },
+  { name: 'mastering-git-cli', category: '020-development-workflow' },
+
+  // Quality (030)
+  { name: 'code-quality-check', category: '030-quality-assurance' },
+  { name: 'security-review', category: '030-quality-assurance' },
+  { name: 'create-pr', category: '030-quality-assurance' },
+
+  // Integrations (040)
+  { name: 'jira', category: '040-integrations' }
+];
+
+/**
+ * Main entry point for skill selection
+ * @param {Object} stackProfile - Stack profile from stack-detection.js
+ * @param {string} aiStorePath - Path to ai-agentic-framework directory
+ * @returns {Promise<Object>} Selected skills with metadata
+ */
+async function selectSkills(stackProfile, aiStorePath) {
+  const selection = {
+    always_copied: [],
+    language_specific: [],
+    frontend: [],
+    backend: [],
+    cloud: [],
+    infrastructure: [],
+    integrations: [],
+    missing: [],
+    total: 0
+  };
+
+  try {
+    // 1. Start with always-copied skills
+    for (const skill of ALWAYS_COPIED_SKILLS) {
+      const skillPath = path.join(aiStorePath, 'skills', skill.category, skill.name);
+      const exists = await directoryExists(skillPath);
+
+      if (exists) {
+        selection.always_copied.push({
+          name: skill.name,
+          category: skill.category,
+          source_path: skillPath,
+          reason: 'Always copied (foundational)'
+        });
+      } else {
+        selection.missing.push({
+          name: skill.name,
+          category: skill.category,
+          reason: 'Skill not found in ai-agentic-framework'
+        });
+      }
+    }
+
+    // 2. Select language-specific skills (support both array and legacy format)
+    const languages = stackProfile.languages || (stackProfile.primary_language ? [{ name: stackProfile.primary_language }] : []);
+    for (const lang of languages) {
+      const langName = typeof lang === 'string' ? lang : lang.name;
+      const langSkills = await selectLanguageSkills(
+        langName,
+        stackProfile,
+        aiStorePath
+      );
+      selection.language_specific.push(...langSkills.found);
+      selection.missing.push(...langSkills.missing);
+    }
+
+    // 3. Select frontend framework skills (support both array and legacy format)
+    const frontendFrameworks = stackProfile.frontend_frameworks ||
+                               (stackProfile.frontend?.framework ? [stackProfile.frontend] : []);
+    for (const framework of frontendFrameworks) {
+      const frameworkName = typeof framework === 'string' ? framework : framework.name || framework.framework;
+      const frontendSkills = await selectFrontendSkills(
+        frameworkName,
+        aiStorePath
+      );
+      selection.frontend.push(...frontendSkills.found);
+      selection.missing.push(...frontendSkills.missing);
+    }
+
+    // 4. Select backend framework skills (support both array and legacy format)
+    const backendFrameworks = stackProfile.backend_frameworks ||
+                              (stackProfile.backend?.framework ? [stackProfile.backend] : []);
+    for (const framework of backendFrameworks) {
+      const frameworkName = typeof framework === 'string' ? framework : framework.name || framework.framework;
+      const backendSkills = await selectBackendSkills(
+        frameworkName,
+        aiStorePath
+      );
+      selection.backend.push(...backendSkills.found);
+      selection.missing.push(...backendSkills.missing);
+    }
+
+    // 5. Select cloud platform skills
+    if (stackProfile.cloud?.length > 0) {
+      const cloudSkills = await selectCloudSkills(stackProfile.cloud, aiStorePath);
+      selection.cloud.push(...cloudSkills.found);
+      selection.missing.push(...cloudSkills.missing);
+    }
+
+    // 6. Select infrastructure skills
+    if (stackProfile.containers?.length > 0) {
+      const infraSkills = await selectInfrastructureSkills(
+        stackProfile.containers,
+        aiStorePath
+      );
+      selection.infrastructure.push(...infraSkills.found);
+      selection.missing.push(...infraSkills.missing);
+    }
+
+    // 7. Select integration skills
+    const integrationSkills = await selectIntegrationSkills(stackProfile, aiStorePath);
+    selection.integrations.push(...integrationSkills.found);
+    selection.missing.push(...integrationSkills.missing);
+
+    // Calculate total
+    selection.total =
+      selection.always_copied.length +
+      selection.language_specific.length +
+      selection.frontend.length +
+      selection.backend.length +
+      selection.cloud.length +
+      selection.infrastructure.length +
+      selection.integrations.length;
+
+    return selection;
+  } catch (error) {
+    console.error('Skill selection error:', error.message);
+    throw new Error(`Failed to select skills: ${error.message}`);
+  }
+}
+
+/**
+ * Select language-specific skills
+ */
+async function selectLanguageSkills(language, stackProfile, aiStorePath) {
+  const found = [];
+  const missing = [];
+
+  if (language === 'typescript' || language === 'javascript') {
+    // TypeScript mastery skill
+    const tsSkillPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'mastering-typescript');
+    if (await directoryExists(tsSkillPath)) {
+      found.push({
+        name: 'mastering-typescript',
+        category: '050-language-frameworks',
+        source_path: tsSkillPath,
+        reason: 'TypeScript/JavaScript detected'
+      });
+    } else {
+      missing.push({
+        name: 'mastering-typescript',
+        category: '050-language-frameworks',
+        reason: 'TypeScript detected but skill not found'
+      });
+    }
+
+    // Jest coverage automation (if Jest detected)
+    if (stackProfile.testing?.some(t => t.name === 'jest')) {
+      const jestSkillPath = path.join(aiStorePath, 'skills', '030-quality-assurance', 'jest-coverage-automation');
+      if (await directoryExists(jestSkillPath)) {
+        found.push({
+          name: 'jest-coverage-automation',
+          category: '030-quality-assurance',
+          source_path: jestSkillPath,
+          reason: 'Jest testing framework detected'
+        });
+      } else {
+        missing.push({
+          name: 'jest-coverage-automation',
+          category: '030-quality-assurance',
+          reason: 'Jest detected but skill not found'
+        });
+      }
+    }
+
+    // PR reviewer skill (optional but useful)
+    const prReviewerPath = path.join(aiStorePath, 'skills', '030-quality-assurance', 'pr-reviewer-skill');
+    if (await directoryExists(prReviewerPath)) {
+      found.push({
+        name: 'pr-reviewer-skill',
+        category: '030-quality-assurance',
+        source_path: prReviewerPath,
+        reason: 'PR review automation'
+      });
+    }
+  }
+
+  if (language === 'python') {
+    // Python mastery skill
+    const pySkillPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'mastering-python-skill');
+    if (await directoryExists(pySkillPath)) {
+      found.push({
+        name: 'mastering-python-skill',
+        category: '050-language-frameworks',
+        source_path: pySkillPath,
+        reason: 'Python detected'
+      });
+    } else {
+      missing.push({
+        name: 'mastering-python-skill',
+        category: '050-language-frameworks',
+        reason: 'Python detected but skill not found'
+      });
+    }
+
+    // Check for specialized Python frameworks
+    // LangGraph
+    const langgraphPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'mastering-langgraph-agent-skill');
+    if (await directoryExists(langgraphPath)) {
+      // Would need to check dependencies - simplified for now
+      found.push({
+        name: 'mastering-langgraph-agent-skill',
+        category: '050-language-frameworks',
+        source_path: langgraphPath,
+        reason: 'Python with potential LangGraph usage'
+      });
+    }
+
+    // PyTorch
+    const pytorchPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'mastering-pytorch-rl-nlp-agentic-skill');
+    if (await directoryExists(pytorchPath)) {
+      found.push({
+        name: 'mastering-pytorch-rl-nlp-agentic-skill',
+        category: '050-language-frameworks',
+        source_path: pytorchPath,
+        reason: 'Python with potential PyTorch usage'
+      });
+    }
+  }
+
+  return { found, missing };
+}
+
+/**
+ * Select frontend framework skills
+ */
+async function selectFrontendSkills(framework, aiStorePath) {
+  const found = [];
+  const missing = [];
+
+  if (framework === 'react' || framework === 'nextjs') {
+    // React frontend skill
+    const reactPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'react-frontend');
+    if (await directoryExists(reactPath)) {
+      found.push({
+        name: 'react-frontend',
+        category: '050-language-frameworks',
+        source_path: reactPath,
+        reason: `${framework} detected`
+      });
+    } else {
+      missing.push({
+        name: 'react-frontend',
+        category: '050-language-frameworks',
+        reason: `${framework} detected but skill not found`
+      });
+    }
+
+    // Atomic design React
+    const atomicPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'atomic-design-react');
+    if (await directoryExists(atomicPath)) {
+      found.push({
+        name: 'atomic-design-react',
+        category: '050-language-frameworks',
+        source_path: atomicPath,
+        reason: 'React component architecture'
+      });
+    } else {
+      missing.push({
+        name: 'atomic-design-react',
+        category: '050-language-frameworks',
+        reason: 'React detected but atomic-design skill not found'
+      });
+    }
+
+    // Next.js specific patterns (future)
+    if (framework === 'nextjs') {
+      missing.push({
+        name: 'nextjs-patterns',
+        category: '050-language-frameworks',
+        reason: 'Next.js detected but skill not created yet'
+      });
+    }
+  }
+
+  if (framework === 'vue') {
+    missing.push({
+      name: 'vue-frontend',
+      category: '050-language-frameworks',
+      reason: 'Vue detected but skill not created yet'
+    });
+  }
+
+  if (framework === 'angular') {
+    missing.push({
+      name: 'angular-patterns',
+      category: '050-language-frameworks',
+      reason: 'Angular detected but skill not created yet'
+    });
+  }
+
+  return { found, missing };
+}
+
+/**
+ * Select backend framework skills
+ */
+async function selectBackendSkills(framework, aiStorePath) {
+  const found = [];
+  const missing = [];
+
+  // Most backend framework skills don't exist yet
+  if (framework === 'nestjs') {
+    missing.push({
+      name: 'nestjs-patterns',
+      category: '050-language-frameworks',
+      reason: 'NestJS detected but skill not created yet'
+    });
+  }
+
+  if (framework === 'fastapi') {
+    missing.push({
+      name: 'fastapi-patterns',
+      category: '050-language-frameworks',
+      reason: 'FastAPI detected but skill not created yet'
+    });
+  }
+
+  if (framework === 'django') {
+    missing.push({
+      name: 'django-patterns',
+      category: '050-language-frameworks',
+      reason: 'Django detected but skill not created yet'
+    });
+  }
+
+  if (framework === 'flask') {
+    missing.push({
+      name: 'flask-patterns',
+      category: '050-language-frameworks',
+      reason: 'Flask detected but skill not created yet'
+    });
+  }
+
+  return { found, missing };
+}
+
+/**
+ * Select cloud platform skills
+ */
+async function selectCloudSkills(cloudPlatforms, aiStorePath) {
+  const found = [];
+  const missing = [];
+
+  for (const platform of cloudPlatforms) {
+    if (platform.name === 'firebase') {
+      const firebasePath = path.join(aiStorePath, 'skills', '080-cloud-platforms', 'using-firebase');
+      if (await directoryExists(firebasePath)) {
+        found.push({
+          name: 'using-firebase',
+          category: '080-cloud-platforms',
+          source_path: firebasePath,
+          reason: 'Firebase detected'
+        });
+      } else {
+        missing.push({
+          name: 'using-firebase',
+          category: '080-cloud-platforms',
+          reason: 'Firebase detected but skill not found'
+        });
+      }
+    }
+
+    if (platform.name === 'aws' || platform.name === 'aws-cdk') {
+      const awsCliPath = path.join(aiStorePath, 'skills', '080-cloud-platforms', 'mastering-aws-cli');
+      if (await directoryExists(awsCliPath)) {
+        found.push({
+          name: 'mastering-aws-cli',
+          category: '080-cloud-platforms',
+          source_path: awsCliPath,
+          reason: 'AWS detected'
+        });
+      }
+
+      if (platform.name === 'aws-cdk') {
+        const cdkPath = path.join(aiStorePath, 'skills', '080-cloud-platforms', 'mastering-aws-cdk-plugin');
+        if (await directoryExists(cdkPath)) {
+          found.push({
+            name: 'mastering-aws-cdk-plugin',
+            category: '080-cloud-platforms',
+            source_path: cdkPath,
+            reason: 'AWS CDK detected'
+          });
+        }
+      }
+    }
+
+    if (platform.name === 'gcp') {
+      const gcpPath = path.join(aiStorePath, 'skills', '080-cloud-platforms', 'mastering-gcloud-commands');
+      if (await directoryExists(gcpPath)) {
+        found.push({
+          name: 'mastering-gcloud-commands',
+          category: '080-cloud-platforms',
+          source_path: gcpPath,
+          reason: 'GCP detected'
+        });
+      }
+    }
+  }
+
+  return { found, missing };
+}
+
+/**
+ * Select infrastructure skills
+ */
+async function selectInfrastructureSkills(containers, aiStorePath) {
+  const found = [];
+  const missing = [];
+
+  if (containers.some(c => c.name === 'docker' || c.name === 'docker-compose')) {
+    const dockerPath = path.join(aiStorePath, 'skills', '070-infrastructure-devops', 'developing-with-docker-agentic-skill');
+    if (await directoryExists(dockerPath)) {
+      found.push({
+        name: 'developing-with-docker-agentic-skill',
+        category: '070-infrastructure-devops',
+        source_path: dockerPath,
+        reason: 'Docker detected'
+      });
+    } else {
+      missing.push({
+        name: 'developing-with-docker-agentic-skill',
+        category: '070-infrastructure-devops',
+        reason: 'Docker detected but skill not found'
+      });
+    }
+  }
+
+  return { found, missing };
+}
+
+/**
+ * Select integration skills
+ */
+async function selectIntegrationSkills(stackProfile, aiStorePath) {
+  const found = [];
+  const missing = [];
+
+  // GitHub (usually already in always-copied, but check)
+  const githubPath = path.join(aiStorePath, 'skills', '040-integrations', 'mastering-github-agent-skill');
+  if (await directoryExists(githubPath)) {
+    found.push({
+      name: 'mastering-github-agent-skill',
+      category: '040-integrations',
+      source_path: githubPath,
+      reason: 'GitHub integration'
+    });
+  }
+
+  // Fetch ticket context (usually with Jira)
+  const ticketContextPath = path.join(aiStorePath, 'skills', '040-integrations', 'fetch-ticket-context');
+  if (await directoryExists(ticketContextPath)) {
+    found.push({
+      name: 'fetch-ticket-context',
+      category: '040-integrations',
+      source_path: ticketContextPath,
+      reason: 'Jira ticket context fetching'
+    });
+  }
+
+  // Confluence (optional, check project context)
+  const confluencePath = path.join(aiStorePath, 'skills', '040-integrations', 'mastering-confluence-agent-skill');
+  if (await directoryExists(confluencePath)) {
+    found.push({
+      name: 'mastering-confluence-agent-skill',
+      category: '040-integrations',
+      source_path: confluencePath,
+      reason: 'Confluence documentation'
+    });
+  }
+
+  // Notion (optional)
+  const notionPath = path.join(aiStorePath, 'skills', '040-integrations', 'notion-document-manager');
+  if (await directoryExists(notionPath)) {
+    found.push({
+      name: 'notion-document-manager',
+      category: '040-integrations',
+      source_path: notionPath,
+      reason: 'Notion documentation'
+    });
+  }
+
+  return { found, missing };
+}
+
+/**
+ * Copy selected skills to project .claude/skills/ directory
+ */
+async function copySkills(selection, projectPath) {
+  const copied = [];
+  const errors = [];
+
+  // Combine all selected skills
+  const allSkills = [
+    ...selection.always_copied,
+    ...selection.language_specific,
+    ...selection.frontend,
+    ...selection.backend,
+    ...selection.cloud,
+    ...selection.infrastructure,
+    ...selection.integrations
+  ];
+
+  const destBase = path.join(projectPath, '.claude', 'skills');
+
+  // Ensure destination directory exists
+  await fs.promises.mkdir(destBase, { recursive: true });
+
+  for (const skill of allSkills) {
+    try {
+      const destPath = path.join(destBase, skill.name);
+
+      // Check if skill already exists
+      if (await directoryExists(destPath)) {
+        // Compare versions (simplified - would need to read frontmatter)
+        console.log(`Skill ${skill.name} already exists, skipping...`);
+        continue;
+      }
+
+      // Copy skill directory
+      await copyDirectory(skill.source_path, destPath);
+
+      // Make scripts executable if they exist
+      const scriptsPath = path.join(destPath, 'scripts');
+      if (await directoryExists(scriptsPath)) {
+        const scripts = await fs.promises.readdir(scriptsPath);
+        for (const script of scripts) {
+          const scriptPath = path.join(scriptsPath, script);
+          await fs.promises.chmod(scriptPath, 0o755);
+        }
+      }
+
+      copied.push({
+        name: skill.name,
+        dest_path: destPath,
+        reason: skill.reason
+      });
+    } catch (error) {
+      errors.push({
+        name: skill.name,
+        error: error.message
+      });
+    }
+  }
+
+  return { copied, errors };
+}
+
+/**
+ * Generate skill index file
+ */
+async function generateSkillIndex(selection, projectPath, projectName) {
+  let indexMd = '# Installed Skills\n\n';
+  indexMd += `**Project**: ${projectName}\n`;
+  indexMd += `**Last Updated**: ${new Date().toISOString()}\n\n`;
+  indexMd += '---\n\n';
+
+  const sections = [
+    { title: 'Foundation', skills: selection.always_copied.filter(s => s.category === '010-foundation') },
+    { title: 'Workflow', skills: selection.always_copied.filter(s => s.category === '020-development-workflow') },
+    { title: 'Quality Assurance', skills: selection.always_copied.filter(s => s.category === '030-quality-assurance').concat(selection.language_specific.filter(s => s.category === '030-quality-assurance')) },
+    { title: 'Integrations', skills: selection.always_copied.filter(s => s.category === '040-integrations').concat(selection.integrations) },
+    { title: 'Language Frameworks', skills: selection.language_specific.filter(s => s.category === '050-language-frameworks').concat(selection.frontend, selection.backend) },
+    { title: 'Infrastructure', skills: selection.infrastructure },
+    { title: 'Cloud Platforms', skills: selection.cloud }
+  ];
+
+  for (const section of sections) {
+    if (section.skills.length > 0) {
+      indexMd += `## ${section.title} (${section.skills.length} skills)\n\n`;
+      for (const skill of section.skills) {
+        indexMd += `- \`/${skill.name}\` - ${skill.reason}\n`;
+      }
+      indexMd += '\n';
+    }
+  }
+
+  indexMd += '---\n\n';
+  indexMd += `**Total Skills**: ${selection.total}\n\n`;
+  indexMd += 'To use a skill, type: `/skill-name` in Claude Code\n';
+  indexMd += 'To list all skills: `ls .claude/skills/`\n';
+
+  return indexMd;
+}
+
+/**
+ * Generate missing skills report
+ */
+async function generateMissingSkillsReport(selection) {
+  if (selection.missing.length === 0) {
+    return null;
+  }
+
+  let reportMd = '# Missing Skills for This Project\n\n';
+  reportMd += 'The following skills were recommended based on stack detection but don\'t exist yet:\n\n';
+
+  const categoryGroups = {};
+  for (const skill of selection.missing) {
+    if (!categoryGroups[skill.category]) {
+      categoryGroups[skill.category] = [];
+    }
+    categoryGroups[skill.category].push(skill);
+  }
+
+  for (const [category, skills] of Object.entries(categoryGroups)) {
+    reportMd += `## ${category}\n\n`;
+    for (const skill of skills) {
+      reportMd += `- \`${skill.name}\` - ${skill.reason}\n`;
+    }
+    reportMd += '\n';
+  }
+
+  reportMd += '## How to Request Skills\n\n';
+  reportMd += 'Create an issue or contact AI team leads to prioritize skill creation.\n';
+
+  return reportMd;
+}
+
+// ============================================================================
+// File System Utilities
+// ============================================================================
+
+async function directoryExists(dirPath) {
+  try {
+    const stats = await fs.promises.stat(dirPath);
+    return stats.isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function copyDirectory(src, dest) {
+  await fs.promises.mkdir(dest, { recursive: true });
+
+  const entries = await fs.promises.readdir(src, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyDirectory(srcPath, destPath);
+    } else {
+      await fs.promises.copyFile(srcPath, destPath);
+    }
+  }
+}
+
+// ============================================================================
+// Exports
+// ============================================================================
+
+module.exports = {
+  selectSkills,
+  copySkills,
+  generateSkillIndex,
+  generateMissingSkillsReport,
+  ALWAYS_COPIED_SKILLS
+};
+
+// ============================================================================
+// CLI Usage (if run directly)
+// ============================================================================
+
+if (require.main === module) {
+  const aiStorePath = process.argv[2] || path.join(__dirname, '..');
+  const mockStackProfile = {
+    primary_language: 'typescript',
+    backend: { framework: 'nestjs' },
+    frontend: { framework: 'react' },
+    testing: [{ name: 'jest' }],
+    cloud: [{ name: 'gcp' }],
+    containers: [{ name: 'docker' }]
+  };
+
+  console.log(`Selecting skills from: ${aiStorePath}\n`);
+
+  selectSkills(mockStackProfile, aiStorePath)
+    .then(selection => {
+      console.log('Skill Selection Results:\n');
+      console.log(`Always Copied: ${selection.always_copied.length}`);
+      console.log(`Language Specific: ${selection.language_specific.length}`);
+      console.log(`Frontend: ${selection.frontend.length}`);
+      console.log(`Backend: ${selection.backend.length}`);
+      console.log(`Cloud: ${selection.cloud.length}`);
+      console.log(`Infrastructure: ${selection.infrastructure.length}`);
+      console.log(`Integrations: ${selection.integrations.length}`);
+      console.log(`Missing: ${selection.missing.length}`);
+      console.log(`Total: ${selection.total}\n`);
+
+      if (selection.missing.length > 0) {
+        console.log('Missing skills:');
+        selection.missing.forEach(s => console.log(`  - ${s.name}: ${s.reason}`));
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error.message);
+      process.exit(1);
+    });
+}

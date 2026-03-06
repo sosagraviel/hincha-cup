@@ -1,0 +1,284 @@
+import request from 'supertest';
+// Removed test-app imports - using direct HTTP requests
+import { getAccessToken, TEST_USERS } from '../helpers/auth';
+
+
+
+describe('Organization API (e2e)', () => {
+  let adminToken: string;
+  let aliceToken: string;
+  let bobToken: string;
+  let carolToken: string;
+
+  // IDs discovered from seeded data
+  let acmeId: string;
+  let widgetsId: string;
+  let aliceUserId: string;
+  let bobUserId: string;
+
+  beforeAll(async () => {
+    app = await getTestApp();
+    [adminToken, aliceToken, bobToken, carolToken] = await Promise.all([
+      getAccessToken(TEST_USERS.admin.email, TEST_USERS.admin.password),
+      getAccessToken(TEST_USERS.alice.email, TEST_USERS.alice.password),
+      getAccessToken(TEST_USERS.bob.email, TEST_USERS.bob.password),
+      getAccessToken(TEST_USERS.carol.email, TEST_USERS.carol.password)
+    ]);
+
+    // Discover seeded IDs
+    const aliceProfile = await httpClient
+      .get(`${API}/users/me`)
+      .set('Authorization', `Bearer ${aliceToken}`);
+    aliceUserId = aliceProfile.body.id;
+
+    const bobProfile = await httpClient
+      .get(`${API}/users/me`)
+      .set('Authorization', `Bearer ${bobToken}`);
+    bobUserId = bobProfile.body.id;
+
+    // Get org IDs from alice's org list (she's in both)
+    const orgs = await httpClient
+      .get(`${API}/organizations`)
+      .set('Authorization', `Bearer ${aliceToken}`);
+
+    for (const org of orgs.body) {
+      if (org.slug === 'acme') acmeId = org.id;
+      if (org.slug === 'widgets') widgetsId = org.id;
+    }
+  });
+
+  afterAll(async () => {
+    await closeTestApp();
+  });
+
+  describe('GET /organizations', () => {
+    it('should list organizations for admin', async () => {
+      const res = await httpClient
+        .get(`${API}/organizations`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      // Admin is a member of Acme
+      expect(res.body.some((o: any) => o.slug === 'acme')).toBe(true);
+    });
+
+    it('should list only orgs the user belongs to', async () => {
+      const res = await httpClient
+        .get(`${API}/organizations`)
+        .set('Authorization', `Bearer ${carolToken}`)
+        .expect(200);
+
+      // Carol is only in Widget Inc
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].slug).toBe('widgets');
+    });
+  });
+
+  describe('POST /organizations (super_admin only)', () => {
+    let _testOrgId: string;
+
+    it('should allow super_admin to create an organization', async () => {
+      const uniqueSlug = `test-org-e2e-${Date.now()}`;
+      const res = await httpClient
+        .post(`${API}/organizations`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Test Org E2E',
+          slug: uniqueSlug,
+          description: 'Created by integration tests'
+        })
+        .expect(201);
+
+      expect(res.body).toHaveProperty('id');
+      expect(res.body.name).toBe('Test Org E2E');
+      expect(res.body.slug).toBe(uniqueSlug);
+      _testOrgId = res.body.id;
+    });
+
+    it('should reject creation by non-super_admin', async () => {
+      await httpClient
+        .post(`${API}/organizations`)
+        .set('Authorization', `Bearer ${aliceToken}`)
+        .send({
+          name: 'Unauthorized Org',
+          slug: `unauth-org-${Date.now()}`
+        })
+        .expect(403);
+    });
+
+    it('should return 409 when slug is already taken', async () => {
+      await httpClient
+        .post(`${API}/organizations`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Duplicate Slug Org',
+          slug: 'acme' // already exists from seed data
+        })
+        .expect(409);
+    });
+
+    it('should return 400 when required fields are missing', async () => {
+      await httpClient
+        .post(`${API}/organizations`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ description: 'Missing name and slug' })
+        .expect(400);
+    });
+
+    afterAll(async () => {
+      // Clean up: remove test org by directly using the DB (no delete endpoint)
+      // The org will be left as-is since there's no delete org endpoint
+    });
+  });
+
+  describe('GET /organizations/:id', () => {
+    it('should return org details for a member', async () => {
+      const res = await httpClient
+        .get(`${API}/organizations/${acmeId}`)
+        .set('Authorization', `Bearer ${aliceToken}`)
+        .expect(200);
+
+      expect(res.body.slug).toBe('acme');
+      expect(res.body.name).toBe('Acme Corp');
+    });
+
+    it('should return 403 for non-member', async () => {
+      // Carol is not in Acme
+      await httpClient
+        .get(`${API}/organizations/${acmeId}`)
+        .set('Authorization', `Bearer ${carolToken}`)
+        .expect(403);
+    });
+
+    it('should return 403 for non-existent organization (guard fires before service)', async () => {
+      // The OrgMemberGuard checks membership first — if the org doesn't exist,
+      // no membership record will be found → 403 before the service can 404.
+      await httpClient
+        .get(`${API}/organizations/00000000-0000-0000-0000-000000000000`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(403);
+    });
+  });
+
+  describe('PATCH /organizations/:id', () => {
+    it('should allow owner to update org', async () => {
+      // Alice is owner of Acme
+      const res = await httpClient
+        .patch(`${API}/organizations/${acmeId}`)
+        .set('Authorization', `Bearer ${aliceToken}`)
+        .send({ description: 'Updated by e2e test' })
+        .expect(200);
+
+      expect(res.body.description).toBe('Updated by e2e test');
+
+      // Restore
+      await httpClient
+        .patch(`${API}/organizations/${acmeId}`)
+        .set('Authorization', `Bearer ${aliceToken}`)
+        .send({ description: 'A leading technology company' });
+    });
+
+    it('should allow admin to update org', async () => {
+      // Admin is admin role in Acme
+      const res = await httpClient
+        .patch(`${API}/organizations/${acmeId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ description: 'Updated by admin e2e' })
+        .expect(200);
+
+      expect(res.body.description).toBe('Updated by admin e2e');
+
+      // Restore
+      await httpClient
+        .patch(`${API}/organizations/${acmeId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ description: 'A leading technology company' });
+    });
+
+    it('should reject update by member (not owner/admin)', async () => {
+      // Bob is member role in Acme
+      await httpClient
+        .patch(`${API}/organizations/${acmeId}`)
+        .set('Authorization', `Bearer ${bobToken}`)
+        .send({ description: 'Should fail' })
+        .expect(403);
+    });
+  });
+
+  describe('POST /organizations/:id/members', () => {
+    it('should allow owner to add a member', async () => {
+      // Carol is owner of Widgets. Add bob to widgets.
+      const res = await httpClient
+        .post(`${API}/organizations/${widgetsId}/members`)
+        .set('Authorization', `Bearer ${carolToken}`)
+        .send({ userId: bobUserId, role: 'member' })
+        .expect(201);
+
+      expect(res.body).toHaveProperty('id');
+      expect(res.body.role).toBe('member');
+    });
+
+    it('should reject adding member by a regular member', async () => {
+      // Bob is member in Acme, cannot add members
+      await httpClient
+        .post(`${API}/organizations/${acmeId}/members`)
+        .set('Authorization', `Bearer ${bobToken}`)
+        .send({ userId: 'some-user-id', role: 'member' })
+        .expect(403);
+    });
+
+    it('should return 409 when adding a user who is already a member', async () => {
+      // Bob is already a member of Acme — adding again should conflict
+      await httpClient
+        .post(`${API}/organizations/${acmeId}/members`)
+        .set('Authorization', `Bearer ${aliceToken}`)
+        .send({ userId: bobUserId, role: 'member' })
+        .expect(409);
+    });
+
+    it('should return 400 when role value is invalid', async () => {
+      await httpClient
+        .post(`${API}/organizations/${acmeId}/members`)
+        .set('Authorization', `Bearer ${aliceToken}`)
+        .send({ userId: aliceUserId, role: 'super_god' })
+        .expect(400);
+    });
+
+    afterAll(async () => {
+      // Clean up: remove bob from widgets
+      await httpClient
+        .delete(`${API}/organizations/${widgetsId}/members/${bobUserId}`)
+        .set('Authorization', `Bearer ${carolToken}`);
+    });
+  });
+
+  describe('PATCH /organizations/:id/members/:userId', () => {
+    it('should allow owner to update member role', async () => {
+      // Alice is owner of Acme, update bob's role
+      const res = await httpClient
+        .patch(`${API}/organizations/${acmeId}/members/${bobUserId}`)
+        .set('Authorization', `Bearer ${aliceToken}`)
+        .send({ role: 'admin' })
+        .expect(200);
+
+      expect(res.body.role).toBe('admin');
+
+      // Restore to member
+      await httpClient
+        .patch(`${API}/organizations/${acmeId}/members/${bobUserId}`)
+        .set('Authorization', `Bearer ${aliceToken}`)
+        .send({ role: 'member' });
+    });
+  });
+
+  describe('DELETE /organizations/:id/members/:userId', () => {
+    it('should reject member removal by non-owner/admin', async () => {
+      // Bob is member in Acme, cannot remove members
+      await httpClient
+        .delete(`${API}/organizations/${acmeId}/members/${aliceUserId}`)
+        .set('Authorization', `Bearer ${bobToken}`)
+        .expect(403);
+    });
+  });
+});

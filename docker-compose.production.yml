@@ -1,0 +1,134 @@
+services:
+  db:
+    image: postgres_with_cron
+    build: services/db
+    container_name: ${PROJECT_NAME}_db_prod
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: db_user
+      POSTGRES_DB: liveonit_db
+      POSTGRES_PASSWORD: example
+      PGDATA: /var/lib/postgresql/data
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./services/db:/docker-entrypoint-initdb.d
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d liveonit_db -U db_user']
+      interval: 1s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app-network
+
+  backend:
+    image: ${VENDOR_NAME}/backend:production
+    container_name: ${VENDOR_NAME}_backend_prod
+    restart: always
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile.production
+    environment:
+      - NODE_ENV=production
+    ports:
+      - 3050:3050
+    env_file:
+      - .env.production
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  frontend:
+    image: ${VENDOR_NAME}/frontend:production
+    container_name: ${VENDOR_NAME}_frontend_prod
+    restart: always
+    build:
+      context: .
+      dockerfile: services/web-frontend/Dockerfile.production
+      args:
+        VITE_KEYCLOAK_EXTERNAL_URL: ${VITE_KEYCLOAK_EXTERNAL_URL}
+        VITE_REALM_NAME: ${VITE_REALM_NAME}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID}
+        VITE_WEBSOCKET_URL: ${VITE_WEBSOCKET_URL}
+        VITE_API_URL: ${VITE_API_URL}
+        SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN}
+        SENTRY_DSN: ${SENTRY_DSN}
+    ports:
+      - 2712:80
+    env_file:
+      - .env.production
+    depends_on:
+      - backend
+      - keycloak
+    networks:
+      - app-network
+
+  keycloak:
+    image: ${VENDOR_NAME}/keycloak:production
+    build:
+      context: ./services/keycloak
+      dockerfile: Dockerfile
+    container_name: ${VENDOR_NAME}_keycloak_prod
+    environment:
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_URL: 'http://localhost:${KEYCLOAK_HTTP_PORT}'
+      KC_HOSTNAME_ADMIN_URL: 'http://localhost:${KEYCLOAK_HTTP_PORT}'
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: 'true'
+      KC_LOG_LEVEL: info
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_DB_SCHEMA: keycloak
+      KC_HTTP_MANAGEMENT_PORT: 9000
+    volumes:
+      - ./services/keycloak/realms:/opt/keycloak/data/import
+      - ./services/keycloak/themes:/opt/keycloak/themes
+    depends_on:
+      db:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/health/ready']
+      interval: 15s
+      timeout: 2s
+      retries: 15
+    command:
+      [
+        'start-dev',
+        '--http-port',
+        '${KEYCLOAK_HTTP_PORT}',
+        '--https-port',
+        '${KEYCLOAK_HTTPS_PORT}'
+      ]
+    ports:
+      - '${KEYCLOAK_HTTP_PORT}:${KEYCLOAK_HTTP_PORT}'
+      - '${KEYCLOAK_HTTPS_PORT}:${KEYCLOAK_HTTPS_PORT}'
+      - '9000:9000'
+    networks:
+      - app-network
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    restart: always
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  pgdata:

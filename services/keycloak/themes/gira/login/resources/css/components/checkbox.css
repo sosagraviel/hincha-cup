@@ -1,0 +1,53 @@
+/* base checkbox */
+input[type="checkbox"] {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--input-checkbox-unchecked-border-color);
+  border-radius: 4px;
+  background-color: transparent;
+  display: flex;
+  position: relative;
+  margin-right: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  align-items: center;
+}
+
+input[type="checkbox"]:checked {
+  background-color: var(--input-checkbox-background-checked-color);
+  border-color: var(--input-checkbox-background-checked-color);
+}
+
+/* Checkbox checkmark */
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 3px;
+  height: 7px;
+  border: solid white;
+  border-width: 0 1px 1px 0;
+  transform: rotate(45deg);
+}
+
+input[type="checkbox"]:disabled {
+  background-color: var(--input-disabled-background-color);
+  border-color: var(--input-disabled-border-color);
+}
+
+/* checkbox checkmark when disabled */
+input[type="checkbox"]:disabled::after {
+  border-color: var(--input-disabled-border-color);
+}
+
+/* checkbox label */
+.form-group .checkbox label {
+  display: flex;
+  color: var(--global-text-color);
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}

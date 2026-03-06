@@ -1,0 +1,4 @@
+# AI Framework - Ignore generated files
+*.tmp
+*.log
+.cache/

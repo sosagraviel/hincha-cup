@@ -1,0 +1,73 @@
+@media screen and (max-width: 500px) {
+  html,
+  body {
+    background-color: var(--base-white);
+    justify-content: flex-start;
+  }
+
+  body .login-pf-page {
+    width: 100%;
+    max-width: 100%;
+    background-color: var(--base-white);
+    justify-content: flex-start;
+  }
+
+  body .card-pf {
+    padding: 4.375rem var(--spacing-8) var(--spacing-8) var(--spacing-8);
+    margin-top: 10vh;
+  }
+
+  body .copyright {
+    padding: var(--spacing-2) 0;
+  }
+
+  body .login-pf-page .login-container {
+    min-width: fit-content;
+  }
+
+  /* MFA Config */
+  .configure-mfa-container {
+    min-width: 100%;
+    max-width: 100%;
+  }
+
+  #kc-totp-settings .column {
+    width: 100%;
+  }
+
+  /* Update Password */
+  .update-password-container {
+    width: 100%;
+    max-width: 100%;
+    min-height: auto;
+    gap: var(--spacing-4);
+  }
+
+  /* OTP */
+  .otp-container {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .otp-container .info-message {
+    text-align: left;
+  }
+
+  /* Password Recovery */
+  .password-recovery-container {
+    width: 100%;
+    max-width: 100%;
+    min-height: auto;
+  }
+
+  .password-recovery-container .form-group {
+    width: 100%;
+  }
+}
+
+@media screen and (max-height: 900px) {
+  body .login-pf-page {
+    min-height: 100vh;
+    justify-content: flex-start;
+  }
+}
