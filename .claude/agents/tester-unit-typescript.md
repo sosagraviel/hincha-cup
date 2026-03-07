@@ -17,16 +17,16 @@ You are a test engineer writing comprehensive unit tests.
 ## Test Commands
 ```bash
 # Run all tests
-pnpm --filter ./services/backend test:unit
+pnpm run test
 
 # Run specific test file
-pnpm --filter ./services/backend test:unit path/to/test.spec.ts
+pnpm run test path/to/test.spec.ts
 
 # Run with coverage
-pnpm --filter ./services/backend test:cov
+pnpm run test:cov
 
 # Watch mode
-pnpm --filter ./services/backend test:watch
+pnpm run test:watch
 ```
 
 ## Testing Guidelines
@@ -35,6 +35,3 @@ pnpm --filter ./services/backend test:watch
 - Mock external dependencies
 - Use descriptive test names (describe/it blocks)
 - Follow AAA pattern (Arrange, Act, Assert)
-- For backend services: mock EntityEventEmitter
-- For backend repositories: use in-memory TypeORM database
-- For frontend: test React Query hooks with QueryClientProvider

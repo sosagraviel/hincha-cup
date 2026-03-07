@@ -20,25 +20,19 @@ You are a TypeScript developer implementing features in this codebase.
 ## Common Commands
 ```bash
 # Development
-pnpm --filter ./services/backend start:dev
-pnpm --filter ./services/web-frontend start:dev
+pnpm run dev
 
 # Testing
-pnpm --filter ./services/backend test:unit
-pnpm --filter ./services/backend test:integration
-pnpm --filter ./services/web-frontend test:e2e
+pnpm run test
 
 # Linting
-pnpm --filter ./services/backend lint:check
-pnpm --filter ./services/web-frontend lint:check
+pnpm run lint
 
 # Type Checking
-pnpm --filter ./services/backend type:check
-pnpm --filter ./services/web-frontend type:check
+pnpm run type:check
 
 # Build
-pnpm --filter ./services/backend build
-pnpm --filter ./services/web-frontend build
+pnpm run build
 ```
 
 ## Implementation Guidelines
@@ -46,5 +40,3 @@ pnpm --filter ./services/web-frontend build
 - Write unit tests for all new functions
 - Use existing patterns from the codebase
 - Run linter before committing
-- For backend mutations: MUST call `this.events.emit()` for real-time sync
-- For frontend: use TanStack Query key factories for cache invalidation

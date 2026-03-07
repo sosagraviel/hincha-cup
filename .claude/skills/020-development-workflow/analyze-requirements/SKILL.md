@@ -1,8 +1,8 @@
 ---
 name: analyze-requirements
-description: Analyze ticket context and create detailed implementation plan. Use when asked to "analyze requirements", "create implementation plan", "plan this ticket", or after running /fetch-ticket-context. Analyzes Jira tickets, external documentation, and dependencies to produce a comprehensive plan with file changes, risks, and implementation steps.
+description: Analyze ticket context and create detailed implementation plan with two explicit modes - --from-context to use pre-fetched context, or --fetch to fetch fresh context from Jira. Analyzes Jira tickets, external documentation, and dependencies to produce a comprehensive plan with file changes, risks, and implementation steps.
 user-invocable: true
-argument-hint: [JIRA-KEY or path/to/context.md]
+argument-hint: [--from-context <path> | --fetch <JIRA-KEY>]
 disable-model-invocation: false
 allowed-tools:
   - Read
@@ -12,7 +12,7 @@ allowed-tools:
   - Grep
   - Edit
 metadata:
-  version: 1.0.0
+  version: 2.0.0
   category: sdlc-workflow
   triggers:
     - analyze requirements
@@ -51,46 +51,176 @@ This skill creates detailed implementation plans by:
 
 ## When to Use
 
-Activate this skill when:
-- After running `/fetch-ticket-context` to analyze gathered context
-- Given a Jira ticket key to analyze directly
-- Asked to "create an implementation plan" or "analyze requirements"
-- Starting work on a new ticket/feature
-- Need to understand scope before coding
+This skill has **two explicit modes**:
+
+### Mode 1: From Pre-Fetched Context (`--from-context`)
+
+Use this mode when context has already been gathered:
+- After running `/fetch-ticket-context` manually
+- When called by `implement-ticket` (Phase 2)
+- When you have a custom context file
+- When context is already available at `/tmp/context_JIRA-KEY.md`
+
+**Example:**
+```bash
+/analyze-requirements --from-context /tmp/context_PROJ-123.md
+```
+
+### Mode 2: Fetch and Analyze (`--fetch`)
+
+Use this mode for standalone requirement analysis:
+- When you want to analyze a ticket directly from Jira
+- When you haven't run `/fetch-ticket-context` yet
+- For quick analysis of any ticket
+- For exploratory planning
+
+**Example:**
+```bash
+/analyze-requirements --fetch PROJ-123
+```
+
+### When NOT to Use
+
+- Do NOT use without a flag (will error)
+- Do NOT use both flags together (will error)
+- Do NOT use for code implementation (use `/code-implementation` instead)
 
 ## Workflow
 
-### Phase 1: Load Context
+### Phase 0: Parse Arguments and Select Mode
 
-**Option A: From fetch-ticket-context output**
 ```bash
-# Context file typically at /tmp/context_JIRA-KEY.md
-CONTEXT_FILE="/tmp/context_${JIRA_KEY}.md"
+# Initialize variables
+MODE=""
+CONTEXT_FILE=""
+JIRA_KEY=""
 
-if [[ ! -f "$CONTEXT_FILE" ]]; then
-    echo "Running /fetch-ticket-context first..."
-    /fetch-ticket-context "$JIRA_KEY"
-fi
-```
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --from-context)
+            MODE="from-context"
+            CONTEXT_FILE="$2"
+            shift 2
+            ;;
+        --fetch)
+            MODE="fetch"
+            JIRA_KEY="$2"
+            shift 2
+            ;;
+        *)
+            echo "❌ Error: Unknown argument: $1"
+            echo ""
+            echo "Usage: /analyze-requirements [--from-context <path> | --fetch <JIRA-KEY>]"
+            echo ""
+            echo "Examples:"
+            echo "  /analyze-requirements --from-context /tmp/context_PROJ-123.md"
+            echo "  /analyze-requirements --fetch PROJ-123"
+            exit 1
+            ;;
+    esac
+done
 
-**Option B: From provided context file**
-```bash
-# User provides custom context file
-CONTEXT_FILE="$1"  # Argument to skill
-
-if [[ ! -f "$CONTEXT_FILE" ]]; then
-    echo "Error: Context file not found: $CONTEXT_FILE"
+# Validate mode selected
+if [[ -z "$MODE" ]]; then
+    echo "❌ Error: No mode specified"
+    echo ""
+    echo "You must specify either --from-context or --fetch:"
+    echo "  --from-context <path>    Analyze pre-fetched context file"
+    echo "  --fetch <JIRA-KEY>       Fetch context from Jira first, then analyze"
+    echo ""
+    echo "Examples:"
+    echo "  /analyze-requirements --from-context /tmp/context_PROJ-123.md"
+    echo "  /analyze-requirements --fetch PROJ-123"
     exit 1
 fi
+
+echo "✓ Mode selected: $MODE"
 ```
 
-**Option C: Fetch directly from Jira**
+### Phase 1: Load Context
+
+#### Mode 1: From Pre-Fetched Context
+
 ```bash
-# Fetch fresh context if not provided
-if [[ -z "$CONTEXT_FILE" ]] && [[ -n "$JIRA_KEY" ]]; then
-    echo "Fetching context for $JIRA_KEY..."
-    /fetch-ticket-context "$JIRA_KEY"
+if [[ "$MODE" == "from-context" ]]; then
+    echo "📁 Mode: Analyzing pre-fetched context"
+    echo "   Context file: $CONTEXT_FILE"
+
+    # Validate context file exists
+    if [[ ! -f "$CONTEXT_FILE" ]]; then
+        echo "❌ Error: Context file not found: $CONTEXT_FILE"
+        echo ""
+        echo "Make sure you've run /fetch-ticket-context first, or provide a valid path."
+        echo "Expected location: /tmp/context_<JIRA-KEY>.md"
+        exit 1
+    fi
+
+    # Validate file is not empty
+    if [[ ! -s "$CONTEXT_FILE" ]]; then
+        echo "❌ Error: Context file is empty: $CONTEXT_FILE"
+        echo ""
+        echo "The context file exists but contains no data."
+        echo "Try re-running /fetch-ticket-context"
+        exit 1
+    fi
+
+    # Extract JIRA key from context file if possible
+    JIRA_KEY=$(grep -oP "^# Jira Ticket: \K[A-Z]+-[0-9]+" "$CONTEXT_FILE" | head -1)
+
+    if [[ -z "$JIRA_KEY" ]]; then
+        echo "⚠️  Warning: Could not extract JIRA key from context file"
+        echo "   Using generic output filename"
+        JIRA_KEY="UNKNOWN"
+    fi
+
+    echo "✓ Context file loaded successfully"
+    echo "   Size: $(wc -l < "$CONTEXT_FILE") lines"
+    echo "   Jira Key: $JIRA_KEY"
+fi
+```
+
+#### Mode 2: Fetch and Analyze
+
+```bash
+if [[ "$MODE" == "fetch" ]]; then
+    echo "🔄 Mode: Fetching fresh context from Jira"
+    echo "   Jira Key: $JIRA_KEY"
+
+    # Validate JIRA key format
+    if [[ ! "$JIRA_KEY" =~ ^[A-Z]+-[0-9]+$ ]]; then
+        echo "❌ Error: Invalid JIRA key format: $JIRA_KEY"
+        echo ""
+        echo "Expected format: PROJ-123 (uppercase letters, dash, numbers)"
+        exit 1
+    fi
+
+    # Fetch context using fetch-ticket-context skill
+    echo "   Invoking /fetch-ticket-context..."
+
+    if ! /fetch-ticket-context "$JIRA_KEY"; then
+        echo "❌ Error: Failed to fetch context for $JIRA_KEY"
+        echo ""
+        echo "Possible reasons:"
+        echo "  - Ticket does not exist"
+        echo "  - Jira MCP not configured"
+        echo "  - Network connectivity issues"
+        exit 1
+    fi
+
+    # Set context file path
     CONTEXT_FILE="/tmp/context_${JIRA_KEY}.md"
+
+    # Validate fetch was successful
+    if [[ ! -f "$CONTEXT_FILE" ]]; then
+        echo "❌ Error: /fetch-ticket-context succeeded but context file not found"
+        echo "   Expected: $CONTEXT_FILE"
+        exit 1
+    fi
+
+    echo "✓ Context fetched successfully"
+    echo "   Context file: $CONTEXT_FILE"
+    echo "   Size: $(wc -l < "$CONTEXT_FILE") lines"
 fi
 ```
 
@@ -444,37 +574,73 @@ The skill produces a comprehensive plan file with this structure:
 
 ## Error Handling
 
-### Context File Not Found
+All error handling is now integrated into Phase 0 (argument parsing) and Phase 1 (context loading). Here are the comprehensive error scenarios:
+
+### No Mode Specified
 ```bash
-if [[ ! -f "$CONTEXT_FILE" ]]; then
-    echo "Error: Context file not found"
-    echo "Please run: /fetch-ticket-context $JIRA_KEY"
-    exit 1
-fi
+# User runs: /analyze-requirements (no flags)
+❌ Error: No mode specified
+
+You must specify either --from-context or --fetch:
+  --from-context <path>    Analyze pre-fetched context file
+  --fetch <JIRA-KEY>       Fetch context from Jira first, then analyze
+
+Examples:
+  /analyze-requirements --from-context /tmp/context_PROJ-123.md
+  /analyze-requirements --fetch PROJ-123
 ```
 
-### Invalid Jira Key
+### Invalid Flag
 ```bash
-if [[ ! "$JIRA_KEY" =~ ^[A-Z]+-[0-9]+$ ]]; then
-    echo "Error: Invalid Jira key format: $JIRA_KEY"
-    echo "Expected format: PROJ-123"
-    exit 1
-fi
+# User runs: /analyze-requirements --invalid-flag
+❌ Error: Unknown argument: --invalid-flag
+
+Usage: /analyze-requirements [--from-context <path> | --fetch <JIRA-KEY>]
 ```
 
-### Empty Context
+### Context File Not Found (--from-context mode)
 ```bash
-if [[ $(wc -l < "$CONTEXT_FILE") -lt 10 ]]; then
-    echo "Warning: Context file seems empty or incomplete"
-    echo "Consider re-fetching context"
-fi
+# User runs: /analyze-requirements --from-context /nonexistent/file.md
+❌ Error: Context file not found: /nonexistent/file.md
+
+Make sure you've run /fetch-ticket-context first, or provide a valid path.
+Expected location: /tmp/context_<JIRA-KEY>.md
 ```
 
-### Missing Project Structure
+### Empty Context File (--from-context mode)
+```bash
+# Context file exists but is empty
+❌ Error: Context file is empty: /tmp/context_PROJ-123.md
+
+The context file exists but contains no data.
+Try re-running /fetch-ticket-context
+```
+
+### Invalid JIRA Key Format (--fetch mode)
+```bash
+# User runs: /analyze-requirements --fetch invalid-key
+❌ Error: Invalid JIRA key format: invalid-key
+
+Expected format: PROJ-123 (uppercase letters, dash, numbers)
+```
+
+### Fetch Failed (--fetch mode)
+```bash
+# /fetch-ticket-context fails
+❌ Error: Failed to fetch context for PROJ-123
+
+Possible reasons:
+  - Ticket does not exist
+  - Jira MCP not configured
+  - Network connectivity issues
+```
+
+### Missing Project Structure (Both modes)
 ```bash
 if [[ ! -f "pyproject.toml" ]] && [[ ! -f "package.json" ]] && [[ ! -f "pom.xml" ]]; then
-    echo "Warning: Cannot detect project type"
-    echo "Manual analysis required for file changes"
+    echo "⚠️  Warning: Cannot detect project type"
+    echo "   Manual analysis may be required for file changes"
+    echo "   Continuing with generic analysis..."
 fi
 ```
 
@@ -643,14 +809,47 @@ Manual testing:
 
 ## Integration with Workflow
 
-This skill fits into the SDLC workflow:
+This skill fits into the SDLC workflow in two ways:
+
+### Workflow 1: Standalone Analysis (--fetch mode)
+
+For quick requirement analysis:
 
 ```bash
-# Step 1: Fetch context
+# Single command: Fetch + analyze
+/analyze-requirements --fetch PROJ-123
+
+# Review plan, address questions
+# [Manual review]
+
+# Implement based on plan
+/code-implementation PROJ-123
+```
+
+### Workflow 2: Orchestrated by implement-ticket (--from-context mode)
+
+When using the complete `/implement-ticket` workflow:
+
+```bash
+# Full automation
+/implement-ticket PROJ-123 --no-stop
+
+# implement-ticket internally runs:
+# Phase 1: Planner agent fetches context → /tmp/context_PROJ-123.md
+# Phase 2: Planner agent runs: /analyze-requirements --from-context /tmp/context_PROJ-123.md
+# Phase 3-6: Implementation, testing, PR creation
+```
+
+### Workflow 3: Manual Context + Analysis (--from-context mode)
+
+For custom workflows:
+
+```bash
+# Step 1: Fetch context manually
 /fetch-ticket-context PROJ-123
 
-# Step 2: Analyze and create plan (THIS SKILL)
-/analyze-requirements PROJ-123
+# Step 2: Analyze pre-fetched context (THIS SKILL)
+/analyze-requirements --from-context /tmp/context_PROJ-123.md
 
 # Step 3: Review plan, address questions
 # [Manual review]

@@ -1,38 +1,36 @@
 # Skills Inventory
 
-## Foundation (1 skill)
-- **start-task** - Task initialization and planning workflow
+## 010 - Foundation
+- **start-task**: Create isolated worktree for parallel development
 
-## Development Workflow (6 skills)
-- **implement-ticket** - Complete ticket implementation workflow
-- **analyze-requirements** - Requirements analysis and breakdown
-- **code-implementation** - Code implementation guidance
-- **create-sdd-ticket** - Software design document creation
-- **mastering-git-cli** - Git workflow and best practices
-- **architect-agent** - Architecture and design patterns
+## 020 - Development Workflow
+- **implement-ticket**: Implement tickets using AI agents
+- **analyze-requirements**: Analyze and refine requirements
+- **code-implementation**: Implement features with best practices
+- **create-sdd-ticket**: Create structured technical tickets
+- **mastering-git-cli**: Advanced Git command patterns
+- **architect-agent**: Multi-agent architecture planning
 
-## Quality Assurance (5 skills)
-- **code-quality-check** - Code quality validation
-- **security-review** - Security analysis and review
-- **create-pr** - Pull request creation workflow
-- **pr-reviewer-skill** - PR review automation
-- **jest-coverage-automation** - Jest test coverage management
-- **playwright-e2e-automation** - E2E testing with Playwright
+## 030 - Quality Assurance
+- **code-quality-check**: Comprehensive code quality checks
+- **security-review**: Security vulnerability scanning
+- **create-pr**: Create pull requests with templates
+- **pr-reviewer-skill**: Automated PR review
+- **jest-coverage-automation**: Jest test coverage automation
+- **playwright-e2e-automation**: E2E test automation with Playwright
 
-## Integrations (3 skills)
-- **fetch-ticket-context** - Ticket context retrieval
-- **jira** - Jira integration
-- **mastering-github-agent-skill** - GitHub operations
+## 040 - Integrations
+- **fetch-ticket-context**: Fetch ticket context from issue trackers
+- **jira**: Jira integration for ticket management
+- **mastering-github-agent-skill**: GitHub API automation
 
-## Language Frameworks (3 skills)
-- **mastering-typescript** - TypeScript best practices
-- **react-frontend** - React development patterns
-- **atomic-design-react** - Atomic design for React
+## 050 - Language & Frameworks
+- **mastering-typescript**: TypeScript patterns and best practices
+- **react-frontend**: React development patterns
+- **atomic-design-react**: Atomic Design System implementation
 
-## Infrastructure (1 skill)
-- **developing-with-docker** - Docker development workflow
+## 070 - Infrastructure
+- **developing-with-docker**: Docker development workflows
 
-## Project Context (1 skill)
-- **project-context** - Gira-specific hard-to-discover flows
-
-**Total: 21 skills installed**
+## Project-Specific
+- **project-context**: Hard-to-discover architectural knowledge for Gira

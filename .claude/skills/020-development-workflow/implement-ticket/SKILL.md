@@ -529,6 +529,65 @@ echo "Base branch: $BASE_BRANCH"
    - WARN if git remote inaccessible (soft warning, blocks PR creation)
    - **Recovery**: In autonomous mode, proceed on soft warnings, fail on hard requirements
 
+9. **E2E Framework Initialization (Frontend Projects)**
+   ```bash
+   # Check if project is a frontend project and lacks E2E framework
+   echo "Checking E2E framework setup..."
+
+   # Use stack-detection to check for frontend frameworks
+   STACK_INFO=$(node ai-agentic-framework/utils/stack-detection.js "$(pwd)")
+   HAS_FRONTEND=$(echo "$STACK_INFO" | jq -r '.frontend_frameworks | length > 0')
+
+   if [[ "$HAS_FRONTEND" == "true" ]]; then
+       echo "✓ Frontend project detected"
+
+       # Check for existing E2E framework
+       E2E_CHECK=$(node -e "
+           const { hasE2EFramework } = require('ai-agentic-framework/utils/stack-detection.js');
+           hasE2EFramework(process.cwd()).then(result => {
+               console.log(JSON.stringify(result));
+           });
+       ")
+
+       HAS_E2E=$(echo "$E2E_CHECK" | jq -r '.hasFramework')
+
+       if [[ "$HAS_E2E" == "false" ]]; then
+           echo "⚠️  No E2E framework detected"
+           echo "   Initializing Playwright for E2E testing..."
+
+           # Auto-initialize Playwright
+           if node ai-agentic-framework/utils/init-e2e-framework.js "$(pwd)" --framework=playwright; then
+               echo "✓ Playwright initialized successfully"
+
+               log_decision "Phase 0: Pre-Flight" \
+                   "Initialized Playwright E2E framework" \
+                   "Frontend project detected without E2E tests. Auto-initialized Playwright with best practices config. Added test:e2e scripts to package.json. Created e2e/example.spec.ts as template."
+           else
+               echo "⚠️  Playwright initialization failed (non-fatal)"
+               echo "   E2E tests may need manual setup later"
+
+               log_decision "Phase 0: Pre-Flight" \
+                   "Playwright initialization failed" \
+                   "Attempted auto-initialization but encountered errors. E2E tests will need manual setup."
+           fi
+       else
+           FRAMEWORK_NAME=$(echo "$E2E_CHECK" | jq -r '.framework')
+           CONFIG_FILE=$(echo "$E2E_CHECK" | jq -r '.configFile')
+           echo "✓ E2E framework detected: $FRAMEWORK_NAME"
+           if [[ "$CONFIG_FILE" != "null" ]]; then
+               echo "  Config: $CONFIG_FILE"
+           fi
+       fi
+   else
+       echo "✓ Not a frontend project, E2E framework not required"
+   fi
+   ```
+   - **Purpose**: Ensure frontend projects have E2E testing capability
+   - **Auto-initializes**: Playwright for frontend projects without E2E framework
+   - **Skips**: Backend-only projects (no frontend frameworks detected)
+   - **Non-fatal**: If initialization fails, logs warning and continues
+   - **Logged**: All initialization decisions documented in decision log
+
 **Pre-Flight Report**:
 ```
 ✓ Git status clean
@@ -544,6 +603,7 @@ echo "Base branch: $BASE_BRANCH"
 ✓ GitHub API: Connected
 ✓ Notion API: Connected
 ✓ Git remote: Accessible
+✓ E2E framework: Playwright detected (playwright.config.ts)
 
 Ready to start implementation!
 ```
@@ -887,15 +947,19 @@ else
     echo "  PLANNER MODE: Creating Implementation Plan"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-    # Invokes: /analyze-requirements
+    # Invokes: /analyze-requirements --from-context /tmp/context_${JIRA_KEY}.md
+    # - Uses pre-fetched context from Phase 1
     # - Identifies affected files
     # - Maps dependencies
     # - Assesses risks
     # - Creates step-by-step plan
+    #
+    # Note: Phase 1 already fetched context to /tmp/context_${JIRA_KEY}.md
+    # Phase 2 uses --from-context flag to analyze that pre-fetched context
 
     log_decision "Phase 2: Requirements Analysis (Planner Mode)" \
         "Using standard planner agent for implementation plan" \
-        "Fast linear pipeline. Plan includes affected files, dependencies, risks, and implementation steps."
+        "Fast linear pipeline. Planner agent invokes: /analyze-requirements --from-context /tmp/context_${JIRA_KEY}.md. Plan includes affected files, dependencies, risks, and implementation steps."
 fi
 ```
 
@@ -3125,8 +3189,8 @@ This orchestrator skill chains together:
 
 | Phase | Skill Invoked | Purpose |
 |-------|--------------|---------|
-| 1 | `/fetch-ticket-context` | Gather all context |
-| 2 | `/analyze-requirements` | Create implementation plan |
+| 1 | `/fetch-ticket-context` | Gather all context → writes `/tmp/context_JIRA-KEY.md` |
+| 2 | `/analyze-requirements --from-context /tmp/context_JIRA-KEY.md` | Create implementation plan from pre-fetched context |
 | 3 | `/code-implementation` | Write the code |
 | 3a | `/mastering-typescript` or `/mastering-python-skill` | Language guidance |
 | 4 | `/code-quality-check` | Quality validation |
