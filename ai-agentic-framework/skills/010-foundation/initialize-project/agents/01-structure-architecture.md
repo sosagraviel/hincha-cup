@@ -3,6 +3,8 @@ name: structure-architecture-analyzer
 model: haiku
 description: Analyzes codebase structure, frameworks, architecture patterns, and technical stack
 subagent_type: Explore
+run_in_background: true
+tools: Read, Grep, Glob, Bash, Tree, Cat
 ---
 
 # Structure & Architecture Analyzer
@@ -124,6 +126,7 @@ Read the appropriate manifest file(s) for each language:
 **BEFORE analyzing individual file types, discover the complete package structure:**
 
 Use Glob to find ALL packages/modules/workspaces:
+
 - `**/package.json` (JavaScript/TypeScript monorepos)
 - `**/pyproject.toml` or `**/setup.py` (Python)
 - `**/Cargo.toml` (Rust workspaces)
@@ -131,6 +134,7 @@ Use Glob to find ALL packages/modules/workspaces:
 - `pnpm-workspace.yaml`, `lerna.json`, `nx.json` (monorepo configs)
 
 List every package with its purpose:
+
 ```
 packages/shared         → Cross-cutting utilities, types, DTOs
 services/backend        → Main API server
@@ -140,6 +144,7 @@ libs/common            → Shared libraries
 ```
 
 **CRITICAL:** Identify shared/common packages — common names include:
+
 - `shared/`, `common/`, `packages/shared/`, `libs/shared/`
 - `utils/`, `core/`, `lib/`, `sdk/`, `common-utils/`
 - Language-specific: `shared-python/`, `shared-js/`, `utils-py/`
@@ -270,16 +275,19 @@ For EACH service package (backend, frontend, mobile, etc.), use Glob extensively
 After discovering the structure, extract the RULES:
 
 **Shared vs Local Decision Tree:**
+
 - **MUST go in shared**: Types/interfaces used by 2+ packages, DTOs crossing service boundaries, constants referenced by multiple services, validation schemas used client+server
 - **MUST stay local**: Service-specific business logic, database entities, controllers/routes, implementation details, service-specific utilities
 - **Gray area (document the project's choice)**: Error classes, API response types, formatting utilities
 
 **Import Conventions:**
+
 - How do services import from shared? (e.g., `import { UserDto } from '@shared/dto'`, `from shared.types import User`)
 - Are there barrel exports? (`shared/index.ts` re-exports everything?)
 - Document EXACT import patterns with 2-3 examples
 
 **Organizational Patterns:**
+
 - Monorepo organization: By layer (backend/frontend/shared)? By domain (user/, product/, order/)? Hybrid?
 - Module structure within services: Feature folders? Layer folders? Flat?
 - Co-location: Tests next to source or separate test/ directory?
@@ -291,9 +299,10 @@ After discovering the structure, extract the RULES:
 **Create a markdown table with these columns:**
 
 | Package | File Type | Location Pattern | Examples (3-5 real paths) | Notes |
-|---------|-----------|------------------|---------------------------|-------|
+| ------- | --------- | ---------------- | ------------------------- | ----- |
 
 **Requirements:**
+
 - **Minimum 20-30 rows** for typical full-stack monorepos (more for complex projects)
 - **REAL paths only** — never use placeholders like `example.types.ts` or `YourComponent.tsx`
 - **Shared packages FIRST** — start the table with shared/common packages to emphasize their importance
@@ -302,13 +311,13 @@ After discovering the structure, extract the RULES:
 
 **Example output format:**
 
-| Package | File Type | Location Pattern | Examples | Notes |
-|---------|-----------|------------------|----------|-------|
-| `packages/shared` | Shared DTOs | `packages/shared/src/dto/*.dto.ts` | `user.dto.ts`, `project.dto.ts`, `issue.dto.ts` | DTOs used by both frontend and backend live here |
-| `packages/shared` | Shared Types | `packages/shared/src/types/*.types.ts` | `user.types.ts`, `auth.types.ts`, `api.types.ts` | TypeScript interfaces/types for cross-service use |
-| `packages/shared` | Shared Utils | `packages/shared/src/utils/*.util.ts` | `date.util.ts`, `string.util.ts`, `validation.util.ts` | Helper functions used by multiple services |
-| `services/backend` | Entities | `services/backend/src/modules/*/entities/*.entity.ts` | `user/entities/user.entity.ts`, `project/entities/project.entity.ts` | TypeORM entities, vertical slice per module |
-| ... | ... | ... | ... | ... |
+| Package            | File Type    | Location Pattern                                      | Examples                                                             | Notes                                             |
+| ------------------ | ------------ | ----------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------- |
+| `packages/shared`  | Shared DTOs  | `packages/shared/src/dto/*.dto.ts`                    | `user.dto.ts`, `project.dto.ts`, `issue.dto.ts`                      | DTOs used by both frontend and backend live here  |
+| `packages/shared`  | Shared Types | `packages/shared/src/types/*.types.ts`                | `user.types.ts`, `auth.types.ts`, `api.types.ts`                     | TypeScript interfaces/types for cross-service use |
+| `packages/shared`  | Shared Utils | `packages/shared/src/utils/*.util.ts`                 | `date.util.ts`, `string.util.ts`, `validation.util.ts`               | Helper functions used by multiple services        |
+| `services/backend` | Entities     | `services/backend/src/modules/*/entities/*.entity.ts` | `user/entities/user.entity.ts`, `project/entities/project.entity.ts` | TypeORM entities, vertical slice per module       |
+| ...                | ...          | ...                                                   | ...                                                                  | ...                                               |
 
 **If the project uses different naming** (utils instead of shared, lib instead of common, etc.), adapt the table to reflect the ACTUAL structure.
 

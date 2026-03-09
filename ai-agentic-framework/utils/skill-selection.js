@@ -518,6 +518,7 @@ async function selectIntegrationSkills(stackProfile, aiStorePath) {
 
 /**
  * Copy selected skills to project .claude/skills/ directory
+ * IMPORTANT: Preserves full category path (e.g., 010-foundation/initialize-project)
  */
 async function copySkills(selection, projectPath) {
   const copied = [];
@@ -541,14 +542,18 @@ async function copySkills(selection, projectPath) {
 
   for (const skill of allSkills) {
     try {
-      const destPath = path.join(destBase, skill.name);
+      // FIXED: Preserve category path - copy to .claude/skills/category/skill-name
+      const destPath = path.join(destBase, skill.category, skill.name);
 
       // Check if skill already exists
       if (await directoryExists(destPath)) {
         // Compare versions (simplified - would need to read frontmatter)
-        console.log(`Skill ${skill.name} already exists, skipping...`);
+        console.log(`Skill ${skill.category}/${skill.name} already exists, skipping...`);
         continue;
       }
+
+      // Ensure category directory exists
+      await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
 
       // Copy skill directory
       await copyDirectory(skill.source_path, destPath);
@@ -565,12 +570,14 @@ async function copySkills(selection, projectPath) {
 
       copied.push({
         name: skill.name,
+        category: skill.category,
         dest_path: destPath,
         reason: skill.reason
       });
     } catch (error) {
       errors.push({
         name: skill.name,
+        category: skill.category,
         error: error.message
       });
     }
@@ -696,38 +703,47 @@ module.exports = {
 // ============================================================================
 
 if (require.main === module) {
-  const aiStorePath = process.argv[2] || path.join(__dirname, '..');
-  const mockStackProfile = {
-    primary_language: 'typescript',
-    backend: { framework: 'nestjs' },
-    frontend: { framework: 'react' },
-    testing: [{ name: 'jest' }],
-    cloud: [{ name: 'gcp' }],
-    containers: [{ name: 'docker' }]
-  };
+  // FIXED: Accept proper command-line arguments from run-phase5.sh
+  // Usage: node skill-selection.js <stack-profile.json> <ai-framework-path> <project-path>
+  const stackProfilePath = process.argv[2];
+  const aiStorePath = process.argv[3] || path.join(__dirname, '..');
+  const projectPath = process.argv[4] || process.cwd();
 
-  console.log(`Selecting skills from: ${aiStorePath}\n`);
+  if (!stackProfilePath) {
+    console.error('Usage: node skill-selection.js <stack-profile.json> <ai-framework-path> <project-path>');
+    process.exit(1);
+  }
 
-  selectSkills(mockStackProfile, aiStorePath)
-    .then(selection => {
-      console.log('Skill Selection Results:\n');
-      console.log(`Always Copied: ${selection.always_copied.length}`);
-      console.log(`Language Specific: ${selection.language_specific.length}`);
-      console.log(`Frontend: ${selection.frontend.length}`);
-      console.log(`Backend: ${selection.backend.length}`);
-      console.log(`Cloud: ${selection.cloud.length}`);
-      console.log(`Infrastructure: ${selection.infrastructure.length}`);
-      console.log(`Integrations: ${selection.integrations.length}`);
-      console.log(`Missing: ${selection.missing.length}`);
-      console.log(`Total: ${selection.total}\n`);
+  // Read stack profile from JSON file
+  const stackProfile = JSON.parse(fs.readFileSync(stackProfilePath, 'utf8'));
 
-      if (selection.missing.length > 0) {
-        console.log('Missing skills:');
-        selection.missing.forEach(s => console.log(`  - ${s.name}: ${s.reason}`));
-      }
+  // Select skills based on stack
+  selectSkills(stackProfile, aiStorePath)
+    .then(async (selection) => {
+      // FIXED: Copy skills to project (this was missing!)
+      const copyResult = await copySkills(selection, projectPath);
+
+      // Output results as JSON for run-phase5.sh to parse
+      // Include full skill arrays for index generation
+      const result = {
+        total: selection.total,
+        always_copied: selection.always_copied,
+        language_specific: selection.language_specific,
+        frontend: selection.frontend,
+        backend: selection.backend,
+        cloud: selection.cloud,
+        infrastructure: selection.infrastructure,
+        integrations: selection.integrations,
+        missing: selection.missing,
+        copied: copyResult.copied,
+        errors: copyResult.errors
+      };
+
+      console.log(JSON.stringify(result));
     })
     .catch(error => {
       console.error('Error:', error.message);
+      console.error(error.stack);
       process.exit(1);
     });
 }

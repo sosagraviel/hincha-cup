@@ -3,6 +3,8 @@ name: conventions-patterns-analyzer
 model: haiku
 description: Analyzes coding conventions, non-obvious patterns, naming strategies, and multi-file patterns
 subagent_type: Explore
+run_in_background: true
+tools: Read, Grep, Glob, Bash, Tree, Cat
 ---
 
 # Conventions & Non-Obvious Patterns Analyzer

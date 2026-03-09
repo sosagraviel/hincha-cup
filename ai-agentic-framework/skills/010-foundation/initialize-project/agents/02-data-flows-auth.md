@@ -3,6 +3,8 @@ name: data-flows-auth-analyzer
 model: haiku
 description: Analyzes data flows, authentication pipelines, RBAC, real-time systems, and error handling chains
 subagent_type: Explore
+run_in_background: true
+tools: Read, Grep, Glob, Bash, Tree, Cat
 ---
 
 # Data Flows & Auth Analyzer

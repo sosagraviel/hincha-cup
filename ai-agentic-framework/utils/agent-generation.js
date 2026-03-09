@@ -637,45 +637,45 @@ module.exports = {
 // ============================================================================
 
 if (require.main === module) {
-  const projectPath = process.argv[2] || process.cwd();
-  const templatesPath = process.argv[3] || path.join(__dirname, '..', 'agents', 'templates');
+  // FIXED: Accept proper command-line arguments from run-phase5.sh
+  // Usage: node agent-generation.js <stack-profile.json> <skill-selection.json> <project-path> <templates-path>
+  const stackProfilePath = process.argv[2];
+  const skillSelectionPath = process.argv[3];
+  const projectPath = process.argv[4] || process.cwd();
+  const templatesPath = process.argv[5] || path.join(__dirname, '..', 'agents', 'templates');
 
-  const mockStackProfile = {
-    primary_language: 'typescript',
-    backend: { framework: 'nestjs' },
-    frontend: { framework: 'react' },
-    testing: [{ name: 'jest', type: 'unit' }, { name: 'playwright', type: 'e2e' }],
-    package_manager: 'pnpm'
-  };
+  if (!stackProfilePath || !skillSelectionPath) {
+    console.error('Usage: node agent-generation.js <stack-profile.json> <skill-selection.json> <project-path> <templates-path>');
+    process.exit(1);
+  }
 
-  const mockSkillSelection = {
-    always_copied: [{ name: 'project-context' }],
-    language_specific: [{ name: 'mastering-typescript' }],
-    frontend: [{ name: 'react-frontend' }],
-    backend: [],
-    cloud: [],
-    infrastructure: [],
-    integrations: []
-  };
+  // Read stack profile and skill selection from JSON files
+  const stackProfile = JSON.parse(fs.readFileSync(stackProfilePath, 'utf8'));
+  const skillSelection = JSON.parse(fs.readFileSync(skillSelectionPath, 'utf8'));
 
-  console.log(`Generating agents for: ${projectPath}\n`);
+  // Generate agents
+  generateAgents(stackProfile, skillSelection, projectPath, templatesPath)
+    .then(async (generation) => {
+      // FIXED: Write agents to disk (this was missing!)
+      const writeResult = await writeAgents(generation, projectPath);
 
-  generateAgents(mockStackProfile, mockSkillSelection, projectPath, templatesPath)
-    .then(generation => {
-      console.log('Agent Generation Results:\n');
-      console.log(`Planning: ${generation.planning.length}`);
-      console.log(`Implementation: ${generation.implementation.length}`);
-      console.log(`Testing: ${generation.testing.length}`);
-      console.log(`Review: ${generation.review.length}`);
-      console.log(`Total: ${generation.total}\n`);
+      // Output results as JSON for run-phase5.sh to parse
+      // Include full agent arrays for index generation
+      const result = {
+        total: generation.total,
+        planning: generation.planning,
+        implementation: generation.implementation,
+        testing: generation.testing,
+        review: generation.review,
+        written: writeResult.written,
+        errors: writeResult.errors
+      };
 
-      generation.planning.forEach(a => console.log(`  - ${a.name} (${a.model})`));
-      generation.implementation.forEach(a => console.log(`  - ${a.name} (${a.model})`));
-      generation.testing.forEach(a => console.log(`  - ${a.name} (${a.model})`));
-      generation.review.forEach(a => console.log(`  - ${a.name} (${a.model})`));
+      console.log(JSON.stringify(result));
     })
     .catch(error => {
       console.error('Error:', error.message);
+      console.error(error.stack);
       process.exit(1);
     });
 }

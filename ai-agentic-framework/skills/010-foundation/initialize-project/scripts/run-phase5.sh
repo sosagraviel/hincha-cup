@@ -18,7 +18,8 @@ node "$AI_FRAMEWORK_PATH/utils/stack-detection.js" > /tmp/stack-profile.json
 echo "✓ Stack detected"
 
 # Step 5.2: Select and copy skills
-echo "Step 5.2: Selecting skills..."
+echo "Step 5.2: Selecting and copying skills..."
+# FIXED: Updated to match new CLI signature and to actually copy skills
 node "$AI_FRAMEWORK_PATH/utils/skill-selection.js" \
   /tmp/stack-profile.json \
   "$AI_FRAMEWORK_PATH" \
@@ -26,10 +27,12 @@ node "$AI_FRAMEWORK_PATH/utils/skill-selection.js" \
 
 # Display summary
 SKILL_COUNT=$(cat /tmp/skill-selection-result.json | node -e "const s=JSON.parse(require('fs').readFileSync(0));console.log(s.total);")
-echo "✓ $SKILL_COUNT skills copied"
+COPIED_COUNT=$(cat /tmp/skill-selection-result.json | node -e "const s=JSON.parse(require('fs').readFileSync(0));console.log((s.copied||[]).length);")
+echo "✓ $COPIED_COUNT/$SKILL_COUNT skills copied (preserving category paths)"
 
 # Step 5.3: Generate and write agents
-echo "Step 5.3: Generating agents..."
+echo "Step 5.3: Generating and writing agents..."
+# FIXED: Updated to match new CLI signature and to actually write agents
 node "$AI_FRAMEWORK_PATH/utils/agent-generation.js" \
   /tmp/stack-profile.json \
   /tmp/skill-selection-result.json \
@@ -38,7 +41,8 @@ node "$AI_FRAMEWORK_PATH/utils/agent-generation.js" \
 
 # Display summary
 AGENT_COUNT=$(cat /tmp/agent-generation-result.json | node -e "const g=JSON.parse(require('fs').readFileSync(0));console.log(g.total);")
-echo "✓ $AGENT_COUNT agents generated"
+WRITTEN_COUNT=$(cat /tmp/agent-generation-result.json | node -e "const g=JSON.parse(require('fs').readFileSync(0));console.log((g.written||[]).length);")
+echo "✓ $WRITTEN_COUNT/$AGENT_COUNT agents generated and written"
 
 # Step 5.4: Copy commands
 echo "Step 5.4: Copying commands..."

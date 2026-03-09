@@ -3,6 +3,8 @@ name: devops-workflow-analyzer
 model: haiku
 description: Analyzes development workflow, Docker setup, scripts, testing, linting, and environment configuration
 subagent_type: Explore
+run_in_background: true
+tools: Read, Grep, Glob, Bash, Tree, Cat
 ---
 
 # DevOps & Development Workflow Analyzer
