@@ -1,0 +1,15 @@
+{
+  "$schema": "https://claude.ai/schemas/settings.json",
+  "autoApprovalPatterns": {
+    "bash": [
+      "ai-agentic-framework/skills/*/scripts/**",
+      "ai-agentic-framework/utils/**",
+      ".claude/skills/*/scripts/**"
+    ],
+    "read": [
+      "ai-agentic-framework/**",
+      ".claude/**"
+    ]
+  },
+  "_comment": "Auto-approval patterns for AI Framework. Allows initialize-project and other skills to run utility scripts without asking for permission each time."
+}

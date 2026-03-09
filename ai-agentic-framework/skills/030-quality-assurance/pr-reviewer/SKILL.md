@@ -54,6 +54,7 @@ This skill performs code reviews by:
 ## When to Use
 
 Activate this skill when:
+
 - A GitHub PR URL is provided with a review request
 - Receiving "review this PR" or "code review" requests
 - Checking PR quality before merging
@@ -80,6 +81,7 @@ python scripts/fetch_pr_data.py <pr_url> [--output-dir <dir>] [--no-clone]
 ```
 
 **Actions performed:**
+
 - Parse PR URL to extract owner, repo, and PR number
 - Create directory structure: `<output-dir>/PRs/<repo-name>/<PR-NUMBER>/`
 - Fetch PR metadata (title, author, state, branches, labels)
@@ -89,6 +91,7 @@ python scripts/fetch_pr_data.py <pr_url> [--output-dir <dir>] [--no-clone]
 - Optionally clone source branch and generate git diff
 
 **Example:**
+
 ```bash
 python scripts/fetch_pr_data.py https://github.com/facebook/react/pull/28476
 
@@ -100,6 +103,7 @@ python scripts/fetch_pr_data.py https://github.com/owner/repo/pull/123 --no-clon
 ```
 
 **Output structure:**
+
 ```
 /tmp/PRs/<repo-name>/<PR-NUMBER>/
 ├── metadata.json           # PR metadata (title, author, branches)
@@ -126,6 +130,7 @@ After fetching, analyze collected data against review criteria:
 7. Apply review criteria - Evaluate against comprehensive checklist
 
 Use the Read tool to examine files:
+
 ```
 Read /tmp/PRs/<repo-name>/<PR-NUMBER>/SUMMARY.txt
 Read /tmp/PRs/<repo-name>/<PR-NUMBER>/metadata.json
@@ -147,11 +152,13 @@ Creates three files in `pr_review_dir/pr/`:
 3. **`pr/inline.md`** - Proposed inline comments with code snippets
 
 **Also creates slash commands** in `.claude/commands/`:
+
 - `/send` - Post human.md and approve PR
 - `/send-decline` - Post human.md and request changes
 - `/show` - Open review directory in VS Code
 
 **Findings JSON structure**:
+
 ```json
 {
   "summary": "Overall assessment of the PR...",
@@ -200,6 +207,7 @@ Creates three files in `pr_review_dir/pr/`:
 **Use `/show` to open the review directory in VS Code.**
 
 Actions available:
+
 - Read `pr/review.md` - Detailed analysis
 - Edit `pr/human.md` - Modify before posting
 - Review `pr/inline.md` - Check proposed comments
@@ -212,17 +220,21 @@ Actions available:
 Post the review when ready:
 
 **Option A: Approve the PR**
+
 ```
 /send
 ```
+
 - Posts `pr/human.md` as comment
 - Approves the PR
 - Confirms action
 
 **Option B: Request Changes**
+
 ```
 /send-decline
 ```
+
 - Posts `pr/human.md` as comment
 - Requests changes on the PR
 - Confirms action
@@ -234,17 +246,18 @@ Review `pr/inline.md` and run the provided commands for specific code comments.
 
 Reference `references/review_criteria.md` for comprehensive checklist. Review against these categories:
 
-| Category | Key Questions |
-|----------|--------------|
-| Functionality | Does code solve the problem? Bugs? Edge cases? |
-| Readability | Clear code? Meaningful names? DRY? |
-| Style | Follows linter rules? Consistent with codebase? |
-| Performance | Efficient algorithms? Scalable? |
-| Security | Vulnerabilities addressed? Secrets protected? |
-| Testing | Tests exist? Cover happy paths and edge cases? |
-| PR Quality | Focused scope? Clean commits? Clear description? |
+| Category      | Key Questions                                    |
+| ------------- | ------------------------------------------------ |
+| Functionality | Does code solve the problem? Bugs? Edge cases?   |
+| Readability   | Clear code? Meaningful names? DRY?               |
+| Style         | Follows linter rules? Consistent with codebase?  |
+| Performance   | Efficient algorithms? Scalable?                  |
+| Security      | Vulnerabilities addressed? Secrets protected?    |
+| Testing       | Tests exist? Cover happy paths and edge cases?   |
+| PR Quality    | Focused scope? Clean commits? Clear description? |
 
 **Priority markers for findings:**
+
 - Blocker: Must be fixed before merge
 - Important: Should be addressed
 - Nit: Nice to have, optional
@@ -258,12 +271,12 @@ Reference `references/review_criteria.md` for comprehensive checklist. Review ag
 
 This skill includes comprehensive reference guides:
 
-| Reference | Purpose |
-|-----------|---------|
+| Reference                       | Purpose                                                                |
+| ------------------------------- | ---------------------------------------------------------------------- |
 | `references/review_criteria.md` | Complete checklist covering functionality, security, testing, and more |
-| `references/gh_cli_guide.md` | Quick reference for GitHub CLI commands |
-| `references/scenarios.md` | Detailed workflows for common review scenarios |
-| `references/troubleshooting.md` | Common issues and solutions |
+| `references/gh_cli_guide.md`    | Quick reference for GitHub CLI commands                                |
+| `references/scenarios.md`       | Detailed workflows for common review scenarios                         |
+| `references/troubleshooting.md` | Common issues and solutions                                            |
 
 ## Scripts Reference
 
@@ -288,6 +301,7 @@ python scripts/generate_review_files.py <pr_review_dir> --findings <findings_jso
 ```
 
 **Creates:**
+
 - `pr/review.md` - Detailed internal review
 - `pr/human.md` - Clean review for posting
 - `pr/inline.md` - Proposed inline comments with commands
@@ -312,24 +326,28 @@ Options:
 ## Best Practices
 
 ### Communication
+
 - Frame feedback as suggestions, not criticism
 - Explain why an issue matters, not just what is wrong
 - Acknowledge excellent practices
 - Prioritize blockers first, style issues last
 
 ### Review Efficiency
+
 - Use scripts to automate data fetching and comment posting
 - Reference `review_criteria.md` as checklist
 - Focus: Critical issues > Important > Nice-to-have
 - Review promptly (within 24 hours if possible)
 
 ### Inline Comments
+
 - Reference exact lines and files
 - Provide better alternatives
 - Test inline comments on test PRs first
 - Use sparingly to avoid overwhelming
 
 ### PR Size Handling
+
 - Large PRs (>400 lines): Suggest splitting
 - Review in logical chunks
 - Focus on architecture for large changes

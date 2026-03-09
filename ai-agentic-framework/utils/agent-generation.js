@@ -268,6 +268,13 @@ async function generateImplementerAgent(templatesPath, stackProfile, skills, com
   content = content.replace(/\{\{unit_test_command\}\}/g, commands.unit_test_command || 'echo "No test command"');
   content = content.replace(/\{\{build_command\}\}/g, commands.build_command || 'echo "No build command"');
 
+  // NEW: Add skills documentation
+  content = content.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(skills));
+
+  // NEW: Add stack-specific patterns
+  const stackPatterns = getStackSpecificPatterns(stackProfile);
+  content = content.replace(/\{\{stack_specific_patterns\}\}/g, stackPatterns);
+
   // Inject framework-specific patterns
   if (stackProfile.backend?.framework === 'nestjs') {
     content = injectNestJSPatterns(content);
@@ -310,6 +317,29 @@ async function generateTesterAgents(templatesPath, stackProfile, skills, command
     unitContent = unitContent.replace(/\{\{integration_test_command\}\}/g, commands.integration_test_command || commands.unit_test_command);
     unitContent = unitContent.replace(/\{\{coverage_command\}\}/g, commands.coverage_command || 'npm test -- --coverage');
 
+    // NEW: Add skills documentation
+    unitContent = unitContent.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(skills));
+
+    // NEW: Add stack-specific test patterns
+    const testPatterns = getStackTestPatterns(stackProfile);
+    unitContent = unitContent.replace(/\{\{stack_test_patterns\}\}/g, testPatterns);
+
+    // File extension and integration test framework
+    const fileExtension = (language === 'typescript' || language === 'javascript') ? 'typescript' : 'python';
+    unitContent = unitContent.replace(/\{\{file_extension\}\}/g, fileExtension);
+    unitContent = unitContent.replace(/\{\{integration_test_framework\}\}/g, commands.test_framework || 'jest');
+
+    // Test commands
+    unitContent = unitContent.replace(/\{\{test_command\}\}/g, commands.unit_test_command || 'npm test');
+    unitContent = unitContent.replace(/\{\{test_file_command\}\}/g, `${commands.unit_test_command || 'npm test'} -- <test-file>`);
+    unitContent = unitContent.replace(/\{\{test_watch_command\}\}/g, `${commands.unit_test_command || 'npm test'} -- --watch`);
+    unitContent = unitContent.replace(/\{\{test_integration_command\}\}/g, commands.integration_test_command || commands.unit_test_command);
+    unitContent = unitContent.replace(/\{\{coverage_view_command\}\}/g,
+      (language === 'typescript' || language === 'javascript')
+        ? 'open coverage/lcov-report/index.html'
+        : 'open htmlcov/index.html'
+    );
+
     // Test file patterns
     if (language === 'typescript' || language === 'javascript') {
       unitContent = unitContent.replace(/\{\{test_file_pattern\}\}/g, '*.spec.ts or *.test.ts');
@@ -320,6 +350,13 @@ async function generateTesterAgents(templatesPath, stackProfile, skills, command
       unitContent = unitContent.replace(/\{\{mock_library\}\}/g, 'pytest-mock, unittest.mock');
       unitContent = unitContent.replace(/\{\{assertion_style\}\}/g, 'assert value == expected');
     }
+
+    // NEW: Add example placeholders
+    const examples = getExamplePlaceholders(language, stackProfile);
+    Object.entries(examples).forEach(([key, value]) => {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      unitContent = unitContent.replace(regex, value);
+    });
 
     // Validate template substitution
     validateTemplateSubstitution(unitContent, 'tester-unit.template.md');
@@ -348,6 +385,13 @@ async function generateTesterAgents(templatesPath, stackProfile, skills, command
       e2eContent = e2eContent.replace(/\{\{e2e_command\}\}/g, commands.e2e_test_command || 'npx playwright test');
       e2eContent = e2eContent.replace(/\{\{e2e_test_pattern\}\}/g, '*.spec.ts or *.e2e.ts');
       e2eContent = e2eContent.replace(/\{\{e2e_ui_mode\}\}/g, `${stackProfile.package_manager || 'npx'} playwright test --ui`);
+
+      // NEW: Add skills documentation
+      e2eContent = e2eContent.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(skills));
+
+      // NEW: Add stack-specific E2E patterns
+      const e2ePatterns = getStackE2EPatterns(stackProfile);
+      e2eContent = e2eContent.replace(/\{\{stack_e2e_patterns\}\}/g, e2ePatterns);
 
       // Validate template substitution
       validateTemplateSubstitution(e2eContent, 'tester-e2e.template.md');
@@ -596,6 +640,271 @@ async function generateAgentIndex(generation, projectPath, projectName) {
   indexMd += 'To list agents: `ls .claude/agents/`\n';
 
   return indexMd;
+}
+
+// ============================================================================
+// Helper Functions for Template Variable Substitution
+// ============================================================================
+
+/**
+ * Generate skills documentation section for agent templates
+ */
+function generateSkillsDocumentation(skills) {
+  if (!skills || skills.length === 0) {
+    return 'No skills preloaded.';
+  }
+
+  let doc = 'The following skills are preloaded and available:\n\n';
+  skills.forEach(skill => {
+    doc += `- **${skill}**: Provides patterns and conventions for this area\n`;
+  });
+
+  return doc;
+}
+
+/**
+ * Get stack-specific patterns for implementer agent
+ */
+function getStackSpecificPatterns(stackProfile) {
+  const language = stackProfile.primary_language;
+  const backend = stackProfile.backend?.framework;
+  const frontend = stackProfile.frontend?.framework;
+
+  let patterns = '';
+
+  // TypeScript/JavaScript patterns
+  if (language === 'typescript' || language === 'javascript') {
+    patterns += '\n### TypeScript Best Practices\n\n';
+    patterns += '- Use explicit return types on exported functions\n';
+    patterns += '- Prefer interfaces over type aliases for object shapes\n';
+    patterns += '- Use const assertions for readonly data\n';
+    patterns += '- Avoid `any` - use `unknown` if type is truly unknown\n';
+    patterns += '- Use optional chaining (`?.`) and nullish coalescing (`??`)\n';
+  }
+
+  // Python patterns
+  if (language === 'python') {
+    patterns += '\n### Python Best Practices\n\n';
+    patterns += '- Use type hints on all function parameters and returns\n';
+    patterns += '- Follow PEP 8 style guide (enforced by Black)\n';
+    patterns += '- Use dataclasses or Pydantic models for structured data\n';
+    patterns += '- Prefer f-strings for string formatting\n';
+    patterns += '- Use context managers (`with`) for resource management\n';
+  }
+
+  // Backend framework patterns
+  if (backend) {
+    patterns += `\n### ${backend.toUpperCase()} Patterns\n\n`;
+    if (backend === 'nestjs') {
+      patterns += '- Use dependency injection via constructor\n';
+      patterns += '- Organize code in modules (feature-based slicing)\n';
+      patterns += '- Use DTOs for request/response validation\n';
+      patterns += '- Apply guards for authentication/authorization\n';
+    } else if (backend === 'fastapi') {
+      patterns += '- Use Pydantic models for request/response schemas\n';
+      patterns += '- Leverage dependency injection with Depends()\n';
+      patterns += '- Use async/await for all I/O operations\n';
+      patterns += '- Apply middleware for cross-cutting concerns\n';
+    } else if (backend === 'django') {
+      patterns += '- Follow Django app structure (models, views, urls, admin)\n';
+      patterns += '- Use Django ORM for database operations\n';
+      patterns += '- Create migrations after model changes\n';
+      patterns += '- Use class-based views for complex logic\n';
+    }
+  }
+
+  // Frontend framework patterns
+  if (frontend) {
+    patterns += `\n### ${frontend.toUpperCase()} Patterns\n\n`;
+    if (frontend === 'react') {
+      patterns += '- Use functional components with hooks\n';
+      patterns += '- Extract custom hooks for reusable logic\n';
+      patterns += '- Memoize expensive computations with useMemo\n';
+      patterns += '- Use useCallback for stable function references\n';
+      patterns += '- Prefer composition over prop drilling\n';
+    } else if (frontend === 'vue') {
+      patterns += '- Use Composition API (setup, ref, computed, watch)\n';
+      patterns += '- Extract composables for reusable logic\n';
+      patterns += '- Use provide/inject for dependency injection\n';
+      patterns += '- Leverage Vue reactivity system\n';
+    }
+  }
+
+  return patterns || 'Follow general best practices for your stack.';
+}
+
+/**
+ * Get stack-specific test patterns for tester agent
+ */
+function getStackTestPatterns(stackProfile) {
+  const language = stackProfile.primary_language;
+  const backend = stackProfile.backend?.framework;
+
+  let patterns = '';
+
+  // TypeScript/JavaScript test patterns
+  if (language === 'typescript' || language === 'javascript') {
+    patterns += '\n### Jest/Vitest Patterns\n\n';
+    patterns += '```typescript\n';
+    patterns += "describe('Feature', () => {\n";
+    patterns += "  beforeEach(() => {\n";
+    patterns += '    // Setup before each test\n';
+    patterns += '  });\n\n';
+    patterns += "  it('should handle success case', () => {\n";
+    patterns += '    const result = functionUnderTest();\n';
+    patterns += '    expect(result).toBe(expected);\n';
+    patterns += '  });\n\n';
+    patterns += "  it('should handle error case', () => {\n";
+    patterns += '    expect(() => functionUnderTest()).toThrow();\n';
+    patterns += '  });\n';
+    patterns += '});\n';
+    patterns += '```\n';
+  }
+
+  // Python test patterns
+  if (language === 'python') {
+    patterns += '\n### Pytest Patterns\n\n';
+    patterns += '```python\n';
+    patterns += 'class TestFeature:\n';
+    patterns += '    def setup_method(self):\n';
+    patterns += '        # Setup before each test\n';
+    patterns += '        pass\n\n';
+    patterns += '    def test_success_case(self):\n';
+    patterns += '        result = function_under_test()\n';
+    patterns += '        assert result == expected\n\n';
+    patterns += '    def test_error_case(self):\n';
+    patterns += '        with pytest.raises(ValueError):\n';
+    patterns += '            function_under_test()\n';
+    patterns += '```\n';
+  }
+
+  // Backend-specific test patterns
+  if (backend === 'nestjs') {
+    patterns += '\n### NestJS Integration Test Pattern\n\n';
+    patterns += '```typescript\n';
+    patterns += "describe('POST /api/resource', () => {\n";
+    patterns += "  it('should create resource', () => {\n";
+    patterns += '    return request(app.getHttpServer())\n';
+    patterns += "      .post('/api/resource')\n";
+    patterns += '      .send({ name: "Test" })\n';
+    patterns += '      .expect(201)\n';
+    patterns += '      .expect((res) => {\n';
+    patterns += "        expect(res.body).toHaveProperty('id');\n";
+    patterns += '      });\n';
+    patterns += '  });\n';
+    patterns += '});\n';
+    patterns += '```\n';
+  } else if (backend === 'fastapi') {
+    patterns += '\n### FastAPI Test Pattern\n\n';
+    patterns += '```python\n';
+    patterns += 'def test_create_resource(client):\n';
+    patterns += '    response = client.post(\n';
+    patterns += '        "/api/resource",\n';
+    patterns += '        json={"name": "Test"}\n';
+    patterns += '    )\n';
+    patterns += '    assert response.status_code == 201\n';
+    patterns += '    assert "id" in response.json()\n';
+    patterns += '```\n';
+  }
+
+  return patterns || 'Follow standard testing patterns for your stack.';
+}
+
+/**
+ * Get stack-specific E2E patterns for e2e tester agent
+ */
+function getStackE2EPatterns(stackProfile) {
+  const frontend = stackProfile.frontend?.framework;
+
+  let patterns = '';
+
+  if (frontend === 'react') {
+    patterns += '\n### React E2E Patterns\n\n';
+    patterns += '- Use data-testid attributes for component identification\n';
+    patterns += '- Test user interactions (clicks, form fills, navigation)\n';
+    patterns += '- Verify React Router navigation\n';
+    patterns += '- Test state persistence across page reloads\n';
+    patterns += '- Mock API endpoints with MSW or Playwright routes\n';
+  } else if (frontend === 'vue') {
+    patterns += '\n### Vue E2E Patterns\n\n';
+    patterns += '- Use data-cy or data-test attributes\n';
+    patterns += '- Test Vue Router navigation\n';
+    patterns += '- Verify Vuex/Pinia state changes\n';
+    patterns += '- Test component events and emit handlers\n';
+  } else if (frontend === 'angular') {
+    patterns += '\n### Angular E2E Patterns\n\n';
+    patterns += '- Use Angular test attributes ([data-test])\n';
+    patterns += '- Test routing and guards\n';
+    patterns += '- Verify services and dependency injection\n';
+    patterns += '- Test reactive forms validation\n';
+  }
+
+  patterns += '\n### General E2E Best Practices\n\n';
+  patterns += '- Test user flows, not implementation details\n';
+  patterns += '- Use semantic selectors (roles, labels, text)\n';
+  patterns += '- Wait for network idle before assertions\n';
+  patterns += '- Test across multiple viewports (mobile, tablet, desktop)\n';
+  patterns += '- Mock external dependencies (APIs, third-party services)\n';
+
+  return patterns || 'Follow standard E2E testing patterns for your stack.';
+}
+
+/**
+ * Get example placeholders for test templates
+ */
+function getExamplePlaceholders(language, stackProfile) {
+  const isTypeScript = language === 'typescript' || language === 'javascript';
+  const isPython = language === 'python';
+
+  if (isTypeScript) {
+    return {
+      example_class: 'UserService',
+      example_method: 'createUser',
+      happy_path_behavior: 'create a new user with valid data',
+      example_input: '{ name: "John", email: "john@example.com" }',
+      example_call: 'userService.createUser(input)',
+      example_assertion: 'toHaveProperty("id")',
+      error_case: 'email is invalid',
+      example_invalid_input: '{ name: "John", email: "invalid" }',
+      expected_error: 'ValidationError',
+      endpoint: 'POST /api/users',
+      expected: '201 Created',
+      condition: 'valid data provided',
+      example_payload: '{ name: "John", email: "john@example.com" }',
+      http_method: 'post',
+      endpoint_path: '/api/users',
+      expected_status: '201',
+      expected_shape: '{ id: expect.any(String), name: "John" }',
+      validation_error: 'email is missing',
+      invalid_payload: '{ name: "John" }',
+      error_message: 'email'
+    };
+  } else if (isPython) {
+    return {
+      example_class: 'UserService',
+      example_method: 'create_user',
+      happy_path_behavior: 'create a new user with valid data',
+      example_input: 'UserCreateInput(name="John", email="john@example.com")',
+      example_call: 'user_service.create_user(input)',
+      example_assertion: 'toHaveProperty("id")',
+      error_case: 'email is invalid',
+      example_invalid_input: 'UserCreateInput(name="John", email="invalid")',
+      expected_error: 'ValidationError',
+      endpoint: 'POST /api/users',
+      expected: '201 Created',
+      condition: 'valid data provided',
+      example_payload: '{"name": "John", "email": "john@example.com"}',
+      http_method: 'post',
+      endpoint_path: '/api/users',
+      expected_status: '201',
+      expected_shape: '{"id": str, "name": "John"}',
+      validation_error: 'email is missing',
+      invalid_payload: '{"name": "John"}',
+      error_message: 'email'
+    };
+  }
+
+  return {};
 }
 
 // ============================================================================

@@ -14,23 +14,32 @@ const path = require('path');
 // Always-copied skills (foundational, copied to every project)
 const ALWAYS_COPIED_SKILLS = [
   // Foundation (010)
-  { name: 'initialize-project', category: '010-foundation' },
-  { name: 'project-context', category: '010-foundation' },
+  { name: 'start-task', category: '010-foundation' },
+  { name: 'update-project-context', category: '010-foundation' },
 
   // Workflow (020)
-  { name: 'implement-ticket', category: '020-development-workflow' },
   { name: 'analyze-requirements', category: '020-development-workflow' },
+  { name: 'architect-agent', category: '020-development-workflow' },
   { name: 'code-implementation', category: '020-development-workflow' },
   { name: 'create-sdd-ticket', category: '020-development-workflow' },
+  { name: 'implement-ticket', category: '020-development-workflow' },
   { name: 'mastering-git-cli', category: '020-development-workflow' },
 
   // Quality (030)
   { name: 'code-quality-check', category: '030-quality-assurance' },
-  { name: 'security-review', category: '030-quality-assurance' },
   { name: 'create-pr', category: '030-quality-assurance' },
+  { name: 'pr-reviewer', category: '030-quality-assurance' },
+  { name: 'security-review', category: '030-quality-assurance' },
 
   // Integrations (040)
-  { name: 'jira', category: '040-integrations' }
+  { name: 'fetch-ticket-context', category: '040-integrations' },
+  { name: 'jira', category: '040-integrations' },
+  { name: 'mastering-confluence-agent-skill', category: '040-integrations' },
+  { name: 'mastering-github-agent-skill', category: '040-integrations' },
+  { name: 'notion-document-manager', category: '040-integrations' },
+
+  // Documentation (060)
+  { name: 'design-doc-mermaid', category: '060-documentation' }
 ];
 
 /**
@@ -55,7 +64,12 @@ async function selectSkills(stackProfile, aiStorePath) {
   try {
     // 1. Start with always-copied skills
     for (const skill of ALWAYS_COPIED_SKILLS) {
-      const skillPath = path.join(aiStorePath, 'skills', skill.category, skill.name);
+      const skillPath = path.join(
+        aiStorePath,
+        'skills',
+        skill.category,
+        skill.name
+      );
       const exists = await directoryExists(skillPath);
 
       if (exists) {
@@ -75,7 +89,11 @@ async function selectSkills(stackProfile, aiStorePath) {
     }
 
     // 2. Select language-specific skills (support both array and legacy format)
-    const languages = stackProfile.languages || (stackProfile.primary_language ? [{ name: stackProfile.primary_language }] : []);
+    const languages =
+      stackProfile.languages ||
+      (stackProfile.primary_language
+        ? [{ name: stackProfile.primary_language }]
+        : []);
     for (const lang of languages) {
       const langName = typeof lang === 'string' ? lang : lang.name;
       const langSkills = await selectLanguageSkills(
@@ -88,10 +106,14 @@ async function selectSkills(stackProfile, aiStorePath) {
     }
 
     // 3. Select frontend framework skills (support both array and legacy format)
-    const frontendFrameworks = stackProfile.frontend_frameworks ||
-                               (stackProfile.frontend?.framework ? [stackProfile.frontend] : []);
+    const frontendFrameworks =
+      stackProfile.frontend_frameworks ||
+      (stackProfile.frontend?.framework ? [stackProfile.frontend] : []);
     for (const framework of frontendFrameworks) {
-      const frameworkName = typeof framework === 'string' ? framework : framework.name || framework.framework;
+      const frameworkName =
+        typeof framework === 'string'
+          ? framework
+          : framework.name || framework.framework;
       const frontendSkills = await selectFrontendSkills(
         frameworkName,
         aiStorePath
@@ -101,10 +123,14 @@ async function selectSkills(stackProfile, aiStorePath) {
     }
 
     // 4. Select backend framework skills (support both array and legacy format)
-    const backendFrameworks = stackProfile.backend_frameworks ||
-                              (stackProfile.backend?.framework ? [stackProfile.backend] : []);
+    const backendFrameworks =
+      stackProfile.backend_frameworks ||
+      (stackProfile.backend?.framework ? [stackProfile.backend] : []);
     for (const framework of backendFrameworks) {
-      const frameworkName = typeof framework === 'string' ? framework : framework.name || framework.framework;
+      const frameworkName =
+        typeof framework === 'string'
+          ? framework
+          : framework.name || framework.framework;
       const backendSkills = await selectBackendSkills(
         frameworkName,
         aiStorePath
@@ -115,7 +141,10 @@ async function selectSkills(stackProfile, aiStorePath) {
 
     // 5. Select cloud platform skills
     if (stackProfile.cloud?.length > 0) {
-      const cloudSkills = await selectCloudSkills(stackProfile.cloud, aiStorePath);
+      const cloudSkills = await selectCloudSkills(
+        stackProfile.cloud,
+        aiStorePath
+      );
       selection.cloud.push(...cloudSkills.found);
       selection.missing.push(...cloudSkills.missing);
     }
@@ -131,7 +160,10 @@ async function selectSkills(stackProfile, aiStorePath) {
     }
 
     // 7. Select integration skills
-    const integrationSkills = await selectIntegrationSkills(stackProfile, aiStorePath);
+    const integrationSkills = await selectIntegrationSkills(
+      stackProfile,
+      aiStorePath
+    );
     selection.integrations.push(...integrationSkills.found);
     selection.missing.push(...integrationSkills.missing);
 
@@ -161,7 +193,12 @@ async function selectLanguageSkills(language, stackProfile, aiStorePath) {
 
   if (language === 'typescript' || language === 'javascript') {
     // TypeScript mastery skill
-    const tsSkillPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'mastering-typescript');
+    const tsSkillPath = path.join(
+      aiStorePath,
+      'skills',
+      '050-language-frameworks',
+      'mastering-typescript'
+    );
     if (await directoryExists(tsSkillPath)) {
       found.push({
         name: 'mastering-typescript',
@@ -179,7 +216,12 @@ async function selectLanguageSkills(language, stackProfile, aiStorePath) {
 
     // Jest coverage automation (if Jest detected)
     if (stackProfile.testing?.some(t => t.name === 'jest')) {
-      const jestSkillPath = path.join(aiStorePath, 'skills', '030-quality-assurance', 'jest-coverage-automation');
+      const jestSkillPath = path.join(
+        aiStorePath,
+        'skills',
+        '030-quality-assurance',
+        'jest-coverage-automation'
+      );
       if (await directoryExists(jestSkillPath)) {
         found.push({
           name: 'jest-coverage-automation',
@@ -197,7 +239,12 @@ async function selectLanguageSkills(language, stackProfile, aiStorePath) {
     }
 
     // PR reviewer skill (optional but useful)
-    const prReviewerPath = path.join(aiStorePath, 'skills', '030-quality-assurance', 'pr-reviewer-skill');
+    const prReviewerPath = path.join(
+      aiStorePath,
+      'skills',
+      '030-quality-assurance',
+      'pr-reviewer-skill'
+    );
     if (await directoryExists(prReviewerPath)) {
       found.push({
         name: 'pr-reviewer-skill',
@@ -210,7 +257,12 @@ async function selectLanguageSkills(language, stackProfile, aiStorePath) {
 
   if (language === 'python') {
     // Python mastery skill
-    const pySkillPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'mastering-python-skill');
+    const pySkillPath = path.join(
+      aiStorePath,
+      'skills',
+      '050-language-frameworks',
+      'mastering-python-skill'
+    );
     if (await directoryExists(pySkillPath)) {
       found.push({
         name: 'mastering-python-skill',
@@ -228,7 +280,12 @@ async function selectLanguageSkills(language, stackProfile, aiStorePath) {
 
     // Check for specialized Python frameworks
     // LangGraph
-    const langgraphPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'mastering-langgraph-agent-skill');
+    const langgraphPath = path.join(
+      aiStorePath,
+      'skills',
+      '050-language-frameworks',
+      'mastering-langgraph-agent-skill'
+    );
     if (await directoryExists(langgraphPath)) {
       // Would need to check dependencies - simplified for now
       found.push({
@@ -240,7 +297,12 @@ async function selectLanguageSkills(language, stackProfile, aiStorePath) {
     }
 
     // PyTorch
-    const pytorchPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'mastering-pytorch-rl-nlp-agentic-skill');
+    const pytorchPath = path.join(
+      aiStorePath,
+      'skills',
+      '050-language-frameworks',
+      'mastering-pytorch-rl-nlp-agentic-skill'
+    );
     if (await directoryExists(pytorchPath)) {
       found.push({
         name: 'mastering-pytorch-rl-nlp-agentic-skill',
@@ -263,7 +325,12 @@ async function selectFrontendSkills(framework, aiStorePath) {
 
   if (framework === 'react' || framework === 'nextjs') {
     // React frontend skill
-    const reactPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'react-frontend');
+    const reactPath = path.join(
+      aiStorePath,
+      'skills',
+      '050-language-frameworks',
+      'react-frontend'
+    );
     if (await directoryExists(reactPath)) {
       found.push({
         name: 'react-frontend',
@@ -280,7 +347,12 @@ async function selectFrontendSkills(framework, aiStorePath) {
     }
 
     // Atomic design React
-    const atomicPath = path.join(aiStorePath, 'skills', '050-language-frameworks', 'atomic-design-react');
+    const atomicPath = path.join(
+      aiStorePath,
+      'skills',
+      '050-language-frameworks',
+      'atomic-design-react'
+    );
     if (await directoryExists(atomicPath)) {
       found.push({
         name: 'atomic-design-react',
@@ -377,7 +449,12 @@ async function selectCloudSkills(cloudPlatforms, aiStorePath) {
 
   for (const platform of cloudPlatforms) {
     if (platform.name === 'firebase') {
-      const firebasePath = path.join(aiStorePath, 'skills', '080-cloud-platforms', 'using-firebase');
+      const firebasePath = path.join(
+        aiStorePath,
+        'skills',
+        '080-cloud-platforms',
+        'using-firebase'
+      );
       if (await directoryExists(firebasePath)) {
         found.push({
           name: 'using-firebase',
@@ -395,7 +472,12 @@ async function selectCloudSkills(cloudPlatforms, aiStorePath) {
     }
 
     if (platform.name === 'aws' || platform.name === 'aws-cdk') {
-      const awsCliPath = path.join(aiStorePath, 'skills', '080-cloud-platforms', 'mastering-aws-cli');
+      const awsCliPath = path.join(
+        aiStorePath,
+        'skills',
+        '080-cloud-platforms',
+        'mastering-aws-cli'
+      );
       if (await directoryExists(awsCliPath)) {
         found.push({
           name: 'mastering-aws-cli',
@@ -406,7 +488,12 @@ async function selectCloudSkills(cloudPlatforms, aiStorePath) {
       }
 
       if (platform.name === 'aws-cdk') {
-        const cdkPath = path.join(aiStorePath, 'skills', '080-cloud-platforms', 'mastering-aws-cdk-plugin');
+        const cdkPath = path.join(
+          aiStorePath,
+          'skills',
+          '080-cloud-platforms',
+          'mastering-aws-cdk-plugin'
+        );
         if (await directoryExists(cdkPath)) {
           found.push({
             name: 'mastering-aws-cdk-plugin',
@@ -419,7 +506,12 @@ async function selectCloudSkills(cloudPlatforms, aiStorePath) {
     }
 
     if (platform.name === 'gcp') {
-      const gcpPath = path.join(aiStorePath, 'skills', '080-cloud-platforms', 'mastering-gcloud-commands');
+      const gcpPath = path.join(
+        aiStorePath,
+        'skills',
+        '080-cloud-platforms',
+        'mastering-gcloud-commands'
+      );
       if (await directoryExists(gcpPath)) {
         found.push({
           name: 'mastering-gcloud-commands',
@@ -441,8 +533,15 @@ async function selectInfrastructureSkills(containers, aiStorePath) {
   const found = [];
   const missing = [];
 
-  if (containers.some(c => c.name === 'docker' || c.name === 'docker-compose')) {
-    const dockerPath = path.join(aiStorePath, 'skills', '070-infrastructure-devops', 'developing-with-docker-agentic-skill');
+  if (
+    containers.some(c => c.name === 'docker' || c.name === 'docker-compose')
+  ) {
+    const dockerPath = path.join(
+      aiStorePath,
+      'skills',
+      '070-infrastructure-devops',
+      'developing-with-docker-agentic-skill'
+    );
     if (await directoryExists(dockerPath)) {
       found.push({
         name: 'developing-with-docker-agentic-skill',
@@ -470,7 +569,12 @@ async function selectIntegrationSkills(stackProfile, aiStorePath) {
   const missing = [];
 
   // GitHub (usually already in always-copied, but check)
-  const githubPath = path.join(aiStorePath, 'skills', '040-integrations', 'mastering-github-agent-skill');
+  const githubPath = path.join(
+    aiStorePath,
+    'skills',
+    '040-integrations',
+    'mastering-github-agent-skill'
+  );
   if (await directoryExists(githubPath)) {
     found.push({
       name: 'mastering-github-agent-skill',
@@ -481,7 +585,12 @@ async function selectIntegrationSkills(stackProfile, aiStorePath) {
   }
 
   // Fetch ticket context (usually with Jira)
-  const ticketContextPath = path.join(aiStorePath, 'skills', '040-integrations', 'fetch-ticket-context');
+  const ticketContextPath = path.join(
+    aiStorePath,
+    'skills',
+    '040-integrations',
+    'fetch-ticket-context'
+  );
   if (await directoryExists(ticketContextPath)) {
     found.push({
       name: 'fetch-ticket-context',
@@ -492,7 +601,12 @@ async function selectIntegrationSkills(stackProfile, aiStorePath) {
   }
 
   // Confluence (optional, check project context)
-  const confluencePath = path.join(aiStorePath, 'skills', '040-integrations', 'mastering-confluence-agent-skill');
+  const confluencePath = path.join(
+    aiStorePath,
+    'skills',
+    '040-integrations',
+    'mastering-confluence-agent-skill'
+  );
   if (await directoryExists(confluencePath)) {
     found.push({
       name: 'mastering-confluence-agent-skill',
@@ -503,7 +617,12 @@ async function selectIntegrationSkills(stackProfile, aiStorePath) {
   }
 
   // Notion (optional)
-  const notionPath = path.join(aiStorePath, 'skills', '040-integrations', 'notion-document-manager');
+  const notionPath = path.join(
+    aiStorePath,
+    'skills',
+    '040-integrations',
+    'notion-document-manager'
+  );
   if (await directoryExists(notionPath)) {
     found.push({
       name: 'notion-document-manager',
@@ -548,7 +667,9 @@ async function copySkills(selection, projectPath) {
       // Check if skill already exists
       if (await directoryExists(destPath)) {
         // Compare versions (simplified - would need to read frontmatter)
-        console.log(`Skill ${skill.category}/${skill.name} already exists, skipping...`);
+        console.log(
+          `Skill ${skill.category}/${skill.name} already exists, skipping...`
+        );
         continue;
       }
 
@@ -596,11 +717,40 @@ async function generateSkillIndex(selection, projectPath, projectName) {
   indexMd += '---\n\n';
 
   const sections = [
-    { title: 'Foundation', skills: selection.always_copied.filter(s => s.category === '010-foundation') },
-    { title: 'Workflow', skills: selection.always_copied.filter(s => s.category === '020-development-workflow') },
-    { title: 'Quality Assurance', skills: selection.always_copied.filter(s => s.category === '030-quality-assurance').concat(selection.language_specific.filter(s => s.category === '030-quality-assurance')) },
-    { title: 'Integrations', skills: selection.always_copied.filter(s => s.category === '040-integrations').concat(selection.integrations) },
-    { title: 'Language Frameworks', skills: selection.language_specific.filter(s => s.category === '050-language-frameworks').concat(selection.frontend, selection.backend) },
+    {
+      title: 'Foundation',
+      skills: selection.always_copied.filter(
+        s => s.category === '010-foundation'
+      )
+    },
+    {
+      title: 'Workflow',
+      skills: selection.always_copied.filter(
+        s => s.category === '020-development-workflow'
+      )
+    },
+    {
+      title: 'Quality Assurance',
+      skills: selection.always_copied
+        .filter(s => s.category === '030-quality-assurance')
+        .concat(
+          selection.language_specific.filter(
+            s => s.category === '030-quality-assurance'
+          )
+        )
+    },
+    {
+      title: 'Integrations',
+      skills: selection.always_copied
+        .filter(s => s.category === '040-integrations')
+        .concat(selection.integrations)
+    },
+    {
+      title: 'Language Frameworks',
+      skills: selection.language_specific
+        .filter(s => s.category === '050-language-frameworks')
+        .concat(selection.frontend, selection.backend)
+    },
     { title: 'Infrastructure', skills: selection.infrastructure },
     { title: 'Cloud Platforms', skills: selection.cloud }
   ];
@@ -632,7 +782,8 @@ async function generateMissingSkillsReport(selection) {
   }
 
   let reportMd = '# Missing Skills for This Project\n\n';
-  reportMd += 'The following skills were recommended based on stack detection but don\'t exist yet:\n\n';
+  reportMd +=
+    "The following skills were recommended based on stack detection but don't exist yet:\n\n";
 
   const categoryGroups = {};
   for (const skill of selection.missing) {
@@ -651,7 +802,8 @@ async function generateMissingSkillsReport(selection) {
   }
 
   reportMd += '## How to Request Skills\n\n';
-  reportMd += 'Create an issue or contact AI team leads to prioritize skill creation.\n';
+  reportMd +=
+    'Create an issue or contact AI team leads to prioritize skill creation.\n';
 
   return reportMd;
 }
@@ -710,7 +862,9 @@ if (require.main === module) {
   const projectPath = process.argv[4] || process.cwd();
 
   if (!stackProfilePath) {
-    console.error('Usage: node skill-selection.js <stack-profile.json> <ai-framework-path> <project-path>');
+    console.error(
+      'Usage: node skill-selection.js <stack-profile.json> <ai-framework-path> <project-path>'
+    );
     process.exit(1);
   }
 
@@ -719,7 +873,7 @@ if (require.main === module) {
 
   // Select skills based on stack
   selectSkills(stackProfile, aiStorePath)
-    .then(async (selection) => {
+    .then(async selection => {
       // FIXED: Copy skills to project (this was missing!)
       const copyResult = await copySkills(selection, projectPath);
 

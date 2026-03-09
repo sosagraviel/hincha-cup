@@ -44,6 +44,23 @@ AGENT_COUNT=$(cat /tmp/agent-generation-result.json | node -e "const g=JSON.pars
 WRITTEN_COUNT=$(cat /tmp/agent-generation-result.json | node -e "const g=JSON.parse(require('fs').readFileSync(0));console.log((g.written||[]).length);")
 echo "✓ $WRITTEN_COUNT/$AGENT_COUNT agents generated and written"
 
+# Step 5.3.5: Validate template substitution
+echo "Step 5.3.5: Validating template substitution..."
+UNSUBSTITUTED_VARS=$(grep -r '{{' "$PROJECT_ROOT/.claude/agents/"*.md 2>/dev/null || true)
+if [ -n "$UNSUBSTITUTED_VARS" ]; then
+  echo "❌ ERROR: Unsubstituted template variables found in generated agents:"
+  echo "$UNSUBSTITUTED_VARS"
+  echo ""
+  echo "This means:"
+  echo "  1. Template variable in agent template has no substitution in agent-generation.js"
+  echo "  2. Typo in template variable name"
+  echo "  3. Missing helper function to generate variable content"
+  echo ""
+  echo "Please fix agent-generation.js to substitute all variables."
+  exit 1
+fi
+echo "✓ All template variables substituted successfully"
+
 # Step 5.4: Copy commands
 echo "Step 5.4: Copying commands..."
 mkdir -p "$PROJECT_ROOT/.claude/commands"

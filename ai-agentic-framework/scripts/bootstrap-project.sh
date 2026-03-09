@@ -75,12 +75,24 @@ echo "  Copying initialize-project command..."
 cp "$AI_STORE_DIR/commands/initialize-project.md" \
    "$PROJECT_PATH/.claude/commands/"
 
+# Copy settings.json with auto-approval patterns
+echo "  Copying framework settings..."
+cp "$AI_STORE_DIR/settings.json" \
+   "$PROJECT_PATH/.claude/settings.json"
+
 # Create .gitignore for .claude/
 cat > "$PROJECT_PATH/.claude/.gitignore" <<'EOF'
-# AI Framework - Ignore generated files
+# AI Framework - Ignore temporary files
 *.tmp
 *.log
 .cache/
+
+# DO NOT ignore these (should be committed):
+# - settings.json (auto-approval patterns)
+# - skills/ (project-specific skills)
+# - agents/ (generated agents for your stack)
+# - commands/ (slash commands)
+# - CLAUDE.md (project reference guide)
 EOF
 
 echo ""

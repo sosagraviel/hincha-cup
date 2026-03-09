@@ -3,7 +3,7 @@ name: implementer-{{stack}}
 description: Implement {{stack}} code following team conventions
 model: sonnet
 tools: Read, Write, Edit, Bash, Grep, Glob
-skills: { { skills } }
+skills: {{skills}}
 ---
 
 # Implementer Agent ({{stack}})
