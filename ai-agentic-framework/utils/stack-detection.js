@@ -1238,7 +1238,7 @@ module.exports = {
 if (require.main === module) {
   const projectPath = process.argv[2] || process.cwd();
 
-  console.log(`Detecting stack for: ${projectPath}\n`);
+  console.error(`Detecting stack for: ${projectPath}\n`);
 
   detectStack(projectPath)
     .then(profile => {

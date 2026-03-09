@@ -204,7 +204,9 @@ function findScript(scripts, candidates) {
  * @throws {Error} If unsubstituted variables are found
  */
 function validateTemplateSubstitution(content, templateName) {
-  const remainingVariables = content.match(/\{\{([^}]+)\}\}/g);
+  // Remove code blocks before validation to avoid false positives from code examples
+  const contentWithoutCodeBlocks = content.replace(/```[\s\S]*?```/g, '');
+  const remainingVariables = contentWithoutCodeBlocks.match(/\{\{([^}]+)\}\}/g);
 
   if (remainingVariables && remainingVariables.length > 0) {
     const varList = remainingVariables.map(v => v.replace(/[{}]/g, '')).join(', ');

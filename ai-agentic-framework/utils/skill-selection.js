@@ -667,7 +667,7 @@ async function copySkills(selection, projectPath) {
       // Check if skill already exists
       if (await directoryExists(destPath)) {
         // Compare versions (simplified - would need to read frontmatter)
-        console.log(
+        console.error(
           `Skill ${skill.category}/${skill.name} already exists, skipping...`
         );
         continue;
