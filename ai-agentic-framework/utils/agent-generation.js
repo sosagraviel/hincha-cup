@@ -10,6 +10,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  resolveAgentSkills,
+  getPrimaryLanguage,
+  getAllLanguages,
+} = require('./skill-registry');
 
 /**
  * Main entry point for agent generation
@@ -32,53 +37,53 @@ async function generateAgents(stackProfile, skillSelection, projectPath, templat
     // 1. Extract commands from project
     const commands = await extractCommands(projectPath, stackProfile);
 
-    // 2. Prepare skills list for agents
-    const allSkills = [
-      ...skillSelection.always_copied,
-      ...skillSelection.language_specific,
-      ...skillSelection.frontend,
-      ...skillSelection.backend,
-      ...skillSelection.cloud,
-      ...skillSelection.infrastructure,
-      ...skillSelection.integrations
-    ].map(s => s.name);
-
-    // 3. Generate planner agent (no variables, language-agnostic)
-    const plannerAgent = await generatePlannerAgent(templatesPath);
+    // 2. Generate planner agent (with architecture-level skills for ALL languages)
+    const plannerSkills = resolveAgentSkills('planner', stackProfile);
+    const plannerAgent = await generatePlannerAgent(templatesPath, plannerSkills);
     if (plannerAgent) {
       generation.planning.push(plannerAgent);
     }
 
-    // 4. Generate implementer agent for detected language
-    if (stackProfile.primary_language) {
+    // 3. Generate implementer agents - ONE PER DETECTED LANGUAGE
+    const languages = getAllLanguages(stackProfile);
+    for (const language of languages) {
+      const implementerSkills = resolveAgentSkills(`implementer-${language}`, stackProfile);
       const implementerAgent = await generateImplementerAgent(
         templatesPath,
         stackProfile,
-        allSkills,
-        commands
+        implementerSkills,
+        commands,
+        language
       );
       if (implementerAgent) {
         generation.implementation.push(implementerAgent);
       }
     }
 
-    // 5. Generate tester agents
-    const testerAgents = await generateTesterAgents(
-      templatesPath,
-      stackProfile,
-      allSkills,
-      commands
-    );
-    generation.testing.push(...testerAgents);
+    // 4. Generate tester agents (language-specific)
+    const primaryLanguage = getPrimaryLanguage(stackProfile);
+    if (primaryLanguage) {
+      const testerAgents = await generateTesterAgents(
+        templatesPath,
+        stackProfile,
+        commands,
+        primaryLanguage
+      );
+      generation.testing.push(...testerAgents);
+    }
 
-    // 6. Generate security reviewer agent
-    const securityAgent = await generateSecurityReviewerAgent(
-      templatesPath,
-      stackProfile,
-      allSkills
-    );
-    if (securityAgent) {
-      generation.review.push(securityAgent);
+    // 5. Generate security reviewer agent (primary language)
+    if (primaryLanguage) {
+      const securitySkills = resolveAgentSkills(`security-reviewer-${primaryLanguage}`, stackProfile);
+      const securityAgent = await generateSecurityReviewerAgent(
+        templatesPath,
+        stackProfile,
+        securitySkills,
+        primaryLanguage
+      );
+      if (securityAgent) {
+        generation.review.push(securityAgent);
+      }
     }
 
     // Calculate total
@@ -224,16 +229,19 @@ function validateTemplateSubstitution(content, templateName) {
 }
 
 /**
- * Generate planner agent (no variables, copy as-is)
+ * Generate planner agent with architecture-level skills
  */
-async function generatePlannerAgent(templatesPath) {
+async function generatePlannerAgent(templatesPath, skills) {
   const templatePath = path.join(templatesPath, 'planner.template.md');
-  const content = await readFile(templatePath);
+  let content = await readFile(templatePath);
 
   if (!content) {
     console.warn('Planner template not found');
     return null;
   }
+
+  // Substitute skills using the standard formatter
+  content = content.replace(/\{\{skills\}\}/g, formatSkillsList(skills));
 
   // Validate template substitution
   validateTemplateSubstitution(content, 'planner.template.md');
@@ -243,14 +251,14 @@ async function generatePlannerAgent(templatesPath) {
     filename: 'planner.md',
     content,
     model: 'opus',
-    description: 'Create detailed implementation plans'
+    description: 'Create detailed implementation plans with full architecture awareness'
   };
 }
 
 /**
- * Generate implementer agent for detected language
+ * Generate implementer agent for a specific language
  */
-async function generateImplementerAgent(templatesPath, stackProfile, skills, commands) {
+async function generateImplementerAgent(templatesPath, stackProfile, skills, commands, language) {
   const templatePath = path.join(templatesPath, 'implementer.template.md');
   let content = await readFile(templatePath);
 
@@ -258,8 +266,6 @@ async function generateImplementerAgent(templatesPath, stackProfile, skills, com
     console.warn('Implementer template not found');
     return null;
   }
-
-  const language = stackProfile.primary_language;
 
   // Perform variable substitution
   content = content.replace(/\{\{stack\}\}/g, language);
@@ -274,16 +280,19 @@ async function generateImplementerAgent(templatesPath, stackProfile, skills, com
   content = content.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(skills));
 
   // NEW: Add stack-specific patterns
-  const stackPatterns = getStackSpecificPatterns(stackProfile);
+  const stackPatterns = getStackSpecificPatterns(stackProfile, language);
   content = content.replace(/\{\{stack_specific_patterns\}\}/g, stackPatterns);
 
   // Inject framework-specific patterns
-  if (stackProfile.backend?.framework === 'nestjs') {
-    content = injectNestJSPatterns(content);
-  } else if (stackProfile.backend?.framework === 'fastapi') {
-    content = injectFastAPIPatterns(content);
-  } else if (stackProfile.backend?.framework === 'django') {
-    content = injectDjangoPatterns(content);
+  if (stackProfile.backend_frameworks && stackProfile.backend_frameworks.length > 0) {
+    const framework = stackProfile.backend_frameworks[0].name;
+    if (framework === 'nestjs') {
+      content = injectNestJSPatterns(content);
+    } else if (framework === 'fastapi') {
+      content = injectFastAPIPatterns(content);
+    } else if (framework === 'django') {
+      content = injectDjangoPatterns(content);
+    }
   }
 
   // Validate template substitution
@@ -301,29 +310,30 @@ async function generateImplementerAgent(templatesPath, stackProfile, skills, com
 /**
  * Generate tester agents (unit + integration + e2e)
  */
-async function generateTesterAgents(templatesPath, stackProfile, skills, commands) {
+async function generateTesterAgents(templatesPath, stackProfile, commands, language) {
   const agents = [];
+
+  // Resolve tester-specific skills
+  const unitSkills = resolveAgentSkills(`tester-unit-${language}`, stackProfile);
 
   // Unit + Integration tester
   const unitTemplatePath = path.join(templatesPath, 'tester-unit.template.md');
   let unitContent = await readFile(unitTemplatePath);
 
   if (unitContent) {
-    const language = stackProfile.primary_language;
-
     // Perform variable substitution
     unitContent = unitContent.replace(/\{\{stack\}\}/g, language);
-    unitContent = unitContent.replace(/\{\{skills\}\}/g, formatSkillsList(skills));
+    unitContent = unitContent.replace(/\{\{skills\}\}/g, formatSkillsList(unitSkills));
     unitContent = unitContent.replace(/\{\{test_framework\}\}/g, commands.test_framework || 'jest');
     unitContent = unitContent.replace(/\{\{unit_test_command\}\}/g, commands.unit_test_command || 'npm test');
     unitContent = unitContent.replace(/\{\{integration_test_command\}\}/g, commands.integration_test_command || commands.unit_test_command);
     unitContent = unitContent.replace(/\{\{coverage_command\}\}/g, commands.coverage_command || 'npm test -- --coverage');
 
     // NEW: Add skills documentation
-    unitContent = unitContent.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(skills));
+    unitContent = unitContent.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(unitSkills));
 
     // NEW: Add stack-specific test patterns
-    const testPatterns = getStackTestPatterns(stackProfile);
+    const testPatterns = getStackTestPatterns(stackProfile, language);
     unitContent = unitContent.replace(/\{\{stack_test_patterns\}\}/g, testPatterns);
 
     // File extension and integration test framework
@@ -373,26 +383,25 @@ async function generateTesterAgents(templatesPath, stackProfile, skills, command
   }
 
   // E2E tester (only for frontend projects)
-  if (stackProfile.frontend?.framework && commands.e2e_framework) {
+  if (stackProfile.frontend_frameworks && stackProfile.frontend_frameworks.length > 0 && commands.e2e_framework) {
+    const e2eSkills = resolveAgentSkills(`tester-e2e-${language}`, stackProfile);
     const e2eTemplatePath = path.join(templatesPath, 'tester-e2e.template.md');
     let e2eContent = await readFile(e2eTemplatePath);
 
     if (e2eContent) {
-      const language = stackProfile.primary_language;
-
       // Perform variable substitution
       e2eContent = e2eContent.replace(/\{\{stack\}\}/g, language);
-      e2eContent = e2eContent.replace(/\{\{skills\}\}/g, formatSkillsList(skills));
+      e2eContent = e2eContent.replace(/\{\{skills\}\}/g, formatSkillsList(e2eSkills));
       e2eContent = e2eContent.replace(/\{\{e2e_framework\}\}/g, commands.e2e_framework);
       e2eContent = e2eContent.replace(/\{\{e2e_command\}\}/g, commands.e2e_test_command || 'npx playwright test');
       e2eContent = e2eContent.replace(/\{\{e2e_test_pattern\}\}/g, '*.spec.ts or *.e2e.ts');
       e2eContent = e2eContent.replace(/\{\{e2e_ui_mode\}\}/g, `${stackProfile.package_manager || 'npx'} playwright test --ui`);
 
       // NEW: Add skills documentation
-      e2eContent = e2eContent.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(skills));
+      e2eContent = e2eContent.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(e2eSkills));
 
       // NEW: Add stack-specific E2E patterns
-      const e2ePatterns = getStackE2EPatterns(stackProfile);
+      const e2ePatterns = getStackE2EPatterns(stackProfile, language);
       e2eContent = e2eContent.replace(/\{\{stack_e2e_patterns\}\}/g, e2ePatterns);
 
       // Validate template substitution
@@ -412,9 +421,9 @@ async function generateTesterAgents(templatesPath, stackProfile, skills, command
 }
 
 /**
- * Generate security reviewer agent
+ * Generate security reviewer agent for specific language
  */
-async function generateSecurityReviewerAgent(templatesPath, stackProfile, skills) {
+async function generateSecurityReviewerAgent(templatesPath, stackProfile, skills, language) {
   const templatePath = path.join(templatesPath, 'security-reviewer.template.md');
   let content = await readFile(templatePath);
 
@@ -422,8 +431,6 @@ async function generateSecurityReviewerAgent(templatesPath, stackProfile, skills
     console.warn('Security reviewer template not found');
     return null;
   }
-
-  const language = stackProfile.primary_language;
 
   // Perform variable substitution
   content = content.replace(/\{\{stack\}\}/g, language);
@@ -667,10 +674,9 @@ function generateSkillsDocumentation(skills) {
 /**
  * Get stack-specific patterns for implementer agent
  */
-function getStackSpecificPatterns(stackProfile) {
-  const language = stackProfile.primary_language;
-  const backend = stackProfile.backend?.framework;
-  const frontend = stackProfile.frontend?.framework;
+function getStackSpecificPatterns(stackProfile, language) {
+  const backend = stackProfile.backend_frameworks && stackProfile.backend_frameworks.length > 0 ? stackProfile.backend_frameworks[0].name : null;
+  const frontend = stackProfile.frontend_frameworks && stackProfile.frontend_frameworks.length > 0 ? stackProfile.frontend_frameworks[0].name : null;
 
   let patterns = '';
 
@@ -738,9 +744,8 @@ function getStackSpecificPatterns(stackProfile) {
 /**
  * Get stack-specific test patterns for tester agent
  */
-function getStackTestPatterns(stackProfile) {
-  const language = stackProfile.primary_language;
-  const backend = stackProfile.backend?.framework;
+function getStackTestPatterns(stackProfile, language) {
+  const backend = stackProfile.backend_frameworks && stackProfile.backend_frameworks.length > 0 ? stackProfile.backend_frameworks[0].name : null;
 
   let patterns = '';
 
@@ -815,8 +820,8 @@ function getStackTestPatterns(stackProfile) {
 /**
  * Get stack-specific E2E patterns for e2e tester agent
  */
-function getStackE2EPatterns(stackProfile) {
-  const frontend = stackProfile.frontend?.framework;
+function getStackE2EPatterns(stackProfile, language) {
+  const frontend = stackProfile.frontend_frameworks && stackProfile.frontend_frameworks.length > 0 ? stackProfile.frontend_frameworks[0].name : null;
 
   let patterns = '';
 

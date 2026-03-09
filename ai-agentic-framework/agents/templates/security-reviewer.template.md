@@ -1,10 +1,9 @@
 ---
-name: security-reviewer
-description: Review code for security vulnerabilities using OWASP Top 10 and secure coding best practices
+name: security-reviewer-{{stack}}
+description: Review {{stack}} code for security vulnerabilities using OWASP Top 10 and secure coding best practices
 model: sonnet
 tools: Read, Grep, Bash
-skills:
-  - security-review
+skills:{{skills}}
 ---
 
 # Security Reviewer Agent

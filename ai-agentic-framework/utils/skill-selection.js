@@ -243,11 +243,11 @@ async function selectLanguageSkills(language, stackProfile, aiStorePath) {
       aiStorePath,
       'skills',
       '030-quality-assurance',
-      'pr-reviewer-skill'
+      'pr-reviewer'
     );
     if (await directoryExists(prReviewerPath)) {
       found.push({
-        name: 'pr-reviewer-skill',
+        name: 'pr-reviewer',
         category: '030-quality-assurance',
         source_path: prReviewerPath,
         reason: 'PR review automation'
@@ -492,11 +492,11 @@ async function selectCloudSkills(cloudPlatforms, aiStorePath) {
           aiStorePath,
           'skills',
           '080-cloud-platforms',
-          'mastering-aws-cdk-plugin'
+          'mastering-aws-cdk'
         );
         if (await directoryExists(cdkPath)) {
           found.push({
-            name: 'mastering-aws-cdk-plugin',
+            name: 'mastering-aws-cdk',
             category: '080-cloud-platforms',
             source_path: cdkPath,
             reason: 'AWS CDK detected'
@@ -539,20 +539,20 @@ async function selectInfrastructureSkills(containers, aiStorePath) {
     const dockerPath = path.join(
       aiStorePath,
       'skills',
-      '070-infrastructure-devops',
-      'developing-with-docker-agentic-skill'
+      '070-infrastructure',
+      'developing-with-docker'
     );
     if (await directoryExists(dockerPath)) {
       found.push({
-        name: 'developing-with-docker-agentic-skill',
-        category: '070-infrastructure-devops',
+        name: 'developing-with-docker',
+        category: '070-infrastructure',
         source_path: dockerPath,
         reason: 'Docker detected'
       });
     } else {
       missing.push({
-        name: 'developing-with-docker-agentic-skill',
-        category: '070-infrastructure-devops',
+        name: 'developing-with-docker',
+        category: '070-infrastructure',
         reason: 'Docker detected but skill not found'
       });
     }

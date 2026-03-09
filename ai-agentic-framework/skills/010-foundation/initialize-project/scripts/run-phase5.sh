@@ -51,10 +51,39 @@ echo "✓ $WRITTEN_COUNT/$AGENT_COUNT agents generated and written"
 
 # Step 5.4: Copy commands
 echo "Step 5.4: Copying commands..."
-mkdir -p "$PROJECT_ROOT/.claude/commands"
-cp -r "$AI_FRAMEWORK_PATH/commands/"* "$PROJECT_ROOT/.claude/commands/"
-chmod 644 "$PROJECT_ROOT/.claude/commands/"*.md 2>/dev/null || true
-COMMAND_COUNT=$(ls -1 "$PROJECT_ROOT/.claude/commands/"*.md 2>/dev/null | wc -l | xargs)
+COMMAND_COUNT=$(node -e "
+const fs = require('fs');
+const path = require('path');
+
+async function copyDirectory(src, dest) {
+  await fs.promises.mkdir(dest, { recursive: true });
+  const entries = await fs.promises.readdir(src, { withFileTypes: true });
+  let count = 0;
+
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyDirectory(srcPath, destPath);
+    } else {
+      await fs.promises.copyFile(srcPath, destPath);
+      if (entry.name.endsWith('.md')) {
+        await fs.promises.chmod(destPath, 0o644);
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+const commandsPath = '$AI_FRAMEWORK_PATH/commands';
+const destPath = '$PROJECT_ROOT/.claude/commands';
+
+copyDirectory(commandsPath, destPath)
+  .then(count => console.log(count))
+  .catch(err => { console.error(err); process.exit(1); });
+")
 echo "✓ $COMMAND_COUNT commands copied"
 
 # Step 5.5: Generate index files

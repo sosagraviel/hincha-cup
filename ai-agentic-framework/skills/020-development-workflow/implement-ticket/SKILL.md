@@ -144,12 +144,63 @@ Deliberate supervisor pattern with grading for high-risk tickets:
 
 ---
 
+## Agent Orchestration Strategy
+
+This skill coordinates multiple specialized agents for different phases and languages:
+
+### Phase-Based Agent Routing
+
+1. **Planning Phase** → `planner` agent
+   - Skills: project-context, analyze-requirements, design-doc-mermaid, architect-agent, mastering-{all-languages}
+   - Output: Implementation plan with affected files and dependencies
+
+2. **Implementation Phase** → Language-specific `implementer-{language}` agents
+   - **File-to-Language Detection**:
+     ```
+     .ts/.tsx/.js/.jsx → implementer-typescript
+     .py → implementer-python
+     .go → implementer-go
+     .java → implementer-java
+     .rs → implementer-rust
+     .rb → implementer-ruby
+     ```
+   - **Multi-Language Coordination**: When a ticket affects multiple languages, spawn MULTIPLE implementer agents in parallel or sequence
+   - Skills per implementer: project-context, mastering-{language}, {framework-skills}
+
+3. **Testing Phase** → Language-specific `tester-unit-{language}` and `tester-e2e-{language}` agents
+   - Skills: project-context, mastering-{language}, {test-framework-skills}
+
+4. **Security Phase** → `security-reviewer-{primary-language}` agent
+   - Skills: project-context, security-review, mastering-{language}
+
+### Multi-Language Example Flow
+
+```
+Ticket affects:
+- services/backend/src/auth/oauth.service.ts (TypeScript)
+- scripts/seed/create_oauth_users.py (Python)
+
+Orchestration:
+1. planner → Creates unified plan covering both languages
+2. implementer-typescript → Implements TypeScript OAuth service
+3. implementer-python → Implements Python seed script
+4. tester-unit-typescript → Tests TypeScript code
+5. tester-unit-python → Tests Python script
+6. security-reviewer-typescript → Reviews security (primary language)
+7. create-pr → Consolidates all changes into single PR
+```
+
+**Key Principle**: Each agent receives ONLY the skills relevant to its task and language, ensuring focused context and better code quality.
+
+---
+
 ## Prerequisites
 
 - Git repository initialized
 - Project dependencies installed
 - Jira, Notion, GitHub MCPs configured
 - Language-specific tools (python/node/npm)
+- Generated agents in `.claude/agents/` (via initialize-project)
 
 ## Complete Workflow
 
@@ -1254,20 +1305,41 @@ save_checkpoint "Phase 3: Code Implementation" '["Phase 0: Pre-Flight", "Phase 1
 
 **Action:** Implement the code following the plan
 
+**Multi-Language Orchestration**:
+When implementing changes that affect multiple languages:
+1. **Analyze affected files** from the plan to determine which languages are involved
+2. **Spawn language-specific implementer agents** based on file extensions:
+   - `.ts`, `.tsx`, `.js`, `.jsx` → `implementer-typescript`
+   - `.py` → `implementer-python`
+   - `.go` → `implementer-go`
+   - `.java` → `implementer-java`
+   - `.rs` → `implementer-rust`
+   - `.rb` → `implementer-ruby`
+3. **Coordinate changes** across languages, ensuring:
+   - API contracts remain consistent
+   - Type definitions match across language boundaries
+   - Shared data models are synchronized
+4. **Run language-specific checks** for each modified language
+
+**Example - Multi-Language Ticket**:
+```
+Affected files from plan:
+- services/backend/src/ticket.service.ts (TypeScript)
+- scripts/migrate_tickets.py (Python)
+- shared/protos/ticket.proto (Protocol Buffers)
+
+Orchestration:
+1. Spawn implementer-typescript for TypeScript changes
+2. Spawn implementer-python for Python migration script
+3. Coordinate: Ensure both follow same ticket schema from .proto
+4. Run: tsc && python -m mypy scripts/
+```
+
 **Error Recovery**:
 - Compilation errors: Max 3 retry attempts with decision rules
 - Type errors: Apply common patterns and document decisions
 - Import errors: Search codebase for correct paths
 - Test failures: Analyze and fix (covered in Phase 4)
-
-```bash
-# Invokes: /code-implementation
-# - Detects language (TypeScript in this case)
-# - Invokes /mastering-typescript for guidance
-# - Implements each step systematically
-# - Follows project conventions
-# - Runs compilation check after each major step
-```
 
 **Progress:**
 ```

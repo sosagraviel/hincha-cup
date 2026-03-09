@@ -3,9 +3,7 @@ name: planner
 description: Create detailed implementation plans for feature work. Use for complex architectural decisions.
 model: opus
 tools: Read, Grep, Glob
-skills:
-  - project-context
-  - analyze-requirements
+skills:{{skills}}
 ---
 
 # Planner Agent
