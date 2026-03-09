@@ -190,10 +190,51 @@ Use `model: opus` and `subagent_type: general-purpose`.
 Include in the prompt:
 
 - Full consolidated analysis from Phase 2
-- Engineer's answers from Phase 2.3
+- Engineer's answers from Phase 2.3 (if any)
 - Project path from $ARGUMENTS (or current working directory)
 
+**CRITICAL INSTRUCTIONS FOR THE AGENT**:
+
+Add this to the agent prompt:
+
+```
+CRITICAL OUTPUT FORMAT:
+
+You MUST return your output in this EXACT format with these EXACT section headers:
+
+# CLAUDE.md Content
+
+[Full markdown content of CLAUDE.md here - starting with # Project Name]
+
+---
+
+# project-context/SKILL.md Content
+
+[Full markdown content of SKILL.md here - starting with the YAML frontmatter ---]
+
+DO NOT:
+- Write any files yourself
+- Use the Write tool
+- Create any directories
+- Return content in any other format
+
+DO:
+- Return ONLY the two sections above
+- Include complete content for both files
+- Use the exact section headers shown
+- Separate the two sections with exactly three dashes (---)
+```
+
 **Wait for the architect agent to return** the content for CLAUDE.md and project-context/SKILL.md.
+
+**Verify the output format**: The agent's output should contain:
+1. A line that says exactly `# CLAUDE.md Content`
+2. Content for CLAUDE.md
+3. A line with exactly `---`
+4. A line that says exactly `# project-context/SKILL.md Content`
+5. Content for project-context/SKILL.md (including YAML frontmatter)
+
+If the output format is incorrect, you will need to manually extract or reformat the content before Phase 4.
 
 ### Phase 3 Complete ✓
 
@@ -211,26 +252,82 @@ echo "  PHASE 4: WRITE & VERIFY"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 ```
 
-### Step 4.1: Backup Existing Files
+### Step 4.1: Extract Content from Phase 3 Output
 
-If `.claude/CLAUDE.md` exists:
+The architect agent from Phase 3 returned content in this format:
+
+```markdown
+# CLAUDE.md Content
+
+[Content for CLAUDE.md]
+
+---
+
+# project-context/SKILL.md Content
+
+[Content for SKILL.md including YAML frontmatter]
+```
+
+**CRITICAL**: Parse the Phase 3 output to extract:
+1. Everything after `# CLAUDE.md Content` and before the `---` separator → this is the CLAUDE.md content
+2. Everything after `# project-context/SKILL.md Content` → this is the project-context/SKILL.md content
+
+**DO NOT**:
+- ❌ Try to read template files from ai-agentic-framework
+- ❌ Try to generate content yourself
+- ❌ Use bash cat commands with HEREDOC
+- ❌ Ignore the Phase 3 output
+
+**DO**:
+- ✅ Extract the content from the architect agent's output
+- ✅ Use the Write tool to write the files
+- ✅ Verify the content was extracted correctly before writing
+
+### Step 4.2: Backup Existing Files
+
+If `.claude/CLAUDE.md` exists, create a backup:
 
 ```bash
 cp .claude/CLAUDE.md .claude/CLAUDE.md.backup
 ```
 
-### Step 4.2: Write Files
+### Step 4.3: Create Directory Structure
 
-1. Parse the architect agent's output
-2. Write `.claude/CLAUDE.md` with the generated content
-3. Create `.claude/skills/project-context/` directory if needed
-4. Write `.claude/skills/project-context/SKILL.md` with the generated content
+```bash
+mkdir -p .claude/skills/project-context
+```
 
-### Step 4.3: Count Lines
+### Step 4.4: Write Files Using Write Tool
+
+**CRITICAL**: Use the Write tool (NOT bash cat commands) to write both files:
+
+1. Write `.claude/CLAUDE.md` with the extracted CLAUDE.md content
+2. Write `.claude/skills/project-context/SKILL.md` with the extracted project-context content
+
+**Example**:
+```typescript
+// Extract claudeContent from Phase 3 output (everything between "# CLAUDE.md Content" and "---")
+Write({
+  file_path: ".claude/CLAUDE.md",
+  content: claudeContent
+});
+
+// Extract projectContextContent from Phase 3 output (everything after "# project-context/SKILL.md Content")
+Write({
+  file_path: ".claude/skills/project-context/SKILL.md",
+  content: projectContextContent
+});
+```
+
+### Step 4.5: Verify Files Written
+
+Count lines to verify files were written:
 
 ```bash
 wc -l .claude/CLAUDE.md .claude/skills/project-context/SKILL.md
 ```
+
+Expected output: Both files should have content (50-300 lines each).
 
 ### Phase 4 Complete ✓
 

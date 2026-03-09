@@ -41,11 +41,18 @@ For detailed setup instructions, see [QUICKSTART.md](./QUICKSTART.md).
 
 ## Key Features
 
+### 🧠 Smart Context Management (NEW!)
+- **Intelligent Skill Linking** - Each agent receives only relevant skills (3-5 vs 22+ skills), reducing context by 70-85%
+- **Language-Specific Agents** - Automatic generation of `implementer-{language}` agents per detected language
+- **Framework-Aware Context** - Links React OR Vue OR Angular based on stack detection, not all frameworks
+- **Multi-Language Orchestration** - Coordinates TypeScript, Python, Go, Java, Rust, Ruby implementers for polyglot projects
+- **Agent-Specific Optimization** - Planner gets architecture skills for all languages; implementers get only their language + framework
+
+### 🚀 Core Capabilities
 - **Automatic Project Initialization** - Detects tech stack and configures skills, agents, and MCP servers in 2 minutes
 - **Specification-Driven Tickets** - Generates gap-free Jira tickets with INVEST criteria and BDD scenarios
 - **End-to-End Implementation** - From ticket fetch to PR creation with 70-80% time savings
 - **No-Stop Execution** - 4-layer error recovery (exponential backoff, model fallback, error classification, checkpointing)
-- **Stack-Specific Agents** - TypeScript, Python, and framework-aware code generation
 - **Multi-Task Parallel Development** - Git worktrees for isolated, concurrent ticket work
 - **Docker Runtime** - Consistent execution environment with pre-installed MCP servers
 

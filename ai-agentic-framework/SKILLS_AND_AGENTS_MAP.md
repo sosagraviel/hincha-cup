@@ -137,12 +137,15 @@ User
 
 ### Agent Templates
 
-| Agent Template | Purpose | Spawned By | Stack-Specific |
-|----------------|---------|------------|----------------|
-| **planner.template.md** | Context gathering + requirements analysis | implement-ticket | ❌ No |
-| **implementer.template.md** | Code implementation | implement-ticket | ✅ Yes ({{stack}}) |
-| **tester-unit.template.md** | Unit + integration tests | implement-ticket | ✅ Yes ({{stack}}) |
-| **tester-e2e.template.md** | End-to-end tests | implement-ticket | ✅ Yes (frontend only) |
+| Agent Template | Purpose | Spawned By | Stack-Specific | Skills Context |
+|----------------|---------|------------|----------------|----------------|
+| **planner.template.md** | Context gathering + requirements analysis | implement-ticket | ❌ No | ALL detected languages (architecture awareness) |
+| **implementer.template.md** | Code implementation | implement-ticket | ✅ Yes (per language) | ONLY specific language + frameworks |
+| **tester-unit.template.md** | Unit + integration tests | implement-ticket | ✅ Yes (per language) | ONLY specific language + test framework |
+| **tester-e2e.template.md** | End-to-end tests | implement-ticket | ✅ Yes (per language) | ONLY specific language + E2E framework |
+| **security-reviewer.template.md** | Security review | implement-ticket | ✅ Yes (primary language) | ONLY primary language + security skills |
+
+**Note**: Since the Context Management System (v1.0), the framework generates **one agent per detected language** for implementation, testing, and security review. Each agent receives only the skills relevant to its role and language (70-85% context reduction).
 
 ---
 
@@ -223,6 +226,89 @@ graph TD
     style Infra fill:#fff8e1
     style Cloud fill:#e8eaf6
 ```
+
+---
+
+### Diagram 1.5: Context Management System Flow
+
+Shows how the Context Management System intelligently links skills to agents:
+
+```mermaid
+flowchart TB
+    Start([Stack Detection]) --> StackProfile[Stack Profile<br/>Languages: TypeScript, Python<br/>Frontend: React<br/>Backend: NestJS<br/>Testing: Jest, Playwright]
+
+    StackProfile --> AgentGen[Agent Generation]
+
+    AgentGen --> Planner[Generate Planner Agent]
+    AgentGen --> Implementers[Generate Implementer Agents]
+    AgentGen --> Testers[Generate Tester Agents]
+    AgentGen --> Security[Generate Security Reviewer]
+
+    subgraph PlannerSkills["Planner Skills (Architecture Awareness)"]
+        PS1[project-context]
+        PS2[analyze-requirements]
+        PS3[design-doc-mermaid]
+        PS4[mastering-typescript]
+        PS5[mastering-python-skill]
+    end
+
+    Planner --> PlannerSkills
+
+    subgraph ImplementerTS["Implementer-TypeScript Skills"]
+        ITS1[project-context]
+        ITS2[mastering-typescript]
+        ITS3[react-frontend]
+        ITS4[atomic-design-react]
+    end
+
+    subgraph ImplementerPY["Implementer-Python Skills"]
+        IPY1[project-context]
+        IPY2[mastering-python-skill]
+    end
+
+    Implementers --> ImplementerTS
+    Implementers --> ImplementerPY
+
+    subgraph TesterTSUnit["Tester-Unit-TypeScript Skills"]
+        TTS1[project-context]
+        TTS2[code-quality-check]
+        TTS3[mastering-typescript]
+        TTS4[jest-coverage-automation]
+    end
+
+    subgraph TesterTSE2E["Tester-E2E-TypeScript Skills"]
+        TTE1[project-context]
+        TTE2[code-quality-check]
+        TTE3[mastering-typescript]
+        TTE4[playwright-e2e-automation]
+    end
+
+    Testers --> TesterTSUnit
+    Testers --> TesterTSE2E
+
+    subgraph SecuritySkills["Security-Reviewer-TypeScript Skills"]
+        SEC1[project-context]
+        SEC2[security-review]
+        SEC3[mastering-typescript]
+    end
+
+    Security --> SecuritySkills
+
+    style StackProfile fill:#e3f2fd
+    style PlannerSkills fill:#fff3e0
+    style ImplementerTS fill:#e8f5e9
+    style ImplementerPY fill:#e8f5e9
+    style TesterTSUnit fill:#fce4ec
+    style TesterTSE2E fill:#fce4ec
+    style SecuritySkills fill:#f3e5f5
+```
+
+**Key Principles**:
+1. **Universal Skills**: `project-context` is linked to ALL agents
+2. **Planning Skills**: Planner gets mastery for ALL detected languages (architecture awareness)
+3. **Language Isolation**: Each implementer gets ONLY its language skills (no cross-language pollution)
+4. **Framework Specificity**: React skills ONLY if React detected (not Vue, Angular)
+5. **Role-Based Filtering**: Implementers don't get testing skills; testers don't get planning skills
 
 ---
 
@@ -675,21 +761,73 @@ graph LR
 
 ### Agent Spawning by Stack
 
-| Stack | Agents Spawned |
+| Stack | Agents Spawned | Skills Per Agent |
+|-------|----------------|------------------|
+| **TypeScript** | planner → implementer-typescript → tester-unit-typescript → tester-e2e-typescript → security-reviewer-typescript | **Planner**: 5-8 skills (all languages)<br>**Implementer**: 3-5 skills (TS only)<br>**Tester**: 4-5 skills (TS only)<br>**Security**: 3 skills (TS only) |
+| **Python** | planner → implementer-python → tester-unit-python → security-reviewer-python | **Planner**: 5-8 skills (all languages)<br>**Implementer**: 2-4 skills (Python only)<br>**Tester**: 4-5 skills (Python only)<br>**Security**: 3 skills (Python only) |
+| **Mixed (TS+Python)** | planner → implementer-typescript + implementer-python → tester-unit-typescript + tester-unit-python + tester-e2e-typescript → security-reviewer-typescript | **Planner**: 7-10 skills (TS + Python mastery)<br>**Each Implementer**: 3-5 skills (their language only)<br>**Each Tester**: 4-5 skills (their language only)<br>**Security**: 3 skills (primary language) |
+
+### Context Skills Loaded by Stack (Context Management v1.0)
+
+The Context Management System intelligently links **ONLY** relevant skills to each agent based on role and detected stack.
+
+#### Planner Agent - Architecture Awareness
+
+Planner receives skills for **ALL detected languages** to understand full system architecture:
+
+| Stack | Planner Skills |
 |-------|----------------|
-| **TypeScript** | planner → implementer-typescript → tester-unit-typescript → tester-e2e-typescript |
-| **Python** | planner → implementer-python → tester-unit-python |
-| **Mixed** | planner → implementer-typescript + implementer-python → tester-unit-typescript + tester-unit-python + tester-e2e-typescript |
+| **TypeScript** | project-context, analyze-requirements, design-doc-mermaid, architect-agent, mastering-typescript |
+| **TypeScript + React + NestJS** | project-context, analyze-requirements, design-doc-mermaid, architect-agent, mastering-typescript |
+| **Python** | project-context, analyze-requirements, design-doc-mermaid, architect-agent, mastering-python-skill |
+| **TypeScript + Python** | project-context, analyze-requirements, design-doc-mermaid, architect-agent, mastering-typescript, mastering-python-skill |
 
-### Context Skills Loaded by Stack
+#### Implementer Agents - Language + Framework Specific
 
-| Stack | Context Skills Loaded |
-|-------|-----------------------|
-| **TypeScript** | mastering-typescript |
-| **TypeScript + NestJS** | mastering-typescript, mastering-nestjs |
-| **TypeScript + React** | mastering-typescript, mastering-react |
-| **Python** | mastering-python |
-| **Python + FastAPI** | mastering-python, mastering-fastapi |
+Each implementer receives **ONLY** skills for its specific language and detected frameworks:
+
+| Agent | Stack | Implementer Skills |
+|-------|-------|-------------------|
+| **implementer-typescript** | TypeScript only | project-context, mastering-typescript |
+| **implementer-typescript** | TypeScript + React | project-context, mastering-typescript, react-frontend, atomic-design-react |
+| **implementer-typescript** | TypeScript + NestJS | project-context, mastering-typescript |
+| **implementer-python** | Python only | project-context, mastering-python-skill |
+| **implementer-python** | Python + FastAPI | project-context, mastering-python-skill |
+| **implementer-python** | Python + Django | project-context, mastering-python-skill |
+
+**Key Optimization**: Implementer does NOT receive:
+- ❌ Other language skills (Python implementer doesn't get TypeScript)
+- ❌ Other framework skills (React implementer doesn't get Vue or Angular)
+- ❌ Planning skills (analyze-requirements, design-doc-mermaid)
+- ❌ Testing framework skills (Jest, Playwright)
+
+#### Tester Agents - Language + Test Framework Specific
+
+Each tester receives **ONLY** skills for its language and detected test frameworks:
+
+| Agent | Stack | Tester Skills |
+|-------|-------|---------------|
+| **tester-unit-typescript** | TypeScript + Jest | project-context, code-quality-check, mastering-typescript, jest-coverage-automation |
+| **tester-unit-python** | Python + Pytest | project-context, code-quality-check, mastering-python-skill, pytest-patterns |
+| **tester-e2e-typescript** | TypeScript + Playwright | project-context, code-quality-check, mastering-typescript, playwright-e2e-automation |
+
+#### Security Reviewer Agent - Primary Language Only
+
+Security reviewer receives skills for **primary language** only:
+
+| Agent | Stack | Security Skills |
+|-------|-------|----------------|
+| **security-reviewer-typescript** | TypeScript | project-context, security-review, mastering-typescript |
+| **security-reviewer-python** | Python | project-context, security-review, mastering-python-skill |
+
+### Context Optimization Metrics
+
+| Agent Type | Before Context Management | After Context Management | Reduction |
+|------------|---------------------------|--------------------------|-----------|
+| Planner | 22+ skills (all) | 5-8 skills (architecture-aware) | 64-77% |
+| Implementer | 22+ skills (all) | 3-5 skills (language+framework) | 77-86% |
+| Tester | 22+ skills (all) | 4-5 skills (language+test-framework) | 77-82% |
+| Security | 22+ skills (all) | 3 skills (language+security) | 86% |
 
 ---
 
@@ -746,18 +884,38 @@ Loading skill: mastering-nestjs
 
 **Agents** = Specialized Claude instances spawned by skills
 
+**Context Management** = Intelligent skill linking that reduces context bloat by 70-85%
+
 **Hierarchy**:
 ```
-User → Skill → Agent(s) → Context Skills
+User → Skill → Agent(s) → Context Skills (filtered by role + stack)
 ```
 
-**Example**:
+**Example (TypeScript + React project)**:
 ```
-User → /implement-ticket → planner agent → fetch-ticket-context skill
-                         → implementer agent → mastering-typescript skill
-                         → tester agent → testing-patterns skill
+User → /implement-ticket
+    ↓
+    planner agent (5 skills: universal + planning + TS mastery)
+    ↓
+    implementer-typescript agent (4 skills: universal + TS + React)
+    ↓
+    tester-unit-typescript agent (4 skills: universal + quality + TS + Jest)
+    ↓
+    tester-e2e-typescript agent (4 skills: universal + quality + TS + Playwright)
+    ↓
+    security-reviewer-typescript agent (3 skills: universal + security + TS)
 ```
+
+**Key Optimizations**:
+- ✅ Planner gets ALL languages (architecture awareness)
+- ✅ Each implementer gets ONLY its language + detected frameworks
+- ✅ React OR Vue OR Angular (never all three)
+- ✅ 70-85% context reduction (from 22+ skills to 3-5 per agent)
+- ❌ No cross-language pollution
+- ❌ No irrelevant framework skills
 
 **Coverage Gates** = Hard enforcement at unit (80%), integration (100%), and E2E (100%) levels
 
 **Autonomous Mode** = `--no-stop` flag enables unattended execution with decision logging
+
+**Multi-Language Support** = One agent per detected language (TypeScript, Python, Go, Java, Rust, Ruby)

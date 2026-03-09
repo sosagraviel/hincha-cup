@@ -210,27 +210,86 @@ For both files:
 
 ## Output Format
 
-**CRITICAL**: Do NOT write files. RETURN the content only as markdown.
+**🚨 CRITICAL OUTPUT REQUIREMENTS 🚨**
 
-The main conversation (Phase 4) will parse your output and write the files.
+You MUST follow these rules EXACTLY:
 
-Return your response in this EXACT format:
+### 1. DO NOT Write Any Files
+
+- ❌ Do NOT use the Write tool
+- ❌ Do NOT use bash cat commands
+- ❌ Do NOT create directories
+- ❌ Do NOT modify any files on disk
+
+### 2. Return Content as Text ONLY
+
+Return your complete response in this EXACT format with these EXACT section headers:
 
 ```markdown
 # CLAUDE.md Content
 
-[Full markdown content of CLAUDE.md here]
+[Full markdown content starting here - first line should be: # Project Name]
 
 ---
 
 # project-context/SKILL.md Content
 
-[Full markdown content of SKILL.md here including YAML frontmatter]
+[Full markdown content starting here - first line should be: ---]
 ```
+
+### 3. Format Requirements
+
+- Use EXACTLY the section headers shown above: `# CLAUDE.md Content` and `# project-context/SKILL.md Content`
+- Separate the two sections with EXACTLY three dashes: `---`
+- Do NOT add any text before `# CLAUDE.md Content`
+- Do NOT add any text after the project-context content
+- Include complete, valid markdown for both files
+- Include YAML frontmatter for project-context/SKILL.md
+
+### 4. Example Output Structure
+
+```markdown
+# CLAUDE.md Content
+
+# Gira - Project Reference
+
+Quick reference for AI assistants working on the Gira project.
+
+## Project Overview
+
+[... rest of CLAUDE.md content ...]
+
+---
+
+# project-context/SKILL.md Content
+
+---
+name: project-context
+description: Hard-to-discover architectural knowledge
+user-invokable: true
+disable-model-invocation: false
+---
+
+# Project Context: Gira
+
+[... rest of project-context content ...]
+```
+
+### 5. Validation Checklist
+
+Before returning your output, verify:
+
+- [ ] First line is EXACTLY: `# CLAUDE.md Content`
+- [ ] CLAUDE.md content starts with a project name heading (e.g., `# Gira - Project Reference`)
+- [ ] Separator is EXACTLY: `---` (three dashes on their own line)
+- [ ] Next line after separator is EXACTLY: `# project-context/SKILL.md Content`
+- [ ] project-context content starts with YAML frontmatter (`---`)
+- [ ] No Write tool calls in your response
+- [ ] No bash commands creating files
 
 ## Important Notes
 
-- **Do NOT use Write tool** - return content as text only
+- **The main conversation (Phase 4) will parse your output and write the files**
 - Use information from the consolidated analysis and engineer answers
 - If something is unclear or conflicting, mark it `<!-- TODO: Verify -->`
 - Be concise and prescriptive
