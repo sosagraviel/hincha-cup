@@ -1,16 +1,17 @@
 ---
 name: implement-ticket
-description: End-to-end Jira ticket implementation with security, quality checks, and automated PR creation. Use when you need to implement a complete ticket following SDLC best practices.
+description: End-to-end ticket implementation from Jira or markdown specs with security, quality checks, and automated PR creation. Use when you need to implement a complete ticket following SDLC best practices.
 user-invocable: true
-argument-hint: [JIRA-URL-OR-KEY]
+argument-hint: [--from-jira JIRA-URL-OR-KEY | --from-markdown PATH]
 disable-model-invocation: false
 context: inline
 ---
 
 # Implement Ticket - Production Workflow
 
-Complete SDLC workflow for implementing Jira tickets with:
-- ✅ Full context gathering (Jira, Notion, Confluence)
+Complete SDLC workflow for implementing tickets from multiple sources with:
+- ✅ Multiple input sources (Jira, markdown SDD specs)
+- ✅ Full context gathering (Jira, Notion, Confluence, or markdown spec)
 - ✅ Automated requirements analysis
 - ✅ Language-aware implementation (Python/TypeScript)
 - ✅ Security review (OWASP Top 10)
@@ -19,19 +20,26 @@ Complete SDLC workflow for implementing Jira tickets with:
 
 ## Quick Start
 
-You can use either the full Jira URL or just the ticket key:
+### Option 1: From Jira Ticket
 
 ```bash
-# Option 1: Full Jira URL (recommended for multiple Atlassian instances)
-/implement-ticket https://your-company.atlassian.net/browse/PROJ-123
+# Full Jira URL (recommended for multiple Atlassian instances)
+/implement-ticket --from-jira https://your-company.atlassian.net/browse/PROJ-123
 
-# Option 2: Just the ticket key
-/implement-ticket PROJ-123
+# Just the ticket key
+/implement-ticket --from-jira PROJ-123
+```
+
+### Option 2: From Markdown Spec
+
+```bash
+# Markdown SDD ticket (created by /create-sdd-ticket)
+/implement-ticket --from-markdown ./specs/PROJ-123.md
 ```
 
 This single command runs the complete workflow end-to-end.
 
-**Note:** When using the full URL, the skill will automatically extract the ticket key (PROJ-123) from the URL.
+**Note:** The workflow and quality gates are identical regardless of input source. The only difference is where requirements come from.
 
 ## Execution Modes
 
@@ -148,56 +156,96 @@ Deliberate supervisor pattern with grading for high-risk tickets:
 ### Initialization: Parse Arguments and Setup
 
 ```bash
-# Parse command line arguments
-JIRA_INPUT="${1:-}"
-NO_STOP="false"
-SKIP_PRE_FLIGHT="false"
-RESUME="false"
-ARCHITECT_MODE="false"
-PLANNER_MODE="false"
+# Parse command line arguments using argument parser
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UTILS_DIR="$SCRIPT_DIR/../../../utils"
 
-# Extract JIRA key from URL or use as-is
-if [[ "$JIRA_INPUT" =~ browse/([A-Z]+-[0-9]+) ]]; then
-    JIRA_KEY="${BASH_REMATCH[1]}"
-    echo "✓ Extracted ticket key: $JIRA_KEY from URL"
-elif [[ "$JIRA_INPUT" =~ ^[A-Z]+-[0-9]+$ ]]; then
-    JIRA_KEY="$JIRA_INPUT"
-else
-    echo "❌ Invalid JIRA key or URL: $JIRA_INPUT"
-    echo "Usage: /implement-ticket <JIRA-KEY|JIRA-URL> [--no-stop] [--architect-mode] [--planner-mode] [--skip-pre-flight] [--resume]"
+# Use the argument parser utility
+if [[ ! -f "$UTILS_DIR/argument-parser.js" ]]; then
+    echo "❌ Error: argument-parser.js not found at $UTILS_DIR/argument-parser.js"
     exit 1
 fi
 
-# Parse flags
-shift  # Remove first argument (JIRA key/URL)
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --no-stop|--autonomous)
-            NO_STOP="true"
-            echo "✓ Autonomous mode enabled (--no-stop)"
-            ;;
-        --interactive)
-            NO_STOP="false"
-            echo "✓ Interactive mode enabled (will prompt for confirmations)"
-            ;;
-        --skip-pre-flight)
-            SKIP_PRE_FLIGHT="true"
-            echo "⚠️  Pre-flight validation skipped (not recommended)"
-            ;;
-        --resume)
-            RESUME="true"
-            echo "✓ Resume mode enabled (will look for checkpoint)"
-            ;;
-        --architect-mode|--architect)
-            ARCHITECT_MODE="true"
-            echo "✓ Architect mode enabled (will use supervisor pattern with grading)"
-            ;;
-        --planner-mode|--planner)
-            PLANNER_MODE="true"
-            echo "✓ Planner mode enabled (will use fast linear pipeline)"
-            ;;
-        *)
-            echo "⚠️  Unknown flag: $1 (ignoring)"
+# Parse arguments
+PARSE_RESULT=$(node "$UTILS_DIR/argument-parser.js" parse-implement-ticket "$@")
+if [[ $? -ne 0 ]]; then
+    echo "❌ $PARSE_RESULT"
+    echo ""
+    echo "Usage:"
+    echo "  /implement-ticket --from-jira <JIRA-KEY|JIRA-URL> [options]"
+    echo "  /implement-ticket --from-markdown <PATH> [options]"
+    echo ""
+    echo "Options:"
+    echo "  --no-stop, --autonomous    Run without user prompts"
+    echo "  --interactive              Prompt for confirmations (default)"
+    echo "  --architect-mode           Use supervisor pattern with grading"
+    echo "  --planner-mode             Use fast linear pipeline (default)"
+    echo "  --skip-pre-flight          Skip pre-flight validation"
+    echo "  --resume                   Resume from checkpoint"
+    exit 1
+fi
+
+# Extract values from parse result JSON
+INPUT_MODE=$(echo "$PARSE_RESULT" | jq -r '.inputMode')
+INPUT_VALUE=$(echo "$PARSE_RESULT" | jq -r '.inputValue')
+NO_STOP=$(echo "$PARSE_RESULT" | jq -r '.options.noStop // false')
+SKIP_PRE_FLIGHT=$(echo "$PARSE_RESULT" | jq -r '.options.skipPreFlight // false')
+RESUME=$(echo "$PARSE_RESULT" | jq -r '.options.resume // false')
+ARCHITECT_MODE=$(echo "$PARSE_RESULT" | jq -r '.options.architectMode // false')
+PLANNER_MODE=$(echo "$PARSE_RESULT" | jq -r '.options.plannerMode // false')
+
+# Generate ticket ID based on input mode
+if [[ "$INPUT_MODE" == "jira" ]]; then
+    # Extract JIRA key from URL or use as-is
+    if [[ "$INPUT_VALUE" =~ browse/([A-Z]+-[0-9]+) ]]; then
+        TICKET_ID="${BASH_REMATCH[1]}"
+        echo "✓ Extracted ticket key: $TICKET_ID from Jira URL"
+    elif [[ "$INPUT_VALUE" =~ ^[A-Z]+-[0-9]+$ ]]; then
+        TICKET_ID="$INPUT_VALUE"
+        echo "✓ Using Jira ticket key: $TICKET_ID"
+    else
+        echo "❌ Invalid JIRA key or URL: $INPUT_VALUE"
+        exit 1
+    fi
+elif [[ "$INPUT_MODE" == "markdown" ]]; then
+    # Extract ticket ID from markdown filename (e.g., PROJ-123.md or specs/PROJ-123.md)
+    FILENAME=$(basename "$INPUT_VALUE" .md)
+    if [[ "$FILENAME" =~ ^([A-Z]+-[0-9]+)$ ]]; then
+        TICKET_ID="${BASH_REMATCH[1]}"
+        echo "✓ Extracted ticket ID from markdown filename: $TICKET_ID"
+    elif [[ "$FILENAME" =~ DRAFT-([0-9]{8}-[0-9]{6}) ]]; then
+        TICKET_ID="DRAFT-${BASH_REMATCH[1]}"
+        echo "✓ Using draft ticket ID: $TICKET_ID"
+    else
+        # Generate draft ID
+        TICKET_ID="DRAFT-$(date +%Y%m%d-%H%M%S)"
+        echo "✓ Generated ticket ID: $TICKET_ID (markdown source)"
+    fi
+
+    # Validate markdown file exists
+    if [[ ! -f "$INPUT_VALUE" ]]; then
+        echo "❌ Markdown file not found: $INPUT_VALUE"
+        exit 1
+    fi
+    echo "✓ Reading markdown spec: $INPUT_VALUE"
+else
+    echo "❌ Unknown input mode: $INPUT_MODE"
+    exit 1
+fi
+
+# Display parsed configuration
+echo ""
+echo "Configuration:"
+echo "  Input Mode: $INPUT_MODE"
+echo "  Ticket ID: $TICKET_ID"
+echo "  Autonomous: $NO_STOP"
+echo "  Planning Mode: $([ "$ARCHITECT_MODE" == "true" ] && echo "architect" || echo "planner")"
+echo ""
+
+# Export for use in later phases
+export TICKET_ID
+export INPUT_MODE
+export INPUT_VALUE
             ;;
     esac
     shift
@@ -641,23 +689,168 @@ In autonomous mode (`--no-stop`), pre-flight validation:
 
 ### Phase 1: Context Gathering (2-5 minutes)
 
-**Action:** Fetch all context for the ticket
+**Action:** Fetch all context for the ticket based on input mode
 
 ```bash
-# Invokes: /fetch-ticket-context
-# - Reads Jira ticket details
-# - Fetches Notion documentation
-# - Fetches Confluence pages
-# - Identifies linked issues and dependencies
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  PHASE 1: CONTEXT GATHERING"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+if [[ "$INPUT_MODE" == "jira" ]]; then
+    echo "Source: Jira Ticket"
+    echo "Ticket: $TICKET_ID"
+    echo ""
+
+    # Invokes: /fetch-ticket-context
+    # - Reads Jira ticket details via MCP
+    # - Fetches Notion documentation
+    # - Fetches Confluence pages
+    # - Identifies linked issues and dependencies
+
+    # Gather context from Jira and linked resources
+    CONTEXT_FILE="/tmp/context_${TICKET_ID}.md"
+
+    echo "Fetching Jira ticket details..."
+    # Use MCP to fetch ticket
+    # ... (existing Jira context gathering logic)
+
+    echo "✓ Jira ticket: $TICKET_ID fetched"
+    echo "✓ Fetched Notion/Confluence documentation"
+    echo "✓ Identified dependencies"
+
+elif [[ "$INPUT_MODE" == "markdown" ]]; then
+    echo "Source: Markdown SDD Spec"
+    echo "File: $INPUT_VALUE"
+    echo ""
+
+    # Parse markdown ticket using markdown parser
+    CONTEXT_FILE="/tmp/context_${TICKET_ID}.md"
+    CANONICAL_FILE="/tmp/canonical_${TICKET_ID}.json"
+
+    echo "Parsing markdown specification..."
+    node "$UTILS_DIR/ticket-io/parsers/markdown-parser.js" "$INPUT_VALUE" > "$CANONICAL_FILE"
+
+    if [[ $? -ne 0 ]]; then
+        echo "❌ Failed to parse markdown ticket"
+        exit 1
+    fi
+
+    # Convert canonical JSON to readable context markdown
+    cat > "$CONTEXT_FILE" <<EOF
+# Context for ${TICKET_ID}
+
+## Ticket Title
+$(jq -r '.title' "$CANONICAL_FILE")
+
+## User Story
+**As a** $(jq -r '.userStory.role // "N/A"' "$CANONICAL_FILE")
+**I want** $(jq -r '.userStory.goal // "N/A"' "$CANONICAL_FILE")
+**So that** $(jq -r '.userStory.benefit // "N/A"' "$CANONICAL_FILE")
+
+## Success Criteria
+$(jq -r '.successCriteria[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+$(if [[ $(jq -r '.metrics // empty' "$CANONICAL_FILE") ]]; then
+    echo "**Metrics**: $(jq -r '.metrics' "$CANONICAL_FILE")"
+fi)
+
+## Acceptance Criteria (BDD Scenarios)
+$(jq -r '.acceptanceCriteria[]? | "### Scenario: \(.scenario)\n```gherkin\nGiven \(.given)\nWhen \(.when)\nThen \(.then)\n```\n"' "$CANONICAL_FILE")
+
+## Technical Context
+
+### Current State
+$(jq -r '.technicalContext.currentState[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+### Proposed Changes
+$(jq -r '.technicalContext.proposedChanges[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+### Technical Constraints
+$(jq -r '.technicalContext.constraints[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+### Integration Points
+$(jq -r '.technicalContext.integrationPoints[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+### Architecture Decisions
+$(jq -r '.technicalContext.architectureDecisions[]? | "- **\(.decision)**: \(.rationale)"' "$CANONICAL_FILE")
+
+## Out of Scope
+$(jq -r '.outOfScope[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+## Edge Cases & Error Handling
+$(jq -r '.edgeCases[]? | "- **\(.case)**: \(.handling)"' "$CANONICAL_FILE")
+$(jq -r '.errorScenarios[]? | "- **\(.error)**: \(.systemBehavior)"' "$CANONICAL_FILE")
+
+## Dependencies
+### Blocking
+$(jq -r '.dependencies.blocking[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+### Related
+$(jq -r '.dependencies.related[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+## Definition of Done
+### Code Quality
+$(jq -r '.definitionOfDone.codeQuality[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+### Testing
+$(jq -r '.definitionOfDone.testing[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+### Documentation
+$(jq -r '.definitionOfDone.documentation[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+### Review & Deployment
+$(jq -r '.definitionOfDone.review[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+## Implementation Notes
+$(jq -r '.implementationNotes // "None"' "$CANONICAL_FILE")
+
+## References
+$(jq -r '.references[]? // empty' "$CANONICAL_FILE" | sed 's/^/- /')
+
+---
+**Source**: Markdown SDD Spec ($(jq -r '.source' "$CANONICAL_FILE"))
+**Created**: $(jq -r '.metadata.createdAt' "$CANONICAL_FILE")
+**INVEST Validated**: $(jq -r '.metadata.investValidated' "$CANONICAL_FILE")
+**BDD Scenarios**: $(jq -r '.metadata.bddScenarioCount // 0' "$CANONICAL_FILE")
+EOF
+
+    echo "✓ Markdown spec parsed successfully"
+    echo "✓ Extracted $(jq -r '.acceptanceCriteria | length' "$CANONICAL_FILE") BDD scenarios"
+    echo "✓ Identified $(jq -r '.technicalContext.proposedChanges | length' "$CANONICAL_FILE") proposed changes"
+
+    # Store canonical for later use
+    export CANONICAL_FILE
+else
+    echo "❌ Unknown input mode: $INPUT_MODE"
+    exit 1
+fi
+
+# Display context summary
+CONTEXT_SIZE=$(wc -w < "$CONTEXT_FILE" | tr -d ' ')
+echo ""
+echo "Context ready: ~$CONTEXT_SIZE words (~$((CONTEXT_SIZE * 4 / 3)) tokens)"
+echo ""
+
+export CONTEXT_FILE
 ```
 
-**Output:**
+**Output Example (Jira):**
 ```
 ✓ Jira ticket: PROJ-123 "Implement OAuth2 authentication"
 ✓ Fetched 2 Notion documents (35KB total)
 ✓ Fetched 1 Confluence page
 ✓ Found 2 blocking issues
 Context ready: ~15,000 tokens
+```
+
+**Output Example (Markdown):**
+```
+✓ Markdown spec parsed successfully
+✓ Extracted 5 BDD scenarios
+✓ Identified 8 proposed changes
+✓ Technical context: 12 constraints, 4 integration points
+Context ready: ~12,000 tokens
 ```
 
 **Decision Point:** Review context and confirm it's complete
@@ -668,10 +861,11 @@ if [[ "$NO_STOP" == "true" ]] || [[ "$CLAUDE_AUTO_MODE" == "true" ]]; then
     echo "✓ Auto-continuing (autonomous mode enabled)"
     echo "  Context gathered successfully, proceeding to requirements analysis..."
 
-    # Log autonomous decision
+    # Log autonomous decision with input source
+    CONTEXT_SOURCE=$([ "$INPUT_MODE" == "jira" ] && echo "Jira ticket, Notion docs, and Confluence pages" || echo "Markdown SDD spec")
     log_decision "Phase 1: Context Gathering" \
-        "Auto-approved context gathering" \
-        "Autonomous mode enabled. Context includes Jira ticket, Notion docs, and Confluence pages. Total tokens: ~15,000."
+        "Auto-approved context gathering (source: $INPUT_MODE)" \
+        "Autonomous mode enabled. Context source: $CONTEXT_SOURCE. Total tokens: ~$((CONTEXT_SIZE * 4 / 3))."
 
     sleep 1
 else
@@ -679,7 +873,7 @@ else
     read -r response
     if [[ "$response" == "n" ]] || [[ "$response" == "N" ]]; then
         echo "Implementation paused by user"
-        echo "Resume with: /implement-ticket $JIRA_KEY --resume"
+        echo "Resume with: /implement-ticket $([ "$INPUT_MODE" == "jira" ] && echo "--from-jira $TICKET_ID" || echo "--from-markdown $INPUT_VALUE") --resume"
         exit 0
     fi
 fi

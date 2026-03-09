@@ -1,287 +1,520 @@
 ---
 name: create-sdd-ticket
-description: Generate specification-driven development (SDD) tickets with zero assumptions
-version: 1.0.0
+description: Generate specification-driven development (SDD) tickets with intelligent gap detection and multiple input/output formats
+version: 2.0.0
 category: development-workflow
-keywords: [sdd, tickets, requirements, jira, planning, specifications]
+keywords: [sdd, tickets, requirements, jira, markdown, planning, specifications]
 prerequisites:
-  - jira
-  - fetch-ticket-context
+  - jira (optional, only for --from-jira or --save-to-jira)
 model: sonnet
 tools:
   - Read
   - Write
   - Bash
-  - mcp__atlassian__*
-last_updated: 2026-03-02
+  - Grep
+  - Glob
+  - mcp__atlassian__* (if using Jira)
+last_updated: 2026-03-08
 ---
 
 # Create SDD Ticket Skill
 
-**Purpose**: Generate comprehensive, assumption-free Jira tickets following Specification-Driven Development (SDD) principles using INVEST criteria and BDD format.
+**Purpose**: Generate comprehensive, assumption-free tickets following Specification-Driven Development (SDD) principles with intelligent gap detection from multiple sources.
 
-**Version**: 1.0.0
-**Last Updated**: 2026-03-02
+**Version**: 2.0.0
+**Last Updated**: 2026-03-08
 
 ---
 
 ## Overview
 
 This skill produces gap-free, implementation-ready tickets by:
-1. **Gathering all requirements upfront** (batch questions, not iterative)
-2. **Applying INVEST criteria** (Independent, Negotiable, Valuable, Estimable, Small, Testable)
-3. **Using BDD format** (Given-When-Then scenarios)
-4. **Zero assumptions** (ask if unclear, never fill gaps)
-5. **Supporting dual input modes** (free-form or structured)
+1. **Supporting multiple input sources** (text, Jira, markdown)
+2. **Intelligent gap detection** (deep codebase inference before asking questions)
+3. **Multiple output formats** (Jira, markdown)
+4. **Applying INVEST criteria** (Independent, Negotiable, Valuable, Estimable, Small, Testable)
+5. **Using BDD format** (Given-When-Then scenarios)
+6. **Minimizing engineer interruption** (maximum autonomous inference)
 
-**Critical Principle**: Once all questions are answered, the ticket must be 100% complete with NO missing information.
-
----
-
-## Prerequisites
-
-Before using this skill:
-- Jira MCP must be configured (see `.claude/mcp.json`)
-- User must have Jira API access
-- Project key must be known (e.g., "PROJ", "EV")
-- SPECIFICATION_DRIVEN_DEVELOPMENT_GUIDE.md should exist for reference
+**Critical Principle**: The skill performs deep codebase research to infer missing information before asking ANY questions. Only unresolvable gaps require engineer input.
 
 ---
 
-## Input Modes
+## Input/Output Modes
 
-### Mode A: Free-Form Input
+### Input Modes
 
-User provides loose requirements:
+#### 1. Text Input (`--from-input "text"`)
+Free-form text describing the requirement:
+```bash
+/create-sdd-ticket --from-input "Add user authentication with JWT tokens" --save-to-markdown "./specs/AUTH-001.md"
 ```
-User: "We need a way for admins to export user reports as CSV"
+
+#### 2. Jira Input (`--from-jira <JIRA-URL-OR-KEY>`)
+Import existing Jira ticket and enhance it:
+```bash
+/create-sdd-ticket --from-jira "https://company.atlassian.net/browse/PROJ-123" --save-to-markdown "./specs/PROJ-123.md"
+/create-sdd-ticket --from-jira "PROJ-123" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
 ```
 
-**Process**:
-1. Extract key concepts (admins, export, user reports, CSV)
-2. Generate comprehensive question list
-3. Wait for all answers
-4. Generate complete ticket
+#### 3. Markdown Input (`--from-markdown <PATH>`)
+Import existing markdown ticket and complete gaps:
+```bash
+/create-sdd-ticket --from-markdown "./specs/DRAFT-001.md" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+```
+
+### Output Modes
+
+#### 1. Markdown Output (`--save-to-markdown <PATH>`)
+Save as markdown file following SDD template:
+```bash
+--save-to-markdown "./specs/PROJ-123.md"
+```
+
+#### 2. Jira Output (`--save-to-jira <BOARD-URL>`)
+Create/update Jira ticket:
+```bash
+--save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+```
+
+#### 3. Display Only (no output flag)
+Display canonical ticket in console without saving.
+
+### All Valid Combinations
+
+```bash
+# Text → Markdown
+/create-sdd-ticket --from-input "..." --save-to-markdown "./specs/ticket.md"
+
+# Text → Jira
+/create-sdd-ticket --from-input "..." --save-to-jira "<board-url>"
+
+# Jira → Markdown (enhance Jira ticket)
+/create-sdd-ticket --from-jira "PROJ-123" --save-to-markdown "./specs/PROJ-123.md"
+
+# Jira → Jira (update Jira ticket with enhancements)
+/create-sdd-ticket --from-jira "PROJ-123" --save-to-jira "<board-url>"
+
+# Markdown → Jira (complete draft and publish)
+/create-sdd-ticket --from-markdown "./specs/DRAFT-001.md" --save-to-jira "<board-url>"
+
+# Markdown → Markdown (complete draft and save)
+/create-sdd-ticket --from-markdown "./specs/DRAFT-001.md" --save-to-markdown "./specs/FEAT-001.md"
+```
 
 ---
 
-### Mode B: Structured Input
+## Execution Workflow (7 Phases)
 
-User provides specific fields:
-```
-User Story: As an admin, I want to export user reports as CSV
-Stakeholders: Product Manager (Sarah), CTO (John)
-Context: Current reports are view-only, finance team needs exports for compliance
-```
-
-**Process**:
-1. Validate provided fields
-2. Ask questions for missing fields only
-3. Generate complete ticket
-
----
-
-## Execution Workflow
-
-### Phase 1: Parse Input
+### Phase 1: Parse Input Source
 
 **Actions**:
-1. **Detect input mode** (free-form vs structured)
-2. **Extract provided information**:
-   - User story fragments
-   - Stakeholders mentioned
+1. **Detect input mode** from arguments (`--from-input`, `--from-jira`, `--from-markdown`)
+2. **Load input data**:
+   - **Text mode**: Use provided string directly
+   - **Jira mode**: Fetch ticket via MCP, extract all fields
+   - **Markdown mode**: Read file, parse sections
+3. **Validate input**: Ensure required data is accessible
+
+**Tools**:
+```javascript
+const { parseCreateSddTicketArgs } = require('../../utils/argument-parser');
+const args = parseCreateSddTicketArgs(process.argv.slice(2));
+```
+
+**Output**: Raw input data ready for conversion
+
+---
+
+### Phase 2: Convert to Canonical Format
+
+**Actions**:
+1. **Select appropriate parser** based on input mode
+2. **Parse input into canonical ticket structure** (see `schemas/sdd-ticket.schema.json`)
+3. **Extract all available information**:
+   - User story components (role, goal, benefit)
+   - Stakeholders
+   - Success criteria
+   - Acceptance criteria (BDD scenarios)
    - Technical context
-   - Success criteria hints
-   - Constraints or requirements
-3. **Identify gaps** (what's missing for a complete ticket)
+   - Dependencies
+   - Metadata
 
-**Output**: Structured analysis of what we know vs what we need
+**Tools**:
+```javascript
+const { parseJiraTicket } = require('../../utils/ticket-io/parsers/jira-parser');
+const { parseMarkdownTicket } = require('../../utils/ticket-io/parsers/markdown-parser');
 
----
+// For text input
+const canonical = {
+  id: generateDraftId(),
+  source: 'input',
+  title: inputText.slice(0, 100),
+  userStory: { role: null, goal: inputText, benefit: null },
+  // ... rest with nulls/empty arrays
+};
 
-### Phase 2: Generate Question List (Batch Mode)
+// For Jira input
+const canonical = parseJiraTicket(jiraData, jiraBaseUrl);
 
-**CRITICAL**: Ask ALL questions at once, do NOT iterate.
-
-**Question Categories**:
-
-#### 2.1 User Story Clarification
-- Who is the user? (role/persona)
-- What is the goal? (action/capability)
-- Why is it valuable? (benefit/outcome)
-
-#### 2.2 Stakeholders
-- Who requested this? (product owner, customer, team lead)
-- Who will benefit? (end users, internal teams)
-- Who needs to approve? (decision makers)
-- Who will review implementation? (technical reviewers)
-
-#### 2.3 Success Criteria
-- How will we measure success? (metrics, KPIs)
-- What does "done" look like from user perspective?
-- What behavior change are we expecting?
-
-#### 2.4 Acceptance Criteria
-- What are the happy path scenarios?
-- What edge cases must be handled?
-- What are the validation rules?
-- What are the error scenarios?
-
-#### 2.5 Technical Context
-- Are there existing systems to integrate with?
-- What are the technical constraints? (performance, scale, security)
-- What libraries/frameworks should be used?
-- Are there architectural decisions to make?
-
-#### 2.6 Scope Boundaries
-- What is explicitly OUT of scope?
-- What should be deferred to future tickets?
-- What dependencies exist?
-
-#### 2.7 Definition of Done
-- What quality checks are required? (tests, coverage, linting)
-- What documentation is needed?
-- What review process should be followed?
-
-**Output Format**:
-```markdown
-I need clarification on the following to create a complete ticket:
-
-## User Story & Value
-1. [Question about user role]
-2. [Question about user goal]
-3. [Question about business value]
-
-## Stakeholders
-4. [Question about requester]
-5. [Question about beneficiaries]
-
-## Success Criteria
-6. [Question about metrics]
-7. [Question about completion definition]
-
-## Acceptance Criteria
-8. [Question about happy path]
-9. [Question about edge cases]
-10. [Question about validation rules]
-
-## Technical Context
-11. [Question about integrations]
-12. [Question about constraints]
-
-## Scope & Boundaries
-13. [Question about what's out of scope]
-14. [Question about dependencies]
-
-## Definition of Done
-15. [Question about testing requirements]
-16. [Question about documentation]
-
-Please answer all questions above in numbered format.
+// For markdown input
+const canonical = parseMarkdownTicket(filePath);
 ```
 
-**Important**: Maximum 20 questions. If more needed, consolidate related questions.
+**Output**: Canonical ticket object (may have gaps)
 
 ---
 
-### Phase 3: Process Answers
+### Phase 3: Validate & Detect Gaps (CRITICAL)
 
 **Actions**:
-1. **Parse numbered answers** from user response
-2. **Map answers to question categories**
-3. **Validate completeness** (all critical fields covered)
-4. **Flag any remaining ambiguities** with `[NEEDS_CLARIFICATION]`
+1. **Validate ticket completeness**:
+   - Check required fields (user story, stakeholders, success criteria, etc.)
+   - Validate BDD scenario quality
+   - Check for placeholder text
+   - Identify all gaps
 
-**Validation Checklist**:
-- [ ] User story has WHO + WHAT + WHY
-- [ ] At least 1 stakeholder identified
-- [ ] Success criteria defined
-- [ ] At least 3 acceptance criteria scenarios
-- [ ] Technical context provided
-- [ ] Out of scope clarified
-- [ ] Definition of done specified
+2. **Intelligent Gap Detection** (4-strategy approach):
 
-**If validation fails**: Generate follow-up questions for missing items
+   **Strategy 1: Search Project Context**
+   - Read `.claude/CLAUDE.md` for project standards
+   - Search project-context skill for patterns
+   - Check for documented conventions
+
+   **Strategy 2: Deep Codebase Pattern Search**
+   - Grep for similar feature implementations
+   - Find authentication patterns, validation rules, error handling
+   - Extract technical context from existing code
+
+   **Strategy 3: Find Similar Implementations**
+   - Search for files with similar names/purposes
+   - Analyze implementation patterns
+   - Infer architecture decisions
+
+   **Strategy 4: Analyze Existing Tickets**
+   - Search `.claude/tickets/` for similar tickets
+   - Extract common patterns for stakeholders, DoD, testing
+   - Learn from precedents
+
+3. **Apply inferred values** to canonical ticket
+
+4. **Generate questions** only for unresolvable gaps
+
+**Tools**:
+```javascript
+const { validateTicket } = require('../../utils/ticket-io/validators/ticket-validator');
+const { detectAndFillGaps } = require('../../utils/ticket-io/gap-detector');
+
+console.log('🔍 Validating ticket...');
+const validation = validateTicket(canonical);
+
+if (validation.gaps.length > 0) {
+  console.log('\n🧠 Starting intelligent gap detection...');
+  console.log(`   Found ${validation.gaps.length} gaps, attempting autonomous inference...\n`);
+
+  const gapAnalysis = await detectAndFillGaps(canonical, validation, process.cwd());
+
+  console.log(`\n📈 Gap Detection Results:`);
+  console.log(`   Total Gaps: ${gapAnalysis.summary.totalGaps}`);
+  console.log(`   Inferred: ${gapAnalysis.summary.inferred} (${gapAnalysis.summary.inferenceRate}%)`);
+  console.log(`   Unresolved: ${gapAnalysis.summary.unresolved}`);
+
+  // Apply inferred values
+  Object.entries(gapAnalysis.inferredValues).forEach(([field, value]) => {
+    setNestedValue(canonical, field, value);
+  });
+}
+```
+
+**Output**: Validated ticket with inference results and unresolved gaps
 
 ---
 
-### Phase 4: Apply INVEST Criteria
+### Phase 4: Ask Engineer (Only If Needed)
 
-Validate the ticket meets INVEST standards:
+**Actions**:
+1. **Check if questions are needed**: `gapAnalysis.unresolvedGaps.length > 0`
+2. **If autonomous** (no unresolved gaps): Skip this phase entirely
+3. **If questions needed**:
+   - Display minimal, focused questions
+   - Provide context from inference attempts
+   - Show examples
+   - Collect answers
+   - Apply answers to canonical ticket
 
-#### Independent
-- Can this be implemented without waiting for other tickets?
-- Are dependencies clearly documented?
+**Question Format**:
+```markdown
+I need clarification on ${unresolvedGaps.length} item(s) that couldn't be inferred:
 
-#### Negotiable
-- Is the implementation approach flexible?
-- Are there multiple valid solutions?
+## ${category}
 
-#### Valuable
-- Does this deliver user/business value?
-- Is the value clearly articulated?
+${gap.field}:
+  Question: ${gap.message}
+  Context: Searched ${attemptedSources.join(', ')} - no definitive answer found
+  Example: ${gap.example}
 
-#### Estimable
-- Is there enough detail to estimate effort?
-- Are unknowns identified?
+Your answer: _____
+```
 
-#### Small
-- Can this be completed in 1-5 days?
-- If too large, suggest splitting (provide split recommendations)
-
-#### Testable
-- Are acceptance criteria verifiable?
-- Can we write automated tests?
-
-**If INVEST fails**: Provide recommendations to fix (e.g., "This ticket is too large, suggest splitting into: Ticket A [scope], Ticket B [scope]")
+**Output**: Complete canonical ticket with all gaps filled
 
 ---
 
-### Phase 5: Generate BDD Scenarios
+### Phase 5: Apply INVEST Criteria
 
-Convert acceptance criteria into Given-When-Then format:
+**Actions**:
+1. **Validate ticket meets INVEST standards**:
+   - **Independent**: Check blocking dependencies
+   - **Negotiable**: Verify implementation flexibility
+   - **Valuable**: Confirm business value articulated
+   - **Estimable**: Ensure sufficient technical detail
+   - **Small**: Estimate complexity (days), suggest splits if > 5 days
+   - **Testable**: Verify BDD scenarios are verifiable
 
-**Template**:
+2. **Display INVEST results** with scores and recommendations
+
+3. **Handle split recommendations**:
+   - If ticket estimated > 5 days, show split suggestion
+   - Ask engineer if they want to split
+   - If yes, generate multiple tickets
+
+**Tools**:
+```javascript
+const validation = validateTicket(canonical);
+
+console.log('\n📊 INVEST Criteria:');
+Object.entries(validation.invest).forEach(([criterion, result]) => {
+  console.log(`   ${result.passed ? '✅' : '❌'} ${criterion.toUpperCase()} (${result.score}%)`);
+  console.log(`      ${result.message}`);
+  if (result.recommendation) {
+    console.log(`      💡 ${result.recommendation}`);
+  }
+});
+
+if (validation.invest.small.estimatedDays > 5) {
+  console.log('\n⚠️  Ticket complexity suggests splitting');
+  console.log(validation.invest.small.recommendation);
+  // Ask engineer if they want to split
+}
+```
+
+**Output**: INVEST-validated ticket (potentially split into multiple)
+
+---
+
+### Phase 6: Generate/Enhance BDD Scenarios
+
+**Actions**:
+1. **Ensure minimum 3 BDD scenarios**:
+   - Happy path (primary use case)
+   - Edge cases (boundary conditions, unusual inputs)
+   - Error scenarios (failures, invalid states)
+
+2. **Validate scenario quality**:
+   - All scenarios have Given-When-Then structure
+   - Use concrete examples (not "some users" but "50 users")
+   - Include And clauses where needed
+   - Scenarios are independently verifiable
+
+3. **Enhance scenarios if needed**:
+   - Add missing Given clauses for context
+   - Add Then clauses for complete validation
+   - Ensure error messages specified
+
+**Scenario Template**:
 ```gherkin
-Scenario: [Clear scenario name]
+Scenario: [Clear, specific scenario name]
   Given [initial context/state]
   And [additional context if needed]
   When [action/trigger]
   Then [expected outcome]
-  And [additional outcome if needed]
+  And [additional outcome/validation]
+  And [system state/side effects]
 ```
 
 **Example**:
 ```gherkin
-Scenario: Admin exports user report as CSV
-  Given I am logged in as an admin user
-  And there are 50 users in the system
-  When I click "Export to CSV" on the Users page
-  Then a CSV file downloads containing all 50 user records
-  And the file includes columns: name, email, role, created_at, last_login
-  And the filename follows format: users_export_YYYY-MM-DD.csv
+Scenario: User successfully resets forgotten password
+  Given I am on the login page
+  And I click "Forgot Password"
+  And I enter email "user@example.com" that exists in the system
+  When I click "Send Reset Link"
+  Then I see message "Password reset link sent to user@example.com"
+  And an email is sent within 60 seconds
+  And the email contains a reset link valid for 1 hour
+  And the link format is https://app.com/reset-password?token=<uuid>
 ```
 
-**Guidelines**:
-- Write 3-7 scenarios (happy path + edge cases + error cases)
-- Use concrete examples (not "some users" but "50 users")
-- Make scenarios independently verifiable
-- Include negative scenarios (invalid input, unauthorized access)
+**Output**: Ticket with high-quality BDD scenarios ready for automated testing
 
 ---
 
-### Phase 6: Generate Complete Ticket
+### Phase 7: Output Ticket
 
-**Ticket Structure** (following SPECIFICATION_DRIVEN_DEVELOPMENT_GUIDE.md):
+**Actions**:
+1. **Update metadata**:
+   - Set `investValidated: true`
+   - Set `bddScenarioCount`
+   - Add timestamp
+
+2. **Format based on output mode**:
+
+   **Markdown Output**:
+   ```javascript
+   const { writeMarkdownFile } = require('../../utils/ticket-io/formatters/markdown-formatter');
+   const writtenPath = writeMarkdownFile(canonical, outputPath);
+   console.log(`✅ Markdown written to: ${writtenPath}`);
+   ```
+
+   **Jira Output**:
+   ```javascript
+   const { formatToJira } = require('../../utils/ticket-io/formatters/jira-formatter');
+   const jiraPayload = formatToJira(canonical, projectKey, 'Story');
+
+   // Use MCP to create/update
+   const result = await mcp__atlassian__createJiraIssue({
+     cloudId: cloudId,
+     projectKey: projectKey,
+     issueTypeName: 'Story',
+     summary: canonical.title,
+     description: jiraPayload.fields.description,
+     additional_fields: {
+       priority: { name: canonical.metadata.priority || 'Medium' },
+       labels: canonical.metadata.labels || []
+     }
+   });
+
+   console.log(`✅ Jira ticket created: ${result.key}`);
+   console.log(`   URL: ${jiraBaseUrl}/browse/${result.key}`);
+   ```
+
+   **Display Only**:
+   ```javascript
+   console.log('\n📄 Canonical Ticket:');
+   console.log(JSON.stringify(canonical, null, 2));
+   ```
+
+3. **Provide success summary**:
+   ```markdown
+   ✨ Ticket Creation Complete!
+
+   Summary:
+     Title: ${canonical.title}
+     Output: ${outputPath or jiraKey}
+     INVEST: ✅ ${passedCount}/6 criteria passed
+     BDD Scenarios: ${scenarioCount}
+     Autonomous Inference: ${inferenceRate}%
+     Questions Asked: ${questionsAsked}
+
+   Next Steps:
+     - Review the ticket for accuracy
+     - Assign to sprint/epic if using Jira
+     - Use /implement-ticket ${ticketId} to begin implementation
+   ```
+
+**Output**: Final ticket saved/created, engineer notified
+
+---
+
+## Canonical Ticket Structure
+
+All tickets follow this schema (see `schemas/sdd-ticket.schema.json`):
+
+```json
+{
+  "id": "PROJ-123 or DRAFT-YYYYMMDD-HHMMSS",
+  "source": "jira | markdown | input",
+  "title": "Concise ticket title",
+  "userStory": {
+    "role": "user persona",
+    "goal": "desired capability",
+    "benefit": "business value"
+  },
+  "stakeholders": [
+    {
+      "role": "Product Owner",
+      "name": "Jane Doe",
+      "responsibility": "Acceptance, prioritization"
+    }
+  ],
+  "successCriteria": [
+    "Measurable outcome 1",
+    "Measurable outcome 2"
+  ],
+  "metrics": "How success will be measured",
+  "acceptanceCriteria": [
+    {
+      "scenario": "Happy path",
+      "given": "initial context",
+      "and_given": ["additional context"],
+      "when": "action trigger",
+      "then": "expected outcome",
+      "and_then": ["additional outcomes"]
+    }
+  ],
+  "technicalContext": {
+    "currentState": ["What exists today"],
+    "proposedChanges": ["What will be built"],
+    "constraints": ["Performance, security requirements"],
+    "integrationPoints": ["Systems to integrate with"],
+    "architectureDecisions": [
+      {
+        "decision": "Use JWT tokens",
+        "rationale": "Industry standard, stateless"
+      }
+    ]
+  },
+  "outOfScope": ["Item explicitly not included"],
+  "futureConsiderations": "What might be addressed later",
+  "edgeCases": [
+    {
+      "case": "Edge case description",
+      "handling": "How to handle it"
+    }
+  ],
+  "errorScenarios": [
+    {
+      "error": "Error condition",
+      "systemBehavior": "User message, system behavior"
+    }
+  ],
+  "validationRules": ["Data validation rules"],
+  "dependencies": {
+    "blocking": ["PROJ-122"],
+    "related": ["PROJ-100 - Related feature"]
+  },
+  "definitionOfDone": {
+    "codeQuality": ["Unit test coverage >= 80%"],
+    "testing": ["All BDD scenarios automated"],
+    "documentation": ["API endpoints documented"],
+    "review": ["Code reviewed and approved"]
+  },
+  "implementationNotes": "Additional context for implementer",
+  "references": ["Design mockups URL"],
+  "metadata": {
+    "createdAt": "2026-03-08T10:00:00Z",
+    "investValidated": true,
+    "bddScenarioCount": 5,
+    "priority": "High",
+    "labels": ["sdd", "authentication"]
+  }
+}
+```
+
+---
+
+## Markdown Template Structure
+
+Output follows `templates/sdd-ticket-template.md`:
 
 ```markdown
-# [Epic/Feature Name]: [Concise Title]
+# PROJ-123: [Title]
 
 ## 📋 User Story
 
-**As a** [user role/persona]
-**I want** [goal/capability]
-**So that** [benefit/value]
+**As a** [role]
+**I want** [goal]
+**So that** [benefit]
 
 ---
 
@@ -289,10 +522,7 @@ Scenario: Admin exports user report as CSV
 
 | Role | Name | Responsibility |
 |------|------|----------------|
-| Requester | [Name] | Initial request, requirements validation |
-| Product Owner | [Name] | Acceptance, prioritization |
-| Tech Lead | [Name] | Architecture review, technical approval |
-| End Users | [Group/Role] | Primary beneficiaries |
+| Product Owner | Jane Doe | Acceptance, prioritization |
 
 ---
 
@@ -300,7 +530,6 @@ Scenario: Admin exports user report as CSV
 
 1. [Measurable outcome 1]
 2. [Measurable outcome 2]
-3. [Measurable outcome 3]
 
 **Metrics**: [How we'll measure success]
 
@@ -315,21 +544,12 @@ When [action]
 Then [outcome]
 ```
 
-### Scenario 2: [Edge Case 1]
+### Scenario 2: [Edge Case]
 ```gherkin
 Given [context]
 When [action]
 Then [outcome]
 ```
-
-### Scenario 3: [Error Case]
-```gherkin
-Given [context]
-When [action]
-Then [outcome]
-```
-
-[... 3-7 total scenarios ...]
 
 ---
 
@@ -337,33 +557,25 @@ Then [outcome]
 
 ### Current State
 - [What exists today]
-- [Relevant systems/components]
 
 ### Proposed Changes
 - [What will be built/modified]
-- [Technologies/libraries to use]
 
 ### Technical Constraints
-- [Performance requirements]
-- [Security requirements]
-- [Scalability considerations]
+- [Performance, security requirements]
 
 ### Integration Points
 - [Systems to integrate with]
-- [APIs to call/expose]
 
 ### Architecture Decisions
-- [Key technical choices]
-- [Rationale for approach]
+- **[Decision]**: [Rationale]
 
 ---
 
 ## 🚫 Out of Scope
 
-The following are explicitly NOT part of this ticket:
 1. [Item 1]
 2. [Item 2]
-3. [Item 3]
 
 **Future Considerations**: [What might be addressed later]
 
@@ -372,26 +584,22 @@ The following are explicitly NOT part of this ticket:
 ## ⚠️ Edge Cases & Error Handling
 
 ### Edge Cases
-1. **[Edge case 1]**: [How to handle]
-2. **[Edge case 2]**: [How to handle]
+1. **[Edge case]**: [Handling]
 
 ### Error Scenarios
-1. **[Error 1]**: [User-facing message, system behavior]
-2. **[Error 2]**: [User-facing message, system behavior]
+1. **[Error]**: [User message, system behavior]
 
 ### Data Validation Rules
-- [Validation rule 1]
-- [Validation rule 2]
+- [Rule 1]
 
 ---
 
 ## 📦 Dependencies
 
 ### Blocking
-- [ ] [Ticket/item that must complete first]
+- [ ] [Ticket that must complete first]
 
 ### Related
-- [Ticket] - [Relationship]
 - [Ticket] - [Relationship]
 
 ---
@@ -399,478 +607,277 @@ The following are explicitly NOT part of this ticket:
 ## 🎓 Definition of Done
 
 ### Code Quality
-- [ ] All acceptance criteria scenarios implemented
+- [ ] All acceptance criteria implemented
 - [ ] Unit test coverage ≥ 80%
-- [ ] Integration test coverage = 100% (all scenarios)
-- [ ] No ESLint warnings (--max-warnings=0)
-- [ ] TypeScript type check passes
-- [ ] Code formatted with Prettier
 
 ### Testing
-- [ ] All BDD scenarios have corresponding automated tests
-- [ ] Manual testing completed for edge cases
-- [ ] Error handling tested
+- [ ] All BDD scenarios automated
 
 ### Documentation
-- [ ] API endpoints documented (if applicable)
-- [ ] README updated (if user-facing feature)
-- [ ] Technical decisions logged in project-context skill
+- [ ] API endpoints documented
 
 ### Review & Deployment
 - [ ] Code reviewed and approved
 - [ ] PR merged to main
-- [ ] Deployed to staging
-- [ ] Stakeholders validated implementation
 
 ---
 
 ## 📝 Implementation Notes
 
-[Any additional context, helpful resources, or gotchas for implementer]
+[Additional context for implementer]
 
 ---
 
 ## 🔗 References
 
-- SPECIFICATION_DRIVEN_DEVELOPMENT_GUIDE.md
 - [Design mockups URL]
 - [Related documentation]
 
 ---
 
-**Created**: [Date]
+**Created**: 2026-03-08
 **Created By**: Claude (create-sdd-ticket skill)
 **INVEST Validated**: ✅
-**BDD Scenarios**: [Count]
-```
-
----
-
-### Phase 7: Create Jira Ticket
-
-**Actions**:
-
-1. **Prepare ticket data**:
-   - Convert markdown to Jira-compatible format
-   - Extract summary (first 100 chars of title)
-   - Extract description (full ticket markdown)
-   - Set issue type (Story, Task, or Bug based on context)
-   - Set priority (based on stakeholder input)
-
-2. **Create ticket via MCP**:
-```typescript
-// Use Jira MCP tool
-mcp__atlassian__createJiraIssue({
-  cloudId: "<from config>",
-  projectKey: "PROJ",
-  issueTypeName: "Story",
-  summary: "[Concise title from ticket]",
-  description: "[Full markdown ticket]",
-  additional_fields: {
-    priority: { name: "High" },
-    labels: ["sdd", "ready-for-implementation"],
-    components: [{ name: "Backend" }] // if applicable
-  }
-})
-```
-
-3. **Validate creation**:
-   - Verify ticket created successfully
-   - Capture ticket key (e.g., "PROJ-123")
-   - Confirm all fields populated
-
-4. **Report to user**:
-```markdown
-✅ SDD Ticket Created: PROJ-123
-
-**Summary**: [Title]
-**Link**: https://your-org.atlassian.net/browse/PROJ-123
-**Status**: Ready for Implementation
-
-**INVEST Validation**: ✅ Passed all criteria
-**BDD Scenarios**: 5 scenarios ready for automated testing
-
-Next steps:
-- Review ticket in Jira
-- Assign to sprint/epic if needed
-- Use /implement-ticket PROJ-123 to begin implementation
+**BDD Scenarios**: 5
+**Priority**: High
 ```
 
 ---
 
 ## Usage Examples
 
-### Example 1: Free-Form Input
+### Example 1: Text → Markdown
 
-**User input**:
-```
-"We need to let users reset their password if they forgot it"
-```
-
-**Skill generates 15 questions**:
-```markdown
-## User Story & Value
-1. Who can reset passwords? (all users, or specific roles only?)
-2. Where should the reset link be sent? (email, SMS, both?)
-3. What's the business value? (reduce support tickets, improve UX, compliance?)
-
-## Success Criteria
-4. How many users do we expect to use this monthly?
-5. What response time is acceptable? (email within 5 min, 1 hour?)
-
-## Acceptance Criteria
-6. What happens if user enters invalid email?
-7. What happens if reset link expires?
-8. Should there be rate limiting on reset requests?
-9. Can user reset password multiple times?
-
-## Technical Context
-10. Do we have an email service configured? (SendGrid, AWS SES?)
-11. What's the token expiration time? (15 min, 1 hour, 24 hours?)
-12. Should we log reset attempts for security?
-
-## Scope & Boundaries
-13. Is password strength validation in scope? (or separate ticket?)
-14. Is MFA/2FA integration needed? (or future enhancement?)
-
-## Definition of Done
-15. What's the testing strategy? (unit + integration + E2E?)
+```bash
+/create-sdd-ticket \
+  --from-input "Add user authentication with JWT tokens" \
+  --save-to-markdown "./specs/AUTH-001.md"
 ```
 
-**User answers all 15**, skill generates complete ticket with 5 BDD scenarios, validates INVEST, creates PROJ-456.
+**Process**:
+1. Parses text input
+2. Creates minimal canonical ticket
+3. Runs gap detection:
+   - Searches codebase for existing auth patterns
+   - Finds JWT implementation in backend
+   - Infers technical stack, error handling patterns
+   - Finds similar features for stakeholder patterns
+4. Asks 3-5 questions for unresolvable gaps
+5. Generates complete ticket with 5 BDD scenarios
+6. Saves to markdown
 
 ---
 
-### Example 2: Structured Input
+### Example 2: Jira → Markdown (Enhance)
 
-**User input**:
-```markdown
-User Story: As a project manager, I want to bulk-assign tickets to team members so that I can distribute work faster
-
-Stakeholders:
-- Requester: Jane (PM)
-- Users: All PMs on platform
-
-Success Criteria:
-- PMs can assign 20+ tickets in under 1 minute
-- No errors when assigning to valid users
-
-Technical Context:
-- Backend: NestJS API
-- Frontend: React with TanStack Query
-- Use existing ticket assignment endpoint, add batch support
+```bash
+/create-sdd-ticket \
+  --from-jira "PROJ-123" \
+  --save-to-markdown "./specs/PROJ-123.md"
 ```
 
-**Skill generates 8 questions** (only for gaps):
-```markdown
-## Acceptance Criteria
-1. What's the maximum number of tickets in a single batch? (20, 50, 100?)
-2. What happens if some assignments fail? (rollback all, partial success?)
-3. Should user get confirmation before bulk assign? (or immediate action?)
+**Process**:
+1. Fetches PROJ-123 from Jira via MCP
+2. Parses Jira description, extracts all fields
+3. Validates completeness (likely has gaps)
+4. Runs gap detection on missing fields
+5. Asks minimal questions
+6. Enhances ticket with full SDD structure
+7. Saves to markdown (local spec file)
 
-## Edge Cases
-4. What if a ticket is already assigned to someone else? (overwrite, skip, error?)
-5. What if assignee doesn't have permission for project? (validation rule?)
+---
 
-## Technical Context
-6. Should this be synchronous or async? (if 100+ tickets, use background job?)
-7. What's the UI pattern? (checkbox selection + assign button?)
+### Example 3: Markdown → Jira (Complete Draft)
 
-## Definition of Done
-8. What E2E scenarios should be tested? (happy path + partial failure?)
+```bash
+/create-sdd-ticket \
+  --from-markdown "./specs/DRAFT-20260308.md" \
+  --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
 ```
 
-**User answers 8**, skill generates ticket with 6 BDD scenarios, creates PROJ-457.
+**Process**:
+1. Reads draft markdown file
+2. Parses all sections
+3. Validates and detects gaps
+4. Completes missing sections autonomously
+5. Applies INVEST criteria
+6. Creates Jira ticket via MCP
+7. Returns PROJ-124 ticket key
+
+---
+
+### Example 4: Jira → Jira (Update)
+
+```bash
+/create-sdd-ticket \
+  --from-jira "PROJ-123" \
+  --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+```
+
+**Process**:
+1. Fetches PROJ-123
+2. Enhances with SDD structure
+3. Updates PROJ-123 in Jira with complete spec
 
 ---
 
 ## Error Handling
 
-### Incomplete Answers
+### Gap Detection Fails
 
-**Scenario**: User only answers 10 of 15 questions
+**Scenario**: Cannot infer critical information
 
 **Handling**:
-1. Parse answered questions
-2. Identify unanswered questions
-3. Re-ask ONLY unanswered questions:
 ```markdown
-I still need answers for these questions to complete the ticket:
+🧠 Gap Detection Summary:
+   Inferred: 8/12 gaps (67%)
+   Unresolved: 4 gaps
 
-## Acceptance Criteria
-6. What happens if user enters invalid email?
-7. What happens if reset link expires?
+I need clarification on 4 items that couldn't be inferred from the codebase:
 
 ## Technical Context
-11. What's the token expiration time?
+1. proposedChanges:
+   Question: What specific components will be modified?
+   Context: Searched codebase but found multiple auth implementations
+   Example: "Modify UserController, add AuthService, update User model"
 
-## Definition of Done
-15. What's the testing strategy?
-
-Please provide answers for questions 6, 7, 11, and 15.
+Your answer: _____
 ```
 
 ---
 
-### Ambiguous Answers
+### INVEST Validation Fails
 
-**Scenario**: User answer is unclear (e.g., "whatever is standard")
+**Scenario**: Ticket too large (> 5 days)
 
 **Handling**:
-1. Flag ambiguity in ticket as `[NEEDS_CLARIFICATION: <detail>]`
-2. Ask follow-up question:
 ```markdown
-⚠️ Ambiguous answer detected:
+⚠️  INVEST Validation: Small criterion failed
 
-Q11: "What's the token expiration time?"
-Your answer: "whatever is standard"
+Estimated: 8 days (complexity score: 42)
+Recommendation: Split into 2 tickets
 
-This is unclear. Please specify:
-A) 15 minutes (high security)
-B) 1 hour (balanced)
-C) 24 hours (user convenience)
-D) Other: [specify]
+Suggested Split:
+  Ticket 1: User Authentication - Basic Login
+    - JWT token generation
+    - Login endpoint
+    - Token validation middleware
+    Estimate: 3 days
+
+  Ticket 2: User Authentication - Advanced Features
+    - Refresh tokens
+    - Token revocation
+    - Session management
+    Estimate: 4 days
+
+Would you like to split this ticket? (y/n): _____
 ```
 
 ---
 
-### INVEST Validation Failures
+### Jira MCP Unavailable
 
-**Scenario**: Ticket is too large (violates "Small" criteria)
-
-**Handling**:
-1. Identify why it's too large
-2. Suggest split:
-```markdown
-⚠️ INVEST Validation Failed: Ticket is too large (estimated 8-10 days)
-
-**Recommendation**: Split into 3 tickets:
-
-**Ticket 1**: Password Reset - Email Delivery
-- Generate reset token
-- Send email with link
-- Basic validation
-Estimate: 2-3 days
-
-**Ticket 2**: Password Reset - Token Validation & Reset
-- Validate token on link click
-- Update password
-- Expire token
-Estimate: 2-3 days
-
-**Ticket 3**: Password Reset - Security Features
-- Rate limiting
-- Audit logging
-- Suspicious activity detection
-Estimate: 3-4 days
-
-Proceed with split? (y/n)
-```
-
----
-
-### Jira Creation Failures
-
-**Scenario**: MCP tool fails (network error, auth error, validation error)
+**Scenario**: MCP not configured or failing
 
 **Handling**:
-1. **Save ticket locally**:
-   - Write to `.claude/tickets/DRAFT-[timestamp].md`
-   - Include all generated content
-
-2. **Diagnose error**:
-   - Network error → Retry with exponential backoff (3 attempts)
-   - Auth error → Prompt user to check Jira credentials
-   - Validation error → Show Jira's error message, ask user to fix
-
-3. **Provide fallback**:
 ```markdown
-❌ Failed to create Jira ticket (auth error)
+❌ Jira MCP not available
 
-Ticket saved locally: .claude/tickets/DRAFT-2026-03-02-143022.md
+Ticket saved locally: .claude/tickets/DRAFT-20260308-143022.md
 
-**Manual Steps**:
-1. Fix Jira credentials in .env
-2. Run: claude-code run create-sdd-ticket --resume DRAFT-2026-03-02-143022
+Options:
+  1. Configure Jira MCP (see .claude/mcp.json)
+  2. Use --save-to-markdown instead
+  3. Copy ticket content and create manually in Jira UI
 
-Or create manually in Jira UI using saved ticket content.
+Would you like to save as markdown instead? (y/n): _____
 ```
 
 ---
 
 ## Quality Checks
 
-Before finalizing ticket, validate:
+Before finalizing, validate:
 
 ### Completeness
 - [ ] User story has WHO + WHAT + WHY
 - [ ] All 7 main sections present
 - [ ] No `[NEEDS_CLARIFICATION]` markers
-- [ ] No placeholder text like "[TODO]" or "[TBD]"
+- [ ] No placeholder text
 
 ### INVEST Criteria
-- [ ] Independent (no blocking dependencies)
-- [ ] Negotiable (implementation flexible)
-- [ ] Valuable (clear business value)
-- [ ] Estimable (enough detail to estimate)
-- [ ] Small (1-5 days estimated)
-- [ ] Testable (scenarios are verifiable)
+- [ ] Independent (score >= 60%)
+- [ ] Negotiable (score >= 60%)
+- [ ] Valuable (score >= 60%)
+- [ ] Estimable (score >= 60%)
+- [ ] Small (estimated <= 5 days)
+- [ ] Testable (score >= 70%)
 
 ### BDD Scenarios
-- [ ] At least 3 scenarios (happy + edge + error)
-- [ ] All scenarios use Given-When-Then format
-- [ ] Scenarios use concrete examples
-- [ ] Scenarios are independently verifiable
+- [ ] At least 3 scenarios
+- [ ] All have Given-When-Then
+- [ ] Use concrete examples
+- [ ] Cover happy path, edge cases, errors
 
 ### Technical Clarity
 - [ ] Integration points documented
-- [ ] Technical constraints specified
+- [ ] Constraints specified
 - [ ] Architecture decisions explained
 - [ ] Error handling defined
-
----
-
-## Integration with Other Skills
-
-### With `/fetch-ticket-context`
-- Use to gather context for related tickets
-- Cross-reference existing implementations
-- Avoid duplicating functionality
-
-### With `/implement-ticket`
-- Generated SDD tickets are ready for `/implement-ticket` skill
-- No additional analysis needed
-- BDD scenarios become automated tests
-
-### With `/analyze-requirements`
-- Use for complex features needing deeper analysis
-- Generate multiple related SDD tickets
-- Create epic structure
 
 ---
 
 ## Best Practices
 
 ### Do's ✅
-- **Ask all questions upfront** (batch mode)
-- **Use concrete examples** in scenarios ("50 users" not "some users")
-- **Define measurable success criteria** (metrics, KPIs)
+- **Maximize autonomous inference** - search codebase deeply before asking
+- **Ask minimal, focused questions** - only for truly unresolvable gaps
+- **Use concrete examples** in scenarios
+- **Define measurable success criteria**
 - **Document edge cases explicitly**
-- **Specify error messages** in scenarios
-- **Include test coverage requirements** in DoD
-- **Reference existing patterns** from codebase
+- **Include test coverage requirements**
+- **Reference existing patterns**
 
 ### Don'ts ❌
-- **Don't assume** - always ask if unclear
-- **Don't iterate questions** - batch them all at once
-- **Don't create placeholder sections** - fill everything or mark `[NEEDS_CLARIFICATION]`
-- **Don't skip INVEST validation** - tickets must meet all criteria
-- **Don't write vague scenarios** - be specific and verifiable
-- **Don't forget negative cases** - include error scenarios
-- **Don't make technical decisions** without stakeholder input
+- **Don't ask questions** that can be inferred from code
+- **Don't assume** - mark `[NEEDS_CLARIFICATION]` if truly unknown
+- **Don't skip INVEST validation**
+- **Don't write vague scenarios**
+- **Don't forget error scenarios**
+- **Don't make architectural decisions** without input
 
 ---
 
-## Troubleshooting
+## Integration with Other Skills
 
-### "How do I handle contradictory answers?"
+### With `/implement-ticket`
+- SDD tickets are ready for implementation
+- BDD scenarios become automated tests
+- Use: `/implement-ticket --from-markdown "./specs/AUTH-001.md"`
 
-**Solution**:
-1. Identify contradiction
-2. Present both interpretations
-3. Ask user to clarify:
-```markdown
-⚠️ Contradictory information detected:
-
-In answer #3 you said: "All users can reset passwords"
-In answer #8 you said: "Only verified users can reset"
-
-Which is correct?
-A) All users (including unverified)
-B) Only verified users
-C) Other: [specify]
-```
-
----
-
-### "What if user says 'I don't know' to a question?"
-
-**Solution**:
-1. Mark that section with `[NEEDS_CLARIFICATION: User unsure about X]`
-2. Suggest reasonable default with disclaimer:
-```markdown
-⚠️ Missing information:
-
-Q11: Token expiration time - User unsure
-
-**Suggested default**: 1 hour (industry standard)
-**Marked in ticket**: [NEEDS_CLARIFICATION: Token expiration - assuming 1 hour, confirm with security team]
-
-Ticket created with assumption, will need validation before implementation.
-```
-
----
-
-### "What if this is a bug fix, not a feature?"
-
-**Solution**:
-1. Adapt template for bug fixes
-2. Add sections:
-   - **Bug Description**: What's broken
-   - **Steps to Reproduce**: How to trigger bug
-   - **Expected vs Actual Behavior**
-   - **Root Cause** (if known)
-   - **Proposed Fix**
-3. Keep BDD scenarios (for regression tests)
-
-**Bug Ticket Template** (modified):
-```markdown
-# 🐛 Bug: [Concise Description]
-
-## 📋 Bug Description
-[What's broken]
-
-## 🔁 Steps to Reproduce
-1. [Step 1]
-2. [Step 2]
-3. [Step 3]
-
-## 🔍 Expected vs Actual
-
-**Expected**: [What should happen]
-**Actual**: [What actually happens]
-
-## 🎯 Acceptance Criteria (Fix Validation)
-
-### Scenario 1: Bug is fixed
-```gherkin
-Given [reproduction setup]
-When [trigger action]
-Then [correct behavior occurs]
-And [no errors logged]
-```
-
-### Scenario 2: Regression test
-```gherkin
-Given [related functionality]
-When [use related feature]
-Then [still works correctly]
-```
-
-[... rest of template ...]
-```
+### With `/fetch-ticket-context`
+- Gather context for related tickets
+- Cross-reference implementations
 
 ---
 
 ## Version History
 
-- **1.0.0** (2026-03-02): Initial skill with dual input modes, batch questions, INVEST validation, BDD scenarios
+- **2.0.0** (2026-03-08):
+  - Added multiple input sources (text, Jira, markdown)
+  - Added multiple output formats (Jira, markdown)
+  - Implemented intelligent gap detection with 4-strategy inference
+  - Added canonical ticket format
+  - Removed backward compatibility (explicit flags required)
+- **1.0.0** (2026-03-02): Initial release with dual input modes
 
 ---
 
 ## References
 
-- SPECIFICATION_DRIVEN_DEVELOPMENT_GUIDE.md (project root)
+- `schemas/sdd-ticket.schema.json` - Canonical ticket schema
+- `templates/sdd-ticket-template.md` - Markdown template
+- `utils/ticket-io/` - All parsers, formatters, validators
+- SPECIFICATION_DRIVEN_DEVELOPMENT_GUIDE.md
 - INVEST criteria: https://en.wikipedia.org/wiki/INVEST_(mnemonic)
 - BDD/Gherkin: https://cucumber.io/docs/gherkin/reference/
-- Atlassian MCP: `.claude/mcp.json`
