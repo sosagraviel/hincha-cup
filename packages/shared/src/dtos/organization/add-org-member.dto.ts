@@ -1,12 +1,11 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsEnum, IsOptional, IsUUID } from 'class-validator';
 import { OrgRole } from '../../enums';
 
 export class AddOrgMemberDto {
-  @IsEmail()
-  @IsNotEmpty()
-  email: string;
+  @IsUUID()
+  userId: string;
 
-  @IsEnum(OrgRole)
   @IsOptional()
-  role?: OrgRole = OrgRole.MEMBER;
+  @IsEnum(OrgRole)
+  role?: OrgRole;
 }

@@ -23,9 +23,7 @@ import { ChatService } from '../service/chat.service';
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { CurrentUser } from '@modules/auth/decorators/current-user.decorator';
 import { User } from '@modules/user/database/models/user.model';
-import { CreateRoomDto } from './dto/create-room.dto';
-import { SendMessageDto } from './dto/send-message.dto';
-import { StartDmDto } from './dto/start-dm.dto';
+import { CreateRoomDto, SendMessageDto, StartDmDto } from '@livonit/shared';
 
 /**
  * REST endpoints for chat rooms, messages, DM threads, and read receipts.

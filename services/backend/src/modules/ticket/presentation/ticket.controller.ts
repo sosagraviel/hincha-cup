@@ -25,12 +25,14 @@ import { CurrentUser } from '@modules/auth/decorators/current-user.decorator';
 import { TicketService } from '@modules/ticket/service/ticket.service';
 import { CommentService } from '@modules/ticket/service/comment.service';
 import { User } from '@modules/user/database/models/user.model';
-import { CreateTicketDto } from './dto/create-ticket.dto';
-import { UpdateTicketDto } from './dto/update-ticket.dto';
-import { MoveTicketDto } from './dto/move-ticket.dto';
-import { ListTicketsQueryDto } from './dto/list-tickets-query.dto';
-import { CreateCommentDto } from './dto/create-comment.dto';
-import { UpdateCommentDto } from './dto/update-comment.dto';
+import {
+  CreateTicketDto,
+  UpdateTicketDto,
+  MoveTicketDto,
+  ListTicketsQueryDto,
+  CreateCommentDto,
+  UpdateCommentDto
+} from '@livonit/shared';
 
 /**
  * REST endpoints for tickets (board, CRUD, move) and comments.

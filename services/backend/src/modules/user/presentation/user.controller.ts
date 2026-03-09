@@ -9,7 +9,7 @@ import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { CurrentUser } from '@modules/auth/decorators/current-user.decorator';
 import { UserService } from '@modules/user/service/user.service';
 import { User } from '@modules/user/database/models/user.model';
-import { UpdateUserDto } from '@modules/user/presentation/dto/update-user.dto';
+import { UpdateUserDto } from '@livonit/shared';
 
 /**
  * Handles current-user endpoints: profile retrieval and updates.

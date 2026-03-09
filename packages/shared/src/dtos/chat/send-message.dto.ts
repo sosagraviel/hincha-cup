@@ -1,4 +1,10 @@
-import { IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import {
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength
+} from 'class-validator';
 
 export class SendMessageDto {
   @IsString()
@@ -20,4 +26,8 @@ export class SendMessageDto {
   @IsOptional()
   @IsUUID()
   parentMessageId?: string;
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
 }

@@ -26,8 +26,7 @@ import { ProjectRoles } from '@modules/auth/decorators/project-roles.decorator';
 import { CurrentUser } from '@modules/auth/decorators/current-user.decorator';
 import { ProjectService } from '@modules/project/service/project.service';
 import { User } from '@modules/user/database/models/user.model';
-import { CreateProjectDto } from './dto/create-project.dto';
-import { UpdateProjectDto } from './dto/update-project.dto';
+import { CreateProjectDto, UpdateProjectDto } from '@livonit/shared';
 
 /**
  * REST endpoints for project CRUD and member management.

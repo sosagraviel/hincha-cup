@@ -26,10 +26,12 @@ import { OrgRoles } from '@modules/auth/decorators/org-roles.decorator';
 import { CurrentUser } from '@modules/auth/decorators/current-user.decorator';
 import { OrganizationService } from '@modules/organization/service/organization.service';
 import { User } from '@modules/user/database/models/user.model';
-import { CreateOrganizationDto } from './dto/create-organization.dto';
-import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { AddMemberDto } from './dto/add-member.dto';
-import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
+import {
+  CreateOrganizationDto,
+  UpdateOrganizationDto,
+  AddOrgMemberDto,
+  UpdateMemberRoleDto
+} from '@livonit/shared';
 
 /**
  * REST endpoints for organization CRUD and member management.
@@ -95,7 +97,7 @@ export class OrganizationController {
   @ApiCreatedResponse({ description: 'Member added' })
   @ApiConflictResponse({ description: 'User is already a member' })
   @ApiForbiddenResponse({ description: 'Requires owner or admin role' })
-  async addMember(@Param('id') id: string, @Body() dto: AddMemberDto) {
+  async addMember(@Param('id') id: string, @Body() dto: AddOrgMemberDto) {
     return this.organizationService.addMember(id, dto.userId, dto.role);
   }
 

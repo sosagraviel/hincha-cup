@@ -22,7 +22,10 @@ export type {
   Ticket,
   Comment,
   BoardColumn,
-  PaginatedResponse
+  PaginatedResponse,
+  ChatRoom,
+  ChatMessage,
+  DmThread
 } from '@livonit/shared';
 
 // Request DTOs (classes with validation in backend, but frontend uses as types)
@@ -33,58 +36,8 @@ export type {
   CreateProjectDto as CreateProjectRequest,
   UpdateProjectDto as UpdateProjectRequest,
   CreateOrganizationDto as CreateOrganizationRequest,
-  UpdateOrganizationDto as UpdateOrganizationRequest
+  UpdateOrganizationDto as UpdateOrganizationRequest,
+  CreateRoomDto as CreateRoomRequest,
+  SendMessageDto as SendMessageRequest,
+  StartDmDto as StartDmRequest
 } from '@livonit/shared';
-
-// ---- Chat types (to be added to shared package) ----
-
-export type ChatRoom = {
-  id: string;
-  name: string;
-  description?: string;
-  organizationId: string;
-  createdBy: string;
-  createdAt: string;
-  isPublic: boolean;
-  metadata?: Record<string, unknown>;
-};
-
-export type ChatMessage = {
-  id: string;
-  content: string;
-  messageType: 'text' | 'image' | 'file' | 'system';
-  createdAt: string;
-  updatedAt?: string;
-  deletedAt?: string;
-  senderId: string;
-  roomId?: string;
-  groupId?: string;
-  dmThreadId?: string;
-  parentMessageId?: string;
-  metadata?: Record<string, unknown>;
-  sender?: User;
-};
-
-export type DmThread = {
-  id: string;
-  user1Id: string;
-  user2Id: string;
-  createdAt: string;
-  user1?: User;
-  user2?: User;
-};
-
-export type CreateRoomRequest = {
-  name: string;
-  organizationId: string;
-  description?: string;
-  isPublic?: boolean;
-};
-
-export type SendMessageRequest = {
-  content: string;
-  roomId?: string;
-  groupId?: string;
-  dmThreadId?: string;
-  parentMessageId?: string;
-};

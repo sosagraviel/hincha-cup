@@ -5,6 +5,7 @@ export * from "./base";
 export * from "./utils";
 export * from "./enums";
 export * from "./responses";
+export * from "./types";
 
 // Direct DTO exports (no namespace) - PREFERRED WAY TO IMPORT
 
@@ -21,6 +22,7 @@ export { CreateOrganizationDto } from "./dtos/organization/create-organization.d
 export { UpdateOrganizationDto } from "./dtos/organization/update-organization.dto";
 export { AddOrgMemberDto } from "./dtos/organization/add-org-member.dto";
 export { UpdateOrgMemberDto } from "./dtos/organization/update-org-member.dto";
+export { UpdateMemberRoleDto } from "./dtos/organization/update-member-role.dto";
 
 // Pagination DTOs
 export { PaginationQueryDto } from "./dtos/pagination/pagination-query.dto";
