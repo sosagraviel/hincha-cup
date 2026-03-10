@@ -72,6 +72,40 @@ async function detectWorkspaces(projectPath) {
  * @param {string[]} patterns - Array of glob patterns
  * @returns {Promise<string[]>} Array of matched directory paths
  */
+/**
+ * Check if a directory contains language markers indicating it's a workspace
+ * Supports: JavaScript/TypeScript, Python, Go, Rust, Ruby, PHP, Java
+ */
+function isWorkspaceDirectory(dirPath) {
+  // JavaScript/TypeScript
+  if (fs.existsSync(path.join(dirPath, 'package.json'))) return true;
+
+  // Python
+  if (fs.existsSync(path.join(dirPath, 'requirements.txt'))) return true;
+  if (fs.existsSync(path.join(dirPath, 'pyproject.toml'))) return true;
+  if (fs.existsSync(path.join(dirPath, 'setup.py'))) return true;
+  if (fs.existsSync(path.join(dirPath, 'Pipfile'))) return true;
+
+  // Go
+  if (fs.existsSync(path.join(dirPath, 'go.mod'))) return true;
+
+  // Rust
+  if (fs.existsSync(path.join(dirPath, 'Cargo.toml'))) return true;
+
+  // Ruby
+  if (fs.existsSync(path.join(dirPath, 'Gemfile'))) return true;
+
+  // PHP
+  if (fs.existsSync(path.join(dirPath, 'composer.json'))) return true;
+
+  // Java/Kotlin
+  if (fs.existsSync(path.join(dirPath, 'pom.xml'))) return true;
+  if (fs.existsSync(path.join(dirPath, 'build.gradle'))) return true;
+  if (fs.existsSync(path.join(dirPath, 'build.gradle.kts'))) return true;
+
+  return false;
+}
+
 async function expandGlobPatterns(basePath, patterns) {
   const workspaces = [];
 
@@ -86,8 +120,8 @@ async function expandGlobPatterns(basePath, patterns) {
           for (const entry of entries) {
             if (entry.isDirectory()) {
               const fullPath = path.join(baseDir, entry.name);
-              // Check if directory has package.json (indicates a workspace)
-              if (fs.existsSync(path.join(fullPath, 'package.json'))) {
+              // Check if directory has any language markers (indicates a workspace)
+              if (isWorkspaceDirectory(fullPath)) {
                 workspaces.push(fullPath);
               }
             }
@@ -101,7 +135,7 @@ async function expandGlobPatterns(basePath, patterns) {
       const exactPath = path.join(basePath, pattern);
       if (fs.existsSync(exactPath)) {
         const stats = await fs.promises.stat(exactPath);
-        if (stats.isDirectory() && fs.existsSync(path.join(exactPath, 'package.json'))) {
+        if (stats.isDirectory() && isWorkspaceDirectory(exactPath)) {
           workspaces.push(exactPath);
         }
       }

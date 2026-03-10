@@ -90,11 +90,99 @@ Detailed step-by-step plan:
 - Invalid image formats
 
 ### 7. Testing Strategy
-- **Unit Tests**: ProfileService methods, validation logic
-- **Integration Tests**: Profile CRUD endpoints, transaction handling
-- **E2E Tests**: Complete profile update flow with avatar upload
 
-### 8. Assumptions & Decisions Made
+#### Unit Tests
+- **Files to Test**: ProfileService methods, validation logic
+- **New Tests to Create**:
+  - `profile.service.spec.ts` - Test CRUD operations
+  - `profile.validator.spec.ts` - Test validation rules
+- **Coverage Target**: 80%+ for new code
+
+#### Integration Tests
+- **Files to Test**: Profile CRUD endpoints, transaction handling
+- **New Tests to Create**:
+  - `profile.e2e.spec.ts` - Test API endpoints
+  - Test transaction rollback on avatar upload failure
+- **Coverage Target**: Critical paths covered
+
+#### E2E Tests
+- **Flows to Test**: Complete profile update flow with avatar upload
+- **New Tests to Create**:
+  - `profile-update.spec.ts` - Full user journey
+  - Test responsive behavior (desktop, mobile)
+- **Visual Verification**: Capture screenshots of profile page (before/after)
+- **Pages to Capture**:
+  - `/profile` - Desktop and mobile viewports
+  - `/profile/edit` - Desktop and mobile viewports
+
+#### Test Plan Output
+This section will be consumed by test orchestrator. Output format:
+```json
+{
+  "unit": {
+    "framework": "jest",
+    "newTests": [
+      "src/modules/profile/service/__tests__/profile.service.spec.ts"
+    ],
+    "coverageTarget": 80
+  },
+  "integration": {
+    "framework": "jest",
+    "newTests": [
+      "test/integration/profile.e2e.spec.ts"
+    ]
+  },
+  "e2e": {
+    "framework": "playwright",
+    "newTests": [
+      "tests/e2e/profile-update.spec.ts"
+    ],
+    "pages": [
+      { "route": "/profile", "name": "profile-view", "viewports": ["desktop", "mobile"] },
+      { "route": "/profile/edit", "name": "profile-edit", "viewports": ["desktop", "mobile"] }
+    ]
+  },
+  "visualVerification": {
+    "required": true,
+    "reason": "UI changes to profile page layout"
+  }
+}
+```
+
+### 8. Environment Requirements
+
+Document if implementation requires specific environment setup:
+
+```json
+{
+  "requiresEnvironmentSetup": true,
+  "services": ["backend", "database", "redis"],
+  "ports": {
+    "backend": 3050,
+    "database": 5432,
+    "redis": 6379
+  },
+  "envVars": [
+    "AWS_S3_BUCKET",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY"
+  ],
+  "seedData": {
+    "required": true,
+    "scripts": ["seeds/users.seed.ts"]
+  }
+}
+```
+
+If no special environment setup needed:
+```json
+{
+  "requiresEnvironmentSetup": false,
+  "usesExistingSetup": true
+}
+```
+
+### 9. Assumptions & Decisions Made
 
 Document all decisions made due to ambiguity or multiple valid options:
 

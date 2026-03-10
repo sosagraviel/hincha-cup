@@ -4,7 +4,13 @@
  * Generates stack-specific agents from templates by substituting variables
  * with detected stack information and project-specific commands.
  *
- * @version 1.0.0
+ * Features:
+ * - Generates agents for planning, implementation, testing, review, verification, documentation
+ * - visual-verifier agent for Phase 6 (Visual Verification)
+ * - doc-updater agent for Phase 7 (Documentation Update)
+ * - Support for verification and documentation agent categories
+ * - Runtime variable substitution for ticket-specific agents
+ *
  * @author AI Framework Team
  */
 
@@ -30,23 +36,25 @@ async function generateAgents(stackProfile, skillSelection, projectPath, templat
     implementation: [],
     testing: [],
     review: [],
+    verification: [],
+    documentation: [],
     total: 0
   };
 
   try {
-    // 1. Extract commands from project
-    const commands = await extractCommands(projectPath, stackProfile);
-
-    // 2. Generate planner agent (with architecture-level skills for ALL languages)
+    // 1. Generate planner agent (with architecture-level skills for ALL languages)
     const plannerSkills = resolveAgentSkills('planner', stackProfile);
     const plannerAgent = await generatePlannerAgent(templatesPath, plannerSkills);
     if (plannerAgent) {
       generation.planning.push(plannerAgent);
     }
 
-    // 3. Generate implementer agents - ONE PER DETECTED LANGUAGE
+    // 2. Generate implementer agents - ONE PER DETECTED LANGUAGE
     const languages = getAllLanguages(stackProfile);
     for (const language of languages) {
+      // Extract language-specific commands
+      const commands = await extractCommandsForLanguage(projectPath, stackProfile, language);
+
       const implementerSkills = resolveAgentSkills(`implementer-${language}`, stackProfile);
       const implementerAgent = await generateImplementerAgent(
         templatesPath,
@@ -60,19 +68,22 @@ async function generateAgents(stackProfile, skillSelection, projectPath, templat
       }
     }
 
-    // 4. Generate tester agents (language-specific)
-    const primaryLanguage = getPrimaryLanguage(stackProfile);
-    if (primaryLanguage) {
+    // 3. Generate tester agents - ONE SET PER DETECTED LANGUAGE
+    for (const language of languages) {
+      // Extract language-specific commands
+      const commands = await extractCommandsForLanguage(projectPath, stackProfile, language);
+
       const testerAgents = await generateTesterAgents(
         templatesPath,
         stackProfile,
         commands,
-        primaryLanguage
+        language
       );
       generation.testing.push(...testerAgents);
     }
 
-    // 5. Generate security reviewer agent (primary language)
+    // 4. Generate security reviewer agent (primary language)
+    const primaryLanguage = getPrimaryLanguage(stackProfile);
     if (primaryLanguage) {
       const securitySkills = resolveAgentSkills(`security-reviewer-${primaryLanguage}`, stackProfile);
       const securityAgent = await generateSecurityReviewerAgent(
@@ -86,12 +97,38 @@ async function generateAgents(stackProfile, skillSelection, projectPath, templat
       }
     }
 
+    // 6. Generate visual verifier agent (for frontend projects with visual verification)
+    if (stackProfile.frontend_frameworks && stackProfile.frontend_frameworks.length > 0) {
+      const visualVerifierSkills = resolveAgentSkills('visual-verifier', stackProfile);
+      const visualVerifierAgent = await generateVisualVerifierAgent(
+        templatesPath,
+        visualVerifierSkills,
+        stackProfile
+      );
+      if (visualVerifierAgent) {
+        generation.verification.push(visualVerifierAgent);
+      }
+    }
+
+    // 7. Generate doc updater agent (for all projects)
+    const docUpdaterSkills = resolveAgentSkills('doc-updater', stackProfile);
+    const docUpdaterAgent = await generateDocUpdaterAgent(
+      templatesPath,
+      docUpdaterSkills,
+      stackProfile
+    );
+    if (docUpdaterAgent) {
+      generation.documentation.push(docUpdaterAgent);
+    }
+
     // Calculate total
     generation.total =
       generation.planning.length +
       generation.implementation.length +
       generation.testing.length +
-      generation.review.length;
+      generation.review.length +
+      generation.verification.length +
+      generation.documentation.length;
 
     return generation;
   } catch (error) {
@@ -101,9 +138,12 @@ async function generateAgents(stackProfile, skillSelection, projectPath, templat
 }
 
 /**
- * Extract commands from project configuration files
+ * Extract commands from project configuration files for a specific language
+ * @param {string} projectPath - Path to the project
+ * @param {object} stackProfile - Stack detection profile
+ * @param {string} language - Language to extract commands for (typescript, javascript, python, etc.)
  */
-async function extractCommands(projectPath, stackProfile) {
+async function extractCommandsForLanguage(projectPath, stackProfile, language) {
   const commands = {
     lint_command: null,
     format_command: null,
@@ -117,7 +157,7 @@ async function extractCommands(projectPath, stackProfile) {
     e2e_framework: null
   };
 
-  if (stackProfile.primary_language === 'typescript' || stackProfile.primary_language === 'javascript') {
+  if (language === 'typescript' || language === 'javascript') {
     const packageJson = await readPackageJson(projectPath);
 
     if (packageJson?.scripts) {
@@ -168,7 +208,7 @@ async function extractCommands(projectPath, stackProfile) {
     }
   }
 
-  if (stackProfile.primary_language === 'python') {
+  if (language === 'python') {
     // Python command defaults
     commands.lint_command = 'ruff check .';
     commands.format_command = 'black .';
@@ -186,6 +226,8 @@ async function extractCommands(projectPath, stackProfile) {
       commands.build_command = 'python -m build';
     }
   }
+
+  // Add more languages here as needed (Go, Rust, Ruby, etc.)
 
   return commands;
 }
@@ -449,6 +491,100 @@ async function generateSecurityReviewerAgent(templatesPath, stackProfile, skills
 }
 
 /**
+ * Generate visual verifier agent for frontend projects
+ */
+async function generateVisualVerifierAgent(templatesPath, skills, stackProfile) {
+  const templatePath = path.join(templatesPath, 'visual-verifier.template.md');
+  let content = await readFile(templatePath);
+
+  if (!content) {
+    console.warn('Visual verifier template not found');
+    return null;
+  }
+
+  // Note: JIRA_KEY, PROJECT_ROOT, and CHANGED_FILES are runtime variables
+  // that will be substituted when the agent is actually invoked during Phase 6
+  // We don't substitute them here as they're ticket-specific
+
+  // Substitute skills
+  content = content.replace(/\{\{skills\}\}/g, formatSkillsList(skills));
+
+  // Add frontend framework context
+  const frontend = stackProfile.frontend_frameworks && stackProfile.frontend_frameworks.length > 0
+    ? stackProfile.frontend_frameworks[0].name
+    : 'react';
+
+  content = content.replace(/\{\{frontend_framework\}\}/g, frontend);
+
+  // Validate template substitution (allow runtime variables to remain)
+  // We only validate that static variables like skills have been substituted
+  const contentWithoutRuntimeVars = content
+    .replace(/\{\{JIRA_KEY\}\}/g, 'RUNTIME_VAR')
+    .replace(/\{\{PROJECT_ROOT\}\}/g, 'RUNTIME_VAR')
+    .replace(/\{\{CHANGED_FILES\}\}/g, 'RUNTIME_VAR');
+
+  validateTemplateSubstitution(contentWithoutRuntimeVars, 'visual-verifier.template.md');
+
+  return {
+    name: 'visual-verifier',
+    filename: 'visual-verifier.md',
+    content,
+    model: 'opus',
+    description: 'Visual verification and UI diff analysis'
+  };
+}
+
+/**
+ * Generate doc updater agent for documentation maintenance
+ */
+async function generateDocUpdaterAgent(templatesPath, skills, stackProfile) {
+  const templatePath = path.join(templatesPath, 'doc-updater.template.md');
+  let content = await readFile(templatePath);
+
+  if (!content) {
+    console.warn('Doc updater template not found');
+    return null;
+  }
+
+  // Note: JIRA_KEY, PROJECT_ROOT, CHANGED_FILES, and IMPLEMENTATION_SUMMARY
+  // are runtime variables that will be substituted when the agent is invoked
+  // during Phase 7. We don't substitute them here as they're ticket-specific.
+
+  // Substitute skills
+  content = content.replace(/\{\{skills\}\}/g, formatSkillsList(skills));
+
+  // Add project type context
+  const hasBackend = stackProfile.backend_frameworks && stackProfile.backend_frameworks.length > 0;
+  const hasFrontend = stackProfile.frontend_frameworks && stackProfile.frontend_frameworks.length > 0;
+
+  let projectType = 'full-stack';
+  if (hasBackend && !hasFrontend) {
+    projectType = 'backend';
+  } else if (hasFrontend && !hasBackend) {
+    projectType = 'frontend';
+  }
+
+  content = content.replace(/\{\{project_type\}\}/g, projectType);
+
+  // Validate template substitution (allow runtime variables to remain)
+  const contentWithoutRuntimeVars = content
+    .replace(/\{\{JIRA_KEY\}\}/g, 'RUNTIME_VAR')
+    .replace(/\{\{PROJECT_ROOT\}\}/g, 'RUNTIME_VAR')
+    .replace(/\{\{CHANGED_FILES\}\}/g, 'RUNTIME_VAR')
+    .replace(/\{\{IMPLEMENTATION_SUMMARY\}\}/g, 'RUNTIME_VAR');
+
+  validateTemplateSubstitution(contentWithoutRuntimeVars, 'doc-updater.template.md');
+
+  return {
+    name: 'doc-updater',
+    filename: 'doc-updater.md',
+    content,
+    model: 'opus',
+    description: 'Documentation maintenance for CLAUDE.md and project-context'
+  };
+}
+
+/**
  * Format skills list as YAML array for agent frontmatter
  */
 function formatSkillsList(skills) {
@@ -578,7 +714,9 @@ async function writeAgents(generation, projectPath) {
     ...generation.planning,
     ...generation.implementation,
     ...generation.testing,
-    ...generation.review
+    ...generation.review,
+    ...generation.verification,
+    ...generation.documentation
   ];
 
   for (const agent of allAgents) {
@@ -638,6 +776,22 @@ async function generateAgentIndex(generation, projectPath, projectName) {
   if (generation.review.length > 0) {
     indexMd += `## Review Agents (${generation.review.length})\n\n`;
     for (const agent of generation.review) {
+      indexMd += `- \`${agent.name}\` (model: ${agent.model}) - ${agent.description}\n`;
+    }
+    indexMd += '\n';
+  }
+
+  if (generation.verification.length > 0) {
+    indexMd += `## Verification Agents (${generation.verification.length})\n\n`;
+    for (const agent of generation.verification) {
+      indexMd += `- \`${agent.name}\` (model: ${agent.model}) - ${agent.description}\n`;
+    }
+    indexMd += '\n';
+  }
+
+  if (generation.documentation.length > 0) {
+    indexMd += `## Documentation Agents (${generation.documentation.length})\n\n`;
+    for (const agent of generation.documentation) {
       indexMd += `- \`${agent.name}\` (model: ${agent.model}) - ${agent.description}\n`;
     }
     indexMd += '\n';
@@ -983,6 +1137,8 @@ if (require.main === module) {
         implementation: generation.implementation,
         testing: generation.testing,
         review: generation.review,
+        verification: generation.verification,
+        documentation: generation.documentation,
         written: writeResult.written,
         errors: writeResult.errors
       };

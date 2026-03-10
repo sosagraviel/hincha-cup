@@ -1,0 +1,399 @@
+{
+  "$schema": "resource-mapping.schema.json",
+  "version": "1.0.0",
+  "description": "Deterministic mapping from detected stack to framework resources",
+
+  "skills": {
+    "always": {
+      "description": "Skills copied to EVERY project regardless of stack",
+      "items": [
+        "010-foundation/start-task",
+        "010-foundation/update-project-context",
+        "020-development-workflow/analyze-requirements",
+        "020-development-workflow/architect-agent",
+        "020-development-workflow/code-implementation",
+        "020-development-workflow/create-sdd-ticket",
+        "020-development-workflow/implement-ticket",
+        "020-development-workflow/mastering-git-cli",
+        "030-quality-assurance/code-quality-check",
+        "030-quality-assurance/create-pr",
+        "030-quality-assurance/pr-reviewer",
+        "030-quality-assurance/security-review",
+        "040-integrations/fetch-ticket-context",
+        "040-integrations/jira",
+        "040-integrations/mastering-confluence-agent-skill",
+        "040-integrations/mastering-github-agent-skill",
+        "040-integrations/notion-document-manager",
+        "060-documentation/design-doc-mermaid"
+      ]
+    },
+
+    "by_language": {
+      "typescript": [
+        "050-language-frameworks/mastering-typescript"
+      ],
+      "javascript": [
+        "050-language-frameworks/mastering-typescript"
+      ],
+      "python": [
+        "050-language-frameworks/mastering-python-skill",
+        "050-language-frameworks/mastering-langgraph-agent-skill",
+        "050-language-frameworks/mastering-pytorch-rl-nlp-agentic-skill"
+      ],
+      "java": [],
+      "go": [],
+      "rust": [],
+      "ruby": [],
+      "php": [],
+      "csharp": [],
+      "kotlin": [],
+      "swift": []
+    },
+
+    "by_backend_framework": {
+      "nestjs": [],
+      "express": [],
+      "fastify": [],
+      "fastapi": [],
+      "django": [],
+      "flask": [],
+      "spring-boot": [],
+      "rails": [],
+      "gin": [],
+      "laravel": [],
+      "aspnet-core": []
+    },
+
+    "by_frontend_framework": {
+      "react": [
+        "050-language-frameworks/react-frontend",
+        "050-language-frameworks/atomic-design-react"
+      ],
+      "nextjs": [
+        "050-language-frameworks/react-frontend",
+        "050-language-frameworks/atomic-design-react"
+      ],
+      "vue": [],
+      "nuxt": [],
+      "angular": [],
+      "svelte": [],
+      "sveltekit": [],
+      "solid": [],
+      "astro": []
+    },
+
+    "by_testing_framework": {
+      "jest": [
+        "030-quality-assurance/jest-coverage-automation"
+      ],
+      "vitest": [],
+      "pytest": [
+        "030-quality-assurance/pytest-patterns"
+      ],
+      "playwright": [
+        "030-quality-assurance/playwright-e2e-automation"
+      ],
+      "cypress": []
+    },
+
+    "by_database": {
+      "postgresql": [],
+      "mysql": [],
+      "mongodb": [],
+      "redis": [],
+      "firestore": []
+    },
+
+    "by_orm": {
+      "typeorm": [],
+      "prisma": [],
+      "sequelize": [],
+      "drizzle": [],
+      "sqlalchemy": [],
+      "django-orm": []
+    },
+
+    "by_container": {
+      "docker": [
+        "070-infrastructure/developing-with-docker"
+      ],
+      "docker-compose": [
+        "070-infrastructure/developing-with-docker"
+      ],
+      "kubernetes": [],
+      "helm": []
+    },
+
+    "by_cloud_platform": {
+      "aws": [
+        "080-cloud-platforms/mastering-aws-cli",
+        "080-cloud-platforms/mastering-aws-cdk"
+      ],
+      "gcp": [
+        "080-cloud-platforms/mastering-gcloud-commands"
+      ],
+      "azure": [],
+      "firebase": [
+        "080-cloud-platforms/using-firebase"
+      ],
+      "vercel": [],
+      "netlify": [],
+      "supabase": []
+    }
+  },
+
+  "agents": {
+    "always": {
+      "description": "Agents generated for EVERY project",
+      "items": [
+        {
+          "name": "planner",
+          "template": "planner.template.md",
+          "model": "opus",
+          "description": "Create detailed implementation plans with full architecture awareness"
+        }
+      ]
+    },
+
+    "per_language": {
+      "description": "One implementer agent per detected language",
+      "typescript": {
+        "name": "implementer-typescript",
+        "template": "implementer.template.md",
+        "model": "sonnet",
+        "description": "Implement TypeScript code following team conventions"
+      },
+      "javascript": {
+        "name": "implementer-javascript",
+        "template": "implementer.template.md",
+        "model": "sonnet",
+        "description": "Implement JavaScript code following team conventions"
+      },
+      "python": {
+        "name": "implementer-python",
+        "template": "implementer.template.md",
+        "model": "sonnet",
+        "description": "Implement Python code following team conventions"
+      },
+      "java": {
+        "name": "implementer-java",
+        "template": "implementer.template.md",
+        "model": "sonnet",
+        "description": "Implement Java code following team conventions"
+      },
+      "go": {
+        "name": "implementer-go",
+        "template": "implementer.template.md",
+        "model": "sonnet",
+        "description": "Implement Go code following team conventions"
+      },
+      "rust": {
+        "name": "implementer-rust",
+        "template": "implementer.template.md",
+        "model": "sonnet",
+        "description": "Implement Rust code following team conventions"
+      },
+      "ruby": {
+        "name": "implementer-ruby",
+        "template": "implementer.template.md",
+        "model": "sonnet",
+        "description": "Implement Ruby code following team conventions"
+      },
+      "php": {
+        "name": "implementer-php",
+        "template": "implementer.template.md",
+        "model": "sonnet",
+        "description": "Implement PHP code following team conventions"
+      },
+      "csharp": {
+        "name": "implementer-csharp",
+        "template": "implementer.template.md",
+        "model": "sonnet",
+        "description": "Implement C# code following team conventions"
+      },
+      "kotlin": {
+        "name": "implementer-kotlin",
+        "template": "implementer.template.md",
+        "model": "sonnet",
+        "description": "Implement Kotlin code following team conventions"
+      },
+      "swift": {
+        "name": "implementer-swift",
+        "template": "implementer.template.md",
+        "model": "sonnet",
+        "description": "Implement Swift code following team conventions"
+      }
+    },
+
+    "per_testing_framework": {
+      "description": "Testing agents based on detected frameworks",
+      "jest": {
+        "name": "tester-unit-typescript",
+        "template": "tester-unit.template.md",
+        "model": "sonnet",
+        "description": "Write unit + integration tests with Jest"
+      },
+      "vitest": {
+        "name": "tester-unit-typescript",
+        "template": "tester-unit.template.md",
+        "model": "sonnet",
+        "description": "Write unit + integration tests with Vitest"
+      },
+      "pytest": {
+        "name": "tester-unit-python",
+        "template": "tester-unit.template.md",
+        "model": "sonnet",
+        "description": "Write unit + integration tests with Pytest"
+      },
+      "playwright": {
+        "name": "tester-e2e-typescript",
+        "template": "tester-e2e.template.md",
+        "model": "sonnet",
+        "description": "Write E2E tests with Playwright"
+      },
+      "cypress": {
+        "name": "tester-e2e-typescript",
+        "template": "tester-e2e.template.md",
+        "model": "sonnet",
+        "description": "Write E2E tests with Cypress"
+      }
+    },
+
+    "per_language_security": {
+      "description": "Security reviewer agent per primary language",
+      "typescript": {
+        "name": "security-reviewer-typescript",
+        "template": "security-reviewer.template.md",
+        "model": "sonnet",
+        "description": "Security review and OWASP scanning for TypeScript"
+      },
+      "javascript": {
+        "name": "security-reviewer-javascript",
+        "template": "security-reviewer.template.md",
+        "model": "sonnet",
+        "description": "Security review and OWASP scanning for JavaScript"
+      },
+      "python": {
+        "name": "security-reviewer-python",
+        "template": "security-reviewer.template.md",
+        "model": "sonnet",
+        "description": "Security review and OWASP scanning for Python"
+      },
+      "java": {
+        "name": "security-reviewer-java",
+        "template": "security-reviewer.template.md",
+        "model": "sonnet",
+        "description": "Security review and OWASP scanning for Java"
+      },
+      "go": {
+        "name": "security-reviewer-go",
+        "template": "security-reviewer.template.md",
+        "model": "sonnet",
+        "description": "Security review and OWASP scanning for Go"
+      }
+    },
+
+    "frontend_only": {
+      "description": "Agents only generated when frontend framework is detected",
+      "items": [
+        {
+          "name": "visual-verifier",
+          "template": "visual-verifier.template.md",
+          "model": "opus",
+          "description": "Visual verification and UI diff analysis"
+        }
+      ]
+    },
+
+    "documentation": {
+      "description": "Documentation agents for all projects",
+      "items": [
+        {
+          "name": "doc-updater",
+          "template": "doc-updater.template.md",
+          "model": "opus",
+          "description": "Documentation maintenance for CLAUDE.md and project-context"
+        }
+      ]
+    }
+  },
+
+  "commands": {
+    "always": {
+      "description": "Commands copied to EVERY project",
+      "items": [
+        "implement-ticket.md",
+        "create-sdd-ticket.md",
+        "initialize-project.md"
+      ]
+    },
+
+    "by_stack": {
+      "description": "Commands copied based on detected stack",
+      "typescript": [],
+      "python": [],
+      "react": [],
+      "nestjs": [],
+      "docker": []
+    }
+  },
+
+  "template_variables": {
+    "description": "Mapping from Opus synthesis JSON to template variables",
+
+    "CLAUDE.md": {
+      "PROJECT_NAME": "$.project_name",
+      "PROJECT_DESCRIPTION": "$.project_description",
+      "TECH_STACK_TABLE": "$.tech_stack | format_table",
+      "ARCHITECTURE_PATTERN": "$.architecture.pattern",
+      "ARCHITECTURE_DESCRIPTION": "$.architecture.description",
+      "KEY_DIRECTORIES": "$.architecture.key_directories | format_list",
+      "FILE_PLACEMENT_TABLE": "$.file_placement | format_table",
+      "CMD_DEV": "$.commands.dev",
+      "CMD_BUILD": "$.commands.build",
+      "CMD_TEST": "$.commands.test",
+      "CMD_TEST_UNIT": "$.commands.test_unit",
+      "CMD_TEST_INTEGRATION": "$.commands.test_integration",
+      "CMD_TEST_E2E": "$.commands.test_e2e",
+      "CMD_LINT": "$.commands.lint",
+      "CMD_FORMAT": "$.commands.format",
+      "CMD_TYPE_CHECK": "$.commands.type_check",
+      "CMD_MIGRATION_CREATE": "$.commands.migration_create",
+      "CMD_MIGRATION_RUN": "$.commands.migration_run",
+      "PATH_ALIASES_TABLE": "$.path_aliases | format_table",
+      "CONV_FILE_NAMING": "$.conventions.file_naming",
+      "CONV_COMMIT_FORMAT": "$.conventions.commit_format",
+      "CONV_BRANCH_NAMING": "$.conventions.branch_naming",
+      "CONV_TEST_NAMING": "$.conventions.test_naming",
+      "GOTCHAS_SECTION": "$.gotchas | format_gotchas",
+      "CRITICAL_FLOWS_SECTION": "$.critical_flows | format_flows",
+      "REFERENCE_FILES": "$.reference_files | format_list",
+      "COMMON_TASKS": "$.common_tasks | format_tasks",
+      "TROUBLESHOOTING": "$.troubleshooting | format_list",
+      "TIMESTAMP": "new Date().toISOString()"
+    },
+
+    "project-context-SKILL.md": {
+      "PROJECT_NAME": "$.project_name",
+      "PROJECT_DESCRIPTION": "$.project_description",
+      "ARCHITECTURE_PATTERN": "$.architecture.pattern",
+      "ARCHITECTURE_DESCRIPTION": "$.architecture.description",
+      "LAYER_RESPONSIBILITIES": "$.architecture.layer_responsibilities | format_list",
+      "CRITICAL_FLOWS": "$.critical_flows | format_flows_detailed",
+      "NON_OBVIOUS_PATTERNS": "$.gotchas | format_patterns",
+      "MULTI_FILE_PATTERNS": "$.multi_file_patterns | format_numbered_list",
+      "GUARD_MIDDLEWARE_CHAIN": "$.guard_middleware_chain | format_list",
+      "EVENT_DRIVEN_PATTERNS": "$.event_driven_patterns | format_list",
+      "DB_NAMING_CONVENTIONS": "$.database.naming_conventions",
+      "MIGRATION_WORKFLOW": "$.database.migration_workflow | format_steps",
+      "TRANSACTION_PATTERNS": "$.database.transaction_patterns | format_code",
+      "UNIT_TEST_PATTERNS": "$.testing.unit_patterns | format_list",
+      "INTEGRATION_TEST_PATTERNS": "$.testing.integration_patterns | format_list",
+      "E2E_TEST_PATTERNS": "$.testing.e2e_patterns | format_list",
+      "GOTCHAS_LIST": "$.gotchas | format_numbered_list",
+      "FILE_DEPENDENCIES": "$.file_dependencies | format_dependency_map",
+      "ENV_VARS": "$.env_vars | format_env_table",
+      "TIMESTAMP": "new Date().toISOString()"
+    }
+  }
+}

@@ -35,13 +35,25 @@ You are a {{stack}} developer. Your job is to implement code changes following t
    - If refactoring adds significant complexity, create new function
    - Document why new code was created vs reused
 
-5. **Run Quality Checks**
+5. **Create Tests for New Behavior**
+   - For every new function/method: Create unit test
+   - For every new API endpoint: Create integration test
+   - Mark new tests with `@new` tag in test name
+   - Follow existing test patterns from the codebase
+   - Ensure tests pass before considering step complete
+
+6. **Run Quality Checks**
    - Run linting: {{lint_command}}
    - Run type checking: {{type_check_command}}
    - Fix all errors before considering step complete
    - Auto-format code with project formatter
 
-6. **Handle Compilation Errors**
+7. **Trigger Before Screenshots (UI Changes Only)**
+   - If implementation includes UI changes, trigger screenshot capture BEFORE starting implementation
+   - This captures baseline state for visual verification
+   - Screenshot capture will be handled by orchestrator
+
+8. **Handle Compilation Errors**
    - If TypeScript/Python compilation fails due to ambiguity:
      - Make a reasonable decision (prefer type safety)
      - Document the decision in a code comment
@@ -93,20 +105,47 @@ You are a {{stack}} developer. Your job is to implement code changes following t
 
 ### After Writing Code
 
-1. **Lint and Format**
+1. **Create Tests**
+
+   For new functionality, create corresponding tests:
+
+   **Unit Test Example** (mark with @new):
+   ```typescript
+   describe('ProfileService', () => {
+     it('@new should create profile with avatar', async () => {
+       // Test implementation
+     });
+   });
+   ```
+
+   **Integration Test Example** (mark with @new):
+   ```typescript
+   describe('POST /api/profile @new', () => {
+     it('should create profile and return 201', async () => {
+       // Test implementation
+     });
+   });
+   ```
+
+   Run new tests to verify they pass:
+   ```bash
+   {{unit_test_command}}
+   ```
+
+2. **Lint and Format**
 
    ```bash
    {{lint_command}}
    {{format_command}}
    ```
 
-2. **Type Check**
+3. **Type Check**
 
    ```bash
    {{type_check_command}}
    ```
 
-3. **Verify Imports**
+4. **Verify Imports**
    - All imports resolve correctly
    - No circular dependencies
    - Use path aliases correctly

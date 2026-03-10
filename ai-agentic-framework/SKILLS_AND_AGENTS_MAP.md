@@ -110,42 +110,106 @@ skills:
 ```
 User
 │
-├─ /implement-ticket (Skill)
+├─ /implement-ticket (Skill) - 10-Phase Workflow
 │  │
-│  ├─ Spawns: planner (Agent)
-│  │  └─ Tools: Read, Grep, Glob, Bash
-│  │  └─ Skills: fetch-ticket-context, analyze-requirements
+│  ├─ Phase 1: Context Gathering
+│  │  └─ Spawns: planner (Agent)
+│  │     └─ Tools: Read, Grep, Glob, Bash
+│  │     └─ Skills: fetch-ticket-context, analyze-requirements
 │  │
-│  ├─ Spawns: implementer-{{stack}} (Agent)
-│  │  └─ Tools: Read, Write, Edit, Bash
-│  │  └─ Skills: mastering-{{stack}}, mastering-{{framework}}
+│  ├─ Phase 4: Implementation
+│  │  └─ Spawns: implementer-{{stack}} (Agent)
+│  │     └─ Tools: Read, Write, Edit, Bash
+│  │     └─ Skills: mastering-{{stack}}, mastering-{{framework}}
 │  │
-│  ├─ Spawns: tester-unit-{{stack}} (Agent)
-│  │  └─ Tools: Read, Write, Edit, Bash
-│  │  └─ Skills: mastering-{{stack}}, testing-patterns
+│  ├─ Phase 5: Testing
+│  │  ├─ Spawns: tester-unit-{{stack}} (Agent)
+│  │  │  └─ Tools: Read, Write, Edit, Bash
+│  │  │  └─ Skills: mastering-{{stack}}, testing-patterns
+│  │  │
+│  │  └─ Spawns: tester-e2e-{{stack}} (Agent)
+│  │     └─ Tools: Read, Write, Edit, Bash
+│  │     └─ Skills: playwright-patterns (if frontend)
 │  │
-│  └─ Spawns: tester-e2e-{{stack}} (Agent)
-│     └─ Tools: Read, Write, Edit, Bash
-│     └─ Skills: playwright-patterns (if frontend)
+│  ├─ Phase 6: Visual Verification
+│  │  └─ Spawns: visual-verifier (Agent)
+│  │     └─ Tools: Read, Grep, Glob, Bash, Edit
+│  │     └─ Skills: visual-verification-patterns
+│  │     └─ Analyzes screenshot diffs and provides fix suggestions
+│  │
+│  ├─ Phase 7: Documentation Update
+│  │  └─ Spawns: doc-updater (Agent)
+│  │     └─ Tools: Read, Grep, Glob, Edit
+│  │     └─ Skills: documentation-patterns
+│  │     └─ Maintains CLAUDE.md and project-context
+│  │
+│  └─ Phase 9: Review Loop
+│     └─ Uses: review-loop-orchestrator.js (utility)
+│        └─ Applies automated fixes from pr-reviewer and security-review
+│        └─ Re-runs tests and reviews (max 3 iterations)
 │
 ├─ /code-quality-check (Skill)
 │  └─ Runs inline (no agent spawning)
 │
 └─ /create-pr (Skill)
    └─ Runs inline (no agent spawning)
+   └─ Uses: pr-description-generator.js (utility)
 ```
 
 ### Agent Templates
 
 | Agent Template | Purpose | Spawned By | Stack-Specific | Skills Context |
 |----------------|---------|------------|----------------|----------------|
-| **planner.template.md** | Context gathering + requirements analysis | implement-ticket | ❌ No | ALL detected languages (architecture awareness) |
-| **implementer.template.md** | Code implementation | implement-ticket | ✅ Yes (per language) | ONLY specific language + frameworks |
-| **tester-unit.template.md** | Unit + integration tests | implement-ticket | ✅ Yes (per language) | ONLY specific language + test framework |
-| **tester-e2e.template.md** | End-to-end tests | implement-ticket | ✅ Yes (per language) | ONLY specific language + E2E framework |
-| **security-reviewer.template.md** | Security review | implement-ticket | ✅ Yes (primary language) | ONLY primary language + security skills |
+| **planner.template.md** | Context gathering + requirements analysis with test planning | implement-ticket (Phase 1) | ❌ No | ALL detected languages (architecture awareness) |
+| **implementer.template.md** | Code implementation | implement-ticket (Phase 4) | ✅ Yes (per language) | ONLY specific language + frameworks |
+| **tester-unit.template.md** | Unit + integration tests | implement-ticket (Phase 5) | ✅ Yes (per language) | ONLY specific language + test framework |
+| **tester-e2e.template.md** | End-to-end tests with auto-initialization | implement-ticket (Phase 5) | ✅ Yes (per language) | ONLY specific language + E2E framework |
+| **security-reviewer.template.md** | Security review with OWASP Top 10 checks | implement-ticket (Phase 4/9) | ✅ Yes (primary language) | ONLY primary language + security skills |
+| **visual-verifier.template.md** | Visual verification and UI diff analysis | implement-ticket (Phase 6) | ❌ No (frontend-only) | Visual verification patterns |
+| **doc-updater.template.md** | Documentation maintenance | implement-ticket (Phase 7) | ❌ No | Documentation patterns |
 
-**Note**: Since the Context Management System (v1.0), the framework generates **one agent per detected language** for implementation, testing, and security review. Each agent receives only the skills relevant to its role and language (70-85% context reduction).
+**Key Features**:
+- **visual-verifier**: Analyzes screenshot diffs, provides actionable fix suggestions for UI inconsistencies
+- **doc-updater**: Automatically detects when CLAUDE.md or project-context needs updates based on code changes
+- **Runtime Variables**: Agents use runtime variable substitution (`{{JIRA_KEY}}`, `{{PROJECT_ROOT}}`, etc.) for ticket-specific customization
+
+**Note**: The framework generates **one agent per detected language** for implementation, testing, and security review. Each agent receives only the skills relevant to its role and language (70-85% context reduction).
+
+### Integration Utilities
+
+Four Node.js utilities orchestrate advanced workflow features:
+
+| Utility | Purpose | Used In | Key Features |
+|---------|---------|---------|--------------|
+| **doc-change-detector.js** | Detects documentation update triggers | Phase 7 | Pattern-based detection for CLAUDE.md and project-context updates |
+| **pr-description-generator.js** | Generates comprehensive PR descriptions | Phase 8 | Template-based markdown generation from all Phase 0-7 artifacts |
+| **review-loop-orchestrator.js** | Orchestrates automated fix iterations | Phase 9 | Max 3 iterations, convergence/divergence detection, auto-apply fixes |
+| **agent-generation.js** | Generates stack-specific agents | Phase 0 (Setup) | Includes visual-verifier and doc-updater agents |
+
+**Integration Flow**:
+```
+Phase 7 (Doc Update)
+  └─ doc-change-detector.js
+     └─ Analyzes git changes against detection rules
+     └─ Outputs doc-update-analysis.json
+     └─ Spawns: doc-updater agent (if updates needed)
+
+Phase 8 (PR Creation)
+  └─ pr-description-generator.js
+     └─ Loads all artifacts from Phases 0-7
+     └─ Generates pr-description.md with sections:
+        - Summary, Visual Changes, Test Results, Security
+        - Implementation Details, Files Changed, Decisions
+     └─ Used by create-pr skill
+
+Phase 9 (Review Loop)
+  └─ review-loop-orchestrator.js
+     └─ Reads review-results.json (from pr-reviewer skill)
+     └─ Applies fixes (replace, add, delete actions)
+     └─ Re-runs tests → Re-triggers review
+     └─ Stops on: success, divergence, or max iterations (3)
+     └─ Outputs iteration-{N}.json for each cycle
+```
 
 ---
 

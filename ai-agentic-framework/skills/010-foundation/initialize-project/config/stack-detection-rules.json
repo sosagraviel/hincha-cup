@@ -1,0 +1,966 @@
+{
+  "$schema": "stack-detection-rules.schema.json",
+  "version": "2.0.0",
+  "description": "Deterministic stack detection rules - NO AI interpretation allowed. Rules DETECT technologies, they don't RESTRICT them. Unknown technologies fallback to Phase 1 agent findings.",
+
+  "_design_notes": {
+    "purpose": "These rules provide deterministic detection for KNOWN technologies. Technologies not listed here are detected via Phase 1 agents and their findings are trusted.",
+    "fallback_behavior": "If a technology is not in these rules, use the `languages`, `frameworks`, `databases` etc. from the consolidated Phase 1 analysis.",
+    "extensibility": "This file can grow over time as new technologies become common, but the system works for ANY technology via fallback."
+  },
+
+  "languages": {
+    "typescript": {
+      "detect_files": ["tsconfig.json"],
+      "detect_deps": ["typescript"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "javascript": {
+      "detect_files": ["package.json"],
+      "detect_not_files": ["tsconfig.json"],
+      "confidence": "medium",
+      "priority": 2
+    },
+    "python": {
+      "detect_files": ["pyproject.toml", "setup.py", "requirements.txt", "Pipfile"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "elixir": {
+      "detect_files": ["mix.exs"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "erlang": {
+      "detect_files": ["rebar.config", "rebar3.config"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "rust": {
+      "detect_files": ["Cargo.toml"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "go": {
+      "detect_files": ["go.mod"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "java": {
+      "detect_files": ["pom.xml", "build.gradle", "build.gradle.kts"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "kotlin": {
+      "detect_files": ["build.gradle.kts"],
+      "detect_deps": ["org.jetbrains.kotlin"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "scala": {
+      "detect_files": ["build.sbt"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "clojure": {
+      "detect_files": ["project.clj", "deps.edn"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "ruby": {
+      "detect_files": ["Gemfile"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "php": {
+      "detect_files": ["composer.json"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "csharp": {
+      "detect_files": ["*.csproj", "*.sln"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "fsharp": {
+      "detect_files": ["*.fsproj"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "haskell": {
+      "detect_files": ["stack.yaml", "*.cabal", "cabal.project"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "ocaml": {
+      "detect_files": ["dune", "dune-project", "*.opam"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "swift": {
+      "detect_files": ["Package.swift", "*.xcodeproj"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "zig": {
+      "detect_files": ["build.zig", "build.zig.zon"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "nim": {
+      "detect_files": ["*.nimble", "nim.cfg"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "crystal": {
+      "detect_files": ["shard.yml"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "dart": {
+      "detect_files": ["pubspec.yaml"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "julia": {
+      "detect_files": ["Project.toml", "Manifest.toml"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "gleam": {
+      "detect_files": ["gleam.toml"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "purescript": {
+      "detect_files": ["spago.dhall", "packages.dhall"],
+      "confidence": "high",
+      "priority": 1
+    },
+    "elm": {
+      "detect_files": ["elm.json"],
+      "confidence": "high",
+      "priority": 1
+    }
+  },
+
+  "backend_frameworks": {
+    "nestjs": {
+      "language": "typescript",
+      "detect_deps": ["@nestjs/core", "@nestjs/common"],
+      "confidence": "high"
+    },
+    "express": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["express"],
+      "detect_not_deps": ["@nestjs/core"],
+      "confidence": "medium"
+    },
+    "fastify": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["fastify"],
+      "confidence": "high"
+    },
+    "koa": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["koa"],
+      "confidence": "medium"
+    },
+    "hono": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["hono"],
+      "confidence": "high"
+    },
+    "elysia": {
+      "language": "typescript",
+      "detect_deps": ["elysia"],
+      "confidence": "high"
+    },
+    "phoenix": {
+      "language": "elixir",
+      "detect_deps": ["phoenix"],
+      "confidence": "high"
+    },
+    "plug": {
+      "language": "elixir",
+      "detect_deps": ["plug"],
+      "detect_not_deps": ["phoenix"],
+      "confidence": "medium"
+    },
+    "absinthe": {
+      "language": "elixir",
+      "detect_deps": ["absinthe"],
+      "confidence": "high"
+    },
+    "fastapi": {
+      "language": "python",
+      "detect_deps": ["fastapi"],
+      "confidence": "high"
+    },
+    "django": {
+      "language": "python",
+      "detect_deps": ["django"],
+      "detect_files": ["manage.py"],
+      "confidence": "high"
+    },
+    "flask": {
+      "language": "python",
+      "detect_deps": ["flask"],
+      "confidence": "medium"
+    },
+    "litestar": {
+      "language": "python",
+      "detect_deps": ["litestar"],
+      "confidence": "high"
+    },
+    "starlette": {
+      "language": "python",
+      "detect_deps": ["starlette"],
+      "detect_not_deps": ["fastapi"],
+      "confidence": "medium"
+    },
+    "actix-web": {
+      "language": "rust",
+      "detect_deps": ["actix-web"],
+      "confidence": "high"
+    },
+    "axum": {
+      "language": "rust",
+      "detect_deps": ["axum"],
+      "confidence": "high"
+    },
+    "rocket": {
+      "language": "rust",
+      "detect_deps": ["rocket"],
+      "confidence": "high"
+    },
+    "warp": {
+      "language": "rust",
+      "detect_deps": ["warp"],
+      "confidence": "high"
+    },
+    "gin": {
+      "language": "go",
+      "detect_deps": ["github.com/gin-gonic/gin"],
+      "confidence": "high"
+    },
+    "echo": {
+      "language": "go",
+      "detect_deps": ["github.com/labstack/echo"],
+      "confidence": "high"
+    },
+    "fiber": {
+      "language": "go",
+      "detect_deps": ["github.com/gofiber/fiber"],
+      "confidence": "high"
+    },
+    "chi": {
+      "language": "go",
+      "detect_deps": ["github.com/go-chi/chi"],
+      "confidence": "high"
+    },
+    "spring-boot": {
+      "language": "java",
+      "detect_deps": ["org.springframework.boot:spring-boot-starter"],
+      "confidence": "high"
+    },
+    "quarkus": {
+      "language": "java",
+      "detect_deps": ["io.quarkus:quarkus-core"],
+      "confidence": "high"
+    },
+    "micronaut": {
+      "language": "java",
+      "detect_deps": ["io.micronaut:micronaut-core"],
+      "confidence": "high"
+    },
+    "ktor": {
+      "language": "kotlin",
+      "detect_deps": ["io.ktor:ktor-server-core"],
+      "confidence": "high"
+    },
+    "rails": {
+      "language": "ruby",
+      "detect_deps": ["rails"],
+      "detect_files": ["config/routes.rb"],
+      "confidence": "high"
+    },
+    "sinatra": {
+      "language": "ruby",
+      "detect_deps": ["sinatra"],
+      "confidence": "high"
+    },
+    "hanami": {
+      "language": "ruby",
+      "detect_deps": ["hanami"],
+      "confidence": "high"
+    },
+    "laravel": {
+      "language": "php",
+      "detect_deps": ["laravel/framework"],
+      "detect_files": ["artisan"],
+      "confidence": "high"
+    },
+    "symfony": {
+      "language": "php",
+      "detect_deps": ["symfony/framework-bundle"],
+      "confidence": "high"
+    },
+    "aspnet-core": {
+      "language": "csharp",
+      "detect_deps": ["Microsoft.AspNetCore"],
+      "confidence": "high"
+    },
+    "servant": {
+      "language": "haskell",
+      "detect_deps": ["servant-server"],
+      "confidence": "high"
+    },
+    "scotty": {
+      "language": "haskell",
+      "detect_deps": ["scotty"],
+      "confidence": "high"
+    },
+    "dream": {
+      "language": "ocaml",
+      "detect_deps": ["dream"],
+      "confidence": "high"
+    },
+    "wisp": {
+      "language": "gleam",
+      "detect_deps": ["wisp"],
+      "confidence": "high"
+    }
+  },
+
+  "frontend_frameworks": {
+    "react": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["react", "react-dom"],
+      "confidence": "high"
+    },
+    "nextjs": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["next"],
+      "detect_files": ["next.config.js", "next.config.ts", "next.config.mjs"],
+      "confidence": "high"
+    },
+    "remix": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["@remix-run/react"],
+      "confidence": "high"
+    },
+    "vue": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["vue"],
+      "confidence": "high"
+    },
+    "nuxt": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["nuxt"],
+      "detect_files": ["nuxt.config.ts", "nuxt.config.js"],
+      "confidence": "high"
+    },
+    "angular": {
+      "language": "typescript",
+      "detect_deps": ["@angular/core"],
+      "detect_files": ["angular.json"],
+      "confidence": "high"
+    },
+    "svelte": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["svelte"],
+      "confidence": "high"
+    },
+    "sveltekit": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["@sveltejs/kit"],
+      "confidence": "high"
+    },
+    "solid": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["solid-js"],
+      "confidence": "high"
+    },
+    "qwik": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["@builder.io/qwik"],
+      "confidence": "high"
+    },
+    "astro": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["astro"],
+      "detect_files": ["astro.config.mjs", "astro.config.ts"],
+      "confidence": "high"
+    },
+    "phoenix-liveview": {
+      "language": "elixir",
+      "detect_deps": ["phoenix_live_view"],
+      "confidence": "high"
+    },
+    "elm-frontend": {
+      "language": "elm",
+      "detect_files": ["elm.json"],
+      "confidence": "high"
+    },
+    "yew": {
+      "language": "rust",
+      "detect_deps": ["yew"],
+      "confidence": "high"
+    },
+    "leptos": {
+      "language": "rust",
+      "detect_deps": ["leptos"],
+      "confidence": "high"
+    },
+    "dioxus": {
+      "language": "rust",
+      "detect_deps": ["dioxus"],
+      "confidence": "high"
+    },
+    "flutter": {
+      "language": "dart",
+      "detect_deps": ["flutter"],
+      "confidence": "high"
+    },
+    "htmx": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["htmx.org"],
+      "confidence": "medium"
+    }
+  },
+
+  "testing_frameworks": {
+    "jest": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["jest"],
+      "detect_files": ["jest.config.js", "jest.config.ts"],
+      "type": "unit",
+      "confidence": "high"
+    },
+    "vitest": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["vitest"],
+      "detect_files": ["vitest.config.ts", "vitest.config.js"],
+      "type": "unit",
+      "confidence": "high"
+    },
+    "mocha": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["mocha"],
+      "type": "unit",
+      "confidence": "medium"
+    },
+    "pytest": {
+      "language": "python",
+      "detect_deps": ["pytest"],
+      "detect_files": ["pytest.ini", "pyproject.toml"],
+      "type": "unit",
+      "confidence": "high"
+    },
+    "exunit": {
+      "language": "elixir",
+      "detect_files": ["test/test_helper.exs"],
+      "type": "unit",
+      "confidence": "high"
+    },
+    "eunit": {
+      "language": "erlang",
+      "detect_files": ["*_tests.erl"],
+      "type": "unit",
+      "confidence": "high"
+    },
+    "rust-test": {
+      "language": "rust",
+      "detect_files": ["Cargo.toml"],
+      "type": "unit",
+      "confidence": "high",
+      "notes": "Built into cargo test"
+    },
+    "criterion": {
+      "language": "rust",
+      "detect_deps": ["criterion"],
+      "type": "benchmark",
+      "confidence": "high"
+    },
+    "proptest": {
+      "language": "rust",
+      "detect_deps": ["proptest"],
+      "type": "property",
+      "confidence": "high"
+    },
+    "go-test": {
+      "language": "go",
+      "detect_files": ["*_test.go"],
+      "type": "unit",
+      "confidence": "high"
+    },
+    "junit": {
+      "language": "java",
+      "detect_deps": ["org.junit.jupiter:junit-jupiter"],
+      "type": "unit",
+      "confidence": "high"
+    },
+    "rspec": {
+      "language": "ruby",
+      "detect_deps": ["rspec"],
+      "detect_files": [".rspec"],
+      "type": "unit",
+      "confidence": "high"
+    },
+    "minitest": {
+      "language": "ruby",
+      "detect_deps": ["minitest"],
+      "type": "unit",
+      "confidence": "high"
+    },
+    "hspec": {
+      "language": "haskell",
+      "detect_deps": ["hspec"],
+      "type": "unit",
+      "confidence": "high"
+    },
+    "quickcheck": {
+      "language": "haskell",
+      "detect_deps": ["QuickCheck"],
+      "type": "property",
+      "confidence": "high"
+    },
+    "phpunit": {
+      "language": "php",
+      "detect_deps": ["phpunit/phpunit"],
+      "type": "unit",
+      "confidence": "high"
+    },
+    "playwright": {
+      "language": ["typescript", "javascript", "python"],
+      "detect_deps": ["@playwright/test", "playwright"],
+      "detect_files": ["playwright.config.ts", "playwright.config.js"],
+      "type": "e2e",
+      "confidence": "high"
+    },
+    "cypress": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["cypress"],
+      "detect_files": ["cypress.config.ts", "cypress.config.js", "cypress.json"],
+      "type": "e2e",
+      "confidence": "high"
+    },
+    "wallaby": {
+      "language": "elixir",
+      "detect_deps": ["wallaby"],
+      "type": "e2e",
+      "confidence": "high"
+    }
+  },
+
+  "databases": {
+    "postgresql": {
+      "detect_deps": ["pg", "postgres", "typeorm", "prisma", "psycopg2", "asyncpg", "postgrex", "sqlx", "diesel", "org.postgresql:postgresql"],
+      "detect_docker": ["postgres", "postgresql"],
+      "detect_env": ["POSTGRES_", "PG_", "DATABASE_URL.*postgres"],
+      "confidence": "high"
+    },
+    "mysql": {
+      "detect_deps": ["mysql", "mysql2", "mysqlclient", "pymysql", "mysql:mysql-connector-java", "myxql"],
+      "detect_docker": ["mysql", "mariadb"],
+      "detect_env": ["MYSQL_", "DATABASE_URL.*mysql"],
+      "confidence": "high"
+    },
+    "mongodb": {
+      "detect_deps": ["mongodb", "mongoose", "pymongo", "motor", "mongodb_driver"],
+      "detect_docker": ["mongo", "mongodb"],
+      "detect_env": ["MONGO_", "MONGODB_"],
+      "confidence": "high"
+    },
+    "redis": {
+      "detect_deps": ["redis", "ioredis", "aioredis", "redis-py", "redix"],
+      "detect_docker": ["redis"],
+      "detect_env": ["REDIS_"],
+      "confidence": "high"
+    },
+    "sqlite": {
+      "detect_deps": ["sqlite3", "better-sqlite3", "aiosqlite", "rusqlite", "ecto_sqlite3"],
+      "detect_files": ["*.sqlite", "*.db"],
+      "confidence": "medium"
+    },
+    "cassandra": {
+      "detect_deps": ["cassandra-driver", "scylla"],
+      "detect_docker": ["cassandra", "scylla"],
+      "confidence": "high"
+    },
+    "elasticsearch": {
+      "detect_deps": ["@elastic/elasticsearch", "elasticsearch", "elasticsearch-dsl"],
+      "detect_docker": ["elasticsearch"],
+      "confidence": "high"
+    },
+    "clickhouse": {
+      "detect_deps": ["clickhouse", "@clickhouse/client"],
+      "detect_docker": ["clickhouse"],
+      "confidence": "high"
+    },
+    "neo4j": {
+      "detect_deps": ["neo4j-driver", "neo4j"],
+      "detect_docker": ["neo4j"],
+      "confidence": "high"
+    },
+    "surrealdb": {
+      "detect_deps": ["surrealdb"],
+      "confidence": "high"
+    }
+  },
+
+  "orms": {
+    "typeorm": {
+      "language": "typescript",
+      "detect_deps": ["typeorm"],
+      "detect_files": ["ormconfig.json", "ormconfig.ts", "data-source.ts"],
+      "confidence": "high"
+    },
+    "prisma": {
+      "language": "typescript",
+      "detect_deps": ["@prisma/client"],
+      "detect_files": ["prisma/schema.prisma"],
+      "confidence": "high"
+    },
+    "drizzle": {
+      "language": "typescript",
+      "detect_deps": ["drizzle-orm"],
+      "detect_files": ["drizzle.config.ts"],
+      "confidence": "high"
+    },
+    "sequelize": {
+      "language": ["typescript", "javascript"],
+      "detect_deps": ["sequelize"],
+      "confidence": "high"
+    },
+    "ecto": {
+      "language": "elixir",
+      "detect_deps": ["ecto", "ecto_sql"],
+      "confidence": "high"
+    },
+    "sqlalchemy": {
+      "language": "python",
+      "detect_deps": ["sqlalchemy"],
+      "confidence": "high"
+    },
+    "tortoise-orm": {
+      "language": "python",
+      "detect_deps": ["tortoise-orm"],
+      "confidence": "high"
+    },
+    "django-orm": {
+      "language": "python",
+      "detect_deps": ["django"],
+      "confidence": "high"
+    },
+    "diesel": {
+      "language": "rust",
+      "detect_deps": ["diesel"],
+      "confidence": "high"
+    },
+    "sqlx-rust": {
+      "language": "rust",
+      "detect_deps": ["sqlx"],
+      "confidence": "high"
+    },
+    "sea-orm": {
+      "language": "rust",
+      "detect_deps": ["sea-orm"],
+      "confidence": "high"
+    },
+    "gorm": {
+      "language": "go",
+      "detect_deps": ["gorm.io/gorm"],
+      "confidence": "high"
+    },
+    "ent": {
+      "language": "go",
+      "detect_deps": ["entgo.io/ent"],
+      "confidence": "high"
+    },
+    "hibernate": {
+      "language": "java",
+      "detect_deps": ["org.hibernate:hibernate-core"],
+      "confidence": "high"
+    },
+    "active-record": {
+      "language": "ruby",
+      "detect_deps": ["activerecord"],
+      "confidence": "high"
+    },
+    "eloquent": {
+      "language": "php",
+      "detect_deps": ["illuminate/database"],
+      "confidence": "high"
+    },
+    "persistent": {
+      "language": "haskell",
+      "detect_deps": ["persistent"],
+      "confidence": "high"
+    }
+  },
+
+  "cloud_platforms": {
+    "aws": {
+      "detect_deps": ["aws-sdk", "@aws-sdk/*", "boto3", "aws-cdk-lib", "ex_aws"],
+      "detect_files": ["cdk.json", "serverless.yml", "sam.yaml", ".aws/"],
+      "detect_env": ["AWS_"],
+      "confidence": "high"
+    },
+    "gcp": {
+      "detect_deps": ["@google-cloud/*", "google-cloud-*", "google-api-python-client"],
+      "detect_files": [".gcloudignore", "app.yaml"],
+      "detect_env": ["GOOGLE_", "GCP_"],
+      "confidence": "high"
+    },
+    "azure": {
+      "detect_deps": ["@azure/*", "azure-*"],
+      "detect_files": ["azure-pipelines.yml", ".azure/"],
+      "detect_env": ["AZURE_"],
+      "confidence": "high"
+    },
+    "firebase": {
+      "detect_deps": ["firebase", "firebase-admin", "firebase-functions"],
+      "detect_files": ["firebase.json", ".firebaserc"],
+      "confidence": "high"
+    },
+    "vercel": {
+      "detect_files": ["vercel.json"],
+      "detect_env": ["VERCEL_"],
+      "confidence": "high"
+    },
+    "netlify": {
+      "detect_files": ["netlify.toml"],
+      "detect_env": ["NETLIFY_"],
+      "confidence": "high"
+    },
+    "fly": {
+      "detect_files": ["fly.toml"],
+      "confidence": "high"
+    },
+    "railway": {
+      "detect_files": ["railway.json", "railway.toml"],
+      "confidence": "high"
+    },
+    "render": {
+      "detect_files": ["render.yaml"],
+      "confidence": "high"
+    },
+    "supabase": {
+      "detect_deps": ["@supabase/supabase-js"],
+      "detect_files": ["supabase/"],
+      "confidence": "high"
+    },
+    "cloudflare": {
+      "detect_files": ["wrangler.toml"],
+      "detect_deps": ["@cloudflare/workers-types", "wrangler"],
+      "confidence": "high"
+    }
+  },
+
+  "containers": {
+    "docker": {
+      "detect_files": ["Dockerfile", "dockerfile", ".dockerignore"],
+      "confidence": "high"
+    },
+    "docker-compose": {
+      "detect_files": ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"],
+      "confidence": "high"
+    },
+    "kubernetes": {
+      "detect_dirs": ["k8s/", "kubernetes/", "kube/", "deploy/"],
+      "detect_files": ["*.yaml with kind: Deployment|Service|Pod"],
+      "confidence": "high"
+    },
+    "helm": {
+      "detect_files": ["Chart.yaml", "values.yaml"],
+      "detect_dirs": ["charts/", "helm/"],
+      "confidence": "high"
+    },
+    "podman": {
+      "detect_files": ["Containerfile", ".podman/"],
+      "confidence": "high"
+    },
+    "nix": {
+      "detect_files": ["flake.nix", "default.nix", "shell.nix"],
+      "confidence": "high"
+    },
+    "devcontainer": {
+      "detect_files": [".devcontainer/devcontainer.json"],
+      "confidence": "high"
+    }
+  },
+
+  "ci_cd": {
+    "github-actions": {
+      "detect_files": [".github/workflows/*.yml", ".github/workflows/*.yaml"],
+      "confidence": "high"
+    },
+    "gitlab-ci": {
+      "detect_files": [".gitlab-ci.yml"],
+      "confidence": "high"
+    },
+    "jenkins": {
+      "detect_files": ["Jenkinsfile"],
+      "confidence": "high"
+    },
+    "circleci": {
+      "detect_files": [".circleci/config.yml"],
+      "confidence": "high"
+    },
+    "travis-ci": {
+      "detect_files": [".travis.yml"],
+      "confidence": "high"
+    },
+    "azure-pipelines": {
+      "detect_files": ["azure-pipelines.yml"],
+      "confidence": "high"
+    },
+    "bitbucket-pipelines": {
+      "detect_files": ["bitbucket-pipelines.yml"],
+      "confidence": "high"
+    },
+    "drone": {
+      "detect_files": [".drone.yml"],
+      "confidence": "high"
+    },
+    "buildkite": {
+      "detect_files": [".buildkite/pipeline.yml"],
+      "confidence": "high"
+    }
+  },
+
+  "monorepo_tools": {
+    "pnpm-workspaces": {
+      "detect_files": ["pnpm-workspace.yaml"],
+      "confidence": "high"
+    },
+    "npm-workspaces": {
+      "detect_fields": ["package.json:workspaces"],
+      "confidence": "high"
+    },
+    "yarn-workspaces": {
+      "detect_files": ["yarn.lock"],
+      "detect_fields": ["package.json:workspaces"],
+      "confidence": "high"
+    },
+    "lerna": {
+      "detect_files": ["lerna.json"],
+      "confidence": "high"
+    },
+    "nx": {
+      "detect_files": ["nx.json"],
+      "confidence": "high"
+    },
+    "turborepo": {
+      "detect_files": ["turbo.json"],
+      "confidence": "high"
+    },
+    "moon": {
+      "detect_files": [".moon/workspace.yml"],
+      "confidence": "high"
+    },
+    "bazel": {
+      "detect_files": ["WORKSPACE", "WORKSPACE.bazel", "BUILD.bazel"],
+      "confidence": "high"
+    },
+    "umbrella": {
+      "language": "elixir",
+      "detect_files": ["apps/"],
+      "notes": "Elixir umbrella projects",
+      "confidence": "high"
+    }
+  },
+
+  "package_managers": {
+    "npm": {
+      "detect_files": ["package-lock.json"],
+      "priority": 3
+    },
+    "yarn": {
+      "detect_files": ["yarn.lock"],
+      "priority": 2
+    },
+    "pnpm": {
+      "detect_files": ["pnpm-lock.yaml"],
+      "priority": 1
+    },
+    "bun": {
+      "detect_files": ["bun.lockb"],
+      "priority": 1
+    },
+    "pip": {
+      "detect_files": ["requirements.txt"],
+      "priority": 3
+    },
+    "poetry": {
+      "detect_files": ["poetry.lock"],
+      "priority": 1
+    },
+    "uv": {
+      "detect_files": ["uv.lock"],
+      "priority": 1
+    },
+    "pdm": {
+      "detect_files": ["pdm.lock"],
+      "priority": 1
+    },
+    "mix": {
+      "detect_files": ["mix.lock"],
+      "priority": 1
+    },
+    "rebar3": {
+      "detect_files": ["rebar.lock"],
+      "priority": 1
+    },
+    "cargo": {
+      "detect_files": ["Cargo.lock"],
+      "priority": 1
+    },
+    "go-modules": {
+      "detect_files": ["go.sum"],
+      "priority": 1
+    },
+    "maven": {
+      "detect_files": ["pom.xml"],
+      "priority": 1
+    },
+    "gradle": {
+      "detect_files": ["gradle.lockfile", "settings.gradle", "settings.gradle.kts"],
+      "priority": 1
+    },
+    "sbt": {
+      "detect_files": ["build.sbt"],
+      "priority": 1
+    },
+    "bundler": {
+      "detect_files": ["Gemfile.lock"],
+      "priority": 1
+    },
+    "composer": {
+      "detect_files": ["composer.lock"],
+      "priority": 1
+    },
+    "hex": {
+      "detect_files": ["mix.lock"],
+      "notes": "Hex for Elixir uses mix.lock",
+      "priority": 1
+    },
+    "pub": {
+      "detect_files": ["pubspec.lock"],
+      "priority": 1
+    }
+  },
+
+  "fallback": {
+    "description": "When a technology is not found in these rules, the system falls back to Phase 1 agent findings. This ensures the system works for ANY technology, not just those listed here.",
+    "behavior": "If stack detection finds no matches for a detected language/framework from Phase 1, treat the Phase 1 finding as authoritative.",
+    "examples": [
+      "New Zig web framework not in rules -> Trust agent finding",
+      "Obscure Haskell library not in rules -> Trust agent finding",
+      "Custom in-house framework -> Trust agent finding"
+    ]
+  }
+}

@@ -61,142 +61,253 @@ Before writing, perform these verification steps:
 
 ## Output File 1: CLAUDE.md
 
-Generate content for `.claude/CLAUDE.md`. Structure:
+Generate content for `.claude/CLAUDE.md`. This is a **QUICK REFERENCE ONLY** — no explanations, no workflows, no patterns.
 
-- `## Project Overview` — 2-3 sentences: what the app does, tech stack summary
-- `## Tech Stack` — Bulleted list with exact versions from manifest files:
-  - JavaScript/TypeScript: Read package.json dependencies
-  - Python: Read pyproject.toml dependencies or requirements.txt
-  - Go: Read go.mod require statements
-  - Rust: Read Cargo.toml [dependencies]
-  - Java: Read pom.xml <dependencies> or build.gradle
-  - Ruby: Read Gemfile gem versions
-  - PHP: Read composer.json require section
-- `## File Placement Guide` — **CRITICAL SECTION** - Quick reference table for WHERE to create files:
+### Purpose
 
-  Create a comprehensive table with 15-25 most common file types and their exact location patterns **BASED ON WHAT YOU DISCOVERED IN THE CODEBASE**.
+CLAUDE.md answers THREE questions:
+1. "Where do I put this file?" → File Placement Guide
+2. "What command do I run?" → Essential Commands
+3. "What's the tech stack?" → Tech Stack list
 
-  **Example format:**
+### Structure (STRICT — no additional sections)
 
+- `# [Project Name]` — Project name only, no tagline
+- `## Tech Stack` — Bulleted list with exact versions. NO explanations of what each does.
+  ```
+  - Node.js 20.x
+  - TypeScript 5.3
+  - NestJS 10.x
+  - PostgreSQL 15
+  - Redis 7.x
+  ```
+- `## File Placement Guide` — **MOST CRITICAL SECTION**
+
+  Table format with 15-25 rows covering ALL file types in the project:
   ```
   | File Type | Location Pattern | Example |
   |-----------|------------------|---------|
-  | [Actual file type from project] | [Pattern discovered from codebase] | [Real example from project] |
+  | API Controller | `apps/api/src/modules/{domain}/` | `users.controller.ts` |
+  | Service | `apps/api/src/modules/{domain}/` | `users.service.ts` |
+  | Shared DTO | `packages/shared/src/dtos/` | `user.dto.ts` |
+  | Unit Test | `{file}.spec.ts` (co-located) | `users.service.spec.ts` |
   ```
 
-  **Generate categories dynamically based on the ACTUAL project structure:**
+  Include "Shared vs Local Rules" subsection if monorepo.
 
-  If it's a **monorepo with shared packages**:
-  - Shared/common files: types, utilities, constants, schemas/DTOs
+- `## Directory Structure` — Annotated tree (5-15 lines max), top-level only:
+  ```
+  apps/
+    api/          # NestJS backend
+    web/          # Next.js frontend
+  packages/
+    shared/       # Shared DTOs, types, utils
+  ```
 
-  If it has a **backend**:
-  - Database models/entities
-  - Data access layer (repositories/DAOs/queries)
-  - Business logic (services/use cases/interactors)
-  - API handlers (controllers/views/handlers/endpoints/routes)
-  - Database migrations
-  - Framework-specific: middleware/guards/filters/interceptors/policies
-  - Error handling (exceptions/error handlers)
-  - Background jobs/workers/tasks
+- `## Essential Commands` — Table format, NO explanations:
+  ```
+  | Task | Command |
+  |------|---------|
+  | Dev server | `pnpm dev` |
+  | Run tests | `pnpm test` |
+  | Build | `pnpm build` |
+  | Lint | `pnpm lint` |
+  | DB migrate | `pnpm db:migrate` |
+  ```
 
-  If it has a **frontend**:
-  - Components (document the actual pattern: atomic design, feature-based, etc.)
-  - Hooks/composables/custom logic
-  - State management (stores/reducers/contexts/slices)
-  - API clients/services
-  - Routes/pages
-  - Styling files
+- `## Services & Ports` — Table (only if multiple services):
+  ```
+  | Service | Port | URL |
+  |---------|------|-----|
+  | API | 3000 | http://localhost:3000 |
+  | Web | 3001 | http://localhost:3001 |
+  ```
 
-  **Tests:**
-  - Unit tests (document actual naming pattern)
-  - Integration tests
-  - E2E tests
+- `## Path Aliases` — Table (only if configured):
+  ```
+  | Alias | Target |
+  |-------|--------|
+  | @shared | packages/shared/src |
+  | @api | apps/api/src |
+  ```
 
-  **DO NOT include categories that don't exist in the project.**
-  For example:
-  - Backend-only project: No frontend categories
-  - Frontend-only project: No backend categories
-  - Single-repo: No shared package categories
-  - No NestJS: No guards/interceptors categories
+### STRICT EXCLUSIONS (DO NOT include in CLAUDE.md)
 
-  **Add "Shared vs Local Rules" subsection:**
-  - When to use shared vs local
-  - Import conventions
-  - Barrel export patterns
+- ❌ Architecture explanations or diagrams
+- ❌ Request lifecycle or data flows
+- ❌ Auth/authorization patterns
+- ❌ Critical workflows with steps
+- ❌ Gotchas or non-obvious patterns
+- ❌ Testing patterns or philosophy
+- ❌ Convention rationale (only brief mention in project-context)
+- ❌ Integration point details
+- ❌ Error handling patterns
+- ❌ Code examples longer than 1 line
+- ❌ Any "why" explanations
 
-- `## Common Commands` — Organized by category in code blocks:
-  - Development (dev server, build, start)
-  - Docker/Container commands (if applicable)
-  - Testing (all tests, single test file, coverage, watch mode)
-  - Code Quality (lint, format, type-check if applicable)
-  - Database (migrations if applicable)
-  - Package management (install dependencies, update)
+### Line Limits
 
-  Adapt command categories based on what exists in the project.
-  Extract commands from: package.json scripts, Makefile, pyproject.toml scripts, build tool tasks
+- **Filled file MAXIMUM:** 150 lines
+- **Hard cap:** 200 lines (reject if exceeded)
 
-- `## Architecture` — Brief subsections (NO exhaustive lists, adapt to actual project):
-  - `### Monorepo Structure` (if monorepo) — top-level annotated tree only, explain organization (by layer, by domain, etc.)
-  - `### Backend Organization` (if backend exists) — architecture pattern name (MVC, Clean Architecture, Vertical Slicing, DDD, Hexagonal, Flat) + internal structure template
-  - `### Frontend Architecture` (if frontend exists) — brief summary of patterns (component organization, state management, routing)
-  - `### Path Aliases` (if configured) — alias → target table
-
-  Skip sections that don't apply to the project.
-
-- `## Conventions` — bulleted list adapted to project:
-  - Commit messages (format, commitlint rules)
-  - Branch naming (if documented)
-  - File naming (kebab-case, PascalCase, snake_case patterns)
-  - Database naming (if applicable: snake_case columns, camelCase code, auto-conversion)
-  - Code style (linter/formatter settings: ESLint, Prettier, Black, RuboCop, gofmt, rustfmt, etc.)
-  - Testing (coverage thresholds, naming patterns)
-  - Import organization (if non-standard)
-- `## Services & Ports` — table with Service, Port, URL
-
-**Max 300 lines (increased to accommodate File Placement Guide). No endpoint tables, entity field lists, or WebSocket event tables.**
+If content exceeds limits, REMOVE in this order:
+1. Path Aliases (can discover via tsconfig/jsconfig)
+2. Services & Ports (can discover via docker-compose/package.json)
+3. Reduce Directory Structure to 5 lines
+4. Reduce File Placement Guide to 15 most common types
 
 ## Output File 2: project-context skill (SKILL.md)
 
 Write to `.claude/skills/project-context/SKILL.md`.
 
-Frontmatter:
+### Purpose
+
+project-context answers:
+1. "HOW does this system work?" → Architecture, request lifecycle, auth flows
+2. "WHY is it designed this way?" → Rationale for patterns
+3. "What will BREAK if I do X wrong?" → Gotchas with code examples
+4. "What ELSE do I need to update?" → Multi-file checklists
+
+### Frontmatter
 
 ```yaml
 ---
 name: project-context
-description: Hard-to-discover architectural knowledge — data flows, auth pipeline, real-time architecture, guard stacking, and non-obvious patterns. Use when implementing features that touch auth, real-time, or cross-cutting concerns.
+description: Deep architectural knowledge for [Project Name] — request lifecycle, auth flows, data patterns, testing strategy, and non-obvious gotchas. Load when implementing cross-cutting features.
 user-invokable: true
 disable-model-invocation: false
+version: 3.0
 ---
 ```
 
-Body — ONLY hard-to-discover knowledge (adapt sections to what exists in THIS project):
+### Structure (include only sections that apply)
 
-- `# Project Context: [Project Name]` — one-line description
+- `# Project Context: [Project Name]` — One line: what the project does
 
-**Include ONLY sections that exist and are non-obvious in the project:**
+- `## When to Use This Skill` — Bulleted list of scenarios (5-8 items)
 
-- `## Request Lifecycle` (if backend exists) — numbered steps through the ACTUAL request chain (framework-specific: middleware/filters/guards/interceptors/dependencies/handlers), with file paths
-- `## Authentication Flow` (if auth exists) — full flow from credential acquisition to authorization checks, all files involved, caching strategy, session management
-- `## Authorization Pattern` (if complex RBAC/policies exist) — guard stacking order, policy evaluation, decorator requirements, shared base classes
-- `## Error Handling Chain` — exception hierarchy, global error handler behavior, dev vs prod differences, database error handling
-- `## Real-Time Architecture` (if WebSockets/SSE/GraphQL subscriptions exist) — full event pipeline from trigger to client delivery, all files in order, event payload shape, subscription management
-- `## Database Migration Pattern` (if non-standard) — exact format, scaffolding commands, special considerations
-- `## Config Validation Pattern` — how config is validated, fail-fast behavior, required vs optional values
-- `## Response Transformation` (if non-trivial) — serialization, DTO transformation, response validation
-- `## Data Flow Patterns` (if unique) — how data flows through layers, special transformation points
-- `## Multi-File Patterns` — checklists for common tasks (e.g., "when adding a new feature module, update these 5 files")
-- `## [Other Non-Obvious Patterns]` — pagination conventions, naming strategy auto-conversion, soft deletes, audit trails, tenant isolation, etc.
+- `## Architecture Deep Dive`
+  - Overview paragraph explaining the architectural approach
+  - ASCII diagram if complex (optional)
+  - "Key Architectural Decisions" — 3-5 decision/rationale pairs
 
-**DO NOT include sections for things that don't exist or are straightforward.**
-For example:
+- `## Request Lifecycle` (backend only) — Numbered steps through middleware/guards/filters/handlers with file paths
 
-- No auth system: Skip authentication/authorization sections
-- No real-time: Skip real-time architecture section
-- Standard migrations: Skip migration pattern section
-- Frontend-only project: Skip backend request lifecycle
+- `## Authentication & Authorization` (if auth exists)
+  - Authentication Flow (credential → token → session)
+  - Authorization Pattern (guards, policies, RBAC)
+  - Auth Gotchas (common mistakes with solutions)
 
-**Max 250 lines. Every item must pass the maintenance test: adding a new endpoint/entity/env var should NOT require updating this file.**
+- `## Real-Time Architecture` (if WebSockets/SSE exist)
+  - Event pipeline from trigger to client
+  - Subscription management patterns
+
+- `## Critical Workflows` — Multi-step guides with ALL files to modify:
+  ```
+  ### Adding a New API Endpoint
+
+  1. Create controller method in `apps/api/src/modules/{domain}/{domain}.controller.ts`
+  2. Add service method in `apps/api/src/modules/{domain}/{domain}.service.ts`
+  3. Create DTO in `packages/shared/src/dtos/{domain}.dto.ts`
+  ...
+
+  **Files to modify:**
+  - `apps/api/src/modules/{domain}/{domain}.controller.ts` — Add route handler
+  - `apps/api/src/modules/{domain}/{domain}.service.ts` — Add business logic
+
+  > **Gotcha**: Don't forget to export the DTO from the barrel file.
+  ```
+
+- `## Gotchas & Non-Obvious Patterns` — MUST include code examples:
+  ```
+  ### Database Transactions Don't Auto-Rollback
+
+  The ORM doesn't rollback on thrown exceptions. You must explicitly handle it.
+
+  **Wrong approach:**
+  ```typescript
+  async createOrder(data: OrderDto) {
+    await this.orderRepo.save(order);
+    await this.inventoryService.decrement(items); // If this fails, order is orphaned
+  }
+  ```
+
+  **Correct approach:**
+  ```typescript
+  async createOrder(data: OrderDto) {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.save(Order, order);
+      await this.inventoryService.decrement(items, manager);
+    });
+  }
+  ```
+  ```
+
+- `## Error Handling Patterns`
+  - Exception hierarchy explanation
+  - Global error handler behavior
+  - Response format for errors
+
+- `## Data Layer Patterns`
+  - WHY these patterns were chosen
+  - Repository/DAO pattern with example
+  - Transaction handling rules
+  - Migration workflow (if non-standard)
+
+- `## Testing Strategy`
+  - Philosophy (what to test, what not to test)
+  - Unit test patterns WITH example code
+  - Integration test patterns WITH example code
+  - E2E test patterns (if applicable)
+  - What NOT to test (prevents over-testing)
+
+- `## Integration Points` (if external services exist)
+  - Per service: type, how to use, config location, gotchas
+
+- `## Conventions Deep Dive`
+  - File naming with RATIONALE (not just pattern)
+  - Code organization with RATIONALE
+  - Testing conventions with RATIONALE
+  - Commit message format with RATIONALE
+
+- `## Multi-File Change Checklists`
+  ```
+  ### When adding a new database entity
+
+  - [ ] `packages/shared/src/types/{entity}.type.ts` — Add type definition
+  - [ ] `apps/api/src/entities/{entity}.entity.ts` — Create entity class
+  - [ ] `apps/api/src/modules/{domain}/{domain}.module.ts` — Register in TypeORM
+  - [ ] Create migration: `pnpm db:migration:generate`
+  ```
+
+### MUST INCLUDE (these go ONLY in project-context)
+
+- ✅ Architecture diagrams and explanations
+- ✅ Request lifecycle with file paths
+- ✅ Auth/authorization flows
+- ✅ Critical workflows with ALL steps
+- ✅ Gotchas with WRONG and CORRECT code examples
+- ✅ Testing patterns with code examples
+- ✅ Convention rationale (WHY, not just WHAT)
+- ✅ Multi-file change checklists
+- ✅ Integration point details
+- ✅ Error handling patterns
+
+### EXCLUSIONS (these are in CLAUDE.md)
+
+- ❌ File placement table (reference CLAUDE.md)
+- ❌ Essential commands table (reference CLAUDE.md)
+- ❌ Tech stack list (reference CLAUDE.md)
+- ❌ Directory structure tree (reference CLAUDE.md)
+- ❌ Services & ports (reference CLAUDE.md)
+- ❌ Path aliases (reference CLAUDE.md)
+
+### Line Limits
+
+- **Filled file target:** 250-350 lines
+- **Maximum:** 400 lines
+
+Extensive content is OK — this is the deep knowledge file.
 
 ## Quality Requirements
 
@@ -205,8 +316,16 @@ For both files:
 - Every version number must come from the actual manifest file (package.json, pyproject.toml, go.mod, Cargo.toml, pom.xml, Gemfile, composer.json)
 - Every path must be verified with Glob
 - Every command must be verified in the appropriate build system file (package.json scripts, Makefile, pyproject.toml scripts, build tool tasks)
-- Include short code examples (3-5 lines max) only for non-obvious patterns
 - Only include sections/categories that actually exist in the project
+
+For CLAUDE.md:
+- NO code examples (this is just quick reference)
+- Table format for all structured data
+
+For project-context:
+- Include code examples for gotchas (WRONG vs CORRECT approach)
+- Include code examples for testing patterns
+- Include rationale (WHY) for all conventions and patterns
 
 ## Output Format
 
@@ -251,11 +370,21 @@ Return your complete response in this EXACT format with these EXACT section head
 ```markdown
 # CLAUDE.md Content
 
-# Gira - Project Reference
+# Gira
 
-Quick reference for AI assistants working on the Gira project.
+> Quick reference for AI agents. For deep architectural knowledge, load the `project-context` skill.
 
-## Project Overview
+## Tech Stack
+
+- TypeScript 5.3
+- NestJS 10.x
+- PostgreSQL 15
+
+## File Placement Guide
+
+| File Type | Location Pattern | Example |
+|-----------|------------------|---------|
+| Controller | `apps/api/src/modules/{domain}/` | `users.controller.ts` |
 
 [... rest of CLAUDE.md content ...]
 
@@ -265,12 +394,20 @@ Quick reference for AI assistants working on the Gira project.
 
 ---
 name: project-context
-description: Hard-to-discover architectural knowledge
+description: Deep architectural knowledge for Gira — request lifecycle, auth flows, data patterns, testing strategy, and non-obvious gotchas. Load when implementing cross-cutting features.
 user-invokable: true
 disable-model-invocation: false
+version: 3.0
 ---
 
 # Project Context: Gira
+
+> Hard-to-discover knowledge that prevents bugs.
+
+## When to Use This Skill
+
+- Implementing features that interact with authentication/authorization
+- Working with real-time features
 
 [... rest of project-context content ...]
 ```
@@ -280,10 +417,13 @@ disable-model-invocation: false
 Before returning your output, verify:
 
 - [ ] First line is EXACTLY: `# CLAUDE.md Content`
-- [ ] CLAUDE.md content starts with a project name heading (e.g., `# Gira - Project Reference`)
+- [ ] CLAUDE.md content starts with a project name heading (e.g., `# Gira`)
+- [ ] CLAUDE.md stays under 150 lines (hard cap 200)
+- [ ] project-context can be 250-400 lines (extensive is OK)
 - [ ] Separator is EXACTLY: `---` (three dashes on their own line)
 - [ ] Next line after separator is EXACTLY: `# project-context/SKILL.md Content`
 - [ ] project-context content starts with YAML frontmatter (`---`)
+- [ ] No duplication between files (each section in ONE file only)
 - [ ] No Write tool calls in your response
 - [ ] No bash commands creating files
 
@@ -292,6 +432,14 @@ Before returning your output, verify:
 - **The main conversation (Phase 4) will parse your output and write the files**
 - Use information from the consolidated analysis and engineer answers
 - If something is unclear or conflicting, mark it `<!-- TODO: Verify -->`
-- Be concise and prescriptive
-- Focus on actionable information, not theory
-- The File Placement Guide is the MOST CRITICAL section - developers will reference it constantly
+
+**CLAUDE.md philosophy:**
+- Fast reference card - WHERE to put files, WHAT commands to run
+- NO explanations, NO workflows, NO theory
+- Think: cheat sheet that fits on one screen
+
+**project-context philosophy:**
+- Deep knowledge - HOW it works, WHY these patterns, WHAT breaks
+- Include code examples showing WRONG vs CORRECT approaches
+- Multi-file checklists for common changes
+- This is WHERE the architectural knowledge lives
