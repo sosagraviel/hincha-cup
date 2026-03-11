@@ -1,7 +1,7 @@
-# AI-Store Skills Catalog
+# Skill Catalog
 
-**Purpose**: Comprehensive catalog of all skills in the ai-agentic-framework with detection patterns
-**Last Updated**: 2026-03-02
+Comprehensive catalog of all skills in the AI Agentic Framework with detection patterns.
+
 **Total Skills**: 30 (11 always-copied, 19 stack-specific)
 
 ---
@@ -110,25 +110,6 @@ These skills are copied **only when relevant** based on stack detection.
 
 ---
 
-## Missing Skills (To Be Created)
-
-Based on pilot project requirements and company tech stack:
-
-| Skill                       | Stack                  | Priority | Reason                             |
-| --------------------------- | ---------------------- | -------- | ---------------------------------- |
-| `nestjs-patterns`           | NestJS, TypeScript     | HIGH     | gira uses NestJS                   |
-| `vue-frontend`              | Vue, TypeScript        | MEDIUM   | Client projects use Vue            |
-| `angular-patterns`          | Angular, TypeScript    | MEDIUM   | Some company projects use Angular  |
-| `django-patterns`           | Django, Python         | HIGH     | Client projects use Django         |
-| `fastapi-patterns`          | FastAPI, Python        | HIGH     | Modern Python projects use FastAPI |
-| `flask-patterns`            | Flask, Python          | LOW      | Legacy Python projects             |
-| `nextjs-patterns`           | Next.js, React         | HIGH     | Client project uses Next.js        |
-| `firebase-patterns`         | Firebase               | HIGH     | Client project uses Firebase       |
-| `firestore-patterns`        | Firestore              | HIGH     | Client project uses Firestore      |
-| `gcloud-functions-patterns` | Google Cloud Functions | MEDIUM   | Client project uses GCP Functions  |
-
----
-
 ## Skill Detection Logic
 
 ### How Detection Works
@@ -201,14 +182,8 @@ always_copy: false
 
 ---
 
-## Next Steps
+## Further Reading
 
-1. **Phase 1.3**: Move existing skills from `.claude/skills/` to `skills/`
-2. **Phase 1.4**: Create agent templates
-3. **Phase 1.7**: Merge duplicate skills (e.g., mastering-python-skill-plugin → mastering-python-skill)
-4. **Phase 6.5**: Create missing stack skills based on pilot feedback
-
----
-
-**Version**: 1.0.0
-**Last Updated**: 2026-03-02
+- [API Reference](./docs/API_REFERENCE.md) - Skills, agents, and commands reference
+- [Architecture](./docs/ARCHITECTURE.md) - How skills and agents work together
+- [Contributing](./CONTRIBUTING.md) - How to create custom skills

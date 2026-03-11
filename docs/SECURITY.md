@@ -1,13 +1,12 @@
-# AI Store Security Guide
+# Security Guide
 
-**Last Updated**: 2026-03-06
-**Version**: 1.0.0
+Security best practices, threat model, and security controls for the AI Agentic Framework.
 
 ---
 
 ## Overview
 
-This document outlines security best practices, threat model, and security controls for the AI Store autonomous workflow framework.
+This document outlines security best practices for using the AI Agentic Framework in your development workflow.
 
 ---
 

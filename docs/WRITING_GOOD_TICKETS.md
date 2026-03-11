@@ -1,13 +1,41 @@
-# Writing Good Tickets for AI-Assisted Development
+# Writing Good Tickets
 
-**Read Time**: 5-10 minutes
-**Purpose**: Write clear, complete tickets that AI can implement successfully
+How to write clear, complete tickets for autonomous implementation with the AI Agentic Framework.
 
 ---
 
-## Why This Matters
+## Overview
 
-When using AI to implement tickets, **clarity = success**. Ambiguous tickets lead to:
+The framework offers two approaches for ticket creation:
+
+### Option 1: Autonomous Ticket Generation (Recommended)
+
+Use `/create-sdd-ticket` to generate implementation-ready tickets from ideas:
+
+```bash
+/create-sdd-ticket \
+  --from-input "Add OAuth login with Google" \
+  --save-to-jira https://company.atlassian.net/projects/PROJ/boards/1
+```
+
+**What the framework does**:
+- Searches your codebase for relevant patterns
+- Infers technical approach from existing code
+- Asks 2-5 clarifying questions (not 20+)
+- Generates INVEST-compliant ticket with BDD scenarios
+- Creates ticket in Jira ready for `/implement-ticket`
+
+**Time**: 3-5 minutes (vs 30-60 minutes manually)
+
+### Option 2: Manual Ticket Writing
+
+If you prefer to write tickets manually or need to create tickets outside the framework, follow the guidelines below.
+
+---
+
+## Why Good Tickets Matter
+
+Whether created by the framework or manually, **clarity = success**. Ambiguous tickets lead to:
 - ❌ Wrong implementations requiring rework
 - ❌ Missing edge cases causing bugs
 - ❌ Back-and-forth clarifications wasting time
@@ -327,6 +355,43 @@ When writing tickets for AI implementation:
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2026-03-02
-**Estimated Read Time**: 5-10 minutes
+## Using the Framework
+
+### Autonomous Ticket Creation
+
+The framework can create tickets from various sources:
+
+**From a simple idea**:
+```bash
+/create-sdd-ticket \
+  --from-input "Users should be able to export their data as CSV" \
+  --save-to-jira <BOARD_URL> \
+  --project-key PROJ
+```
+
+**Refine existing Jira ticket**:
+```bash
+/create-sdd-ticket \
+  --from-jira PROJ-100 \
+  --save-to-markdown ./specs/refined-spec.md
+```
+
+**From existing markdown**:
+```bash
+/create-sdd-ticket \
+  --from-markdown ./specs/draft-spec.md \
+  --save-to-jira <BOARD_URL>
+```
+
+### Manual Implementation
+
+For manual tickets, use the template and guidelines above to ensure clarity.
+
+---
+
+## Further Reading
+
+- [Quick Start Guide](../QUICKSTART.md) - Full SDLC workflows
+- [User Guide](./USER_GUIDE.md) - Daily development practices
+- [INVEST Criteria](https://en.wikipedia.org/wiki/INVEST_(mnemonic))
+- [Given-When-Then](https://martinfowler.com/bliki/GivenWhenThen.html)

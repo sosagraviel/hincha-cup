@@ -1,9 +1,9 @@
-# AI Framework Pilot Guide
+# Pilot Guide
 
-**Version**: 1.0
-**Last Updated**: 2026-03-02
-**Duration**: 3 weeks (2026-03-09 to 2026-03-29)
-**Goal**: Validate 100% initialize-project accuracy and <1% implement-ticket failure rate in production
+How to roll out the AI Agentic Framework to your team with a structured 3-week pilot program.
+
+**Duration**: 3 weeks
+**Goal**: Validate full SDLC autonomy (ticket creation + implementation) with 95%+ success rate
 
 ---
 
@@ -26,24 +26,23 @@
 
 - **Participants**: 7 pilot teams, 21 developers
 - **Duration**: 3 weeks of active development
-- **Target**: 43-54 tickets implemented across all teams
+- **Target**: 20-30 tickets created, 43-54 tickets implemented
 - **Success Criteria**:
-  - Initialize-project accuracy ≥95%
-  - Implement-ticket success rate ≥95%
+  - Ticket creation accuracy ≥95% (INVEST criteria met)
+  - Implementation success rate ≥95% (PR merged without major rework)
   - Developer satisfaction (NPS) ≥8/10
   - Code quality: No regression
   - Critical issues (P0): 0 open
 
 ### Pre-Pilot Checklist
 
-- [x] All 14 P0 improvements implemented (commit 932cde5)
-- [x] 28/28 automated tests passing
-- [ ] Test on 3 diverse projects (see below)
+- [ ] Test full SDLC on 3 diverse projects (initialization + ticket creation + implementation)
 - [ ] Select 7 pilot projects
 - [ ] Obtain management approval
 - [ ] Set up monitoring infrastructure
 - [ ] Create Slack channel (#ai-framework-pilot)
 - [ ] Schedule kickoff meetings
+- [ ] Prepare training materials (Quick Start Guide, command reference)
 
 ---
 
@@ -169,20 +168,23 @@ cd npm-check-updates
 
 **Kickoff Meeting Agenda** (60 minutes):
 1. **Introduction** (10 min): Framework overview, pilot goals, success criteria
-2. **Demo: Initialize-Project** (15 min): Run live on their codebase, show generated CLAUDE.md
-3. **Demo: Implement-Ticket** (20 min): Walk through phases, quality gates, rollback options
-4. **Q&A** (10 min): Answer questions, address concerns
-5. **Next Steps** (5 min): Share Quick Start Guide, add to Slack channel, set expectations
+2. **Demo: Full SDLC Cycle** (30 min):
+   - Initialize project (2 min)
+   - Create ticket from idea with `/create-sdd-ticket` (3 min)
+   - Implement ticket with `/implement-ticket` (12 min)
+   - Review generated PR (3 min)
+3. **Q&A** (15 min): Answer questions, address concerns
+4. **Next Steps** (5 min): Share Quick Start Guide, add to Slack channel, set expectations
 
 **Thursday-Friday**: First implementations (1-2 tickets per team)
 
 ### Week 1-3: Active Pilot
 
-| Week | Target Tickets | Focus |
+| Week | Target Activity | Focus |
 |------|----------------|-------|
-| Week 1 | 2-3 tickets/team | Simple features, bug fixes (low risk) |
-| Week 2 | 3-4 tickets/team | Medium complexity features |
-| Week 3 | 3-5 tickets/team | Complex features, edge cases |
+| Week 1 | 1-2 ticket creations + 2-3 implementations/team | Simple features, bug fixes (low risk) |
+| Week 2 | 2-3 ticket creations + 3-4 implementations/team | Medium complexity features |
+| Week 3 | 2-3 ticket creations + 3-5 implementations/team | Complex features, edge cases |
 
 **Total**: 8-12 tickets per team over 3 weeks
 
@@ -325,12 +327,13 @@ Sent via Slack bot after each `/implement-ticket` completion:
 #### Option 1: Full Rollout ✅
 
 **Requirements** (All must pass):
-- Initialize-project accuracy ≥95%
-- Implement-ticket success rate ≥95%
+- Ticket creation accuracy ≥95%
+- Implementation success rate ≥95%
 - Developer satisfaction (NPS) ≥8/10
 - Code quality: No regression
 - Critical issues (P0): 0 open
 - High issues (P1): <5 open
+- Time savings: 70%+ vs manual development
 
 **Action**: Proceed to phased rollout (25% → 50% → 100% over 3 weeks)
 
@@ -367,25 +370,36 @@ Sent via Slack bot after each `/implement-ticket` completion:
 ### Step 1: Initialize Your Project (First time only)
 
 ```bash
-cd /path/to/your/project
 /initialize-project
 ```
 
-- Analyzes codebase, generates `.claude/CLAUDE.md`
-- Review generated file for accuracy
-- Report inaccuracies in #ai-framework-pilot
+**Time**: ~2 minutes
+**Output**: `.claude/` directory with project context and custom agents
 
-### Step 2: Implement a Ticket
+### Step 2: Create a Ticket (Optional)
+
+If you have an idea but no ticket yet:
+
+```bash
+/create-sdd-ticket \
+  --from-input "Add dark mode toggle to settings" \
+  --save-to-jira <BOARD_URL> \
+  --project-key PROJ
+```
+
+**Time**: 3-5 minutes
+**Output**: Jira ticket with complete spec and BDD scenarios
+
+### Step 3: Implement a Ticket
 
 ```bash
 /implement-ticket PROJ-123
 ```
 
-- Replace `PROJ-123` with your Jira ticket key
-- Expected duration: 15-60 minutes
-- Framework will analyze → plan → implement → test → create PR
+**Time**: 10-15 minutes
+**Output**: Pull request with code, tests, and documentation
 
-### Step 3: Review and Merge
+### Step 4: Review and Merge
 
 - Review generated PR
 - Ensure tests pass and coverage meets threshold
@@ -446,7 +460,8 @@ cd /path/to/your/project
 
 ---
 
-**Document Version**: 1.0
-**Owner**: Pilot Lead
-**Status**: Ready for Execution
-**Next Update**: After Week 1 Check-in (2026-03-13)
+## Further Reading
+
+- [Quick Start Guide](../QUICKSTART.md) - Full SDLC workflows
+- [User Guide](./USER_GUIDE.md) - Daily development practices
+- [Security Guide](./SECURITY.md) - Security best practices

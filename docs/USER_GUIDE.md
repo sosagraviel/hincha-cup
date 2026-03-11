@@ -1,724 +1,479 @@
-# AI Agentic Framework - User Guide
+# User Guide
 
-**Version**: 2.0.0 (with Autonomous Operation)
-**Last Updated**: March 6, 2026
-**Status**: Production Ready
+Complete workflows and best practices for using the AI Agentic Framework in your daily development.
 
 ---
 
 ## Table of Contents
 
-1. [Introduction](#introduction)
-2. [Installation & Setup](#installation--setup)
-3. [Quick Start](#quick-start)
-4. [Core Concepts](#core-concepts)
-5. [Autonomous Operation Mode](#autonomous-operation-mode)
-6. [Utilities Reference](#utilities-reference)
-7. [Configuration](#configuration)
-8. [Troubleshooting](#troubleshooting)
-9. [Best Practices](#best-practices)
-10. [FAQ](#faq)
+1. [Getting Started](#getting-started)
+2. [Core Workflows](#core-workflows)
+3. [Daily Development](#daily-development)
+4. [Commands Reference](#commands-reference)
+5. [Best Practices](#best-practices)
+6. [Team Collaboration](#team-collaboration)
+7. [Troubleshooting](#troubleshooting)
+8. [FAQ](#faq)
 
 ---
 
-## Introduction
+## Getting Started
 
-The AI Agentic Framework enables **fully autonomous ticket implementation** with zero user prompts while maintaining high quality and complete transparency.
+### First Time Setup
 
-###What Makes It Special
+**1. Bootstrap the Framework**
 
-- **100% Autonomous**: Zero user prompts from ticket creation to PR
-- **Overnight Implementation**: Go home Friday, come back Monday to 10 completed PRs
-- **95%+ Accuracy**: Implementation accuracy calculation validates quality
-- **Full Transparency**: All decisions, assumptions, and changes logged
-- **Self-Healing**: Auto-fixes 80% of test failures
-- **Smart Optimization**: 40-60% test time reduction via smart selection
-
-### Use Cases
-
-**1. Overnight Development**
-```
-Friday 6 PM: Queue 10 tickets
-Monday 9 AM: 10 PRs ready for review
+```bash
+cd your-project/ai-agentic-framework
+./scripts/bootstrap-project.sh
 ```
 
-**2. Parallel Development**
-```
-Work on urgent bug while feature builds/tests in background
+**2. Initialize Your Project**
+
+```bash
+cd ..  # Go to project root
+claude code
 ```
 
-**3. Weekend Backlog Clearing**
+Then run:
 ```
-Friday evening: Queue backlog
-Monday morning: Backlog cleared
+/initialize-project
 ```
+
+This analyzes your codebase and generates:
+- `CLAUDE.md` - Quick reference guide
+- `project-context/SKILL.md` - Deep context
+- Stack-specific skills
+- Custom AI agents
+
+**Time**: ~2 minutes
 
 ---
 
-## Installation & Setup
+## Core Workflows
 
-### Prerequisites
+### Workflow 1: Implementing a Feature
 
-- **Node.js**: >= 22.14.x
-- **Git**: Repository with commit history
-- **Package Manager**: pnpm 10.2.1 (recommended) or npm/yarn
-- **Integrations**:
-  - Jira (for ticket context)
-  - GitHub (for PR creation)
+The most common workflow - transforming a ticket into a pull request.
 
-### Step 1: Clone Framework
+```mermaid
+graph LR
+    A[Ticket<br/>PROJ-123] --> B[Fetch Context]
+    B --> C[Analysis]
+    C --> D[Planning]
+    D --> E[Implementation]
+    E --> F[Testing]
+    F --> G[Quality Gates]
+    G --> H[Pull Request]
+```
+
+**Step by Step**:
 
 ```bash
-# If ai-agentic-framework is not in your project
-git clone <ai-agentic-framework-repo> /path/to/your/project/ai-agentic-framework
-
-# Navigate to project root
-cd /path/to/your/project
+# In Claude Code
+/implement-ticket PROJ-123
 ```
 
-### Step 2: Install Dependencies
+**What happens**:
 
-```bash
-cd ai-agentic-framework
-npm install
+1. **Fetches ticket** from Jira/GitHub/Linear
+2. **Analyzes requirements** and assesses risk
+3. **Creates plan** (architect mode for high-risk, planner mode for low-risk)
+4. **Implements code** following YOUR patterns
+5. **Runs tests** using YOUR test framework
+6. **Quality gates** (linting, type checking, coverage)
+7. **Creates PR** with comprehensive description
 
-# Or if you prefer pnpm
-pnpm install
-```
+**Time**: 5-15 minutes
 
-### Step 3: Make Scripts Executable
-
-```bash
-chmod +x utils/*.js
-chmod +x tests/*.sh
-chmod +x scripts/*.sh
-```
-
-### Step 4: Configure Environment
-
-```bash
-# Copy template
-cp .env.example .env
-
-# Edit with your credentials
-nano .env
-```
-
-Required environment variables:
-
-```bash
-# Jira Integration
-JIRA_HOST=https://your-company.atlassian.net
-JIRA_EMAIL=your-email@company.com
-JIRA_API_TOKEN=your-jira-api-token
-
-# GitHub Integration
-GITHUB_TOKEN=your-github-personal-access-token
-GITHUB_OWNER=your-org-name
-GITHUB_REPO=your-repo-name
-
-# Autonomous Mode (Optional - defaults shown)
-AUTO_APPROVE_CONFIDENCE_THRESHOLD=80
-MAX_TEST_RETRIES=3
-ENABLE_SELF_HEALING=true
-ENABLE_SMART_TEST_SELECTION=true
-```
-
-### Step 5: Run Health Check
-
-```bash
-./scripts/health-check.sh
-```
-
-Expected output:
-```
-✅ Node.js version: 22.14.0
-✅ Git repository detected
-✅ Package manager: pnpm
-✅ All utilities executable
-✅ Environment variables configured
-✅ Jira connection: OK
-✅ GitHub connection: OK
-```
-
-### Step 6: Test Autonomous Workflow
-
-```bash
-./tests/test-autonomous-workflow.sh
-```
-
-Expected output:
-```
-✅ ALL 29 CHECKS PASSED
-Phase 4 (Autonomous Operation) - 100% COMPLETE! 🎉
-```
+**When to use**: Any feature ticket with clear requirements
 
 ---
 
-## Quick Start
+### Workflow 2: Bug Fixes
 
-### Scenario 1: Implement Single Ticket (Autonomous)
-
-```bash
-# 1. Create ticket in Jira (or use existing)
-# Ticket: PROJ-123 "Add dark mode toggle"
-
-# 2. Run autonomous workflow
-node scripts/autonomous-workflow.sh PROJ-123
-
-# 3. Go to sleep 😴 (or work on other tasks)
-
-# 4. Wake up to fully implemented PR ☀️
-# - All code implemented
-# - All tests passing (unit + integration + E2E)
-# - All assumptions logged
-# - PR created with comprehensive artifacts
-```
-
-### Scenario 2: Queue Multiple Tickets (Overnight)
+Faster workflow for bug fixes with known root cause.
 
 ```bash
-# Friday evening
-for ticket in PROJ-101 PROJ-102 PROJ-103; do
-  node scripts/autonomous-workflow.sh "$ticket" &
-done
-
-# Go home 🏠
-
-# Monday morning: 3 PRs waiting for review! ☕
+# In Claude Code
+/implement-ticket BUG-456
 ```
 
-### Scenario 3: Manual Step-by-Step
+**What's different**:
+- Skips architecture planning
+- Focuses on minimal changes
+- Includes regression tests
+- Faster execution
 
-```bash
-# If you want control over each phase
+**Time**: 3-8 minutes
 
-# Phase 0: Risk Assessment
-node utils/select-strategy.js --ticket PROJ-123 --context ./context.json
-
-# Phase 1: Generate Plan
-node utils/auto-plan.js --ticket PROJ-123 --context ./context.json
-
-# Phase 2: Implementation (use /implement-ticket skill)
-# Phase 3: Testing (automatic with self-healing)
-# Phase 4: PR Creation (automatic)
-```
+**When to use**: Bug fixes, small refactors, typo corrections
 
 ---
 
-## Core Concepts
+### Workflow 3: Code Review
 
-### 1. Risk-Based Strategy Selection
+Get AI review before human review.
 
-Every ticket is assessed across 3 dimensions:
-
-**Risk Formula**:
-```
-Risk Score = (Impact × 40%) + (Complexity × 30%) + (Uncertainty × 30%)
-```
-
-**Strategies**:
-| Score | Strategy | Planning | Grading | Approval |
-|-------|----------|----------|---------|----------|
-| 0-30  | Direct   | No       | No      | Auto     |
-| 31-70 | Plan-First | Auto   | No      | Auto     |
-| 71-100| Architect| Detailed | Yes     | Review   |
-
-**Example**:
 ```bash
-$ node utils/select-strategy.js --ticket PROJ-123 --context ./context.json
-
-Risk Score: 55/100 (Medium)
-- Impact: 30 (API changes)
-- Complexity: 65 (frontend + backend)
-- Uncertainty: 20 (clear requirements)
-
-Strategy: Plan-First Approach
+# After implementing code
+/code-quality-check
 ```
 
-### 2. Autonomous Planning
+**Checks**:
+- Linting errors
+- Type errors
+- Test coverage
+- Security vulnerabilities
+- Performance issues
 
-Plans are auto-generated with confidence scoring:
+**Time**: 1-3 minutes
 
-**Confidence Formula**:
-```
-Confidence =
-  Clear Requirements (40 points) +
-  Known Tech Stack (30 points) +
-  No Breaking Changes (20 points) +
-  Low/Medium Risk (10 points)
-```
+**When to use**: Before creating PR, after manual code changes
 
-**Auto-Approval**: ≥80% confidence → no user review needed
+---
 
-**Example**:
+### Workflow 4: Writing Tests
+
+Generate tests for existing code.
+
 ```bash
-$ node utils/auto-plan.js --ticket PROJ-123 --context ./context.json
-
-Confidence: 90/100 (HIGH) ✅ Auto-Approved
-
-Plan Generated:
-- 6 implementation steps
-- 8 file changes (create)
-- Test strategy: Unit + Integration + E2E
-- Success criteria: 5 acceptance + 4 technical
+# In Claude Code
+Generate comprehensive tests for src/auth/oauth.service.ts
 ```
 
-### 3. Assumption Tracking
+**What gets generated**:
+- Unit tests
+- Integration tests
+- Edge case coverage
+- Mocking where appropriate
 
-All assumptions logged with 3-tier risk classification:
+**Time**: 3-7 minutes
 
-- **High-Risk ⚠️**: Production impact, security, data loss
-- **Medium-Risk ℹ️**: Performance, UX, integrations
-- **Low-Risk ✓**: Styling, naming, organization
+**When to use**: Legacy code, coverage gaps, new test requirements
 
-**Example**:
+---
+
+## Daily Development
+
+### Morning Routine
+
+**1. Check what's available**
+
 ```bash
-$ node utils/log-assumption.js \
-  --ticket PROJ-123 \
-  --title "OAuth Configuration" \
-  --decision "Client IDs in environment variables" \
-  --rationale "Standard practice for OAuth" \
-  --risk "medium" \
-  --mitigation "Validate at startup" \
-  --action "Verify env vars in production"
-
-✅ Assumption logged to .claude/decisions/PROJ-123.md
+claude code
 ```
 
-### 4. Self-Healing Tests
+Type `/` to see all available commands.
 
-Automatically fixes 8 common test failure patterns:
+**2. Review overnight PRs** (if applicable)
 
-1. **Missing Dependencies** → `pnpm install <package>`
-2. **Test Timeouts** → Double timeout values
-3. **Port Conflicts** → Find available port
-4. **Snapshot Mismatches** → Run with `-u` flag
-5. **Missing Env Vars** → Add safe defaults
-6. **DB Connection Failed** → Restart container
-7. **Database Not Found** → Create database
-8. **Pending Migrations** → Run migrations
+Check for PRs created by team members using the framework.
 
-**Example**:
+**3. Pick next ticket**
+
+Choose from backlog based on priority.
+
+---
+
+### During Development
+
+**Implementing Features**:
+
 ```bash
-$ node utils/self-healing-tests.js --test-command "pnpm test" --ticket PROJ-123
+# High-confidence tickets
+/implement-ticket PROJ-123
 
-Attempt 1: ❌ PORT_CONFLICT (port 3000 in use)
-🔧 Finding available port → 3001
-🔧 Updated .env.testing
-
-Attempt 2: ✅ All tests passed
-Healing log: .claude/healing/PROJ-123-healing-log.md
+# Need to understand context first
+/fetch-ticket-context PROJ-123
+# Read the context, then:
+/implement-ticket PROJ-123
 ```
 
-### 5. Smart Test Selection
+**Checking Quality**:
 
-Optimizes test execution by selecting only relevant tests:
-
-**Prioritization**:
-- **Critical**: Must run (tests for changed files)
-- **Related**: Recommended (tests for dependent files)
-- **Unrelated**: Skip (no connection to changes)
-
-**Example**:
 ```bash
-$ node utils/smart-test-selection.js --base origin/main --head HEAD --ticket PROJ-123
+# Before committing
+/code-quality-check
 
-Changed files: 8
-Critical tests: 12 (must run)
-Related tests: 4 (recommended)
-Unrelated tests: 8 (skip)
+# If changes are extensive
+/create-pr
+```
 
-Tests to run: 16/24 (67%)
-Time reduction: ~33%
+**Getting Unstuck**:
+
+```bash
+# If implementation fails
+/implement-ticket PROJ-123 --resume
+
+# If tests fail repeatedly
+# Check the logs and run tests manually to understand the issue
 ```
 
 ---
 
-## Autonomous Operation Mode
+### End of Day
 
-### How It Works
-
-**Complete Workflow** (Zero User Prompts):
-
-```
-User Creates Ticket → Autonomous Workflow Begins
-  ↓
-Phase 0: Pre-Flight
-  • Risk assessment → Select strategy
-  • Auto-planning → Generate plan (if ≥80% confidence)
-  ↓
-Phase 1: Implementation
-  • Autonomous decisions (logged)
-  • Code implementation
-  • Assumption tracking
-  ↓
-Phase 2: Testing
-  • Run tests with self-healing
-  • Smart test selection
-  • Retry with exponential backoff
-  ↓
-Phase 3: Quality Assurance
-  • Calculate accuracy (≥95% target)
-  • Generate architecture diagrams
-  • Detect documentation updates
-  • Context-aware error handling
-  ↓
-Phase 4: PR Creation
-  • Collect all artifacts
-  • Generate comprehensive PR description
-  • Create PR on GitHub
-  ↓
-User Reviews PR (Optional: Only if needed)
-```
-
-### Enabling Autonomous Mode
-
-**Method 1: Orchestrator Script (Recommended)**
+**1. Create PR for completed work**
 
 ```bash
-# Run complete autonomous workflow
-node scripts/autonomous-workflow.sh PROJ-123
+/create-pr
 ```
 
-**Method 2: Individual Utilities**
+**2. Review what was accomplished**
 
-```bash
-# Step by step (for debugging/learning)
+Check git log and PR description.
 
-# 1. Risk assessment
-node utils/select-strategy.js --ticket PROJ-123 --context ./context.json
+**3. Update ticket status**
 
-# 2. Auto-planning
-node utils/auto-plan.js --ticket PROJ-123 --context ./context.json
-
-# 3. Make decisions
-node utils/autonomous-decision.js \
-  --type library_selection \
-  --context '{"purpose":"email"}' \
-  --options "nodemailer,emailjs" \
-  --ticket PROJ-123
-
-# 4. Implementation (via /implement-ticket skill)
-# 5. Self-healing tests
-node utils/self-healing-tests.js --test-command "pnpm test" --ticket PROJ-123
-
-# 6. Smart test selection
-node utils/smart-test-selection.js --base origin/main --head HEAD --ticket PROJ-123
-
-# 7. Documentation detection
-node utils/detect-doc-updates.js --base origin/main --head HEAD --ticket PROJ-123
-
-# 8. Accuracy calculation
-node utils/calculate-accuracy.js --ticket PROJ-123
-
-# 9. Generate diagrams
-node utils/generate-architecture-diagram.js --base origin/main --head HEAD --ticket PROJ-123
-
-# 10. Create PR
-```
-
-### Monitoring Autonomous Execution
-
-**Log Files**:
-```bash
-# Decision log
-cat .claude/decisions/PROJ-123.md
-
-# Assumptions
-cat .claude/assumptions/PROJ-123-assumptions.json
-
-# Healing log
-cat .claude/healing/PROJ-123-healing-log.md
-
-# Risk assessment
-cat .claude/risk-assessments/PROJ-123-assessment.md
-
-# Plan
-cat .claude/plans/PROJ-123-plan.md
-
-# Test selection
-cat .claude/test-selection/PROJ-123-test-selection.md
-
-# Documentation updates
-cat .claude/documentation-updates/PROJ-123-updates.md
-```
-
-**Real-Time Monitoring** (if running in foreground):
-```bash
-# Watch logs in separate terminal
-tail -f .claude/logs/autonomous-workflow.log
-
-# Or use the orchestrator with verbose mode
-node scripts/autonomous-workflow.sh PROJ-123 --verbose
-```
+Mark tickets as "In Review" or "Done".
 
 ---
 
-## Utilities Reference
+## Commands Reference
 
-### 1. select-strategy.js
+### Project Setup Commands
 
-**Purpose**: Assess ticket risk and select implementation strategy
+| Command | Purpose | Time |
+|---------|---------|------|
+| `/initialize-project` | One-time setup | 2 min |
 
-**Usage**:
-```bash
-node utils/select-strategy.js \
-  --ticket PROJ-123 \
-  --context ./ticket-context.json \
-  [--project /path/to/project]
-```
+### Feature Development Commands
 
-**Output**:
-- `.claude/risk-assessments/PROJ-123-assessment.json`
-- `.claude/risk-assessments/PROJ-123-assessment.md`
+| Command | Purpose | Time |
+|---------|---------|------|
+| `/implement-ticket <ID>` | Full feature implementation | 5-15 min |
+| `/fetch-ticket-context <ID>` | Get ticket details | 10 sec |
+| `/create-pr` | Create GitHub pull request | 30 sec |
 
-### 2. auto-plan.js
+### Quality Assurance Commands
 
-**Purpose**: Generate implementation plan with confidence scoring
+| Command | Purpose | Time |
+|---------|---------|------|
+| `/code-quality-check` | Run all quality checks | 1-3 min |
 
-**Usage**:
-```bash
-node utils/auto-plan.js \
-  --ticket PROJ-123 \
-  --context ./ticket-context.json \
-  [--project /path/to/project]
-```
+### Utility Commands
 
-**Output**:
-- `.claude/plans/PROJ-123-plan.json`
-- `.claude/plans/PROJ-123-plan.md`
+| Command | Purpose |
+|---------|---------|
+| `/start-task <ID>` | Create isolated worktree |
+| `/end-task <ID>` | Clean up worktree |
 
-### 3. autonomous-decision.js
-
-**Purpose**: Make implementation decisions without user prompts
-
-**Usage**:
-```bash
-node utils/autonomous-decision.js \
-  --type <decision_type> \
-  --context '<json_context>' \
-  --options "<option1>,<option2>,<option3>" \
-  --ticket PROJ-123 \
-  [--project /path/to/project]
-```
-
-**Decision Types**:
-- `library_selection`
-- `architecture_pattern`
-- `tech_stack_choice`
-- `implementation_approach`
-- `api_design`
-- `database_choice`
-- `caching_strategy`
-- `testing_approach`
-- `deployment_strategy`
-- `error_handling`
-
-**Output**:
-- `.claude/decisions/PROJ-123.md`
-
-### 4. log-assumption.js
-
-**Purpose**: Track assumptions with risk levels
-
-**Usage**:
-```bash
-node utils/log-assumption.js \
-  --ticket PROJ-123 \
-  --title "Assumption Title" \
-  --decision "What was decided" \
-  --rationale "Why this choice" \
-  --risk <high|medium|low> \
-  [--mitigation "How risk is mitigated"] \
-  [--action "Action required from reviewer"] \
-  [--location "file:line"]
-```
-
-**Output**:
-- `.claude/decisions/PROJ-123.md` (appended)
-- `.claude/assumptions/PROJ-123-assumptions.json`
-
-### 5. self-healing-tests.js
-
-**Purpose**: Auto-fix test failures with retry logic
-
-**Usage**:
-```bash
-node utils/self-healing-tests.js \
-  --test-command "<command>" \
-  --ticket PROJ-123 \
-  [--max-retries 3] \
-  [--project /path/to/project]
-```
-
-**Output**:
-- `.claude/healing/PROJ-123-healing-log.md`
-
-### 6. smart-test-selection.js
-
-**Purpose**: Optimize test execution by selecting relevant tests
-
-**Usage**:
-```bash
-node utils/smart-test-selection.js \
-  --base origin/main \
-  --head HEAD \
-  --ticket PROJ-123 \
-  [--project /path/to/project]
-```
-
-**Output**:
-- `.claude/test-selection/PROJ-123-test-selection.json`
-- `.claude/test-selection/PROJ-123-test-selection.md`
-
-### 7. detect-doc-updates.js
-
-**Purpose**: Detect documentation changes required
-
-**Usage**:
-```bash
-node utils/detect-doc-updates.js \
-  --base origin/main \
-  --head HEAD \
-  --ticket PROJ-123 \
-  [--project /path/to/project]
-```
-
-**Output**:
-- `.claude/documentation-updates/PROJ-123-updates.md`
-
-### 8. error-handler.js
-
-**Purpose**: Context-aware error handling with auto-fixes
-
-**Usage** (programmatic):
-```javascript
-const { handleError } = require('./utils/error-handler');
-
-try {
-  execSync('npm run build');
-} catch (error) {
-  const report = await handleError(error, {
-    operation: 'build',
-    autoFix: true,
-    ticketKey: 'PROJ-123'
-  });
-}
-```
-
-**Output**:
-- `.claude/errors/PROJ-123-timestamp.json`
-
-### 9. retry-with-backoff.js
-
-**Purpose**: Exponential backoff retry for flaky operations
-
-**Usage** (programmatic):
-```javascript
-const { retryWithBackoff } = require('./utils/retry-with-backoff');
-
-await retryWithBackoff(
-  async () => execSync('npm install'),
-  { maxRetries: 5, operation: 'npm_install' }
-);
-```
-
-### 10. calculate-accuracy.js
-
-**Purpose**: Calculate implementation accuracy
-
-**Usage**:
-```bash
-node utils/calculate-accuracy.js \
-  --ticket PROJ-123 \
-  --test-results ./test-results \
-  [--project /path/to/project]
-```
-
-**Output**:
-- `.claude/artifacts/PROJ-123/reports/accuracy-report.json`
-
-### 11. generate-architecture-diagram.js
-
-**Purpose**: Auto-generate architecture diagrams from git diff
-
-**Usage**:
-```bash
-node utils/generate-architecture-diagram.js \
-  --base origin/main \
-  --head HEAD \
-  --ticket PROJ-123 \
-  [--project /path/to/project]
-```
-
-**Output**:
-- `.claude/diagrams/PROJ-123-overview.mmd`
-- `.claude/diagrams/PROJ-123-component.mmd`
-- `.claude/diagrams/PROJ-123-sequence.mmd`
-- `.claude/diagrams/PROJ-123-er.mmd`
+**See all commands**: Type `/` in Claude Code
 
 ---
 
-## Configuration
+## Best Practices
 
-### Environment Variables
+### Writing AI-Friendly Tickets
 
-**Required**:
+**DO**:
+- ✅ Write clear acceptance criteria
+- ✅ Include technical requirements
+- ✅ Specify expected behavior
+- ✅ Add examples or mockups
+- ✅ Break large features into smaller tickets
+
+**DON'T**:
+- ❌ Use vague terms ("improve", "enhance", "optimize" without specifics)
+- ❌ Leave requirements as "TBD"
+- ❌ Omit technical context
+- ❌ Create tickets >5 days of work
+
+**Example Good Ticket**:
+```
+Title: Add OAuth login with Google
+
+Acceptance Criteria:
+- Users can click "Login with Google" button
+- OAuth flow redirects to Google login
+- After auth, user is redirected back with token
+- Token is stored in localStorage
+- User profile is fetched and displayed
+
+Technical Requirements:
+- Use existing auth service pattern
+- Follow NestJS OAuth module conventions
+- Store tokens securely (httpOnly cookies)
+- Add E2E test for full flow
+```
+
+**Example Bad Ticket**:
+```
+Title: Improve login
+
+Description: Make login better
+```
+
+**Learn more**: [Writing Good Tickets](./WRITING_GOOD_TICKETS.md)
+
+---
+
+### Code Quality Standards
+
+**Before Creating PR**:
+
+1. **Run quality checks**
+   ```bash
+   /code-quality-check
+   ```
+
+2. **Verify all tests pass**
+   ```bash
+   # Run tests manually to confirm
+   npm test  # or pnpm test, pytest, go test, etc.
+   ```
+
+3. **Check coverage**
+   ```bash
+   # Coverage reports are in the output
+   # Aim for 80%+ on new code
+   ```
+
+4. **Review generated code**
+   - Does it follow project patterns?
+   - Is naming consistent?
+   - Are edge cases handled?
+
+---
+
+### Working with Monorepos
+
+The framework automatically detects monorepo structure.
+
+**Workspace Detection**:
+- pnpm workspaces
+- Lerna
+- Yarn workspaces
+- npm workspaces
+
+**Example** (4 workspaces):
+```
+✓ services/backend (TypeScript, NestJS)
+✓ services/frontend (TypeScript, React)
+✓ services/auth (TypeScript, Docker)
+✓ packages/shared (TypeScript, library)
+```
+
+**Implementation**: Automatically routes file changes to correct implementer based on workspace.
+
+---
+
+### Multi-Language Projects
+
+For projects with multiple languages:
+
+**Example** (TypeScript + Python):
+```
+Ticket affects:
+- backend/auth.service.ts (TypeScript)
+- scripts/migrate_users.py (Python)
+
+Agents used:
+- implementer-typescript → auth.service.ts
+- implementer-python → migrate_users.py
+- tester-unit-typescript → auth tests
+- tester-unit-python → migration tests
+```
+
+**You don't need to do anything** - the framework handles routing automatically.
+
+---
+
+### Handling Failures
+
+**Quality Gate Failures**:
+
+If tests fail after 3 attempts:
+
+1. **Review the error**
+   - Check logs in Claude Code output
+   - Understand the root cause
+
+2. **Fix manually if needed**
+   ```bash
+   # Run tests to see failures
+   npm test
+
+   # Fix the issue
+   # Then continue
+   /implement-ticket PROJ-123 --resume
+   ```
+
+3. **Report patterns**
+   - If same error happens repeatedly
+   - Share with team to improve framework
+
+**Implementation Failures**:
+
+If implementation gets stuck:
+
+1. **Check ticket quality**
+   - Are requirements clear?
+   - Is context sufficient?
+
+2. **Fetch more context**
+   ```bash
+   /fetch-ticket-context PROJ-123
+   ```
+
+3. **Try again with more detail**
+   - Add clarifying comments to ticket
+   - Include examples
+   - Reference similar implementations
+
+---
+
+## Team Collaboration
+
+### For Individual Developers
+
+**Daily Usage**:
 ```bash
-JIRA_HOST=https://company.atlassian.net
-JIRA_EMAIL=email@company.com
-JIRA_API_TOKEN=<token>
-GITHUB_TOKEN=<token>
-GITHUB_OWNER=<org>
-GITHUB_REPO=<repo>
+# Morning: Pick ticket
+/implement-ticket PROJ-123
+
+# Afternoon: Review and merge
+# Check PR, test locally, merge
 ```
 
-**Optional** (with defaults):
+**Benefits**:
+- 70-80% time savings
+- Consistent code quality
+- Less context switching
+
+---
+
+### For Team Leads
+
+**Monitoring**:
+- Review PRs created by framework
+- Check assumption logs for decisions
+- Validate test coverage
+
+**Best Practices**:
+- Assign tickets with clear requirements
+- Review high-risk tickets before merge
+- Share learnings from framework usage
+
+**Rolling Out**: See [Pilot Guide](./PILOT_GUIDE.md)
+
+---
+
+### For QA Engineers
+
+**Integration**:
+- Framework generates E2E tests automatically
+- Tests follow project conventions
+- Coverage reports included in PR
+
+**Validation**:
 ```bash
-# Autonomous Mode
-AUTO_APPROVE_CONFIDENCE_THRESHOLD=80  # ≥80 → auto-approve
-MAX_TEST_RETRIES=3                    # Max healing attempts
-ENABLE_SELF_HEALING=true              # Auto-fix tests
-ENABLE_SMART_TEST_SELECTION=true      # Optimize tests
+# Run full test suite
+npm test
 
-# Notifications
-SLACK_WEBHOOK_URL=<url>              # Notify on completion
-EMAIL_NOTIFICATIONS=<email>          # Email notifications
-
-# Performance
-PARALLEL_TEST_EXECUTION=true         # Run tests in parallel
-MAX_PARALLEL_TASKS=3                 # Max concurrent tickets
-```
-
-### Adjusting Thresholds
-
-**Confidence Threshold** (`utils/auto-plan.js`):
-```javascript
-const CONFIDENCE_THRESHOLD = {
-  AUTO_APPROVE: 80,  // Lower for more auto-approvals
-  NEEDS_REVIEW: 60,
-  MANUAL: 0
-};
-```
-
-**Risk Weights** (`utils/select-strategy.js`):
-```javascript
-// Adjust formula weights
-const riskScore = Math.round(
-  (impactScore * 0.4) +      // Impact weight
-  (complexityScore * 0.3) +   // Complexity weight
-  (uncertaintyScore * 0.3)    // Uncertainty weight
-);
-```
-
-**Test Coverage** (`utils/calculate-accuracy.js`):
-```javascript
-const COVERAGE_THRESHOLD = {
-  UNIT: 80,         // 80% minimum
-  INTEGRATION: 100, // 100% required
-  E2E: 100          // 100% for critical flows
-};
+# Check coverage
+# Coverage reports in PR description
 ```
 
 ---
@@ -727,273 +482,179 @@ const COVERAGE_THRESHOLD = {
 
 ### Common Issues
 
-**1. Health Check Fails**
+**Issue**: `/initialize-project` not found
 
+**Solution**: Run bootstrap script first:
 ```bash
-$ ./scripts/health-check.sh
-❌ Jira connection: FAILED
-```
-
-**Solution**:
-```bash
-# Check credentials
-cat .env | grep JIRA
-
-# Test connection manually
-curl -u $JIRA_EMAIL:$JIRA_API_TOKEN $JIRA_HOST/rest/api/3/myself
-
-# Update .env with correct credentials
-```
-
-**2. Autonomous Workflow Stuck**
-
-```bash
-# Workflow seems stuck on implementation step
-```
-
-**Solution**:
-```bash
-# Check logs
-tail -f .claude/logs/autonomous-workflow.log
-
-# If truly stuck, check for errors
-cat .claude/errors/PROJ-123-*.json
-
-# Cancel and restart with verbose mode
-Ctrl+C
-node scripts/autonomous-workflow.sh PROJ-123 --verbose
-```
-
-**3. Self-Healing Not Working**
-
-```bash
-$ node utils/self-healing-tests.js --test-command "pnpm test"
-❌ Healing failed after 3 attempts
-```
-
-**Solution**:
-```bash
-# Check healing log for details
-cat .claude/healing/PROJ-123-healing-log.md
-
-# Common issues:
-# - Port still in use → Kill process manually: lsof -i :3000
-# - DB not running → Start DB: docker-compose up -d postgres
-# - Missing env vars → Add to .env.testing
-```
-
-**4. Low Confidence Planning**
-
-```bash
-$ node utils/auto-plan.js --ticket PROJ-123
-Confidence: 45/100 (LOW) ⚠️ Manual planning recommended
-```
-
-**Solution**:
-```bash
-# Review ticket for ambiguity
-# - Add clearer acceptance criteria
-# - Remove "TBD" or "unclear" wording
-# - Specify technical requirements
-# - Break into smaller tickets
-
-# Or proceed with manual planning via /implement-ticket skill
-```
-
-**5. Test Selection Skipping Critical Tests**
-
-```bash
-$ node utils/smart-test-selection.js --base origin/main --head HEAD
-Critical tests: 2 (expected more)
-```
-
-**Solution**:
-```bash
-# Review test selection logic
-cat .claude/test-selection/PROJ-123-test-selection.md
-
-# If incorrect, fallback to running all tests
-pnpm test
-
-# Report issue for test selection improvement
+cd ai-agentic-framework
+./scripts/bootstrap-project.sh
+cd ..
+claude code
 ```
 
 ---
 
-## Best Practices
+**Issue**: Stack detection failed
 
-### 1. Ticket Quality
+**Solution**: Ensure you have standard config files:
+- TypeScript: `package.json` + `tsconfig.json`
+- Python: `requirements.txt` or `pyproject.toml`
+- Go: `go.mod`
+- Java: `pom.xml` or `build.gradle`
 
-**DO**:
-- ✅ Write clear, specific acceptance criteria
-- ✅ Include technical requirements
-- ✅ Specify expected behavior
-- ✅ Add examples or mockups
+---
 
-**DON'T**:
-- ❌ Use vague terms ("improve performance", "make it better")
-- ❌ Leave requirements as "TBD"
-- ❌ Omit technical details
-- ❌ Create overly large tickets
+**Issue**: Tests failing consistently
 
-### 2. Autonomous Mode Usage
+**Solution**:
+1. Run tests manually to understand failure
+2. Check if baseline is clean (`npm test` on main branch)
+3. Fix environment issues (DB, ports, env vars)
+4. Resume implementation: `/implement-ticket PROJ-123 --resume`
 
-**DO**:
-- ✅ Review assumption logs before merging
-- ✅ Validate high-risk assumptions thoroughly
-- ✅ Check test coverage metrics
-- ✅ Review generated architecture diagrams
+---
 
-**DON'T**:
-- ❌ Blindly merge without review
-- ❌ Ignore medium/high-risk assumptions
-- ❌ Skip testing on your machine
-- ❌ Disable self-healing without reason
+**Issue**: Generated code doesn't match project style
 
-### 3. Overnight Implementation
+**Solution**:
+1. Re-run initialization (framework learns from more code over time)
+2. Check if patterns are consistent in your codebase
+3. Add style guide to project documentation
 
-**DO**:
-- ✅ Queue low/medium risk tickets only
-- ✅ Ensure baseline is clean (all tests pass)
-- ✅ Set up notifications (Slack/email)
-- ✅ Review logs next morning
+---
 
-**DON'T**:
-- ❌ Queue high-risk tickets without review
-- ❌ Start with failing tests
-- ❌ Leave without notification setup
-- ❌ Merge without reviewing PRs
+**Issue**: Wrong framework detected
 
-### 4. Error Handling
+**Solution**:
+1. Check `project-context/SKILL.md` for detected stack
+2. If wrong, ensure config files are correct
+3. Remove conflicting dependencies
+4. Re-run `/initialize-project`
 
-**DO**:
-- ✅ Let self-healing try first
-- ✅ Review healing logs to learn patterns
-- ✅ Report new error patterns for improvement
-- ✅ Use retry-with-backoff for flaky operations
+---
 
-**DON'T**:
-- ❌ Immediately disable self-healing on first failure
-- ❌ Ignore repeated failures (indicates real issue)
-- ❌ Skip error logs
-- ❌ Retry without backoff
+### Getting Help
+
+**Documentation**:
+- [Architecture](./ARCHITECTURE.md) - How it works
+- [API Reference](./API_REFERENCE.md) - Skills and agents
+- [Writing Good Tickets](./WRITING_GOOD_TICKETS.md) - Ticket best practices
+
+**Support**:
+- GitHub Issues: Report bugs and feature requests
+- Slack: #ai-framework-support
+- Email: ai-team@yourcompany.com
 
 ---
 
 ## FAQ
 
-**Q: How accurate is autonomous implementation?**
+**Q: How accurate is the framework?**
 
-A: **95%+ accuracy** on average. The accuracy calculation validates that:
-- All acceptance criteria are met
-- All tests pass
-- Code follows project conventions
-- No critical issues found
+A: **95%+** on average. Implementation accuracy includes:
+- Acceptance criteria met
+- Tests passing
+- Code following conventions
+- No critical issues
 
-**Q: Can I trust overnight implementations?**
+---
 
-A: For **low/medium risk tickets (0-70 score), yes**. High-risk tickets (71-100) are implemented but require thorough review before merging.
+**Q: Can I use this for large refactors?**
 
-**Q: What if autonomous mode makes a wrong decision?**
+A: **Yes**, but break into smaller tickets:
+- Each ticket = one module or component
+- Clear acceptance criteria per ticket
+- Test incrementally
 
-A: All decisions are logged in `.claude/decisions/PROJ-123.md` with rationale. You can review and override before merging. The decision becomes a learning opportunity for improving the decision engine.
+---
 
-**Q: How long does autonomous implementation take?**
+**Q: What about code review?**
 
-A:
-- **Low risk** (Direct): 15-30 minutes
-- **Medium risk** (Plan-First): 30-90 minutes
-- **High risk** (Architect): 1-3 hours
+A: Framework generates PRs, but **human review is still required**:
+- Review logic and edge cases
+- Validate security concerns
+- Check performance implications
+- Ensure tests are meaningful
 
-Still 5-10x faster than manual implementation.
+---
 
-**Q: Can I run multiple tickets in parallel?**
+**Q: How does it handle different tech stacks?**
 
-A: **Yes**! Use separate terminals or background execution:
-```bash
-for ticket in PROJ-101 PROJ-102 PROJ-103; do
-  node scripts/autonomous-workflow.sh "$ticket" &
-done
-```
+A: **Automatically**:
+- Detects languages (TypeScript, Python, Go, Java, Rust, Ruby, etc.)
+- Identifies frameworks (React, Django, NestJS, Spring Boot, etc.)
+- Adapts to YOUR patterns and conventions
 
-**Q: What happens if tests fail during autonomous mode?**
+---
 
-A: **Self-healing kicks in**:
-1. Detects failure pattern
-2. Applies appropriate fix
-3. Retries (max 3 attempts)
-4. Logs all actions
-5. If still failing, reports to you
+**Q: Can I customize the framework?**
 
-**80% success rate** on auto-recovery.
+A: **Yes**:
+- Add custom skills in `.claude/skills/`
+- Create custom agents in `.claude/agents/`
+- Modify prompts for your needs
+- See [Contributing](../CONTRIBUTING.md)
 
-**Q: How do I disable autonomous mode?**
+---
 
-A: Set environment variables:
-```bash
-AUTO_APPROVE_CONFIDENCE_THRESHOLD=100  # Never auto-approve
-ENABLE_SELF_HEALING=false              # Disable test healing
-ENABLE_SMART_TEST_SELECTION=false      # Run all tests
-```
+**Q: What if I don't like the generated code?**
 
-Or use manual `/implement-ticket` workflow.
+A: **Options**:
+1. Edit the code manually (it's just regular code)
+2. Improve ticket description and try again
+3. Add examples to project documentation
+4. Share feedback to improve framework
 
-**Q: Can I customize risk thresholds?**
+---
 
-A: **Yes**. Edit `utils/select-strategy.js` and adjust weights:
-```javascript
-// Make impact more important
-const riskScore = Math.round(
-  (impactScore * 0.5) +      // Increased from 0.4
-  (complexityScore * 0.25) + // Decreased from 0.3
-  (uncertaintyScore * 0.25)  // Decreased from 0.3
-);
-```
+**Q: How do I handle security-sensitive code?**
 
-**Q: What about security concerns?**
+A: **Best practices**:
+- Review security-related PRs thoroughly
+- Use framework's security review skill
+- Add security tests to requirements
+- Never commit secrets (framework prevents this)
 
-A: Framework includes:
-- Input validation on all utilities
-- Path traversal prevention
-- Secret sanitization in logs
-- Dependency auditing
-- Security review skill integration
+---
 
-**Q: How do I monitor performance?**
+**Q: Can multiple developers use this simultaneously?**
 
-A: Check metrics in:
-```bash
-.claude/metrics/PROJ-123-metrics.json
-```
+A: **Yes**:
+- Each developer runs their own instance
+- PRs are created in separate branches
+- No conflicts between developers
+- See [Pilot Guide](./PILOT_GUIDE.md) for team rollout
 
-Includes:
-- Execution time
-- Test coverage
-- Retry counts
-- Healing actions
-- Resource usage
+---
+
+**Q: What's the typical time savings?**
+
+A: **70-80% reduction** in development time:
+- Simple features: 60 min → 10 min
+- Medium features: 4 hours → 45 min
+- Complex features: 2 days → 4 hours
+
+---
+
+**Q: How do I track what the framework is doing?**
+
+A: **Logs and artifacts**:
+- Claude Code output shows progress
+- PR description includes detailed steps
+- Logs in `.claude/logs/` (if needed)
+- All decisions are transparent
 
 ---
 
 ## Next Steps
 
-1. **Complete Setup**: Follow [Installation & Setup](#installation--setup)
-2. **Run Tests**: Validate with `./tests/test-autonomous-workflow.sh`
-3. **Try Single Ticket**: Run one autonomous ticket implementation
-4. **Review Artifacts**: Examine logs, decisions, assumptions
-5. **Queue Multiple**: Try overnight implementation
-6. **Customize**: Adjust thresholds for your team
-7. **Share Feedback**: Help improve the framework
+1. **Complete Setup**: Run `/initialize-project`
+2. **Try First Feature**: Pick a simple ticket
+3. **Review Results**: Check generated code and tests
+4. **Iterate**: Improve ticket quality, try more features
+5. **Share Feedback**: Help improve the framework
+6. **Roll Out to Team**: See [Pilot Guide](./PILOT_GUIDE.md)
 
 ---
 
-**Questions? Issues?**
-- Documentation: See [README.md](../README.md)
-- API Reference: See [API_REFERENCE.md](./API_REFERENCE.md)
-- Support: #ai-agentic-framework
-
-**Happy Autonomous Coding!** 🚀
-
----
-
-*Last updated: March 6, 2026*
+**Ready to boost your productivity?** Start with `/initialize-project` and let the framework learn your codebase.
