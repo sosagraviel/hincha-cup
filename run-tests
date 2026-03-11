@@ -1,0 +1,6 @@
+#!/bin/bash
+# Main entry point for running integration tests
+# Usage: ./run-tests
+
+# Run the test script to get task list
+ai-agentic-framework/tests/run-integration-tests.sh

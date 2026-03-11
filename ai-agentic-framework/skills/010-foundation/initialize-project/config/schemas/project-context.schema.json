@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "project-context/SKILL.md Schema",
+  "description": "Schema for validating project-context SKILL.md structure",
+  "type": "object",
+  "required": ["format", "frontmatter", "line_count", "sections"],
+  "properties": {
+    "format": {
+      "type": "string",
+      "enum": ["yaml-frontmatter-markdown"],
+      "description": "Must be YAML frontmatter + markdown body"
+    },
+    "frontmatter": {
+      "type": "object",
+      "required": ["name", "description"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "const": "project-context"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 50
+        },
+        "user-invokable": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "line_count": {
+      "type": "integer",
+      "minimum": 250,
+      "maximum": 400,
+      "description": "project-context must be 250-400 lines"
+    },
+    "sections": {
+      "type": "object",
+      "required": ["architecture", "tech_stack", "critical_workflows"],
+      "properties": {
+        "architecture": {
+          "type": "boolean",
+          "const": true
+        },
+        "tech_stack": {
+          "type": "boolean",
+          "const": true
+        },
+        "critical_workflows": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "has_json_blocks": {
+      "type": "boolean",
+      "const": false,
+      "description": "Must NOT have raw JSON outside code fences"
+    }
+  }
+}

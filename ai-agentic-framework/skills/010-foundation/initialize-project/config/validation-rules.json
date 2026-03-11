@@ -1,0 +1,89 @@
+{
+  "version": "1.0.0",
+  "rules": {
+    "claude_md": {
+      "line_count": {
+        "min": 30,
+        "max": 200,
+        "target": 120,
+        "action_on_exceed": "truncate_smart"
+      },
+      "required_sections": [
+        "# ",
+        "## Tech Stack",
+        "## File Placement Guide",
+        "## Essential Commands"
+      ],
+      "forbidden_patterns": [
+        {
+          "pattern": "^\\s*\\{[\\s\\S]*\\}\\s*$",
+          "message": "Raw JSON outside code fences",
+          "action": "block"
+        }
+      ]
+    },
+    "project_context": {
+      "line_count": {
+        "min": 250,
+        "max": 400,
+        "target": 300,
+        "action_on_exceed": "truncate_smart",
+        "action_on_below_min": "fail"
+      },
+      "frontmatter": {
+        "required_fields": ["name", "description"],
+        "name_value": "project-context"
+      },
+      "required_sections": [
+        "## When to Use This Skill",
+        "## Architecture Deep Dive",
+        "## Critical Workflows"
+      ]
+    },
+    "agent_output": {
+      "needs_verification": {
+        "max_items": 3,
+        "action_on_exceed": "filter_low_priority"
+      },
+      "required_fields": ["agent_name", "timestamp", "findings"],
+      "confidence_threshold": "medium"
+    }
+  },
+  "truncation_strategy": {
+    "smart_truncate": {
+      "preserve_sections": true,
+      "preserve_headers": true,
+      "truncate_order": [
+        "examples",
+        "explanations",
+        "details",
+        "headers"
+      ],
+      "add_truncation_marker": true,
+      "marker_text": "\n\n*[Content truncated - full details in project-context]*\n"
+    }
+  },
+  "auto_repair": {
+    "enabled": true,
+    "repairs": [
+      {
+        "name": "missing_frontmatter_start",
+        "pattern": "^(?!---)",
+        "fix": "prepend",
+        "value": "---\n"
+      },
+      {
+        "name": "missing_frontmatter_end",
+        "pattern": "---\\n([^-][\\s\\S]*?)(?=^#\\s)",
+        "fix": "insert_after_frontmatter",
+        "value": "\n---\n"
+      },
+      {
+        "name": "remove_needs_verification",
+        "pattern": "\\[NEEDS_VERIFICATION:?[^\\]]*\\]",
+        "fix": "remove",
+        "log": true
+      }
+    ]
+  }
+}

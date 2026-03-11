@@ -1,0 +1,62 @@
+{
+  "version": "1.0.0",
+  "strategy": "exponential_backoff",
+  "global": {
+    "max_attempts": 3,
+    "initial_delay_ms": 1000,
+    "max_delay_ms": 8000,
+    "backoff_multiplier": 2,
+    "jitter": true,
+    "jitter_factor": 0.1
+  },
+  "per_operation": {
+    "agent_invocation": {
+      "max_attempts": 2,
+      "initial_delay_ms": 1000,
+      "include_errors_in_retry": true,
+      "retry_on": ["validation_failure", "format_error", "incomplete_output"]
+    },
+    "synthesis": {
+      "max_attempts": 3,
+      "initial_delay_ms": 2000,
+      "include_errors_in_retry": true,
+      "include_line_counts": true,
+      "retry_on": ["length_violation", "format_error", "missing_sections"]
+    },
+    "file_write": {
+      "max_attempts": 2,
+      "initial_delay_ms": 500,
+      "retry_on": ["permission_error", "validation_failure"],
+      "backup_before_retry": true
+    },
+    "skill_copy": {
+      "max_attempts": 2,
+      "initial_delay_ms": 500,
+      "retry_on": ["missing_skill", "copy_error"]
+    }
+  },
+  "error_handling": {
+    "transient_errors": [
+      "network_error",
+      "timeout",
+      "rate_limit"
+    ],
+    "fatal_errors": [
+      "missing_required_dependency",
+      "invalid_project_path",
+      "framework_not_installed"
+    ],
+    "retry_messages": {
+      "validation_failure": "Previous output failed validation. Errors: {errors}. Please fix and retry.",
+      "length_violation": "Output length violation. CLAUDE.md was {actual} lines (max {max}). project-context was {actual} lines (range {min}-{max}). Adjust content to fit constraints.",
+      "format_error": "Output format error. Expected {expected}, got {actual}. Errors: {errors}.",
+      "missing_sections": "Required sections missing: {sections}. Please include all required sections."
+    }
+  },
+  "escalation": {
+    "after_max_attempts": "log_and_fail",
+    "notify": true,
+    "save_failed_output": true,
+    "failed_output_dir": "temp/failed-outputs"
+  }
+}

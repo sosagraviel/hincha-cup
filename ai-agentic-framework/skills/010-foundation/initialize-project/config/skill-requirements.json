@@ -1,0 +1,133 @@
+{
+  "version": "1.0.0",
+  "description": "Defines required and optional skills for each technology stack",
+  "skills": {
+    "by_language": {
+      "typescript": {
+        "required": ["050-language-frameworks/mastering-typescript"],
+        "optional": []
+      },
+      "javascript": {
+        "required": ["050-language-frameworks/mastering-typescript"],
+        "optional": [],
+        "note": "JavaScript uses mastering-typescript skill (covers both)"
+      },
+      "python": {
+        "required": ["050-language-frameworks/mastering-python-skill"],
+        "optional": []
+      },
+      "go": {
+        "required": [],
+        "optional": [],
+        "note": "Go mastery skill not yet created"
+      },
+      "rust": {
+        "required": [],
+        "optional": [],
+        "note": "Rust mastery skill not yet created"
+      },
+      "ruby": {
+        "required": [],
+        "optional": [],
+        "note": "Ruby mastery skill not yet created"
+      },
+      "java": {
+        "required": [],
+        "optional": [],
+        "note": "Java mastery skill not yet created"
+      },
+      "elixir": {
+        "required": [],
+        "optional": [],
+        "note": "Elixir mastery skill not yet created"
+      }
+    },
+    "by_frontend_framework": {
+      "react": {
+        "required": ["050-language-frameworks/react-frontend"],
+        "optional": ["050-language-frameworks/atomic-design-react"]
+      },
+      "nextjs": {
+        "required": ["050-language-frameworks/react-frontend"],
+        "optional": ["050-language-frameworks/atomic-design-react"]
+      },
+      "vue": {
+        "required": [],
+        "optional": [],
+        "note": "Vue skill not yet created"
+      },
+      "angular": {
+        "required": [],
+        "optional": [],
+        "note": "Angular skill not yet created"
+      },
+      "svelte": {
+        "required": [],
+        "optional": [],
+        "note": "Svelte skill not yet created"
+      }
+    },
+    "by_backend_framework": {
+      "nestjs": {
+        "required": [],
+        "optional": [],
+        "note": "Patterns injected via agent template, not separate skill"
+      },
+      "express": {
+        "required": [],
+        "optional": []
+      },
+      "fastapi": {
+        "required": [],
+        "optional": []
+      },
+      "django": {
+        "required": [],
+        "optional": []
+      },
+      "rails": {
+        "required": [],
+        "optional": []
+      },
+      "phoenix": {
+        "required": [],
+        "optional": []
+      },
+      "gin": {
+        "required": [],
+        "optional": []
+      },
+      "actix": {
+        "required": [],
+        "optional": []
+      }
+    },
+    "by_testing_framework": {
+      "jest": {
+        "required": [],
+        "optional": []
+      },
+      "pytest": {
+        "required": [],
+        "optional": []
+      },
+      "rspec": {
+        "required": [],
+        "optional": []
+      },
+      "go test": {
+        "required": [],
+        "optional": []
+      },
+      "exunit": {
+        "required": [],
+        "optional": []
+      }
+    }
+  },
+  "validation": {
+    "block_on_missing_required": true,
+    "warn_on_missing_optional": true,
+    "log_skill_resolution": true
+  }
+}

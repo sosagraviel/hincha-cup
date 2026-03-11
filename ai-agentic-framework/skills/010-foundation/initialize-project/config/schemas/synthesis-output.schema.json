@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Synthesis Output Schema",
+  "description": "Schema for validating Opus architect synthesizer output structure",
+  "type": "object",
+  "required": ["claude_md_content", "project_context_content"],
+  "properties": {
+    "claude_md_content": {
+      "type": "string",
+      "minLength": 500,
+      "maxLength": 30000,
+      "description": "CLAUDE.md content (100-150 lines ~ 5000-7500 chars)"
+    },
+    "project_context_content": {
+      "type": "string",
+      "minLength": 10000,
+      "maxLength": 60000,
+      "description": "project-context/SKILL.md content (250-400 lines ~ 12500-20000 chars)"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "claude_md_line_count": {
+          "type": "integer",
+          "minimum": 80,
+          "maximum": 200
+        },
+        "project_context_line_count": {
+          "type": "integer",
+          "minimum": 250,
+          "maximum": 400
+        },
+        "synthesis_model": {
+          "type": "string",
+          "const": "opus"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Phase 1 Analysis Output Schema",
+  "description": "Schema for validating analyzer agent outputs (01-04)",
+  "type": "object",
+  "required": ["agent_name", "timestamp", "findings"],
+  "properties": {
+    "agent_name": {
+      "type": "string",
+      "enum": [
+        "structure-architecture-analyzer",
+        "tech-stack-dependencies-analyzer",
+        "code-patterns-testing-analyzer",
+        "data-flows-integrations-analyzer"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "findings": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "needs_verification": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["item", "reason"],
+        "properties": {
+          "item": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      },
+      "maxItems": 3,
+      "description": "Maximum 3 items needing verification"
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    }
+  }
+}
