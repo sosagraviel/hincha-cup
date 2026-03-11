@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "strategy": "exponential_backoff",
   "global": {
-    "max_attempts": 3,
+    "max_attempts": 5,
     "initial_delay_ms": 1000,
     "max_delay_ms": 8000,
     "backoff_multiplier": 2,
@@ -11,20 +11,20 @@
   },
   "per_operation": {
     "agent_invocation": {
-      "max_attempts": 2,
+      "max_attempts": 5,
       "initial_delay_ms": 1000,
       "include_errors_in_retry": true,
       "retry_on": ["validation_failure", "format_error", "incomplete_output"]
     },
     "synthesis": {
-      "max_attempts": 3,
+      "max_attempts": 5,
       "initial_delay_ms": 2000,
       "include_errors_in_retry": true,
       "include_line_counts": true,
       "retry_on": ["length_violation", "format_error", "missing_sections"]
     },
     "file_write": {
-      "max_attempts": 2,
+      "max_attempts": 5,
       "initial_delay_ms": 500,
       "retry_on": ["permission_error", "validation_failure"],
       "backup_before_retry": true

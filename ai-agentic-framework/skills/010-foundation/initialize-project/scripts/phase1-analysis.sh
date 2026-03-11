@@ -2,49 +2,36 @@
 set -e
 
 # ============================================================================
-# PHASE 1: PARALLEL ANALYSIS
+# PHASE 1: ANALYZER AGENTS WITH RETRY
 # ============================================================================
-# Launches 4 analyzer agents in parallel to analyze the project
-# Each agent has a specific focus area:
-#   1. Structure & Architecture
-#   2. Tech Stack & Dependencies
-#   3. Code Patterns & Testing
-#   4. Data Flows & Integrations
-#
-# NOTE: This script is designed to be executed by Claude Code, not directly.
-# Claude Code will read this script and perform the actions using its tools.
+# Launches 4 analyzer agents with automatic retry on validation failures
+# Each agent gets up to 5 attempts with validation feedback
 # ============================================================================
 
 PROJECT_PATH="$1"
 TEMP_DIR="$2"
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-AGENTS_DIR="$SKILL_DIR/agents"
 
 # Validate inputs
 if [ -z "$PROJECT_PATH" ] || [ -z "$TEMP_DIR" ]; then
   echo "Error: PROJECT_PATH and TEMP_DIR are required"
-  echo "Usage: phase1-analysis.sh <project-path> <temp-dir>"
   exit 1
 fi
 
-if [ ! -d "$PROJECT_PATH" ]; then
-  echo "Error: Project path does not exist: $PROJECT_PATH"
-  exit 1
-fi
-
-# Create output directory
-mkdir -p "$TEMP_DIR/phase1-outputs"
-
-echo "Phase 1: Parallel Analysis"
+echo "Phase 1: Analyzer Agents with Retry"
 echo "  Project: $PROJECT_PATH"
-echo "  Output:  $TEMP_DIR/phase1-outputs"
+echo "  Temp:    $TEMP_DIR"
 echo ""
 
-# ============================================================================
-# AGENT DEFINITIONS
-# ============================================================================
-# Claude Code should read these agent files and launch them in parallel
+AGENTS_DIR="$SKILL_DIR/agents"
+VALIDATOR="$SKILL_DIR/utils/validators/validate-agent-output.js"
+SCHEMA_DIR="$SKILL_DIR/config/schemas"
+OUTPUT_DIR="$TEMP_DIR/phase1-outputs"
+mkdir -p "$OUTPUT_DIR"
 
+MAX_ATTEMPTS=5
+
+# Agent files (only Phase 1 analyzers)
 AGENTS=(
   "01-structure-architecture.md"
   "02-tech-stack-dependencies.md"
@@ -52,98 +39,169 @@ AGENTS=(
   "04-data-flows-integrations.md"
 )
 
-echo "Agents to launch:"
-for agent in "${AGENTS[@]}"; do
-  echo "  - $AGENTS_DIR/$agent"
-done
-echo ""
+ALL_SUCCESS=true
 
-# ============================================================================
-# INSTRUCTIONS FOR CLAUDE CODE
-# ============================================================================
-# The following is a structured instruction set for Claude Code to execute:
+for agent_file in "${AGENTS[@]}"; do
+  AGENT_PATH="$AGENTS_DIR/$agent_file"
+  AGENT_NAME=$(basename "$agent_file" .md)
 
-cat <<'INSTRUCTIONS'
+  if [ ! -f "$AGENT_PATH" ]; then
+    echo "✗ Agent file not found: $AGENT_PATH"
+    ALL_SUCCESS=false
+    continue
+  fi
+
+  echo "═══════════════════════════════════════════════════════════"
+  echo "Agent: $AGENT_NAME"
+  echo "═══════════════════════════════════════════════════════════"
+  echo ""
+
+  AGENT_CONTENT=$(cat "$AGENT_PATH")
+  attempt=1
+  SUCCESS=false
+
+  while [ $attempt -le $MAX_ATTEMPTS ]; do
+    echo "Attempt $attempt of $MAX_ATTEMPTS..."
+
+    OUTPUT_FILE="$OUTPUT_DIR/${AGENT_NAME}-attempt${attempt}.json"
+    ERROR_FILE="$OUTPUT_DIR/${AGENT_NAME}-attempt${attempt}.err"
+    FEEDBACK=""
+
+    # Add feedback from previous attempt
+    if [ $attempt -gt 1 ]; then
+      PREV_VALIDATION="$OUTPUT_DIR/${AGENT_NAME}-validation-attempt$((attempt-1)).log"
+
+      if [ -f "$PREV_VALIDATION" ]; then
+        echo "  Including validation feedback from previous attempt..."
+        FEEDBACK="
+
+CRITICAL: Your previous attempt failed validation with these errors:
+
+$(cat "$PREV_VALIDATION")
+
+REQUIREMENTS:
+- Output ONLY raw JSON starting with { and ending with }
+- Do NOT wrap in markdown code blocks
+- Do NOT add ANY text before or after the JSON
+- Follow the exact schema structure for your agent type
+- Ensure all required fields are present
+
+Please fix these issues and provide valid JSON output."
+      fi
+    fi
+
+    # Create prompt
+    PROMPT="You are the $AGENT_NAME agent.
+
+Follow ALL instructions in the agent file below.
+
+Analyze the codebase at: $PROJECT_PATH
+
+CRITICAL OUTPUT FORMAT:
+- Output ONLY raw JSON starting with { and ending with }
+- Do NOT wrap in markdown code blocks (\`\`\`json)
+- Do NOT add ANY text before or after the JSON
+- Do NOT add explanatory sentences like \"Here is the output:\" or \"Based on my analysis:\"
+- The FIRST character must be { and the LAST character must be }
+
+Required JSON structure:
 {
-  "phase": "1",
-  "action": "launch_agents_parallel",
-  "agents": [
-    {
-      "file": "agents/01-structure-architecture.md",
-      "output_file": "phase1-outputs/01-structure-architecture.json",
-      "description": "Analyze project structure and architecture"
-    },
-    {
-      "file": "agents/02-tech-stack-dependencies.md",
-      "output_file": "phase1-outputs/02-tech-stack-dependencies.json",
-      "description": "Analyze tech stack and dependencies"
-    },
-    {
-      "file": "agents/03-code-patterns-testing.md",
-      "output_file": "phase1-outputs/03-code-patterns-testing.json",
-      "description": "Analyze code patterns and testing"
-    },
-    {
-      "file": "agents/04-data-flows-integrations.md",
-      "output_file": "phase1-outputs/04-data-flows-integrations.json",
-      "description": "Analyze data flows and integrations"
-    }
-  ],
-  "validation": {
-    "schema": "config/schemas/phase1-analysis.schema.json",
-    "validator": "utils/validators/validate-agent-output.js"
-  },
-  "next_steps": [
-    "Wait for all 4 agents to complete",
-    "Validate each agent output against schema",
-    "Save validated outputs to temp directory",
-    "If validation fails, apply auto-repair",
-    "If auto-repair fails, retry with feedback (max 3 attempts)",
-    "If all retries fail, abort with error"
-  ]
-}
-INSTRUCTIONS
+  \"agent_name\": \"string\",
+  \"timestamp\": \"ISO 8601 timestamp\",
+  \"findings\": {},
+  \"needs_verification\": []
+}$FEEDBACK
 
-# ============================================================================
-# VALIDATION STEP (after agents complete)
-# ============================================================================
+=== AGENT INSTRUCTIONS ===
+$AGENT_CONTENT"
 
-echo ""
-echo "Validation will run after agents complete..."
-echo ""
+    # Run agent with 5 min timeout
+    if timeout 300s claude --model sonnet --dangerously-skip-permissions <<< "$PROMPT" > "$OUTPUT_FILE" 2> "$ERROR_FILE"; then
 
-# Note: The actual validation is performed by Claude Code after agent execution
-# This script provides the structure and instructions
+      # Clean output (extract JSON if wrapped)
+      temp_file="${OUTPUT_FILE}.cleaned"
 
-# Check if outputs exist (this would be run after Claude Code executes agents)
-VALIDATION_FAILED=0
-for agent in "${AGENTS[@]}"; do
-  OUTPUT_FILE="$TEMP_DIR/phase1-outputs/${agent%.md}.json"
+      if grep -q '```json' "$OUTPUT_FILE"; then
+        echo "  Extracting JSON from markdown block..."
+        sed -n '/```json/,/```/p' "$OUTPUT_FILE" | sed '1d;$d' > "$temp_file"
+      else
+        # Find first { and extract from there
+        first_brace=$(grep -n '^{' "$OUTPUT_FILE" | head -1 | cut -d: -f1)
+        if [ -n "$first_brace" ]; then
+          echo "  Extracting JSON from line $first_brace..."
+          tail -n +$first_brace "$OUTPUT_FILE" > "$temp_file"
+        else
+          cp "$OUTPUT_FILE" "$temp_file"
+        fi
+      fi
 
-  if [ -f "$OUTPUT_FILE" ]; then
-    echo "✓ Output found: $OUTPUT_FILE"
+      # Validate with schema
+      VALIDATION_LOG="$OUTPUT_DIR/${AGENT_NAME}-validation-attempt${attempt}.log"
 
-    # Validate using validator (Claude Code would do this)
-    # node "$SKILL_DIR/utils/validators/validate-agent-output.js" \
-    #   "$OUTPUT_FILE" \
-    #   "phase1-analysis" \
-    #   "$SKILL_DIR/config/schemas"
+      if node "$VALIDATOR" "$temp_file" "phase1-analysis" "$SCHEMA_DIR" > "$VALIDATION_LOG" 2>&1; then
+        echo "  ✓ Validation passed!"
+
+        # Copy successful output to final location
+        mv "$temp_file" "$OUTPUT_DIR/${AGENT_NAME}.json"
+        SUCCESS=true
+        break
+      else
+        echo "  ✗ Validation failed"
+        echo ""
+        head -20 "$VALIDATION_LOG"
+        echo ""
+        rm "$temp_file"
+
+        if [ $attempt -lt $MAX_ATTEMPTS ]; then
+          echo "  Will retry with validation feedback..."
+          sleep $((attempt * 2))  # Exponential backoff: 2s, 4s, 6s, 8s, 10s
+        fi
+      fi
+    else
+      echo "  ✗ Agent execution failed or timed out"
+
+      if [ -s "$ERROR_FILE" ]; then
+        echo "  Error output:"
+        head -10 "$ERROR_FILE" | sed 's/^/    /'
+      fi
+
+      if [ $attempt -lt $MAX_ATTEMPTS ]; then
+        echo "  Will retry..."
+        sleep $((attempt * 2))
+      fi
+    fi
+
+    attempt=$((attempt + 1))
+  done
+
+  if [ "$SUCCESS" = true ]; then
+    echo "✓ $AGENT_NAME completed successfully (attempts: $((attempt - 1)))"
+    echo ""
   else
-    echo "✗ Output missing: $OUTPUT_FILE"
-    VALIDATION_FAILED=1
+    echo "✗ $AGENT_NAME failed after $MAX_ATTEMPTS attempts"
+    echo ""
+    ALL_SUCCESS=false
   fi
 done
 
-if [ $VALIDATION_FAILED -eq 1 ]; then
+if [ "$ALL_SUCCESS" = true ]; then
   echo ""
-  echo "Error: Some agent outputs are missing"
+  echo "╔════════════════════════════════════════════════════════════╗"
+  echo "║ Phase 1 Complete - All Agents Successful                  ║"
+  echo "╚════════════════════════════════════════════════════════════╝"
+  echo ""
+  echo "  Output directory: $OUTPUT_DIR"
+  echo "  Validated agents: ${#AGENTS[@]}"
+  echo ""
+  exit 0
+else
+  echo ""
+  echo "╔════════════════════════════════════════════════════════════╗"
+  echo "║ Phase 1 Failed - One or More Agents Failed                ║"
+  echo "╚════════════════════════════════════════════════════════════╝"
+  echo ""
+  echo "  Check agent outputs in: $OUTPUT_DIR"
+  echo "  Review validation logs: $OUTPUT_DIR/*-validation-*.log"
+  echo ""
   exit 1
 fi
-
-echo ""
-echo "Phase 1 complete!"
-echo "  All 4 agents completed successfully"
-echo "  Outputs saved to: $TEMP_DIR/phase1-outputs/"
-echo ""
-
-exit 0
