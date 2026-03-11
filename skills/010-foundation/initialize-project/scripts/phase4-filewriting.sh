@@ -4,6 +4,7 @@ set -e
 # Phase 4: File Writing - Extract and write CLAUDE.md and project-context/SKILL.md
 PROJECT_PATH="$1"
 TEMP_DIR="$2"
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [ -z "$PROJECT_PATH" ] || [ -z "$TEMP_DIR" ]; then
   echo "Error: PROJECT_PATH and TEMP_DIR are required"
@@ -28,43 +29,8 @@ fi
 
 echo "Step 1: Extracting files from synthesis..."
 
-# Extract using node
-node -e "
-const fs = require('fs');
-
-function extractFiles(synthesisPath, tempDir) {
-  const content = fs.readFileSync(synthesisPath, 'utf-8');
-
-  // Find CLAUDE.md section (from "# CLAUDE.md Content" to "---\n# project-context")
-  const claudeMatch = content.match(/# CLAUDE\.md Content\s*\n+([\s\S]*?)(?=\n+---\s*\n+# project-context)/);
-  if (!claudeMatch) {
-    throw new Error('Could not find CLAUDE.md Content section in synthesis');
-  }
-
-  // Find project-context section (everything from "# project-context" header to end)
-  const contextMatch = content.match(/# project-context\/SKILL\.md Content\s*\n+([\s\S]*$)/);
-  if (!contextMatch) {
-    throw new Error('Could not find project-context/SKILL.md Content section in synthesis');
-  }
-
-  const claudeContent = claudeMatch[1].trim();
-  const contextContent = contextMatch[1].trim();
-
-  // Write to temp files
-  fs.writeFileSync(\`\${tempDir}/CLAUDE.md\`, claudeContent, 'utf-8');
-  fs.writeFileSync(\`\${tempDir}/project-context.md\`, contextContent, 'utf-8');
-
-  console.log('✓ Extracted CLAUDE.md (' + claudeContent.split('\\n').length + ' lines)');
-  console.log('✓ Extracted project-context.md (' + contextContent.split('\\n').length + ' lines)');
-}
-
-try {
-  extractFiles('$SYNTHESIS_FILE', '$TEMP_DIR');
-} catch (error) {
-  console.error('Error extracting files:', error.message);
-  process.exit(1);
-}
-"
+# Extract using standalone script
+node "$SKILL_DIR/scripts/helpers/extract-synthesis.js" "$SYNTHESIS_FILE" "$TEMP_DIR"
 
 if [ $? -ne 0 ]; then
   echo "Error: File extraction failed"
