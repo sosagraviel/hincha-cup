@@ -92,55 +92,30 @@ if [ "$NEEDS_USER_INPUT" -eq 1 ]; then
   echo "  Conflicts: $CONFLICTS_COUNT"
   echo ""
 
-  # Save gaps/conflicts summary for review
-  GAPS_SUMMARY="$TEMP_DIR/gaps-summary.txt"
-  cat > "$GAPS_SUMMARY" <<EOF
-GAPS AND CONFLICTS DETECTED IN PHASE 2
-========================================
-
-Gaps: $GAPS_COUNT
-Conflicts: $CONFLICTS_COUNT
-
-Location: $CONSOLIDATION_FILE
-
-Review the 'gaps' and 'conflicts' arrays in consolidation.json.
-
-To address these gaps:
-1. Review $CONSOLIDATION_FILE
-2. Add a 'user_clarifications' key with answers
-3. Re-run from Phase 3: bash phase3-synthesis.sh "$PROJECT_PATH" "$TEMP_DIR"
-EOF
-
-  echo "Gaps summary saved to: $GAPS_SUMMARY"
-  echo ""
-
-  # Check if we should pause for user input or continue
+  # Check if we should skip questions or ask them
   if [ "${SKIP_GAP_QUESTIONS:-false}" = "true" ]; then
     echo "ℹ SKIP_GAP_QUESTIONS=true - Continuing without user input"
     echo "  (Synthesis will proceed with available data)"
     echo ""
   else
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  ACTION REQUIRED: Manual Review Needed"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    # Ask gap questions interactively
+    echo "Launching interactive questionnaire..."
     echo ""
-    echo "Gaps or conflicts were detected that may affect quality."
+
+    if ! bash "$SKILL_DIR/scripts/helpers/ask-gap-questions.sh" "$CONSOLIDATION_FILE"; then
+      echo ""
+      echo "❌ Error during gap questionnaire"
+      echo ""
+      echo "You can:"
+      echo "  1. Set SKIP_GAP_QUESTIONS=true to skip questions"
+      echo "  2. Manually edit: $CONSOLIDATION_FILE"
+      echo "  3. Try again"
+      echo ""
+      exit 1
+    fi
+
+    echo "✓ Gap clarifications complete"
     echo ""
-    echo "OPTIONS:"
-    echo ""
-    echo "1. CONTINUE WITHOUT REVIEW (Automated, Lower Quality)"
-    echo "   Set SKIP_GAP_QUESTIONS=true and re-run:"
-    echo "   SKIP_GAP_QUESTIONS=true bash orchestrate-initialization.sh \"$PROJECT_PATH\" ..."
-    echo ""
-    echo "2. PAUSE AND REVIEW (Manual, Higher Quality)"
-    echo "   a) Review gaps in: $CONSOLIDATION_FILE"
-    echo "   b) Add clarifications to 'user_clarifications' key"
-    echo "   c) Resume from Phase 3:"
-    echo "      bash phase3-synthesis.sh \"$PROJECT_PATH\" \"$TEMP_DIR\""
-    echo ""
-    echo "Phase 2 exiting - manual review required"
-    echo ""
-    exit 1
   fi
 else
   echo "✓ No critical gaps requiring user input"

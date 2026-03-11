@@ -1,21 +1,90 @@
 #!/bin/bash
 set -e
 
-# Phase 4: File Writing - Pure bash, no Claude CLI
+# Phase 4: File Writing - Extract and write CLAUDE.md and project-context/SKILL.md
 PROJECT_PATH="$1"
 TEMP_DIR="$2"
-CLAUDE_FILE="$3"
-CONTEXT_FILE="$4"
+
+if [ -z "$PROJECT_PATH" ] || [ -z "$TEMP_DIR" ]; then
+  echo "Error: PROJECT_PATH and TEMP_DIR are required"
+  exit 1
+fi
 
 echo "Phase 4: File Writing"
+echo "  Project: $PROJECT_PATH"
+echo "  Temp:    $TEMP_DIR"
 echo ""
+
+# ============================================================================
+# STEP 1: EXTRACT FILES FROM SYNTHESIS
+# ============================================================================
+
+SYNTHESIS_FILE="$TEMP_DIR/synthesis-raw.md"
+
+if [ ! -f "$SYNTHESIS_FILE" ]; then
+  echo "Error: Synthesis file not found: $SYNTHESIS_FILE"
+  exit 1
+fi
+
+echo "Step 1: Extracting files from synthesis..."
+
+# Extract using node
+node -e "
+const fs = require('fs');
+
+function extractFiles(synthesisPath, tempDir) {
+  const content = fs.readFileSync(synthesisPath, 'utf-8');
+
+  // Find CLAUDE.md section (from "# CLAUDE.md Content" to "---\n# project-context")
+  const claudeMatch = content.match(/# CLAUDE\.md Content\s*\n+([\s\S]*?)(?=\n+---\s*\n+# project-context)/);
+  if (!claudeMatch) {
+    throw new Error('Could not find CLAUDE.md Content section in synthesis');
+  }
+
+  // Find project-context section (everything from "# project-context" header to end)
+  const contextMatch = content.match(/# project-context\/SKILL\.md Content\s*\n+([\s\S]*$)/);
+  if (!contextMatch) {
+    throw new Error('Could not find project-context/SKILL.md Content section in synthesis');
+  }
+
+  const claudeContent = claudeMatch[1].trim();
+  const contextContent = contextMatch[1].trim();
+
+  // Write to temp files
+  fs.writeFileSync(\`\${tempDir}/CLAUDE.md\`, claudeContent, 'utf-8');
+  fs.writeFileSync(\`\${tempDir}/project-context.md\`, contextContent, 'utf-8');
+
+  console.log('✓ Extracted CLAUDE.md (' + claudeContent.split('\\n').length + ' lines)');
+  console.log('✓ Extracted project-context.md (' + contextContent.split('\\n').length + ' lines)');
+}
+
+try {
+  extractFiles('$SYNTHESIS_FILE', '$TEMP_DIR');
+} catch (error) {
+  console.error('Error extracting files:', error.message);
+  process.exit(1);
+}
+"
+
+if [ $? -ne 0 ]; then
+  echo "Error: File extraction failed"
+  exit 1
+fi
+
+echo ""
+
+# ============================================================================
+# STEP 2: WRITE TO PROJECT
+# ============================================================================
+
+echo "Step 2: Writing files to project..."
 
 # Create directories
 mkdir -p "$PROJECT_PATH/.claude/skills/project-context"
 
-# Write files (content passed as temp files from Claude)
-cp "$CLAUDE_FILE" "$PROJECT_PATH/.claude/CLAUDE.md"
-cp "$CONTEXT_FILE" "$PROJECT_PATH/.claude/skills/project-context/SKILL.md"
+# Copy files
+cp "$TEMP_DIR/CLAUDE.md" "$PROJECT_PATH/.claude/CLAUDE.md"
+cp "$TEMP_DIR/project-context.md" "$PROJECT_PATH/.claude/skills/project-context/SKILL.md"
 
 echo "✓ Files written to disk"
 echo ""
