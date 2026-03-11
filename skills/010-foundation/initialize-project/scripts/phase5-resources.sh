@@ -49,11 +49,14 @@ async function main() {
     const selection = await skillSelection.selectSkills(stackProfile, '$FRAMEWORK_PATH');
 
     console.log('Copying skills to project...');
-    const copied = await skillSelection.copySkills(selection, '$PROJECT_PATH');
+    const result = await skillSelection.copySkills(selection, '$PROJECT_PATH');
 
-    console.log('✓ Copied', copied.success.length, 'skills');
-    if (copied.failed.length > 0) {
-      console.log('⚠ Failed to copy', copied.failed.length, 'skills');
+    console.log('✓ Copied', result.copied.length, 'skills');
+    if (result.errors.length > 0) {
+      console.log('⚠ Failed to copy', result.errors.length, 'skills');
+      result.errors.forEach(err => {
+        console.error('  -', err.name, ':', err.error);
+      });
     }
 
     // Generate skill index
@@ -105,8 +108,11 @@ async function main() {
     const result = await agentGen.writeAgents(agents, '$PROJECT_PATH');
 
     console.log('✓ Generated', result.written.length, 'agents');
-    if (result.failed.length > 0) {
-      console.log('⚠ Failed to write', result.failed.length, 'agents');
+    if (result.errors.length > 0) {
+      console.log('⚠ Failed to write', result.errors.length, 'agents');
+      result.errors.forEach(err => {
+        console.error('  -', err.name, ':', err.error);
+      });
     }
 
     // Generate agent index
