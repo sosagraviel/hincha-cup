@@ -21,23 +21,14 @@ Complete workflows and best practices for using the AI Agentic Framework in your
 
 ### First Time Setup
 
-**1. Bootstrap the Framework**
-
+**1. Initialize Your Project**
 ```bash
-cd your-project/ai-agentic-framework
-./scripts/bootstrap-project.sh
-```
+# Clone framework into your project
+cd /path/to/your-project
+git clone https://github.com/your-org/ai-agentic-framework.git
 
-**2. Initialize Your Project**
-
-```bash
-cd ..  # Go to project root
-claude code
-```
-
-Then run:
-```
-/initialize-project
+# Initialize (analyzes your codebase and sets everything up)
+./ai-agentic-framework/scripts/initialize-project.sh
 ```
 
 This analyzes your codebase and generates:
@@ -46,7 +37,7 @@ This analyzes your codebase and generates:
 - Stack-specific skills
 - Custom AI agents
 
-**Time**: ~2 minutes
+**Time**: ~10-15 minutes
 
 ---
 
@@ -236,7 +227,7 @@ Mark tickets as "In Review" or "Done".
 
 | Command | Purpose | Time |
 |---------|---------|------|
-| `/initialize-project` | One-time setup | 2 min |
+| `initialize-project.sh` | One-time setup | 10-15 min |
 
 ### Feature Development Commands
 
@@ -482,14 +473,17 @@ npm test
 
 ### Common Issues
 
-**Issue**: `/initialize-project` not found
+**Issue**: Initialization failed or incomplete
 
-**Solution**: Run bootstrap script first:
+**Solution**: Re-run initialization:
 ```bash
-cd ai-agentic-framework
-./scripts/bootstrap-project.sh
-cd ..
-claude code
+cd /path/to/your-project
+./ai-agentic-framework/scripts/initialize-project.sh
+```
+
+Check logs for errors:
+```bash
+cat .claude-temp/initialization.log
 ```
 
 ---
@@ -529,7 +523,7 @@ claude code
 1. Check `project-context/SKILL.md` for detected stack
 2. If wrong, ensure config files are correct
 3. Remove conflicting dependencies
-4. Re-run `/initialize-project`
+4. Re-run initialization: `./ai-agentic-framework/scripts/initialize-project.sh`
 
 ---
 
@@ -648,7 +642,7 @@ A: **Logs and artifacts**:
 
 ## Next Steps
 
-1. **Complete Setup**: Run `/initialize-project`
+1. **Complete Setup**: Run `./ai-agentic-framework/scripts/initialize-project.sh`
 2. **Try First Feature**: Pick a simple ticket
 3. **Review Results**: Check generated code and tests
 4. **Iterate**: Improve ticket quality, try more features
@@ -657,4 +651,4 @@ A: **Logs and artifacts**:
 
 ---
 
-**Ready to boost your productivity?** Start with `/initialize-project` and let the framework learn your codebase.
+**Ready to boost your productivity?** Run `./ai-agentic-framework/scripts/initialize-project.sh` and let the framework learn your codebase.

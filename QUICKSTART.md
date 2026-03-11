@@ -12,37 +12,26 @@ From idea to production-ready pull request in **under 30 minutes** with autonomo
 
 ---
 
-## Step 1: One-Time Setup (2 minutes)
+## Step 1: One-Time Setup (10-15 minutes)
 
-**Clone the framework into your project**:
+**Clone and initialize the framework**:
 
 ```bash
 cd /path/to/your-project
 git clone https://github.com/your-org/ai-agentic-framework.git
 
-cd ai-agentic-framework
-./scripts/bootstrap-project.sh
-```
-
-**Initialize the framework**:
-
-```bash
-cd ..  # Go to project root
-claude
-```
-
-Then run:
-```
-/initialize-project
+# Run initialization (analyzes your codebase and sets everything up)
+./ai-agentic-framework/scripts/initialize-project.sh
 ```
 
 **What happens**:
 - Detects your tech stack (TypeScript? Python? React? Django?)
 - Analyzes your codebase patterns and conventions
 - Generates `CLAUDE.md` and `project-context/`
-- Creates custom AI agents for YOUR stack
+- Creates custom AI agents and skills for YOUR stack
+- Sets up slash commands for your workflows
 
-**Time**: ~2 minutes
+**Time**: ~10-15 minutes (fully automated)
 
 ---
 
@@ -193,7 +182,7 @@ If you want to create tickets for later:
 
 | Command | Purpose | Time |
 |---------|---------|------|
-| `/initialize-project` | One-time setup | 2 min |
+| `./ai-agentic-framework/scripts/initialize-project.sh` | One-time setup | 2 min |
 | `/fetch-ticket-context <ID>` | Get ticket details | 10 sec |
 | `/code-quality-check` | Run quality checks | 1-3 min |
 | `/create-pr` | Create PR manually | 30 sec |
@@ -206,7 +195,7 @@ If you want to create tickets for later:
 
 **Solution**: Ensure project is initialized and has patterns to learn from:
 ```bash
-/initialize-project  # Re-run to update project context
+./ai-agentic-framework/scripts/initialize-project.sh  # Re-run to update project context
 ```
 
 ---
@@ -215,7 +204,7 @@ If you want to create tickets for later:
 
 **Solution**: Re-initialize to learn latest patterns:
 ```bash
-/initialize-project
+./ai-agentic-framework/scripts/initialize-project.sh
 ```
 
 ---
@@ -229,15 +218,17 @@ If you want to create tickets for later:
 
 ---
 
-### `/initialize-project` command not found
+### Initialization takes too long or fails
 
-**Solution**: Run bootstrap first:
+**Solution**: Check the logs for specific errors:
 ```bash
-cd ai-agentic-framework
-./scripts/bootstrap-project.sh
-cd ..
-claude code
+cat .claude-temp/initialization.log
 ```
+
+Common issues:
+- Missing dependencies: Ensure node and npm are installed
+- Network issues: Check internet connection for AI API calls
+- Large codebase: May take longer (15-20 minutes is normal for large projects)
 
 ---
 
@@ -316,4 +307,4 @@ Always test the generated code locally before merging, even though quality gates
 
 ---
 
-**Ready to 10x your productivity?** Run `/initialize-project` and start your first autonomous cycle!
+**Ready to 10x your productivity?** Run `./ai-agentic-framework/scripts/initialize-project.sh` and start your first autonomous cycle!

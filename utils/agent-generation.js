@@ -1096,7 +1096,7 @@ async function readPackageJson(projectPath) {
 
 module.exports = {
   generateAgents,
-  extractCommands,
+  extractCommandsForLanguage,
   writeAgents,
   generateAgentIndex,
   validateTemplateSubstitution
@@ -1107,7 +1107,7 @@ module.exports = {
 // ============================================================================
 
 if (require.main === module) {
-  // FIXED: Accept proper command-line arguments from run-phase5.sh
+  // Accept proper command-line arguments from phase5 script
   // Usage: node agent-generation.js <stack-profile.json> <skill-selection.json> <project-path> <templates-path>
   const stackProfilePath = process.argv[2];
   const skillSelectionPath = process.argv[3];
@@ -1129,7 +1129,7 @@ if (require.main === module) {
       // FIXED: Write agents to disk (this was missing!)
       const writeResult = await writeAgents(generation, projectPath);
 
-      // Output results as JSON for run-phase5.sh to parse
+      // Output results as JSON for phase5 script to parse
       // Include full agent arrays for index generation
       const result = {
         total: generation.total,

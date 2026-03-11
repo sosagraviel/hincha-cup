@@ -1,266 +1,191 @@
 #!/bin/bash
 set -e
 
-# ============================================================================
-# PHASE 5: RESOURCE COPYING
-# ============================================================================
-# Copies skills, generates agents, and copies commands to project
-# Uses validated stack profile and proper skill linking
-# ============================================================================
-
+# Phase 5: Resource Generation - Stack detection, skill copying, agent generation
 PROJECT_PATH="$1"
 FRAMEWORK_PATH="$2"
-SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Validate inputs
 if [ -z "$PROJECT_PATH" ] || [ -z "$FRAMEWORK_PATH" ]; then
   echo "Error: PROJECT_PATH and FRAMEWORK_PATH are required"
   exit 1
 fi
 
-echo "Phase 5: Resource Copying"
-echo "  Project:   $PROJECT_PATH"
-echo "  Framework: $FRAMEWORK_PATH"
+echo "Phase 5: Resource Generation"
+echo "  Project: $PROJECT_PATH"
+  echo "  Framework: $FRAMEWORK_PATH"
 echo ""
 
 # ============================================================================
-# STEP 1: DETECT STACK PROFILE
+# STEP 1: Stack Detection
 # ============================================================================
 
-echo "Step 1: Detecting stack profile..."
+echo "Step 1: Detecting stack..."
 
-STACK_PROFILE="$PROJECT_PATH/.claude-temp/stack-profile.json"
+node "$FRAMEWORK_PATH/utils/stack-detection.js" "$PROJECT_PATH" > "$PROJECT_PATH/.claude-temp/stack-profile.json"
 
-# Use stack detection utility
-node -e "
-const stackDetection = require('$FRAMEWORK_PATH/utils/stack-detection.js');
-const fs = require('fs');
-
-const profile = stackDetection.detectStack('$PROJECT_PATH');
-fs.writeFileSync('$STACK_PROFILE', JSON.stringify(profile, null, 2), 'utf-8');
-
-console.log('Stack detected:');
-console.log('  Languages:', profile.languages?.join(', ') || 'none');
-console.log('  Frontend:', profile.frontend?.framework || 'none');
-console.log('  Backend:', profile.backend?.framework || 'none');
-console.log('  Testing:', profile.testing?.framework || 'none');
-"
-
-if [ ! -f "$STACK_PROFILE" ]; then
+if [ ! -f "$PROJECT_PATH/.claude-temp/stack-profile.json" ]; then
   echo "Error: Stack detection failed"
   exit 1
 fi
 
-echo "✓ Stack profile created"
+echo "✓ Stack detected"
 echo ""
 
 # ============================================================================
-# STEP 2: LINK SKILLS
+# STEP 2: Skill Selection and Copying
 # ============================================================================
 
-echo "Step 2: Linking skills..."
+echo "Step 2: Selecting and copying skills..."
 
-# Use skill linking utility with validation
 node -e "
-const skillLinking = require('$FRAMEWORK_PATH/utils/skill-linking.js');
+const skillSelection = require('$FRAMEWORK_PATH/utils/skill-selection.js');
 const fs = require('fs');
-const path = require('path');
 
-const stackProfile = JSON.parse(fs.readFileSync('$STACK_PROFILE', 'utf-8'));
-const skillRequirements = JSON.parse(
-  fs.readFileSync('$SKILL_DIR/config/skill-requirements.json', 'utf-8')
-);
+async function main() {
+  try {
+    const stackProfile = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude-temp/stack-profile.json', 'utf-8'));
 
-console.log('Determining required skills...');
+    console.log('Selecting skills based on stack...');
+    const selection = await skillSelection.selectSkills(stackProfile, '$FRAMEWORK_PATH');
 
-// Get required skills for this stack
-const required = [];
-const optional = [];
+    console.log('Copying skills to project...');
+    const copied = await skillSelection.copySkills(selection, '$PROJECT_PATH');
 
-// By language
-if (stackProfile.languages) {
-  stackProfile.languages.forEach(lang => {
-    const langKey = lang.toLowerCase();
-    const langSkills = skillRequirements.skills.by_language[langKey];
-    if (langSkills) {
-      required.push(...(langSkills.required || []));
-      optional.push(...(langSkills.optional || []));
+    console.log('✓ Copied', copied.success.length, 'skills');
+    if (copied.failed.length > 0) {
+      console.log('⚠ Failed to copy', copied.failed.length, 'skills');
     }
-  });
-}
 
-// By frontend
-if (stackProfile.frontend?.framework) {
-  const fw = stackProfile.frontend.framework.toLowerCase();
-  const fwSkills = skillRequirements.skills.by_frontend_framework[fw];
-  if (fwSkills) {
-    required.push(...(fwSkills.required || []));
-    optional.push(...(fwSkills.optional || []));
+    // Generate skill index
+    console.log('Generating skill index...');
+    await skillSelection.generateSkillIndex(selection, '$PROJECT_PATH');
+    console.log('✓ Skill index generated');
+
+    process.exit(0);
+  } catch (error) {
+    console.error('Error in skill selection/copying:', error);
+    process.exit(1);
   }
 }
 
-console.log('  Required skills:', required.length);
-console.log('  Optional skills:', optional.length);
-
-// Copy skills
-const targetDir = path.join('$PROJECT_PATH', '.claude', 'skills');
-fs.mkdirSync(targetDir, { recursive: true });
-
-let copiedCount = 0;
-let missingRequired = [];
-
-[...required, ...optional].forEach(skillPath => {
-  const sourcePath = path.join('$FRAMEWORK_PATH', 'skills', skillPath);
-  const targetPath = path.join(targetDir, skillPath);
-
-  if (fs.existsSync(sourcePath)) {
-    // Copy skill directory
-    const targetSkillDir = path.dirname(targetPath);
-    fs.mkdirSync(targetSkillDir, { recursive: true });
-
-    // Copy all files in skill directory
-    const files = fs.readdirSync(sourcePath);
-    files.forEach(file => {
-      const src = path.join(sourcePath, file);
-      const dst = path.join(targetPath, '..', file);
-      if (fs.statSync(src).isFile()) {
-        fs.copyFileSync(src, dst);
-      }
-    });
-
-    copiedCount++;
-    console.log('  ✓', skillPath);
-  } else {
-    if (required.includes(skillPath)) {
-      missingRequired.push(skillPath);
-      console.log('  ✗ REQUIRED skill missing:', skillPath);
-    } else {
-      console.log('  ⚠ Optional skill missing:', skillPath);
-    }
-  }
-});
-
-console.log('');
-console.log('Skills copied:', copiedCount);
-
-if (missingRequired.length > 0) {
-  console.error('');
-  console.error('ERROR: Required skills missing:', missingRequired.join(', '));
-  process.exit(1);
-}
+main();
 "
 
-SKILL_EXIT_CODE=$?
-if [ $SKILL_EXIT_CODE -ne 0 ]; then
-  echo "Error: Skill linking failed"
-  exit 1
-fi
-
-echo "✓ Skills linked"
 echo ""
 
 # ============================================================================
-# STEP 3: GENERATE AGENTS
+# STEP 3: Agent Generation
 # ============================================================================
 
 echo "Step 3: Generating agents..."
 
-# Use agent generation utility
 node -e "
-const agentGeneration = require('$FRAMEWORK_PATH/utils/agent-generation.js');
+const agentGen = require('$FRAMEWORK_PATH/utils/agent-generation.js');
 const fs = require('fs');
 const path = require('path');
 
-const stackProfile = JSON.parse(fs.readFileSync('$STACK_PROFILE', 'utf-8'));
+async function main() {
+  try {
+    const stackProfile = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude-temp/stack-profile.json', 'utf-8'));
 
-console.log('Generating agents for stack...');
+    console.log('Generating agents for detected languages...');
 
-agentGeneration.generateAgents('$PROJECT_PATH', stackProfile, '$FRAMEWORK_PATH')
-  .then(result => {
-    console.log('');
-    console.log('Agents generated:');
-    console.log('  Planning:', result.planning.length);
-    console.log('  Implementation:', result.implementation.length);
-    console.log('  Testing:', result.testing.length);
-    console.log('  Review:', result.review.length);
-    console.log('  Total:',
-      result.planning.length + result.implementation.length +
-      result.testing.length + result.review.length
+    // Template directory
+    const templateDir = path.join('$FRAMEWORK_PATH', 'agents', 'templates');
+
+    // Generate agents
+    const agents = await agentGen.generateAgents(
+      stackProfile,
+      {},
+      '$PROJECT_PATH',
+      templateDir
     );
-  })
-  .catch(error => {
-    console.error('Agent generation failed:', error.message);
+
+    console.log('Writing agents to project...');
+    const result = await agentGen.writeAgents(agents, '$PROJECT_PATH');
+
+    console.log('✓ Generated', result.written.length, 'agents');
+    if (result.failed.length > 0) {
+      console.log('⚠ Failed to write', result.failed.length, 'agents');
+    }
+
+    // Generate agent index
+    console.log('Generating agent index...');
+    await agentGen.generateAgentIndex(agents, '$PROJECT_PATH');
+    console.log('✓ Agent index generated');
+
+    process.exit(0);
+  } catch (error) {
+    console.error('Error in agent generation:', error);
     process.exit(1);
-  });
+  }
+}
+
+main();
 "
 
-AGENT_EXIT_CODE=$?
-if [ $AGENT_EXIT_CODE -ne 0 ]; then
-  echo "Error: Agent generation failed"
-  exit 1
-fi
-
-echo "✓ Agents generated"
 echo ""
 
 # ============================================================================
-# STEP 4: COPY COMMANDS
+# STEP 4: Copy Commands
 # ============================================================================
 
 echo "Step 4: Copying commands..."
 
-# Copy slash commands
-COMMANDS_SOURCE="$FRAMEWORK_PATH/commands"
-COMMANDS_TARGET="$PROJECT_PATH/.claude/commands"
+mkdir -p "$PROJECT_PATH/.claude/commands"
 
-if [ -d "$COMMANDS_SOURCE" ]; then
-  mkdir -p "$COMMANDS_TARGET"
+# Copy all command files except initialize-project (that's already there from setup)
+find "$FRAMEWORK_PATH/commands" -name "*.md" ! -name "initialize-project.md" -exec cp {} "$PROJECT_PATH/.claude/commands/" \; 2>/dev/null || true
 
-  # Copy all .md files
-  COPIED_COMMANDS=0
-  for cmd_file in "$COMMANDS_SOURCE"/*.md; do
-    if [ -f "$cmd_file" ]; then
-      cp "$cmd_file" "$COMMANDS_TARGET/"
-      COPIED_COMMANDS=$((COPIED_COMMANDS + 1))
-    fi
-  done
-
-  echo "  Copied $COPIED_COMMANDS commands"
-else
-  echo "  Warning: Commands directory not found: $COMMANDS_SOURCE"
-fi
-
-echo "✓ Commands copied"
+COMMAND_COUNT=$(find "$PROJECT_PATH/.claude/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+echo "✓ $COMMAND_COUNT commands available"
 echo ""
 
 # ============================================================================
-# STEP 5: VALIDATE RESOURCES
+# VALIDATION
 # ============================================================================
 
-echo "Step 5: Validating resources..."
-
-# Check skills directory
-SKILLS_COUNT=$(find "$PROJECT_PATH/.claude/skills" -name "SKILL.md" | wc -l)
-echo "  Skills:   $SKILLS_COUNT"
-
-if [ "$SKILLS_COUNT" -lt 3 ]; then
-  echo "Warning: Fewer than 3 skills copied"
-fi
-
-# Check agents directory
-AGENTS_COUNT=$(find "$PROJECT_PATH/.claude/agents" -name "*.md" 2>/dev/null | wc -l)
-echo "  Agents:   $AGENTS_COUNT"
-
-if [ "$AGENTS_COUNT" -lt 3 ]; then
-  echo "Warning: Fewer than 3 agents generated"
-fi
-
-# Check commands directory
-COMMANDS_COUNT=$(find "$PROJECT_PATH/.claude/commands" -name "*.md" 2>/dev/null | wc -l)
-echo "  Commands: $COMMANDS_COUNT"
-
-echo "✓ Resources validated"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  PHASE 5 VALIDATION"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-echo "Phase 5 complete!"
+# Count what was created
+SKILL_COUNT=$(find "$PROJECT_PATH/.claude/skills" -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
+AGENT_COUNT=$(find "$PROJECT_PATH/.claude/agents" -name "*.md" -not -name "INDEX.md" 2>/dev/null | wc -l | tr -d ' ')
+
+echo "Results:"
+echo "  Skills: $SKILL_COUNT"
+echo "  Agents: $AGENT_COUNT"
+echo "  Commands: $COMMAND_COUNT"
+echo ""
+
+# Validate minimums
+if [ "$SKILL_COUNT" -lt 5 ]; then
+  echo "⚠ WARNING: Only $SKILL_COUNT skills copied (expected 10+)"
+fi
+
+if [ "$AGENT_COUNT" -lt 3 ]; then
+  echo "⚠ WARNING: Only $AGENT_COUNT agents generated (expected 3+)"
+fi
+
+if [ "$COMMAND_COUNT" -lt 1 ]; then
+  echo "⚠ WARNING: Only $COMMAND_COUNT commands copied (expected 1+)"
+fi
+
+# Check agents directory exists
+if [ ! -d "$PROJECT_PATH/.claude/agents" ]; then
+  echo "❌ ERROR: Agents directory not created"
+  exit 1
+fi
+
+# Check for JSON agents (should be Markdown)
+JSON_COUNT=$(find "$PROJECT_PATH/.claude/agents" -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$JSON_COUNT" -gt 0 ]; then
+  echo "⚠ WARNING: Found $JSON_COUNT JSON agents (should be Markdown)"
+fi
+
+echo "✅ Phase 5 validation complete"
+echo ""
+
 exit 0

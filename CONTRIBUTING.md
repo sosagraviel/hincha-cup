@@ -51,7 +51,7 @@ cd ai-agentic-framework
 
 # 2. Bootstrap the framework
 cd ai-agentic-framework
-./scripts/bootstrap-project.sh
+./ai-agentic-framework/scripts/initialize-project.sh
 
 # 3. Test the framework on a sample project
 cd /path/to/test-project

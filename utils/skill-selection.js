@@ -855,7 +855,7 @@ module.exports = {
 // ============================================================================
 
 if (require.main === module) {
-  // FIXED: Accept proper command-line arguments from run-phase5.sh
+  // Accept proper command-line arguments from phase5 script
   // Usage: node skill-selection.js <stack-profile.json> <ai-framework-path> <project-path>
   const stackProfilePath = process.argv[2];
   const aiStorePath = process.argv[3] || path.join(__dirname, '..');
@@ -877,7 +877,7 @@ if (require.main === module) {
       // FIXED: Copy skills to project (this was missing!)
       const copyResult = await copySkills(selection, projectPath);
 
-      // Output results as JSON for run-phase5.sh to parse
+      // Output results as JSON for phase5 script to parse
       // Include full skill arrays for index generation
       const result = {
         total: selection.total,

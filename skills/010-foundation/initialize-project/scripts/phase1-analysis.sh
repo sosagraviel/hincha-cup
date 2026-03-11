@@ -23,6 +23,32 @@ echo "  Project: $PROJECT_PATH"
 echo "  Temp:    $TEMP_DIR"
 echo ""
 
+# ============================================================================
+# CHECK/INSTALL DEPENDENCIES
+# ============================================================================
+
+echo "Checking dependencies..."
+
+# Get the framework root directory (parent of skills/010-foundation/initialize-project)
+FRAMEWORK_ROOT="$(cd "$SKILL_DIR/../../.." && pwd)"
+
+# Check if ajv is installed in framework directory
+cd "$FRAMEWORK_ROOT"
+
+if ! node -e "require('ajv')" 2>/dev/null || ! node -e "require('ajv-formats')" 2>/dev/null; then
+  echo "Installing validation dependencies in framework directory..."
+  echo "  Location: $FRAMEWORK_ROOT"
+  npm install --no-save ajv ajv-formats 2>&1 | grep -E "^(\+|added)" || true
+  echo "✓ Dependencies installed"
+else
+  echo "✓ Dependencies already installed"
+fi
+
+# Return to project directory
+cd "$PROJECT_PATH"
+
+echo ""
+
 AGENTS_DIR="$SKILL_DIR/agents"
 VALIDATOR="$SKILL_DIR/utils/validators/validate-agent-output.js"
 SCHEMA_DIR="$SKILL_DIR/config/schemas"
@@ -39,40 +65,46 @@ AGENTS=(
   "04-data-flows-integrations.md"
 )
 
-ALL_SUCCESS=true
+# ============================================================================
+# RUN AGENTS IN PARALLEL
+# ============================================================================
 
-for agent_file in "${AGENTS[@]}"; do
-  AGENT_PATH="$AGENTS_DIR/$agent_file"
-  AGENT_NAME=$(basename "$agent_file" .md)
+echo "Launching 4 agents in parallel..."
+echo ""
+
+# Function to run a single agent with retry logic
+run_agent() {
+  local agent_file="$1"
+  local AGENT_PATH="$AGENTS_DIR/$agent_file"
+  local AGENT_NAME=$(basename "$agent_file" .md)
 
   if [ ! -f "$AGENT_PATH" ]; then
     echo "✗ Agent file not found: $AGENT_PATH"
-    ALL_SUCCESS=false
-    continue
+    return 1
   fi
 
   echo "═══════════════════════════════════════════════════════════"
-  echo "Agent: $AGENT_NAME"
+  echo "Agent: $AGENT_NAME (running in parallel)"
   echo "═══════════════════════════════════════════════════════════"
   echo ""
 
-  AGENT_CONTENT=$(cat "$AGENT_PATH")
-  attempt=1
-  SUCCESS=false
+  local AGENT_CONTENT=$(cat "$AGENT_PATH")
+  local attempt=1
+  local SUCCESS=false
 
   while [ $attempt -le $MAX_ATTEMPTS ]; do
-    echo "Attempt $attempt of $MAX_ATTEMPTS..."
+    echo "[$AGENT_NAME] Attempt $attempt of $MAX_ATTEMPTS..."
 
-    OUTPUT_FILE="$OUTPUT_DIR/${AGENT_NAME}-attempt${attempt}.json"
-    ERROR_FILE="$OUTPUT_DIR/${AGENT_NAME}-attempt${attempt}.err"
-    FEEDBACK=""
+    local OUTPUT_FILE="$OUTPUT_DIR/${AGENT_NAME}-attempt${attempt}.json"
+    local ERROR_FILE="$OUTPUT_DIR/${AGENT_NAME}-attempt${attempt}.err"
+    local FEEDBACK=""
 
     # Add feedback from previous attempt
     if [ $attempt -gt 1 ]; then
-      PREV_VALIDATION="$OUTPUT_DIR/${AGENT_NAME}-validation-attempt$((attempt-1)).log"
+      local PREV_VALIDATION="$OUTPUT_DIR/${AGENT_NAME}-validation-attempt$((attempt-1)).log"
 
       if [ -f "$PREV_VALIDATION" ]; then
-        echo "  Including validation feedback from previous attempt..."
+        echo "[$AGENT_NAME] Including validation feedback from previous attempt..."
         FEEDBACK="
 
 CRITICAL: Your previous attempt failed validation with these errors:
@@ -91,7 +123,7 @@ Please fix these issues and provide valid JSON output."
     fi
 
     # Create prompt
-    PROMPT="You are the $AGENT_NAME agent.
+    local PROMPT="You are the $AGENT_NAME agent.
 
 Follow ALL instructions in the agent file below.
 
@@ -119,16 +151,16 @@ $AGENT_CONTENT"
     if timeout 300s claude --model sonnet --dangerously-skip-permissions <<< "$PROMPT" > "$OUTPUT_FILE" 2> "$ERROR_FILE"; then
 
       # Clean output (extract JSON if wrapped)
-      temp_file="${OUTPUT_FILE}.cleaned"
+      local temp_file="${OUTPUT_FILE}.cleaned"
 
       if grep -q '```json' "$OUTPUT_FILE"; then
-        echo "  Extracting JSON from markdown block..."
+        echo "[$AGENT_NAME] Extracting JSON from markdown block..."
         sed -n '/```json/,/```/p' "$OUTPUT_FILE" | sed '1d;$d' > "$temp_file"
       else
         # Find first { and extract from there
-        first_brace=$(grep -n '^{' "$OUTPUT_FILE" | head -1 | cut -d: -f1)
+        local first_brace=$(grep -n '^{' "$OUTPUT_FILE" | head -1 | cut -d: -f1)
         if [ -n "$first_brace" ]; then
-          echo "  Extracting JSON from line $first_brace..."
+          echo "[$AGENT_NAME] Extracting JSON from line $first_brace..."
           tail -n +$first_brace "$OUTPUT_FILE" > "$temp_file"
         else
           cp "$OUTPUT_FILE" "$temp_file"
@@ -136,37 +168,37 @@ $AGENT_CONTENT"
       fi
 
       # Validate with schema
-      VALIDATION_LOG="$OUTPUT_DIR/${AGENT_NAME}-validation-attempt${attempt}.log"
+      local VALIDATION_LOG="$OUTPUT_DIR/${AGENT_NAME}-validation-attempt${attempt}.log"
 
       if node "$VALIDATOR" "$temp_file" "phase1-analysis" "$SCHEMA_DIR" > "$VALIDATION_LOG" 2>&1; then
-        echo "  ✓ Validation passed!"
+        echo "[$AGENT_NAME] ✓ Validation passed!"
 
         # Copy successful output to final location
         mv "$temp_file" "$OUTPUT_DIR/${AGENT_NAME}.json"
         SUCCESS=true
         break
       else
-        echo "  ✗ Validation failed"
+        echo "[$AGENT_NAME] ✗ Validation failed"
         echo ""
-        head -20 "$VALIDATION_LOG"
+        head -20 "$VALIDATION_LOG" | sed "s/^/[$AGENT_NAME]   /"
         echo ""
         rm "$temp_file"
 
         if [ $attempt -lt $MAX_ATTEMPTS ]; then
-          echo "  Will retry with validation feedback..."
+          echo "[$AGENT_NAME] Will retry with validation feedback..."
           sleep $((attempt * 2))  # Exponential backoff: 2s, 4s, 6s, 8s, 10s
         fi
       fi
     else
-      echo "  ✗ Agent execution failed or timed out"
+      echo "[$AGENT_NAME] ✗ Agent execution failed or timed out"
 
       if [ -s "$ERROR_FILE" ]; then
-        echo "  Error output:"
-        head -10 "$ERROR_FILE" | sed 's/^/    /'
+        echo "[$AGENT_NAME] Error output:"
+        head -10 "$ERROR_FILE" | sed "s/^/[$AGENT_NAME]   /"
       fi
 
       if [ $attempt -lt $MAX_ATTEMPTS ]; then
-        echo "  Will retry..."
+        echo "[$AGENT_NAME] Will retry..."
         sleep $((attempt * 2))
       fi
     fi
@@ -175,14 +207,46 @@ $AGENT_CONTENT"
   done
 
   if [ "$SUCCESS" = true ]; then
-    echo "✓ $AGENT_NAME completed successfully (attempts: $((attempt - 1)))"
+    echo "[$AGENT_NAME] ✓ Completed successfully (attempts: $((attempt - 1)))"
     echo ""
+    return 0
   else
-    echo "✗ $AGENT_NAME failed after $MAX_ATTEMPTS attempts"
+    echo "[$AGENT_NAME] ✗ Failed after $MAX_ATTEMPTS attempts"
     echo ""
+    return 1
+  fi
+}
+
+# Export function and variables for parallel execution
+export -f run_agent
+export PROJECT_PATH AGENTS_DIR OUTPUT_DIR MAX_ATTEMPTS VALIDATOR SCHEMA_DIR TEMP_DIR SKILL_DIR
+
+# Launch all agents in parallel
+pids=()
+for agent_file in "${AGENTS[@]}"; do
+  run_agent "$agent_file" &
+  pids+=($!)
+done
+
+# Wait for all agents to complete
+echo "Waiting for all 4 agents to complete..."
+echo ""
+
+ALL_SUCCESS=true
+for i in "${!pids[@]}"; do
+  pid=${pids[$i]}
+  agent_file=${AGENTS[$i]}
+  agent_name=$(basename "$agent_file" .md)
+
+  if wait $pid; then
+    echo "✓ $agent_name completed successfully"
+  else
+    echo "✗ $agent_name failed"
     ALL_SUCCESS=false
   fi
 done
+
+echo ""
 
 if [ "$ALL_SUCCESS" = true ]; then
   echo ""

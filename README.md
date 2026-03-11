@@ -151,28 +151,26 @@ sequenceDiagram
 - **Git repository** with your project
 - **5 minutes** of setup time
 
-### Step 1: One-Time Setup (2 minutes)
+### Step 1: One-Time Setup (10-15 minutes)
 
 ```bash
 # Clone framework into your project
 cd /path/to/your-project
 git clone https://github.com/your-org/ai-agentic-framework.git
 
-# Bootstrap
-cd ai-agentic-framework
-./scripts/bootstrap-project.sh
-
-# Initialize (analyzes your codebase)
-cd ..
-claude
-/initialize-project
+# Initialize (analyzes your codebase and sets everything up)
+./ai-agentic-framework/scripts/initialize-project.sh
 ```
 
 **What initialization does**:
+
 - Detects your tech stack automatically
-- Learns your patterns and conventions
-- Generates project-specific documentation
-- Creates custom AI agents for YOUR stack
+- Analyzes your codebase patterns and conventions
+- Generates project-specific documentation (CLAUDE.md, project-context)
+- Creates custom AI agents and skills for YOUR stack
+- Sets up slash commands for your workflows
+
+**Duration**: 10-15 minutes (fully automated)
 
 ---
 
@@ -440,7 +438,10 @@ The framework automatically detects and adapts to your stack:
 → Solution: Ensure project is initialized and CLAUDE.md is populated
 
 **Problem**: Implementation doesn't match project style
-→ Solution: Re-run `/initialize-project` to learn latest patterns
+→ Solution: Re-run initialization to learn latest patterns:
+  ```bash
+  ./ai-agentic-framework/scripts/initialize-project.sh
+  ```
 
 **Problem**: Tests failing
 → Solution: Framework auto-retries 3 times; check logs for persistent issues
