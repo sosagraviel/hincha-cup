@@ -41,6 +41,35 @@ async function generateAgents(stackProfile, skillSelection, projectPath, templat
     total: 0
   };
 
+  // Ensure all languages with significant code (>10 files) are included
+  const languagesFromProfile = getAllLanguages(stackProfile);
+  const languagesFromFileCounts = Object.keys(stackProfile.file_counts || {})
+    .filter(lang => stackProfile.file_counts[lang] >= 10);
+
+  // Find missing languages that have significant code
+  const missingLanguages = languagesFromFileCounts.filter(
+    lang => !languagesFromProfile.includes(lang)
+  );
+
+  if (missingLanguages.length > 0) {
+    console.warn(`⚠ WARNING: Languages with significant code but not in profile: ${missingLanguages.join(', ')}`);
+    console.warn(`  Auto-adding these languages to ensure agents are generated.`);
+
+    // Auto-add missing languages to stackProfile
+    if (!stackProfile.languages) {
+      stackProfile.languages = [];
+    }
+
+    missingLanguages.forEach(lang => {
+      stackProfile.languages.push({
+        name: lang,
+        confidence: 'detected_by_file_count',
+        file_count: stackProfile.file_counts[lang],
+        detectedBy: 'agent-generation validation'
+      });
+    });
+  }
+
   try {
     // 1. Generate planner agent (with architecture-level skills for ALL languages)
     const plannerSkills = resolveAgentSkills('planner', stackProfile);
@@ -318,10 +347,8 @@ async function generateImplementerAgent(templatesPath, stackProfile, skills, com
   content = content.replace(/\{\{unit_test_command\}\}/g, commands.unit_test_command || 'echo "No test command"');
   content = content.replace(/\{\{build_command\}\}/g, commands.build_command || 'echo "No build command"');
 
-  // NEW: Add skills documentation
   content = content.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(skills));
 
-  // NEW: Add stack-specific patterns
   const stackPatterns = getStackSpecificPatterns(stackProfile, language);
   content = content.replace(/\{\{stack_specific_patterns\}\}/g, stackPatterns);
 
@@ -371,10 +398,8 @@ async function generateTesterAgents(templatesPath, stackProfile, commands, langu
     unitContent = unitContent.replace(/\{\{integration_test_command\}\}/g, commands.integration_test_command || commands.unit_test_command);
     unitContent = unitContent.replace(/\{\{coverage_command\}\}/g, commands.coverage_command || 'npm test -- --coverage');
 
-    // NEW: Add skills documentation
     unitContent = unitContent.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(unitSkills));
 
-    // NEW: Add stack-specific test patterns
     const testPatterns = getStackTestPatterns(stackProfile, language);
     unitContent = unitContent.replace(/\{\{stack_test_patterns\}\}/g, testPatterns);
 
@@ -405,7 +430,6 @@ async function generateTesterAgents(templatesPath, stackProfile, commands, langu
       unitContent = unitContent.replace(/\{\{assertion_style\}\}/g, 'assert value == expected');
     }
 
-    // NEW: Add example placeholders
     const examples = getExamplePlaceholders(language, stackProfile);
     Object.entries(examples).forEach(([key, value]) => {
       const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
@@ -439,10 +463,8 @@ async function generateTesterAgents(templatesPath, stackProfile, commands, langu
       e2eContent = e2eContent.replace(/\{\{e2e_test_pattern\}\}/g, '*.spec.ts or *.e2e.ts');
       e2eContent = e2eContent.replace(/\{\{e2e_ui_mode\}\}/g, `${stackProfile.package_manager || 'npx'} playwright test --ui`);
 
-      // NEW: Add skills documentation
       e2eContent = e2eContent.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(e2eSkills));
 
-      // NEW: Add stack-specific E2E patterns
       const e2ePatterns = getStackE2EPatterns(stackProfile, language);
       e2eContent = e2eContent.replace(/\{\{stack_e2e_patterns\}\}/g, e2ePatterns);
 

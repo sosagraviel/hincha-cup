@@ -158,13 +158,113 @@ function detectConflicts(analyses) {
 }
 
 /**
+ * Extract and merge multi-stack information from all agents
+ */
+function extractMultiStackInfo(analyses) {
+  const multiStack = {
+    is_monorepo: false,
+    workspaces: [],
+    languages: new Map(),
+    total_files: 0
+  };
+
+  // Collect multi_stack info from each agent
+  analyses.forEach(analysis => {
+    if (analysis.findings?.multi_stack) {
+      const agentMultiStack = analysis.findings.multi_stack;
+
+      if (agentMultiStack.is_monorepo) {
+        multiStack.is_monorepo = true;
+      }
+
+      // Collect workspaces (deduplicate by path)
+      if (agentMultiStack.workspaces && Array.isArray(agentMultiStack.workspaces)) {
+        agentMultiStack.workspaces.forEach(workspace => {
+          const existing = multiStack.workspaces.find(w => w.path === workspace.path);
+          if (!existing) {
+            multiStack.workspaces.push(workspace);
+          } else {
+            // Merge workspace data if duplicate found
+            Object.assign(existing, workspace);
+          }
+        });
+      }
+    }
+
+    // Also collect language info from findings
+    const langs = analysis.findings?.languages || [];
+    const langArray = Array.isArray(langs) ? langs : (langs.items || []);
+
+    langArray.forEach(lang => {
+      const langName = typeof lang === 'string' ? lang : lang.name;
+      const fileCount = typeof lang === 'object' ? (lang.file_count || 0) : 0;
+
+      if (!multiStack.languages.has(langName)) {
+        multiStack.languages.set(langName, {
+          name: langName,
+          file_count: fileCount,
+          detected_by: [analysis.agent_name]
+        });
+      } else {
+        const existing = multiStack.languages.get(langName);
+        existing.detected_by.push(analysis.agent_name);
+        if (fileCount > existing.file_count) {
+          existing.file_count = fileCount;
+        }
+      }
+    });
+  });
+
+  return {
+    is_monorepo: multiStack.is_monorepo,
+    workspaces: multiStack.workspaces,
+    languages: Array.from(multiStack.languages.values()).sort((a, b) => b.file_count - a.file_count),
+    total_files: Array.from(multiStack.languages.values()).reduce((sum, lang) => sum + lang.file_count, 0)
+  };
+}
+
+/**
+ * Detect missing language coverage
+ */
+function detectMissingLanguageCoverage(multiStack, merged) {
+  const warnings = [];
+
+  // Languages with significant code (>10 files) should have coverage
+  multiStack.languages.forEach(lang => {
+    if (lang.file_count >= 10) {
+      const hasCoverage = merged.findings?.languages?.items?.some(l => {
+        const langName = typeof l === 'string' ? l : l.name;
+        return langName === lang.name;
+      });
+
+      if (!hasCoverage) {
+        warnings.push({
+          type: 'missing_language_coverage',
+          language: lang.name,
+          file_count: lang.file_count,
+          severity: 'critical',
+          message: `Language '${lang.name}' has ${lang.file_count} files but is not in consolidated findings`
+        });
+      }
+    }
+  });
+
+  return warnings;
+}
+
+/**
  * Merge all analyses into consolidated structure
  */
 function mergeAnalyses(analyses) {
+  // Extract multi-stack information first
+  const multiStack = extractMultiStackInfo(analyses);
+
   const merged = {
     timestamp: new Date().toISOString(),
     agents_count: analyses.length,
     agents: analyses.map(a => a.agent_name),
+
+    multi_stack: multiStack,
 
     // Consolidated findings
     findings: {},
@@ -209,6 +309,10 @@ function mergeAnalyses(analyses) {
       merged.findings[category].items = [...new Set(merged.findings[category].items)];
     }
   });
+
+  // Check for missing language coverage and add to gaps
+  const missingLanguageWarnings = detectMissingLanguageCoverage(multiStack, merged);
+  merged.gaps.push(...missingLanguageWarnings);
 
   return merged;
 }
@@ -302,5 +406,7 @@ module.exports = {
   findOverlaps,
   identifyGaps,
   detectConflicts,
-  generateSummary
+  generateSummary,
+  extractMultiStackInfo,
+  detectMissingLanguageCoverage
 };

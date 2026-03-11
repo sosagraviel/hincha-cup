@@ -11,6 +11,109 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+ * Recursively discover workspaces by finding language manifest files
+ * This finds undeclared workspaces (e.g., functions/python/ with requirements.txt)
+ */
+async function discoverWorkspacesByManifests(projectPath) {
+  const workspaces = [];
+  const visited = new Set();
+
+  const excludeDirs = new Set([
+    'node_modules', '.git', 'dist', 'build', 'out', 'target',
+    '.next', '.nuxt', '.venv', 'venv', '__pycache__', '.pytest_cache',
+    'coverage', '.coverage', '.tox', 'htmlcov'
+  ]);
+
+  async function searchDirectory(dirPath, depth = 0) {
+    if (visited.has(dirPath)) return;
+    visited.add(dirPath);
+    if (depth > 5) return; // Limit recursion depth
+
+    try {
+      const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+
+      // Check if this directory itself is a workspace
+      if (depth > 0 && isWorkspaceDirectory(dirPath)) {
+        workspaces.push(dirPath);
+        return; // Don't recurse into found workspaces
+      }
+
+      // Recurse into subdirectories
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          if (excludeDirs.has(entry.name) || entry.name.startsWith('.')) {
+            continue;
+          }
+          await searchDirectory(path.join(dirPath, entry.name), depth + 1);
+        }
+      }
+    } catch (error) {
+      // Silently skip directories we can't read
+    }
+  }
+
+  await searchDirectory(projectPath);
+  return workspaces;
+}
+
+/**
+ * Count files by language extension to determine code volume
+ */
+async function countFilesByLanguage(projectPath) {
+  const counts = {};
+
+  const extensionMap = {
+    'typescript': ['.ts', '.tsx'],
+    'javascript': ['.js', '.jsx', '.mjs', '.cjs'],
+    'python': ['.py'],
+    'java': ['.java'],
+    'go': ['.go'],
+    'ruby': ['.rb'],
+    'php': ['.php'],
+    'rust': ['.rs'],
+    'c': ['.c', '.h'],
+    'cpp': ['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx'],
+    'csharp': ['.cs'],
+    'swift': ['.swift'],
+    'kotlin': ['.kt', '.kts']
+  };
+
+  const excludeDirs = new Set([
+    'node_modules', '.git', 'dist', 'build', 'out', 'target',
+    '.next', '.nuxt', '.venv', 'venv', '__pycache__', '.pytest_cache',
+    'coverage', '.coverage', '.tox', 'htmlcov', 'vendor'
+  ]);
+
+  async function countInDirectory(dirPath) {
+    try {
+      const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          if (excludeDirs.has(entry.name) || entry.name.startsWith('.')) {
+            continue;
+          }
+          await countInDirectory(path.join(dirPath, entry.name));
+        } else if (entry.isFile()) {
+          const ext = path.extname(entry.name);
+          for (const [lang, extensions] of Object.entries(extensionMap)) {
+            if (extensions.includes(ext)) {
+              counts[lang] = (counts[lang] || 0) + 1;
+              break;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      // Silently skip directories we can't read
+    }
+  }
+
+  await countInDirectory(projectPath);
+  return counts;
+}
+
+/**
  * Detect workspaces in a monorepo
  * @param {string} projectPath - Absolute path to project root
  * @returns {Promise<string[]>} Array of workspace paths
@@ -59,6 +162,16 @@ async function detectWorkspaces(projectPath) {
       } catch (error) {
         console.error('Error reading lerna.json:', error.message);
       }
+    }
+  }
+
+  // Also search for undeclared workspaces by manifest files
+  // This finds workspaces like functions/python/ that aren't in workspace config
+  const manifestWorkspaces = await discoverWorkspacesByManifests(projectPath);
+  for (const manifestWorkspace of manifestWorkspaces) {
+    // Avoid duplicates
+    if (!workspaces.includes(manifestWorkspace)) {
+      workspaces.push(manifestWorkspace);
     }
   }
 
@@ -192,11 +305,11 @@ async function detectStack(projectPath) {
 async function detectStackForWorkspace(workspacePath, metadata) {
   const profile = {
     languages: [],
-    primary_language: null, // Kept for backward compatibility
+    primary_language: null,
     backend_frameworks: [],
-    backend: null, // Kept for backward compatibility
+    backend: null,
     frontend_frameworks: [],
-    frontend: null, // Kept for backward compatibility
+    frontend: null,
     databases: [],
     testing: [],
     cloud: [],
@@ -204,6 +317,7 @@ async function detectStackForWorkspace(workspacePath, metadata) {
     package_manager: null,
     monorepo: metadata.isMonorepo,
     dependency_versions: {},
+    file_counts: {},
     detection_metadata: {
       timestamp: new Date().toISOString(),
       project_path: workspacePath,
@@ -213,17 +327,38 @@ async function detectStackForWorkspace(workspacePath, metadata) {
   };
 
   try {
-    // 1. Detect all languages (supports polyglot repos)
+    // 1. Count files by language to determine code volume
+    const fileCounts = await countFilesByLanguage(workspacePath);
+    profile.file_counts = fileCounts;
+    profile.detection_metadata.detection_log.push(
+      `✓ File counts: ${Object.entries(fileCounts).map(([lang, count]) => `${lang}(${count})`).join(', ')}`
+    );
+
+    // 2. Detect all languages (supports polyglot repos)
     const { languages, detectionLog } = await detectLanguage(workspacePath);
+
+    // Merge file counts into language objects
+    for (const lang of languages) {
+      lang.file_count = fileCounts[lang.name] || 0;
+    }
+
+    // Sort languages by file count (primary language has most files)
+    languages.sort((a, b) => (b.file_count || 0) - (a.file_count || 0));
+
+    // Mark primary language
+    if (languages.length > 0) {
+      languages[0].is_primary = true;
+    }
+
     profile.languages = languages;
     profile.detection_metadata.detection_log.push(...detectionLog);
 
-    // Set primary language for backward compatibility (first detected language)
+    // Set primary language (language with most files)
     if (languages.length > 0) {
       profile.primary_language = languages[0].name;
     }
 
-    // 2. Detect backend and frontend frameworks for each language
+    // 3. Detect backend and frontend frameworks for each language
     for (const lang of languages) {
       const backendFrameworks = await detectBackendFramework(workspacePath, lang.name);
       const frontendFrameworks = await detectFrontendFramework(workspacePath, lang.name);
@@ -244,7 +379,7 @@ async function detectStackForWorkspace(workspacePath, metadata) {
       }
     }
 
-    // Set backward compatibility fields (first detected framework)
+    // Set primary backend and frontend (first detected framework)
     if (profile.backend_frameworks.length > 0) {
       profile.backend = {
         framework: profile.backend_frameworks[0].name,
@@ -262,13 +397,13 @@ async function detectStackForWorkspace(workspacePath, metadata) {
       };
     }
 
-    // 3. Extract all dependency versions
+    // 4. Extract all dependency versions
     for (const lang of languages) {
       const versions = await extractDependencyVersions(workspacePath, lang.name);
       Object.assign(profile.dependency_versions, versions);
     }
 
-    // 4. Detect databases
+    // 5. Detect databases
     profile.databases = await detectDatabases(workspacePath);
     if (profile.databases.length > 0) {
       profile.detection_metadata.detection_log.push(
@@ -276,7 +411,7 @@ async function detectStackForWorkspace(workspacePath, metadata) {
       );
     }
 
-    // 5. Detect testing frameworks
+    // 6. Detect testing frameworks
     if (languages.length > 0) {
       profile.testing = await detectTestingFrameworks(workspacePath, languages[0].name);
       if (profile.testing.length > 0) {
@@ -286,7 +421,7 @@ async function detectStackForWorkspace(workspacePath, metadata) {
       }
     }
 
-    // 6. Detect cloud platforms
+    // 7. Detect cloud platforms
     profile.cloud = await detectCloudPlatforms(workspacePath);
     if (profile.cloud.length > 0) {
       profile.detection_metadata.detection_log.push(
@@ -294,7 +429,7 @@ async function detectStackForWorkspace(workspacePath, metadata) {
       );
     }
 
-    // 7. Detect containerization
+    // 8. Detect containerization
     profile.containers = await detectContainers(workspacePath);
     if (profile.containers.length > 0) {
       profile.detection_metadata.detection_log.push(
@@ -302,7 +437,7 @@ async function detectStackForWorkspace(workspacePath, metadata) {
       );
     }
 
-    // 8. Detect package manager
+    // 9. Detect package manager
     profile.package_manager = await detectPackageManager(workspacePath);
     if (profile.package_manager) {
       profile.detection_metadata.detection_log.push(`✓ Package manager: ${profile.package_manager}`);
@@ -341,19 +476,79 @@ function mergeWorkspaceProfiles(profiles, projectPath) {
     }
   }
 
-  // Aggregate languages (keep full objects with confidence)
-  const languages = deduplicateByName(profiles.flatMap(p => p.languages));
+  // Aggregate file counts from all workspaces
+  const allFileCounts = {};
+  for (const profile of profiles) {
+    if (profile.file_counts) {
+      for (const [lang, count] of Object.entries(profile.file_counts)) {
+        allFileCounts[lang] = (allFileCounts[lang] || 0) + count;
+      }
+    }
+  }
+
+  // Aggregate languages (keep full objects with confidence and file counts)
+  const languageMap = new Map();
+  for (const profile of profiles) {
+    for (const lang of profile.languages) {
+      if (!languageMap.has(lang.name)) {
+        languageMap.set(lang.name, {
+          ...lang,
+          file_count: allFileCounts[lang.name] || 0,
+          workspaces: []
+        });
+      }
+      languageMap.get(lang.name).workspaces.push({
+        path: profile.detection_metadata.project_path.replace(projectPath + '/', ''),
+        file_count: profile.file_counts[lang.name] || 0
+      });
+    }
+  }
+
+  // Sort languages by total file count
+  const languages = Array.from(languageMap.values()).sort((a, b) =>
+    (b.file_count || 0) - (a.file_count || 0)
+  );
+
+  // Mark primary language (most files)
+  if (languages.length > 0) {
+    languages[0].is_primary = true;
+  }
+
   // Aggregate frameworks (keep full objects with versions)
   const backendFrameworks = deduplicateByName(profiles.flatMap(p => p.backend_frameworks));
   const frontendFrameworks = deduplicateByName(profiles.flatMap(p => p.frontend_frameworks));
 
+  // Create workspace summaries for multi_stack
+  const workspaceSummaries = profiles.map(p => ({
+    path: p.detection_metadata.project_path,
+    name: p.detection_metadata.workspace_name,
+    languages: p.languages.map(l => l.name),
+    primary_language: p.primary_language,
+    file_counts: p.file_counts
+  }));
+
   return {
     project_path: projectPath,
     is_monorepo: true,
+    multi_stack: {
+      workspace_count: profiles.length,
+      languages: languages.map(l => ({
+        name: l.name,
+        file_count: l.file_count || 0,
+        is_primary: l.is_primary || false,
+        workspaces: workspaceSummaries
+          .filter(w => w.languages.includes(l.name))
+          .map(w => w.path.replace(projectPath + '/', ''))
+      })),
+      total_files: Object.values(allFileCounts).reduce((sum, count) => sum + count, 0)
+    },
+    file_counts: allFileCounts,
     workspaces: profiles.map(p => ({
       name: p.detection_metadata.workspace_name,
       path: p.detection_metadata.project_path,
       primary_language: p.primary_language,
+      languages: p.languages,
+      file_counts: p.file_counts,
       backend: p.backend,
       frontend: p.frontend,
       databases: p.databases,
@@ -362,12 +557,10 @@ function mergeWorkspaceProfiles(profiles, projectPath) {
       containers: p.containers,
       confidence: p.detection_metadata.confidence_scores
     })),
-    // New array-based fields (P0-2, P0-4)
     languages: languages,
     backend_frameworks: backendFrameworks,
     frontend_frameworks: frontendFrameworks,
     dependency_versions: allDependencyVersions,
-    // Backward compatibility fields
     primary_language: languages[0]?.name || null,
     backend: backendFrameworks[0] ? {
       framework: backendFrameworks[0].name,

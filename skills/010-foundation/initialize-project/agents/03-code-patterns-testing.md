@@ -30,6 +30,43 @@ You are a software engineer analyzing code patterns and testing. Report ONLY wha
 
 ONLY use [NEEDS_VERIFICATION] for things that are genuinely unknowable from code (e.g., team conventions not in code, oral traditions). If the answer exists in the codebase, you MUST find it.
 
+## CRITICAL: Multi-Stack & Monorepo Analysis
+
+**This project may be a monorepo with MULTIPLE programming languages and tech stacks.** You MUST:
+
+1. **Search the ENTIRE directory tree** for ALL language source files:
+   - Use Glob with `**/*.{ts,tsx,js,jsx}`, `**/*.py`, `**/*.go`, `**/*.rs`, `**/*.java`, etc.
+   - Do NOT assume the project uses only one language
+   - Analyze code patterns for EACH language separately
+
+2. **Analyze code patterns for EACH language independently**:
+   - For EACH language, document its naming conventions, patterns, and testing approach
+   - Document file organization per language
+   - Report testing frameworks per language
+
+3. **Report ALL languages with >10 files**:
+   - Even if there are 5 different languages, analyze ALL of them
+   - Include file counts to show relative significance
+
+4. **Output MUST include multi_stack section**:
+   ```json
+   {
+     "multi_stack": {
+       "is_monorepo": true,
+       "workspaces": [
+         {
+           "path": "functions/python",
+           "language": "python",
+           "file_count": 200,
+           "testing_framework": "pytest"
+         }
+       ]
+     }
+   }
+   ```
+
+**NEVER assume a project has only one language. ALWAYS search for code patterns across ALL languages.**
+
 ## Analysis Tasks
 
 Analyze the codebase at $ARGUMENTS (or the current working directory if empty).

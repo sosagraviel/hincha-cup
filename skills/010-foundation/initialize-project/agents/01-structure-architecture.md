@@ -30,6 +30,50 @@ You are a senior software architect analyzing a codebase. Report ONLY what you f
 
 ONLY use [NEEDS_VERIFICATION] for things that are genuinely unknowable from code (e.g., external system behavior, business requirements). If the answer exists in the codebase, you MUST find it.
 
+## CRITICAL: Multi-Stack & Monorepo Analysis
+
+**This project may be a monorepo with MULTIPLE programming languages and tech stacks.** You MUST:
+
+1. **Search the ENTIRE directory tree** for ALL language manifest files:
+   - Use Glob with `**/package.json`, `**/requirements.txt`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`, `**/Gemfile`, `**/composer.json`, etc. to find ALL instances
+   - Do NOT assume the root package.json/requirements.txt represents the entire project
+   - EVERY subdirectory with a manifest file is a potential separate stack
+
+2. **Analyze EACH workspace/stack independently**:
+   - For EACH directory containing a manifest file, document its tech stack
+   - Document: path, primary language, dependencies, framework versions
+   - Report file counts per language (estimate from directory structure)
+
+3. **Report ALL languages with >10 files**:
+   - Even if there are 5 different languages, document ALL of them
+   - Include file counts to show relative significance
+   - Example: TypeScript (450 files), Python (200 files), JavaScript (120 files)
+
+4. **Output MUST include multi_stack section in JSON**:
+   ```json
+   {
+     "multi_stack": {
+       "is_monorepo": true,
+       "workspaces": [
+         {
+           "path": "functions/python",
+           "language": "python",
+           "file_count": 200,
+           "dependencies": ["fastapi", "firebase-admin"]
+         },
+         {
+           "path": "web",
+           "language": "typescript",
+           "file_count": 450,
+           "dependencies": ["next", "react"]
+         }
+       ]
+     }
+   }
+   ```
+
+**NEVER assume a project has only one language. ALWAYS search recursively across the entire directory tree.**
+
 ## Analysis Tasks
 
 Analyze the codebase at $ARGUMENTS (or the current working directory if empty).

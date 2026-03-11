@@ -147,7 +147,7 @@ echo -e "${BLUE}  PHASE 6: FINAL VALIDATION${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-if bash "$SCRIPT_DIR/phase6-validation.sh" "$PROJECT_PATH"; then
+if bash "$SCRIPT_DIR/phase6-validation.sh" "$PROJECT_PATH" "$TEMP_DIR"; then
     echo -e "${GREEN}✓ Phase 6 complete${NC}"
     echo ""
 else

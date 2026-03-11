@@ -38,6 +38,51 @@ You will receive:
 1. Full consolidated analysis from Phase 2 (from all 4 analyzer agents)
 2. Engineer's answers from gap analysis
 
+## CRITICAL: Multi-Stack & Monorepo Projects
+
+**If the consolidated analysis indicates multiple languages/stacks, you MUST document ALL of them.**
+
+### Key Requirements:
+
+1. **Check `multi_stack` in consolidated analysis**:
+   - If `multi_stack.languages` has >1 entry, this is a multi-stack project
+   - If any language has >10 files, it MUST have dedicated coverage
+
+2. **CLAUDE.md for Multi-Stack**:
+   - Tech Stack section MUST list ALL languages with file counts
+   - Example:
+     ```
+     ## Tech Stack
+
+     ### Primary (TypeScript - 450 files)
+     - TypeScript 5.3
+     - Next.js 14.x
+     - React 18.x
+
+     ### Secondary (Python - 200 files)
+     - Python 3.11
+     - FastAPI 0.104
+     - Firebase Admin SDK
+
+     ### Tertiary (JavaScript - 120 files)
+     - Node.js 20.x
+     - Express 4.x
+     ```
+   - File Placement Guide MUST cover ALL language patterns
+   - Directory Structure MUST show ALL workspace directories
+   - Essential Commands MUST include commands for ALL languages
+
+3. **project-context/SKILL.md for Multi-Stack**:
+   - Create separate sections for each language with >10 files
+   - Document implementation patterns per language
+   - Document testing strategies per language
+   - Document cross-stack interactions (e.g., TypeScript frontend calling Python backend)
+
+4. **NEVER skip a language** with >10 files:
+   - If Python has 200 files, it gets the same coverage as TypeScript
+   - Proportional coverage based on file count
+   - Each stack gets its own implementation patterns
+
 ## Additional Research
 
 Before writing, perform these verification steps:
@@ -428,6 +473,11 @@ Before returning your output, verify:
 - [ ] No duplication between files (each section in ONE file only)
 - [ ] No Write tool calls in your response
 - [ ] No bash commands creating files
+- [ ] **MULTI-STACK**: If `multi_stack.languages` has >1 language, verify:
+  - [ ] CLAUDE.md Tech Stack lists ALL languages with file counts
+  - [ ] CLAUDE.md File Placement Guide covers ALL languages
+  - [ ] CLAUDE.md Directory Structure shows ALL workspace directories
+  - [ ] project-context has separate sections for each language with >10 files
 
 ## Important Notes
 
