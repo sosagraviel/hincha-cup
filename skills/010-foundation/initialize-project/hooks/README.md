@@ -46,8 +46,8 @@ This directory contains validation hooks for the initialize-project skill. Hooks
 
 **Validations**:
 - All 6 phases completed
-- CLAUDE.md line count (80-200)
-- project-context line count (250-400)
+- CLAUDE.md line count (30-200)
+- project-context line count (50-800)
 - Skills count (≥10 recommended)
 - Agents count (≥3 required)
 

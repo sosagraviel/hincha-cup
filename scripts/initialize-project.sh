@@ -166,26 +166,34 @@ if [ ! -d "$PROJECT_PATH" ]; then
     exit 1
 fi
 
-# Default framework path if not specified
+# Auto-detect framework path from script's own location
 if [ -z "$FRAMEWORK_PATH" ]; then
-    FRAMEWORK_PATH="$PROJECT_PATH/ai-agentic-framework"
-fi
-
-# Resolve framework path to absolute
-if [ -d "$FRAMEWORK_PATH" ]; then
-    FRAMEWORK_PATH=$(cd "$FRAMEWORK_PATH" && pwd)
+    # This script is at: framework-dir/scripts/initialize-project.sh
+    # So framework root is one level up
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    FRAMEWORK_PATH="$(cd "$SCRIPT_DIR/.." && pwd)"
+    echo -e "${BLUE}ℹ Auto-detected framework at: $FRAMEWORK_PATH${NC}"
+    echo ""
+else
+    # Resolve user-provided path to absolute
+    if [ -d "$FRAMEWORK_PATH" ]; then
+        FRAMEWORK_PATH=$(cd "$FRAMEWORK_PATH" && pwd)
+    fi
 fi
 
 # Validate framework path exists
 if [ ! -d "$FRAMEWORK_PATH" ]; then
     echo -e "${RED}Error: Framework path does not exist: $FRAMEWORK_PATH${NC}"
     echo ""
-    echo "Expected to find ai-agentic-framework at:"
-    echo "  $FRAMEWORK_PATH"
+    echo "This usually means the script is not running from the framework's scripts/ directory."
     echo ""
-    echo "Options:"
-    echo "  1. Clone the framework to the expected location"
-    echo "  2. Specify custom path with --framework-path"
+    echo "Solutions:"
+    echo "  1. Run the script from its location:"
+    echo "     ./path/to/framework/scripts/initialize-project.sh"
+    echo ""
+    echo "  2. Or specify the framework path explicitly:"
+    echo "     ./path/to/framework/scripts/initialize-project.sh --framework-path /full/path/to/framework"
+    echo ""
     exit 1
 fi
 

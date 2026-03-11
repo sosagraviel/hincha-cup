@@ -147,8 +147,9 @@ CLAUDE.md answers THREE questions:
 
 ### Line Limits
 
-- **Filled file MAXIMUM:** 150 lines
-- **Hard cap:** 200 lines (reject if exceeded)
+- **Target range:** 30-200 lines
+- **Minimum:** 30 lines (ensure sufficient context)
+- **Maximum:** 200 lines (hard cap, reject if exceeded)
 
 If content exceeds limits, REMOVE in this order:
 1. Path Aliases (can discover via tsconfig/jsconfig)
@@ -304,10 +305,11 @@ version: 3.0
 
 ### Line Limits
 
-- **Filled file target:** 250-350 lines
-- **Maximum:** 400 lines
+- **Minimum:** 50 lines (ensure sufficient context)
+- **Target range:** 200-400 lines
+- **Maximum:** 800 lines (hard cap)
 
-Extensive content is OK — this is the deep knowledge file.
+Extensive content is OK — this is the deep knowledge file. Larger projects may need more lines.
 
 ## Quality Requirements
 
@@ -418,8 +420,8 @@ Before returning your output, verify:
 
 - [ ] First line is EXACTLY: `# CLAUDE.md Content`
 - [ ] CLAUDE.md content starts with a project name heading (e.g., `# Gira`)
-- [ ] CLAUDE.md stays under 150 lines (hard cap 200)
-- [ ] project-context can be 250-400 lines (extensive is OK)
+- [ ] CLAUDE.md is 30-200 lines (reject if outside this range)
+- [ ] project-context is 50-800 lines (extensive is OK for large projects)
 - [ ] Separator is EXACTLY: `---` (three dashes on their own line)
 - [ ] Next line after separator is EXACTLY: `# project-context/SKILL.md Content`
 - [ ] project-context content starts with YAML frontmatter (`---`)

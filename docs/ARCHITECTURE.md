@@ -114,7 +114,8 @@ Merges findings from all agents, performs gap analysis, and identifies conflicts
 #### Phase 3: Synthesis
 
 Generates intelligent documentation:
-- Project context (250-400 lines)
+- Quick reference guide (CLAUDE.md: 30-200 lines)
+- Deep project context (project-context/SKILL.md: 50-800 lines)
 - Stack-specific patterns
 - Testing conventions
 - Development workflow

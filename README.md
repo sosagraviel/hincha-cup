@@ -34,9 +34,9 @@ The AI Agentic Framework enables **autonomous software development across the fu
 
 ```mermaid
 graph LR
-    A[Idea/Description] --> B[/create-sdd-ticket]
+    A[Idea/Description] --> B[/create-sdd-ticket/]
     B --> C[Spec-Driven Ticket]
-    C --> D[/implement-ticket]
+    C --> D[/implement-ticket/]
     D --> E[Code + Tests]
     E --> F[Quality Gates]
     F --> G[Pull Request]

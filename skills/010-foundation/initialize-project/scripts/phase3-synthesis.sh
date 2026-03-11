@@ -35,7 +35,7 @@ AGENT_CONTENT=$(cat "$AGENT_FILE")
 VALIDATOR="$SKILL_DIR/utils/validators/validate-synthesis.js"
 VALIDATION_CONFIG="$SKILL_DIR/config/validation-rules.json"
 
-MAX_ATTEMPTS=5
+MAX_ATTEMPTS=10
 attempt=1
 SUCCESS=false
 

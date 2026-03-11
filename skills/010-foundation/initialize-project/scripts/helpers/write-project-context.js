@@ -5,7 +5,7 @@
  *
  * Writes project-context to project with validation
  * - YAML frontmatter validation
- * - Line count check (250-400 lines)
+ * - Line count check (50-800 lines)
  * - Backup existing file
  * - Write to .claude/skills/project-context/SKILL.md
  * - Verify write successful
@@ -17,7 +17,7 @@ const path = require('path');
 /**
  * Validate project-context content before writing
  */
-function validateContent(content, minLines = 250, maxLines = 400) {
+function validateContent(content, minLines = 50, maxLines = 800) {
   const errors = [];
   const warnings = [];
 
@@ -107,8 +107,8 @@ function backupExisting(filePath) {
  */
 function writeProjectContext(content, projectPath, options = {}) {
   const {
-    minLines = 250,
-    maxLines = 400,
+    minLines = 50,
+    maxLines = 800,
     validate = true,
     backup = true,
     dryRun = false

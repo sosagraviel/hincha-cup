@@ -324,10 +324,10 @@ If paused, script exits with instructions for:
 **What it does:**
 
 1. Spawns Opus agent with consolidated findings
-2. Generates CLAUDE.md (quick reference, 100-150 lines target)
-3. Generates project-context (deep knowledge, 250-400 lines)
+2. Generates CLAUDE.md (quick reference, 30-200 lines)
+3. Generates project-context (deep knowledge, 50-800 lines)
 4. Validates line counts and structure
-5. Up to 5 retry attempts with feedback
+5. Up to 10 retry attempts with feedback
 
 **Command:**
 
@@ -337,8 +337,8 @@ bash phase3-synthesis.sh "$PROJECT_PATH" "$TEMP_DIR"
 
 **Success criteria:**
 
-- CLAUDE.md: < 200 lines (target 100-150)
-- project-context: 250-400 lines (target 300)
+- CLAUDE.md: 30-200 lines (scales with project size)
+- project-context: 50-800 lines (comprehensive for large projects)
 - Both have frontmatter (starts with `---`)
 - Correct section markers present
 
@@ -445,7 +445,7 @@ If Phase 6 fails, indicates a bug in earlier phases.
 
 #### `.claude/CLAUDE.md`
 
-Quick reference guide (100-150 lines target, 200 max)
+Quick reference guide (30-200 lines, scales with project complexity)
 
 **Contains:**
 
@@ -463,7 +463,7 @@ Quick reference guide (100-150 lines target, 200 max)
 
 #### `.claude/skills/project-context/SKILL.md`
 
-Deep project knowledge (250-400 lines)
+Deep project knowledge (50-800 lines, comprehensive for large projects)
 
 **Contains:**
 
@@ -570,11 +570,11 @@ Uses `ajv` library with JSON Schema Draft 07.
 **Requirements:**
 
 - ✅ CLAUDE.md:
-  - < 200 lines (target 100-150)
+  - 30-200 lines (scales with project)
   - Has frontmatter (starts with `---`)
   - No detailed workflows
 - ✅ project-context:
-  - 250-400 lines (target 300)
+  - 50-800 lines (comprehensive for large projects)
   - Has frontmatter
   - Includes diagrams, examples, workflows
 - ✅ Correct section markers:
@@ -880,7 +880,7 @@ ReferenceError: extractCommands is not defined
 **Symptom:**
 
 ```
-⚠ WARNING: project-context outside 250-400 range
+⚠ WARNING: project-context outside 50-800 line range
 ```
 
 **Cause:** Phase 4 wrote file but validation didn't catch issue
@@ -1535,8 +1535,8 @@ For quick reference, see: .claude/CLAUDE.md
 
 **Line counts:**
 
-- CLAUDE.md: 100-150 lines (max 200)
-- project-context: 250-400 lines
+- CLAUDE.md: 30-200 lines (scales with project)
+- project-context: 50-800 lines (comprehensive for large projects)
 
 **Quality indicators in project-context:**
 

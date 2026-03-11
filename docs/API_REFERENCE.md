@@ -341,8 +341,8 @@ Understanding the `.claude/` directory created by initialization.
 **project-context/SKILL.md** (.claude/skills/)
 - Deep context about your project
 - Contains: Architecture, modules, data flows, conventions
-- Size: 250-400 lines (comprehensive)
-- Updated: Each time `/initialize-project` runs
+- Size: 50-800 lines (comprehensive, scales with project complexity)
+- Updated: Each time initialization runs
 
 ---
 
