@@ -1,12 +1,32 @@
-node_modules
-dist
-.env*
-!.env.*.example
-.next
+# AI Agentic Framework - Git Ignore
+
+# Development artifacts
+node_modules/
+.vscode/
+.husky/
+.claude/
+*.log
+*.tmp
+
+# OS files
 .DS_Store
-services/keycloak/realms/*
-test-results/
-*.tsbuildinfo
-seeds/scripts/.env*
-!seeds/scripts/.env.*.example
-playwright-report/
+Thumbs.db
+
+# Test artifacts
+/tmp/
+*.test.json
+
+# Backup files
+*.backup
+*.bak
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local

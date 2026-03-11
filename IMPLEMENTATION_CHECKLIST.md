@@ -2,21 +2,21 @@
 
 **Status**: In Progress
 **Started**: 2026-03-10
-**Plan Reference**: `ai-agentic-framework/skills/010-foundation/initialize-project/TRANSFORMATION_PLAN.md`
+**Plan Reference**: `skills/010-foundation/initialize-project/TRANSFORMATION_PLAN.md`
 
 ---
 
 ## Phase 1: Foundation (Week 1)
 
 ### 1.1 Directory Structure
-- [x] Create `ai-agentic-framework/skills/010-foundation/initialize-project/scripts/` directory
-- [x] Create `ai-agentic-framework/skills/010-foundation/initialize-project/utils/validators/` directory
-- [x] Create `ai-agentic-framework/skills/010-foundation/initialize-project/utils/writers/` directory
-- [x] Create `ai-agentic-framework/skills/010-foundation/initialize-project/hooks/` directory
-- [x] Create `ai-agentic-framework/skills/010-foundation/initialize-project/config/schemas/` directory
-- [x] Create `ai-agentic-framework/skills/010-foundation/initialize-project/test/unit/` directory
-- [x] Create `ai-agentic-framework/skills/010-foundation/initialize-project/test/integration/` directory
-- [x] Create `ai-agentic-framework/skills/010-foundation/initialize-project/test/contracts/` directory
+- [x] Create `skills/010-foundation/initialize-project/scripts/` directory
+- [x] Create `skills/010-foundation/initialize-project/utils/validators/` directory
+- [x] Create `skills/010-foundation/initialize-project/utils/writers/` directory
+- [x] Create `skills/010-foundation/initialize-project/hooks/` directory
+- [x] Create `skills/010-foundation/initialize-project/config/schemas/` directory
+- [x] Create `skills/010-foundation/initialize-project/test/unit/` directory
+- [x] Create `skills/010-foundation/initialize-project/test/integration/` directory
+- [x] Create `skills/010-foundation/initialize-project/test/contracts/` directory
 
 ### 1.2 JSON Schema Files
 - [x] Create `config/schemas/phase1-analysis.schema.json` - Agent output schema
