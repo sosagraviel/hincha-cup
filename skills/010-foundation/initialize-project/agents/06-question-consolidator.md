@@ -1,6 +1,6 @@
 ---
 name: question-consolidator
-model: haiku
+model: sonnet
 description: Consolidates similar questions from multiple analysis agents
 subagent_type: general-purpose
 run_in_background: false
