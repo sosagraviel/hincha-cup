@@ -119,8 +119,30 @@ function identifyGaps(analyses) {
     }
   });
 
-  return gaps;
+  return removeExactDuplicates(gaps);
 }
+
+
+/**
+ * Remove exact duplicate gaps (same item + same question)
+ * Note: Semantic consolidation is handled by the question-consolidator agent in Phase 2
+ */
+function removeExactDuplicates(gaps) {
+  const seenKeys = new Map();
+  const deduplicated = [];
+
+  gaps.forEach(gap => {
+    const key = `${gap.item}|||${gap.question || ''}`;
+
+    if (!seenKeys.has(key)) {
+      seenKeys.set(key, true);
+      deduplicated.push(gap);
+    }
+  });
+
+  return deduplicated;
+}
+
 
 /**
  * Detect conflicts between agent findings
@@ -412,5 +434,6 @@ module.exports = {
   detectConflicts,
   generateSummary,
   extractMultiStackInfo,
-  detectMissingLanguageCoverage
+  detectMissingLanguageCoverage,
+  removeExactDuplicates
 };

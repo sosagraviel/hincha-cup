@@ -125,7 +125,11 @@ async function askQuestions() {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log(`\n${questionText}\n`);
       console.log(`Context: ${reason}`);
-      console.log(`Priority: ${priority} | From: ${agent}`);
+
+      const sourceInfo = gap.consolidated_from && gap.consolidated_from.length > 0
+        ? `${gap.consolidated_from.join(', ')} (consolidated)`
+        : agent;
+      console.log(`Priority: ${priority} | From: ${sourceInfo}`);
       console.log('');
 
       const answer = await question('Answer: ');
