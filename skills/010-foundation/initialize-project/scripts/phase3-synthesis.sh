@@ -83,7 +83,8 @@ $AGENT_CONTENT"
   echo "Invoking Opus synthesizer..."
 
   # Run synthesizer with 10 min timeout
-  if timeout 600s claude --model opus --dangerously-skip-permissions <<< "$PROMPT" > "$SYNTHESIS_OUTPUT" 2> "$TEMP_DIR/synthesis-error-attempt$attempt.log"; then
+  # Use --foreground to ensure SIGINT propagates properly to claude process
+  if timeout --foreground 600s claude --model opus --dangerously-skip-permissions <<< "$PROMPT" > "$SYNTHESIS_OUTPUT" 2> "$TEMP_DIR/synthesis-error-attempt$attempt.log"; then
 
     # Validate output
     echo ""

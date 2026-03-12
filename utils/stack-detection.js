@@ -337,6 +337,20 @@ async function detectStackForWorkspace(workspacePath, metadata) {
     // 2. Detect all languages (supports polyglot repos)
     const { languages, detectionLog } = await detectLanguage(workspacePath);
 
+    // Add languages detected by file count that weren't detected by manifests
+    const detectedLanguageNames = new Set(languages.map(l => l.name));
+    for (const [langName, fileCount] of Object.entries(fileCounts)) {
+      if (fileCount >= 10 && !detectedLanguageNames.has(langName)) {
+        languages.push({
+          name: langName,
+          confidence: 'medium',
+          detectedBy: `${fileCount} ${langName} files found`,
+          paths: [workspacePath]
+        });
+        detectionLog.push(`✓ ${langName} detected (${fileCount} files, no manifest)`);
+      }
+    }
+
     // Merge file counts into language objects
     for (const lang of languages) {
       lang.file_count = fileCounts[lang.name] || 0;

@@ -102,7 +102,8 @@ if [ "$NEEDS_USER_INPUT" -eq 1 ]; then
     echo "Launching interactive questionnaire..."
     echo ""
 
-    if ! bash "$SKILL_DIR/scripts/helpers/ask-gap-questions.sh" "$CONSOLIDATION_FILE"; then
+    # Call Node directly
+    if ! node "$SKILL_DIR/scripts/helpers/ask-gap-questions.js" "$CONSOLIDATION_FILE"; then
       echo ""
       echo "❌ Error during gap questionnaire"
       echo ""

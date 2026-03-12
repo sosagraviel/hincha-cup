@@ -10,6 +10,29 @@
 set -e  # Exit on error
 set -o pipefail  # Exit on pipe failure
 
+# Track if we're already cleaning up to prevent double cleanup
+CLEANUP_IN_PROGRESS=false
+
+# Signal handler for CTRL+C - must kill entire process group
+cleanup() {
+    if [ "$CLEANUP_IN_PROGRESS" = true ]; then
+        return
+    fi
+    CLEANUP_IN_PROGRESS=true
+
+    echo ""
+    echo "Initialization interrupted. Cleaning up..."
+
+    # Kill entire process group (negative PID sends to all processes in group)
+    # This ensures all child processes (timeout, bash, claude) receive the signal
+    kill -TERM -$$ 2>/dev/null
+
+    exit 130
+}
+
+# Trap SIGINT and SIGTERM
+trap cleanup SIGINT SIGTERM
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -313,8 +336,11 @@ export KEEP_TEMP
 START_TIME=$(date +%s)
 
 # Run orchestration with or without timeout
+# Use --foreground flag with timeout to ensure proper signal propagation
 if [ "$USE_TIMEOUT" = "true" ]; then
-    if timeout ${TIMEOUT}s bash "$ORCHESTRATE_SCRIPT" "$PROJECT_PATH" "$FRAMEWORK_PATH"; then
+    # --foreground: don't create new process group, allows SIGINT to propagate
+    # --signal=TERM: send TERM on timeout (not KILL)
+    if timeout --foreground --signal=TERM ${TIMEOUT}s bash "$ORCHESTRATE_SCRIPT" "$PROJECT_PATH" "$FRAMEWORK_PATH"; then
         EXIT_CODE=0
     else
         EXIT_CODE=$?

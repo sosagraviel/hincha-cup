@@ -39,10 +39,30 @@ fi
 TEMP_DIR="$PROJECT_PATH/.claude-temp"
 mkdir -p "$TEMP_DIR"
 
-# Log file
+# Log file (logging disabled to prevent stdin/signal issues)
 LOG_FILE="$TEMP_DIR/initialization.log"
-exec 1> >(tee -a "$LOG_FILE")
-exec 2>&1
+
+# Track if we're already cleaning up
+CLEANUP_IN_PROGRESS=false
+
+# Signal handler for CTRL+C - propagate to process group
+cleanup() {
+    if [ "$CLEANUP_IN_PROGRESS" = true ]; then
+        return
+    fi
+    CLEANUP_IN_PROGRESS=true
+
+    echo ""
+    echo -e "${YELLOW}Initialization interrupted. Exiting...${NC}"
+
+    # Kill entire process group to ensure all children terminate
+    kill -TERM -$$ 2>/dev/null
+
+    exit 130
+}
+
+# Trap SIGINT (CTRL+C) and SIGTERM
+trap cleanup SIGINT SIGTERM
 
 echo "========================================================================"
 echo "  AI AGENTIC FRAMEWORK - PROJECT INITIALIZATION"

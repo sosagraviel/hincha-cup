@@ -94,6 +94,10 @@ function identifyGaps(analyses) {
           type: 'needs_verification',
           agent: analysis.agent_name,
           item: item.item,
+          // IMPORTANT: Preserve the 'question' field from agent output!
+          // This contains the actual question to ask the user.
+          // The agent prompts explicitly instruct agents to provide proper questions.
+          question: item.question,
           reason: item.reason,
           priority: 'medium'
         });
@@ -108,9 +112,9 @@ function identifyGaps(analyses) {
       gaps.push({
         type: 'sparse_findings',
         agent: analysis.agent_name,
-        count: findingsCount,
-        priority: 'low',
-        suggestion: 'Agent may need more detailed analysis'
+        item: `Sparse findings from ${analysis.agent_name}`,
+        reason: `Agent returned only ${findingsCount} finding categories`,
+        priority: 'low'
       });
     }
   });
@@ -240,10 +244,10 @@ function detectMissingLanguageCoverage(multiStack, merged) {
       if (!hasCoverage) {
         warnings.push({
           type: 'missing_language_coverage',
-          language: lang.name,
-          file_count: lang.file_count,
-          severity: 'critical',
-          message: `Language '${lang.name}' has ${lang.file_count} files but is not in consolidated findings`
+          agent: 'consolidation',
+          item: `${lang.name} language coverage`,
+          reason: `Language '${lang.name}' has ${lang.file_count} files but was not properly detected in the analysis`,
+          priority: 'high'
         });
       }
     }

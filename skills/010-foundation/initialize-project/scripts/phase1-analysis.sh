@@ -18,6 +18,36 @@ if [ -z "$PROJECT_PATH" ] || [ -z "$TEMP_DIR" ]; then
   exit 1
 fi
 
+# Track background PIDs for cleanup
+BACKGROUND_PIDS=()
+CLEANUP_IN_PROGRESS=false
+
+# Signal handler for CTRL+C - kill all background jobs
+cleanup() {
+    if [ "$CLEANUP_IN_PROGRESS" = true ]; then
+        return
+    fi
+    CLEANUP_IN_PROGRESS=true
+
+    echo ""
+    echo "Phase 1 interrupted. Stopping agents..."
+
+    # Kill all tracked background processes
+    for pid in "${BACKGROUND_PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            # Kill the entire process group of each background job
+            kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
+        fi
+    done
+
+    # Also kill any remaining jobs
+    jobs -p | xargs -r kill -TERM 2>/dev/null
+
+    exit 130
+}
+
+trap cleanup SIGINT SIGTERM
+
 echo "Phase 1: Analyzer Agents with Retry"
 echo "  Project: $PROJECT_PATH"
 echo "  Temp:    $TEMP_DIR"
@@ -83,10 +113,7 @@ run_agent() {
     return 1
   fi
 
-  echo "═══════════════════════════════════════════════════════════"
-  echo "Agent: $AGENT_NAME (running in parallel)"
-  echo "═══════════════════════════════════════════════════════════"
-  echo ""
+  printf "═══════════════════════════════════════════════════════════\nAgent: $AGENT_NAME (running in parallel)\n═══════════════════════════════════════════════════════════\n"
 
   local AGENT_CONTENT=$(cat "$AGENT_PATH")
   local attempt=1
@@ -148,7 +175,8 @@ Required JSON structure:
 $AGENT_CONTENT"
 
     # Run agent with 5 min timeout
-    if timeout 300s claude --model sonnet --dangerously-skip-permissions <<< "$PROMPT" > "$OUTPUT_FILE" 2> "$ERROR_FILE"; then
+    # Use --foreground to ensure SIGINT propagates properly to claude process
+    if timeout --foreground 300s claude --model sonnet --dangerously-skip-permissions <<< "$PROMPT" > "$OUTPUT_FILE" 2> "$ERROR_FILE"; then
 
       # Clean output (extract JSON if wrapped)
       local temp_file="${OUTPUT_FILE}.cleaned"
@@ -226,6 +254,7 @@ pids=()
 for agent_file in "${AGENTS[@]}"; do
   run_agent "$agent_file" &
   pids+=($!)
+  BACKGROUND_PIDS+=($!)
 done
 
 # Wait for all agents to complete

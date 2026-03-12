@@ -41,33 +41,21 @@ async function generateAgents(stackProfile, skillSelection, projectPath, templat
     total: 0
   };
 
-  // Ensure all languages with significant code (>10 files) are included
+  // Validate that stack detection properly included all significant languages
   const languagesFromProfile = getAllLanguages(stackProfile);
   const languagesFromFileCounts = Object.keys(stackProfile.file_counts || {})
     .filter(lang => stackProfile.file_counts[lang] >= 10);
 
-  // Find missing languages that have significant code
   const missingLanguages = languagesFromFileCounts.filter(
     lang => !languagesFromProfile.includes(lang)
   );
 
   if (missingLanguages.length > 0) {
-    console.warn(`⚠ WARNING: Languages with significant code but not in profile: ${missingLanguages.join(', ')}`);
-    console.warn(`  Auto-adding these languages to ensure agents are generated.`);
-
-    // Auto-add missing languages to stackProfile
-    if (!stackProfile.languages) {
-      stackProfile.languages = [];
-    }
-
-    missingLanguages.forEach(lang => {
-      stackProfile.languages.push({
-        name: lang,
-        confidence: 'detected_by_file_count',
-        file_count: stackProfile.file_counts[lang],
-        detectedBy: 'agent-generation validation'
-      });
-    });
+    console.error(`❌ ERROR: Languages with significant code missing from stack profile: ${missingLanguages.join(', ')}`);
+    console.error(`  This indicates a bug in stack detection. Languages must be detected during stack`);
+    console.error(`  detection phase, NOT auto-added during agent generation, to ensure skills are copied.`);
+    console.error(`  File counts: ${missingLanguages.map(l => `${l}(${stackProfile.file_counts[l]} files)`).join(', ')}`);
+    throw new Error(`Stack profile missing languages: ${missingLanguages.join(', ')}. Run stack detection again.`);
   }
 
   try {

@@ -26,10 +26,20 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["item", "reason"],
+        "required": ["item", "question"],
         "properties": {
-          "item": { "type": "string" },
-          "reason": { "type": "string" }
+          "item": {
+            "type": "string",
+            "description": "Short topic identifier (e.g., 'Test coverage thresholds')"
+          },
+          "question": {
+            "type": "string",
+            "description": "Clear, actionable question for the engineer to answer"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional context about why this needs verification"
+          }
         }
       },
       "maxItems": 3,

@@ -46,7 +46,11 @@ All agents output JSON validated against `config/schemas/phase1-analysis.schema.
     /* agent-specific findings */
   },
   "needs_verification": [
-    {"item": "description", "reason": "why"}
+    {
+      "item": "Short topic name",
+      "question": "Clear, actionable question for the engineer?",
+      "reason": "Brief context why this can't be determined from code"
+    }
   ]
 }
 ```
