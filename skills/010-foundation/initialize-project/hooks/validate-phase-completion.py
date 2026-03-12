@@ -151,10 +151,10 @@ def validate_phase4(project_path):
         # Check line count
         with open(claude_md, 'r') as f:
             lines = len(f.readlines())
-        if lines > 200:
-            errors.append(f"CLAUDE.md exceeds 200 lines: {lines}")
-        elif lines < 80:
-            warnings.append(f"CLAUDE.md under 80 lines: {lines}")
+        if lines > 250:
+            errors.append(f"CLAUDE.md exceeds 250 lines: {lines}")
+        elif lines < 30:
+            warnings.append(f"CLAUDE.md under 30 lines: {lines}")
 
     # Check project-context
     if not project_context.exists():
@@ -163,10 +163,10 @@ def validate_phase4(project_path):
         # Check line count
         with open(project_context, 'r') as f:
             lines = len(f.readlines())
-        if lines > 400:
-            errors.append(f"project-context exceeds 400 lines: {lines}")
-        elif lines < 250:
-            errors.append(f"project-context under 250 lines: {lines}")
+        if lines > 600:
+            errors.append(f"project-context exceeds 600 lines: {lines}")
+        elif lines < 50:
+            errors.append(f"project-context under 50 lines: {lines}")
 
     return {
         'valid': len(errors) == 0,

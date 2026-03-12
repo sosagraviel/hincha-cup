@@ -4,7 +4,7 @@
  * VALIDATE SYNTHESIS
  *
  * Validates Opus synthesizer output:
- * - Line count constraints (CLAUDE.md 30-200, project-context 50-800)
+ * - Line count constraints (CLAUDE.md 30-250, project-context 50-600)
  * - Section marker validation
  * - Frontmatter validation
  * - Required sections present
@@ -82,7 +82,7 @@ function validateClaudeMd(content, rules) {
   const lineCount = countLines(content);
 
   // Line count validation
-  const lineRules = rules.claude_md?.line_count || { min: 80, max: 200, target: 120 };
+  const lineRules = rules.claude_md?.line_count || { min: 30, max: 250, target: 120 };
   if (lineCount > lineRules.max) {
     errors.push({
       type: 'line_count_exceeded',
@@ -161,7 +161,7 @@ function validateProjectContext(content, rules) {
   const lineCount = countLines(content);
 
   // Line count validation
-  const lineRules = rules.project_context?.line_count || { min: 50, max: 800, target: 300 };
+  const lineRules = rules.project_context?.line_count || { min: 50, max: 600, target: 300 };
 
   if (lineCount > lineRules.max) {
     errors.push({

@@ -4,7 +4,7 @@
     "claude_md": {
       "line_count": {
         "min": 30,
-        "max": 200,
+        "max": 250,
         "target": 120,
         "action_on_exceed": "truncate_smart"
       },
@@ -24,8 +24,8 @@
     },
     "project_context": {
       "line_count": {
-        "min": 250,
-        "max": 400,
+        "min": 50,
+        "max": 600,
         "target": 300,
         "action_on_exceed": "truncate_smart",
         "action_on_below_min": "fail"

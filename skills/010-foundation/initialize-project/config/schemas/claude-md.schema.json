@@ -12,9 +12,9 @@
     },
     "line_count": {
       "type": "integer",
-      "minimum": 80,
-      "maximum": 200,
-      "description": "CLAUDE.md must be 80-200 lines"
+      "minimum": 30,
+      "maximum": 250,
+      "description": "CLAUDE.md must be 30-250 lines"
     },
     "sections": {
       "type": "object",

@@ -4,7 +4,7 @@
  * WRITE CLAUDE.MD
  *
  * Writes CLAUDE.md to project with validation
- * - Line count check (< 200 lines)
+ * - Line count check (< 250 lines)
  * - Format validation
  * - Backup existing file
  * - Write to .claude/CLAUDE.md
@@ -17,7 +17,7 @@ const path = require('path');
 /**
  * Validate CLAUDE.md content before writing
  */
-function validateContent(content, maxLines = 200) {
+function validateContent(content, maxLines = 250) {
   const errors = [];
   const warnings = [];
 
@@ -88,7 +88,7 @@ function backupExisting(filePath) {
  */
 function writeClaudeMd(content, projectPath, options = {}) {
   const {
-    maxLines = 200,
+    maxLines = 250,
     validate = true,
     backup = true,
     dryRun = false

@@ -109,12 +109,12 @@ echo "✓ project-context: $CONTEXT_LINES lines"
 echo ""
 
 # Check ranges
-if [ "$CLAUDE_LINES" -lt 30 ] || [ "$CLAUDE_LINES" -gt 200 ]; then
-  echo "⚠ WARNING: CLAUDE.md outside 30-200 line range (actual: $CLAUDE_LINES)"
+if [ "$CLAUDE_LINES" -lt 30 ] || [ "$CLAUDE_LINES" -gt 250 ]; then
+  echo "⚠ WARNING: CLAUDE.md outside 30-250 line range (actual: $CLAUDE_LINES)"
 fi
 
-if [ "$CONTEXT_LINES" -lt 50 ] || [ "$CONTEXT_LINES" -gt 800 ]; then
-  echo "⚠ WARNING: project-context outside 50-800 line range (actual: $CONTEXT_LINES)"
+if [ "$CONTEXT_LINES" -lt 50 ] || [ "$CONTEXT_LINES" -gt 600 ]; then
+  echo "⚠ WARNING: project-context outside 50-600 line range (actual: $CONTEXT_LINES)"
 fi
 
 echo "✅ Phase 4 validation complete"

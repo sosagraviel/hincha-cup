@@ -31,8 +31,8 @@
     "line_count": {
       "type": "integer",
       "minimum": 50,
-      "maximum": 800,
-      "description": "project-context must be 50-800 lines"
+      "maximum": 600,
+      "description": "project-context must be 50-600 lines"
     },
     "sections": {
       "type": "object",
