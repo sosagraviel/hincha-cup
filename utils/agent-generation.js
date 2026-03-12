@@ -319,42 +319,51 @@ async function generatePlannerAgent(templatesPath, skills) {
  * Generate implementer agent for a specific language
  */
 async function generateImplementerAgent(templatesPath, stackProfile, skills, commands, language) {
-  const templatePath = path.join(templatesPath, 'implementer.template.md');
+  // Try language-specific template first
+  let templatePath = path.join(templatesPath, language, 'implementer.template.md');
   let content = await readFile(templatePath);
+
+  // Fallback to shared template if language-specific not found
+  if (!content) {
+    console.warn(`Language-specific implementer template not found for ${language}, using shared template`);
+    templatePath = path.join(templatesPath, 'shared', 'implementer.template.md');
+    content = await readFile(templatePath);
+
+    // If shared also doesn't exist, try old universal template for backward compatibility
+    if (!content) {
+      templatePath = path.join(templatesPath, 'implementer.template.md');
+      content = await readFile(templatePath);
+    }
+  }
 
   if (!content) {
     console.warn('Implementer template not found');
     return null;
   }
 
+  // Get framework patterns for injection
+  const frameworkPatterns = await getFrameworkPatterns(templatesPath, stackProfile, language);
+
   // Perform variable substitution
   content = content.replace(/\{\{stack\}\}/g, language);
   content = content.replace(/\{\{skills\}\}/g, formatSkillsList(skills));
-  content = content.replace(/\{\{lint_command\}\}/g, commands.lint_command || 'echo "No lint command"');
-  content = content.replace(/\{\{format_command\}\}/g, commands.format_command || 'echo "No format command"');
-  content = content.replace(/\{\{type_check_command\}\}/g, commands.type_check_command || 'echo "No type check"');
-  content = content.replace(/\{\{unit_test_command\}\}/g, commands.unit_test_command || 'echo "No test command"');
-  content = content.replace(/\{\{build_command\}\}/g, commands.build_command || 'echo "No build command"');
+  content = content.replace(/\{\{lint_command\}\}/g, commands.lint_command || getDefaultLintCommand(language));
+  content = content.replace(/\{\{format_command\}\}/g, commands.format_command || getDefaultFormatCommand(language));
+  content = content.replace(/\{\{typecheck_command\}\}/g, commands.type_check_command || getDefaultTypecheckCommand(language));
+  content = content.replace(/\{\{test_command\}\}/g, commands.unit_test_command || getDefaultTestCommand(language));
+  content = content.replace(/\{\{build_command\}\}/g, commands.build_command || getDefaultBuildCommand(language));
 
   content = content.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(skills));
 
+  // Inject framework-specific patterns
+  content = content.replace(/\{\{framework_patterns\}\}/g, frameworkPatterns);
+
+  // Legacy stack patterns (kept for backward compatibility with old templates)
   const stackPatterns = getStackSpecificPatterns(stackProfile, language);
   content = content.replace(/\{\{stack_specific_patterns\}\}/g, stackPatterns);
 
-  // Inject framework-specific patterns
-  if (stackProfile.backend_frameworks && stackProfile.backend_frameworks.length > 0) {
-    const framework = stackProfile.backend_frameworks[0].name;
-    if (framework === 'nestjs') {
-      content = injectNestJSPatterns(content);
-    } else if (framework === 'fastapi') {
-      content = injectFastAPIPatterns(content);
-    } else if (framework === 'django') {
-      content = injectDjangoPatterns(content);
-    }
-  }
-
   // Validate template substitution
-  validateTemplateSubstitution(content, 'implementer.template.md');
+  validateTemplateSubstitution(content, `${language}/implementer.template.md`);
 
   return {
     name: `implementer-${language}`,
@@ -374,44 +383,61 @@ async function generateTesterAgents(templatesPath, stackProfile, commands, langu
   // Resolve tester-specific skills
   const unitSkills = resolveAgentSkills(`tester-unit-${language}`, stackProfile);
 
-  // Unit + Integration tester
-  const unitTemplatePath = path.join(templatesPath, 'tester-unit.template.md');
+  // Try language-specific unit tester template first
+  let unitTemplatePath = path.join(templatesPath, language, 'tester-unit.template.md');
   let unitContent = await readFile(unitTemplatePath);
 
+  // Fallback to shared template if language-specific not found
+  if (!unitContent) {
+    console.warn(`Language-specific tester-unit template not found for ${language}, using shared template`);
+    unitTemplatePath = path.join(templatesPath, 'shared', 'tester-unit.template.md');
+    unitContent = await readFile(unitTemplatePath);
+
+    // If shared also doesn't exist, try old universal template for backward compatibility
+    if (!unitContent) {
+      unitTemplatePath = path.join(templatesPath, 'tester-unit.template.md');
+      unitContent = await readFile(unitTemplatePath);
+    }
+  }
+
   if (unitContent) {
+    // Get framework patterns for injection
+    const frameworkPatterns = await getFrameworkPatterns(templatesPath, stackProfile, language);
+
     // Perform variable substitution
     unitContent = unitContent.replace(/\{\{stack\}\}/g, language);
     unitContent = unitContent.replace(/\{\{skills\}\}/g, formatSkillsList(unitSkills));
-    unitContent = unitContent.replace(/\{\{test_framework\}\}/g, commands.test_framework || 'jest');
-    unitContent = unitContent.replace(/\{\{unit_test_command\}\}/g, commands.unit_test_command || 'npm test');
-    unitContent = unitContent.replace(/\{\{integration_test_command\}\}/g, commands.integration_test_command || commands.unit_test_command);
-    unitContent = unitContent.replace(/\{\{coverage_command\}\}/g, commands.coverage_command || 'npm test -- --coverage');
+    unitContent = unitContent.replace(/\{\{test_command\}\}/g, commands.unit_test_command || getDefaultTestCommand(language));
+    unitContent = unitContent.replace(/\{\{e2e_command\}\}/g, commands.e2e_test_command || getDefaultE2ECommand(language));
 
     unitContent = unitContent.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(unitSkills));
 
+    // Inject framework-specific patterns
+    unitContent = unitContent.replace(/\{\{framework_patterns\}\}/g, frameworkPatterns);
+
+    // Legacy test patterns (kept for backward compatibility with old templates)
     const testPatterns = getStackTestPatterns(stackProfile, language);
     unitContent = unitContent.replace(/\{\{stack_test_patterns\}\}/g, testPatterns);
 
-    // File extension and integration test framework
-    const fileExtension = (language === 'typescript' || language === 'javascript') ? 'typescript' : 'python';
-    unitContent = unitContent.replace(/\{\{file_extension\}\}/g, fileExtension);
-    unitContent = unitContent.replace(/\{\{integration_test_framework\}\}/g, commands.test_framework || 'jest');
+    // Legacy variables (kept for backward compatibility)
+    unitContent = unitContent.replace(/\{\{test_framework\}\}/g, commands.test_framework || getDefaultTestFramework(language));
+    unitContent = unitContent.replace(/\{\{unit_test_command\}\}/g, commands.unit_test_command || getDefaultTestCommand(language));
+    unitContent = unitContent.replace(/\{\{integration_test_command\}\}/g, commands.integration_test_command || getDefaultTestCommand(language));
+    unitContent = unitContent.replace(/\{\{coverage_command\}\}/g, commands.coverage_command || getDefaultCoverageCommand(language));
+    unitContent = unitContent.replace(/\{\{test_file_command\}\}/g, `${commands.unit_test_command || getDefaultTestCommand(language)} <test-file>`);
+    unitContent = unitContent.replace(/\{\{test_watch_command\}\}/g, `${commands.unit_test_command || getDefaultTestCommand(language)} --watch`);
+    unitContent = unitContent.replace(/\{\{test_integration_command\}\}/g, commands.integration_test_command || getDefaultTestCommand(language));
 
-    // Test commands
-    unitContent = unitContent.replace(/\{\{test_command\}\}/g, commands.unit_test_command || 'npm test');
-    unitContent = unitContent.replace(/\{\{test_file_command\}\}/g, `${commands.unit_test_command || 'npm test'} -- <test-file>`);
-    unitContent = unitContent.replace(/\{\{test_watch_command\}\}/g, `${commands.unit_test_command || 'npm test'} -- --watch`);
-    unitContent = unitContent.replace(/\{\{test_integration_command\}\}/g, commands.integration_test_command || commands.unit_test_command);
-    unitContent = unitContent.replace(/\{\{coverage_view_command\}\}/g,
-      (language === 'typescript' || language === 'javascript')
-        ? 'open coverage/lcov-report/index.html'
-        : 'open htmlcov/index.html'
-    );
+    // File extension and integration test framework
+    const fileExtension = (language === 'typescript' || language === 'javascript') ? 'typescript' : language;
+    unitContent = unitContent.replace(/\{\{file_extension\}\}/g, fileExtension);
+    unitContent = unitContent.replace(/\{\{integration_test_framework\}\}/g, commands.test_framework || getDefaultTestFramework(language));
+    unitContent = unitContent.replace(/\{\{coverage_view_command\}\}/g, getDefaultCoverageViewCommand(language));
 
     // Test file patterns
     if (language === 'typescript' || language === 'javascript') {
       unitContent = unitContent.replace(/\{\{test_file_pattern\}\}/g, '*.spec.ts or *.test.ts');
-      unitContent = unitContent.replace(/\{\{mock_library\}\}/g, 'jest.fn(), jest.mock()');
+      unitContent = unitContent.replace(/\{\{mock_library\}\}/g, 'vitest.fn(), vitest.mock()');
       unitContent = unitContent.replace(/\{\{assertion_style\}\}/g, 'expect(value).toBe(expected)');
     } else if (language === 'python') {
       unitContent = unitContent.replace(/\{\{test_file_pattern\}\}/g, 'test_*.py or *_test.py');
@@ -1328,6 +1354,187 @@ function getCategoryForAgent(agentName, generation) {
   if (generation.verification.find(a => a.name === agentName)) return 'verification';
   if (generation.documentation.find(a => a.name === agentName)) return 'documentation';
   return 'unknown';
+}
+
+// ============================================================================
+// Language-Specific Template Support Functions
+// ============================================================================
+
+/**
+ * Get framework patterns for injection into templates
+ * @param {string} templatesPath - Path to templates directory
+ * @param {Object} stackProfile - Stack profile
+ * @param {string} language - Programming language
+ * @returns {Promise<string>} Framework patterns content
+ */
+async function getFrameworkPatterns(templatesPath, stackProfile, language) {
+  let patterns = '';
+
+  // Backend framework patterns
+  if (stackProfile.backend_frameworks && stackProfile.backend_frameworks.length > 0) {
+    const framework = stackProfile.backend_frameworks[0].name.toLowerCase();
+    const frameworkPath = path.join(templatesPath, 'base', 'framework-patterns', `${framework}.md`);
+    const frameworkContent = await readFile(frameworkPath);
+    if (frameworkContent) {
+      patterns += frameworkContent;
+    }
+  }
+
+  // Frontend framework patterns
+  if (stackProfile.frontend_frameworks && stackProfile.frontend_frameworks.length > 0) {
+    const framework = stackProfile.frontend_frameworks[0].name.toLowerCase();
+    const frameworkPath = path.join(templatesPath, 'base', 'framework-patterns', `${framework}.md`);
+    const frameworkContent = await readFile(frameworkPath);
+    if (frameworkContent) {
+      patterns += '\n\n' + frameworkContent;
+    }
+  }
+
+  return patterns;
+}
+
+/**
+ * Get default lint command for language
+ * @param {string} language - Programming language
+ * @returns {string} Default lint command
+ */
+function getDefaultLintCommand(language) {
+  const defaults = {
+    'typescript': 'npx eslint . --ext .ts,.tsx',
+    'javascript': 'npx eslint . --ext .js,.jsx',
+    'python': 'ruff check .',
+    'go': 'golangci-lint run',
+    'rust': 'cargo clippy'
+  };
+  return defaults[language] || 'echo "No lint command configured"';
+}
+
+/**
+ * Get default format command for language
+ * @param {string} language - Programming language
+ * @returns {string} Default format command
+ */
+function getDefaultFormatCommand(language) {
+  const defaults = {
+    'typescript': 'npx prettier --write .',
+    'javascript': 'npx prettier --write .',
+    'python': 'ruff format .',
+    'go': 'go fmt ./...',
+    'rust': 'cargo fmt'
+  };
+  return defaults[language] || 'echo "No format command configured"';
+}
+
+/**
+ * Get default typecheck command for language
+ * @param {string} language - Programming language
+ * @returns {string} Default typecheck command
+ */
+function getDefaultTypecheckCommand(language) {
+  const defaults = {
+    'typescript': 'npx tsc --noEmit',
+    'javascript': 'echo "No type checking for JavaScript"',
+    'python': 'mypy .',
+    'go': 'go vet ./...',
+    'rust': 'cargo check'
+  };
+  return defaults[language] || 'echo "No type check command configured"';
+}
+
+/**
+ * Get default test command for language
+ * @param {string} language - Programming language
+ * @returns {string} Default test command
+ */
+function getDefaultTestCommand(language) {
+  const defaults = {
+    'typescript': 'npm test',
+    'javascript': 'npm test',
+    'python': 'pytest tests/',
+    'go': 'go test ./...',
+    'rust': 'cargo test'
+  };
+  return defaults[language] || 'echo "No test command configured"';
+}
+
+/**
+ * Get default build command for language
+ * @param {string} language - Programming language
+ * @returns {string} Default build command
+ */
+function getDefaultBuildCommand(language) {
+  const defaults = {
+    'typescript': 'npm run build',
+    'javascript': 'npm run build',
+    'python': 'echo "Python does not require build"',
+    'go': 'go build ./...',
+    'rust': 'cargo build'
+  };
+  return defaults[language] || 'echo "No build command configured"';
+}
+
+/**
+ * Get default test framework for language
+ * @param {string} language - Programming language
+ * @returns {string} Default test framework
+ */
+function getDefaultTestFramework(language) {
+  const defaults = {
+    'typescript': 'vitest',
+    'javascript': 'vitest',
+    'python': 'pytest',
+    'go': 'testing',
+    'rust': 'cargo test'
+  };
+  return defaults[language] || 'unknown';
+}
+
+/**
+ * Get default E2E test command for language
+ * @param {string} language - Programming language
+ * @returns {string} Default E2E test command
+ */
+function getDefaultE2ECommand(language) {
+  const defaults = {
+    'typescript': 'npx playwright test',
+    'javascript': 'npx playwright test',
+    'python': 'pytest tests/e2e/',
+    'go': 'go test ./e2e/...',
+    'rust': 'cargo test --test e2e'
+  };
+  return defaults[language] || 'echo "No E2E command configured"';
+}
+
+/**
+ * Get default coverage command for language
+ * @param {string} language - Programming language
+ * @returns {string} Default coverage command
+ */
+function getDefaultCoverageCommand(language) {
+  const defaults = {
+    'typescript': 'npm test -- --coverage',
+    'javascript': 'npm test -- --coverage',
+    'python': 'pytest --cov=src --cov-report=html',
+    'go': 'go test -cover ./...',
+    'rust': 'cargo tarpaulin'
+  };
+  return defaults[language] || 'echo "No coverage command configured"';
+}
+
+/**
+ * Get default coverage view command for language
+ * @param {string} language - Programming language
+ * @returns {string} Default coverage view command
+ */
+function getDefaultCoverageViewCommand(language) {
+  const defaults = {
+    'typescript': 'open coverage/index.html',
+    'javascript': 'open coverage/index.html',
+    'python': 'open htmlcov/index.html',
+    'go': 'go tool cover -html=coverage.out',
+    'rust': 'open tarpaulin-report.html'
+  };
+  return defaults[language] || 'echo "Open coverage report"';
 }
 
 // ============================================================================
