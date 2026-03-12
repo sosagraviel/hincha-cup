@@ -127,7 +127,7 @@ Please fix these issues and provide valid JSON output."
     fi
 
     # Run agent with timeout
-    if timeout --foreground 120s claude --model haiku --dangerously-skip-permissions > "$CONSOLIDATION_OUTPUT" 2> "$TEMP_DIR/consolidation-error.log" <<< "$PROMPT"; then
+    if timeout --foreground 120s claude --model sonnet --dangerously-skip-permissions > "$CONSOLIDATION_OUTPUT" 2> "$TEMP_DIR/consolidation-error.log" <<< "$PROMPT"; then
 
       # Validate output
       if node "$VALIDATOR" "$CONSOLIDATION_OUTPUT" "question-consolidation" "$SCHEMA_DIR" > "$TEMP_DIR/consolidation-validation.log" 2>&1; then
