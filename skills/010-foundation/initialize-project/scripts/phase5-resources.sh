@@ -39,6 +39,7 @@ echo "Step 2: Selecting and copying skills..."
 
 node -e "
 const skillSelection = require('$FRAMEWORK_PATH/utils/skill-selection.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
 const fs = require('fs');
 
 async function main() {
@@ -48,8 +49,8 @@ async function main() {
     console.log('Selecting skills based on stack...');
     const selection = await skillSelection.selectSkills(stackProfile, '$FRAMEWORK_PATH');
 
-    console.log('Copying skills to project...');
-    const result = await skillSelection.copySkills(selection, '$PROJECT_PATH');
+    console.log('Copying skills to project with tracking...');
+    const result = await skillSelection.copySkillsWithTracking(selection, '$PROJECT_PATH', '$FRAMEWORK_PATH');
 
     console.log('✓ Copied', result.copied.length, 'skills');
     if (result.errors.length > 0) {
@@ -58,6 +59,14 @@ async function main() {
         console.error('  -', err.name, ':', err.error);
       });
     }
+
+    // Update config with skill tracking metadata
+    console.log('Updating framework config with skill metadata...');
+    const configUpdater = new ConfigUpdater('$PROJECT_PATH', '$FRAMEWORK_PATH');
+    const config = await configUpdater.readConfig();
+    config.resource_state.skills = result.skillsTracking;
+    await configUpdater.writeConfig(config);
+    console.log('✓ Skill tracking metadata saved');
 
     // Generate skill index
     console.log('Generating skill index...');
@@ -84,6 +93,7 @@ echo "Step 3: Generating agents..."
 
 node -e "
 const agentGen = require('$FRAMEWORK_PATH/utils/agent-generation.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -91,33 +101,40 @@ async function main() {
   try {
     const stackProfile = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude-temp/stack-profile.json', 'utf-8'));
 
-    console.log('Generating agents for detected languages...');
+    console.log('Generating agents for detected languages with tracking...');
 
     // Template directory
     const templateDir = path.join('$FRAMEWORK_PATH', 'agents', 'templates');
 
-    // Generate agents
-    const agents = await agentGen.generateAgents(
+    // Generate agents with tracking
+    const result = await agentGen.generateAgentsWithTracking(
       stackProfile,
       {},
       '$PROJECT_PATH',
-      templateDir
+      templateDir,
+      '$FRAMEWORK_PATH'
     );
 
-    console.log('Writing agents to project...');
-    const result = await agentGen.writeAgents(agents, '$PROJECT_PATH');
-
-    console.log('✓ Generated', result.written.length, 'agents');
-    if (result.errors.length > 0) {
-      console.log('⚠ Failed to write', result.errors.length, 'agents');
-      result.errors.forEach(err => {
+    console.log('✓ Generated', result.writeResult.written.length, 'agents');
+    if (result.writeResult.errors.length > 0) {
+      console.log('⚠ Failed to write', result.writeResult.errors.length, 'agents');
+      result.writeResult.errors.forEach(err => {
         console.error('  -', err.name, ':', err.error);
       });
     }
 
+    // Update config with agent tracking metadata
+    console.log('Updating framework config with agent metadata...');
+    const configUpdater = new ConfigUpdater('$PROJECT_PATH', '$FRAMEWORK_PATH');
+    const config = await configUpdater.readConfig();
+    config.resource_state.agents = result.agentsTracking;
+    await configUpdater.writeConfig(config);
+    console.log('✓ Agent tracking metadata saved');
+
     // Generate agent index
     console.log('Generating agent index...');
-    await agentGen.generateAgentIndex(agents, '$PROJECT_PATH');
+    const indexContent = await agentGen.generateAgentIndex(result.generation, '$PROJECT_PATH');
+    fs.writeFileSync(path.join('$PROJECT_PATH', '.claude', 'agents', 'INDEX.md'), indexContent);
     console.log('✓ Agent index generated');
 
     process.exit(0);
@@ -145,6 +162,45 @@ find "$FRAMEWORK_PATH/commands" -name "*.md" ! -name "initialize-project.md" -ex
 
 COMMAND_COUNT=$(find "$PROJECT_PATH/.claude/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
 echo "✓ $COMMAND_COUNT commands available"
+
+# Update config with command tracking
+node -e "
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
+const fs = require('fs');
+const path = require('path');
+
+async function main() {
+  try {
+    const configUpdater = new ConfigUpdater('$PROJECT_PATH', '$FRAMEWORK_PATH');
+    const config = await configUpdater.readConfig();
+
+    const commandsDir = path.join('$PROJECT_PATH', '.claude', 'commands');
+    const commandFiles = fs.readdirSync(commandsDir).filter(f => f.endsWith('.md'));
+
+    for (const file of commandFiles) {
+      const commandName = file.replace('.md', '');
+      const sourcePath = path.join('$FRAMEWORK_PATH', 'commands', file);
+
+      if (fs.existsSync(sourcePath)) {
+        config.resource_state.commands[commandName] = {
+          source_path: path.relative('$FRAMEWORK_PATH', sourcePath),
+          copied_timestamp: new Date().toISOString()
+        };
+      }
+    }
+
+    await configUpdater.writeConfig(config);
+    console.log('✓ Command tracking metadata saved');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error tracking commands:', error);
+    process.exit(1);
+  }
+}
+
+main();
+"
+
 echo ""
 
 # ============================================================================

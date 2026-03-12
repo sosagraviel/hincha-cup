@@ -80,6 +80,30 @@ orchestrate-initialization.sh
 
 ## Quick Start
 
+> ⚠️ **CRITICAL: .gitignore Setup Required**
+>
+> Before running initialization, you **MUST** add these directories to your `.gitignore`:
+>
+> ```gitignore
+> # AI Agentic Framework - Temporary and backup files
+> .claude-temp/
+> .claude-backups/
+> ```
+>
+> **Why this matters:**
+> - `.claude-temp/` contains temporary analysis files (can be 10+ MB)
+> - `.claude-backups/` stores versioned backups of skills/agents
+> - Both directories are regenerated automatically
+> - Committing them will pollute your git history
+> - Team members will get merge conflicts on every sync
+>
+> **What to commit:**
+> - ✅ `.claude/CLAUDE.md` (project quick reference)
+> - ✅ `.claude/framework-config.json` (persistent configuration)
+> - ✅ `.claude/skills/project-context/` (project-specific knowledge)
+> - ❌ `.claude-temp/` (temporary analysis files)
+> - ❌ `.claude-backups/` (versioned backups)
+
 ### Basic Usage
 
 ```bash
