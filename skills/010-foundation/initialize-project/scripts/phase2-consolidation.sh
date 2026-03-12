@@ -70,7 +70,132 @@ echo "  Conflicts detected: $CONFLICTS_COUNT"
 echo ""
 
 # ============================================================================
-# STEP 3: USER QUESTIONS (if needed)
+# STEP 3: QUESTION CONSOLIDATION (NEW)
+# ============================================================================
+
+# Only run consolidation if we have gaps
+if [ "$GAPS_COUNT" -gt 1 ]; then
+  echo "Step 3: Consolidating similar questions..."
+  echo "  Running AI-powered question consolidation agent..."
+  echo ""
+
+  CONSOLIDATION_AGENT="$SKILL_DIR/agents/06-question-consolidator.md"
+  CONSOLIDATION_OUTPUT="$TEMP_DIR/question-consolidation.json"
+  VALIDATOR="$SKILL_DIR/utils/validators/validate-agent-output.js"
+  SCHEMA_DIR="$SKILL_DIR/config/schemas"
+
+  MAX_ATTEMPTS=3
+  attempt=1
+  SUCCESS=false
+
+  # Extract agent content (skip YAML frontmatter)
+  AGENT_CONTENT=$(sed -n '/^---$/,/^---$/!p' "$CONSOLIDATION_AGENT" | tail -n +2)
+
+  while [ $attempt -le $MAX_ATTEMPTS ] && [ "$SUCCESS" = false ]; do
+    echo "  Consolidation attempt $attempt of $MAX_ATTEMPTS..."
+
+    # Get current gaps from consolidation file
+    GAPS_JSON=$(node -e "
+      const fs = require('fs');
+      const data = JSON.parse(fs.readFileSync('$CONSOLIDATION_FILE', 'utf-8'));
+      console.log(JSON.stringify(data.gaps || [], null, 2));
+    ")
+
+    # Build prompt
+    PROMPT="You are the question-consolidator agent.
+
+CRITICAL: Follow ALL instructions in the agent file below.
+Output ONLY valid JSON starting with { and ending with }
+Do NOT wrap in markdown code blocks or add ANY text before/after the JSON
+
+=== INPUT DATA ===
+Current gaps that need consolidation:
+$GAPS_JSON
+
+=== AGENT INSTRUCTIONS ===
+$AGENT_CONTENT"
+
+    # Add validation feedback if this is a retry
+    if [ $attempt -gt 1 ] && [ -f "$TEMP_DIR/consolidation-validation-error.log" ]; then
+      VALIDATION_ERROR=$(cat "$TEMP_DIR/consolidation-validation-error.log")
+      PROMPT="$PROMPT
+
+CRITICAL: Your previous attempt failed validation with these errors:
+$VALIDATION_ERROR
+
+Please fix these issues and provide valid JSON output."
+    fi
+
+    # Run agent with timeout
+    if timeout --foreground 120s claude --model haiku --dangerously-skip-permissions > "$CONSOLIDATION_OUTPUT" 2> "$TEMP_DIR/consolidation-error.log" <<< "$PROMPT"; then
+
+      # Validate output
+      if node "$VALIDATOR" "$CONSOLIDATION_OUTPUT" "question-consolidation" "$SCHEMA_DIR" > "$TEMP_DIR/consolidation-validation.log" 2>&1; then
+        echo "  ✓ Consolidation successful and validated"
+        SUCCESS=true
+
+        # Integrate consolidated gaps back into consolidation.json
+        node -e "
+          const fs = require('fs');
+          const consolidation = JSON.parse(fs.readFileSync('$CONSOLIDATION_FILE', 'utf-8'));
+          const consolidatedOutput = JSON.parse(fs.readFileSync('$CONSOLIDATION_OUTPUT', 'utf-8'));
+
+          // Replace gaps with consolidated version
+          consolidation.gaps = consolidatedOutput.consolidated_gaps;
+
+          // Add consolidation metadata
+          consolidation.question_consolidation = consolidatedOutput.consolidation_metadata;
+
+          // Save
+          fs.writeFileSync('$CONSOLIDATION_FILE', JSON.stringify(consolidation, null, 2));
+          console.log('  ✓ Consolidated gaps integrated into consolidation.json');
+        "
+
+      else
+        # Validation failed
+        cat "$TEMP_DIR/consolidation-validation.log" > "$TEMP_DIR/consolidation-validation-error.log"
+        echo "  ✗ Consolidation output failed validation (attempt $attempt)"
+        if [ $attempt -lt $MAX_ATTEMPTS ]; then
+          echo "  Retrying with validation feedback..."
+        fi
+      fi
+    else
+      echo "  ✗ Consolidation agent execution failed (attempt $attempt)"
+      if [ -f "$TEMP_DIR/consolidation-error.log" ]; then
+        cat "$TEMP_DIR/consolidation-error.log" | head -20
+      fi
+    fi
+
+    attempt=$((attempt + 1))
+  done
+
+  if [ "$SUCCESS" = false ]; then
+    echo ""
+    echo "  ⚠ WARNING: Question consolidation failed after $MAX_ATTEMPTS attempts"
+    echo "  Proceeding with original unconsolidated gaps"
+    echo ""
+  else
+    # Update gaps count after consolidation
+    CONSOLIDATED_GAPS_COUNT=$(node -e "
+      const fs = require('fs');
+      const data = JSON.parse(fs.readFileSync('$CONSOLIDATION_FILE', 'utf-8'));
+      console.log(data.gaps?.length || 0);
+    ")
+    echo "  Questions after consolidation: $CONSOLIDATED_GAPS_COUNT (was $GAPS_COUNT)"
+    GAPS_COUNT=$CONSOLIDATED_GAPS_COUNT
+  fi
+
+  echo ""
+elif [ "$GAPS_COUNT" -eq 1 ]; then
+  echo "Step 3: Only 1 gap found - skipping consolidation"
+  echo ""
+else
+  echo "Step 3: No gaps found - skipping consolidation"
+  echo ""
+fi
+
+# ============================================================================
+# STEP 4: USER QUESTIONS (if needed)
 # ============================================================================
 
 NEEDS_USER_INPUT=0
@@ -124,10 +249,10 @@ else
 fi
 
 # ============================================================================
-# STEP 4: FINALIZE CONSOLIDATION
+# STEP 5: FINALIZE CONSOLIDATION
 # ============================================================================
 
-echo "Step 3: Finalizing consolidation..."
+echo "Step 4: Finalizing consolidation..."
 
 # Verify consolidation file is ready
 if [ ! -f "$CONSOLIDATION_FILE" ]; then
