@@ -16,6 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const {
   resolveAgentSkills,
   getPrimaryLanguage,
@@ -1101,6 +1102,235 @@ async function readPackageJson(projectPath) {
 }
 
 // ============================================================================
+// Tracking Methods (for Framework Sync)
+// ============================================================================
+
+/**
+ * Generate agents with tracking metadata for framework-config.json
+ * @param {Object} stackProfile - Stack profile from stack-detection.js
+ * @param {Object} skillSelection - Selected skills from skill-selection.js
+ * @param {string} projectPath - Absolute path to project root
+ * @param {string} templatesPath - Path to agent templates directory
+ * @param {string} frameworkPath - Path to framework root
+ * @returns {Promise<Object>} { generation, agentsTracking }
+ */
+async function generateAgentsWithTracking(stackProfile, skillSelection, projectPath, templatesPath, frameworkPath) {
+  const generation = await generateAgents(stackProfile, skillSelection, projectPath, templatesPath);
+
+  const agentsTracking = {};
+  const timestamp = new Date().toISOString();
+
+  const allAgents = [
+    ...generation.planning,
+    ...generation.implementation,
+    ...generation.testing,
+    ...generation.review,
+    ...generation.verification,
+    ...generation.documentation
+  ];
+
+  for (const agent of allAgents) {
+    const templatePath = getTemplatePathForAgent(agent.name, templatesPath, frameworkPath);
+    const templateHash = hashFile(templatePath);
+
+    const agentPath = path.join(projectPath, '.claude', 'agents', agent.filename);
+
+    agentsTracking[agent.name] = {
+      template_path: path.relative(frameworkPath, templatePath),
+      generated_timestamp: timestamp,
+      template_hash: templateHash,
+      file_hash: null,
+      managed_by_framework: true,
+      user_modified: false,
+      language: agent.name.includes('-') ? agent.name.split('-')[1] : null,
+      category: getCategoryForAgent(agent.name, generation),
+      last_sync: timestamp
+    };
+  }
+
+  const writeResult = await writeAgents(generation, projectPath);
+
+  for (const written of writeResult.written) {
+    if (agentsTracking[written.name]) {
+      agentsTracking[written.name].file_hash = hashFile(written.path);
+    }
+  }
+
+  return {
+    generation,
+    agentsTracking,
+    writeResult
+  };
+}
+
+/**
+ * Regenerate a single agent (used by sync script when template changes)
+ * @param {string} agentName - Name of agent to regenerate
+ * @param {string} projectPath - Absolute path to project root
+ * @param {string} frameworkPath - Path to framework root
+ * @returns {Promise<Object>} { success, agent, tracking }
+ */
+async function regenerateSingleAgent(agentName, projectPath, frameworkPath) {
+  const { ConfigUpdater } = require('./config-updater.js');
+  const configUpdater = new ConfigUpdater(projectPath, frameworkPath);
+
+  try {
+    const config = await configUpdater.readConfig();
+    const agentInfo = config.resource_state.agents[agentName];
+
+    if (!agentInfo) {
+      throw new Error(`Agent ${agentName} not found in config`);
+    }
+
+    if (!agentInfo.managed_by_framework) {
+      console.log(`Skipping ${agentName} - user-managed agent`);
+      return { success: false, skipped: true, reason: 'user-managed' };
+    }
+
+    const stackProfile = config.stack_profile;
+    const templatesPath = path.join(frameworkPath, 'agents', 'templates');
+
+    const language = agentInfo.language;
+    const category = agentInfo.category;
+
+    let agent = null;
+
+    if (category === 'planning') {
+      const skills = await resolveAgentSkills('planner', stackProfile);
+      agent = await generatePlannerAgent(templatesPath, skills);
+    } else if (category === 'implementation') {
+      const skills = await resolveAgentSkills(agentName, stackProfile);
+      const commands = await extractCommandsForLanguage(projectPath, stackProfile, language);
+      agent = await generateImplementerAgent(templatesPath, stackProfile, skills, commands, language);
+    } else if (category === 'testing') {
+      const commands = await extractCommandsForLanguage(projectPath, stackProfile, language);
+      const agents = await generateTesterAgents(templatesPath, stackProfile, commands, language);
+      agent = agents.find(a => a.name === agentName);
+    } else if (category === 'review') {
+      const skills = await resolveAgentSkills(agentName, stackProfile);
+      agent = await generateSecurityReviewerAgent(templatesPath, stackProfile, skills, language);
+    } else if (category === 'verification') {
+      const skills = await resolveAgentSkills('visual-verifier', stackProfile);
+      agent = await generateVisualVerifierAgent(templatesPath, skills, stackProfile);
+    } else if (category === 'documentation') {
+      const skills = await resolveAgentSkills('doc-updater', stackProfile);
+      agent = await generateDocUpdaterAgent(templatesPath, skills, stackProfile);
+    }
+
+    if (!agent) {
+      throw new Error(`Failed to regenerate agent ${agentName}`);
+    }
+
+    const agentPath = path.join(projectPath, '.claude', 'agents', agent.filename);
+    await fs.promises.writeFile(agentPath, agent.content, 'utf8');
+
+    const templatePath = path.join(templatesPath, getTemplateFilename(agentName));
+    const tracking = {
+      template_path: path.relative(frameworkPath, templatePath),
+      generated_timestamp: new Date().toISOString(),
+      template_hash: hashFile(templatePath),
+      file_hash: hashFile(agentPath),
+      managed_by_framework: true,
+      user_modified: false,
+      language: language,
+      category: category,
+      last_sync: new Date().toISOString()
+    };
+
+    await configUpdater.updateResourceState('agents', agentName, tracking);
+
+    return {
+      success: true,
+      agent,
+      tracking
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Add a new agent (used by sync script when stack changes)
+ * @param {string} agentName - Name of agent to add
+ * @param {string} projectPath - Absolute path to project root
+ * @param {string} frameworkPath - Path to framework root
+ * @returns {Promise<Object>} { success, agent, tracking }
+ */
+async function addSingleAgent(agentName, projectPath, frameworkPath) {
+  return regenerateSingleAgent(agentName, projectPath, frameworkPath);
+}
+
+/**
+ * Hash a file for change detection
+ * @param {string} filePath - Path to file
+ * @returns {string} SHA-256 hash
+ */
+function hashFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found: ${filePath}`);
+  }
+
+  const content = fs.readFileSync(filePath, 'utf-8');
+  return crypto.createHash('sha256').update(content).digest('hex');
+}
+
+/**
+ * Get template path for agent
+ * @param {string} agentName - Name of agent
+ * @param {string} templatesPath - Path to templates directory
+ * @param {string} frameworkPath - Path to framework root
+ * @returns {string} Template path
+ */
+function getTemplatePathForAgent(agentName, templatesPath, frameworkPath) {
+  const filename = getTemplateFilename(agentName);
+  return path.join(templatesPath, filename);
+}
+
+/**
+ * Get template filename for agent
+ * @param {string} agentName - Name of agent
+ * @returns {string} Template filename
+ */
+function getTemplateFilename(agentName) {
+  if (agentName === 'planner') {
+    return 'planner.template.md';
+  } else if (agentName.startsWith('implementer-')) {
+    return 'implementer.template.md';
+  } else if (agentName.startsWith('tester-unit-')) {
+    return 'tester-unit.template.md';
+  } else if (agentName.startsWith('tester-e2e-')) {
+    return 'tester-e2e.template.md';
+  } else if (agentName.startsWith('security-reviewer-')) {
+    return 'security-reviewer.template.md';
+  } else if (agentName === 'visual-verifier') {
+    return 'visual-verifier.template.md';
+  } else if (agentName === 'doc-updater') {
+    return 'doc-updater.template.md';
+  }
+
+  throw new Error(`Unknown agent type: ${agentName}`);
+}
+
+/**
+ * Get category for agent
+ * @param {string} agentName - Name of agent
+ * @param {Object} generation - Generation result
+ * @returns {string} Category
+ */
+function getCategoryForAgent(agentName, generation) {
+  if (generation.planning.find(a => a.name === agentName)) return 'planning';
+  if (generation.implementation.find(a => a.name === agentName)) return 'implementation';
+  if (generation.testing.find(a => a.name === agentName)) return 'testing';
+  if (generation.review.find(a => a.name === agentName)) return 'review';
+  if (generation.verification.find(a => a.name === agentName)) return 'verification';
+  if (generation.documentation.find(a => a.name === agentName)) return 'documentation';
+  return 'unknown';
+}
+
+// ============================================================================
 // Exports
 // ============================================================================
 
@@ -1109,7 +1339,11 @@ module.exports = {
   extractCommandsForLanguage,
   writeAgents,
   generateAgentIndex,
-  validateTemplateSubstitution
+  validateTemplateSubstitution,
+  generateAgentsWithTracking,
+  regenerateSingleAgent,
+  addSingleAgent,
+  hashFile
 };
 
 // ============================================================================

@@ -1071,6 +1071,45 @@ $(echo "$DOC_ANALYSIS" | jq -r '.changesDetected.claudeMd.reason // "" + " " + .
 fi
 
 echo ""
+
+# ============================================================================
+# SUBSTEP: Check for stack changes and update config
+# ============================================================================
+
+echo "  - Checking for stack changes..."
+
+# Spawn config-updater agent
+claude-agent spawn config-updater-$TICKET_ID \
+    --template agents/config-updater.md \
+    --vars "TICKET_ID=$TICKET_ID,FRAMEWORK_PATH=$FRAMEWORK_PATH" \
+    --output "$ARTIFACTS_DIR/config-update-result.json"
+
+CONFIG_UPDATE_RESULT=$(cat "$ARTIFACTS_DIR/config-update-result.json")
+CONFIG_UPDATED=$(echo "$CONFIG_UPDATE_RESULT" | jq -r '.config_updated')
+
+if [[ "$CONFIG_UPDATED" == "true" ]]; then
+    echo "  ✅ Framework configuration updated"
+
+    LANGUAGES_ADDED=$(echo "$CONFIG_UPDATE_RESULT" | jq -r '.changes.languages_added | join(", ")')
+    FRAMEWORKS_ADDED=$(echo "$CONFIG_UPDATE_RESULT" | jq -r '.changes.frameworks_added | to_entries | map("\(.key): \(.value | join(", "))") | join("; ")')
+
+    [[ ! -z "$LANGUAGES_ADDED" ]] && echo "     - New languages: $LANGUAGES_ADDED"
+    [[ ! -z "$FRAMEWORKS_ADDED" ]] && echo "     - New frameworks: $FRAMEWORKS_ADDED"
+
+    SYNC_TRIGGERED=$(echo "$CONFIG_UPDATE_RESULT" | jq -r '.sync_triggered')
+
+    if [[ "$SYNC_TRIGGERED" == "true" ]]; then
+        echo "  ✅ Framework resources synced"
+        SKILLS_ADDED=$(echo "$CONFIG_UPDATE_RESULT" | jq -r '.sync_result.skills_added')
+        AGENTS_ADDED=$(echo "$CONFIG_UPDATE_RESULT" | jq -r '.sync_result.agents_added')
+        echo "     - Skills added: $SKILLS_ADDED"
+        echo "     - Agents added: $AGENTS_ADDED"
+    fi
+else
+    echo "  ℹ️  No stack changes detected"
+fi
+
+echo ""
 ```
 
 ---

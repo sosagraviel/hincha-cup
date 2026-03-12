@@ -153,10 +153,32 @@ sequenceDiagram
 
 ### Step 1: One-Time Setup (10-15 minutes)
 
+> ### ⚠️ CRITICAL: Update .gitignore First!
+>
+> **Before running initialization**, add these lines to your `.gitignore`:
+>
+> ```gitignore
+> # AI Agentic Framework - DO NOT COMMIT
+> .claude-temp/
+> .claude-backups/
+> ```
+>
+> **Why?** These directories contain temporary files and backups that:
+> - Change on every sync (causing merge conflicts)
+> - Can be 10+ MB in size
+> - Are automatically regenerated
+> - Should never be committed to version control
+>
+> **What TO commit:** `.claude/CLAUDE.md`, `.claude/framework-config.json`, `.claude/skills/project-context/`
+
 ```bash
 # Clone framework into your project
 cd /path/to/your-project
 git clone https://github.com/your-org/ai-agentic-framework.git
+
+# IMPORTANT: Update .gitignore first (see warning above)!
+echo ".claude-temp/" >> .gitignore
+echo ".claude-backups/" >> .gitignore
 
 # Initialize (analyzes your codebase and sets everything up)
 ./ai-agentic-framework/scripts/initialize-project.sh

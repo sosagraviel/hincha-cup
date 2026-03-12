@@ -1,0 +1,457 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-agentic-framework/schemas/framework-config.schema.json",
+  "title": "AI Agentic Framework Configuration",
+  "description": "Persistent storage of project analysis and framework state for incremental syncing",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "framework_version",
+    "project_metadata",
+    "analysis_results",
+    "stack_profile",
+    "resource_state"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Configuration schema version for migration compatibility",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "examples": ["1.0.0"]
+    },
+    "framework_version": {
+      "type": "string",
+      "description": "Framework version when config was generated/last synced",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "examples": ["2.0.0"]
+    },
+    "project_metadata": {
+      "type": "object",
+      "required": ["project_path", "last_analysis", "initialization_hash"],
+      "properties": {
+        "project_path": {
+          "type": "string",
+          "description": "Absolute path to project root"
+        },
+        "last_analysis": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last comprehensive Phase 1-3 analysis timestamp"
+        },
+        "initialization_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of project files when last analyzed (for change detection)",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      }
+    },
+    "analysis_results": {
+      "type": "object",
+      "description": "Consolidated results from Phase 1-4 (preserves expensive analysis work)",
+      "required": [
+        "phase1_analysis",
+        "phase2_consolidation",
+        "phase3_synthesis",
+        "phase4_context"
+      ],
+      "properties": {
+        "phase1_analysis": {
+          "type": "object",
+          "description": "Raw outputs from 4 analyzer agents (parallel execution)",
+          "required": [
+            "structure_architecture",
+            "tech_stack_dependencies",
+            "code_patterns_testing",
+            "data_flows_integrations"
+          ],
+          "properties": {
+            "structure_architecture": {
+              "$ref": "#/definitions/phase1_agent_output"
+            },
+            "tech_stack_dependencies": {
+              "$ref": "#/definitions/phase1_agent_output"
+            },
+            "code_patterns_testing": {
+              "$ref": "#/definitions/phase1_agent_output"
+            },
+            "data_flows_integrations": {
+              "$ref": "#/definitions/phase1_agent_output"
+            }
+          }
+        },
+        "phase2_consolidation": {
+          "type": "object",
+          "description": "Gap analysis and consolidated findings",
+          "required": ["gaps_identified", "consolidation_timestamp", "validation_status"],
+          "properties": {
+            "gaps_identified": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["category", "description", "resolved"],
+                "properties": {
+                  "category": {
+                    "type": "string",
+                    "enum": ["stack", "testing", "configuration", "documentation"]
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "resolved": {
+                    "type": "boolean"
+                  },
+                  "resolution_notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "consolidation_timestamp": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "validation_status": {
+              "type": "string",
+              "enum": ["valid", "needs_review", "failed"]
+            }
+          }
+        },
+        "phase3_synthesis": {
+          "type": "object",
+          "description": "Opus synthesis and comprehensive project understanding",
+          "required": ["synthesis_timestamp", "project_understanding"],
+          "properties": {
+            "synthesis_timestamp": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "project_understanding": {
+              "type": "object",
+              "description": "Free-form Opus insights about the project",
+              "additionalProperties": true
+            },
+            "architectural_patterns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "key_insights": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "phase4_context": {
+          "type": "object",
+          "description": "Generated context and documentation metadata",
+          "required": ["context_generation_timestamp", "files_generated"],
+          "properties": {
+            "context_generation_timestamp": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "files_generated": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "examples": [[".claude/CLAUDE.md", ".claude/skills/project-context/SKILL.md"]]
+            }
+          }
+        }
+      }
+    },
+    "stack_profile": {
+      "type": "object",
+      "description": "Current detected tech stack (updated during implement-ticket Phase 7)",
+      "required": [
+        "languages",
+        "frameworks",
+        "testing_frameworks",
+        "detected_workspaces"
+      ],
+      "properties": {
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "typescript",
+              "javascript",
+              "python",
+              "java",
+              "go",
+              "rust",
+              "ruby",
+              "php",
+              "csharp",
+              "swift",
+              "kotlin",
+              "elixir"
+            ]
+          }
+        },
+        "primary_language": {
+          "type": "string",
+          "description": "Most prevalent language by line count"
+        },
+        "frameworks": {
+          "type": "object",
+          "properties": {
+            "frontend": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "backend": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "mobile": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "testing_frameworks": {
+          "type": "object",
+          "description": "Testing frameworks by language",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "detected_workspaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "language", "type"],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["frontend", "backend", "mobile", "service", "library"]
+              },
+              "frameworks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "file_counts": {
+          "type": "object",
+          "description": "File counts by extension for significance detection",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "resource_state": {
+      "type": "object",
+      "description": "State of copied skills and generated agents with change tracking",
+      "required": ["skills", "agents", "commands", "last_sync"],
+      "properties": {
+        "skills": {
+          "type": "object",
+          "description": "Copied skills with source tracking",
+          "additionalProperties": {
+            "$ref": "#/definitions/skill_resource"
+          }
+        },
+        "agents": {
+          "type": "object",
+          "description": "Generated agents with generation metadata",
+          "additionalProperties": {
+            "$ref": "#/definitions/agent_resource"
+          }
+        },
+        "commands": {
+          "type": "object",
+          "description": "Copied commands",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["source_path", "copied_timestamp"],
+            "properties": {
+              "source_path": {
+                "type": "string"
+              },
+              "copied_timestamp": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "last_sync": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last sync operation timestamp"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "phase1_agent_output": {
+      "type": "object",
+      "required": ["agent_name", "timestamp", "findings"],
+      "properties": {
+        "agent_name": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "findings": {
+          "type": "object",
+          "description": "Agent-specific findings (free-form structure)",
+          "additionalProperties": true
+        },
+        "needs_verification": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["item", "question"],
+            "properties": {
+              "item": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          "maxItems": 3
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        }
+      }
+    },
+    "skill_resource": {
+      "type": "object",
+      "required": ["source_path", "copied_timestamp", "source_hash", "managed_by_framework"],
+      "properties": {
+        "source_path": {
+          "type": "string",
+          "description": "Path in framework where skill originated (relative to framework root)"
+        },
+        "copied_timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of source skill files for change detection"
+        },
+        "file_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of actual file in .claude/ for user modification detection"
+        },
+        "managed_by_framework": {
+          "type": "boolean",
+          "description": "If false, skill is user-created and will never be touched by sync"
+        },
+        "user_modified": {
+          "type": "boolean",
+          "description": "Detected if user modified framework-managed skill"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Other skills this skill depends on"
+        },
+        "last_sync": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "agent_resource": {
+      "type": "object",
+      "required": [
+        "template_path",
+        "generated_timestamp",
+        "template_hash",
+        "managed_by_framework"
+      ],
+      "properties": {
+        "template_path": {
+          "type": "string",
+          "description": "Template used to generate this agent (relative to framework root)"
+        },
+        "generated_timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "template_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of template for change detection"
+        },
+        "file_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of generated agent file for user modification detection"
+        },
+        "variables_used": {
+          "type": "object",
+          "description": "Variables substituted during generation (for regeneration)",
+          "additionalProperties": true
+        },
+        "language": {
+          "type": "string",
+          "description": "Language this agent is specialized for (if applicable)"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "planning",
+            "implementation",
+            "testing",
+            "review",
+            "verification",
+            "documentation"
+          ]
+        },
+        "managed_by_framework": {
+          "type": "boolean",
+          "description": "If false, agent is user-created and will never be touched by sync"
+        },
+        "user_modified": {
+          "type": "boolean",
+          "description": "Detected if user modified framework-managed agent"
+        },
+        "last_sync": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

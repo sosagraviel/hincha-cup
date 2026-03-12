@@ -56,6 +56,24 @@ echo "✓ Files written to disk"
 echo ""
 
 # ============================================================================
+# STEP 3: GENERATE FRAMEWORK CONFIGURATION
+# ============================================================================
+
+echo "Step 3: Generating framework configuration..."
+
+FRAMEWORK_PATH="$(cd "$SKILL_DIR/../../.." && pwd)"
+
+node "$SKILL_DIR/scripts/helpers/generate-config.js" "$TEMP_DIR" "$PROJECT_PATH" "$FRAMEWORK_PATH"
+
+if [ $? -ne 0 ]; then
+  echo "Error: Framework configuration generation failed"
+  exit 1
+fi
+
+echo "✓ Framework configuration generated"
+echo ""
+
+# ============================================================================
 # VALIDATION
 # ============================================================================
 
@@ -75,7 +93,12 @@ if [ ! -f "$PROJECT_PATH/.claude/skills/project-context/SKILL.md" ]; then
   exit 1
 fi
 
-echo "✓ Both files exist"
+if [ ! -f "$PROJECT_PATH/.claude/framework-config.json" ]; then
+  echo "❌ ERROR: framework-config.json not created"
+  exit 1
+fi
+
+echo "✓ All files exist"
 
 # Validate lengths
 CLAUDE_LINES=$(wc -l < "$PROJECT_PATH/.claude/CLAUDE.md" | tr -d ' ')

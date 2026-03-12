@@ -10,6 +10,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { ConfigUpdater } = require('./config-updater');
 
 // Always-copied skills (foundational, copied to every project)
 const ALWAYS_COPIED_SKILLS = [
@@ -842,9 +844,215 @@ async function copyDirectory(src, dest) {
 // Exports
 // ============================================================================
 
+/**
+ * Copy skills with tracking metadata for sync
+ */
+async function copySkillsWithTracking(selection, projectPath, frameworkPath) {
+  const copied = [];
+  const errors = [];
+  const skillsTracking = {};
+
+  const allSkills = [
+    ...selection.always_copied,
+    ...selection.language_specific,
+    ...selection.frontend,
+    ...selection.backend,
+    ...selection.cloud,
+    ...selection.infrastructure,
+    ...selection.integrations
+  ];
+
+  const destBase = path.join(projectPath, '.claude', 'skills');
+  await fs.promises.mkdir(destBase, { recursive: true });
+
+  for (const skill of allSkills) {
+    try {
+      const destPath = path.join(destBase, skill.category, skill.name);
+
+      if (await directoryExists(destPath)) {
+        console.error(
+          `Skill ${skill.category}/${skill.name} already exists, skipping...`
+        );
+        continue;
+      }
+
+      await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+      await copyDirectory(skill.source_path, destPath);
+
+      const scriptsPath = path.join(destPath, 'scripts');
+      if (await directoryExists(scriptsPath)) {
+        const scripts = await fs.promises.readdir(scriptsPath);
+        for (const script of scripts) {
+          const scriptPath = path.join(scriptsPath, script);
+          await fs.promises.chmod(scriptPath, 0o755);
+        }
+      }
+
+      const sourceHash = hashDirectory(skill.source_path);
+      const fileHash = hashDirectory(destPath);
+
+      const skillKey = `${skill.category}/${skill.name}`;
+      skillsTracking[skillKey] = {
+        source_path: path.relative(frameworkPath, skill.source_path),
+        copied_timestamp: new Date().toISOString(),
+        source_hash: sourceHash,
+        file_hash: fileHash,
+        managed_by_framework: true,
+        user_modified: false,
+        dependencies: [],
+        last_sync: new Date().toISOString()
+      };
+
+      copied.push({
+        name: skill.name,
+        category: skill.category,
+        dest_path: destPath,
+        reason: skill.reason
+      });
+    } catch (error) {
+      errors.push({
+        name: skill.name,
+        category: skill.category,
+        error: error.message
+      });
+    }
+  }
+
+  return { copied, errors, skillsTracking };
+}
+
+/**
+ * Update a single skill (for sync operations)
+ */
+async function updateSingleSkill(skillName, projectPath, frameworkPath) {
+  const configUpdater = new ConfigUpdater(projectPath, frameworkPath);
+  const config = await configUpdater.readConfig();
+
+  const skillInfo = config.resource_state.skills[skillName];
+  if (!skillInfo) {
+    throw new Error(`Skill ${skillName} not found in configuration`);
+  }
+
+  if (!skillInfo.managed_by_framework) {
+    console.log(`Skipping ${skillName} (user-managed)`);
+    return { updated: false, reason: 'user-managed' };
+  }
+
+  const sourcePath = path.join(frameworkPath, skillInfo.source_path);
+  const destPath = path.join(projectPath, '.claude', 'skills', skillName);
+
+  if (!await directoryExists(sourcePath)) {
+    throw new Error(`Source skill not found: ${sourcePath}`);
+  }
+
+  await fs.promises.rm(destPath, { recursive: true, force: true });
+  await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+  await copyDirectory(sourcePath, destPath);
+
+  const newSourceHash = hashDirectory(sourcePath);
+  const newFileHash = hashDirectory(destPath);
+
+  await configUpdater.updateResourceState('skills', skillName, {
+    source_hash: newSourceHash,
+    file_hash: newFileHash,
+    user_modified: false
+  });
+
+  return { updated: true, newHash: newFileHash };
+}
+
+/**
+ * Add a single new skill (for sync operations when stack changes)
+ */
+async function addSingleSkill(skillName, projectPath, frameworkPath) {
+  const configUpdater = new ConfigUpdater(projectPath, frameworkPath);
+  const config = await configUpdater.readConfig();
+
+  if (config.resource_state.skills[skillName]) {
+    console.log(`Skill ${skillName} already exists`);
+    return { added: false, reason: 'already-exists' };
+  }
+
+  const skillsPath = path.join(frameworkPath, 'skills');
+  let sourcePath = null;
+  let category = null;
+
+  const categories = await fs.promises.readdir(skillsPath);
+  for (const cat of categories) {
+    const catPath = path.join(skillsPath, cat);
+    if (!(await directoryExists(catPath))) continue;
+
+    const skillPath = path.join(catPath, skillName);
+    if (await directoryExists(skillPath)) {
+      sourcePath = skillPath;
+      category = cat;
+      break;
+    }
+  }
+
+  if (!sourcePath) {
+    throw new Error(`Skill ${skillName} not found in framework`);
+  }
+
+  const destPath = path.join(projectPath, '.claude', 'skills', category, skillName);
+  await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+  await copyDirectory(sourcePath, destPath);
+
+  const sourceHash = hashDirectory(sourcePath);
+  const fileHash = hashDirectory(destPath);
+
+  const skillKey = `${category}/${skillName}`;
+  await configUpdater.updateResourceState('skills', skillKey, {
+    source_path: path.relative(frameworkPath, sourcePath),
+    copied_timestamp: new Date().toISOString(),
+    source_hash: sourceHash,
+    file_hash: fileHash,
+    managed_by_framework: true,
+    user_modified: false,
+    dependencies: []
+  });
+
+  return { added: true, path: destPath };
+}
+
+/**
+ * Hash a directory's contents
+ */
+function hashDirectory(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    throw new Error(`Directory not found: ${dirPath}`);
+  }
+
+  const files = getAllFilesRecursive(dirPath).sort();
+  const combinedContent = files.map(file => fs.readFileSync(file, 'utf-8')).join('');
+
+  return crypto.createHash('sha256').update(combinedContent).digest('hex');
+}
+
+/**
+ * Get all files in directory recursively
+ */
+function getAllFilesRecursive(dirPath, arrayOfFiles = []) {
+  const files = fs.readdirSync(dirPath);
+
+  files.forEach(file => {
+    const filePath = path.join(dirPath, file);
+    if (fs.statSync(filePath).isDirectory()) {
+      arrayOfFiles = getAllFilesRecursive(filePath, arrayOfFiles);
+    } else {
+      arrayOfFiles.push(filePath);
+    }
+  });
+
+  return arrayOfFiles;
+}
+
 module.exports = {
   selectSkills,
   copySkills,
+  copySkillsWithTracking,
+  updateSingleSkill,
+  addSingleSkill,
   generateSkillIndex,
   generateMissingSkillsReport,
   ALWAYS_COPIED_SKILLS
