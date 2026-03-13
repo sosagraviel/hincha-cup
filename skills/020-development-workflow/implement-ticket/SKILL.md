@@ -1166,21 +1166,50 @@ echo "  - Analyzing code changes for documentation impact..."
 # Read implementation summary
 IMPLEMENTATION_SUMMARY=$(cat "$ARTIFACTS_DIR/implementations/implementation-log.md" | head -n 100)
 
-# Invoke update-project-context skill directly (lightweight mode)
-echo "  - Invoking /update-project-context skill..."
+# Simple inline doc update check
+# For major architectural changes, run /update-project-context manually
+echo "  - Checking for documentation impact..."
 
-# Create input for skill
-cat > "$ARTIFACTS_DIR/doc-update-input.json" <<EOF
+# Detect if major architectural files changed
+ARCH_FILES_CHANGED=$(echo "$CHANGED_FILES" | grep -E '(docker-compose|package\.json|tsconfig|next\.config|tailwind\.config|middleware|guards|interceptors|\.env)' || echo "")
+
+if [[ -z "$ARCH_FILES_CHANGED" ]]; then
+    echo "  ✅ No major architectural changes detected"
+    echo "     Skipping documentation update (implementation details only)"
+    echo ""
+
+    # Create empty analysis for consistency
+    cat > "$ARTIFACTS_DIR/doc-update-analysis.json" <<EOF
 {
-  "ticketId": "$TICKET_ID",
-  "changedFiles": "$CHANGED_FILES",
-  "implementationSummary": "$IMPLEMENTATION_SUMMARY",
-  "mode": "lightweight"
+  "changesDetected": {
+    "claudeMd": { "updateNeeded": false },
+    "projectContext": { "updateNeeded": false }
+  }
 }
 EOF
 
-# Invoke skill
-/update-project-context --from-json "$ARTIFACTS_DIR/doc-update-input.json" --output "$ARTIFACTS_DIR/doc-update-analysis.json"
+    # Skip to config-updater section
+fi
+
+if [[ -n "$ARCH_FILES_CHANGED" ]]; then
+    echo "  ⚠️  Architectural files changed: $ARCH_FILES_CHANGED"
+    echo "     Consider running /update-project-context manually for full doc update"
+    echo ""
+
+    # Create analysis noting arch changes
+    cat > "$ARTIFACTS_DIR/doc-update-analysis.json" <<EOF
+{
+  "changesDetected": {
+    "claudeMd": {
+      "updateNeeded": true,
+      "reason": "Architectural files modified: $ARCH_FILES_CHANGED",
+      "recommendation": "Run /update-project-context manually for comprehensive update"
+    },
+    "projectContext": { "updateNeeded": false }
+  }
+}
+EOF
+fi
 
 # Read analysis
 DOC_ANALYSIS=$(cat "$ARTIFACTS_DIR/doc-update-analysis.json")
@@ -1404,127 +1433,46 @@ echo "======================="
 
 TICKET_ID="$1"
 ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
-
-echo "  - Running automated PR reviews..."
-
-# Step 1: Run automated reviews using pr-reviewer skill
-PR_URL=$(cat "$ARTIFACTS_DIR/pr-url.txt")
-
-# Invoke /pr-reviewer skill directly
-echo "  - Running PR review..."
-/pr-reviewer --pr-url "$PR_URL" --ticket-id "$TICKET_ID" --output "$ARTIFACTS_DIR/pr-review.json"
-
-# Invoke /security-review skill
-echo "  - Running security review..."
-/security-review --ticket-id "$TICKET_ID" --output "$ARTIFACTS_DIR/security-review.json"
-
-# Read review results
-PR_REVIEW=$(cat "$ARTIFACTS_DIR/pr-review.json")
-SECURITY_REVIEW=$(cat "$ARTIFACTS_DIR/security-review.json")
-
-# Merge security findings into PR review
-SECURITY_BLOCKING=$(echo "$SECURITY_REVIEW" | jq -r '.findings.blocking | length')
-PR_REVIEW=$(echo "$PR_REVIEW $SECURITY_REVIEW" | jq -s '.[0] + {securityFindings: .[1].findings}')
-
-# Write merged review
-echo "$PR_REVIEW" > "$ARTIFACTS_DIR/pr-review.json"
-
-# Count total issues
-TOTAL_ISSUES=$(echo "$PR_REVIEW" | jq -r '(.issues | length) + (.securityFindings.blocking | length) + (.securityFindings.major | length)')
-BLOCKING_ISSUES=$(echo "$PR_REVIEW" | jq -r '([.issues[] | select(.severity == "blocking")] | length) + (.securityFindings.blocking | length)')
-
-echo "  - Review complete: $TOTAL_ISSUES issues found ($BLOCKING_ISSUES blocking)"
-echo "     - Security findings: $SECURITY_BLOCKING blocking security issues"
-
-if [[ $TOTAL_ISSUES -eq 0 ]]; then
-    echo "  ✅ No issues found. PR is ready for merge."
-    echo ""
-    exit 0
-fi
-
-# Step 2: Iteration loop (max 3 iterations)
-MAX_ITERATIONS=3
-ITERATION=1
-
-while [[ $BLOCKING_ISSUES -gt 0 ]] && [[ $ITERATION -le $MAX_ITERATIONS ]]; do
-    echo ""
-    echo "🔄 Review Iteration $ITERATION/$MAX_ITERATIONS"
-    echo "========================================"
-
-    echo "  - Fixing blocking issues..."
-
-    # Extract fix suggestions
-    FIX_PLAN=$(echo "$PR_REVIEW" | jq -r '[.issues[] | select(.severity == "blocking") | .fix] | join("\n")')
-
-    # Spawn implementer to apply fixes
-    claude-agent spawn implementer-review-fixes-$ITERATION \
-        --template agents/templates/implementer.template.md \
-        --vars "JIRA_KEY=$TICKET_ID,PLAN=$FIX_PLAN" \
-        --output "$ARTIFACTS_DIR/implementations/review-fixes-iter-$ITERATION.md"
-
-    # Re-run tests
-    echo "  - Re-running tests..."
-
-    bash -c "$(cat <<'SCRIPT'
-#!/bin/bash
-set -e
-TICKET_ID="$1"
-ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 UTILS_DIR="$HOME/.claude/utils"
 
+echo "  - Running automated review loop with max 3 iterations..."
+
+# Use ReviewLoopOrchestrator to handle review-fix-test cycle
 node -e "
-const { TestOrchestrator } = require('$UTILS_DIR/test-orchestrator.js');
+const { ReviewLoopOrchestrator } = require('$UTILS_DIR/review-loop-orchestrator.js');
 
-const orchestrator = new TestOrchestrator(process.cwd(), {
-    collectCoverage: true,
-    timeout: 300000
-});
+const orchestrator = new ReviewLoopOrchestrator(process.cwd(), '$TICKET_ID');
 
-orchestrator.runAll().then(results => {
-    const summary = orchestrator.getSummary();
+orchestrator.orchestrate().then(result => {
+    // Write result to artifact
+    require('fs').writeFileSync('$ARTIFACTS_DIR/review-loop-result.json', JSON.stringify(result, null, 2));
 
-    if (summary.overall.status === 'failed') {
-        console.error('❌ Tests failed after fixes.');
-        process.exit(1);
+    console.log('');
+    console.log('📊 Review Loop Summary:');
+    console.log('========================');
+    console.log('');
+    console.log('Status: ' + result.status);
+    console.log('Iterations: ' + result.iterations);
+    console.log('Blocking Issues Resolved: ' + result.blockingIssuesResolved);
+    console.log('');
+
+    if (result.status !== 'success') {
+        console.error('⚠️  Review loop did not fully succeed. Manual intervention may be required.');
+        console.error('   - Check: $ARTIFACTS_DIR/review-loop-result.json');
     }
 
-    console.log('  ✅ Tests passed after fixes.');
+}).catch(err => {
+    console.error('❌ Review loop failed:', err.message);
+    process.exit(1);
 });
 "
-SCRIPT
-)" _ "$TICKET_ID"
 
-    # Commit fixes
-    git add .
-    git commit -m "fix($TICKET_ID): address review feedback (iteration $ITERATION)"
-    git push
+# Read result
+REVIEW_RESULT=$(cat "$ARTIFACTS_DIR/review-loop-result.json")
+REVIEW_STATUS=$(echo "$REVIEW_RESULT" | jq -r '.status')
+ITERATIONS=$(echo "$REVIEW_RESULT" | jq -r '.iterations')
 
-    # Re-run review
-    echo "  - Re-running automated review..."
-
-    # Invoke /pr-reviewer skill again
-    /pr-reviewer --pr-url "$PR_URL" --ticket-id "$TICKET_ID" --output "$ARTIFACTS_DIR/pr-review-iter-$ITERATION.json"
-
-    PR_REVIEW=$(cat "$ARTIFACTS_DIR/pr-review-iter-$ITERATION.json")
-    TOTAL_ISSUES=$(echo "$PR_REVIEW" | jq -r '.issues | length')
-    BLOCKING_ISSUES=$(echo "$PR_REVIEW" | jq -r '[.issues[] | select(.severity == "blocking")] | length')
-
-    echo "  - New review results: $TOTAL_ISSUES issues ($BLOCKING_ISSUES blocking)"
-
-    ITERATION=$((ITERATION + 1))
-done
-
-if [[ $BLOCKING_ISSUES -eq 0 ]]; then
-    echo ""
-    echo "✅ All blocking issues resolved after $((ITERATION - 1)) iteration(s)"
-    echo "   - PR is ready for merge"
-else
-    echo ""
-    echo "⚠️  Some blocking issues remain after $MAX_ITERATIONS iterations"
-    echo "   - Manual intervention required"
-    echo "   - Review: $ARTIFACTS_DIR/pr-review-iter-$((ITERATION - 1)).json"
-fi
-
+echo "  - Review loop completed: $REVIEW_STATUS after $ITERATIONS iteration(s)"
 echo ""
 
 # TodoWrite: Mark phase as completed

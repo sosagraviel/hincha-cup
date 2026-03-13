@@ -72,56 +72,59 @@ commit 4728989: refactor: remove duplicated agent/skill capabilities
 - Phase 9: "Running PR review loop with automated fixes"
 - Phase 10: "Tearing down environment and archiving artifacts"
 
-### Step 2: Update Skill Invocations ✅
+### Step 2: Correct Utility Usage (After Deep Analysis) ✅
 **File**: Same - `skills/020-development-workflow/implement-ticket/SKILL.md`
 
-**Changes made**:
+**Phase 5 (Testing)** - ✅ ALREADY CORRECT:
+- Uses `TestOrchestrator` utility class
+- Handles unit, integration, and E2E tests
+- Stack-agnostic, auto-detects frameworks
+- **This is the pattern all phases should follow**
 
-**Phase 5 (Testing)** - NO CHANGE NEEDED:
-- Phase 5 already uses `TestOrchestrator` utility instead of spawning agents
-- TestOrchestrator handles unit, integration, and E2E tests
-- This is CORRECT and aligned with our skill-first architecture
-
-**Phase 7 (Documentation)** - ✅ REPLACED agent with skill invocation:
-- ❌ OLD: `claude-agent spawn doc-updater-$TICKET_ID`
-- ✅ NEW: `/update-project-context --from-json "$ARTIFACTS_DIR/doc-update-input.json" --output "$ARTIFACTS_DIR/doc-update-analysis.json"`
-- Uses lightweight mode for minor updates
-- Direct skill invocation, no agent spawning
-
-**Phase 9 (Review Loop)** - ✅ EXPANDED with PR review loop logic
-
-### Step 3: Add PR Review Loop (Phase 9) ✅
-**File**: Same - `skills/020-development-workflow/implement-ticket/SKILL.md`
-
-**What Phase 9 now has**:
-1. ✅ Invokes `/pr-reviewer` skill directly (no agent spawning)
-2. ✅ Invokes `/security-review` skill for OWASP security scanning
-3. ✅ Merges security findings into PR review results
-4. ✅ Checks for blocking issues from both PR review and security review
-5. ✅ Iteration loop (max 3 iterations):
-   - Apply fixes from blocking issues
-   - Re-run tests using TestOrchestrator
-   - Commit and push fixes
-   - Re-review with `/pr-reviewer` skill
-6. ✅ Proper exit conditions (success or manual review required)
-
-**Implementation**:
+**Phase 7 (Documentation)** - ✅ CORRECTED (from initial mistake):
+- ❌ **Initial attempt**: Tried to invoke `/update-project-context` skill
+- ❌ **Why wrong**: Skills aren't callable from bash; update-project-context is too heavy
+- ✅ **Correct implementation**: Inline grep-based file change detection
+- ✅ **Result**: Lightweight detection, recommends manual skill run for major changes
+- Implementation:
 ```bash
-# Invoke /pr-reviewer skill directly
-/pr-reviewer --pr-url "$PR_URL" --ticket-id "$TICKET_ID" --output "$ARTIFACTS_DIR/pr-review.json"
+# Detect architectural file changes with grep
+ARCH_FILES=$(echo "$CHANGED_FILES" | grep -E '(docker-compose|package\.json|middleware)')
 
-# Invoke /security-review skill
-/security-review --ticket-id "$TICKET_ID" --output "$ARTIFACTS_DIR/security-review.json"
-
-# Merge security findings
-# ... iteration logic ...
-
-while [[ $BLOCKING_ISSUES -gt 0 ]] && [[ $ITERATION -le $MAX_ITERATIONS ]]; do
-  # Apply fixes
-  # Re-run tests
-  # Re-review with /pr-reviewer skill
-done
+if [[ -n "$ARCH_FILES" ]]; then
+  echo "⚠️  Architectural files changed: $ARCH_FILES"
+  echo "   Consider running /update-project-context manually"
+fi
 ```
+
+**Phase 9 (Review Loop)** - ✅ CORRECTED (from initial mistake):
+- ❌ **Initial attempt**: Tried to invoke `/pr-reviewer` and `/security-review` skills from bash
+- ❌ **Why wrong**: Skills can't be invoked from bash scripts
+- ✅ **Discovered**: `ReviewLoopOrchestrator` utility class already exists!
+- ✅ **Correct implementation**: Use ReviewLoopOrchestrator utility
+- Implementation:
+```bash
+# Use ReviewLoopOrchestrator utility (same pattern as TestOrchestrator)
+node -e "
+const { ReviewLoopOrchestrator } = require('$UTILS_DIR/review-loop-orchestrator.js');
+
+const orchestrator = new ReviewLoopOrchestrator(process.cwd(), '$TICKET_ID');
+
+orchestrator.orchestrate().then(result => {
+    // Handles PR review, security review, fix iterations, test re-runs
+    console.log('Status: ' + result.status);
+    console.log('Iterations: ' + result.iterations);
+});
+"
+```
+
+**ReviewLoopOrchestrator Features**:
+1. Loads review results from pr-reviewer and security-review (via skills internally)
+2. Spawns implementer agent with fix instructions
+3. Re-runs tests using TestOrchestrator
+4. Tracks iterations (max 3)
+5. Detects convergence/divergence
+6. Returns structured result
 
 ---
 
@@ -221,16 +224,38 @@ All other capabilities (testing, security, docs) → Skills
 
 ---
 
-**Latest Session** (2026-03-13):
+**Latest Session** (2026-03-13 - Deep Analysis & Corrections):
+
+**Initial Implementation**:
 - ✅ Added TodoWrite integration to all 11 phases (Phase 0-10)
-- ✅ Replaced `doc-updater` agent with `/update-project-context` skill in Phase 7
-- ✅ Replaced `pr-reviewer` agent with `/pr-reviewer` skill in Phase 9
-- ✅ Added `/security-review` skill invocation to Phase 9
-- ✅ Expanded Phase 9 with full iteration loop (max 3 iterations)
-- ✅ All skill invocations are now direct (no agent spawning for testing/docs/review)
+- ✅ Attempted to replace agent spawns with skill invocations
 - 📝 Lines modified: ~200 lines across 1807-line file
-- 📝 Agent spawns removed: 3 (doc-updater, pr-reviewer x2)
-- 📝 Skill invocations added: 4 (/update-project-context, /pr-reviewer x2, /security-review)
+
+**Deep Analysis & Corrections**:
+After thorough investigation, discovered critical architectural issues:
+
+1. **Phase 7 (Documentation) - CORRECTED** ✅
+   - ❌ **Initial mistake**: Tried to invoke `/update-project-context` skill with unsupported parameters
+   - ❌ **Problem**: update-project-context runs FULL re-analysis (too heavy for Phase 7)
+   - ✅ **Correct solution**: Inline file change detection with grep (lightweight)
+   - ✅ **Result**: Simple detection of architectural file changes, recommends manual skill run
+
+2. **Phase 9 (Review Loop) - CORRECTED** ✅
+   - ❌ **Initial mistake**: Tried to invoke `/pr-reviewer` skill from bash (impossible)
+   - ❌ **Problem**: Skills can't be invoked from bash scripts directly
+   - ✅ **Discovered**: `ReviewLoopOrchestrator` utility class already exists!
+   - ✅ **Correct solution**: Use ReviewLoopOrchestrator utility (same pattern as TestOrchestrator)
+   - ✅ **Result**: Clean, working review loop with proper iteration logic
+
+3. **Phase 5 (Testing) - ALREADY CORRECT** ✅
+   - ℹ️ Uses `TestOrchestrator` utility (not agents, not skills)
+   - ℹ️ This is the **correct architectural pattern** to follow
+
+**Key Architectural Insights**:
+- 🎯 **Utility classes are the bridge**: TestOrchestrator, ReviewLoopOrchestrator, ConfigUpdater
+- 🎯 **Skills are NOT callable from bash**: They're for interactive user invocation
+- 🎯 **The right pattern**: Bash → Utility Class → Underlying logic
+- 🎯 **Agent spawns acceptable when**: No utility exists AND AI analysis required (e.g., config-updater)
 
 ---
 
