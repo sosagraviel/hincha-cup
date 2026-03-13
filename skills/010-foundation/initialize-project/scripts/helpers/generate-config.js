@@ -13,6 +13,125 @@ if (!tempDir || !projectPath || !frameworkPath) {
   process.exit(1);
 }
 
+/**
+ * Convert filename format to schema property format
+ * Examples:
+ *   "01-structure-architecture.json" -> "structure_architecture"
+ *   "02-tech-stack-dependencies.json" -> "tech_stack_dependencies"
+ */
+function filenameToSchemaKey(filename) {
+  return filename
+    .replace('.json', '')                  // Remove .json extension
+    .replace(/^\d+-/, '')                  // Remove leading numeric prefix
+    .replace(/-/g, '_');                   // Convert dashes to underscores
+}
+
+/**
+ * Infer workspace type from name/path
+ */
+function inferWorkspaceType(workspace) {
+  const name = (workspace.name || workspace.path || '').toLowerCase();
+
+  if (name.includes('web') || name.includes('frontend') || name.includes('ui')) {
+    return 'frontend';
+  }
+  if (name.includes('backend') || name.includes('api') || name.includes('server')) {
+    return 'backend';
+  }
+  if (name.includes('mobile') || name.includes('ios') || name.includes('android')) {
+    return 'mobile';
+  }
+  if (name.includes('function') || name.includes('lambda') || name.includes('service')) {
+    return 'service';
+  }
+  if (name.includes('lib') || name.includes('package') || name.includes('shared')) {
+    return 'library';
+  }
+
+  // Default based on frameworks
+  if (workspace.frontend) {
+    return 'frontend';
+  }
+  if (workspace.backend) {
+    return 'backend';
+  }
+
+  return 'service';
+}
+
+/**
+ * Transform stack-detection workspace format to schema format
+ */
+function transformWorkspaces(stackProfile) {
+  const workspaces = stackProfile.workspaces || [];
+
+  return workspaces.map(workspace => {
+    return {
+      path: workspace.path || '',
+      language: workspace.primary_language || 'javascript',
+      type: inferWorkspaceType(workspace),
+      frameworks: [
+        ...(workspace.frontend ? [workspace.frontend.framework] : []),
+        ...(workspace.backend ? [workspace.backend.framework] : [])
+      ].filter(Boolean)
+    };
+  });
+}
+
+/**
+ * Transform testing frameworks to schema format
+ */
+function transformTestingFrameworks(stackProfile) {
+  const result = {};
+
+  // If workspaces exist, collect testing frameworks from each
+  if (stackProfile.workspaces && Array.isArray(stackProfile.workspaces)) {
+    for (const workspace of stackProfile.workspaces) {
+      const lang = workspace.primary_language;
+      if (lang && workspace.testing && Array.isArray(workspace.testing)) {
+        if (!result[lang]) {
+          result[lang] = [];
+        }
+        for (const test of workspace.testing) {
+          const testName = test.name || test;
+          if (!result[lang].includes(testName)) {
+            result[lang].push(testName);
+          }
+        }
+      }
+    }
+  }
+
+  // Also check top-level testing array
+  if (stackProfile.testing && Array.isArray(stackProfile.testing)) {
+    const lang = stackProfile.primary_language || 'javascript';
+    if (!result[lang]) {
+      result[lang] = [];
+    }
+    for (const test of stackProfile.testing) {
+      const testName = test.name || test;
+      if (!result[lang].includes(testName)) {
+        result[lang].push(testName);
+      }
+    }
+  }
+
+  // Also check testing_frameworks if it's an array (from merged profile)
+  if (stackProfile.testing_frameworks && Array.isArray(stackProfile.testing_frameworks)) {
+    const lang = stackProfile.primary_language || 'javascript';
+    if (!result[lang]) {
+      result[lang] = [];
+    }
+    for (const testName of stackProfile.testing_frameworks) {
+      if (typeof testName === 'string' && !result[lang].includes(testName)) {
+        result[lang].push(testName);
+      }
+    }
+  }
+
+  return result;
+}
+
 async function generateConfig() {
   try {
     const phase1Path = path.join(tempDir, 'phase1-outputs');
@@ -30,21 +149,31 @@ async function generateConfig() {
 
     const stackProfile = JSON.parse(fs.readFileSync(stackProfilePath, 'utf-8'));
 
-    const phase1Files = fs.readdirSync(phase1Path).filter(f => f.endsWith('.md'));
+    // Read phase1 outputs (they are .json files, not .md)
+    const phase1Files = fs.readdirSync(phase1Path).filter(f =>
+      f.endsWith('.json') && !f.includes('attempt') && !f.includes('validation')
+    );
 
     const phase1Analysis = {};
     for (const file of phase1Files) {
-      const agentName = file.replace('.md', '');
-      const content = fs.readFileSync(path.join(phase1Path, file), 'utf-8');
+      const schemaKey = filenameToSchemaKey(file);
+      const agentName = file.replace('.json', '');
+      const filePath = path.join(phase1Path, file);
 
-      phase1Analysis[agentName] = {
+      // Read and parse JSON
+      const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+      phase1Analysis[schemaKey] = {
         agent_name: agentName,
-        timestamp: new Date().toISOString(),
-        findings: {
-          raw_content: content
-        },
-        confidence: 'high'
+        timestamp: jsonData.timestamp || new Date().toISOString(),
+        findings: jsonData.findings || {},
+        confidence: jsonData.confidence || 'high'
       };
+
+      // Preserve needs_verification if present
+      if (jsonData.needs_verification) {
+        phase1Analysis[schemaKey].needs_verification = jsonData.needs_verification;
+      }
     }
 
     const phase2Consolidation = {
@@ -102,11 +231,25 @@ async function generateConfig() {
         phase4_context: phase4Context
       },
       stack_profile: {
-        languages: stackProfile.languages || [],
+        // Transform languages from objects to simple string array
+        languages: Array.isArray(stackProfile.languages)
+          ? stackProfile.languages.map(lang => typeof lang === 'string' ? lang : lang.name)
+          : [],
         primary_language: stackProfile.primary_language || null,
-        frameworks: stackProfile.frameworks || { frontend: [], backend: [], mobile: [] },
-        testing_frameworks: stackProfile.testing_frameworks || {},
-        detected_workspaces: stackProfile.detected_workspaces || [],
+        // Transform frameworks to expected schema format
+        frameworks: {
+          frontend: Array.isArray(stackProfile.frontend_frameworks)
+            ? stackProfile.frontend_frameworks.map(f => f.name || f)
+            : [],
+          backend: Array.isArray(stackProfile.backend_frameworks)
+            ? stackProfile.backend_frameworks.map(f => f.name || f)
+            : [],
+          mobile: stackProfile.frameworks?.mobile || []
+        },
+        // Transform testing frameworks to object with language keys
+        testing_frameworks: transformTestingFrameworks(stackProfile),
+        // Transform workspaces to schema format
+        detected_workspaces: transformWorkspaces(stackProfile),
         file_counts: stackProfile.file_counts || {}
       },
       resource_state: {

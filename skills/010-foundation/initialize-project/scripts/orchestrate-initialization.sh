@@ -73,6 +73,47 @@ echo "Framework Path: $FRAMEWORK_PATH"
 echo "Temp Directory: $TEMP_DIR"
 echo "Log File:       $LOG_FILE"
 echo ""
+
+# ============================================================================
+# PRE-FLIGHT: ENSURE DEPENDENCIES ARE INSTALLED
+# ============================================================================
+
+echo -e "${BLUE}Checking framework dependencies...${NC}"
+
+cd "$FRAMEWORK_PATH"
+
+# Check if package.json exists
+if [ ! -f "package.json" ]; then
+  echo -e "${RED}Error: package.json not found in framework directory${NC}"
+  exit 1
+fi
+
+# Check if node_modules exists and has required packages
+NEEDS_INSTALL=false
+
+if [ ! -d "node_modules" ]; then
+  NEEDS_INSTALL=true
+  echo "  node_modules not found"
+elif ! node -e "require('ajv')" 2>/dev/null; then
+  NEEDS_INSTALL=true
+  echo "  ajv not found"
+elif ! node -e "require('ajv-formats')" 2>/dev/null; then
+  NEEDS_INSTALL=true
+  echo "  ajv-formats not found"
+fi
+
+if [ "$NEEDS_INSTALL" = true ]; then
+  echo -e "${YELLOW}Installing framework dependencies...${NC}"
+  npm install 2>&1 | grep -E "^(added|up to date)" || echo "  Dependencies installed"
+  echo -e "${GREEN}✓ Dependencies installed${NC}"
+else
+  echo -e "${GREEN}✓ All dependencies present${NC}"
+fi
+
+# Return to project directory
+cd "$PROJECT_PATH"
+
+echo ""
 echo "Starting deterministic 6-phase workflow..."
 echo ""
 

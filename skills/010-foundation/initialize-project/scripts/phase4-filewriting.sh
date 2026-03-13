@@ -56,12 +56,28 @@ echo "✓ Files written to disk"
 echo ""
 
 # ============================================================================
-# STEP 3: GENERATE FRAMEWORK CONFIGURATION
+# STEP 3: STACK DETECTION
 # ============================================================================
 
-echo "Step 3: Generating framework configuration..."
+echo "Step 3: Detecting stack..."
 
 FRAMEWORK_PATH="$(cd "$SKILL_DIR/../../.." && pwd)"
+
+node "$FRAMEWORK_PATH/utils/stack-detection.js" "$PROJECT_PATH" > "$TEMP_DIR/stack-profile.json"
+
+if [ ! -f "$TEMP_DIR/stack-profile.json" ]; then
+  echo "Error: Stack detection failed"
+  exit 1
+fi
+
+echo "✓ Stack detected"
+echo ""
+
+# ============================================================================
+# STEP 4: GENERATE FRAMEWORK CONFIGURATION
+# ============================================================================
+
+echo "Step 4: Generating framework configuration..."
 
 node "$SKILL_DIR/scripts/helpers/generate-config.js" "$TEMP_DIR" "$PROJECT_PATH" "$FRAMEWORK_PATH"
 

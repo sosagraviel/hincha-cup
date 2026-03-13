@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
-# Phase 5: Resource Generation - Stack detection, skill copying, agent generation
+# Phase 5: Resource Generation - Skill copying, agent generation, command copying
+# Note: Stack detection is done in Phase 4, stack-profile.json should already exist
 PROJECT_PATH="$1"
 FRAMEWORK_PATH="$2"
 
@@ -15,27 +16,17 @@ echo "  Project: $PROJECT_PATH"
   echo "  Framework: $FRAMEWORK_PATH"
 echo ""
 
-# ============================================================================
-# STEP 1: Stack Detection
-# ============================================================================
-
-echo "Step 1: Detecting stack..."
-
-node "$FRAMEWORK_PATH/utils/stack-detection.js" "$PROJECT_PATH" > "$PROJECT_PATH/.claude-temp/stack-profile.json"
-
+# Verify stack-profile.json exists (created in Phase 4)
 if [ ! -f "$PROJECT_PATH/.claude-temp/stack-profile.json" ]; then
-  echo "Error: Stack detection failed"
+  echo "Error: stack-profile.json not found (should have been created in Phase 4)"
   exit 1
 fi
 
-echo "✓ Stack detected"
-echo ""
-
 # ============================================================================
-# STEP 2: Skill Selection and Copying
+# STEP 1: Skill Selection and Copying
 # ============================================================================
 
-echo "Step 2: Selecting and copying skills..."
+echo "Step 1: Selecting and copying skills..."
 
 node -e "
 const skillSelection = require('$FRAMEWORK_PATH/utils/skill-selection.js');
@@ -86,10 +77,10 @@ main();
 echo ""
 
 # ============================================================================
-# STEP 3: Agent Generation
+# STEP 2: Agent Generation
 # ============================================================================
 
-echo "Step 3: Generating agents..."
+echo "Step 2: Generating agents..."
 
 node -e "
 const agentGen = require('$FRAMEWORK_PATH/utils/agent-generation.js');
@@ -150,10 +141,10 @@ main();
 echo ""
 
 # ============================================================================
-# STEP 4: Copy Commands
+# STEP 3: Copy Commands
 # ============================================================================
 
-echo "Step 4: Copying commands..."
+echo "Step 3: Copying commands..."
 
 mkdir -p "$PROJECT_PATH/.claude/commands"
 

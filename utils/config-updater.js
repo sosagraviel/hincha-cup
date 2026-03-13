@@ -31,7 +31,9 @@ class ConfigUpdater {
   async validateConfig(config) {
     const schema = require('../schemas/framework-config.schema.json');
     const Ajv = require('ajv');
-    const ajv = new Ajv({ allErrors: true });
+    const addFormats = require('ajv-formats');
+    const ajv = new Ajv({ allErrors: true, strict: false });
+    addFormats(ajv);
 
     const validate = ajv.compile(schema);
     const valid = validate(config);

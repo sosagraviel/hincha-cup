@@ -349,9 +349,13 @@ async function generateImplementerAgent(templatesPath, stackProfile, skills, com
   content = content.replace(/\{\{skills\}\}/g, formatSkillsList(skills));
   content = content.replace(/\{\{lint_command\}\}/g, commands.lint_command || getDefaultLintCommand(language));
   content = content.replace(/\{\{format_command\}\}/g, commands.format_command || getDefaultFormatCommand(language));
+  content = content.replace(/\{\{type_check_command\}\}/g, commands.type_check_command || getDefaultTypecheckCommand(language));
+  content = content.replace(/\{\{unit_test_command\}\}/g, commands.unit_test_command || getDefaultTestCommand(language));
+  content = content.replace(/\{\{build_command\}\}/g, commands.build_command || getDefaultBuildCommand(language));
+
+  // Legacy aliases for backward compatibility
   content = content.replace(/\{\{typecheck_command\}\}/g, commands.type_check_command || getDefaultTypecheckCommand(language));
   content = content.replace(/\{\{test_command\}\}/g, commands.unit_test_command || getDefaultTestCommand(language));
-  content = content.replace(/\{\{build_command\}\}/g, commands.build_command || getDefaultBuildCommand(language));
 
   content = content.replace(/\{\{skills_documentation\}\}/g, generateSkillsDocumentation(skills));
 

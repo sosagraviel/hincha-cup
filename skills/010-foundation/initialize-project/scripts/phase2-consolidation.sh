@@ -108,6 +108,16 @@ CRITICAL: Follow ALL instructions in the agent file below.
 Output ONLY valid JSON starting with { and ending with }
 Do NOT wrap in markdown code blocks or add ANY text before/after the JSON
 
+CRITICAL: When populating the 'consolidated_from' array, you MUST use these EXACT agent names:
+- 01-structure-architecture
+- 02-tech-stack-dependencies
+- 03-code-patterns-testing
+- 04-data-flows-integrations
+- consolidation
+
+Do NOT use descriptive names like 'tech-stack-dependencies-analyzer' or 'structure-architecture-analyzer'.
+Use the file name format shown above (with numeric prefixes, no -analyzer suffix).
+
 === INPUT DATA ===
 Current gaps that need consolidation:
 $GAPS_JSON
