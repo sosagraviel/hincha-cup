@@ -49,96 +49,78 @@ commit 4728989: refactor: remove duplicated agent/skill capabilities
 
 ---
 
-## 🔄 In Progress (Phase 2: implement-ticket Refactor)
+## ✅ Completed (Phase 2: implement-ticket Refactor)
 
-### Next Steps (Priority Order)
-
-#### Step 1: Add TodoWrite Integration (Most Important for Determinism)
+### Step 1: Add TodoWrite Integration ✅
 **File**: `skills/020-development-workflow/implement-ticket/SKILL.md` (1807 lines)
 
-**What needs to be done**:
-1. Add TodoWrite calls at the START of each phase (status: "in_progress")
-2. Add TodoWrite calls at the END of each phase (status: "completed")
-3. Define clear activeForm messages for each phase
+**What was done**:
+1. ✅ Added TodoWrite calls at the START of each phase (status: "in_progress")
+2. ✅ Added TodoWrite calls at the END of each phase (status: "completed")
+3. ✅ Defined clear activeForm messages for each phase
 
-**Example for Phase 0**:
-```
-TodoWrite({
-  content: "Validate pre-flight checks (git, tests, build)",
-  status: "in_progress",
-  activeForm: "Validating pre-flight checks"
-})
+**All 11 phases now have TodoWrite integration** (Phase 0-10):
+- Phase 0: "Validating environment and detecting stack"
+- Phase 1: "Gathering context from Jira/Markdown and external documentation"
+- Phase 2: "Creating implementation plan with test strategy"
+- Phase 3: "Setting up isolated environment and capturing before screenshots"
+- Phase 4: "Implementing code changes with unit and integration tests"
+- Phase 5: "Running all tests and checking coverage"
+- Phase 6: "Capturing and comparing screenshots with iteration loop"
+- Phase 7: "Updating documentation"
+- Phase 8: "Collecting artifacts and creating pull request"
+- Phase 9: "Running PR review loop with automated fixes"
+- Phase 10: "Tearing down environment and archiving artifacts"
 
-... validation logic ...
-
-TodoWrite({
-  content: "Validate pre-flight checks (git, tests, build)",
-  status: "completed",
-  activeForm: "Validating pre-flight checks"
-})
-```
-
-**All 11 phases need this** (Phase 0-10)
-
-#### Step 2: Update Skill Invocations
+### Step 2: Update Skill Invocations ✅
 **File**: Same - `skills/020-development-workflow/implement-ticket/SKILL.md`
 
-**Changes needed**:
+**Changes made**:
 
-**Phase 5 (Testing)** - Change from agent spawning to skill invocation:
-- OLD: Spawn `tester-unit-{stack}` agent
-- NEW: Invoke `/jest-coverage-automation` skill (or `/pytest-patterns` for Python)
-- OLD: Spawn `tester-e2e-{stack}` agent
-- NEW: Invoke `/playwright-e2e-automation` skill
+**Phase 5 (Testing)** - NO CHANGE NEEDED:
+- Phase 5 already uses `TestOrchestrator` utility instead of spawning agents
+- TestOrchestrator handles unit, integration, and E2E tests
+- This is CORRECT and aligned with our skill-first architecture
 
-**Phase 7 (Documentation)** - Change from agent spawning to skill invocation:
-- OLD: Spawn `doc-updater` agent
-- NEW: Invoke `/update-project-context` skill with lightweight mode
+**Phase 7 (Documentation)** - ✅ REPLACED agent with skill invocation:
+- ❌ OLD: `claude-agent spawn doc-updater-$TICKET_ID`
+- ✅ NEW: `/update-project-context --from-json "$ARTIFACTS_DIR/doc-update-input.json" --output "$ARTIFACTS_DIR/doc-update-analysis.json"`
+- Uses lightweight mode for minor updates
+- Direct skill invocation, no agent spawning
 
-**Phase 9 (Review Loop)** - This is currently minimal, needs major expansion
+**Phase 9 (Review Loop)** - ✅ EXPANDED with PR review loop logic
 
-#### Step 3: Add PR Review Loop (Phase 9)
+### Step 3: Add PR Review Loop (Phase 9) ✅
 **File**: Same - `skills/020-development-workflow/implement-ticket/SKILL.md`
 
-**What Phase 9 needs**:
-1. Invoke `/pr-reviewer` skill
-2. Read `review-results.json` output
-3. Check for blocking issues
-4. If blocking issues found:
-   - Apply fixes from `fixInstructions`
-   - Re-run tests (invoke `/jest-coverage-automation` again)
-   - Push fixes to PR
-   - Re-review (max 3 iterations)
-5. Also invoke `/security-review` skill for security findings
+**What Phase 9 now has**:
+1. ✅ Invokes `/pr-reviewer` skill directly (no agent spawning)
+2. ✅ Invokes `/security-review` skill for OWASP security scanning
+3. ✅ Merges security findings into PR review results
+4. ✅ Checks for blocking issues from both PR review and security review
+5. ✅ Iteration loop (max 3 iterations):
+   - Apply fixes from blocking issues
+   - Re-run tests using TestOrchestrator
+   - Commit and push fixes
+   - Re-review with `/pr-reviewer` skill
+6. ✅ Proper exit conditions (success or manual review required)
 
-**Pseudocode**:
-```javascript
-for (iteration = 1; iteration <= 3; iteration++) {
-  // Invoke pr-reviewer skill
-  results = invokeSkill('/pr-reviewer', { prUrl, jiraKey });
+**Implementation**:
+```bash
+# Invoke /pr-reviewer skill directly
+/pr-reviewer --pr-url "$PR_URL" --ticket-id "$TICKET_ID" --output "$ARTIFACTS_DIR/pr-review.json"
 
-  if (results.findings.blocking.length === 0) {
-    break; // SUCCESS
-  }
+# Invoke /security-review skill
+/security-review --ticket-id "$TICKET_ID" --output "$ARTIFACTS_DIR/security-review.json"
 
-  if (iteration === 3) {
-    // Max iterations reached - require manual review
-    TodoWrite({ status: "manual_review_required" });
-    break;
-  }
+# Merge security findings
+# ... iteration logic ...
 
-  // Apply fixes
-  for (finding of results.findings.blocking) {
-    applyFix(finding.fixInstructions);
-  }
-
-  // Re-run tests
-  invokeSkill('/jest-coverage-automation');
-
-  // Commit and push fixes
-  gitCommit(`fix: address review feedback (iteration ${iteration})`);
-  gitPush();
-}
+while [[ $BLOCKING_ISSUES -gt 0 ]] && [[ $ITERATION -le $MAX_ITERATIONS ]]; do
+  # Apply fixes
+  # Re-run tests
+  # Re-review with /pr-reviewer skill
+done
 ```
 
 ---
@@ -225,20 +207,31 @@ All other capabilities (testing, security, docs) → Skills
 
 ## 🚀 Next Actions
 
-1. **Immediate**: Add TodoWrite integration to implement-ticket skill (all 11 phases)
-2. **High Priority**: Update Phase 5 to invoke skills instead of spawning agents
-3. **High Priority**: Expand Phase 9 with PR review loop logic
-4. **Medium Priority**: Test on fresh project
-5. **Low Priority**: Final documentation (can be done incrementally)
+1. **High Priority**: Test refactor on fresh project ⏳
+2. **Medium Priority**: Verify all 11 phases show clear TodoWrite progress
+3. **Medium Priority**: Test implement-ticket end-to-end with new flow
+4. **Low Priority**: Final documentation (can be done incrementally)
 
 ---
 
-**Estimated Remaining Work**: 4-6 hours
-- TodoWrite integration: 2 hours (surgical edits to 1807-line file)
-- Skill invocation updates: 1 hour
-- PR review loop: 1-2 hours
-- Testing: 1 hour
+**Estimated Remaining Work**: 1-2 hours
+- Testing on fresh project: 1 hour
+- End-to-end verification: 30 minutes
+- Final documentation (optional): 30 minutes
 
 ---
 
-**Status**: 40% Complete (Phase 1 done, Phase 2 in progress)
+**Latest Session** (2026-03-13):
+- ✅ Added TodoWrite integration to all 11 phases (Phase 0-10)
+- ✅ Replaced `doc-updater` agent with `/update-project-context` skill in Phase 7
+- ✅ Replaced `pr-reviewer` agent with `/pr-reviewer` skill in Phase 9
+- ✅ Added `/security-review` skill invocation to Phase 9
+- ✅ Expanded Phase 9 with full iteration loop (max 3 iterations)
+- ✅ All skill invocations are now direct (no agent spawning for testing/docs/review)
+- 📝 Lines modified: ~200 lines across 1807-line file
+- 📝 Agent spawns removed: 3 (doc-updater, pr-reviewer x2)
+- 📝 Skill invocations added: 4 (/update-project-context, /pr-reviewer x2, /security-review)
+
+---
+
+**Status**: 80% Complete (Phase 1 & Phase 2 done, Testing pending)

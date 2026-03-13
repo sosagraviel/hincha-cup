@@ -170,6 +170,15 @@ TICKET_ID="$1"
 INPUT_SOURCE="$2"  # --from-jira or --from-markdown
 INPUT_VALUE="$3"   # URL/key or file path
 
+# TodoWrite: Mark phase as in_progress
+TodoWrite({
+  todos: [{
+    content: "Validate environment and detect stack",
+    status: "in_progress",
+    activeForm: "Validating environment and detecting stack"
+  }]
+})
+
 echo "🚀 Phase 0: Pre-Flight Validation"
 echo "=================================="
 
@@ -274,6 +283,15 @@ echo "   - Stack detected: $(jq -r '.primaryLanguage' $ARTIFACTS_DIR/stack-profi
 echo "   - Unit test framework: $(jq -r '.unit[0].name // "None"' $ARTIFACTS_DIR/test-frameworks.json)"
 echo "   - E2E test framework: $(jq -r '.e2e[0].name // "None (will auto-init Playwright)"' $ARTIFACTS_DIR/test-frameworks.json)"
 echo ""
+
+# TodoWrite: Mark phase as completed
+TodoWrite({
+  todos: [{
+    content: "Validate environment and detect stack",
+    status: "completed",
+    activeForm: "Validating environment and detecting stack"
+  }]
+})
 ```
 
 ---
@@ -287,6 +305,15 @@ echo ""
 ```bash
 #!/bin/bash
 set -e
+
+# TodoWrite: Mark phase as in_progress
+TodoWrite({
+  todos: [{
+    content: "Gather context from Jira/Markdown and external documentation",
+    status: "in_progress",
+    activeForm: "Gathering context from Jira/Markdown and external documentation"
+  }]
+})
 
 echo "📖 Phase 1: Context Gathering"
 echo "=============================="
@@ -357,6 +384,15 @@ if [[ "${CLAUDE_AUTO_MODE:-false}" != "true" ]] && [[ "$*" != *"--no-stop"* ]]; 
         exit 1
     fi
 fi
+
+# TodoWrite: Mark phase as completed
+TodoWrite({
+  todos: [{
+    content: "Gather context from Jira/Markdown and external documentation",
+    status: "completed",
+    activeForm: "Gathering context from Jira/Markdown and external documentation"
+  }]
+})
 ```
 
 ---
@@ -370,6 +406,15 @@ fi
 ```bash
 #!/bin/bash
 set -e
+
+# TodoWrite: Mark phase as in_progress
+TodoWrite({
+  todos: [{
+    content: "Create implementation plan with test strategy",
+    status: "in_progress",
+    activeForm: "Creating implementation plan with test strategy"
+  }]
+})
 
 echo "📐 Phase 2: Planning & Architectural Design"
 echo "============================================"
@@ -450,6 +495,15 @@ if [[ "${CLAUDE_AUTO_MODE:-false}" != "true" ]] && [[ "$*" != *"--no-stop"* ]]; 
         exit 1
     fi
 fi
+
+# TodoWrite: Mark phase as completed
+TodoWrite({
+  todos: [{
+    content: "Create implementation plan with test strategy",
+    status: "completed",
+    activeForm: "Creating implementation plan with test strategy"
+  }]
+})
 ```
 
 ---
@@ -461,6 +515,15 @@ fi
 ```bash
 #!/bin/bash
 set -e
+
+# TodoWrite: Mark phase as in_progress
+TodoWrite({
+  todos: [{
+    content: "Set up isolated environment and capture before screenshots",
+    status: "in_progress",
+    activeForm: "Setting up isolated environment and capturing before screenshots"
+  }]
+})
 
 echo "🔧 Phase 3: Environment Setup"
 echo "=============================="
@@ -630,6 +693,15 @@ echo ""
 echo "✅ Environment setup complete"
 [[ "$REQUIRES_SETUP" == "true" ]] && echo "   - Isolated environment running on ports: $(echo "$ENV_CONFIG" | jq -r '.portRange.start')-$(echo "$ENV_CONFIG" | jq -r '.portRange.end')"
 echo ""
+
+# TodoWrite: Mark phase as completed
+TodoWrite({
+  todos: [{
+    content: "Set up isolated environment and capture before screenshots",
+    status: "completed",
+    activeForm: "Setting up isolated environment and capturing before screenshots"
+  }]
+})
 ```
 
 ---
@@ -643,6 +715,15 @@ echo ""
 ```bash
 #!/bin/bash
 set -e
+
+# TodoWrite: Mark phase as in_progress
+TodoWrite({
+  todos: [{
+    content: "Implement code changes with unit and integration tests",
+    status: "in_progress",
+    activeForm: "Implementing code changes with unit and integration tests"
+  }]
+})
 
 echo "⚙️  Phase 4: Implementation"
 echo "=========================="
@@ -686,6 +767,15 @@ echo ""
 echo "📋 Changes Summary:"
 git status --short
 echo ""
+
+# TodoWrite: Mark phase as completed
+TodoWrite({
+  todos: [{
+    content: "Implement code changes with unit and integration tests",
+    status: "completed",
+    activeForm: "Implementing code changes with unit and integration tests"
+  }]
+})
 ```
 
 ---
@@ -697,6 +787,15 @@ echo ""
 ```bash
 #!/bin/bash
 set -e
+
+# TodoWrite: Mark phase as in_progress
+TodoWrite({
+  todos: [{
+    content: "Run all tests (unit, integration, E2E) and check coverage",
+    status: "in_progress",
+    activeForm: "Running all tests and checking coverage"
+  }]
+})
 
 echo "✅ Phase 5: Testing"
 echo "==================="
@@ -767,6 +866,15 @@ orchestrator.runAll().then(results => {
 
 echo "✅ All tests passed"
 echo ""
+
+# TodoWrite: Mark phase as completed
+TodoWrite({
+  todos: [{
+    content: "Run all tests (unit, integration, E2E) and check coverage",
+    status: "completed",
+    activeForm: "Running all tests and checking coverage"
+  }]
+})
 ```
 
 ---
@@ -778,6 +886,15 @@ echo ""
 ```bash
 #!/bin/bash
 set -e
+
+# TodoWrite: Mark phase as in_progress
+TodoWrite({
+  todos: [{
+    content: "Capture and compare screenshots with iteration loop",
+    status: "in_progress",
+    activeForm: "Capturing and comparing screenshots with iteration loop"
+  }]
+})
 
 echo "📸 Phase 6: Visual Verification"
 echo "================================"
@@ -997,6 +1114,15 @@ else
 fi
 
 echo ""
+
+# TodoWrite: Mark phase as completed
+TodoWrite({
+  todos: [{
+    content: "Capture and compare screenshots with iteration loop",
+    status: "completed",
+    activeForm: "Capturing and comparing screenshots with iteration loop"
+  }]
+})
 ```
 
 ---
@@ -1010,6 +1136,15 @@ echo ""
 ```bash
 #!/bin/bash
 set -e
+
+# TodoWrite: Mark phase as in_progress
+TodoWrite({
+  todos: [{
+    content: "Update documentation (CLAUDE.md, project-context)",
+    status: "in_progress",
+    activeForm: "Updating documentation"
+  }]
+})
 
 echo "📝 Phase 7: Documentation Update"
 echo "================================="
@@ -1031,11 +1166,21 @@ echo "  - Analyzing code changes for documentation impact..."
 # Read implementation summary
 IMPLEMENTATION_SUMMARY=$(cat "$ARTIFACTS_DIR/implementations/implementation-log.md" | head -n 100)
 
-# Spawn doc-updater agent
-claude-agent spawn doc-updater-$TICKET_ID \
-    --template agents/templates/doc-updater.template.md \
-    --vars "JIRA_KEY=$TICKET_ID,CHANGED_FILES=$CHANGED_FILES,IMPLEMENTATION_SUMMARY=$IMPLEMENTATION_SUMMARY" \
-    --output "$ARTIFACTS_DIR/doc-update-analysis.json"
+# Invoke update-project-context skill directly (lightweight mode)
+echo "  - Invoking /update-project-context skill..."
+
+# Create input for skill
+cat > "$ARTIFACTS_DIR/doc-update-input.json" <<EOF
+{
+  "ticketId": "$TICKET_ID",
+  "changedFiles": "$CHANGED_FILES",
+  "implementationSummary": "$IMPLEMENTATION_SUMMARY",
+  "mode": "lightweight"
+}
+EOF
+
+# Invoke skill
+/update-project-context --from-json "$ARTIFACTS_DIR/doc-update-input.json" --output "$ARTIFACTS_DIR/doc-update-analysis.json"
 
 # Read analysis
 DOC_ANALYSIS=$(cat "$ARTIFACTS_DIR/doc-update-analysis.json")
@@ -1110,6 +1255,15 @@ else
 fi
 
 echo ""
+
+# TodoWrite: Mark phase as completed
+TodoWrite({
+  todos: [{
+    content: "Update documentation (CLAUDE.md, project-context)",
+    status: "completed",
+    activeForm: "Updating documentation"
+  }]
+})
 ```
 
 ---
@@ -1121,6 +1275,15 @@ echo ""
 ```bash
 #!/bin/bash
 set -e
+
+# TodoWrite: Mark phase as in_progress
+TodoWrite({
+  todos: [{
+    content: "Collect artifacts and create pull request",
+    status: "in_progress",
+    activeForm: "Collecting artifacts and creating pull request"
+  }]
+})
 
 echo "🚀 Phase 8: PR Creation"
 echo "======================="
@@ -1206,6 +1369,15 @@ echo ""
 
 # Save PR URL to artifact
 echo "$PR_URL" > "$ARTIFACTS_DIR/pr-url.txt"
+
+# TodoWrite: Mark phase as completed
+TodoWrite({
+  todos: [{
+    content: "Collect artifacts and create pull request",
+    status: "completed",
+    activeForm: "Collecting artifacts and creating pull request"
+  }]
+})
 ```
 
 ---
@@ -1218,6 +1390,15 @@ echo "$PR_URL" > "$ARTIFACTS_DIR/pr-url.txt"
 #!/bin/bash
 set -e
 
+# TodoWrite: Mark phase as in_progress
+TodoWrite({
+  todos: [{
+    content: "Run PR review loop with automated fixes (max 3 iterations)",
+    status: "in_progress",
+    activeForm: "Running PR review loop with automated fixes"
+  }]
+})
+
 echo "🔄 Phase 9: Review Loop"
 echo "======================="
 
@@ -1226,18 +1407,34 @@ ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 
 echo "  - Running automated PR reviews..."
 
-# Step 1: Run automated reviews
-claude-agent spawn pr-reviewer \
-    --template agents/templates/pr-reviewer.template.md \
-    --vars "JIRA_KEY=$TICKET_ID" \
-    --output "$ARTIFACTS_DIR/pr-review.json"
+# Step 1: Run automated reviews using pr-reviewer skill
+PR_URL=$(cat "$ARTIFACTS_DIR/pr-url.txt")
+
+# Invoke /pr-reviewer skill directly
+echo "  - Running PR review..."
+/pr-reviewer --pr-url "$PR_URL" --ticket-id "$TICKET_ID" --output "$ARTIFACTS_DIR/pr-review.json"
+
+# Invoke /security-review skill
+echo "  - Running security review..."
+/security-review --ticket-id "$TICKET_ID" --output "$ARTIFACTS_DIR/security-review.json"
 
 # Read review results
 PR_REVIEW=$(cat "$ARTIFACTS_DIR/pr-review.json")
-TOTAL_ISSUES=$(echo "$PR_REVIEW" | jq -r '.issues | length')
-BLOCKING_ISSUES=$(echo "$PR_REVIEW" | jq -r '[.issues[] | select(.severity == "blocking")] | length')
+SECURITY_REVIEW=$(cat "$ARTIFACTS_DIR/security-review.json")
+
+# Merge security findings into PR review
+SECURITY_BLOCKING=$(echo "$SECURITY_REVIEW" | jq -r '.findings.blocking | length')
+PR_REVIEW=$(echo "$PR_REVIEW $SECURITY_REVIEW" | jq -s '.[0] + {securityFindings: .[1].findings}')
+
+# Write merged review
+echo "$PR_REVIEW" > "$ARTIFACTS_DIR/pr-review.json"
+
+# Count total issues
+TOTAL_ISSUES=$(echo "$PR_REVIEW" | jq -r '(.issues | length) + (.securityFindings.blocking | length) + (.securityFindings.major | length)')
+BLOCKING_ISSUES=$(echo "$PR_REVIEW" | jq -r '([.issues[] | select(.severity == "blocking")] | length) + (.securityFindings.blocking | length)')
 
 echo "  - Review complete: $TOTAL_ISSUES issues found ($BLOCKING_ISSUES blocking)"
+echo "     - Security findings: $SECURITY_BLOCKING blocking security issues"
 
 if [[ $TOTAL_ISSUES -eq 0 ]]; then
     echo "  ✅ No issues found. PR is ready for merge."
@@ -1305,10 +1502,8 @@ SCRIPT
     # Re-run review
     echo "  - Re-running automated review..."
 
-    claude-agent spawn pr-reviewer \
-        --template agents/templates/pr-reviewer.template.md \
-        --vars "JIRA_KEY=$TICKET_ID" \
-        --output "$ARTIFACTS_DIR/pr-review-iter-$ITERATION.json"
+    # Invoke /pr-reviewer skill again
+    /pr-reviewer --pr-url "$PR_URL" --ticket-id "$TICKET_ID" --output "$ARTIFACTS_DIR/pr-review-iter-$ITERATION.json"
 
     PR_REVIEW=$(cat "$ARTIFACTS_DIR/pr-review-iter-$ITERATION.json")
     TOTAL_ISSUES=$(echo "$PR_REVIEW" | jq -r '.issues | length')
@@ -1331,6 +1526,15 @@ else
 fi
 
 echo ""
+
+# TodoWrite: Mark phase as completed
+TodoWrite({
+  todos: [{
+    content: "Run PR review loop with automated fixes (max 3 iterations)",
+    status: "completed",
+    activeForm: "Running PR review loop with automated fixes"
+  }]
+})
 ```
 
 ---
@@ -1342,6 +1546,15 @@ echo ""
 ```bash
 #!/bin/bash
 set -e
+
+# TodoWrite: Mark phase as in_progress
+TodoWrite({
+  todos: [{
+    content: "Teardown environment and archive artifacts",
+    status: "in_progress",
+    activeForm: "Tearing down environment and archiving artifacts"
+  }]
+})
 
 echo "🧹 Phase 10: Cleanup"
 echo "===================="
@@ -1400,6 +1613,15 @@ echo ""
 echo "📦 Artifacts: $ARTIFACTS_DIR/"
 echo "📋 PR: $(cat "$ARTIFACTS_DIR/pr-url.txt" 2>/dev/null || echo "Not created")"
 echo ""
+
+# TodoWrite: Mark phase as completed
+TodoWrite({
+  todos: [{
+    content: "Teardown environment and archive artifacts",
+    status: "completed",
+    activeForm: "Tearing down environment and archiving artifacts"
+  }]
+})
 ```
 
 ---
