@@ -81,7 +81,7 @@ You have preloaded skills with project-specific knowledge:
 **Consult these skills when implementing!** They contain:
 - Project architecture and conventions
 - Language-specific best practices
-- Framework patterns and idioms
+- Stack-specific patterns and idioms
 - Testing strategies
 
 ## Important Rules
