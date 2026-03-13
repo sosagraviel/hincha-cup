@@ -1153,80 +1153,42 @@ TICKET_ID="$1"
 ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 
 # Get list of changed files
-CHANGED_FILES=$(git diff --name-only origin/main...HEAD | tr '\n' ',' | sed 's/,$//')
+CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
 
 if [[ -z "$CHANGED_FILES" ]]; then
-    echo "  - No files changed. Skipping documentation update."
+    echo "  ✅ No files changed. Skipping documentation update."
     echo ""
     exit 0
 fi
 
-echo "  - Analyzing code changes for documentation impact..."
+echo "  📝 Invoking /doc-updater skill to analyze code changes..."
+echo ""
 
-# Read implementation summary
-IMPLEMENTATION_SUMMARY=$(cat "$ARTIFACTS_DIR/implementations/implementation-log.md" | head -n 100)
+# The doc-updater skill will:
+# 1. Read current CLAUDE.md and project-context/SKILL.md
+# 2. Analyze all changed files for documentation impact
+# 3. Apply the maintenance test (only update hard-to-discover knowledge)
+# 4. Generate structured update plan
+# 5. Apply minimal necessary updates
+# 6. Verify updates are correct
 
-# Simple inline doc update check
-# For major architectural changes, run /update-project-context manually
-echo "  - Checking for documentation impact..."
+# Export variables for skill access
+export TICKET_ID="$TICKET_ID"
+export ARTIFACTS_DIR="$ARTIFACTS_DIR"
+export CHANGED_FILES="$CHANGED_FILES"
 
-# Detect if major architectural files changed
-ARCH_FILES_CHANGED=$(echo "$CHANGED_FILES" | grep -E '(docker-compose|package\.json|tsconfig|next\.config|tailwind\.config|middleware|guards|interceptors|\.env)' || echo "")
+# Invoke doc-updater skill
+# This skill handles all intelligent analysis and updates
+/doc-updater
 
-if [[ -z "$ARCH_FILES_CHANGED" ]]; then
-    echo "  ✅ No major architectural changes detected"
-    echo "     Skipping documentation update (implementation details only)"
+# Check if skill completed successfully
+if [[ $? -eq 0 ]]; then
     echo ""
-
-    # Create empty analysis for consistency
-    cat > "$ARTIFACTS_DIR/doc-update-analysis.json" <<EOF
-{
-  "changesDetected": {
-    "claudeMd": { "updateNeeded": false },
-    "projectContext": { "updateNeeded": false }
-  }
-}
-EOF
-
-    # Skip to config-updater section
-fi
-
-if [[ -n "$ARCH_FILES_CHANGED" ]]; then
-    echo "  ⚠️  Architectural files changed: $ARCH_FILES_CHANGED"
-    echo "     Consider running /update-project-context manually for full doc update"
+    echo "  ✅ Documentation update completed successfully"
+else
     echo ""
-
-    # Create analysis noting arch changes
-    cat > "$ARTIFACTS_DIR/doc-update-analysis.json" <<EOF
-{
-  "changesDetected": {
-    "claudeMd": {
-      "updateNeeded": true,
-      "reason": "Architectural files modified: $ARCH_FILES_CHANGED",
-      "recommendation": "Run /update-project-context manually for comprehensive update"
-    },
-    "projectContext": { "updateNeeded": false }
-  }
-}
-EOF
+    echo "  ⚠️  Documentation update encountered issues (non-blocking)"
 fi
-
-# Read analysis
-DOC_ANALYSIS=$(cat "$ARTIFACTS_DIR/doc-update-analysis.json")
-
-CLAUDE_MD_UPDATE_NEEDED=$(echo "$DOC_ANALYSIS" | jq -r '.changesDetected.claudeMd.updateNeeded')
-PROJECT_CONTEXT_UPDATE_NEEDED=$(echo "$DOC_ANALYSIS" | jq -r '.changesDetected.projectContext.updateNeeded')
-
-if [[ "$CLAUDE_MD_UPDATE_NEEDED" == "false" ]] && [[ "$PROJECT_CONTEXT_UPDATE_NEEDED" == "false" ]]; then
-    echo "  ✅ No documentation updates needed"
-    echo "     Reason: Implementation details only, no architectural changes"
-    echo ""
-    exit 0
-fi
-
-echo "  - Documentation updates needed:"
-[[ "$CLAUDE_MD_UPDATE_NEEDED" == "true" ]] && echo "    - CLAUDE.md: $(echo "$DOC_ANALYSIS" | jq -r '.changesDetected.claudeMd.sections | join(", ")')"
-[[ "$PROJECT_CONTEXT_UPDATE_NEEDED" == "true" ]] && echo "    - project-context: $(echo "$DOC_ANALYSIS" | jq -r '.changesDetected.projectContext.sections | join(", ")')"
 
 # Apply updates (doc-updater agent already applied them via Edit tool)
 echo "  ✅ Documentation updated"
