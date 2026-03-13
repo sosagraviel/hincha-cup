@@ -237,8 +237,11 @@ After thorough investigation, discovered critical architectural issues:
 1. **Phase 7 (Documentation) - CORRECTED** ✅
    - ❌ **Initial mistake**: Tried to invoke `/update-project-context` skill with unsupported parameters
    - ❌ **Problem**: update-project-context runs FULL re-analysis (too heavy for Phase 7)
-   - ✅ **Correct solution**: Inline file change detection with grep (lightweight)
-   - ✅ **Result**: Simple detection of architectural file changes, recommends manual skill run
+   - ✅ **First correction**: Inline file change detection with grep (lightweight)
+   - ⚠️ **User feedback**: "I didn't like the solution" - too simple, lost AI intelligence
+   - ✅ **FINAL SOLUTION**: Created `/doc-updater` skill (converted from deleted agent)
+   - ✅ **Result**: Phase 7 now invokes `/doc-updater` skill directly
+   - ✅ **Deleted**: `update-project-context` skill (was never used)
 
 2. **Phase 9 (Review Loop) - CORRECTED** ✅
    - ❌ **Initial mistake**: Tried to invoke `/pr-reviewer` skill from bash (impossible)
@@ -252,11 +255,29 @@ After thorough investigation, discovered critical architectural issues:
    - ℹ️ This is the **correct architectural pattern** to follow
 
 **Key Architectural Insights**:
-- 🎯 **Utility classes are the bridge**: TestOrchestrator, ReviewLoopOrchestrator, ConfigUpdater
-- 🎯 **Skills are NOT callable from bash**: They're for interactive user invocation
-- 🎯 **The right pattern**: Bash → Utility Class → Underlying logic
-- 🎯 **Agent spawns acceptable when**: No utility exists AND AI analysis required (e.g., config-updater)
+- 🎯 **Skills CAN be invoked from bash**: User-facing skills like `/doc-updater` work fine
+- 🎯 **Utility pattern for reusable logic**: TestOrchestrator, ReviewLoopOrchestrator
+- 🎯 **Skill pattern for AI analysis**: doc-updater analyzes changes with AI intelligence
+- 🎯 **The right choice**: Skills when AI needed, utilities when logic is deterministic
+
+**doc-updater Skill Creation** ✅:
+1. Created `skills/030-quality-assurance/doc-updater/SKILL.md`
+2. Converted doc-updater agent template logic to skill format
+3. Preserves all intelligent analysis:
+   - Reads changed files
+   - Applies maintenance test
+   - Detects documentation impact
+   - Makes surgical updates
+4. Added to resource-mapping.json (always-copied skills)
+5. Removed from agents section (no longer generated as agent)
+
+**resource-mapping.json Cleanup** ✅:
+- Removed `update-project-context` from skills.always
+- Added `doc-updater` to skills.always
+- Removed `per_testing_framework` agents (templates deleted in Phase 1)
+- Removed `per_language_security` agents (templates deleted in Phase 1)
+- Removed `documentation` agents section entirely
 
 ---
 
-**Status**: 80% Complete (Phase 1 & Phase 2 done, Testing pending)
+**Status**: 95% Complete (Phase 1 & Phase 2 COMPLETE, Testing remaining)
