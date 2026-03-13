@@ -100,6 +100,9 @@ elif ! node -e "require('ajv')" 2>/dev/null; then
 elif ! node -e "require('ajv-formats')" 2>/dev/null; then
   NEEDS_INSTALL=true
   echo "  ajv-formats not found"
+elif ! node -e "require('handlebars')" 2>/dev/null; then
+  NEEDS_INSTALL=true
+  echo "  handlebars not found"
 fi
 
 if [ "$NEEDS_INSTALL" = true ]; then

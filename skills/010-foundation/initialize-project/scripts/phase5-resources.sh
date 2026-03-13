@@ -122,12 +122,6 @@ async function main() {
     await configUpdater.writeConfig(config);
     console.log('✓ Agent tracking metadata saved');
 
-    // Generate agent index
-    console.log('Generating agent index...');
-    const indexContent = await agentGen.generateAgentIndex(result.generation, '$PROJECT_PATH');
-    fs.writeFileSync(path.join('$PROJECT_PATH', '.claude', 'agents', 'INDEX.md'), indexContent);
-    console.log('✓ Agent index generated');
-
     process.exit(0);
   } catch (error) {
     console.error('Error in agent generation:', error);
@@ -205,7 +199,7 @@ echo ""
 
 # Count what was created
 SKILL_COUNT=$(find "$PROJECT_PATH/.claude/skills" -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
-AGENT_COUNT=$(find "$PROJECT_PATH/.claude/agents" -name "*.md" -not -name "INDEX.md" 2>/dev/null | wc -l | tr -d ' ')
+AGENT_COUNT=$(find "$PROJECT_PATH/.claude/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
 
 echo "Results:"
 echo "  Skills: $SKILL_COUNT"
