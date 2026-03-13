@@ -20,6 +20,7 @@
 - [Full SDLC Autonomy](#full-sdlc-autonomy)
 - [Quick Start](#quick-start)
 - [Core Workflows](#core-workflows)
+- [Architecture](#architecture)
 - [Documentation](#documentation)
 - [Stack Support](#stack-support)
 - [Success Metrics](#success-metrics)
@@ -316,6 +317,92 @@ Review the PR, test locally if needed, and merge.
 # 4. Implement when ready
 /implement-ticket PROJ-891
 ```
+
+---
+
+## Architecture
+
+**Version**: 2.0 (Skill-First Architecture)
+**Last Updated**: 2026-03-13
+
+### Skill-First Principles
+
+The framework follows a skill-first architecture where **skills are the single source of truth** and agents are minimal executors:
+
+```mermaid
+graph TD
+    User[User] -->|Invokes| Skill[Skills]
+    Skill -->|For deterministic logic| Utility[Utility Classes]
+    Skill -->|For AI analysis| SkillInvoke[Other Skills]
+    Skill -->|For code generation| Agent[Agents]
+
+    Utility -->|TestOrchestrator| Tests[Run all tests]
+    Utility -->|ReviewLoopOrchestrator| Reviews[PR/Security review loop]
+
+    SkillInvoke -->|doc-updater| Docs[Update documentation]
+
+    Agent -->|planner| Plan[Architecture planning]
+    Agent -->|implementer-{lang}| Code[Code generation]
+    Agent -->|visual-verifier| Visual[Screenshot analysis]
+
+    style Skill fill:#4CAF50,color:#fff
+    style Utility fill:#2196F3,color:#fff
+    style Agent fill:#FF9800,color:#fff
+```
+
+### Core Components
+
+| Component | Type | Purpose | Example |
+|-----------|------|---------|---------|
+| **Skills** | User-invocable workflows | Complete SDLC workflows | `/implement-ticket`, `/doc-updater` |
+| **Utilities** | Node.js classes | Deterministic orchestration | `TestOrchestrator`, `ReviewLoopOrchestrator` |
+| **Agents** | AI instances | Stack-specific code generation | `planner`, `implementer-typescript` |
+
+### Why This Architecture?
+
+**Before (Agent-Heavy)**:
+- ❌ Duplicated logic in agents and skills
+- ❌ 7 different agent types to maintain
+- ❌ Agent spawning for simple operations
+- ❌ Unclear which component owns which logic
+
+**After (Skill-First)**:
+- ✅ Skills own all knowledge and patterns
+- ✅ Only 3 agent types (planner, implementer, visual-verifier)
+- ✅ Utilities for deterministic logic (tests, reviews)
+- ✅ Clear separation of concerns
+
+### implement-ticket Architecture
+
+The `/implement-ticket` skill demonstrates this architecture across 11 phases:
+
+| Phase | Component Used | Type | Purpose |
+|-------|---------------|------|---------|
+| 0 | Pre-flight validation | Bash | Environment checks |
+| 1 | Context gathering | Skill | Fetch Jira/Confluence context |
+| 2 | Planning | Agent (`planner`) | Architecture-aware planning |
+| 3 | Environment setup | Bash | Port allocation, docker setup |
+| 4 | Implementation | Agent (`implementer-{lang}`) | Code generation |
+| 5 | Testing | Utility (`TestOrchestrator`) | Run all tests with coverage |
+| 6 | Visual verification | Agent (`visual-verifier`) | Screenshot comparison |
+| 7 | Documentation | Skill (`/doc-updater`) | AI-powered doc updates |
+| 8 | PR creation | Bash | Git commit + gh CLI |
+| 9 | Review loop | Utility (`ReviewLoopOrchestrator`) | PR + security review iterations |
+| 10 | Cleanup | Bash | Environment teardown |
+
+**Key Pattern**: Use the simplest component that solves the problem:
+1. **Bash** for simple operations (git, file I/O)
+2. **Utilities** for deterministic logic (test orchestration)
+3. **Skills** for AI-powered analysis (documentation updates)
+4. **Agents** only for code generation (stack-specific)
+
+### Detailed Workflows
+
+For comprehensive phase-by-phase workflows with mermaid diagrams:
+
+- **[docs/IMPLEMENT_TICKET.md](./docs/IMPLEMENT_TICKET.md)** - 11-phase implementation workflow
+- **[docs/CREATE_SDD_TICKET.md](./docs/CREATE_SDD_TICKET.md)** - 7-phase ticket generation workflow
+- **[SKILLS_AND_AGENTS_MAP_V2.md](./SKILLS_AND_AGENTS_MAP_V2.md)** - Complete component mapping
 
 ---
 
