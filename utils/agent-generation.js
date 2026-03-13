@@ -256,10 +256,8 @@ async function generateAgents(
     }
 
     // 6. Generate visual verifier agent (for frontend projects with visual verification)
-    if (
-      stackProfile.frontend_frameworks &&
-      stackProfile.frontend_frameworks.length > 0
-    ) {
+    const frontendFrameworks = stackProfile.frameworks?.frontend || [];
+    if (frontendFrameworks.length > 0) {
       const visualVerifierSkills = resolveAgentSkills(
         "visual-verifier",
         stackProfile,

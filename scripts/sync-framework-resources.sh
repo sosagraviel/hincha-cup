@@ -73,24 +73,20 @@ NEEDS_INSTALL=false
 
 if [ ! -d "node_modules" ]; then
   NEEDS_INSTALL=true
-  echo "  node_modules not found"
 elif ! node -e "require('ajv')" 2>/dev/null; then
   NEEDS_INSTALL=true
-  echo "  ajv not found"
 elif ! node -e "require('ajv-formats')" 2>/dev/null; then
   NEEDS_INSTALL=true
-  echo "  ajv-formats not found"
 elif ! node -e "require('handlebars')" 2>/dev/null; then
   NEEDS_INSTALL=true
-  echo "  handlebars not found"
 fi
 
 if [ "$NEEDS_INSTALL" = true ]; then
-  echo "Installing framework dependencies..."
+  echo "  Installing framework dependencies..."
   npm install 2>&1 | grep -E "^(added|up to date)" || echo "  Dependencies installed"
   echo "✓ Dependencies installed"
 else
-  echo "✓ All dependencies present"
+  echo "✓ Dependencies present"
 fi
 
 cd - > /dev/null
@@ -279,11 +275,160 @@ echo "  ℹ️  Skills skipped: $SKILLS_SKIPPED"
 echo ""
 
 # ============================================================================
+# STEP 5.5: Detect and Add New Skills from Registry
+# ============================================================================
+
+echo "Step 5.5: Detecting new skills from registry..."
+
+NEW_SKILLS_RESULT=$(node -e "
+const { discoverMissingSkills } = require('$FRAMEWORK_PATH/utils/skill-discovery.js');
+const { addSingleSkill } = require('$FRAMEWORK_PATH/utils/skill-selection.js');
+
+async function main() {
+  try {
+    const result = await discoverMissingSkills('$PROJECT_PATH', '$FRAMEWORK_PATH');
+
+    const addedSkills = [];
+    const errors = [];
+
+    if (result.missingSkills.length > 0) {
+      console.error('  Found ' + result.missingSkills.length + ' new skill(s) in registry based on stack profile');
+
+      for (const skill of result.missingSkills) {
+        try {
+          const addResult = await addSingleSkill(skill.name, '$PROJECT_PATH', '$FRAMEWORK_PATH');
+          if (addResult.added) {
+            addedSkills.push({
+              name: skill.name,
+              category: skill.category,
+              reason: skill.reason
+            });
+          }
+        } catch (error) {
+          errors.push({
+            skill: skill.name,
+            error: error.message
+          });
+        }
+      }
+    }
+
+    console.log(JSON.stringify({
+      discovered: result.missingSkills.length,
+      added: addedSkills,
+      errors: errors,
+      ignored: result.ignoredSkills.length
+    }));
+
+    process.exit(0);
+  } catch (error) {
+    console.error('Error:', error.message);
+    process.exit(1);
+  }
+}
+
+main();
+")
+
+NEW_SKILLS_DISCOVERED=$(echo "$NEW_SKILLS_RESULT" | node -e "console.log(JSON.parse(require('fs').readFileSync(0, 'utf-8')).discovered)")
+NEW_SKILLS_ADDED_COUNT=$(echo "$NEW_SKILLS_RESULT" | node -e "console.log(JSON.parse(require('fs').readFileSync(0, 'utf-8')).added.length)")
+NEW_SKILLS_IGNORED=$(echo "$NEW_SKILLS_RESULT" | node -e "console.log(JSON.parse(require('fs').readFileSync(0, 'utf-8')).ignored)")
+
+echo "  ✓ New skills discovered: $NEW_SKILLS_DISCOVERED"
+echo "  ✓ New skills added:      $NEW_SKILLS_ADDED_COUNT"
+echo "  ℹ️  Skills ignored:       $NEW_SKILLS_IGNORED"
+
+# If new skills were added, determine affected agents
+FORCE_AGENT_REGEN="[]"
+if [ "$NEW_SKILLS_ADDED_COUNT" -gt 0 ]; then
+  echo ""
+  echo "  Checking for affected agents..."
+
+  AFFECTED_AGENTS=$(node -e "
+const { getAffectedAgents } = require('$FRAMEWORK_PATH/utils/skill-discovery.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
+
+async function main() {
+  try {
+    const configUpdater = new ConfigUpdater('$PROJECT_PATH', '$FRAMEWORK_PATH');
+    const config = await configUpdater.readConfig();
+
+    const newSkillsResult = $NEW_SKILLS_RESULT;
+    const addedSkills = newSkillsResult.added;
+
+    const affected = getAffectedAgents(
+      addedSkills,
+      config.stack_profile,
+      config.resource_state.agents
+    );
+
+    console.log(JSON.stringify(affected));
+    process.exit(0);
+  } catch (error) {
+    console.error('Error:', error.message);
+    process.exit(1);
+  }
+}
+
+main();
+  ")
+
+  AFFECTED_COUNT=$(echo "$AFFECTED_AGENTS" | node -e "console.log(JSON.parse(require('fs').readFileSync(0, 'utf-8')).length)")
+
+  if [ "$AFFECTED_COUNT" -gt 0 ]; then
+    echo "  ⚠️  $AFFECTED_COUNT agent(s) will be regenerated due to new skills"
+    FORCE_AGENT_REGEN="$AFFECTED_AGENTS"
+  else
+    echo "  ✓ No agents affected by new skills"
+  fi
+fi
+
+echo ""
+
+# ============================================================================
 # STEP 6: Sync Agents
 # ============================================================================
 
 echo "Step 6: Syncing agents..."
 
+# Regenerate agents affected by new skills first
+AGENTS_REGENERATED_FOR_SKILLS=0
+if [ "$FORCE_AGENT_REGEN" != "[]" ]; then
+  REGEN_RESULT=$(node -e "
+const { regenerateSingleAgent } = require('$FRAMEWORK_PATH/utils/agent-generation.js');
+
+async function main() {
+  try {
+    const agentsToRegen = $FORCE_AGENT_REGEN;
+    let regenerated = 0;
+
+    for (const agentName of agentsToRegen) {
+      try {
+        const result = await regenerateSingleAgent(agentName, '$PROJECT_PATH', '$FRAMEWORK_PATH');
+        if (result.success) {
+          console.error('  ✓ Regenerated: ' + agentName + ' (new skills added)');
+          regenerated++;
+        }
+      } catch (error) {
+        console.error('  ❌ Failed to regenerate ' + agentName + ': ' + error.message);
+      }
+    }
+
+    console.log(regenerated);
+    process.exit(0);
+  } catch (error) {
+    console.error('Error:', error.message);
+    process.exit(1);
+  }
+}
+
+main();
+  ")
+
+  AGENTS_REGENERATED_FOR_SKILLS=$REGEN_RESULT
+fi
+
+# Now check for template changes in agents
 AGENT_SYNC_RESULT=$(node -e "
 const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
 const { regenerateSingleAgent } = require('$FRAMEWORK_PATH/utils/agent-generation.js');
@@ -302,8 +447,16 @@ async function main() {
       errors: []
     };
 
+    const agentsRegeneratedForSkills = $FORCE_AGENT_REGEN || [];
+
     // Check each agent in config
     for (const [agentName, agentInfo] of Object.entries(config.resource_state.agents)) {
+      // Skip if already regenerated for new skills
+      if (agentsRegeneratedForSkills.includes(agentName)) {
+        result.skipped++;
+        continue;
+      }
+
       if (!agentInfo.managed_by_framework) {
         result.skipped++;
         continue;
@@ -394,12 +547,12 @@ echo "  SYNC COMPLETE"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "Summary:"
-echo "  Skills:  $SKILLS_UPDATED updated, $SKILLS_ADDED added, $SKILLS_SKIPPED skipped"
-echo "  Agents:  $AGENTS_UPDATED updated, $AGENTS_ADDED added, $AGENTS_SKIPPED skipped"
+echo "  Skills:  $SKILLS_UPDATED updated, $SKILLS_ADDED added, $NEW_SKILLS_ADDED_COUNT new from registry, $SKILLS_SKIPPED skipped"
+echo "  Agents:  $AGENTS_UPDATED updated, $AGENTS_ADDED added, $AGENTS_REGENERATED_FOR_SKILLS regenerated (new skills), $AGENTS_SKIPPED skipped"
 echo "  Backup:  $BACKUP_DIR"
 echo ""
 
-TOTAL_CHANGES=$((SKILLS_UPDATED + SKILLS_ADDED + AGENTS_UPDATED + AGENTS_ADDED))
+TOTAL_CHANGES=$((SKILLS_UPDATED + SKILLS_ADDED + NEW_SKILLS_ADDED_COUNT + AGENTS_UPDATED + AGENTS_ADDED + AGENTS_REGENERATED_FOR_SKILLS))
 
 if [ "$TOTAL_CHANGES" -eq 0 ]; then
   echo "ℹ️  No changes needed - all resources are up to date"

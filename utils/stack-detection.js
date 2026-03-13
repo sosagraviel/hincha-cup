@@ -306,10 +306,11 @@ async function detectStackForWorkspace(workspacePath, metadata) {
   const profile = {
     languages: [],
     primary_language: null,
-    backend_frameworks: [],
-    backend: null,
-    frontend_frameworks: [],
-    frontend: null,
+    frameworks: {
+      frontend: [],
+      backend: [],
+      mobile: []
+    },
     databases: [],
     testing: [],
     cloud: [],
@@ -377,8 +378,17 @@ async function detectStackForWorkspace(workspacePath, metadata) {
       const backendFrameworks = await detectBackendFramework(workspacePath, lang.name);
       const frontendFrameworks = await detectFrontendFramework(workspacePath, lang.name);
 
-      profile.backend_frameworks.push(...backendFrameworks);
-      profile.frontend_frameworks.push(...frontendFrameworks);
+      // Add framework names (deduplicate)
+      for (const fw of backendFrameworks) {
+        if (!profile.frameworks.backend.includes(fw.name)) {
+          profile.frameworks.backend.push(fw.name);
+        }
+      }
+      for (const fw of frontendFrameworks) {
+        if (!profile.frameworks.frontend.includes(fw.name)) {
+          profile.frameworks.frontend.push(fw.name);
+        }
+      }
 
       // Log framework detection
       if (backendFrameworks.length > 0) {
@@ -391,24 +401,6 @@ async function detectStackForWorkspace(workspacePath, metadata) {
           `✓ Frontend frameworks for ${lang.name}: ${frontendFrameworks.map(f => `${f.name} ${f.version}`).join(', ')}`
         );
       }
-    }
-
-    // Set primary backend and frontend (first detected framework)
-    if (profile.backend_frameworks.length > 0) {
-      profile.backend = {
-        framework: profile.backend_frameworks[0].name,
-        version: profile.backend_frameworks[0].version,
-        confidence: profile.backend_frameworks[0].confidence,
-        reason: profile.backend_frameworks[0].detectedBy
-      };
-    }
-    if (profile.frontend_frameworks.length > 0) {
-      profile.frontend = {
-        framework: profile.frontend_frameworks[0].name,
-        version: profile.frontend_frameworks[0].version,
-        confidence: profile.frontend_frameworks[0].confidence,
-        reason: profile.frontend_frameworks[0].detectedBy
-      };
     }
 
     // 4. Extract all dependency versions
@@ -528,9 +520,10 @@ function mergeWorkspaceProfiles(profiles, projectPath) {
     languages[0].is_primary = true;
   }
 
-  // Aggregate frameworks (keep full objects with versions)
-  const backendFrameworks = deduplicateByName(profiles.flatMap(p => p.backend_frameworks));
-  const frontendFrameworks = deduplicateByName(profiles.flatMap(p => p.frontend_frameworks));
+  // Aggregate frameworks (unique framework names from all workspaces)
+  const allFrontendFrameworks = [...new Set(profiles.flatMap(p => p.frameworks?.frontend || []))];
+  const allBackendFrameworks = [...new Set(profiles.flatMap(p => p.frameworks?.backend || []))];
+  const allMobileFrameworks = [...new Set(profiles.flatMap(p => p.frameworks?.mobile || []))];
 
   // Create workspace summaries for multi_stack
   const workspaceSummaries = profiles.map(p => ({
@@ -563,8 +556,7 @@ function mergeWorkspaceProfiles(profiles, projectPath) {
       primary_language: p.primary_language,
       languages: p.languages,
       file_counts: p.file_counts,
-      backend: p.backend,
-      frontend: p.frontend,
+      frameworks: p.frameworks,
       databases: p.databases,
       testing: p.testing,
       cloud: p.cloud,
@@ -572,22 +564,13 @@ function mergeWorkspaceProfiles(profiles, projectPath) {
       confidence: p.detection_metadata.confidence_scores
     })),
     languages: languages,
-    backend_frameworks: backendFrameworks,
-    frontend_frameworks: frontendFrameworks,
+    frameworks: {
+      frontend: allFrontendFrameworks,
+      backend: allBackendFrameworks,
+      mobile: allMobileFrameworks
+    },
     dependency_versions: allDependencyVersions,
     primary_language: languages[0]?.name || null,
-    backend: backendFrameworks[0] ? {
-      framework: backendFrameworks[0].name,
-      version: backendFrameworks[0].version,
-      confidence: backendFrameworks[0].confidence,
-      reason: backendFrameworks[0].detectedBy
-    } : null,
-    frontend: frontendFrameworks[0] ? {
-      framework: frontendFrameworks[0].name,
-      version: frontendFrameworks[0].version,
-      confidence: frontendFrameworks[0].confidence,
-      reason: frontendFrameworks[0].detectedBy
-    } : null,
     // Union of all databases, testing frameworks
     databases: [...new Set(profiles.flatMap(p => p.databases?.map(db => db.name) || []))],
     testing_frameworks: [...new Set(profiles.flatMap(p => p.testing?.map(t => t.name) || []))],

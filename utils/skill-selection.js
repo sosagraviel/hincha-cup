@@ -107,15 +107,9 @@ async function selectSkills(stackProfile, aiStorePath) {
       selection.missing.push(...langSkills.missing);
     }
 
-    // 3. Select frontend framework skills (support both array and legacy format)
-    const frontendFrameworks =
-      stackProfile.frontend_frameworks ||
-      (stackProfile.frontend?.framework ? [stackProfile.frontend] : []);
-    for (const framework of frontendFrameworks) {
-      const frameworkName =
-        typeof framework === 'string'
-          ? framework
-          : framework.name || framework.framework;
+    // 3. Select frontend framework skills
+    const frontendFrameworks = stackProfile.frameworks?.frontend || [];
+    for (const frameworkName of frontendFrameworks) {
       const frontendSkills = await selectFrontendSkills(
         frameworkName,
         aiStorePath
@@ -124,15 +118,9 @@ async function selectSkills(stackProfile, aiStorePath) {
       selection.missing.push(...frontendSkills.missing);
     }
 
-    // 4. Select backend framework skills (support both array and legacy format)
-    const backendFrameworks =
-      stackProfile.backend_frameworks ||
-      (stackProfile.backend?.framework ? [stackProfile.backend] : []);
-    for (const framework of backendFrameworks) {
-      const frameworkName =
-        typeof framework === 'string'
-          ? framework
-          : framework.name || framework.framework;
+    // 4. Select backend framework skills
+    const backendFrameworks = stackProfile.frameworks?.backend || [];
+    for (const frameworkName of backendFrameworks) {
       const backendSkills = await selectBackendSkills(
         frameworkName,
         aiStorePath
@@ -370,13 +358,28 @@ async function selectFrontendSkills(framework, aiStorePath) {
       });
     }
 
-    // Next.js specific patterns (future)
+    // Next.js specific patterns
     if (framework === 'nextjs') {
-      missing.push({
-        name: 'nextjs-patterns',
-        category: '050-language-frameworks',
-        reason: 'Next.js detected but skill not created yet'
-      });
+      const nextjsPath = path.join(
+        aiStorePath,
+        'skills',
+        '050-language-frameworks',
+        'nextjs-patterns'
+      );
+      if (await directoryExists(nextjsPath)) {
+        found.push({
+          name: 'nextjs-patterns',
+          category: '050-language-frameworks',
+          source_path: nextjsPath,
+          reason: 'Next.js detected'
+        });
+      } else {
+        missing.push({
+          name: 'nextjs-patterns',
+          category: '050-language-frameworks',
+          reason: 'Next.js detected but skill not found'
+        });
+      }
     }
   }
 

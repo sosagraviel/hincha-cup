@@ -309,6 +309,18 @@
           "description": "Last sync operation timestamp"
         }
       }
+    },
+    "ignored_skills": {
+      "type": "array",
+      "description": "Skills to ignore during sync - will never be auto-added. Use skill name or category/name format.",
+      "items": {
+        "type": "string",
+        "description": "Skill identifier (e.g., 'mastering-python-skill' or '050-language-frameworks/mastering-python-skill')"
+      },
+      "default": [],
+      "examples": [
+        ["mastering-python-skill", "vue-frontend", "050-language-frameworks/angular-patterns"]
+      ]
     }
   },
   "definitions": {

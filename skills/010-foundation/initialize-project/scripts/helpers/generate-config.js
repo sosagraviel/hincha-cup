@@ -49,10 +49,10 @@ function inferWorkspaceType(workspace) {
   }
 
   // Default based on frameworks
-  if (workspace.frontend) {
+  if (workspace.frameworks?.frontend?.length > 0) {
     return 'frontend';
   }
-  if (workspace.backend) {
+  if (workspace.frameworks?.backend?.length > 0) {
     return 'backend';
   }
 
@@ -71,8 +71,8 @@ function transformWorkspaces(stackProfile) {
       language: workspace.primary_language || 'javascript',
       type: inferWorkspaceType(workspace),
       frameworks: [
-        ...(workspace.frontend ? [workspace.frontend.framework] : []),
-        ...(workspace.backend ? [workspace.backend.framework] : [])
+        ...(workspace.frameworks?.frontend || []),
+        ...(workspace.frameworks?.backend || [])
       ].filter(Boolean)
     };
   });
@@ -236,15 +236,11 @@ async function generateConfig() {
           ? stackProfile.languages.map(lang => typeof lang === 'string' ? lang : lang.name)
           : [],
         primary_language: stackProfile.primary_language || null,
-        // Transform frameworks to expected schema format
-        frameworks: {
-          frontend: Array.isArray(stackProfile.frontend_frameworks)
-            ? stackProfile.frontend_frameworks.map(f => f.name || f)
-            : [],
-          backend: Array.isArray(stackProfile.backend_frameworks)
-            ? stackProfile.backend_frameworks.map(f => f.name || f)
-            : [],
-          mobile: stackProfile.frameworks?.mobile || []
+        // Frameworks already in expected format from stack-detection
+        frameworks: stackProfile.frameworks || {
+          frontend: [],
+          backend: [],
+          mobile: []
         },
         // Transform testing frameworks to object with language keys
         testing_frameworks: transformTestingFrameworks(stackProfile),
