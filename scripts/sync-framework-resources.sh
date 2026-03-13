@@ -57,9 +57,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
   echo "❌ Error: framework-config.json not found at $CONFIG_FILE"
   echo ""
   echo "This project has not been initialized with persistent configuration."
-  echo "Options:"
-  echo "  1. Run initialize-project to set up this project"
-  echo "  2. Run migrate-to-persistent-config.sh to migrate an existing .claude/ directory"
+  echo "Run initialize-project to set up this project."
   exit 1
 fi
 

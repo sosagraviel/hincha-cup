@@ -755,13 +755,6 @@ async function generateAgentsWithTracking(
     );
     const templateHash = hashFile(templatePath);
 
-    const agentPath = path.join(
-      projectPath,
-      ".claude",
-      "agents",
-      agent.filename,
-    );
-
     agentsTracking[agent.name] = {
       template_path: path.relative(frameworkPath, templatePath),
       generated_timestamp: timestamp,
