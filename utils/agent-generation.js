@@ -319,14 +319,14 @@ async function extractCommandsForLanguage(projectPath, stackProfile, language) {
       const scripts = packageJson.scripts;
       const packageManager = stackProfile.package_manager || "npm";
 
-      // Map common script names to commands
+      // Map common script names to commands, fallback to language-specific defaults
       commands.lint_command = findScript(scripts, ["lint:check", "lint"])
         ? `${packageManager} run ${findScript(scripts, ["lint:check", "lint"])}`
-        : "npx eslint .";
+        : getDefault(language, "lint");
 
       commands.format_command = findScript(scripts, ["format", "prettier"])
         ? `${packageManager} run ${findScript(scripts, ["format", "prettier"])}`
-        : "npx prettier --write .";
+        : getDefault(language, "format");
 
       commands.type_check_command = findScript(scripts, [
         "type:check",
@@ -334,11 +334,11 @@ async function extractCommandsForLanguage(projectPath, stackProfile, language) {
         "tsc",
       ])
         ? `${packageManager} run ${findScript(scripts, ["type:check", "typecheck", "tsc"])}`
-        : "npx tsc --noEmit";
+        : getDefault(language, "typecheck");
 
       commands.unit_test_command = findScript(scripts, ["test:unit", "test"])
         ? `${packageManager} run ${findScript(scripts, ["test:unit", "test"])}`
-        : "npx jest";
+        : getDefault(language, "test");
 
       commands.integration_test_command = findScript(scripts, [
         "test:integration",
@@ -353,18 +353,18 @@ async function extractCommandsForLanguage(projectPath, stackProfile, language) {
         "test:cypress",
       ])
         ? `${packageManager} run ${findScript(scripts, ["test:e2e", "test:playwright", "test:cypress"])}`
-        : "npx playwright test";
+        : getDefault(language, "e2e");
 
       commands.coverage_command = findScript(scripts, [
         "test:coverage",
         "coverage",
       ])
         ? `${packageManager} run ${findScript(scripts, ["test:coverage", "coverage"])}`
-        : `${commands.unit_test_command} -- --coverage`;
+        : getDefault(language, "coverage");
 
       commands.build_command = findScript(scripts, ["build", "compile"])
         ? `${packageManager} run ${findScript(scripts, ["build", "compile"])}`
-        : "npx tsc";
+        : getDefault(language, "build");
     }
 
     // Detect test framework
