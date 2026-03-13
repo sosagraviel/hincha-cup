@@ -24,13 +24,15 @@
 **Before Refactor**: Duplicated functionality in both agents and skills
 - ❌ tester-unit agent + jest-coverage-automation skill
 - ❌ tester-e2e agent + playwright-e2e-automation skill
-- ❌ doc-updater agent + update-project-context skill
+- ❌ doc-updater agent (no equivalent skill existed)
 - ❌ security-reviewer agent + security-review skill
 
 **After Refactor**: Skills are single source of truth
 - ✅ Skills contain all knowledge, patterns, and best practices
 - ✅ Agents are minimal stack-specific executors (only 3 types)
-- ✅ implement-ticket invokes skills directly for testing/security/docs
+- ✅ Testing uses TestOrchestrator utility (Phase 5)
+- ✅ Documentation uses doc-updater skill (Phase 7)
+- ✅ Security/PR review uses ReviewLoopOrchestrator utility (Phase 9)
 
 ### Three Core Principles
 
@@ -96,7 +98,7 @@ An **agent** is a specialized Claude instance with:
 |-------|------|---------|---------|
 | **analyze-requirements** | `skills/020-development-workflow/analyze-requirements/` | Create implementation plan | Plan markdown |
 | **fetch-ticket-context** | `skills/040-integrations/fetch-ticket-context/` | Gather Jira/Notion/Confluence context | Context markdown |
-| **update-project-context** | `skills/010-foundation/update-project-context/` | Update CLAUDE.md + project-context | Updated docs |
+| **doc-updater** | `skills/030-quality-assurance/doc-updater/` | Update CLAUDE.md + project-context after code changes | Updated docs |
 
 ### Integration Skills
 
@@ -121,16 +123,16 @@ After the refactor, only **3 agent templates** remain:
 
 These agent templates were **DELETED** because their functionality is now in skills:
 
-- ❌ `tester-unit.template.md` → Use **jest-coverage-automation** skill
-- ❌ `tester-e2e.template.md` → Use **playwright-e2e-automation** skill
-- ❌ `doc-updater.template.md` → Use **update-project-context** skill
-- ❌ `security-reviewer.template.md` → Use **security-review** skill
+- ❌ `tester-unit.template.md` → Use **TestOrchestrator** utility + **jest-coverage-automation** skill
+- ❌ `tester-e2e.template.md` → Use **TestOrchestrator** utility + **playwright-e2e-automation** skill
+- ❌ `doc-updater.template.md` → Use **doc-updater** skill
+- ❌ `security-reviewer.template.md` → Use **ReviewLoopOrchestrator** utility + **security-review** skill
 
 ---
 
 ## Skill Invocation Patterns
 
-### Pattern 1: Direct Skill Invocation (Testing)
+### Pattern 1: Utility Class Pattern (Testing)
 
 **Old Way** (spawning agents):
 ```
@@ -140,15 +142,15 @@ implement-ticket Phase 5
           └─ Agent runs tests
 ```
 
-**New Way** (direct skill invocation):
+**New Way** (utility class):
 ```
 implement-ticket Phase 5
-  └─ Invokes: /jest-coverage-automation skill
-      └─ Skill runs tests directly
-      └─ Returns: coverage-report.json
+  └─ Calls: TestOrchestrator utility (Node.js class)
+      └─ Utility detects framework & runs tests
+      └─ Returns: test-results.json with coverage
 ```
 
-### Pattern 2: Direct Skill Invocation (Security)
+### Pattern 2: Utility Class Pattern (Review Loop)
 
 **Old Way**:
 ```
@@ -157,27 +159,34 @@ implement-ticket Phase 9
       └─ Agent loads security-review skill as context
 ```
 
-**New Way**:
+**New Way** (utility class):
 ```
 implement-ticket Phase 9
-  └─ Invokes: /security-review skill
-      └─ Returns: security-findings.json
+  └─ Calls: ReviewLoopOrchestrator utility (Node.js class)
+      └─ Utility runs PR review + security review
+      └─ Spawns implementer for fixes if needed
+      └─ Re-runs tests, tracks iterations
+      └─ Returns: review-loop-result.json
 ```
 
-### Pattern 3: Direct Skill Invocation (Documentation)
+### Pattern 3: Skill Invocation Pattern (Documentation)
 
 **Old Way**:
 ```
 implement-ticket Phase 7
   └─ Spawns: doc-updater agent
-      └─ Agent loads update-project-context skill
+      └─ Agent analyzes changed files
+      └─ Agent updates docs
 ```
 
-**New Way**:
+**New Way** (skill invocation):
 ```
 implement-ticket Phase 7
-  └─ Invokes: /update-project-context skill (lightweight mode)
-      └─ Returns: updated-docs.json
+  └─ Invokes: /doc-updater skill
+      └─ Skill analyzes changed files with AI
+      └─ Skill applies maintenance test
+      └─ Skill makes surgical updates
+      └─ Returns: success/failure
 ```
 
 ### Pattern 4: Agent Spawning (Code Generation Only)
@@ -223,14 +232,12 @@ PHASE 4: Implementation
 
 PHASE 5: Testing
   └─ TodoWrite: "Running tests"
-
-  5a. Unit Tests
-    └─ Invoke: /jest-coverage-automation skill (or /pytest-patterns)
-    └─ TodoWrite: COMPLETE
-
-  5b. E2E Tests
-    └─ Invoke: /playwright-e2e-automation skill
-    └─ TodoWrite: COMPLETE
+  └─ Use: TestOrchestrator utility
+      └─ Auto-detects framework (Jest, Pytest, Playwright)
+      └─ Runs unit, integration, E2E tests
+      └─ Collects coverage
+      └─ Returns: test-results.json
+  └─ TodoWrite: COMPLETE
 
 PHASE 6: Visual Verification (frontend)
   └─ TodoWrite: "Visual verification"
@@ -239,7 +246,10 @@ PHASE 6: Visual Verification (frontend)
 
 PHASE 7: Documentation
   └─ TodoWrite: "Updating docs"
-  └─ Invoke: /update-project-context skill (lightweight)
+  └─ Invoke: /doc-updater skill
+      └─ Skill analyzes changed files
+      └─ Skill applies maintenance test
+      └─ Skill makes surgical updates to CLAUDE.md + project-context
   └─ TodoWrite: COMPLETE
 
 PHASE 8: PR Creation
@@ -249,12 +259,14 @@ PHASE 8: PR Creation
 
 PHASE 9: Review Loop
   └─ TodoWrite: "Running PR review"
-  └─ Invoke: /pr-reviewer skill
-  └─ Invoke: /security-review skill
-  └─ IF blocking issues:
-      └─ Apply fixes
-      └─ Re-test (invoke /jest-coverage-automation again)
-      └─ Re-review (max 3 iterations)
+  └─ Use: ReviewLoopOrchestrator utility
+      └─ Runs PR review (via skill internally)
+      └─ Runs security review (via skill internally)
+      └─ IF blocking issues:
+          └─ Spawns implementer agent with fixes
+          └─ Re-runs tests via TestOrchestrator
+          └─ Re-reviews (max 3 iterations)
+      └─ Returns: review-loop-result.json
   └─ TodoWrite: COMPLETE
 
 PHASE 10: Cleanup
@@ -271,10 +283,12 @@ PHASE 10: Cleanup
 
 | Task | Use | Rationale |
 |------|-----|-----------|
+| Run all tests | **Utility** (TestOrchestrator) | Deterministic test execution |
+| PR + security review loop | **Utility** (ReviewLoopOrchestrator) | Complex iteration logic |
+| Update documentation | **Skill** (doc-updater) | AI-powered impact analysis |
 | Generate unit tests | **Skill** (jest-coverage-automation) | Has all test patterns |
 | Generate E2E tests | **Skill** (playwright-e2e-automation) | Has all Playwright knowledge |
 | Security scan | **Skill** (security-review) | Has OWASP rules |
-| Update docs | **Skill** (update-project-context) | Has doc update logic |
 | PR review | **Skill** (pr-reviewer) | Has review criteria |
 | Write code | **Agent** (implementer-{stack}) | Needs stack-specific generation |
 | Plan architecture | **Agent** (planner) | Needs all language context |
@@ -327,10 +341,13 @@ All quality skills return structured JSON:
 
 If you have an existing project initialized with the old architecture:
 
-1. **Old agents still exist** (e.g., `tester-unit-typescript.md`) but won't be invoked
-2. **Skills are used instead** - implement-ticket now calls skills directly
-3. **No breaking changes** - old agents are just ignored
-4. **Re-initialize** (optional): Run `./scripts/initialize-project.sh --force` to clean up
+1. **Old agents may still exist** (e.g., `tester-unit-typescript.md`) in `.claude/agents/` but are not generated anymore
+2. **New architecture**:
+   - Testing → TestOrchestrator utility
+   - Documentation → doc-updater skill
+   - Review loop → ReviewLoopOrchestrator utility
+3. **No breaking changes** - old agents are simply not regenerated
+4. **Re-initialize** (optional): Run `/initialize-project` skill to regenerate with new architecture
 
 ---
 

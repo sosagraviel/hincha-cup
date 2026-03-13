@@ -490,23 +490,7 @@ async function generateVisualVerifierAgent(
   );
 }
 
-async function generateDocUpdaterAgent(templatesPath, skills, stackProfile) {
-  const template = await findTemplate(templatesPath, "doc-updater");
-  if (!template) return null;
-
-  // Runtime variables (JIRA_KEY, PROJECT_ROOT, CHANGED_FILES, IMPLEMENTATION_SUMMARY) substituted later
-  return compileAgent(
-    template,
-    {},
-    {
-      name: "doc-updater",
-      filename: "doc-updater.md",
-      model: "opus",
-      description:
-        "Documentation maintenance for CLAUDE.md and project-context",
-    },
-  );
-}
+// Removed: generateDocUpdaterAgent - documentation now handled by doc-updater skill
 
 /**
  * Write generated agents to .claude/agents/ directory
@@ -689,33 +673,6 @@ async function regenerateSingleAgent(agentName, projectPath, frameworkPath) {
         commands,
         language,
       );
-    } else if (category === "testing") {
-      const commands = await extractCommandsForLanguage(
-        projectPath,
-        stackProfile,
-        language,
-      );
-      const agents = await generateTesterAgents(
-        templatesPath,
-        stackProfile,
-        commands,
-        language,
-      );
-      agent = agents.find((a) => a.name === agentName);
-    } else if (category === "review") {
-      const commands = await extractCommandsForLanguage(
-        projectPath,
-        stackProfile,
-        language,
-      );
-      const skills = await resolveAgentSkills(agentName, stackProfile);
-      agent = await generateSecurityReviewerAgent(
-        templatesPath,
-        stackProfile,
-        skills,
-        language,
-        commands,
-      );
     } else if (category === "verification") {
       const skills = await resolveAgentSkills("visual-verifier", stackProfile);
       agent = await generateVisualVerifierAgent(
@@ -723,14 +680,8 @@ async function regenerateSingleAgent(agentName, projectPath, frameworkPath) {
         skills,
         stackProfile,
       );
-    } else if (category === "documentation") {
-      const skills = await resolveAgentSkills("doc-updater", stackProfile);
-      agent = await generateDocUpdaterAgent(
-        templatesPath,
-        skills,
-        stackProfile,
-      );
     }
+    // Removed categories: "testing", "review", "documentation" - now handled by skills
 
     if (!agent) {
       throw new Error(`Failed to regenerate agent ${agentName}`);
