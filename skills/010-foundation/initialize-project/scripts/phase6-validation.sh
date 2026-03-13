@@ -11,9 +11,9 @@ echo "Phase 6: Final Validation"
 [ -f "$PROJECT_PATH/.claude/CLAUDE.md" ] && echo "✓ CLAUDE.md exists" || { echo "✗ CLAUDE.md missing"; exit 1; }
 [ -f "$PROJECT_PATH/.claude/skills/project-context/SKILL.md" ] && echo "✓ project-context exists" || { echo "✗ project-context missing"; exit 1; }
 
-# Validate agents are .md format
+# Validate agents are .md format (planner + at least 1 implementer)
 AGENT_COUNT=$(find "$PROJECT_PATH/.claude/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
-[ "$AGENT_COUNT" -ge 3 ] && echo "✓ Found $AGENT_COUNT agents" || { echo "✗ Need at least 3 agents"; exit 1; }
+[ "$AGENT_COUNT" -ge 2 ] && echo "✓ Found $AGENT_COUNT agents" || { echo "✗ Need at least 2 agents (planner + implementer)"; exit 1; }
 
 # Check for incorrect .json agents
 JSON_COUNT=$(find "$PROJECT_PATH/.claude/agents" -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
@@ -42,7 +42,7 @@ if [ -n "$TEMP_DIR" ]; then
     if [ "$LANG_COUNT" -gt 1 ]; then
       echo "✓ Multi-stack project detected: $LANG_COUNT languages with >10 files"
 
-      # For each language, check if corresponding agents exist
+      # For each language, check if implementer agents exist
       echo "$LANGUAGES" | node -e "
         const fs = require('fs');
         const languages = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
@@ -50,20 +50,12 @@ if [ -n "$TEMP_DIR" ]; then
 
         languages.forEach(lang => {
           const implementerPath = '$PROJECT_PATH/.claude/agents/implementer-' + lang + '.md';
-          const testerPath = '$PROJECT_PATH/.claude/agents/tester-unit-' + lang + '.md';
 
           if (!fs.existsSync(implementerPath)) {
             console.error('  ✗ Missing implementer for ' + lang);
             allFound = false;
           } else {
             console.log('  ✓ implementer-' + lang + '.md');
-          }
-
-          if (!fs.existsSync(testerPath)) {
-            console.error('  ✗ Missing tester for ' + lang);
-            allFound = false;
-          } else {
-            console.log('  ✓ tester-unit-' + lang + '.md');
           }
         });
 

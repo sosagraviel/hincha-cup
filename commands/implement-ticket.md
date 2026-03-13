@@ -1,11 +1,11 @@
 ---
 name: implement-ticket
-description: End-to-end ticket implementation with autonomous execution, quality gates, and automated PR creation
+description: Complete SDLC workflow for implementing tickets with automated testing, PR creation, and review loops
 ---
 
 # /implement-ticket
 
-Complete SDLC workflow for implementing tickets with security, quality checks, and automated PR creation.
+Execute the complete Software Development Lifecycle (SDLC) workflow to implement a ticket from requirements to merged PR.
 
 ## Usage
 
@@ -16,417 +16,301 @@ Complete SDLC workflow for implementing tickets with security, quality checks, a
 ### Required Flags
 
 **INPUT** (mutually exclusive, one required):
-- `--from-jira <JIRA-URL-OR-KEY>` - Implement from Jira ticket
-- `--from-markdown <PATH>` - Implement from markdown ticket
+- `--from-input "description"` - Implement from plain text description
+- `--from-jira <TICKET-ID>` - Implement from Jira ticket (e.g., PROJ-123)
+- `--from-markdown <PATH>` - Implement from markdown SDD ticket
 
 ### Optional Flags
 
-**Execution Modes**:
-- `--no-stop` - Run autonomously without prompts (recommended for production)
-- `--interactive` - Prompt at decision points (default for learning)
-
-**Planning Modes**:
-- `--architect-mode` - Use supervisor pattern with grading (high-risk tickets)
-- `--planner-mode` - Use fast linear pipeline (low-risk tickets, default)
-
-**Workflow Control**:
-- `--skip-pre-flight` - Skip pre-flight validation (not recommended)
-- `--resume` - Resume from checkpoint
+- `--skip-tests` - Skip automated testing phase (not recommended)
+- `--skip-visual` - Skip visual verification phase
+- `--skip-pr` - Skip PR creation (commit only)
+- `--branch <NAME>` - Custom branch name (default: auto-generated)
 
 ## Examples
 
-### Example 1: Implement Jira ticket (interactive)
+### Example 1: Implement from Jira
 ```bash
 /implement-ticket --from-jira PROJ-123
 ```
 
-### Example 2: Implement Jira ticket (autonomous)
+### Example 2: Implement from Markdown
 ```bash
-/implement-ticket --from-jira PROJ-123 --no-stop
+/implement-ticket --from-markdown .claude/tickets/user-export.md
 ```
 
-### Example 3: Implement from markdown (autonomous)
+### Example 3: Implement from description
 ```bash
-/implement-ticket --from-markdown .claude/tickets/feature-auth.md --no-stop
+/implement-ticket --from-input "Add password reset endpoint with email verification"
 ```
 
-### Example 4: High-risk ticket with architect mode
+### Example 4: Skip visual verification
 ```bash
-/implement-ticket --from-jira PROJ-456 --architect-mode --no-stop
+/implement-ticket --from-jira PROJ-123 --skip-visual
 ```
 
-### Example 5: Resume from checkpoint
-```bash
-/implement-ticket --from-jira PROJ-789 --resume
-```
+## Workflow (11 Phases)
 
-## Workflow
+### Phase 0: Pre-Flight Validation
+- Check git status (no uncommitted changes)
+- Verify tests pass in current state
+- Validate build succeeds
+- Exit early if environment not ready
 
-### Phase 0: Pre-Flight Validation (1-2 minutes)
-- ✅ Git status clean
-- ✅ All tests passing
-- ✅ Build/compilation successful
-- ✅ Dependencies installed
-- ✅ Docker containers running (if applicable)
-- ✅ Environment variables configured
-- ✅ Disk space available (>5GB)
-- ✅ Memory available (>2GB recommended)
-- ✅ MCP servers reachable
-- ✅ E2E framework initialized (frontend projects)
+### Phase 1: Context Gathering
+- If `--from-jira`: Invoke `/fetch-ticket-context` to gather Jira/Confluence context
+- If `--from-markdown`: Read SDD ticket file
+- If `--from-input`: Use description directly
+- Extract requirements and acceptance criteria
 
-**Checkpoint saved**: Ready to proceed
+### Phase 2: Planning
+- Invoke `/analyze-requirements` skill to create implementation plan
+- Spawn `planner` agent for architecture-aware planning
+- Generate step-by-step implementation strategy
+- Identify files to create/modify
 
-### Phase 1: Context Gathering (2-5 minutes)
-- **If --from-jira**:
-  - Fetch ticket via Jira MCP
-  - Fetch linked documentation (Notion, Confluence, Figma)
-  - Fetch related/blocking tickets
-  - Compose comprehensive context document
+### Phase 3: Environment Setup
+- Create feature branch (e.g., `feature/PROJ-123-user-export`)
+- Allocate ports for services (if needed)
+- Create docker-compose override (if needed)
+- Set up environment variables
 
-- **If --from-markdown**:
-  - Read markdown file
-  - Validate structure against SDD schema
-  - Extract all sections to canonical format
-  - Validate completeness
+### Phase 4: Implementation
+- Spawn stack-specific `implementer-{lang}` agent
+- Implement code following plan
+- Follow project conventions from CLAUDE.md
+- Create/modify files as needed
 
-**Output**: `/tmp/context_${TICKET_ID}.md`
-**Checkpoint saved**: Context gathered
+### Phase 5: Testing
+- Use `TestOrchestrator` utility to run all tests:
+  - Auto-detect testing framework (Jest, Pytest, Playwright)
+  - Run unit tests with coverage
+  - Run integration tests
+  - Run E2E tests (if applicable)
+- Collect coverage reports
+- If tests fail: Spawn implementer to fix issues
 
-### Phase 2: Requirements Analysis (3-5 minutes)
-- Parse ticket requirements
-- Identify affected components
-- Plan implementation approach
-- Risk assessment (auto-select architect mode if high-risk)
-- Generate detailed implementation plan
+### Phase 6: Visual Verification (Frontend Only)
+- Take screenshots of affected pages
+- Compare before/after screenshots
+- If diff > 5%: Spawn `visual-verifier` agent
+- Validate UI changes match requirements
 
-**Planning Mode Selection**:
-- **Auto-architect** if ticket contains: migration, auth, payment, security, breaking change, crypto, GDPR, PCI, HIPAA
-- **Planner** for all other tickets
+### Phase 7: Documentation Update
+- Invoke `/doc-updater` skill
+- Analyze changed files for doc impact
+- Apply maintenance test (only update if truly needed)
+- Update CLAUDE.md and project-context surgically
 
-**Output**: Implementation plan document
-**Checkpoint saved**: Plan created
+### Phase 8: PR Creation
+- Commit all changes
+- Push feature branch
+- Create pull request with:
+  - Auto-generated title from ticket
+  - Summary of changes
+  - Test plan checklist
+  - Link to original ticket
+- Return PR URL
 
-### Phase 3: Code Implementation (10-30 minutes)
-- Execute implementation plan
-- Follow project patterns and conventions
-- Write clean, maintainable code
-- Add inline documentation
-- Handle edge cases
-- Implement error handling
+### Phase 9: Review Loop
+- Use `ReviewLoopOrchestrator` utility:
+  - Run PR review (via `/pr-reviewer` skill internally)
+  - Run security review (via `/security-review` skill internally)
+  - If blocking issues found:
+    - Spawn implementer agent with fixes
+    - Re-run tests via TestOrchestrator
+    - Re-review (max 3 iterations)
+- Exit when PR approved or max iterations reached
 
-**Autonomous Mode**: Makes decisions for:
-- File placement
-- Naming conventions
-- Code structure
-- Library choices (based on existing patterns)
+### Phase 10: Cleanup
+- Teardown environment (ports, docker-compose override)
+- Clean up temporary files
+- Report final status
 
-**Decisions logged**: All choices documented in `.claude/decisions/${TICKET_ID}.md`
+## Key Features
 
-**Checkpoint saved**: Code implemented
+### ✅ Full SDLC Automation
+- End-to-end automation from ticket to merged PR
+- Handles all phases without manual intervention
+- Automatic error recovery and retries
 
-### Phase 4: Testing (5-15 minutes)
-- **Unit Tests**: Generate tests for all new functions/methods
-  - Coverage gate: ≥80% required
-  - Uses existing test patterns
-  - Auto-fix failures (3 attempts)
+### ✅ Skill-First Architecture
+- Skills for AI-powered tasks (doc-updater, reviews)
+- Utilities for deterministic tasks (testing, orchestration)
+- Agents only for stack-specific code generation
 
-- **Integration Tests**: Test API endpoints, database operations
-  - Coverage gate: 100% endpoint coverage
-  - Uses project test framework
+### ✅ Multi-Stack Support
+- Detects project tech stack automatically
+- Spawns appropriate implementer agents per language
+- Works with TypeScript, Python, Java, Go, Rust, etc.
 
-- **E2E Tests** (frontend only): Test user flows
-  - Coverage gate: 100% acceptance criteria scenarios
-  - Uses Playwright or existing E2E framework
+### ✅ Comprehensive Testing
+- Automatic framework detection
+- Full test suite execution (unit, integration, E2E)
+- Coverage reporting and validation
 
-**Checkpoint saved**: Tests passing
-
-### Phase 5: Quality Checks (2-5 minutes)
-- **Linting**: ESLint/Pylint/etc (--max-warnings=0)
-- **Type Checking**: TypeScript/MyPy (zero errors)
-- **Formatting**: Prettier/Black (auto-format)
-- **Code Complexity**: Cyclomatic complexity check
-
-**Checkpoint saved**: Quality gates passed
-
-### Phase 6: Security Review (2-3 minutes)
-- OWASP Top 10 checks
-- SQL injection prevention
-- XSS prevention
-- CSRF protection
-- Authentication/authorization validation
-- Secrets detection
-- Dependency vulnerabilities
-
-**Checkpoint saved**: Security validated
-
-### Phase 7: PR Creation (1-2 minutes)
-- Create feature branch: `feat/${TICKET_ID}-${title}`
-- Commit changes with conventional commits format
-- Push to remote
-- Create PR with:
-  - Comprehensive description
-  - Links to ticket
-  - Testing evidence
-  - Security review results
-  - Decision log
-  - Screenshots (if UI changes)
-
-**Final Output**: PR URL
-
-## Execution Modes
-
-### Interactive Mode (Default)
-**Use for**: Learning, reviewing plans, supervised development
-
-Prompts at:
-- After context gathering: "Ready to proceed with implementation?"
-- After plan creation: "Review plan and approve?"
-- Before quality checks: "Ready to run quality gates?"
-
-**Example**:
-```bash
-/implement-ticket --from-jira PROJ-123 --interactive
-```
-
-### Autonomous Mode (--no-stop)
-**Use for**: Production workflows, overnight runs, well-defined tickets
-
-Only stops on:
-- Hard errors (build failures, test failures after retries)
-- Coverage gate failures (after 3 attempts)
-- Merge conflicts (cannot auto-resolve)
-
-**All decisions logged** to `.claude/decisions/${TICKET_ID}.md`
-
-**Example**:
-```bash
-/implement-ticket --from-jira PROJ-123 --no-stop
-```
-
-## Planning Modes
-
-### Planner Mode (Default)
-**Fast linear pipeline** for most tickets:
-- Single-pass planning (Opus model)
-- Direct implementation (Sonnet model)
-- Hard quality gates
-- Autonomous execution capable
-- **Time**: 10-30 minutes
-
-**Best for**: Feature work, bug fixes, refactoring, UI changes
-
-### Architect Mode
-**Deliberate supervisor pattern** for high-risk tickets:
-- Detailed instruction generation
-- Implementation by code agent
-- Post-implementation grading (100-point rubric)
-- Iterative improvement loop (target: ≥95%)
-- Enhanced quality assurance
-- **Time**: 1-3 hours
-
-**Auto-selected for**: migration, auth, payment, security, breaking changes, compliance
-
-**Best for**: Security-critical work, compliance changes, breaking API changes, complex migrations
+### ✅ Review Iteration
+- Automated PR and security reviews
+- Intelligent fix generation
+- Multi-round review loop until approval
 
 ## Error Handling
 
-### Pre-Flight Failures
+### Pre-Flight Validation Failure
 ```
-❌ Pre-flight validation failed: 3 tests failing
+❌ Pre-flight validation failed:
+  - Uncommitted changes in working directory
+  - Tests failing in current state
 
-Failing tests:
-  - auth.test.ts:42 - Invalid token not rejected
-  - user.test.ts:67 - Email validation broken
-  - api.test.ts:23 - Timeout on slow endpoint
-
-Fix these tests before starting implementation.
-Use --skip-pre-flight to bypass (not recommended)
+Fix: Commit or stash changes, fix failing tests
 ```
 
-### Coverage Gate Failures
+### Implementation Errors
 ```
-⚠️ Coverage gate failed (Attempt 1/3): 72% unit coverage (target: 80%)
+⚠️ Implementation failed during Phase 4:
+  - Syntax error in generated code
+  - Attempting fix iteration 1/3...
 
-Missing coverage:
-  - src/auth/validator.ts:45-67 (22 lines)
-  - src/utils/helpers.ts:12-18 (6 lines)
-
-Auto-generating additional tests...
+Spawning implementer with error context...
 ```
 
-### Checkpoint Recovery
+### Test Failures
 ```
-✓ Found checkpoint for PROJ-123
+⚠️ Tests failed:
+  - 5 unit tests failing
+  - Coverage: 72% (below 80% threshold)
 
-Checkpoint status:
-  ✓ Phase 0: Pre-flight (completed)
-  ✓ Phase 1: Context gathering (completed)
-  ✓ Phase 2: Requirements analysis (completed)
-  ⏸ Phase 3: Implementation (in progress)
-
-Resume from checkpoint? [Y/n]
+Spawning implementer to fix test failures...
 ```
 
-### Merge Conflicts
+### Review Loop Max Iterations
 ```
-❌ Merge conflict detected with main branch
+⚠️ Review loop reached max iterations (3)
+  - 2 blocking issues remain unresolved
+  - PR created but NOT approved
 
-Files in conflict:
-  - src/auth/service.ts (12 conflicts)
-  - src/models/user.ts (3 conflicts)
-
-Autonomous resolution failed. Manual intervention required.
-Run: git diff main...HEAD to review conflicts
+Manual intervention required. PR: https://github.com/org/repo/pull/123
 ```
-
-## Decision Logging
-
-All autonomous decisions logged to `.claude/decisions/${TICKET_ID}.md`:
-
-```markdown
-# Implementation Decisions for PROJ-123
-
-**Implemented**: 2026-03-07 14:30:22
-**Mode**: Autonomous (--no-stop)
-**Engineer**: John Doe
-
----
-
-## Decisions Log
-
-### [Phase 3: Implementation] File placement for auth validator
-
-**Rationale**: Placed in src/auth/validators/ following existing pattern seen in src/auth/middleware/. Maintains separation of concerns and aligns with project structure documented in CLAUDE.md.
-
-**Timestamp**: 2026-03-07 14:35:10
-
----
-
-### [Phase 3: Implementation] Library choice for JWT validation
-
-**Rationale**: Used jsonwebtoken library (already in package.json) instead of jose. Maintains consistency with existing auth code in src/auth/jwt.ts and avoids introducing new dependencies.
-
-**Timestamp**: 2026-03-07 14:42:33
-
----
-```
-
-## Checkpointing & Resume
-
-Checkpoints automatically saved after each phase. Resume with:
-
-```bash
-/implement-ticket --from-jira PROJ-123 --resume
-```
-
-Checkpoint data stored at: `.claude/checkpoints/implement-ticket-${TICKET_ID}.json`
-
-## Quality Gates (Hard Requirements)
-
-| Gate | Requirement | Behavior on Failure |
-|------|-------------|---------------------|
-| Unit Tests | ≥80% coverage | Auto-generate tests (3 attempts), then fail |
-| Integration Tests | 100% endpoint coverage | Auto-generate tests (3 attempts), then fail |
-| E2E Tests | 100% scenario coverage | Auto-generate tests (3 attempts), then fail |
-| Linting | Zero warnings | Auto-fix (1 attempt), then fail |
-| Type Checking | Zero errors | Manual fix required |
-| Build | Successful compilation | Manual fix required |
-
-## Integration with Other Skills
-
-- **fetch-ticket-context**: Auto-invoked for --from-jira
-- **analyze-requirements**: Auto-invoked in Phase 2
-- **code-implementation**: Auto-invoked in Phase 3
-- **security-review**: Auto-invoked in Phase 6
-- **create-pr**: Auto-invoked in Phase 7
-
-## Prerequisites
-
-- Git repository initialized
-- Project dependencies installed
-- Tests passing (pre-flight check)
-- For `--from-jira`: Jira MCP configured
-- For `--from-markdown`: Valid SDD markdown file
-- For PR creation: GitHub MCP configured
 
 ## Best Practices
 
 ### DO ✅
-- Use `--no-stop` for production workflows
-- Let pre-flight validation complete
-- Trust autonomous decisions (they're logged)
-- Review PR before merging
-- Use `--architect-mode` for high-risk tickets
+- Run on clean working directory (no uncommitted changes)
+- Use SDD tickets for best results (detailed requirements)
+- Review generated PR before merging
+- Let automated review loop run fully
+- Trust the skill-first architecture
 
 ### DON'T ❌
-- Don't skip pre-flight checks in production
-- Don't manually edit during autonomous execution
-- Don't ignore coverage gate failures
-- Don't bypass security review
-- Don't commit without PR review
+- Don't skip tests unless absolutely necessary
+- Don't interrupt mid-phase (let it complete)
+- Don't manually fix during automation
+- Don't merge without review approval
+- Don't use on broken codebase
 
-## Output
+## Integration with Other Skills
 
-### Success Output
+- **fetch-ticket-context**: Automatically invoked for `--from-jira`
+- **analyze-requirements**: Planning phase
+- **doc-updater**: Documentation update phase
+- **pr-reviewer**: Review loop phase
+- **security-review**: Review loop phase
+- **create-pr**: PR creation phase
+
+## Prerequisites
+
+- Project initialized with `/initialize-project`
+- Git repository with remote configured
+- Tests passing in current state
+- For `--from-jira`: Jira MCP configured
+- For GitHub PR: GitHub MCP or gh CLI configured
+
+## Output Format
+
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ✅ Implementation Complete: PROJ-123
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PHASE 0: PRE-FLIGHT VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📋 Summary:
-  - Ticket: PROJ-123 (Add user export feature)
-  - Mode: Autonomous
-  - Duration: 23 minutes
-  - Branch: feat/PROJ-123-user-export
+✓ Git working directory clean
+✓ Tests passing (42 passed)
+✓ Build successful
 
-✅ Quality Gates:
-  - Unit Tests: 94% coverage (32 tests, all passing)
-  - Integration Tests: 100% coverage (8 endpoints, all passing)
-  - E2E Tests: 100% coverage (5 scenarios, all passing)
-  - Linting: Zero warnings
-  - Type Checking: Zero errors
-  - Security Review: Passed
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PHASE 1: CONTEXT GATHERING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔀 Pull Request:
-  - URL: https://github.com/acme/project/pull/456
-  - Reviewers: @tech-lead, @senior-dev
-  - Status: Ready for review
+📥 Fetching ticket: PROJ-123
+✓ Context gathered from Jira + Confluence
 
-📝 Decisions Made: 8 (see .claude/decisions/PROJ-123.md)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PHASE 2: PLANNING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 Analyzing requirements...
+✓ Implementation plan created
+   - 5 files to modify
+   - 2 files to create
+   - Estimated: 3-4 hours
+
+[... continues through all 11 phases ...]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  IMPLEMENTATION COMPLETE ✅
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PR Created: https://github.com/org/repo/pull/456
+Status: Ready for Review
+Review Status: ✅ Approved (no blocking issues)
+
+Summary:
+  - Files changed: 7
+  - Tests: 47 passed, 0 failed
+  - Coverage: 85.3% (+3.2%)
+  - Review iterations: 1
+  - Duration: 12m 34s
 
 Next steps:
-  1. Review PR at https://github.com/acme/project/pull/456
-  2. Address review feedback if any
-  3. Merge when approved
-  4. Close PROJ-123 in Jira
+  - Review PR in GitHub
+  - Merge when ready
 ```
 
 ## Troubleshooting
 
-**Q: "Tests keep failing during autonomous mode"**
-A: Check:
-- Are tests flaky? (run manually to verify)
-- Are dependencies installed correctly?
-- Is test data properly seeded?
-- Review auto-generated tests for correctness
+**Q: "Pre-flight validation keeps failing"**
+A: Ensure:
+- Working directory is clean (`git status`)
+- All tests pass (`npm test` or `pytest`)
+- Build succeeds (`npm run build`)
 
-**Q: "Coverage gates too strict"**
-A: Coverage gates are intentionally strict to ensure quality. If consistently failing:
-- Review test quality (are they meaningful?)
-- Check for untestable code (refactor if needed)
-- Verify coverage tool configuration
+**Q: "Implementation phase errors"**
+A: The system will auto-retry up to 3 times. If still failing:
+- Check if requirements are clear enough
+- Verify CLAUDE.md has sufficient context
+- Review error logs in artifacts directory
 
-**Q: "Autonomous mode makes wrong decisions"**
-A: Review decision log (`.claude/decisions/${TICKET_ID}.md`):
-- Are project patterns documented in CLAUDE.md?
-- Is project-context skill populated?
-- Consider using interactive mode for complex tickets
+**Q: "Tests keep failing after fixes"**
+A: After 3 fix iterations, manual intervention is needed:
+- Review test failure logs
+- Check if requirements conflict with existing code
+- May need to refine ticket requirements
 
-**Q: "How do I customize quality gates?"**
-A: Gates are configured per project in `.claude/CLAUDE.md`. Update coverage thresholds, linting rules, etc. there.
+**Q: "Review loop not approving PR"**
+A: Check review feedback:
+- Blocking issues may require manual fixes
+- Security issues may need architectural changes
+- Consider breaking ticket into smaller pieces
+
+**Q: "Where are the artifacts?"**
+A: All artifacts saved to `.claude-temp/implement-ticket-{TICKET-ID}/`:
+- Implementation plan
+- Test results
+- Coverage reports
+- Review findings
+- Screenshots (if visual verification ran)
 
 ---
 
-**Version**: 2.0.0
-**Last Updated**: 2026-03-07
+**Version**: 2.0.0 (Skill-First Architecture)
+**Last Updated**: 2026-03-13
 **Category**: development-workflow

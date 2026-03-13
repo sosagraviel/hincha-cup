@@ -8,7 +8,6 @@
       "description": "Skills copied to EVERY project regardless of stack",
       "items": [
         "010-foundation/start-task",
-        "010-foundation/update-project-context",
         "020-development-workflow/analyze-requirements",
         "020-development-workflow/architect-agent",
         "020-development-workflow/code-implementation",
@@ -17,6 +16,7 @@
         "020-development-workflow/mastering-git-cli",
         "030-quality-assurance/code-quality-check",
         "030-quality-assurance/create-pr",
+        "030-quality-assurance/doc-updater",
         "030-quality-assurance/pr-reviewer",
         "030-quality-assurance/security-review",
         "040-integrations/fetch-ticket-context",
@@ -225,74 +225,6 @@
       }
     },
 
-    "per_testing_framework": {
-      "description": "Testing agents based on detected frameworks",
-      "jest": {
-        "name": "tester-unit-typescript",
-        "template": "tester-unit.template.md",
-        "model": "sonnet",
-        "description": "Write unit + integration tests with Jest"
-      },
-      "vitest": {
-        "name": "tester-unit-typescript",
-        "template": "tester-unit.template.md",
-        "model": "sonnet",
-        "description": "Write unit + integration tests with Vitest"
-      },
-      "pytest": {
-        "name": "tester-unit-python",
-        "template": "tester-unit.template.md",
-        "model": "sonnet",
-        "description": "Write unit + integration tests with Pytest"
-      },
-      "playwright": {
-        "name": "tester-e2e-typescript",
-        "template": "tester-e2e.template.md",
-        "model": "sonnet",
-        "description": "Write E2E tests with Playwright"
-      },
-      "cypress": {
-        "name": "tester-e2e-typescript",
-        "template": "tester-e2e.template.md",
-        "model": "sonnet",
-        "description": "Write E2E tests with Cypress"
-      }
-    },
-
-    "per_language_security": {
-      "description": "Security reviewer agent per primary language",
-      "typescript": {
-        "name": "security-reviewer-typescript",
-        "template": "security-reviewer.template.md",
-        "model": "sonnet",
-        "description": "Security review and OWASP scanning for TypeScript"
-      },
-      "javascript": {
-        "name": "security-reviewer-javascript",
-        "template": "security-reviewer.template.md",
-        "model": "sonnet",
-        "description": "Security review and OWASP scanning for JavaScript"
-      },
-      "python": {
-        "name": "security-reviewer-python",
-        "template": "security-reviewer.template.md",
-        "model": "sonnet",
-        "description": "Security review and OWASP scanning for Python"
-      },
-      "java": {
-        "name": "security-reviewer-java",
-        "template": "security-reviewer.template.md",
-        "model": "sonnet",
-        "description": "Security review and OWASP scanning for Java"
-      },
-      "go": {
-        "name": "security-reviewer-go",
-        "template": "security-reviewer.template.md",
-        "model": "sonnet",
-        "description": "Security review and OWASP scanning for Go"
-      }
-    },
-
     "frontend_only": {
       "description": "Agents only generated when frontend framework is detected",
       "items": [
@@ -301,18 +233,6 @@
           "template": "visual-verifier.template.md",
           "model": "opus",
           "description": "Visual verification and UI diff analysis"
-        }
-      ]
-    },
-
-    "documentation": {
-      "description": "Documentation agents for all projects",
-      "items": [
-        {
-          "name": "doc-updater",
-          "template": "doc-updater.template.md",
-          "model": "opus",
-          "description": "Documentation maintenance for CLAUDE.md and project-context"
         }
       ]
     }

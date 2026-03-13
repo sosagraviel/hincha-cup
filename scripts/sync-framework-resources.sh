@@ -57,9 +57,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
   echo "❌ Error: framework-config.json not found at $CONFIG_FILE"
   echo ""
   echo "This project has not been initialized with persistent configuration."
-  echo "Options:"
-  echo "  1. Run initialize-project to set up this project"
-  echo "  2. Run migrate-to-persistent-config.sh to migrate an existing .claude/ directory"
+  echo "Run initialize-project to set up this project."
   exit 1
 fi
 
@@ -68,6 +66,34 @@ if ! command -v node &> /dev/null; then
   echo "❌ Error: Node.js is required but not installed"
   exit 1
 fi
+
+# Check and install dependencies if needed
+cd "$FRAMEWORK_PATH"
+NEEDS_INSTALL=false
+
+if [ ! -d "node_modules" ]; then
+  NEEDS_INSTALL=true
+  echo "  node_modules not found"
+elif ! node -e "require('ajv')" 2>/dev/null; then
+  NEEDS_INSTALL=true
+  echo "  ajv not found"
+elif ! node -e "require('ajv-formats')" 2>/dev/null; then
+  NEEDS_INSTALL=true
+  echo "  ajv-formats not found"
+elif ! node -e "require('handlebars')" 2>/dev/null; then
+  NEEDS_INSTALL=true
+  echo "  handlebars not found"
+fi
+
+if [ "$NEEDS_INSTALL" = true ]; then
+  echo "Installing framework dependencies..."
+  npm install 2>&1 | grep -E "^(added|up to date)" || echo "  Dependencies installed"
+  echo "✓ Dependencies installed"
+else
+  echo "✓ All dependencies present"
+fi
+
+cd - > /dev/null
 
 echo "✓ Prerequisites validated"
 echo ""
