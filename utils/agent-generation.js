@@ -252,37 +252,7 @@ async function generateAgents(
         language,
       );
 
-      const testerAgents = await generateTesterAgents(
-        templatesPath,
-        stackProfile,
-        commands,
-        language,
-      );
-      generation.testing.push(...testerAgents);
-    }
-
-    // 4. Generate security reviewer agent (primary language)
-    const primaryLanguage = getPrimaryLanguage(stackProfile);
-    if (primaryLanguage) {
-      const commands = await extractCommandsForLanguage(
-        projectPath,
-        stackProfile,
-        primaryLanguage,
-      );
-      const securitySkills = resolveAgentSkills(
-        `security-reviewer-${primaryLanguage}`,
-        stackProfile,
-      );
-      const securityAgent = await generateSecurityReviewerAgent(
-        templatesPath,
-        stackProfile,
-        securitySkills,
-        primaryLanguage,
-        commands,
-      );
-      if (securityAgent) {
-        generation.review.push(securityAgent);
-      }
+      // Testing agents removed - use skills instead (jest-coverage-automation, playwright-e2e-automation)
     }
 
     // 6. Generate visual verifier agent (for frontend projects with visual verification)
@@ -304,16 +274,7 @@ async function generateAgents(
       }
     }
 
-    // 7. Generate doc updater agent (for all projects)
-    const docUpdaterSkills = resolveAgentSkills("doc-updater", stackProfile);
-    const docUpdaterAgent = await generateDocUpdaterAgent(
-      templatesPath,
-      docUpdaterSkills,
-      stackProfile,
-    );
-    if (docUpdaterAgent) {
-      generation.documentation.push(docUpdaterAgent);
-    }
+    // Doc updater agent removed - use update-project-context skill instead
 
     // Calculate total
     generation.total =
@@ -505,112 +466,8 @@ async function generateImplementerAgent(
   );
 }
 
-async function generateTesterAgents(
-  templatesPath,
-  stackProfile,
-  commands,
-  language,
-) {
-  const agents = [];
-  const testCmd = commands.unit_test_command || getDefault(language, "test");
-  const patterns = TEST_PATTERNS[language] || {};
-
-  // Unit tester
-  const unitTemplate = await findTemplate(
-    templatesPath,
-    "tester-unit",
-    language,
-  );
-  if (unitTemplate) {
-    const unitAgent = compileAgent(
-      unitTemplate,
-      {
-        stack: language,
-        skills: resolveAgentSkills(`tester-unit-${language}`, stackProfile),
-        test_command: testCmd,
-        unit_test_command: testCmd,
-        integration_test_command: commands.integration_test_command || testCmd,
-        coverage_command:
-          commands.coverage_command || getDefault(language, "coverage"),
-        test_file_command: `${testCmd} <test-file>`,
-        test_watch_command: `${testCmd} --watch`,
-        file_extension: ["typescript", "javascript"].includes(language)
-          ? "typescript"
-          : language,
-        test_framework:
-          commands.test_framework || getDefault(language, "test_framework"),
-        coverage_view_command: getDefault(language, "coverage_view"),
-        ...patterns,
-      },
-      {
-        name: `tester-unit-${language}`,
-        filename: `tester-unit-${language}.md`,
-        model: "sonnet",
-        description: `Write unit + integration tests with ${commands.test_framework || "default framework"}`,
-      },
-    );
-    agents.push(unitAgent);
-  }
-
-  // E2E tester (frontend only)
-  if (stackProfile.frontend_frameworks?.length > 0 && commands.e2e_framework) {
-    const e2eTemplate = await findTemplate(templatesPath, "tester-e2e");
-    if (e2eTemplate) {
-      const pkgMgr = stackProfile.package_manager || "npx";
-      const e2eAgent = compileAgent(
-        e2eTemplate,
-        {
-          stack: language,
-          skills: resolveAgentSkills(`tester-e2e-${language}`, stackProfile),
-          e2e_framework: commands.e2e_framework,
-          e2e_test_command:
-            commands.e2e_test_command || getDefault(language, "e2e"),
-          e2e_command: commands.e2e_test_command || getDefault(language, "e2e"),
-          e2e_ui_command: `${pkgMgr} playwright test --ui`,
-          e2e_debug_command: `${pkgMgr} playwright test --debug`,
-          e2e_report_command: `${pkgMgr} playwright show-report`,
-          e2e_test_pattern: "*.spec.ts or *.e2e.ts",
-          e2e_ui_mode: `${pkgMgr} playwright test --ui`,
-        },
-        {
-          name: `tester-e2e-${language}`,
-          filename: `tester-e2e-${language}.md`,
-          model: "sonnet",
-          description: `Write E2E tests with ${commands.e2e_framework}`,
-        },
-      );
-      agents.push(e2eAgent);
-    }
-  }
-
-  return agents;
-}
-
-async function generateSecurityReviewerAgent(
-  templatesPath,
-  stackProfile,
-  skills,
-  language,
-  commands,
-) {
-  const template = await findTemplate(templatesPath, "security-reviewer");
-  if (!template) return null;
-
-  return compileAgent(
-    template,
-    {
-      stack: language,
-      skills,
-      audit_command: commands.audit_command || getDefault(language, "audit"),
-    },
-    {
-      name: `security-reviewer-${language}`,
-      filename: `security-reviewer-${language}.md`,
-      model: "sonnet",
-      description: "Security review and OWASP scanning",
-    },
-  );
-}
+// Removed: generateTesterAgents - testing now handled by skills (jest-coverage-automation, playwright-e2e-automation)
+// Removed: generateSecurityReviewerAgent - security now handled by security-review skill
 
 async function generateVisualVerifierAgent(
   templatesPath,
@@ -965,16 +822,8 @@ function getTemplateFilename(agentName) {
     return "planner.template.md";
   } else if (agentName.startsWith("implementer-")) {
     return "implementer.template.md";
-  } else if (agentName.startsWith("tester-unit-")) {
-    return "tester-unit.template.md";
-  } else if (agentName.startsWith("tester-e2e-")) {
-    return "tester-e2e.template.md";
-  } else if (agentName.startsWith("security-reviewer-")) {
-    return "security-reviewer.template.md";
   } else if (agentName === "visual-verifier") {
     return "visual-verifier.template.md";
-  } else if (agentName === "doc-updater") {
-    return "doc-updater.template.md";
   }
 
   throw new Error(`Unknown agent type: ${agentName}`);
