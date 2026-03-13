@@ -858,4 +858,4 @@ Full schema specification (`schemas/sdd-ticket.schema.json`):
 **For more details, see**:
 - `skills/020-development-workflow/create-sdd-ticket/SKILL.md` - Source implementation
 - `schemas/sdd-ticket.schema.json` - Canonical schema
-- `SKILLS_AND_AGENTS_MAP_V2.md` - Architecture overview
+- `SKILLS_AND_AGENTS_MAP.md` - Architecture overview

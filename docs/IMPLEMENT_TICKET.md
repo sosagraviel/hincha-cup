@@ -835,6 +835,6 @@ Typical execution times per phase:
 ---
 
 **For more details, see**:
-- `SKILLS_AND_AGENTS_MAP_V2.md` - Complete architecture overview
+- `SKILLS_AND_AGENTS_MAP.md` - Complete architecture overview
 - `skills/020-development-workflow/implement-ticket/SKILL.md` - Source implementation
 - `REFACTOR_PROGRESS.md` - Refactor history

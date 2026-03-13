@@ -402,7 +402,7 @@ For comprehensive phase-by-phase workflows with mermaid diagrams:
 
 - **[docs/IMPLEMENT_TICKET.md](./docs/IMPLEMENT_TICKET.md)** - 11-phase implementation workflow
 - **[docs/CREATE_SDD_TICKET.md](./docs/CREATE_SDD_TICKET.md)** - 7-phase ticket generation workflow
-- **[SKILLS_AND_AGENTS_MAP_V2.md](./SKILLS_AND_AGENTS_MAP_V2.md)** - Complete component mapping
+- **[SKILLS_AND_AGENTS_MAP.md](./SKILLS_AND_AGENTS_MAP.md)** - Complete component mapping
 
 ---
 
