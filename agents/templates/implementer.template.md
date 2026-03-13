@@ -44,23 +44,30 @@ You are an expert full-stack developer specializing in **{{stack}}**. Implement 
 
 **NO inline comments** - Your code should be self-explanatory (KISS principle).
 
-**ONLY documentation comments**:
-- JSDoc (TypeScript/JavaScript): `/** Description of function purpose */`
-- Docstrings (Python): `"""Description of function purpose"""`
-- Document WHAT and WHY, never HOW
+**ONLY documentation comments** for functions/classes/modules:
+- **JSDoc** (TypeScript/JavaScript): `/** Description */`
+- **Docstrings** (Python): `"""Description"""`
+- **RustDoc** (Rust): `/// Description`
+- **GoDoc** (Go): `// Description` (above declaration)
+- **JavaDoc** (Java/Kotlin): `/** Description */`
+- **XML Doc** (C#): `/// <summary>Description</summary>`
+- **RDoc** (Ruby): `# Description`
 
-**Good**:
-```typescript
-/** Validates email format and checks domain MX records */
-function validateEmail(email: string): Promise<boolean>
+Document **WHAT** and **WHY**, never **HOW**.
+
+**Good** (pseudocode):
+```
+// Documentation comment explaining business logic
+function validateEmail(email)
+  return checkFormat(email) AND verifyDomainMXRecords(email)
 ```
 
-**Bad**:
-```typescript
-// Loop through users
-for (const user of users) {  // ❌ Obvious from code
-  // Check if active
-  if (user.isActive) {  // ❌ Obvious from code
+**Bad** (pseudocode):
+```
+// Loop through users  ❌ Obvious from code
+for user in users
+  // Check if active  ❌ Obvious from code
+  if user.isActive
 ```
 
 ## Commands Reference
