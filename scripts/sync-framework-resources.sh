@@ -101,7 +101,7 @@ echo ""
 echo "Step 2: Detecting framework version..."
 
 SYNC_RESULT=$(node -e "
-const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config/config-updater.js');
 
 async function main() {
   try {
@@ -144,7 +144,7 @@ echo ""
 echo "Step 3: Detecting user modifications..."
 
 USER_MODS=$(node -e "
-const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config/config-updater.js');
 
 async function main() {
   try {
@@ -210,8 +210,8 @@ echo ""
 echo "Step 5: Syncing skills..."
 
 SKILL_SYNC_RESULT=$(node -e "
-const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
-const { updateSingleSkill, addSingleSkill } = require('$FRAMEWORK_PATH/utils/skill-selection.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config/config-updater.js');
+const { updateSingleSkill, addSingleSkill } = require('$FRAMEWORK_PATH/utils/skills');
 const path = require('path');
 const fs = require('fs');
 
@@ -281,8 +281,8 @@ echo ""
 echo "Step 5.5: Detecting new skills from registry..."
 
 NEW_SKILLS_RESULT=$(node -e "
-const { discoverMissingSkills } = require('$FRAMEWORK_PATH/utils/skill-discovery.js');
-const { addSingleSkill } = require('$FRAMEWORK_PATH/utils/skill-selection.js');
+const { discoverMissingSkills } = require('$FRAMEWORK_PATH/utils/discovery/skill-discovery.js');
+const { addSingleSkill } = require('$FRAMEWORK_PATH/utils/skills');
 
 async function main() {
   try {
@@ -345,8 +345,8 @@ if [ "$NEW_SKILLS_ADDED_COUNT" -gt 0 ]; then
   echo "  Checking for affected agents..."
 
   AFFECTED_AGENTS=$(node -e "
-const { getAffectedAgents } = require('$FRAMEWORK_PATH/utils/skill-discovery.js');
-const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
+const { getAffectedAgents } = require('$FRAMEWORK_PATH/utils/discovery/skill-discovery.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config/config-updater.js');
 
 async function main() {
   try {
@@ -395,7 +395,7 @@ echo "Step 6: Syncing agents..."
 AGENTS_REGENERATED_FOR_SKILLS=0
 if [ "$FORCE_AGENT_REGEN" != "[]" ]; then
   REGEN_RESULT=$(node -e "
-const { regenerateSingleAgent } = require('$FRAMEWORK_PATH/utils/agent-generation.js');
+const { regenerateSingleAgent } = require('$FRAMEWORK_PATH/utils/agents');
 
 async function main() {
   try {
@@ -430,8 +430,8 @@ fi
 
 # Now check for template changes in agents
 AGENT_SYNC_RESULT=$(node -e "
-const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
-const { regenerateSingleAgent } = require('$FRAMEWORK_PATH/utils/agent-generation.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config/config-updater.js');
+const { regenerateSingleAgent } = require('$FRAMEWORK_PATH/utils/agents');
 const path = require('path');
 const fs = require('fs');
 
@@ -517,7 +517,7 @@ if [ "$FRAMEWORK_UPDATED" == "true" ]; then
   echo "Step 7: Updating framework version in config..."
 
   node -e "
-const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config/config-updater.js');
 
 async function main() {
   try {

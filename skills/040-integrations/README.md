@@ -7,6 +7,6 @@ Skills for integrating with external services and platforms like Jira, Confluenc
 - **confluence-skill**: Manage Confluence documentation with downloads, uploads, conversions, and diagrams
 - **fetch-ticket-context**: Fetch ticket context from project management systems
 - **jira**: Manage JIRA issues, projects, and workflows using Atlassian MCP
-- **mastering-confluence-agent-skill**: Comprehensive Confluence documentation management
-- **mastering-github-agent-skill**: GitHub repository and workflow management
+- **mastering-confluence**: Comprehensive Confluence documentation management
+- **mastering-github-cli**: GitHub repository and workflow management
 - **notion-document-manager**: Manage Notion documents and databases

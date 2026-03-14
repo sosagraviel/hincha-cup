@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { ConfigUpdater } = require('../../../../../utils/config-updater.js');
+const { ConfigUpdater } = require('../../../../../utils/config/config-updater.js');
 
 const tempDir = process.argv[2];
 const projectPath = process.argv[3];

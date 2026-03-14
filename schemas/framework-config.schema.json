@@ -83,7 +83,11 @@
         "phase2_consolidation": {
           "type": "object",
           "description": "Gap analysis and consolidated findings",
-          "required": ["gaps_identified", "consolidation_timestamp", "validation_status"],
+          "required": [
+            "gaps_identified",
+            "consolidation_timestamp",
+            "validation_status"
+          ],
           "properties": {
             "gaps_identified": {
               "type": "array",
@@ -93,7 +97,12 @@
                 "properties": {
                   "category": {
                     "type": "string",
-                    "enum": ["stack", "testing", "configuration", "documentation"]
+                    "enum": [
+                      "stack",
+                      "testing",
+                      "configuration",
+                      "documentation"
+                    ]
                   },
                   "description": {
                     "type": "string"
@@ -159,7 +168,9 @@
               "items": {
                 "type": "string"
               },
-              "examples": [[".claude/CLAUDE.md", ".claude/skills/project-context/SKILL.md"]]
+              "examples": [
+                [".claude/CLAUDE.md", ".claude/skills/project-context/SKILL.md"]
+              ]
             }
           }
         }
@@ -318,9 +329,7 @@
         "description": "Skill identifier (e.g., 'mastering-python-skill' or '050-language-frameworks/mastering-python-skill')"
       },
       "default": [],
-      "examples": [
-        ["mastering-python-skill", "vue-frontend", "050-language-frameworks/angular-patterns"]
-      ]
+      "examples": [["mastering-python-skill", "vue-frontend"]]
     }
   },
   "definitions": {
@@ -367,7 +376,12 @@
     },
     "skill_resource": {
       "type": "object",
-      "required": ["source_path", "copied_timestamp", "source_hash", "managed_by_framework"],
+      "required": [
+        "source_path",
+        "copied_timestamp",
+        "source_hash",
+        "managed_by_framework"
+      ],
       "properties": {
         "source_path": {
           "type": "string",

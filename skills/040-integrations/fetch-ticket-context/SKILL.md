@@ -2,13 +2,14 @@
 name: fetch-ticket-context
 description: Fetch complete context for a Jira ticket including external documentation from Notion, Confluence, and linked resources. Use when starting ticket implementation to gather all requirements.
 user-invocable: true
-argument-hint: [JIRA-URL-OR-KEY]
+argument-hint: "JIRA-URL-OR-KEY"
 disable-model-invocation: false
 ---
 
 # Fetch Ticket Context
 
 Comprehensive skill for gathering all context needed to implement a Jira ticket, including:
+
 - Jira ticket details (summary, description, acceptance criteria)
 - External documentation (Notion, Confluence, Figma, etc.)
 - Linked issues and dependencies
@@ -20,6 +21,7 @@ Comprehensive skill for gathering all context needed to implement a Jira ticket,
 - **Notion MCP**: Official remote server with OAuth (for Notion)
 
 Setup these servers with:
+
 ```bash
 claude mcp add atlassian https://mcp.atlassian.com/v1/sse --transport sse
 claude mcp add notion https://mcp.notion.com/mcp --transport http
@@ -38,6 +40,7 @@ You can use either the full Jira URL or just the ticket key:
 ```
 
 **URL Parsing:** If a full URL is provided, the skill will automatically extract the ticket key using this pattern:
+
 - Pattern: `https://*.atlassian.net/browse/{TICKET-KEY}`
 - Example: `https://acme.atlassian.net/browse/PROJ-123` → extracts `PROJ-123`
 
@@ -63,6 +66,7 @@ epic_link=$(echo "$ticket_data" | jq -r '.fields.parent.key // "No epic"')
 ```
 
 **Output:**
+
 ```
 ✓ Fetched Jira ticket: PROJ-123
   Summary: Implement OAuth2 authentication
@@ -125,7 +129,7 @@ if [[ -n "$confluence_links" ]]; then
         # Extract page ID from URL
         page_id=$(echo "$confluence_url" | grep -oP 'pages/\K[0-9]+')
 
-        # Use mastering-confluence-agent-skill
+        # Use mastering-confluence
         confluence_content=$(mcp__atlassian__getConfluencePage --page_id "$page_id")
 
         # Save to context file
@@ -252,6 +256,7 @@ The skill produces a comprehensive context document with this structure:
 # Context for PROJ-123: Implement OAuth2 authentication
 
 ## Jira Ticket Details
+
 **Summary:** Implement OAuth2 authentication
 **Priority:** High
 **Assignee:** Jane Doe
@@ -260,9 +265,11 @@ The skill produces a comprehensive context document with this structure:
 **Labels:** backend, security, authentication
 
 ## Description
+
 Implement OAuth2 authentication flow following the industry standard...
 
 ## Acceptance Criteria
+
 - Users can log in with Google, GitHub, Microsoft
 - Refresh tokens work correctly
 - Session management is secure
@@ -271,26 +278,33 @@ Implement OAuth2 authentication flow following the industry standard...
 ---
 
 ### Notion Document: Design Specification
+
 [Full Notion content fetched and included here...]
 
 ### Confluence Page: API Documentation
+
 [Full Confluence content fetched and included here...]
 
 ### Figma Design: Login Flow Mockups
-⚠️  Manual review required: https://figma.com/file/...
+
+⚠️ Manual review required: https://figma.com/file/...
 
 ### Related Jira Tickets
+
 **Blocking:**
+
 - PROJ-120: Set up OAuth providers
 - PROJ-121: Configure redirect URIs
 
 **Depends on:**
+
 - PROJ-99: User database schema
 ```
 
 ## Error Handling
 
 ### Missing Ticket
+
 ```bash
 if [[ -z "$ticket_data" ]]; then
     echo "❌ Ticket not found: $JIRA_KEY"
@@ -300,6 +314,7 @@ fi
 ```
 
 ### Permission Denied on External Docs
+
 ```bash
 # For Notion
 if [[ "$notion_content" == *"403"* ]]; then
@@ -317,6 +332,7 @@ fi
 ```
 
 ### Rate Limits
+
 ```bash
 # Notion: 30 searches/min, 180 req/min total
 # Solution: Fetch with delays
@@ -329,6 +345,7 @@ fetch_with_rate_limit() {
 ```
 
 ### Malformed URLs
+
 ```bash
 # Validate URLs before fetching
 validate_url() {
@@ -344,6 +361,7 @@ validate_url() {
 ## Best Practices
 
 ### 1. Cache Fetched Context
+
 ```bash
 # Cache context for 1 hour
 cache_file="$HOME/.cache/jira_context/${JIRA_KEY}.md"
@@ -364,6 +382,7 @@ cp "/tmp/context_${JIRA_KEY}.md" "$cache_file"
 ```
 
 ### 2. Handle Large Context
+
 ```bash
 # Estimate token count
 context_size=$(wc -c < "$context_file")
@@ -376,6 +395,7 @@ fi
 ```
 
 ### 3. Parallel Fetching (if multiple docs)
+
 ```bash
 # For multiple Notion pages, fetch in parallel
 for notion_url in $notion_links; do
@@ -391,6 +411,7 @@ cat /tmp/notion_*.md >> /tmp/context_${JIRA_KEY}.md
 ```
 
 ### 4. Provide Summary
+
 ```bash
 # After fetching all context, provide a brief summary
 echo "
@@ -424,20 +445,24 @@ This skill is typically the **first step** in the implementation workflow:
 ## Troubleshooting
 
 **Issue: "No external links found"**
+
 - Check if ticket description contains URLs
 - Look in comments: `mcp__atlassian__jira_get_issue --expand "comments"`
 
 **Issue: "Context too large"**
+
 - Summarize Notion/Confluence content before including
 - Focus on key sections only (e.g., "Requirements", "Design")
 
 **Issue: "Cannot fetch Notion page"**
+
 - Verify Notion MCP is configured: `mcp__notion__fetch_page --help`
 - Check bot has access to page in Notion settings
 
 ## Examples
 
 ### Example 1: Simple Ticket (No External Docs)
+
 ```bash
 $ /fetch-ticket-context PROJ-100
 
@@ -450,6 +475,7 @@ Context ready (~500 tokens)
 ```
 
 ### Example 2: Complex Ticket (Multiple External Docs)
+
 ```bash
 $ /fetch-ticket-context PROJ-123
 
@@ -479,4 +505,4 @@ Context ready (~15,000 tokens)
 
 - Jira Skill: `.claude/skills/jira/SKILL.md`
 - Notion Manager: `.claude/skills/notion-document-manager/SKILL.md`
-- Confluence Skill: `.claude/skills/mastering-confluence-agent-skill/SKILL.md`
+- Confluence Skill: `.claude/skills/mastering-confluence/SKILL.md`

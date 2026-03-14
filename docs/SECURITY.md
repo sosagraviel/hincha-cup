@@ -495,7 +495,7 @@ chown user:logging logs/*.log
 
 ### Pre-Deployment
 
-- [ ] Run security check: `./utils/security-check.sh`
+- [ ] Run security check: `./scripts/security-check.sh`
 - [ ] No hardcoded secrets in code
 - [ ] All `.env` files gitignored
 - [ ] npm audit shows 0 high/critical vulnerabilities
@@ -673,7 +673,7 @@ We appreciate responsible disclosure:
 
 ```bash
 # Security check (custom)
-./utils/security-check.sh
+./scripts/security-check.sh
 
 # Dependency audit
 npm audit
