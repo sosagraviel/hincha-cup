@@ -50,7 +50,7 @@ async function saveCheckpoint(ticketKey, checkpoint) {
       version: '1.0'
     };
 
-    const schema = require('../schemas/checkpoint.schema.json');
+    const schema = require('../../schemas/checkpoint.schema.json');
     const validate = ajv.compile(schema);
     const valid = validate(enhancedCheckpoint);
 
@@ -82,7 +82,7 @@ async function loadCheckpointNoPrompt(ticketKey) {
     const data = await fs.readFile(checkpointPath, 'utf8');
     const checkpoint = JSON.parse(data);
 
-    const schema = require('../schemas/checkpoint.schema.json');
+    const schema = require('../../schemas/checkpoint.schema.json');
     const validate = ajv.compile(schema);
     const valid = validate(checkpoint);
 

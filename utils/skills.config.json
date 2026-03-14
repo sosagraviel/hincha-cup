@@ -116,16 +116,16 @@
       "description": "Jira integration"
     },
     {
-      "name": "mastering-confluence-agent-skill",
-      "path": "skills/040-integrations/mastering-confluence-agent-skill",
+      "name": "mastering-confluence",
+      "path": "skills/040-integrations/mastering-confluence",
       "always": true,
       "description": "Confluence documentation"
     },
     {
-      "name": "mastering-github-agent-skill",
-      "path": "skills/040-integrations/mastering-github-agent-skill",
+      "name": "mastering-github-cli",
+      "path": "skills/040-integrations/mastering-github-cli",
       "always": true,
-      "description": "GitHub integration"
+      "description": "GitHub CLI mastery"
     },
     {
       "name": "notion-document-manager",

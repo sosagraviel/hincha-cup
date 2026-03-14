@@ -149,7 +149,7 @@ echo "✓ $COMMAND_COUNT commands available"
 
 # Update config with command tracking
 node -e "
-const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config/config-updater.js');
 const fs = require('fs');
 const path = require('path');
 

@@ -405,7 +405,7 @@ async function saveCheckpoint(ticketKey, checkpoint) {
     };
 
     // Validate against schema
-    const schema = require('../schemas/checkpoint.schema.json');
+    const schema = require('../../schemas/checkpoint.schema.json');
     const validate = ajv.compile(schema);
     const valid = validate(enhancedCheckpoint);
 
@@ -467,7 +467,7 @@ async function loadCheckpoint(ticketKey) {
     const checkpoint = JSON.parse(data);
 
     // Validate schema
-    const schema = require('../schemas/checkpoint.schema.json');
+    const schema = require('../../schemas/checkpoint.schema.json');
     const validate = ajv.compile(schema);
     const valid = validate(checkpoint);
 

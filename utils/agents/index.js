@@ -14,9 +14,12 @@ async function generatePlannerAgent(templatesPath, skills) {
   const template = await findTemplate(templatesPath, 'planner');
   if (!template) return null;
 
+  // Extract skill names from skill objects
+  const skillNames = skills.map(s => s.name);
+
   return createAgent(
     template,
-    { skills },
+    { skills: skillNames },
     {
       name: 'planner',
       filename: 'planner.md',
@@ -36,11 +39,14 @@ async function generateImplementerAgent(
   const template = await findTemplate(templatesPath, 'implementer', language);
   if (!template) return null;
 
+  // Extract skill names from skill objects
+  const skillNames = skills.map(s => s.name);
+
   return createAgent(
     template,
     {
       stack: language,
-      skills,
+      skills: skillNames,
       lint_command: commands.lint_command || getDefault(language, 'lint'),
       format_command: commands.format_command || getDefault(language, 'format'),
       type_check_command: commands.type_check_command || getDefault(language, 'typecheck'),
@@ -105,7 +111,7 @@ async function generateAgents(stackProfile, projectPath, templatesPath, framewor
 
   try {
     const plannerSkills = resolveSkills(stackProfile, frameworkPath).filter((s) =>
-      s.category.includes('foundation')
+      s.path.includes('foundation')
     );
     const plannerAgent = await generatePlannerAgent(templatesPath, plannerSkills);
     if (plannerAgent) {
@@ -117,7 +123,7 @@ async function generateAgents(stackProfile, projectPath, templatesPath, framewor
       const commands = await extractCommandsForLanguage(projectPath, stackProfile, language);
 
       const implementerSkills = resolveSkills(stackProfile, frameworkPath).filter(
-        (s) => s.reason?.includes(language) || s.category.includes('foundation')
+        (s) => s.reason?.includes(language) || s.path.includes('foundation')
       );
       const implementerAgent = await generateImplementerAgent(
         templatesPath,

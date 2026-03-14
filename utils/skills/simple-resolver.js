@@ -43,6 +43,11 @@ function resolveSkills(detectedStack, frameworkPath) {
   const selectedSkills = [];
 
   for (const skill of config.skills) {
+    // Skip generated skills (e.g., project-context) - they're created during initialization
+    if (skill.generated) {
+      continue;
+    }
+
     // Always copy skills
     if (skill.always) {
       selectedSkills.push({
