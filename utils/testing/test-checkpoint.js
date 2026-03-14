@@ -5,7 +5,7 @@
  * Tests P0-7 (Atomic Checkpoint Operations) and P0-12 (Checkpoint Validation on Resume)
  */
 
-const { saveCheckpoint, loadCheckpoint, cleanupOldCheckpoints } = require('./error-recovery.js');
+const { saveCheckpoint, loadCheckpoint, cleanupOldCheckpoints } = require('../error-handling/error-recovery.js');
 const fs = require('fs').promises;
 const path = require('path');
 

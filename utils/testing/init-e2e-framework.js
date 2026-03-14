@@ -15,7 +15,20 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { detectPackageManager } = require('./stack-detection');
+
+/**
+ * Detect package manager used in project
+ * @param {string} projectPath - Project path
+ * @returns {Promise<string>} Package manager name (npm, yarn, pnpm, bun)
+ */
+async function detectPackageManager(projectPath) {
+  if (fs.existsSync(path.join(projectPath, 'pnpm-lock.yaml'))) return 'pnpm';
+  if (fs.existsSync(path.join(projectPath, 'yarn.lock'))) return 'yarn';
+  if (fs.existsSync(path.join(projectPath, 'bun.lockb'))) return 'bun';
+  if (fs.existsSync(path.join(projectPath, 'package-lock.json'))) return 'npm';
+  if (fs.existsSync(path.join(projectPath, 'package.json'))) return 'npm'; // Default
+  return null;
+}
 
 // Configuration
 const SUPPORTED_FRAMEWORKS = ['playwright', 'cypress'];
