@@ -108,15 +108,25 @@ CRITICAL: Follow ALL instructions in the agent file below.
 Output ONLY valid JSON starting with { and ending with }
 Do NOT wrap in markdown code blocks or add ANY text before/after the JSON
 
-CRITICAL: When populating the 'consolidated_from' array, you MUST use these EXACT agent names:
-- 01-structure-architecture
-- 02-tech-stack-dependencies
-- 03-code-patterns-testing
-- 04-data-flows-integrations
-- consolidation
+CRITICAL VALIDATION REQUIREMENTS:
+1. Every 'question' field MUST end with a question mark (?)
+   - WRONG: \"What are the requirements. Please specify details.\"
+   - WRONG: \"What tools are used? (e.g., eslint, prettier)\"
+   - RIGHT: \"What are the requirements and details?\"
+   - RIGHT: \"What tools and configurations are used for linting?\"
 
-Do NOT use descriptive names like 'tech-stack-dependencies-analyzer' or 'structure-architecture-analyzer'.
-Use the file name format shown above (with numeric prefixes, no -analyzer suffix).
+2. Remove clarifying examples or follow-up instructions from questions
+   - If you need to add context, put it in the 'reason' field instead
+
+3. When populating 'consolidated_from' array, use these EXACT agent names:
+   - 01-structure-architecture
+   - 02-tech-stack-dependencies
+   - 03-code-patterns-testing
+   - 04-data-flows-integrations
+   - consolidation
+
+   Do NOT use descriptive names like 'tech-stack-dependencies-analyzer'.
+   Use the file name format shown above (with numeric prefixes, no -analyzer suffix).
 
 === INPUT DATA ===
 Current gaps that need consolidation:

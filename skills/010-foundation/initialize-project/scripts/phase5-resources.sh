@@ -90,7 +90,9 @@ const path = require('path');
 
 async function main() {
   try {
-    const stackProfile = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude-temp/stack-profile.json', 'utf-8'));
+    // Read stack profile from framework config (not temp stack-profile.json which is empty)
+    const config = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude/framework-config.json', 'utf-8'));
+    const stackProfile = config.stack_profile;
 
     console.log('Generating agents for detected languages with tracking...');
 
