@@ -16,9 +16,9 @@ echo "  Project: $PROJECT_PATH"
   echo "  Framework: $FRAMEWORK_PATH"
 echo ""
 
-# Verify stack-profile.json exists (created in Phase 4)
-if [ ! -f "$PROJECT_PATH/.claude-temp/stack-profile.json" ]; then
-  echo "Error: stack-profile.json not found (should have been created in Phase 4)"
+# Verify framework-config.json exists (created in Phase 4)
+if [ ! -f "$PROJECT_PATH/.claude/framework-config.json" ]; then
+  echo "Error: framework-config.json not found (should have been created in Phase 4)"
   exit 1
 fi
 
@@ -29,40 +29,41 @@ fi
 echo "Step 1: Selecting and copying skills..."
 
 node -e "
-const skillSelection = require('$FRAMEWORK_PATH/utils/skill-selection.js');
-const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
+const { resolveSkills } = require('$FRAMEWORK_PATH/utils/core/skill-resolver.js');
+const { addSingleSkill } = require('$FRAMEWORK_PATH/utils/skills/skill-manager.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config/config-updater.js');
 const fs = require('fs');
 
 async function main() {
   try {
-    const stackProfile = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude-temp/stack-profile.json', 'utf-8'));
+    const config = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude/framework-config.json', 'utf-8'));
+    const stackProfile = config.stack_profile;
 
     console.log('Selecting skills based on stack...');
-    const selection = await skillSelection.selectSkills(stackProfile, '$FRAMEWORK_PATH');
+    const skillsToAdd = resolveSkills(stackProfile, '$FRAMEWORK_PATH');
 
-    console.log('Copying skills to project with tracking...');
-    const result = await skillSelection.copySkillsWithTracking(selection, '$PROJECT_PATH', '$FRAMEWORK_PATH');
+    console.log('Copying', skillsToAdd.length, 'skills to project...');
 
-    console.log('✓ Copied', result.copied.length, 'skills');
-    if (result.errors.length > 0) {
-      console.log('⚠ Failed to copy', result.errors.length, 'skills');
-      result.errors.forEach(err => {
-        console.error('  -', err.name, ':', err.error);
-      });
+    const copied = [];
+    const errors = [];
+
+    for (const skill of skillsToAdd) {
+      try {
+        const result = await addSingleSkill(skill.name, '$PROJECT_PATH', '$FRAMEWORK_PATH');
+        if (result.added) {
+          copied.push({ name: skill.name, path: result.path });
+          console.log('  ✓', skill.name);
+        }
+      } catch (error) {
+        errors.push({ name: skill.name, error: error.message });
+        console.error('  ✗', skill.name, ':', error.message);
+      }
     }
 
-    // Update config with skill tracking metadata
-    console.log('Updating framework config with skill metadata...');
-    const configUpdater = new ConfigUpdater('$PROJECT_PATH', '$FRAMEWORK_PATH');
-    const config = await configUpdater.readConfig();
-    config.resource_state.skills = result.skillsTracking;
-    await configUpdater.writeConfig(config);
-    console.log('✓ Skill tracking metadata saved');
-
-    // Generate skill index
-    console.log('Generating skill index...');
-    await skillSelection.generateSkillIndex(selection, '$PROJECT_PATH');
-    console.log('✓ Skill index generated');
+    console.log('✓ Copied', copied.length, 'skills');
+    if (errors.length > 0) {
+      console.log('⚠ Failed to copy', errors.length, 'skills');
+    }
 
     process.exit(0);
   } catch (error) {
@@ -83,14 +84,16 @@ echo ""
 echo "Step 2: Generating agents..."
 
 node -e "
-const agentGen = require('$FRAMEWORK_PATH/utils/agent-generation.js');
-const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
+const { generateAgentsWithTracking } = require('$FRAMEWORK_PATH/utils/agents');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config/config-updater.js');
 const fs = require('fs');
 const path = require('path');
 
 async function main() {
   try {
-    const stackProfile = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude-temp/stack-profile.json', 'utf-8'));
+    // Read stack profile from framework config (not temp stack-profile.json which is empty)
+    const frameworkConfig = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude/framework-config.json', 'utf-8'));
+    const stackProfile = frameworkConfig.stack_profile;
 
     console.log('Generating agents for detected languages with tracking...');
 
@@ -98,9 +101,8 @@ async function main() {
     const templateDir = path.join('$FRAMEWORK_PATH', 'agents', 'templates');
 
     // Generate agents with tracking
-    const result = await agentGen.generateAgentsWithTracking(
+    const result = await generateAgentsWithTracking(
       stackProfile,
-      {},
       '$PROJECT_PATH',
       templateDir,
       '$FRAMEWORK_PATH'
@@ -150,7 +152,7 @@ echo "✓ $COMMAND_COUNT commands available"
 
 # Update config with command tracking
 node -e "
-const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config-updater.js');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config/config-updater.js');
 const fs = require('fs');
 const path = require('path');
 

@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { ConfigUpdater } = require('../../../../../utils/config-updater.js');
+const { ConfigUpdater } = require('../../../../../utils/config/config-updater.js');
 
 const tempDir = process.argv[2];
 const projectPath = process.argv[3];
@@ -49,10 +49,10 @@ function inferWorkspaceType(workspace) {
   }
 
   // Default based on frameworks
-  if (workspace.frontend) {
+  if (workspace.frameworks?.frontend?.length > 0) {
     return 'frontend';
   }
-  if (workspace.backend) {
+  if (workspace.frameworks?.backend?.length > 0) {
     return 'backend';
   }
 
@@ -71,8 +71,8 @@ function transformWorkspaces(stackProfile) {
       language: workspace.primary_language || 'javascript',
       type: inferWorkspaceType(workspace),
       frameworks: [
-        ...(workspace.frontend ? [workspace.frontend.framework] : []),
-        ...(workspace.backend ? [workspace.backend.framework] : [])
+        ...(workspace.frameworks?.frontend || []),
+        ...(workspace.frameworks?.backend || [])
       ].filter(Boolean)
     };
   });
@@ -216,6 +216,100 @@ async function generateConfig() {
       frameworkVersion = packageJson.version || '2.0.0';
     }
 
+    // Extract stack data from phase1-outputs (tech-stack-dependencies)
+    // Phase1 agents have the real stack data; stack-profile.json is empty because
+    // it tries to read from framework-config.json which doesn't exist yet
+    const techStackData = phase1Analysis.tech_stack_dependencies?.findings || {};
+
+    // Extract languages from phase1 workspaces
+    const detectedLanguages = new Set();
+    if (techStackData.multi_stack?.workspaces) {
+      techStackData.multi_stack.workspaces.forEach(ws => {
+        if (ws.language) {
+          detectedLanguages.add(ws.language);
+        }
+      });
+    }
+
+    // Determine primary language (most common across workspaces)
+    let primaryLanguage = undefined;
+    if (detectedLanguages.size > 0) {
+      const langCounts = {};
+      techStackData.multi_stack?.workspaces?.forEach(ws => {
+        if (ws.language) {
+          langCounts[ws.language] = (langCounts[ws.language] || 0) + 1;
+        }
+      });
+
+      if (Object.keys(langCounts).length > 0) {
+        primaryLanguage = Object.entries(langCounts)
+          .sort((a, b) => b[1] - a[1])[0][0];
+      }
+    }
+
+    // Extract frameworks from dependencies
+    const frameworks = { frontend: [], backend: [], mobile: [] };
+    const frontendSet = new Set(['react', 'vue', 'angular', 'next', 'nextjs', 'svelte']);
+    const backendSet = new Set(['express', 'fastapi', 'django', 'nestjs', 'flask', 'firebase-functions']);
+
+    if (techStackData.multi_stack?.workspaces) {
+      techStackData.multi_stack.workspaces.forEach(ws => {
+        if (ws.dependencies) {
+          ws.dependencies.forEach(dep => {
+            const depLower = dep.toLowerCase().replace(/[^a-z]/g, '');
+            if (frontendSet.has(depLower) && !frameworks.frontend.includes(dep)) {
+              frameworks.frontend.push(dep);
+            } else if (backendSet.has(depLower) && !frameworks.backend.includes(dep)) {
+              frameworks.backend.push(dep);
+            }
+          });
+        }
+      });
+    }
+
+    // Transform phase1 workspaces to schema format
+    const detectedWorkspaces = techStackData.multi_stack?.workspaces?.map(ws => ({
+      path: ws.path || '',
+      language: ws.language || 'javascript',
+      type: inferWorkspaceType(ws),
+      frameworks: ws.dependencies || []
+    })) || [];
+
+    // Extract testing frameworks from dependencies
+    const testingFrameworks = {};
+    const testingSet = new Set(['jest', 'vitest', 'playwright', 'pytest', 'mocha', 'chai', '@playwright/test']);
+
+    if (techStackData.multi_stack?.workspaces) {
+      techStackData.multi_stack.workspaces.forEach(ws => {
+        const lang = ws.language || 'javascript';
+        if (!testingFrameworks[lang]) {
+          testingFrameworks[lang] = [];
+        }
+
+        if (ws.dependencies) {
+          ws.dependencies.forEach(dep => {
+            const depLower = dep.toLowerCase().replace(/[^a-z]/g, '');
+            if (testingSet.has(depLower) && !testingFrameworks[lang].includes(dep)) {
+              testingFrameworks[lang].push(dep);
+            }
+          });
+        }
+      });
+    }
+
+    const stackProfileData = {
+      languages: Array.from(detectedLanguages),
+      frameworks,
+      testing_frameworks: testingFrameworks,
+      detected_workspaces: detectedWorkspaces,
+      file_counts: stackProfile.file_counts || {}
+    };
+
+    // Only add primary_language if we have one (schema says it's optional but must be string if present)
+    if (primaryLanguage) {
+      stackProfileData.primary_language = primaryLanguage;
+    }
+
     const config = {
       schema_version: '1.0.0',
       framework_version: frameworkVersion,
@@ -230,28 +324,7 @@ async function generateConfig() {
         phase3_synthesis: phase3Synthesis,
         phase4_context: phase4Context
       },
-      stack_profile: {
-        // Transform languages from objects to simple string array
-        languages: Array.isArray(stackProfile.languages)
-          ? stackProfile.languages.map(lang => typeof lang === 'string' ? lang : lang.name)
-          : [],
-        primary_language: stackProfile.primary_language || null,
-        // Transform frameworks to expected schema format
-        frameworks: {
-          frontend: Array.isArray(stackProfile.frontend_frameworks)
-            ? stackProfile.frontend_frameworks.map(f => f.name || f)
-            : [],
-          backend: Array.isArray(stackProfile.backend_frameworks)
-            ? stackProfile.backend_frameworks.map(f => f.name || f)
-            : [],
-          mobile: stackProfile.frameworks?.mobile || []
-        },
-        // Transform testing frameworks to object with language keys
-        testing_frameworks: transformTestingFrameworks(stackProfile),
-        // Transform workspaces to schema format
-        detected_workspaces: transformWorkspaces(stackProfile),
-        file_counts: stackProfile.file_counts || {}
-      },
+      stack_profile: stackProfileData,
       resource_state: {
         skills: {},
         agents: {},

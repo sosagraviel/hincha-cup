@@ -80,28 +80,23 @@ orchestrate-initialization.sh
 
 ## Quick Start
 
-> ⚠️ **CRITICAL: .gitignore Setup Required**
+> ℹ️ **Automatic .gitignore Management**
 >
-> Before running initialization, you **MUST** add these directories to your `.gitignore`:
+> The initialization script automatically manages your `.gitignore`:
+> - If `.gitignore` doesn't exist, asks to create it with AI framework entries
+> - If `.gitignore` exists but is missing entries, asks to add them
+> - Ensures `.claude-temp/` and `.claude-backups/` are properly ignored
 >
-> ```gitignore
-> # AI Agentic Framework - Temporary and backup files
-> .claude-temp/
-> .claude-backups/
-> ```
->
-> **Why this matters:**
-> - `.claude-temp/` contains temporary analysis files (can be 10+ MB)
-> - `.claude-backups/` stores versioned backups of skills/agents
-> - Both directories are regenerated automatically
-> - Committing them will pollute your git history
-> - Team members will get merge conflicts on every sync
+> **What these directories contain:**
+> - `.claude-temp/` - Temporary analysis files (can be 10+ MB), kept by default for re-running phases
+> - `.claude-backups/` - Versioned backups of skills/agents
 >
 > **What to commit:**
 > - ✅ `.claude/CLAUDE.md` (project quick reference)
 > - ✅ `.claude/framework-config.json` (persistent configuration)
 > - ✅ `.claude/skills/project-context/` (project-specific knowledge)
-> - ❌ `.claude-temp/` (temporary analysis files)
+> - ✅ `.gitignore` (updated with AI framework entries)
+> - ❌ `.claude-temp/` (temporary analysis files - kept for re-running)
 > - ❌ `.claude-backups/` (versioned backups)
 
 ### Basic Usage
@@ -212,8 +207,9 @@ Before running initialization:
 |--------|-------------|---------|
 | `--framework-path PATH` | Path to ai-agentic-framework | `$PROJECT_PATH/ai-agentic-framework` |
 | `--skip-gap-questions` | Skip gap analysis (fully automated) | `false` (pauses if gaps detected) |
+| `--start-phase N` | Start from specific phase (1-6) | `1` (full initialization) |
 | `--timeout SECONDS` | Maximum execution time | `1800` (30 minutes) |
-| `--keep-temp` | Keep temporary files after completion | `false` (cleans up) |
+| `--clean` | Remove temporary files after completion | `false` (keeps `.claude-temp/`) |
 | `--help, -h` | Show help message | - |
 
 ### Examples
@@ -253,16 +249,31 @@ cd /path/to/your-project
 ./ai-agentic-framework/scripts/initialize-project.sh --timeout 3600
 ```
 
-#### Example 5: Keep Debug Files
+#### Example 5: Resume from Specific Phase
 
-When troubleshooting:
+When re-running after fixing issues or when analysis already complete:
 
 ```bash
 cd /path/to/your-project
-./ai-agentic-framework/scripts/initialize-project.sh --keep-temp
+# Re-run from Phase 4 (skip AI analysis phases 1-3)
+./ai-agentic-framework/scripts/initialize-project.sh --start-phase 4
+
+# Re-run from Phase 5 (skip analysis + synthesis)
+./ai-agentic-framework/scripts/initialize-project.sh --start-phase 5
 ```
 
-#### Example 6: Specify Project Explicitly
+**Note:** Temp files from previous run are required (`.claude-temp/` is kept by default)
+
+#### Example 6: Clean Up Temp Files
+
+By default, `.claude-temp/` is kept for re-running phases. To remove it:
+
+```bash
+cd /path/to/your-project
+./ai-agentic-framework/scripts/initialize-project.sh --clean
+```
+
+#### Example 7: Specify Project Explicitly
 
 When running from elsewhere:
 
@@ -1001,9 +1012,73 @@ bash "$FRAMEWORK_PATH/skills/010-foundation/initialize-project/scripts/phase6-va
 
 ## Advanced Usage
 
-### Run Specific Phase
+### Resume from Specific Phase
 
-For debugging, run individual phases:
+The `--start-phase` flag allows you to resume initialization from a specific phase (1-6). This is useful for:
+
+- **Re-running after fixes** - Fix an issue and resume without repeating slow AI analysis
+- **Iterative development** - Tweak phase outputs and continue from there
+- **Debugging** - Test specific phases in isolation
+
+```bash
+# Resume from Phase 4 (skip AI analysis phases 1-3)
+./scripts/initialize-project.sh --start-phase 4
+
+# Resume from Phase 5 (skip analysis + synthesis)
+./scripts/initialize-project.sh --start-phase 5
+
+# Resume from Phase 6 (validation only)
+./scripts/initialize-project.sh --start-phase 6
+```
+
+**Prerequisites:**
+- Previous phases must have completed successfully
+- `.claude-temp/` directory must exist with phase outputs
+- Temp files are kept by default for this purpose
+
+### Common Resume Scenarios
+
+#### Scenario 1: Fix Agent Generation Issue
+
+```bash
+# Initial run fails at Phase 5
+./scripts/initialize-project.sh
+# Error: Agent generation failed
+
+# Fix the issue in utils/agents/
+vim ai-agentic-framework/utils/agents/index.js
+
+# Resume from Phase 5 (has Phase 1-4 outputs)
+./scripts/initialize-project.sh --start-phase 5
+```
+
+#### Scenario 2: Update Stack Detection
+
+```bash
+# Initial run complete, but detected stack is wrong
+./scripts/initialize-project.sh
+# Generated wrong agents
+
+# Fix stack detection
+vim .claude/framework-config.json
+
+# Re-run from Phase 5 (regenerate agents with correct stack)
+./scripts/initialize-project.sh --start-phase 5
+```
+
+#### Scenario 3: Tweak Synthesis Output
+
+```bash
+# Edit synthesis output directly
+vim .claude-temp/synthesis-raw.md
+
+# Re-run from Phase 4 (parse + validate + copy resources)
+./scripts/initialize-project.sh --start-phase 4
+```
+
+### Manual Phase Execution (Advanced)
+
+For deep debugging, you can run individual phase scripts directly:
 
 ```bash
 # Set variables
@@ -1012,29 +1087,11 @@ TEMP_DIR="$PROJECT_PATH/.claude-temp"
 FRAMEWORK_PATH="/path/to/framework"
 SKILL_DIR="$FRAMEWORK_PATH/skills/010-foundation/initialize-project"
 
-# Run Phase 1 only
-bash "$SKILL_DIR/scripts/phase1-analysis.sh" "$PROJECT_PATH" "$TEMP_DIR"
-
-# Run Phase 3 only (requires Phase 1-2 output)
-bash "$SKILL_DIR/scripts/phase3-synthesis.sh" "$PROJECT_PATH" "$TEMP_DIR"
-
-# Run Phase 5 only (requires Phase 1-4 output)
+# Run specific phase script
 bash "$SKILL_DIR/scripts/phase5-resources.sh" "$PROJECT_PATH" "$FRAMEWORK_PATH"
 ```
 
-### Retry Failed Phase
-
-After fixing an issue:
-
-```bash
-# Fix the issue (e.g., update agent-generation.js)
-
-# Retry just Phase 5
-bash "$SKILL_DIR/scripts/phase5-resources.sh" "$PROJECT_PATH" "$FRAMEWORK_PATH"
-
-# Continue with remaining phases
-bash "$SKILL_DIR/scripts/phase6-validation.sh" "$PROJECT_PATH"
-```
+**Note:** Using `--start-phase` is recommended over manual phase execution as it handles proper environment setup and validation.
 
 ### Custom Stack Profile
 
@@ -1069,20 +1126,39 @@ bash "$SKILL_DIR/scripts/phase5-resources.sh" "$PROJECT_PATH" "$FRAMEWORK_PATH"
 bash "$SKILL_DIR/scripts/phase6-validation.sh" "$PROJECT_PATH"
 ```
 
-### Keep Temp Files
+### Temporary Files Management
 
-For debugging:
+**Default behavior:** Temp files are **kept** to allow resuming from later phases.
+
+**To clean up after completion:**
 
 ```bash
-# Option 1: Using flag
-./scripts/initialize-project.sh --keep-temp /path/to/project
+# Remove temp files after successful completion
+./scripts/initialize-project.sh --clean
 
-# Option 2: Using environment variable
-export KEEP_TEMP=true
-./scripts/initialize-project.sh /path/to/project
+# Or clean manually later
+rm -rf .claude-temp/
 ```
 
-Temp files remain in `.claude-temp/` for inspection.
+**Why temp files are kept by default:**
+
+- Allows using `--start-phase` to resume from later phases
+- Useful for iterative fixes (fix issue → resume from Phase 5)
+- Helpful for debugging (inspect phase outputs)
+- `.gitignore` is automatically configured to ignore them
+
+**Temp directory contents:**
+
+```
+.claude-temp/
+├── initialization.log              # Full execution log
+├── phase1-outputs/                 # Agent analysis (JSON)
+├── consolidation.json              # Merged findings
+├── synthesis-raw.md                # Opus synthesis
+├── CLAUDE.md                       # Parsed output
+├── project-context.md              # Parsed output
+└── metrics.json                    # Validation metrics
+```
 
 ### Custom Timeout
 
@@ -1237,7 +1313,8 @@ jobs:
           cd project
           ./ai-agentic-framework/scripts/initialize-project.sh \
             --skip-gap-questions \
-            --timeout 3600
+            --timeout 3600 \
+            --clean
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
@@ -1263,6 +1340,7 @@ initialize-project:
     - ./ai-agentic-framework/scripts/initialize-project.sh
         --skip-gap-questions
         --timeout 3600
+        --clean
   artifacts:
     paths:
       - .claude/
@@ -1284,7 +1362,8 @@ pipeline {
                     cd ${WORKSPACE}
                     ./ai-agentic-framework/scripts/initialize-project.sh \
                       --skip-gap-questions \
-                      --timeout 3600
+                      --timeout 3600 \
+                      --clean
                 '''
             }
         }
@@ -1319,7 +1398,8 @@ WORKDIR /project
 
 # Run initialization
 RUN ./ai-agentic-framework/scripts/initialize-project.sh \
-    --skip-gap-questions
+    --skip-gap-questions \
+    --clean
 ```
 
 ### Cron Job Example
@@ -1335,6 +1415,7 @@ cd "$PROJECT_PATH"
 ./ai-agentic-framework/scripts/initialize-project.sh \
   --skip-gap-questions \
   --timeout 3600 \
+  --clean \
   >> /var/log/claude-init.log 2>&1
 
 # Restart services if needed
@@ -1464,8 +1545,8 @@ node -e "require('ajv-formats')" && echo "ajv-formats installed"
 ### Common Debug Commands
 
 ```bash
-# Full diagnostic
-bash -x ./scripts/initialize-project.sh --keep-temp /path/to/project 2>&1 | tee debug.log
+# Full diagnostic (temp files kept by default)
+bash -x ./scripts/initialize-project.sh /path/to/project 2>&1 | tee debug.log
 
 # Check file sizes
 du -h .claude-temp/*

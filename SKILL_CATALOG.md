@@ -65,8 +65,8 @@ These skills are copied **only when relevant** based on stack detection.
 | Skill                              | Detection Pattern                                              | Stacks |
 | ---------------------------------- | -------------------------------------------------------------- | ------ |
 | `fetch-ticket-context`             | Always copied with `jira`                                      | all    |
-| `mastering-github-agent-skill`     | Git remote contains "github.com"                               | all    |
-| `mastering-confluence-agent-skill` | CLAUDE.md mentions "Confluence" OR workflow uses Confluence    | all    |
+| `mastering-github-cli`     | Git remote contains "github.com"                               | all    |
+| `mastering-confluence` | CLAUDE.md mentions "Confluence" OR workflow uses Confluence    | all    |
 | `notion-document-manager`          | CLAUDE.md mentions "Notion" OR workflow uses Notion            | all    |
 
 ### Language Frameworks (050)
@@ -85,7 +85,6 @@ These skills are copied **only when relevant** based on stack detection.
 | ---------------------------------------- | ----------------------------------------------------- | ----------------- |
 | `mastering-python-skill`                 | `pyproject.toml` or `requirements.txt` or `.py` files | python            |
 | `mastering-langgraph-agent-skill`        | `"langgraph"` in dependencies                         | python, langgraph |
-| `mastering-pytorch-rl-nlp-agentic-skill` | `"torch"` or `"pytorch"` in dependencies              | python, pytorch   |
 
 ### Documentation (060)
 

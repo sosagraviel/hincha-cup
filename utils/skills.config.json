@@ -1,0 +1,257 @@
+{
+  "$schema": "../schemas/skills-config.schema.json",
+  "version": "2.0.0",
+
+  "skills": [
+    {
+      "name": "project-context",
+      "path": "skills/010-foundation/project-context",
+      "always": true,
+      "generated": true,
+      "description": "Project context and conventions"
+    },
+    {
+      "name": "start-task",
+      "path": "skills/010-foundation/start-task",
+      "always": true,
+      "description": "Task initialization workflow"
+    },
+
+    {
+      "name": "analyze-requirements",
+      "path": "skills/020-development-workflow/analyze-requirements",
+      "always": true,
+      "description": "Requirements analysis"
+    },
+    {
+      "name": "architect-agent",
+      "path": "skills/020-development-workflow/architect-agent",
+      "always": true,
+      "description": "Architecture design"
+    },
+    {
+      "name": "code-implementation",
+      "path": "skills/020-development-workflow/code-implementation",
+      "always": true,
+      "description": "Code implementation patterns"
+    },
+    {
+      "name": "create-sdd-ticket",
+      "path": "skills/020-development-workflow/create-sdd-ticket",
+      "always": true,
+      "description": "SDD ticket creation"
+    },
+    {
+      "name": "implement-ticket",
+      "path": "skills/020-development-workflow/implement-ticket",
+      "always": true,
+      "description": "Ticket implementation workflow"
+    },
+    {
+      "name": "mastering-git-cli",
+      "path": "skills/020-development-workflow/mastering-git-cli",
+      "always": true,
+      "description": "Git CLI mastery"
+    },
+
+    {
+      "name": "code-quality-check",
+      "path": "skills/030-quality-assurance/code-quality-check",
+      "always": true,
+      "description": "Code quality checks"
+    },
+    {
+      "name": "create-pr",
+      "path": "skills/030-quality-assurance/create-pr",
+      "always": true,
+      "description": "PR creation workflow"
+    },
+    {
+      "name": "doc-updater",
+      "path": "skills/030-quality-assurance/doc-updater",
+      "always": true,
+      "description": "Documentation updater"
+    },
+    {
+      "name": "pr-reviewer",
+      "path": "skills/030-quality-assurance/pr-reviewer",
+      "always": true,
+      "description": "PR review automation"
+    },
+    {
+      "name": "security-review",
+      "path": "skills/030-quality-assurance/security-review",
+      "always": true,
+      "description": "Security review"
+    },
+    {
+      "name": "jest-coverage-automation",
+      "path": "skills/030-quality-assurance/jest-coverage-automation",
+      "triggers": ["jest", "vitest"],
+      "description": "Jest/Vitest test coverage automation"
+    },
+    {
+      "name": "playwright-e2e-automation",
+      "path": "skills/030-quality-assurance/playwright-e2e-automation",
+      "triggers": ["playwright"],
+      "description": "Playwright E2E test automation"
+    },
+    {
+      "name": "pytest-patterns",
+      "path": "skills/030-quality-assurance/pytest-patterns",
+      "triggers": ["pytest"],
+      "description": "Pytest testing patterns"
+    },
+
+    {
+      "name": "fetch-ticket-context",
+      "path": "skills/040-integrations/fetch-ticket-context",
+      "always": true,
+      "description": "Fetch ticket context from issue tracker"
+    },
+    {
+      "name": "jira",
+      "path": "skills/040-integrations/jira",
+      "always": true,
+      "description": "Jira integration"
+    },
+    {
+      "name": "mastering-confluence",
+      "path": "skills/040-integrations/mastering-confluence",
+      "always": true,
+      "description": "Confluence documentation"
+    },
+    {
+      "name": "mastering-github-cli",
+      "path": "skills/040-integrations/mastering-github-cli",
+      "always": true,
+      "description": "GitHub CLI mastery"
+    },
+    {
+      "name": "notion-document-manager",
+      "path": "skills/040-integrations/notion-document-manager",
+      "always": true,
+      "description": "Notion documentation"
+    },
+
+    {
+      "name": "mastering-typescript",
+      "path": "skills/050-language-frameworks/mastering-typescript",
+      "triggers": ["typescript", "javascript"],
+      "description": "TypeScript best practices and patterns"
+    },
+    {
+      "name": "mastering-python-skill",
+      "path": "skills/050-language-frameworks/mastering-python-skill",
+      "triggers": ["python"],
+      "description": "Python best practices and patterns"
+    },
+    {
+      "name": "mastering-go-skill",
+      "path": "skills/050-language-frameworks/mastering-go-skill",
+      "triggers": ["go"],
+      "description": "Go best practices and patterns"
+    },
+    {
+      "name": "mastering-java-skill",
+      "path": "skills/050-language-frameworks/mastering-java-skill",
+      "triggers": ["java"],
+      "description": "Java best practices and patterns"
+    },
+    {
+      "name": "mastering-rust-skill",
+      "path": "skills/050-language-frameworks/mastering-rust-skill",
+      "triggers": ["rust"],
+      "description": "Rust best practices and patterns"
+    },
+    {
+      "name": "mastering-ruby-skill",
+      "path": "skills/050-language-frameworks/mastering-ruby-skill",
+      "triggers": ["ruby"],
+      "description": "Ruby best practices and patterns"
+    },
+
+    {
+      "name": "react-frontend",
+      "path": "skills/050-language-frameworks/react-frontend",
+      "triggers": ["react", "next", "nextjs"],
+      "compatible_languages": ["typescript", "javascript"],
+      "description": "React component patterns"
+    },
+    {
+      "name": "atomic-design-react",
+      "path": "skills/050-language-frameworks/atomic-design-react",
+      "triggers": ["react", "next", "nextjs"],
+      "compatible_languages": ["typescript", "javascript"],
+      "description": "Atomic design methodology for React"
+    },
+    {
+      "name": "vue-frontend",
+      "path": "skills/050-language-frameworks/vue-frontend",
+      "triggers": ["vue"],
+      "compatible_languages": ["typescript", "javascript"],
+      "description": "Vue.js patterns"
+    },
+    {
+      "name": "angular-patterns",
+      "path": "skills/050-language-frameworks/angular-patterns",
+      "triggers": ["angular"],
+      "compatible_languages": ["typescript", "javascript"],
+      "description": "Angular patterns"
+    },
+
+    {
+      "name": "mastering-pytorch-rl-nlp-agentic-skill",
+      "path": "skills/050-language-frameworks/mastering-pytorch-rl-nlp-agentic-skill",
+      "triggers": ["pytorch", "torch", "tensorflow"],
+      "compatible_languages": ["python"],
+      "description": "PyTorch ML/AI patterns"
+    },
+    {
+      "name": "mastering-langgraph-agent-skill",
+      "path": "skills/050-language-frameworks/mastering-langgraph-agent-skill",
+      "triggers": ["langgraph", "langchain"],
+      "compatible_languages": ["python"],
+      "description": "LangGraph agent development"
+    },
+
+    {
+      "name": "design-doc-mermaid",
+      "path": "skills/060-documentation/design-doc-mermaid",
+      "always": true,
+      "description": "Mermaid diagram generation"
+    },
+
+    {
+      "name": "developing-with-docker",
+      "path": "skills/070-infrastructure/developing-with-docker",
+      "triggers": ["docker", "docker-compose"],
+      "description": "Docker development patterns"
+    },
+
+    {
+      "name": "mastering-aws-cli",
+      "path": "skills/080-cloud-platforms/mastering-aws-cli",
+      "triggers": ["aws", "aws-cdk"],
+      "description": "AWS CLI patterns"
+    },
+    {
+      "name": "mastering-aws-cdk",
+      "path": "skills/080-cloud-platforms/mastering-aws-cdk",
+      "triggers": ["aws-cdk"],
+      "description": "AWS CDK patterns"
+    },
+    {
+      "name": "mastering-gcloud-commands",
+      "path": "skills/080-cloud-platforms/mastering-gcloud-commands",
+      "triggers": ["gcp"],
+      "description": "GCP CLI patterns"
+    },
+    {
+      "name": "using-firebase",
+      "path": "skills/080-cloud-platforms/using-firebase",
+      "triggers": ["firebase"],
+      "description": "Firebase development patterns"
+    }
+  ]
+}

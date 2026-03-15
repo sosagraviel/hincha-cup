@@ -63,11 +63,15 @@ ${BLUE}OPTIONS:${NC}
     --skip-gap-questions  Skip gap analysis questions (fully automated mode)
                          Default: false (pauses if gaps detected)
 
+    --start-phase N      Start from phase N (1-6) instead of phase 1
+                         Default: 1 (run all phases)
+                         Example: --start-phase 4 (skip phases 1-3)
+
     --timeout SECONDS    Maximum execution time in seconds
                          Default: 1800 (30 minutes)
 
-    --keep-temp          Keep temporary files after completion
-                         Default: false (cleans up .claude-temp)
+    --clean              Remove temporary files after completion
+                         Default: false (keeps .claude-temp for re-running phases)
 
     --help, -h           Show this help message
 
@@ -80,6 +84,9 @@ ${BLUE}EXAMPLES:${NC}
 
     # Fully automated (skip gap questions)
     $0 --skip-gap-questions
+
+    # Re-run from phase 4 (skip AI analysis phases 1-3)
+    $0 --start-phase 4
 
     # Custom framework location
     $0 --framework-path /path/to/framework
@@ -121,8 +128,9 @@ EOF
 PROJECT_PATH=""
 FRAMEWORK_PATH=""
 SKIP_GAP_QUESTIONS="false"
+START_PHASE=1
 TIMEOUT=1800
-KEEP_TEMP="false"
+CLEAN_TEMP="false"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -134,12 +142,16 @@ while [[ $# -gt 0 ]]; do
             SKIP_GAP_QUESTIONS="true"
             shift
             ;;
+        --start-phase)
+            START_PHASE="$2"
+            shift 2
+            ;;
         --timeout)
             TIMEOUT="$2"
             shift 2
             ;;
-        --keep-temp)
-            KEEP_TEMP="true"
+        --clean)
+            CLEAN_TEMP="true"
             shift
             ;;
         --help|-h)
@@ -163,6 +175,12 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Validate start phase
+if ! [[ "$START_PHASE" =~ ^[1-6]$ ]]; then
+    echo -e "${RED}Error: --start-phase must be between 1 and 6${NC}"
+    exit 1
+fi
 
 # ============================================================================
 # VALIDATION
@@ -288,11 +306,12 @@ echo ""
 # ============================================================================
 
 echo -e "${BLUE}Configuration:${NC}"
-echo "  Project Path:      $PROJECT_PATH"
-echo "  Framework Path:    $FRAMEWORK_PATH"
+echo "  Project Path:       $PROJECT_PATH"
+echo "  Framework Path:     $FRAMEWORK_PATH"
+echo "  Start Phase:        $START_PHASE"
 echo "  Skip Gap Questions: $SKIP_GAP_QUESTIONS"
-echo "  Timeout:           ${TIMEOUT}s ($(($TIMEOUT / 60)) minutes)"
-echo "  Keep Temp Files:   $KEEP_TEMP"
+echo "  Timeout:            ${TIMEOUT}s ($(($TIMEOUT / 60)) minutes)"
+echo "  Clean Temp Files:   $CLEAN_TEMP"
 echo ""
 
 # ============================================================================
@@ -323,14 +342,21 @@ fi
 # RUN ORCHESTRATION
 # ============================================================================
 
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  STARTING 6-PHASE INITIALIZATION${NC}"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
+if [ "$START_PHASE" -gt 1 ]; then
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}  STARTING FROM PHASE $START_PHASE (SKIPPING PHASES 1-$((START_PHASE-1)))${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+else
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}  STARTING 6-PHASE INITIALIZATION${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+fi
 
 # Export environment variables for orchestration
 export SKIP_GAP_QUESTIONS
-export KEEP_TEMP
+export CLEAN_TEMP
 
 # Track start time
 START_TIME=$(date +%s)
@@ -340,7 +366,7 @@ START_TIME=$(date +%s)
 if [ "$USE_TIMEOUT" = "true" ]; then
     # --foreground: don't create new process group, allows SIGINT to propagate
     # --signal=TERM: send TERM on timeout (not KILL)
-    if timeout --foreground --signal=TERM ${TIMEOUT}s bash "$ORCHESTRATE_SCRIPT" "$PROJECT_PATH" "$FRAMEWORK_PATH"; then
+    if timeout --foreground --signal=TERM ${TIMEOUT}s bash "$ORCHESTRATE_SCRIPT" "$PROJECT_PATH" "$FRAMEWORK_PATH" --start-phase "$START_PHASE"; then
         EXIT_CODE=0
     else
         EXIT_CODE=$?
@@ -360,7 +386,7 @@ if [ "$USE_TIMEOUT" = "true" ]; then
         fi
     fi
 else
-    if bash "$ORCHESTRATE_SCRIPT" "$PROJECT_PATH" "$FRAMEWORK_PATH"; then
+    if bash "$ORCHESTRATE_SCRIPT" "$PROJECT_PATH" "$FRAMEWORK_PATH" --start-phase "$START_PHASE"; then
         EXIT_CODE=0
     else
         EXIT_CODE=$?
@@ -385,6 +411,11 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo ""
     echo "Duration: ${MINUTES}m ${SECONDS}s"
     echo "Project:  $PROJECT_PATH"
+    if [ "$START_PHASE" -gt 1 ]; then
+        echo "Phases:   $START_PHASE-6 (started from phase $START_PHASE)"
+    else
+        echo "Phases:   1-6 (complete initialization)"
+    fi
     echo ""
     echo -e "${GREEN}Generated files:${NC}"
     echo "  ✓ .claude/CLAUDE.md"

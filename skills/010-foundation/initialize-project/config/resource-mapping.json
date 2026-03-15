@@ -21,24 +21,19 @@
         "030-quality-assurance/security-review",
         "040-integrations/fetch-ticket-context",
         "040-integrations/jira",
-        "040-integrations/mastering-confluence-agent-skill",
-        "040-integrations/mastering-github-agent-skill",
+        "040-integrations/mastering-confluence",
+        "040-integrations/mastering-github-cli",
         "040-integrations/notion-document-manager",
         "060-documentation/design-doc-mermaid"
       ]
     },
 
     "by_language": {
-      "typescript": [
-        "050-language-frameworks/mastering-typescript"
-      ],
-      "javascript": [
-        "050-language-frameworks/mastering-typescript"
-      ],
+      "typescript": ["050-language-frameworks/mastering-typescript"],
+      "javascript": ["050-language-frameworks/mastering-typescript"],
       "python": [
         "050-language-frameworks/mastering-python-skill",
-        "050-language-frameworks/mastering-langgraph-agent-skill",
-        "050-language-frameworks/mastering-pytorch-rl-nlp-agentic-skill"
+        "050-language-frameworks/mastering-langgraph-agent-skill"
       ],
       "java": [],
       "go": [],
@@ -83,16 +78,10 @@
     },
 
     "by_testing_framework": {
-      "jest": [
-        "030-quality-assurance/jest-coverage-automation"
-      ],
+      "jest": ["030-quality-assurance/jest-coverage-automation"],
       "vitest": [],
-      "pytest": [
-        "030-quality-assurance/pytest-patterns"
-      ],
-      "playwright": [
-        "030-quality-assurance/playwright-e2e-automation"
-      ],
+      "pytest": ["030-quality-assurance/pytest-patterns"],
+      "playwright": ["030-quality-assurance/playwright-e2e-automation"],
       "cypress": []
     },
 
@@ -114,12 +103,8 @@
     },
 
     "by_container": {
-      "docker": [
-        "070-infrastructure/developing-with-docker"
-      ],
-      "docker-compose": [
-        "070-infrastructure/developing-with-docker"
-      ],
+      "docker": ["070-infrastructure/developing-with-docker"],
+      "docker-compose": ["070-infrastructure/developing-with-docker"],
       "kubernetes": [],
       "helm": []
     },
@@ -129,13 +114,9 @@
         "080-cloud-platforms/mastering-aws-cli",
         "080-cloud-platforms/mastering-aws-cdk"
       ],
-      "gcp": [
-        "080-cloud-platforms/mastering-gcloud-commands"
-      ],
+      "gcp": ["080-cloud-platforms/mastering-gcloud-commands"],
       "azure": [],
-      "firebase": [
-        "080-cloud-platforms/using-firebase"
-      ],
+      "firebase": ["080-cloud-platforms/using-firebase"],
       "vercel": [],
       "netlify": [],
       "supabase": []

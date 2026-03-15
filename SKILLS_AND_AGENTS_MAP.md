@@ -105,7 +105,7 @@ An **agent** is a specialized Claude instance with:
 | Skill | Path | Purpose | Returns |
 |-------|------|---------|---------|
 | **jira** | `skills/040-integrations/jira/` | Jira MCP operations | Jira data |
-| **mastering-github-agent-skill** | `skills/040-integrations/mastering-github-agent-skill/` | GitHub operations | GitHub data |
+| **mastering-github-cli** | `skills/040-integrations/mastering-github-cli/` | GitHub operations | GitHub data |
 
 ---
 

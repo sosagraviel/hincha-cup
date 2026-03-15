@@ -110,7 +110,7 @@ When merging `reason` fields:
 ```json
 {
   "item": "Environment variables",
-  "question": "What environment variables are required for production deployment and external API integrations? Please list them with descriptions and example values.",
+  "question": "What environment variables are required for production deployment and external API integrations?",
   "reason": "Multiple agents identified environment configuration needs: production deployment (found .env.example but production config unclear); external API integrations (multiple API clients found without clear configuration)",
   "priority": "high",
   "type": "needs_verification",
@@ -204,7 +204,7 @@ When merging `reason` fields:
 [
   {
     "item": "Environment variables and API keys",
-    "question": "What environment variables and API keys are required for the application? Please list all required configuration values with descriptions and examples.",
+    "question": "What environment variables and API keys are required for the application?",
     "reason": "Multiple agents identified configuration requirements: environment variables (found .env.example); external service integrations (multiple external service integrations found requiring API keys)",
     "priority": "high",
     "type": "needs_verification",
@@ -266,8 +266,15 @@ Return JSON matching this structure:
 3. **Preserve Specificity**: Don't make consolidated questions too generic or vague
 4. **Maintain Actionability**: Consolidated questions must remain clear and answerable
 5. **Document Reasoning**: Show which gaps were consolidated together in metadata
-6. **Question Format**: All questions MUST end with a question mark (?)
-7. **Context Rich**: Preserve all important technical context from original gaps
+6. **Question Format - CRITICAL**:
+   - Every question MUST end with a question mark (?)
+   - DO NOT add follow-up instructions after the question mark
+   - DO NOT end questions with periods, parentheses, or other punctuation
+   - WRONG: "What are the requirements. Please specify details."
+   - WRONG: "What tools are used? (e.g., eslint, prettier)"
+   - RIGHT: "What are the requirements and specific details needed?"
+   - RIGHT: "What tools and configurations are used for linting?"
+7. **Context Rich**: Preserve all important technical context from original gaps (move clarifications to 'reason' field)
 8. **Type Preservation**: Keep the most specific type from consolidated gaps
 
 ## Special Cases

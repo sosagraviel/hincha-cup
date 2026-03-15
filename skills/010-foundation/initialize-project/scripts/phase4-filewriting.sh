@@ -63,7 +63,7 @@ echo "Step 3: Detecting stack..."
 
 FRAMEWORK_PATH="$(cd "$SKILL_DIR/../../.." && pwd)"
 
-node "$FRAMEWORK_PATH/utils/stack-detection.js" "$PROJECT_PATH" > "$TEMP_DIR/stack-profile.json"
+node "$FRAMEWORK_PATH/utils/stack/cli.js" "$PROJECT_PATH" > "$TEMP_DIR/stack-profile.json"
 
 if [ ! -f "$TEMP_DIR/stack-profile.json" ]; then
   echo "Error: Stack detection failed"
