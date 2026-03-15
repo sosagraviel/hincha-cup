@@ -510,6 +510,69 @@ echo "  ℹ️  Agents skipped: $AGENTS_SKIPPED"
 echo ""
 
 # ============================================================================
+# STEP 6.5: Validate Agent Skills
+# ============================================================================
+
+echo "Step 6.5: Validating agent skills..."
+
+# Validate that all agents have correct skills linked
+VALIDATION_RESULT=$(node -e "
+const { validateAgentSkills } = require('$FRAMEWORK_PATH/utils/discovery/agent-skill-validator.js');
+const { regenerateSingleAgent } = require('$FRAMEWORK_PATH/utils/agents');
+const { ConfigUpdater } = require('$FRAMEWORK_PATH/utils/config/config-updater.js');
+
+async function main() {
+  try {
+    const configUpdater = new ConfigUpdater('$PROJECT_PATH', '$FRAMEWORK_PATH');
+    const config = await configUpdater.readConfig();
+
+    const needsRegen = validateAgentSkills(
+      '$PROJECT_PATH',
+      '$FRAMEWORK_PATH',
+      config.stack_profile,
+      config.resource_state.agents
+    );
+
+    if (needsRegen.length === 0) {
+      console.log(JSON.stringify({ fixed: 0 }));
+      process.exit(0);
+    }
+
+    let fixed = 0;
+    for (const info of needsRegen) {
+      try {
+        const result = await regenerateSingleAgent(info.agent, '$PROJECT_PATH', '$FRAMEWORK_PATH');
+        if (result.success) {
+          console.error('  ✓ Fixed: ' + info.agent + ' (missing skills: ' + info.missingSkills.join(', ') + ')');
+          fixed++;
+        }
+      } catch (error) {
+        console.error('  ❌ Failed to fix ' + info.agent + ': ' + error.message);
+      }
+    }
+
+    console.log(JSON.stringify({ fixed }));
+    process.exit(0);
+  } catch (error) {
+    console.error('Error:', error.message);
+    console.log(JSON.stringify({ fixed: 0 }));
+    process.exit(1);
+  }
+}
+
+main();
+")
+
+AGENTS_FIXED=$(echo "$VALIDATION_RESULT" | node -e "console.log(JSON.parse(require('fs').readFileSync(0, 'utf-8')).fixed)")
+
+if [ "$AGENTS_FIXED" -gt 0 ]; then
+  echo "  ✓ Fixed agents with missing skills: $AGENTS_FIXED"
+else
+  echo "  ✓ All agents have correct skills linked"
+fi
+echo ""
+
+# ============================================================================
 # STEP 7: Update Framework Version
 # ============================================================================
 

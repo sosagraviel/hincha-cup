@@ -179,6 +179,13 @@
       "description": "React component patterns"
     },
     {
+      "name": "mastering-nextjs",
+      "path": "skills/050-language-frameworks/mastering-nextjs",
+      "triggers": ["next", "nextjs"],
+      "compatible_languages": ["typescript", "javascript"],
+      "description": "Next.js specific patterns"
+    },
+    {
       "name": "atomic-design-react",
       "path": "skills/050-language-frameworks/atomic-design-react",
       "triggers": ["react", "next", "nextjs"],

@@ -68,10 +68,25 @@ function getSkillKey(skillPath, frameworkPath) {
 
 /**
  * Get agents affected by new skills
- * Simple heuristic: if implementer agent, it's affected by any skill change
+ *
+ * Logic:
+ * - Planner gets ALL language and framework skills → regenerate when any triggered skill added
+ * - Implementers get language + compatible framework skills → regenerate when any skill added
  */
 function getAffectedAgents(newSkills, stackProfile, currentAgents) {
   const affected = [];
+
+  // Check if any new skills are triggered (not "always" skills)
+  // Triggered skills include language and framework skills that planner needs
+  const hasTriggeredSkill = newSkills.some(skill => {
+    const reason = skill.reason?.toLowerCase() || '';
+    return reason.includes('triggered by:');
+  });
+
+  // If triggered skills were added, regenerate planner (since planner gets all language + framework skills)
+  if (hasTriggeredSkill && currentAgents['planner']) {
+    affected.push('planner');
+  }
 
   // Always regenerate implementer agents when skills change
   for (const agentName of Object.keys(currentAgents)) {
