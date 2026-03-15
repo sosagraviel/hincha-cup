@@ -54,7 +54,8 @@ function resolveSkills(detectedStack, frameworkPath) {
         name: skill.name,
         path: path.join(frameworkPath, skill.path),
         reason: 'Always copied',
-        description: skill.description
+        description: skill.description,
+        compatible_languages: skill.compatible_languages || []
       });
       continue;
     }
@@ -69,7 +70,8 @@ function resolveSkills(detectedStack, frameworkPath) {
           name: skill.name,
           path: path.join(frameworkPath, skill.path),
           reason: `Triggered by: ${matchedTriggers.join(', ')}`,
-          description: skill.description
+          description: skill.description,
+          compatible_languages: skill.compatible_languages || []
         });
       }
     }

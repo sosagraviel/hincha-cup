@@ -33,9 +33,13 @@ while [[ $# -gt 0 ]]; do
       START_PHASE="$2"
       shift 2
       ;;
+    --clean)
+      CLEAN_TEMP="true"
+      shift
+      ;;
     *)
       echo -e "${RED}Unknown option: $1${NC}"
-      echo "Usage: $0 <project-path> <framework-path> [--start-phase N]"
+      echo "Usage: $0 <project-path> <framework-path> [--start-phase N] [--clean]"
       exit 1
       ;;
   esac
@@ -144,6 +148,14 @@ fi
 
 # Return to project directory
 cd "$PROJECT_PATH"
+
+# ============================================================================
+# PRE-FLIGHT: CHECK .gitignore
+# ============================================================================
+# Only check .gitignore if starting from Phase 1 (full initialization)
+if [ "$START_PHASE" -le 1 ]; then
+  bash "$SCRIPT_DIR/helpers/gitignore-manager.sh" "$PROJECT_PATH"
+fi
 
 echo ""
 echo "Starting deterministic 6-phase workflow..."
@@ -309,10 +321,14 @@ echo "  2. Start a task: /start-task"
 echo "  3. Review CLAUDE.md for quick reference"
 echo ""
 
-# Clean up temp directory (optional)
-if [ "${KEEP_TEMP:-false}" != "true" ]; then
+# Keep temp directory by default (allows re-running from later phases)
+# Only clean if --clean flag is explicitly passed
+if [ "${CLEAN_TEMP:-false}" = "true" ]; then
     echo "Cleaning up temporary files..."
     rm -rf "$TEMP_DIR"
+else
+    echo "Temporary files kept in: $TEMP_DIR"
+    echo "(Use --clean flag to remove temporary files)"
 fi
 
 exit 0

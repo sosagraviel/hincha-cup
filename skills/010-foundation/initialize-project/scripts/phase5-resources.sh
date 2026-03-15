@@ -16,9 +16,9 @@ echo "  Project: $PROJECT_PATH"
   echo "  Framework: $FRAMEWORK_PATH"
 echo ""
 
-# Verify stack-profile.json exists (created in Phase 4)
-if [ ! -f "$PROJECT_PATH/.claude-temp/stack-profile.json" ]; then
-  echo "Error: stack-profile.json not found (should have been created in Phase 4)"
+# Verify framework-config.json exists (created in Phase 4)
+if [ ! -f "$PROJECT_PATH/.claude/framework-config.json" ]; then
+  echo "Error: framework-config.json not found (should have been created in Phase 4)"
   exit 1
 fi
 
@@ -36,7 +36,8 @@ const fs = require('fs');
 
 async function main() {
   try {
-    const stackProfile = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude-temp/stack-profile.json', 'utf-8'));
+    const config = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude/framework-config.json', 'utf-8'));
+    const stackProfile = config.stack_profile;
 
     console.log('Selecting skills based on stack...');
     const skillsToAdd = resolveSkills(stackProfile, '$FRAMEWORK_PATH');
@@ -91,8 +92,8 @@ const path = require('path');
 async function main() {
   try {
     // Read stack profile from framework config (not temp stack-profile.json which is empty)
-    const config = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude/framework-config.json', 'utf-8'));
-    const stackProfile = config.stack_profile;
+    const frameworkConfig = JSON.parse(fs.readFileSync('$PROJECT_PATH/.claude/framework-config.json', 'utf-8'));
+    const stackProfile = frameworkConfig.stack_profile;
 
     console.log('Generating agents for detected languages with tracking...');
 

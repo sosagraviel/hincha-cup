@@ -10,6 +10,78 @@ function getAllLanguages(stackProfile) {
   return stackProfile.languages.map((l) => (typeof l === 'object' ? l.name : l));
 }
 
+/**
+ * Add project-context skill to the skills list
+ * (project-context is marked as "generated" so it's not returned by resolveSkills)
+ */
+function addProjectContext(skills, frameworkPath) {
+  return [
+    ...skills,
+    {
+      name: 'project-context',
+      path: path.join(frameworkPath, 'skills/010-foundation/project-context'),
+      reason: 'Always included',
+      description: 'Project context and conventions'
+    }
+  ];
+}
+
+/**
+ * Filter skills for planner - only languages and frameworks
+ */
+function filterSkillsForPlanner(skills, stackProfile) {
+  const allLanguages = getAllLanguages(stackProfile).map(l => l.toLowerCase());
+
+  return skills.filter(s => {
+    // Check if this is a language skill
+    const isLanguageSkill = allLanguages.some(lang =>
+      s.reason?.toLowerCase().includes(lang)
+    );
+
+    // Check if this is a framework skill (triggered by framework name, not "always")
+    const isFrameworkSkill = s.reason?.toLowerCase().includes('triggered by:') && !isLanguageSkill;
+
+    return isLanguageSkill || isFrameworkSkill;
+  });
+}
+
+/**
+ * Filter skills for an implementer agent - keeps only relevant language and framework skills
+ */
+function filterSkillsForImplementer(skills, language, stackProfile) {
+  const allLanguages = getAllLanguages(stackProfile).map(l => l.toLowerCase());
+  const langLower = language.toLowerCase();
+
+  return skills.filter(s => {
+    // Check if this skill is triggered by a programming language
+    const isLanguageSkill = allLanguages.some(lang =>
+      s.reason?.toLowerCase().includes(lang)
+    );
+
+    if (isLanguageSkill) {
+      // Only keep if it matches THIS implementer's language
+      return s.reason?.toLowerCase().includes(langLower);
+    }
+
+    // Check if this is a framework skill (triggered by framework, not "always")
+    const isFrameworkSkill = s.reason?.toLowerCase().includes('triggered by:') && !isLanguageSkill;
+
+    if (isFrameworkSkill) {
+      // Use compatible_languages from config to determine if this framework works with this language
+      if (s.compatible_languages && s.compatible_languages.length > 0) {
+        return s.compatible_languages.some(compatLang =>
+          compatLang.toLowerCase() === langLower
+        );
+      }
+      // If no compatible_languages defined, include it (conservative approach)
+      return true;
+    }
+
+    // Filter out "always" skills - implementer only needs language + frameworks
+    return false;
+  });
+}
+
 async function generatePlannerAgent(templatesPath, skills) {
   const template = await findTemplate(templatesPath, 'planner');
   if (!template) return null;
@@ -110,9 +182,10 @@ async function generateAgents(stackProfile, projectPath, templatesPath, framewor
   }
 
   try {
-    const plannerSkills = resolveSkills(stackProfile, frameworkPath).filter((s) =>
-      s.path.includes('foundation')
-    );
+    // Planner gets only language + framework skills + project-context
+    const allSkills = resolveSkills(stackProfile, frameworkPath);
+    const filteredForPlanner = filterSkillsForPlanner(allSkills, stackProfile);
+    const plannerSkills = addProjectContext(filteredForPlanner, frameworkPath);
     const plannerAgent = await generatePlannerAgent(templatesPath, plannerSkills);
     if (plannerAgent) {
       generation.planning.push(plannerAgent);
@@ -122,9 +195,10 @@ async function generateAgents(stackProfile, projectPath, templatesPath, framewor
     for (const language of languages) {
       const commands = await extractCommandsForLanguage(projectPath, stackProfile, language);
 
-      const implementerSkills = resolveSkills(stackProfile, frameworkPath).filter(
-        (s) => s.reason?.includes(language) || s.path.includes('foundation')
-      );
+      // Implementer gets filtered skills (only relevant language skills) + all frameworks + project-context
+      const allSkills = resolveSkills(stackProfile, frameworkPath);
+      const filteredSkills = filterSkillsForImplementer(allSkills, language, stackProfile);
+      const implementerSkills = addProjectContext(filteredSkills, frameworkPath);
       const implementerAgent = await generateImplementerAgent(
         templatesPath,
         stackProfile,
@@ -319,14 +393,14 @@ async function regenerateSingleAgent(agentName, projectPath, frameworkPath) {
     let agent = null;
 
     if (category === 'planning') {
-      const skills = resolveSkills(stackProfile, frameworkPath).filter((s) =>
-        s.category.includes('foundation')
-      );
+      const allSkills = resolveSkills(stackProfile, frameworkPath);
+      const filteredForPlanner = filterSkillsForPlanner(allSkills, stackProfile);
+      const skills = addProjectContext(filteredForPlanner, frameworkPath);
       agent = await generatePlannerAgent(templatesPath, skills);
     } else if (category === 'implementation') {
-      const skills = resolveSkills(stackProfile, frameworkPath).filter(
-        (s) => s.reason?.includes(language) || s.category.includes('foundation')
-      );
+      const allSkills = resolveSkills(stackProfile, frameworkPath);
+      const filteredSkills = filterSkillsForImplementer(allSkills, language, stackProfile);
+      const skills = addProjectContext(filteredSkills, frameworkPath);
       const commands = await extractCommandsForLanguage(projectPath, stackProfile, language);
       agent = await generateImplementerAgent(templatesPath, stackProfile, skills, commands, language);
     } else if (category === 'verification') {

@@ -70,8 +70,8 @@ ${BLUE}OPTIONS:${NC}
     --timeout SECONDS    Maximum execution time in seconds
                          Default: 1800 (30 minutes)
 
-    --keep-temp          Keep temporary files after completion
-                         Default: false (cleans up .claude-temp)
+    --clean              Remove temporary files after completion
+                         Default: false (keeps .claude-temp for re-running phases)
 
     --help, -h           Show this help message
 
@@ -130,7 +130,7 @@ FRAMEWORK_PATH=""
 SKIP_GAP_QUESTIONS="false"
 START_PHASE=1
 TIMEOUT=1800
-KEEP_TEMP="false"
+CLEAN_TEMP="false"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -150,8 +150,8 @@ while [[ $# -gt 0 ]]; do
             TIMEOUT="$2"
             shift 2
             ;;
-        --keep-temp)
-            KEEP_TEMP="true"
+        --clean)
+            CLEAN_TEMP="true"
             shift
             ;;
         --help|-h)
@@ -311,7 +311,7 @@ echo "  Framework Path:     $FRAMEWORK_PATH"
 echo "  Start Phase:        $START_PHASE"
 echo "  Skip Gap Questions: $SKIP_GAP_QUESTIONS"
 echo "  Timeout:            ${TIMEOUT}s ($(($TIMEOUT / 60)) minutes)"
-echo "  Keep Temp Files:    $KEEP_TEMP"
+echo "  Clean Temp Files:   $CLEAN_TEMP"
 echo ""
 
 # ============================================================================
@@ -356,7 +356,7 @@ fi
 
 # Export environment variables for orchestration
 export SKIP_GAP_QUESTIONS
-export KEEP_TEMP
+export CLEAN_TEMP
 
 # Track start time
 START_TIME=$(date +%s)

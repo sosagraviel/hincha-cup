@@ -175,30 +175,35 @@
       "name": "react-frontend",
       "path": "skills/050-language-frameworks/react-frontend",
       "triggers": ["react", "nextjs"],
+      "compatible_languages": ["typescript", "javascript"],
       "description": "React component patterns"
     },
     {
       "name": "atomic-design-react",
       "path": "skills/050-language-frameworks/atomic-design-react",
       "triggers": ["react", "nextjs"],
+      "compatible_languages": ["typescript", "javascript"],
       "description": "Atomic design methodology for React"
     },
     {
       "name": "nextjs-patterns",
       "path": "skills/050-language-frameworks/nextjs-patterns",
       "triggers": ["nextjs"],
+      "compatible_languages": ["typescript", "javascript"],
       "description": "Next.js specific patterns"
     },
     {
       "name": "vue-frontend",
       "path": "skills/050-language-frameworks/vue-frontend",
       "triggers": ["vue"],
+      "compatible_languages": ["typescript", "javascript"],
       "description": "Vue.js patterns"
     },
     {
       "name": "angular-patterns",
       "path": "skills/050-language-frameworks/angular-patterns",
       "triggers": ["angular"],
+      "compatible_languages": ["typescript", "javascript"],
       "description": "Angular patterns"
     },
 
@@ -206,12 +211,14 @@
       "name": "mastering-pytorch-rl-nlp-agentic-skill",
       "path": "skills/050-language-frameworks/mastering-pytorch-rl-nlp-agentic-skill",
       "triggers": ["pytorch", "torch", "tensorflow"],
+      "compatible_languages": ["python"],
       "description": "PyTorch ML/AI patterns"
     },
     {
       "name": "mastering-langgraph-agent-skill",
       "path": "skills/050-language-frameworks/mastering-langgraph-agent-skill",
       "triggers": ["langgraph", "langchain"],
+      "compatible_languages": ["python"],
       "description": "LangGraph agent development"
     },
 
