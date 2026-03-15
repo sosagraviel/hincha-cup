@@ -174,23 +174,16 @@
     {
       "name": "react-frontend",
       "path": "skills/050-language-frameworks/react-frontend",
-      "triggers": ["react", "nextjs"],
+      "triggers": ["react", "next", "nextjs"],
       "compatible_languages": ["typescript", "javascript"],
       "description": "React component patterns"
     },
     {
       "name": "atomic-design-react",
       "path": "skills/050-language-frameworks/atomic-design-react",
-      "triggers": ["react", "nextjs"],
+      "triggers": ["react", "next", "nextjs"],
       "compatible_languages": ["typescript", "javascript"],
       "description": "Atomic design methodology for React"
-    },
-    {
-      "name": "nextjs-patterns",
-      "path": "skills/050-language-frameworks/nextjs-patterns",
-      "triggers": ["nextjs"],
-      "compatible_languages": ["typescript", "javascript"],
-      "description": "Next.js specific patterns"
     },
     {
       "name": "vue-frontend",
