@@ -18,10 +18,8 @@ From idea to production-ready pull request in **under 30 minutes** with autonomo
 
 ```bash
 cd /path/to/your-project
-git clone https://github.com/your-org/ai-agentic-framework.git
-
-# Run initialization (analyzes your codebase and sets everything up)
-./ai-agentic-framework/scripts/initialize-project.sh
+git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
 **What happens**:
@@ -182,7 +180,7 @@ If you want to create tickets for later:
 
 | Command | Purpose | Time |
 |---------|---------|------|
-| `./ai-agentic-framework/scripts/initialize-project.sh` | One-time setup | 2 min |
+| `./qubika-agentic-framework/scripts/initialize-project.sh` | One-time setup | 2 min |
 | `/fetch-ticket-context <ID>` | Get ticket details | 10 sec |
 | `/code-quality-check` | Run quality checks | 1-3 min |
 | `/create-pr` | Create PR manually | 30 sec |
@@ -195,7 +193,7 @@ If you want to create tickets for later:
 
 **Solution**: Ensure project is initialized and has patterns to learn from:
 ```bash
-./ai-agentic-framework/scripts/initialize-project.sh  # Re-run to update project context
+./qubika-agentic-framework/scripts/initialize-project.sh  # Re-run to update project context
 ```
 
 ---
@@ -204,7 +202,7 @@ If you want to create tickets for later:
 
 **Solution**: Re-initialize to learn latest patterns:
 ```bash
-./ai-agentic-framework/scripts/initialize-project.sh
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
 ---
@@ -301,10 +299,9 @@ Always test the generated code locally before merging, even though quality gates
 ## Getting Help
 
 - **Documentation**: [docs/](./docs/)
-- **Issues**: [GitHub Issues](https://github.com/your-org/ai-agentic-framework/issues)
-- **Slack**: #ai-framework-support
-- **Email**: ai-team@yourcompany.com
+- **Issues**: [GitHub Issues](https://github.com/thisisqubika/qubika-agentic-framework/issues)
+- **Slack**: #qubika-agentic-framework
 
 ---
 
-**Ready to 10x your productivity?** Run `./ai-agentic-framework/scripts/initialize-project.sh` and start your first autonomous cycle!
+**Ready to 10x your productivity?** Run `./qubika-agentic-framework/scripts/initialize-project.sh` and start your first autonomous cycle!

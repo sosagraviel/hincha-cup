@@ -64,8 +64,8 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 | Skill | Purpose |
 |-------|---------|
 | jira | Jira operations (create, update, transition, search with JQL) |
-| mastering-github-agent-skill | GitHub operations (PRs, issues, repos, code search) |
-| mastering-confluence-agent-skill | Confluence pages, CQL search, ADF/markdown conversion |
+| mastering-github-cli | GitHub operations (PRs, issues, repos, code search) |
+| mastering-confluence | Confluence pages, CQL search, ADF/markdown conversion |
 | notion-document-manager | Notion operations with smart chunking for large pages |
 | fetch-ticket-context | Fetch complete Jira context + external docs (Notion/Confluence) |
 

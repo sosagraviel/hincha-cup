@@ -46,46 +46,47 @@ Thank you for your interest in contributing to the AI Agentic Framework! This gu
 
 ```bash
 # 1. Fork and clone the repository
-git clone https://github.com/your-username/ai-agentic-framework.git
-cd ai-agentic-framework
+git clone https://github.com/your-username/qubika-agentic-framework.git
+cd qubika-agentic-framework
 
-# 2. Bootstrap the framework
-cd ai-agentic-framework
-./ai-agentic-framework/scripts/initialize-project.sh
-
-# 3. Test the framework on a sample project
+# 2. Test the framework on a sample project
 cd /path/to/test-project
-claude
-/initialize-project
+git clone https://github.com/your-username/qubika-agentic-framework.git qubika-agentic-framework
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
 ---
 
 ## Contributing Skills
 
-Skills are reusable knowledge modules that provide context to AI agents.
+Skills are reusable knowledge modules that provide context to AI agents. When you add a skill to the framework, users automatically receive it during sync if their project stack matches.
+
+> 📖 **Detailed Guide**: See [docs/ADDING_SKILLS.md](./docs/ADDING_SKILLS.md) for complete documentation
 
 ### Skill Structure
 
-Each skill must have:
+Each skill must have a `SKILL.md` file with this recommended structure:
 
 ```markdown
 ---
 name: mastering-your-framework
-category: language-framework
-stacks: [framework-name]
-detection:
-  files: [config.json]
-  patterns:
-    - "framework" in package.json dependencies
-always_copy: false
+description: Brief one-line description
+version: 1.0.0
+category: 050-language-frameworks
+applies_to: [typescript, javascript]
 ---
 
 # Mastering Your Framework
 
-## Overview
+## Purpose
 
-Brief description of the framework and when to use this skill.
+Clear description of what this skill provides and when to use it.
+
+## Prerequisites
+
+- List any dependencies
+- Required tools or configurations
+- Minimum framework version
 
 ## Core Concepts
 
@@ -99,64 +100,154 @@ Explanation with code examples.
 
 ## Best Practices
 
-- Practice 1
-- Practice 2
+- Practice 1 with rationale
+- Practice 2 with rationale
 
 ## Common Patterns
 
 ### Pattern 1
 
-Code example and explanation.
+```typescript
+// Code example with explanation
+```
 
 ## Testing
 
 How to test code using this framework.
 
----
-
-## Further Reading
+## References
 
 - [Official Docs](https://framework.dev)
+- Related skills
 ```
 
-### Adding a New Skill
+### Adding a New Skill (Step-by-Step)
 
-**Step 1**: Create skill file
+**Step 1**: Create the skill directory and files
 
 ```bash
 # Skills are organized by category
-mkdir -p ai-agentic-framework/skills/050-language-frameworks/your-framework
-cd ai-agentic-framework/skills/050-language-frameworks/your-framework
+mkdir -p skills/050-language-frameworks/nextjs-patterns
+cd skills/050-language-frameworks/nextjs-patterns
 touch SKILL.md
 ```
 
-**Step 2**: Write the skill content (see structure above)
+**Step 2**: Write comprehensive skill content
 
-**Step 3**: Add detection logic in frontmatter
+Follow the structure above and include:
+- Clear explanations of concepts
+- Real code examples
+- Best practices with reasoning
+- Common pitfalls to avoid
 
-```yaml
----
-name: mastering-nextjs
-category: language-framework
-stacks: [nextjs, react, typescript]
-detection:
-  files: [package.json, next.config.js]
-  patterns:
-    - "next" in package.json dependencies
-always_copy: false
----
+**Step 3**: Register the skill in the skill registry
+
+Edit `utils/skill-registry.js` to add your skill to the appropriate location:
+
+```javascript
+// For framework-specific skills
+const SKILL_REGISTRY = {
+  implementation: {
+    languages: {
+      typescript: {
+        core: ['mastering-typescript'],
+        frontend: {
+          react: ['react-frontend', 'atomic-design-react'],
+          nextjs: ['nextjs-patterns'], // ← Add here
+        },
+      },
+    },
+  },
+};
 ```
 
-**Step 4**: Test the skill
+**Common registry locations:**
+
+```javascript
+// Language core skills
+python: {
+  core: ['mastering-python-skill', 'your-skill'], // ← Here
+}
+
+// Testing framework skills
+testing: {
+  unit: {
+    jest: ['jest-coverage-automation', 'your-skill'], // ← Here
+  },
+}
+
+// Infrastructure skills
+infrastructure: {
+  cloud: {
+    aws: ['mastering-aws-cli', 'your-skill'], // ← Here
+  },
+}
+```
+
+**Step 4**: Test on a matching project
 
 ```bash
-# Test on a project that uses your framework
-cd /path/to/nextjs-project
-/initialize-project
+# Test sync on a project that should receive this skill
+./scripts/sync-framework-resources.sh ~/test-nextjs-project
 
-# Verify skill was copied
-ls .claude/skills/mastering-nextjs
+# Verify skill was detected and added
+ls ~/test-nextjs-project/.claude/skills/050-language-frameworks/nextjs-patterns
+
+# Check that relevant agents include the skill
+cat ~/test-nextjs-project/.claude/agents/implementer-typescript.md | grep nextjs-patterns
 ```
+
+**Step 5**: Commit your changes
+
+```bash
+git add utils/skill-registry.js skills/050-language-frameworks/nextjs-patterns/
+git commit -m "feat: add nextjs-patterns skill for Next.js projects"
+```
+
+### How Skills Are Distributed
+
+Once you add a skill to the registry:
+
+1. **Users pull framework updates**: `git pull` in their framework directory
+2. **Users run sync**: `./scripts/sync-framework-resources.sh ~/their-project`
+3. **Sync detects new skills**: Based on the project's stack profile
+4. **Skills are auto-added**: If the stack matches the skill's registry location
+5. **Agents are regenerated**: If they use the new skill
+
+Example sync output users will see:
+
+```
+Step 5.5: Detecting new skills from registry...
+  Found 1 new skill(s) in registry based on stack profile
+  ✓ New skills discovered: 1
+  ✓ New skills added:      1 (nextjs-patterns)
+
+  Checking for affected agents...
+  ⚠️  1 agent(s) will be regenerated due to new skills
+```
+
+### Skill Naming Conventions
+
+Follow these conventions when naming skills:
+
+✅ **Good Examples:**
+- `react-frontend` - lowercase with hyphens
+- `mastering-python-skill` - descriptive and includes tool name
+- `jest-coverage-automation` - clear purpose
+- `developing-with-docker` - action-oriented
+
+❌ **Bad Examples:**
+- `reactSkill` - don't use camelCase
+- `r` - too short, not descriptive
+- `react_frontend` - use hyphens, not underscores
+- `the-ultimate-react-guide` - too long and generic
+
+**Rules:**
+- Use lowercase with hyphens (kebab-case)
+- Be descriptive (2-4 words)
+- Include framework/tool name
+- Use "mastering" prefix for comprehensive skills
+- Keep it concise and specific
 
 ### Skill Categories
 
@@ -210,8 +301,8 @@ Expected output format (markdown, JSON, code, etc.).
 **Step 1**: Create agent template
 
 ```bash
-mkdir -p ai-agentic-framework/agents/templates
-touch ai-agentic-framework/agents/templates/your-agent.md
+mkdir -p qubika-agentic-framework/agents/templates
+touch qubika-agentic-framework/agents/templates/your-agent.md
 ```
 
 **Step 2**: Define agent role and skills
@@ -256,10 +347,10 @@ The framework includes integration tests for the full SDLC workflow:
 
 ```bash
 # Run all integration tests
-./ai-agentic-framework/tests/run-integration-tests.sh
+./qubika-agentic-framework/tests/run-integration-tests.sh
 
 # Run specific test
-./ai-agentic-framework/tests/run-integration-tests.sh go-microservice
+./qubika-agentic-framework/tests/run-integration-tests.sh go-microservice
 ```
 
 ### Manual Testing
@@ -303,7 +394,7 @@ git checkout -b feature/add-vue-skill
 
 ```bash
 # Run integration tests
-./ai-agentic-framework/tests/run-integration-tests.sh
+./qubika-agentic-framework/tests/run-integration-tests.sh
 
 # Test on real projects
 /initialize-project
@@ -425,5 +516,6 @@ Thank you for contributing to the AI Agentic Framework! 🎉
 ## Further Reading
 
 - [Architecture](./docs/ARCHITECTURE.md) - How the framework works
+- [Adding Skills](./docs/ADDING_SKILLS.md) - Complete guide to adding and distributing skills
 - [API Reference](./docs/API_REFERENCE.md) - Skills, agents, and commands
 - [Skill Catalog](./SKILL_CATALOG.md) - Available skills with detection logic

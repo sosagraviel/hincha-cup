@@ -10,15 +10,15 @@
  * - Creates unified analysis for synthesis phase
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 /**
  * Load JSON file
  */
 function loadJSON(filePath) {
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = fs.readFileSync(filePath, "utf-8");
     return JSON.parse(content);
   } catch (error) {
     throw new Error(`Failed to load ${filePath}: ${error.message}`);
@@ -30,7 +30,7 @@ function loadJSON(filePath) {
  */
 function deduplicateByKey(items, key) {
   const seen = new Set();
-  return items.filter(item => {
+  return items.filter((item) => {
     const value = item[key];
     if (seen.has(value)) {
       return false;
@@ -52,13 +52,13 @@ function findOverlaps(analyses) {
       agent: analysis.agent_name,
       agentIndex: idx,
       category,
-      items: Array.isArray(items) ? items : [items]
+      items: Array.isArray(items) ? items : [items],
     }));
   });
 
   // Group by category
   const byCategory = {};
-  allFindings.forEach(finding => {
+  allFindings.forEach((finding) => {
     if (!byCategory[finding.category]) {
       byCategory[finding.category] = [];
     }
@@ -70,14 +70,43 @@ function findOverlaps(analyses) {
     if (findings.length > 1) {
       overlaps.push({
         category,
-        agents: findings.map(f => f.agent),
+        agents: findings.map((f) => f.agent),
         count: findings.length,
-        confidence: 'high'
+        confidence: "high",
       });
     }
   });
 
   return overlaps;
+}
+
+/**
+ * Normalize agent name to file-based format for schema compatibility
+ * Uses keyword matching for flexibility across name variations
+ * Example: "tech-stack-dependencies-analyzer" -> "02-tech-stack-dependencies"
+ */
+function normalizeAgentName(agentName) {
+  const name = agentName.toLowerCase();
+
+  // Match by keywords in the agent name
+  if (name.includes("structure") || name.includes("architecture")) {
+    return "01-structure-architecture";
+  }
+  if (name.includes("stack") || name.includes("dependencies")) {
+    return "02-tech-stack-dependencies";
+  }
+  if (name.includes("patterns") || name.includes("testing")) {
+    return "03-code-patterns-testing";
+  }
+  if (name.includes("flow") || name.includes("integration")) {
+    return "04-data-flows-integrations";
+  }
+  if (name.includes("consolidation")) {
+    return "consolidation";
+  }
+
+  // If no keywords match, return original name
+  return agentName;
 }
 
 /**
@@ -87,39 +116,59 @@ function identifyGaps(analyses) {
   const gaps = [];
 
   // Check for NEEDS_VERIFICATION markers
-  analyses.forEach(analysis => {
+  analyses.forEach((analysis) => {
     if (analysis.needs_verification && analysis.needs_verification.length > 0) {
-      analysis.needs_verification.forEach(item => {
+      analysis.needs_verification.forEach((item) => {
         gaps.push({
-          type: 'needs_verification',
-          agent: analysis.agent_name,
+          type: "needs_verification",
+          agent: normalizeAgentName(analysis.agent_name),
           item: item.item,
           // IMPORTANT: Preserve the 'question' field from agent output!
           // This contains the actual question to ask the user.
           // The agent prompts explicitly instruct agents to provide proper questions.
           question: item.question,
           reason: item.reason,
-          priority: 'medium'
+          priority: "medium",
         });
       });
     }
   });
 
   // Check for empty or sparse findings
-  analyses.forEach(analysis => {
+  analyses.forEach((analysis) => {
     const findingsCount = Object.keys(analysis.findings || {}).length;
     if (findingsCount < 3) {
       gaps.push({
-        type: 'sparse_findings',
-        agent: analysis.agent_name,
+        type: "sparse_findings",
+        agent: normalizeAgentName(analysis.agent_name),
         item: `Sparse findings from ${analysis.agent_name}`,
         reason: `Agent returned only ${findingsCount} finding categories`,
-        priority: 'low'
+        priority: "low",
       });
     }
   });
 
-  return gaps;
+  return removeExactDuplicates(gaps);
+}
+
+/**
+ * Remove exact duplicate gaps (same item + same question)
+ * Note: Semantic consolidation is handled by the question-consolidator agent in Phase 2
+ */
+function removeExactDuplicates(gaps) {
+  const seenKeys = new Map();
+  const deduplicated = [];
+
+  gaps.forEach((gap) => {
+    const key = `${gap.item}|||${gap.question || ""}`;
+
+    if (!seenKeys.has(key)) {
+      seenKeys.set(key, true);
+      deduplicated.push(gap);
+    }
+  });
+
+  return deduplicated;
 }
 
 /**
@@ -132,27 +181,38 @@ function detectConflicts(analyses) {
   // Example: different tech stack detections
 
   const techStacks = analyses
-    .filter(a => a.findings?.tech_stack || a.findings?.languages || a.findings?.frameworks)
-    .map(a => ({
+    .filter(
+      (a) =>
+        a.findings?.tech_stack ||
+        a.findings?.languages ||
+        a.findings?.frameworks,
+    )
+    .map((a) => ({
       agent: a.agent_name,
-      languages: a.findings?.languages || a.findings?.tech_stack?.languages || [],
-      frameworks: a.findings?.frameworks || a.findings?.tech_stack?.frameworks || []
+      languages:
+        a.findings?.languages || a.findings?.tech_stack?.languages || [],
+      frameworks:
+        a.findings?.frameworks || a.findings?.tech_stack?.frameworks || [],
     }));
 
   if (techStacks.length > 1) {
     // Check for language conflicts
-    const allLanguages = new Set(techStacks.flatMap(ts => ts.languages));
-    allLanguages.forEach(lang => {
-      const agentsWithLang = techStacks.filter(ts => ts.languages.includes(lang));
-      const agentsWithoutLang = techStacks.filter(ts => !ts.languages.includes(lang));
+    const allLanguages = new Set(techStacks.flatMap((ts) => ts.languages));
+    allLanguages.forEach((lang) => {
+      const agentsWithLang = techStacks.filter((ts) =>
+        ts.languages.includes(lang),
+      );
+      const agentsWithoutLang = techStacks.filter(
+        (ts) => !ts.languages.includes(lang),
+      );
 
       if (agentsWithLang.length > 0 && agentsWithoutLang.length > 0) {
         conflicts.push({
-          type: 'language_detection',
+          type: "language_detection",
           language: lang,
-          detectedBy: agentsWithLang.map(ts => ts.agent),
-          missedBy: agentsWithoutLang.map(ts => ts.agent),
-          severity: 'medium'
+          detectedBy: agentsWithLang.map((ts) => ts.agent),
+          missedBy: agentsWithoutLang.map((ts) => ts.agent),
+          severity: "medium",
         });
       }
     });
@@ -169,11 +229,11 @@ function extractMultiStackInfo(analyses) {
     is_monorepo: false,
     workspaces: [],
     languages: new Map(),
-    total_files: 0
+    total_files: 0,
   };
 
   // Collect multi_stack info from each agent
-  analyses.forEach(analysis => {
+  analyses.forEach((analysis) => {
     if (analysis.findings?.multi_stack) {
       const agentMultiStack = analysis.findings.multi_stack;
 
@@ -182,9 +242,14 @@ function extractMultiStackInfo(analyses) {
       }
 
       // Collect workspaces (deduplicate by path)
-      if (agentMultiStack.workspaces && Array.isArray(agentMultiStack.workspaces)) {
-        agentMultiStack.workspaces.forEach(workspace => {
-          const existing = multiStack.workspaces.find(w => w.path === workspace.path);
+      if (
+        agentMultiStack.workspaces &&
+        Array.isArray(agentMultiStack.workspaces)
+      ) {
+        agentMultiStack.workspaces.forEach((workspace) => {
+          const existing = multiStack.workspaces.find(
+            (w) => w.path === workspace.path,
+          );
           if (!existing) {
             multiStack.workspaces.push(workspace);
           } else {
@@ -197,17 +262,17 @@ function extractMultiStackInfo(analyses) {
 
     // Also collect language info from findings
     const langs = analysis.findings?.languages || [];
-    const langArray = Array.isArray(langs) ? langs : (langs.items || []);
+    const langArray = Array.isArray(langs) ? langs : langs.items || [];
 
-    langArray.forEach(lang => {
-      const langName = typeof lang === 'string' ? lang : lang.name;
-      const fileCount = typeof lang === 'object' ? (lang.file_count || 0) : 0;
+    langArray.forEach((lang) => {
+      const langName = typeof lang === "string" ? lang : lang.name;
+      const fileCount = typeof lang === "object" ? lang.file_count || 0 : 0;
 
       if (!multiStack.languages.has(langName)) {
         multiStack.languages.set(langName, {
           name: langName,
           file_count: fileCount,
-          detected_by: [analysis.agent_name]
+          detected_by: [analysis.agent_name],
         });
       } else {
         const existing = multiStack.languages.get(langName);
@@ -222,8 +287,13 @@ function extractMultiStackInfo(analyses) {
   return {
     is_monorepo: multiStack.is_monorepo,
     workspaces: multiStack.workspaces,
-    languages: Array.from(multiStack.languages.values()).sort((a, b) => b.file_count - a.file_count),
-    total_files: Array.from(multiStack.languages.values()).reduce((sum, lang) => sum + lang.file_count, 0)
+    languages: Array.from(multiStack.languages.values()).sort(
+      (a, b) => b.file_count - a.file_count,
+    ),
+    total_files: Array.from(multiStack.languages.values()).reduce(
+      (sum, lang) => sum + lang.file_count,
+      0,
+    ),
   };
 }
 
@@ -234,20 +304,20 @@ function detectMissingLanguageCoverage(multiStack, merged) {
   const warnings = [];
 
   // Languages with significant code (>10 files) should have coverage
-  multiStack.languages.forEach(lang => {
+  multiStack.languages.forEach((lang) => {
     if (lang.file_count >= 10) {
-      const hasCoverage = merged.findings?.languages?.items?.some(l => {
-        const langName = typeof l === 'string' ? l : l.name;
+      const hasCoverage = merged.findings?.languages?.items?.some((l) => {
+        const langName = typeof l === "string" ? l : l.name;
         return langName === lang.name;
       });
 
       if (!hasCoverage) {
         warnings.push({
-          type: 'missing_language_coverage',
-          agent: 'consolidation',
+          type: "missing_language_coverage",
+          agent: "consolidation",
           item: `${lang.name} language coverage`,
           reason: `Language '${lang.name}' has ${lang.file_count} files but was not properly detected in the analysis`,
-          priority: 'high'
+          priority: "high",
         });
       }
     }
@@ -263,10 +333,16 @@ function mergeAnalyses(analyses) {
   // Extract multi-stack information first
   const multiStack = extractMultiStackInfo(analyses);
 
+  // Normalize agent_name in agent_outputs to prevent consolidation agent confusion
+  const normalizedAgentOutputs = analyses.map((analysis) => ({
+    ...analysis,
+    agent_name: normalizeAgentName(analysis.agent_name),
+  }));
+
   const merged = {
     timestamp: new Date().toISOString(),
     agents_count: analyses.length,
-    agents: analyses.map(a => a.agent_name),
+    agents: analyses.map((a) => normalizeAgentName(a.agent_name)),
 
     multi_stack: multiStack,
 
@@ -278,25 +354,25 @@ function mergeAnalyses(analyses) {
     gaps: identifyGaps(analyses),
     conflicts: detectConflicts(analyses),
 
-    // Original outputs
-    agent_outputs: analyses
+    // Original outputs (with normalized agent names)
+    agent_outputs: normalizedAgentOutputs,
   };
 
   // Merge findings by category
   const allCategories = new Set();
-  analyses.forEach(analysis => {
-    Object.keys(analysis.findings || {}).forEach(category => {
+  analyses.forEach((analysis) => {
+    Object.keys(analysis.findings || {}).forEach((category) => {
       allCategories.add(category);
     });
   });
 
-  allCategories.forEach(category => {
+  allCategories.forEach((category) => {
     merged.findings[category] = {
       sources: [],
-      items: []
+      items: [],
     };
 
-    analyses.forEach(analysis => {
+    analyses.forEach((analysis) => {
       if (analysis.findings?.[category]) {
         merged.findings[category].sources.push(analysis.agent_name);
 
@@ -309,13 +385,20 @@ function mergeAnalyses(analyses) {
     });
 
     // Deduplicate items if they're strings
-    if (merged.findings[category].items.every(item => typeof item === 'string')) {
-      merged.findings[category].items = [...new Set(merged.findings[category].items)];
+    if (
+      merged.findings[category].items.every((item) => typeof item === "string")
+    ) {
+      merged.findings[category].items = [
+        ...new Set(merged.findings[category].items),
+      ];
     }
   });
 
   // Check for missing language coverage and add to gaps
-  const missingLanguageWarnings = detectMissingLanguageCoverage(multiStack, merged);
+  const missingLanguageWarnings = detectMissingLanguageCoverage(
+    multiStack,
+    merged,
+  );
   merged.gaps.push(...missingLanguageWarnings);
 
   return merged;
@@ -331,7 +414,10 @@ function generateSummary(merged) {
     overlaps: merged.overlaps.length,
     gaps: merged.gaps.length,
     conflicts: merged.conflicts.length,
-    confidence: merged.conflicts.length === 0 && merged.gaps.length < 3 ? 'high' : 'medium'
+    confidence:
+      merged.conflicts.length === 0 && merged.gaps.length < 3
+        ? "high"
+        : "medium",
   };
 }
 
@@ -339,7 +425,7 @@ function generateSummary(merged) {
  * Main merge function
  */
 function merge(inputFiles, outputFile) {
-  console.log('Merging analyses...');
+  console.log("Merging analyses...");
   console.log(`  Input files: ${inputFiles.length}`);
 
   // Load all analyses
@@ -353,8 +439,8 @@ function merge(inputFiles, outputFile) {
   const merged = mergeAnalyses(analyses);
   const summary = generateSummary(merged);
 
-  console.log('');
-  console.log('Merge summary:');
+  console.log("");
+  console.log("Merge summary:");
   console.log(`  Total categories: ${summary.total_categories}`);
   console.log(`  Overlaps found: ${summary.overlaps}`);
   console.log(`  Gaps identified: ${summary.gaps}`);
@@ -365,8 +451,8 @@ function merge(inputFiles, outputFile) {
   merged.summary = summary;
 
   // Write output
-  fs.writeFileSync(outputFile, JSON.stringify(merged, null, 2), 'utf-8');
-  console.log('');
+  fs.writeFileSync(outputFile, JSON.stringify(merged, null, 2), "utf-8");
+  console.log("");
   console.log(`✓ Consolidated analysis written to: ${outputFile}`);
 
   return merged;
@@ -379,15 +465,19 @@ if (require.main === module) {
   const args = process.argv.slice(2);
 
   if (args.length < 2) {
-    console.error('Usage: merge-analyses.js <output-file> <input-file-1> [input-file-2] ...');
-    console.error('Example: merge-analyses.js consolidation.json agent1.json agent2.json agent3.json agent4.json');
+    console.error(
+      "Usage: merge-analyses.js <output-file> <input-file-1> [input-file-2] ...",
+    );
+    console.error(
+      "Example: merge-analyses.js consolidation.json agent1.json agent2.json agent3.json agent4.json",
+    );
     process.exit(1);
   }
 
   const [outputFile, ...inputFiles] = args;
 
   // Validate input files
-  inputFiles.forEach(file => {
+  inputFiles.forEach((file) => {
     if (!fs.existsSync(file)) {
       console.error(`Error: Input file not found: ${file}`);
       process.exit(1);
@@ -398,7 +488,7 @@ if (require.main === module) {
     merge(inputFiles, outputFile);
     process.exit(0);
   } catch (error) {
-    console.error('Error merging analyses:', error.message);
+    console.error("Error merging analyses:", error.message);
     console.error(error.stack);
     process.exit(1);
   }
@@ -412,5 +502,6 @@ module.exports = {
   detectConflicts,
   generateSummary,
   extractMultiStackInfo,
-  detectMissingLanguageCoverage
+  detectMissingLanguageCoverage,
+  removeExactDuplicates,
 };

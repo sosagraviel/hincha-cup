@@ -422,7 +422,7 @@ Adds a dark mode toggle to the settings page with localStorage persistence.
 
 ---
 
-🤖 Generated with [AI Agentic Framework](https://github.com/your-org/ai-agentic-framework)
+🤖 Generated with [AI Agentic Framework](https://github.com/your-org/qubika-agentic-framework)
 📊 Confidence: 95% | ⏱️ Implementation: 1.2 hours
 ```
 

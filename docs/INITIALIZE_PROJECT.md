@@ -80,63 +80,48 @@ orchestrate-initialization.sh
 
 ## Quick Start
 
-### Basic Usage
+### Setup
 
 ```bash
-# From your project directory (easiest)
 cd /path/to/your-project
-./ai-agentic-framework/scripts/initialize-project.sh
+git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
-### With Options
+**Duration:** 10-15 minutes
+
+**What it does:**
+- Analyzes your codebase (4 parallel agents)
+- Generates `.claude/CLAUDE.md` and `.claude/skills/project-context/`
+- Installs language-specific skills and agents
+- Auto-manages `.gitignore` (`qubika-agentic-framework/`, `.claude-temp/`, `.claude-backups/`)
+
+**What gets committed:**
+- `.claude/CLAUDE.md`, `.claude/framework-config.json`, `.claude/skills/`, `.claude/agents/`
+
+**Options:**
 
 ```bash
-# Fully automated (skip gap questions)
-./ai-agentic-framework/scripts/initialize-project.sh --skip-gap-questions
+# Skip gap analysis questions
+./qubika-agentic-framework/scripts/initialize-project.sh --skip-gap-questions
 
-# Custom framework location
-./ai-agentic-framework/scripts/initialize-project.sh \
-  --framework-path /path/to/framework
+# Custom timeout (default: 30 minutes)
+./qubika-agentic-framework/scripts/initialize-project.sh --timeout 3600
 
-# With 60 minute timeout
-./ai-agentic-framework/scripts/initialize-project.sh --timeout 3600
+# Clean temp files after completion
+./qubika-agentic-framework/scripts/initialize-project.sh --clean
 
-# Specify project path explicitly
-./ai-agentic-framework/scripts/initialize-project.sh /path/to/other-project
+# Re-run from specific phase (skip earlier phases)
+./qubika-agentic-framework/scripts/initialize-project.sh --start-phase 4
 ```
 
-### From Claude CLI
-
-For backward compatibility, the `/initialize-project` command still works:
-
-```bash
-# Start Claude CLI in framework directory
-claude
-
-# Run command
-/initialize-project
-```
 
 ## Prerequisites
 
-### Required Software
-
-1. **claude CLI** - Installed and in PATH
-   - Install from: https://github.com/anthropics/claude-code
-   - Verify: `claude --version`
-
-2. **Node.js** - Version 14 or higher
-   - Install from: https://nodejs.org/
-   - Verify: `node --version`
-
-3. **npm** - Typically comes with Node.js
-   - Verify: `npm --version`
-
-4. **bash** - Version 4.0 or higher
-   - Verify: `bash --version`
-
-5. **timeout** (optional) - For execution time limits
-   - Included in GNU coreutils (Linux)
+- **claude CLI** ([install](https://github.com/anthropics/claude-code))
+- **Node.js** v14+ with npm
+- **bash** v4.0+
+- **timeout** (optional, for execution limits)
    - Install on macOS: `brew install coreutils`
 
 ### Directory Structure
@@ -147,7 +132,7 @@ Your project should be in this structure:
 your-project/
 ├── src/           # Your code
 ├── package.json   # Or other project files
-└── ai-agentic-framework/  # Framework (default location)
+└── qubika-agentic-framework/  # Framework (default location)
     ├── scripts/
     │   └── initialize-project.sh
     ├── skills/
@@ -155,96 +140,39 @@ your-project/
     └── ...
 ```
 
-Alternatively, specify custom framework path with `--framework-path`.
-
-### Pre-Run Checklist
-
-Before running initialization:
-
-- [ ] Current directory is the project root
-- [ ] Framework path is accessible (or specified with `--framework-path`)
-- [ ] Claude CLI is authenticated
-- [ ] Node.js and npm are installed
-- [ ] Project has actual code (not just empty directories)
-- [ ] Set aside 10-60 minutes for execution
-
 ## Usage
 
-### Command Line
+### Command
 
 ```bash
-./scripts/initialize-project.sh [OPTIONS] [project-path]
+./qubika-agentic-framework/scripts/initialize-project.sh [OPTIONS]
 ```
-
-### Arguments
-
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `project-path` | Path to the project to initialize | Current directory (`pwd`) |
 
 ### Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--framework-path PATH` | Path to ai-agentic-framework | `$PROJECT_PATH/ai-agentic-framework` |
-| `--skip-gap-questions` | Skip gap analysis (fully automated) | `false` (pauses if gaps detected) |
-| `--timeout SECONDS` | Maximum execution time | `1800` (30 minutes) |
-| `--keep-temp` | Keep temporary files after completion | `false` (cleans up) |
-| `--help, -h` | Show help message | - |
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--skip-gap-questions` | `false` | Skip gap analysis (CI/CD mode) |
+| `--start-phase N` | `1` | Resume from phase N (1-6) |
+| `--timeout SECONDS` | `1800` | Max execution time (30 min default) |
+| `--clean` | `false` | Remove `.claude-temp/` after completion |
 
-### Examples
-
-#### Example 1: Basic Initialization
+### Common Patterns
 
 ```bash
-cd /path/to/your-project
-./ai-agentic-framework/scripts/initialize-project.sh
+# Standard initialization
+./qubika-agentic-framework/scripts/initialize-project.sh
+
+# CI/CD mode (no prompts)
+./qubika-agentic-framework/scripts/initialize-project.sh --skip-gap-questions
+
+# Large project (60 min timeout)
+./qubika-agentic-framework/scripts/initialize-project.sh --timeout 3600
+
+# Resume from phase 4 (after fixing issues)
+./qubika-agentic-framework/scripts/initialize-project.sh --start-phase 4
 ```
 
-#### Example 2: Fully Automated
-
-For CI/CD or when you want to skip manual gap review:
-
-```bash
-cd /path/to/your-project
-./ai-agentic-framework/scripts/initialize-project.sh --skip-gap-questions
-```
-
-#### Example 3: Custom Framework Location
-
-When framework is in a different directory:
-
-```bash
-cd /path/to/your-project
-./path/to/framework/scripts/initialize-project.sh \
-  --framework-path /path/to/framework
-```
-
-#### Example 4: Long Timeout
-
-For very large projects:
-
-```bash
-cd /path/to/your-project
-./ai-agentic-framework/scripts/initialize-project.sh --timeout 3600
-```
-
-#### Example 5: Keep Debug Files
-
-When troubleshooting:
-
-```bash
-cd /path/to/your-project
-./ai-agentic-framework/scripts/initialize-project.sh --keep-temp
-```
-
-#### Example 6: Specify Project Explicitly
-
-When running from elsewhere:
-
-```bash
-./ai-agentic-framework/scripts/initialize-project.sh /path/to/project
-```
 
 ## Workflow Phases
 
@@ -960,7 +888,7 @@ Add `user_clarifications` key:
 ```bash
 cd /path/to/project
 TEMP_DIR=".claude-temp"
-FRAMEWORK_PATH="ai-agentic-framework"
+FRAMEWORK_PATH="qubika-agentic-framework"
 
 bash "$FRAMEWORK_PATH/skills/010-foundation/initialize-project/scripts/phase3-synthesis.sh" \
   "$PWD" "$TEMP_DIR"
@@ -977,40 +905,87 @@ bash "$FRAMEWORK_PATH/skills/010-foundation/initialize-project/scripts/phase6-va
 
 ## Advanced Usage
 
-### Run Specific Phase
+### Resume from Specific Phase
 
-For debugging, run individual phases:
+The `--start-phase` flag allows you to resume initialization from a specific phase (1-6). This is useful for:
+
+- **Re-running after fixes** - Fix an issue and resume without repeating slow AI analysis
+- **Iterative development** - Tweak phase outputs and continue from there
+- **Debugging** - Test specific phases in isolation
 
 ```bash
-# Set variables
-PROJECT_PATH="/path/to/project"
+# Resume from Phase 4 (skip AI analysis phases 1-3)
+./scripts/initialize-project.sh --start-phase 4
+
+# Resume from Phase 5 (skip analysis + synthesis)
+./scripts/initialize-project.sh --start-phase 5
+
+# Resume from Phase 6 (validation only)
+./scripts/initialize-project.sh --start-phase 6
+```
+
+**Prerequisites:**
+- Previous phases must have completed successfully
+- `.claude-temp/` directory must exist with phase outputs
+- Temp files are kept by default for this purpose
+
+### Common Resume Scenarios
+
+#### Scenario 1: Fix Agent Generation Issue
+
+```bash
+# Initial run fails at Phase 5
+./scripts/initialize-project.sh
+# Error: Agent generation failed
+
+# Fix the issue in utils/agents/
+vim qubika-agentic-framework/utils/agents/index.js
+
+# Resume from Phase 5 (has Phase 1-4 outputs)
+./scripts/initialize-project.sh --start-phase 5
+```
+
+#### Scenario 2: Update Stack Detection
+
+```bash
+# Initial run complete, but detected stack is wrong
+./scripts/initialize-project.sh
+# Generated wrong agents
+
+# Fix stack detection
+vim .claude/framework-config.json
+
+# Re-run from Phase 5 (regenerate agents with correct stack)
+./scripts/initialize-project.sh --start-phase 5
+```
+
+#### Scenario 3: Tweak Synthesis Output
+
+```bash
+# Edit synthesis output directly
+vim .claude-temp/synthesis-raw.md
+
+# Re-run from Phase 4 (parse + validate + copy resources)
+./scripts/initialize-project.sh --start-phase 4
+```
+
+### Manual Phase Execution (Advanced)
+
+For deep debugging, run individual phase scripts directly:
+
+```bash
+# Auto-detect paths (framework must be at project root)
+cd /path/to/your-project
+FRAMEWORK_PATH="./qubika-agentic-framework"
+PROJECT_PATH="$(pwd)"
 TEMP_DIR="$PROJECT_PATH/.claude-temp"
-FRAMEWORK_PATH="/path/to/framework"
 SKILL_DIR="$FRAMEWORK_PATH/skills/010-foundation/initialize-project"
 
-# Run Phase 1 only
-bash "$SKILL_DIR/scripts/phase1-analysis.sh" "$PROJECT_PATH" "$TEMP_DIR"
-
-# Run Phase 3 only (requires Phase 1-2 output)
-bash "$SKILL_DIR/scripts/phase3-synthesis.sh" "$PROJECT_PATH" "$TEMP_DIR"
-
-# Run Phase 5 only (requires Phase 1-4 output)
+# Run specific phase
 bash "$SKILL_DIR/scripts/phase5-resources.sh" "$PROJECT_PATH" "$FRAMEWORK_PATH"
 ```
 
-### Retry Failed Phase
-
-After fixing an issue:
-
-```bash
-# Fix the issue (e.g., update agent-generation.js)
-
-# Retry just Phase 5
-bash "$SKILL_DIR/scripts/phase5-resources.sh" "$PROJECT_PATH" "$FRAMEWORK_PATH"
-
-# Continue with remaining phases
-bash "$SKILL_DIR/scripts/phase6-validation.sh" "$PROJECT_PATH"
-```
+**Note:** Use `--start-phase` instead - it handles environment setup and validation.
 
 ### Custom Stack Profile
 
@@ -1045,20 +1020,39 @@ bash "$SKILL_DIR/scripts/phase5-resources.sh" "$PROJECT_PATH" "$FRAMEWORK_PATH"
 bash "$SKILL_DIR/scripts/phase6-validation.sh" "$PROJECT_PATH"
 ```
 
-### Keep Temp Files
+### Temporary Files Management
 
-For debugging:
+**Default behavior:** Temp files are **kept** to allow resuming from later phases.
+
+**To clean up after completion:**
 
 ```bash
-# Option 1: Using flag
-./scripts/initialize-project.sh --keep-temp /path/to/project
+# Remove temp files after successful completion
+./scripts/initialize-project.sh --clean
 
-# Option 2: Using environment variable
-export KEEP_TEMP=true
-./scripts/initialize-project.sh /path/to/project
+# Or clean manually later
+rm -rf .claude-temp/
 ```
 
-Temp files remain in `.claude-temp/` for inspection.
+**Why temp files are kept by default:**
+
+- Allows using `--start-phase` to resume from later phases
+- Useful for iterative fixes (fix issue → resume from Phase 5)
+- Helpful for debugging (inspect phase outputs)
+- `.gitignore` is automatically configured to ignore them
+
+**Temp directory contents:**
+
+```
+.claude-temp/
+├── initialization.log              # Full execution log
+├── phase1-outputs/                 # Agent analysis (JSON)
+├── consolidation.json              # Merged findings
+├── synthesis-raw.md                # Opus synthesis
+├── CLAUDE.md                       # Parsed output
+├── project-context.md              # Parsed output
+└── metrics.json                    # Validation metrics
+```
 
 ### Custom Timeout
 
@@ -1195,8 +1189,8 @@ jobs:
       - name: Checkout framework
         uses: actions/checkout@v3
         with:
-          repository: your-org/ai-agentic-framework
-          path: project/ai-agentic-framework
+          repository: thisisqubika/qubika-agentic-framework
+          path: project/qubika-agentic-framework
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -1211,9 +1205,10 @@ jobs:
       - name: Run initialization
         run: |
           cd project
-          ./ai-agentic-framework/scripts/initialize-project.sh \
+          ./qubika-agentic-framework/scripts/initialize-project.sh \
             --skip-gap-questions \
-            --timeout 3600
+            --timeout 3600 \
+            --clean
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
@@ -1236,9 +1231,10 @@ initialize-project:
   before_script:
     - npm install -g @anthropics/claude-cli
   script:
-    - ./ai-agentic-framework/scripts/initialize-project.sh
+    - ./qubika-agentic-framework/scripts/initialize-project.sh
         --skip-gap-questions
         --timeout 3600
+        --clean
   artifacts:
     paths:
       - .claude/
@@ -1258,9 +1254,10 @@ pipeline {
             steps {
                 sh '''
                     cd ${WORKSPACE}
-                    ./ai-agentic-framework/scripts/initialize-project.sh \
+                    ./qubika-agentic-framework/scripts/initialize-project.sh \
                       --skip-gap-questions \
-                      --timeout 3600
+                      --timeout 3600 \
+                      --clean
                 '''
             }
         }
@@ -1294,8 +1291,9 @@ COPY . /project
 WORKDIR /project
 
 # Run initialization
-RUN ./ai-agentic-framework/scripts/initialize-project.sh \
-    --skip-gap-questions
+RUN ./qubika-agentic-framework/scripts/initialize-project.sh \
+    --skip-gap-questions \
+    --clean
 ```
 
 ### Cron Job Example
@@ -1308,9 +1306,10 @@ PROJECT_PATH="/var/www/myproject"
 
 cd "$PROJECT_PATH"
 
-./ai-agentic-framework/scripts/initialize-project.sh \
+./qubika-agentic-framework/scripts/initialize-project.sh \
   --skip-gap-questions \
   --timeout 3600 \
+  --clean \
   >> /var/log/claude-init.log 2>&1
 
 # Restart services if needed
@@ -1440,8 +1439,8 @@ node -e "require('ajv-formats')" && echo "ajv-formats installed"
 ### Common Debug Commands
 
 ```bash
-# Full diagnostic
-bash -x ./scripts/initialize-project.sh --keep-temp /path/to/project 2>&1 | tee debug.log
+# Full diagnostic (temp files kept by default)
+bash -x ./scripts/initialize-project.sh /path/to/project 2>&1 | tee debug.log
 
 # Check file sizes
 du -h .claude-temp/*

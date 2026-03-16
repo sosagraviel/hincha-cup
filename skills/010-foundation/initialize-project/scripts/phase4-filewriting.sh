@@ -56,6 +56,40 @@ echo "✓ Files written to disk"
 echo ""
 
 # ============================================================================
+# STEP 3: STACK DETECTION
+# ============================================================================
+
+echo "Step 3: Detecting stack..."
+
+FRAMEWORK_PATH="$(cd "$SKILL_DIR/../../.." && pwd)"
+
+node "$FRAMEWORK_PATH/utils/stack/cli.js" "$PROJECT_PATH" > "$TEMP_DIR/stack-profile.json"
+
+if [ ! -f "$TEMP_DIR/stack-profile.json" ]; then
+  echo "Error: Stack detection failed"
+  exit 1
+fi
+
+echo "✓ Stack detected"
+echo ""
+
+# ============================================================================
+# STEP 4: GENERATE FRAMEWORK CONFIGURATION
+# ============================================================================
+
+echo "Step 4: Generating framework configuration..."
+
+node "$SKILL_DIR/scripts/helpers/generate-config.js" "$TEMP_DIR" "$PROJECT_PATH" "$FRAMEWORK_PATH"
+
+if [ $? -ne 0 ]; then
+  echo "Error: Framework configuration generation failed"
+  exit 1
+fi
+
+echo "✓ Framework configuration generated"
+echo ""
+
+# ============================================================================
 # VALIDATION
 # ============================================================================
 
@@ -75,7 +109,12 @@ if [ ! -f "$PROJECT_PATH/.claude/skills/project-context/SKILL.md" ]; then
   exit 1
 fi
 
-echo "✓ Both files exist"
+if [ ! -f "$PROJECT_PATH/.claude/framework-config.json" ]; then
+  echo "❌ ERROR: framework-config.json not created"
+  exit 1
+fi
+
+echo "✓ All files exist"
 
 # Validate lengths
 CLAUDE_LINES=$(wc -l < "$PROJECT_PATH/.claude/CLAUDE.md" | tr -d ' ')
@@ -86,12 +125,12 @@ echo "✓ project-context: $CONTEXT_LINES lines"
 echo ""
 
 # Check ranges
-if [ "$CLAUDE_LINES" -lt 30 ] || [ "$CLAUDE_LINES" -gt 200 ]; then
-  echo "⚠ WARNING: CLAUDE.md outside 30-200 line range (actual: $CLAUDE_LINES)"
+if [ "$CLAUDE_LINES" -lt 30 ] || [ "$CLAUDE_LINES" -gt 250 ]; then
+  echo "⚠ WARNING: CLAUDE.md outside 30-250 line range (actual: $CLAUDE_LINES)"
 fi
 
-if [ "$CONTEXT_LINES" -lt 50 ] || [ "$CONTEXT_LINES" -gt 800 ]; then
-  echo "⚠ WARNING: project-context outside 50-800 line range (actual: $CONTEXT_LINES)"
+if [ "$CONTEXT_LINES" -lt 50 ] || [ "$CONTEXT_LINES" -gt 600 ]; then
+  echo "⚠ WARNING: project-context outside 50-600 line range (actual: $CONTEXT_LINES)"
 fi
 
 echo "✅ Phase 4 validation complete"

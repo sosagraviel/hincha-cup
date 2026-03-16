@@ -368,7 +368,7 @@ fs.writeFileSync('.env', secrets);  // Default 644 (world-readable)
 // ✅ Good: Use secure temp directory
 const os = require('os');
 const tmpDir = os.tmpdir();
-const tmpFile = path.join(tmpDir, `ai-agentic-framework-${Date.now()}.tmp`);
+const tmpFile = path.join(tmpDir, `qubika-agentic-framework-${Date.now()}.tmp`);
 
 // ✅ Good: Clean up temp files
 try {
@@ -495,7 +495,7 @@ chown user:logging logs/*.log
 
 ### Pre-Deployment
 
-- [ ] Run security check: `./utils/security-check.sh`
+- [ ] Run security check: `./scripts/security-check.sh`
 - [ ] No hardcoded secrets in code
 - [ ] All `.env` files gitignored
 - [ ] npm audit shows 0 high/critical vulnerabilities
@@ -630,22 +630,18 @@ chown user:logging logs/*.log
 
 ## Security Contacts
 
-### Internal
+### Reporting Security Issues
 
-- **Security Team**: security@company.com
-- **On-Call**: Use PagerDuty rotation
-- **DevSecOps**: devsecops@company.com
+Report security vulnerabilities via:
 
-### External
-
-- **Vulnerability Reports**: security@ai-agentic-framework.dev
-- **GPG Key**: [Link to public key]
+- **GitHub Security Advisories**: https://github.com/thisisqubika/qubika-agentic-framework/security/advisories
+- **Private Disclosure**: Create a private security advisory on GitHub
 
 ### Security Researchers
 
 We appreciate responsible disclosure:
 
-1. Email security@ai-agentic-framework.dev with vulnerability details
+1. Report via GitHub Security Advisories (preferred)
 2. Allow 90 days for patching before public disclosure
 3. Eligible for recognition in SECURITY.md
 
@@ -673,7 +669,7 @@ We appreciate responsible disclosure:
 
 ```bash
 # Security check (custom)
-./utils/security-check.sh
+./scripts/security-check.sh
 
 # Dependency audit
 npm audit

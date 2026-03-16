@@ -8,14 +8,14 @@
     "claude_md_content": {
       "type": "string",
       "minLength": 300,
-      "maxLength": 20000,
-      "description": "CLAUDE.md content (30-200 lines ~ 1500-10000 chars)"
+      "maxLength": 25000,
+      "description": "CLAUDE.md content (30-250 lines ~ 1500-12500 chars)"
     },
     "project_context_content": {
       "type": "string",
       "minLength": 1000,
-      "maxLength": 80000,
-      "description": "project-context/SKILL.md content (50-800 lines ~ 2500-40000 chars)"
+      "maxLength": 60000,
+      "description": "project-context/SKILL.md content (50-600 lines ~ 2500-30000 chars)"
     },
     "metadata": {
       "type": "object",
@@ -23,12 +23,12 @@
         "claude_md_line_count": {
           "type": "integer",
           "minimum": 30,
-          "maximum": 200
+          "maximum": 250
         },
         "project_context_line_count": {
           "type": "integer",
           "minimum": 50,
-          "maximum": 800
+          "maximum": 600
         },
         "synthesis_model": {
           "type": "string",

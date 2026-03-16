@@ -23,12 +23,9 @@ Complete workflows and best practices for using the AI Agentic Framework in your
 
 **1. Initialize Your Project**
 ```bash
-# Clone framework into your project
 cd /path/to/your-project
-git clone https://github.com/your-org/ai-agentic-framework.git
-
-# Initialize (analyzes your codebase and sets everything up)
-./ai-agentic-framework/scripts/initialize-project.sh
+git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
 This analyzes your codebase and generates:
@@ -478,7 +475,7 @@ npm test
 **Solution**: Re-run initialization:
 ```bash
 cd /path/to/your-project
-./ai-agentic-framework/scripts/initialize-project.sh
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
 Check logs for errors:
@@ -523,7 +520,7 @@ cat .claude-temp/initialization.log
 1. Check `project-context/SKILL.md` for detected stack
 2. If wrong, ensure config files are correct
 3. Remove conflicting dependencies
-4. Re-run initialization: `./ai-agentic-framework/scripts/initialize-project.sh`
+4. Re-run initialization: `./qubika-agentic-framework/scripts/initialize-project.sh`
 
 ---
 
@@ -535,9 +532,8 @@ cat .claude-temp/initialization.log
 - [Writing Good Tickets](./WRITING_GOOD_TICKETS.md) - Ticket best practices
 
 **Support**:
-- GitHub Issues: Report bugs and feature requests
-- Slack: #ai-framework-support
-- Email: ai-team@yourcompany.com
+- GitHub Issues: https://github.com/thisisqubika/qubika-agentic-framework/issues
+- Slack: #qubika-agentic-framework
 
 ---
 
@@ -642,7 +638,7 @@ A: **Logs and artifacts**:
 
 ## Next Steps
 
-1. **Complete Setup**: Run `./ai-agentic-framework/scripts/initialize-project.sh`
+1. **Complete Setup**: Run `./qubika-agentic-framework/scripts/initialize-project.sh`
 2. **Try First Feature**: Pick a simple ticket
 3. **Review Results**: Check generated code and tests
 4. **Iterate**: Improve ticket quality, try more features
@@ -651,4 +647,4 @@ A: **Logs and artifacts**:
 
 ---
 
-**Ready to boost your productivity?** Run `./ai-agentic-framework/scripts/initialize-project.sh` and let the framework learn your codebase.
+**Ready to boost your productivity?** Run `./qubika-agentic-framework/scripts/initialize-project.sh` and let the framework learn your codebase.

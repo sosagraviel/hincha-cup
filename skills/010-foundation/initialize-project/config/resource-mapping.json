@@ -8,7 +8,6 @@
       "description": "Skills copied to EVERY project regardless of stack",
       "items": [
         "010-foundation/start-task",
-        "010-foundation/update-project-context",
         "020-development-workflow/analyze-requirements",
         "020-development-workflow/architect-agent",
         "020-development-workflow/code-implementation",
@@ -17,28 +16,24 @@
         "020-development-workflow/mastering-git-cli",
         "030-quality-assurance/code-quality-check",
         "030-quality-assurance/create-pr",
+        "030-quality-assurance/doc-updater",
         "030-quality-assurance/pr-reviewer",
         "030-quality-assurance/security-review",
         "040-integrations/fetch-ticket-context",
         "040-integrations/jira",
-        "040-integrations/mastering-confluence-agent-skill",
-        "040-integrations/mastering-github-agent-skill",
+        "040-integrations/mastering-confluence",
+        "040-integrations/mastering-github-cli",
         "040-integrations/notion-document-manager",
         "060-documentation/design-doc-mermaid"
       ]
     },
 
     "by_language": {
-      "typescript": [
-        "050-language-frameworks/mastering-typescript"
-      ],
-      "javascript": [
-        "050-language-frameworks/mastering-typescript"
-      ],
+      "typescript": ["050-language-frameworks/mastering-typescript"],
+      "javascript": ["050-language-frameworks/mastering-typescript"],
       "python": [
         "050-language-frameworks/mastering-python-skill",
-        "050-language-frameworks/mastering-langgraph-agent-skill",
-        "050-language-frameworks/mastering-pytorch-rl-nlp-agentic-skill"
+        "050-language-frameworks/mastering-langgraph-agent-skill"
       ],
       "java": [],
       "go": [],
@@ -83,16 +78,10 @@
     },
 
     "by_testing_framework": {
-      "jest": [
-        "030-quality-assurance/jest-coverage-automation"
-      ],
+      "jest": ["030-quality-assurance/jest-coverage-automation"],
       "vitest": [],
-      "pytest": [
-        "030-quality-assurance/pytest-patterns"
-      ],
-      "playwright": [
-        "030-quality-assurance/playwright-e2e-automation"
-      ],
+      "pytest": ["030-quality-assurance/pytest-patterns"],
+      "playwright": ["030-quality-assurance/playwright-e2e-automation"],
       "cypress": []
     },
 
@@ -114,12 +103,8 @@
     },
 
     "by_container": {
-      "docker": [
-        "070-infrastructure/developing-with-docker"
-      ],
-      "docker-compose": [
-        "070-infrastructure/developing-with-docker"
-      ],
+      "docker": ["070-infrastructure/developing-with-docker"],
+      "docker-compose": ["070-infrastructure/developing-with-docker"],
       "kubernetes": [],
       "helm": []
     },
@@ -129,13 +114,9 @@
         "080-cloud-platforms/mastering-aws-cli",
         "080-cloud-platforms/mastering-aws-cdk"
       ],
-      "gcp": [
-        "080-cloud-platforms/mastering-gcloud-commands"
-      ],
+      "gcp": ["080-cloud-platforms/mastering-gcloud-commands"],
       "azure": [],
-      "firebase": [
-        "080-cloud-platforms/using-firebase"
-      ],
+      "firebase": ["080-cloud-platforms/using-firebase"],
       "vercel": [],
       "netlify": [],
       "supabase": []
@@ -225,74 +206,6 @@
       }
     },
 
-    "per_testing_framework": {
-      "description": "Testing agents based on detected frameworks",
-      "jest": {
-        "name": "tester-unit-typescript",
-        "template": "tester-unit.template.md",
-        "model": "sonnet",
-        "description": "Write unit + integration tests with Jest"
-      },
-      "vitest": {
-        "name": "tester-unit-typescript",
-        "template": "tester-unit.template.md",
-        "model": "sonnet",
-        "description": "Write unit + integration tests with Vitest"
-      },
-      "pytest": {
-        "name": "tester-unit-python",
-        "template": "tester-unit.template.md",
-        "model": "sonnet",
-        "description": "Write unit + integration tests with Pytest"
-      },
-      "playwright": {
-        "name": "tester-e2e-typescript",
-        "template": "tester-e2e.template.md",
-        "model": "sonnet",
-        "description": "Write E2E tests with Playwright"
-      },
-      "cypress": {
-        "name": "tester-e2e-typescript",
-        "template": "tester-e2e.template.md",
-        "model": "sonnet",
-        "description": "Write E2E tests with Cypress"
-      }
-    },
-
-    "per_language_security": {
-      "description": "Security reviewer agent per primary language",
-      "typescript": {
-        "name": "security-reviewer-typescript",
-        "template": "security-reviewer.template.md",
-        "model": "sonnet",
-        "description": "Security review and OWASP scanning for TypeScript"
-      },
-      "javascript": {
-        "name": "security-reviewer-javascript",
-        "template": "security-reviewer.template.md",
-        "model": "sonnet",
-        "description": "Security review and OWASP scanning for JavaScript"
-      },
-      "python": {
-        "name": "security-reviewer-python",
-        "template": "security-reviewer.template.md",
-        "model": "sonnet",
-        "description": "Security review and OWASP scanning for Python"
-      },
-      "java": {
-        "name": "security-reviewer-java",
-        "template": "security-reviewer.template.md",
-        "model": "sonnet",
-        "description": "Security review and OWASP scanning for Java"
-      },
-      "go": {
-        "name": "security-reviewer-go",
-        "template": "security-reviewer.template.md",
-        "model": "sonnet",
-        "description": "Security review and OWASP scanning for Go"
-      }
-    },
-
     "frontend_only": {
       "description": "Agents only generated when frontend framework is detected",
       "items": [
@@ -301,18 +214,6 @@
           "template": "visual-verifier.template.md",
           "model": "opus",
           "description": "Visual verification and UI diff analysis"
-        }
-      ]
-    },
-
-    "documentation": {
-      "description": "Documentation agents for all projects",
-      "items": [
-        {
-          "name": "doc-updater",
-          "template": "doc-updater.template.md",
-          "model": "opus",
-          "description": "Documentation maintenance for CLAUDE.md and project-context"
         }
       ]
     }

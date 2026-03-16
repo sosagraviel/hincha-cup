@@ -3,7 +3,7 @@ name: planner
 description: Create detailed implementation plans for feature work. Use for complex architectural decisions.
 model: opus
 tools: Read, Grep, Glob
-skills:{{skills}}
+skills:{{formatSkills skills}}
 ---
 
 # Planner Agent
@@ -203,6 +203,31 @@ Document all decisions made due to ambiguity or multiple valid options:
 - Prioritize security and scalability over convenience
 - Use industry standards unless project has specific requirements
 - Document unknowns for future refinement
+
+## Comment Policy
+
+When planning implementations, specify this policy for implementers:
+
+**NO inline comments** - Code should be self-explanatory (KISS principle).
+
+**ONLY documentation comments**:
+- JSDoc (TypeScript/JavaScript): `/** Description of function purpose */`
+- Docstrings (Python): `"""Description of function purpose"""`
+- Document WHAT and WHY, never HOW
+
+**Good**:
+```typescript
+/** Validates email format and checks domain MX records */
+function validateEmail(email: string): Promise<boolean>
+```
+
+**Bad**:
+```typescript
+// Loop through users  ❌ Obvious from code
+for (const user of users) {
+  // Check if active  ❌ Obvious from code
+  if (user.isActive) {
+```
 
 ## Important Rules
 
