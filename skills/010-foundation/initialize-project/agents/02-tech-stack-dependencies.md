@@ -83,6 +83,14 @@ Example BAD question: "Environment variables" (not a question - WRONG!)
    }
    ```
 
+5. **CRITICAL: Language Field Rules**:
+   - The `"language"` field MUST contain a SINGLE language value
+   - NEVER combine multiple languages (e.g., "javascript/typescript" is INVALID)
+   - Valid values ONLY: `typescript`, `javascript`, `python`, `java`, `go`, `rust`, `ruby`, `php`, `csharp`, `swift`, `kotlin`, `elixir`
+   - If a workspace uses multiple languages, pick the PRIMARY one based on file count
+   - Examples of CORRECT values: `"language": "typescript"`, `"language": "python"`
+   - Examples of INVALID values: `"language": "javascript/typescript"`, `"language": "js/ts"`, `"language": "python, javascript"`
+
 **NEVER assume a project has only one language. ALWAYS search recursively across the entire directory tree.**
 
 ## Analysis Tasks
