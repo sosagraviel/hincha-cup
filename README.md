@@ -2,9 +2,7 @@
 
 > **Autonomous Software Development Life Cycle** — From idea to production-ready pull request with minimal human intervention.
 
-[![Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen?style=for-the-badge)](.
-
-)
+[![Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen?style=for-the-badge)](.)
 [![Stack Agnostic](https://img.shields.io/badge/Stack-Agnostic-blue?style=for-the-badge)](.)
 [![Full SDLC](https://img.shields.io/badge/SDLC-Autonomous-orange?style=for-the-badge)](.)
 
@@ -24,6 +22,7 @@
 - [Documentation](#documentation)
 - [Stack Support](#stack-support)
 - [Success Metrics](#success-metrics)
+- [Roadmap](#roadmap)
 
 ---
 
@@ -322,7 +321,7 @@ Review the PR, test locally if needed, and merge.
 ## Architecture
 
 **Version**: 2.0 (Skill-First Architecture)
-**Last Updated**: 2026-03-13
+**Last Updated**: 2026-03-16
 
 ### Skill-First Principles
 
@@ -341,7 +340,7 @@ graph TD
     SkillInvoke -->|doc-updater| Docs[Update documentation]
 
     Agent -->|planner| Plan[Architecture planning]
-    Agent -->|implementer-{lang}| Code[Code generation]
+    Agent -->|implementer-lang| Code[Code generation]
     Agent -->|visual-verifier| Visual[Screenshot analysis]
 
     style Skill fill:#4CAF50,color:#fff
@@ -557,27 +556,47 @@ The framework automatically detects and adapts to your stack:
 
 ## Roadmap
 
-### Current Release (v1.0)
+### Currently Implemented (Tested & Working)
 
-- ✅ Autonomous ticket creation with gap detection
-- ✅ Full feature implementation (code + tests + PR)
-- ✅ Multi-layer validation with auto-repair
-- ✅ Stack-agnostic design (8 languages, 40+ frameworks)
-- ✅ 27 integration tests
+**Core Workflows:**
 
-### Next Release (v1.1)
+- ✅ Autonomous ticket creation with intelligent gap detection (`/create-sdd-ticket`)
+- ✅ Ticket implementation: code + unit/integration/e2e tests + PR (`/implement-ticket`)
+- ✅ Stack detection and project initialization (8 languages, 40+ frameworks)
+- ✅ Multi-workspace/monorepo support (pnpm, Lerna, Yarn, npm workspaces)
+- ✅ Atomic sync with rollback and user modification preservation
 
-- 🚧 Multi-ticket sprint planning
-- 🚧 Parallel ticket implementation
-- 🚧 Advanced error recovery patterns (mainly in UI changes)
-- 🚧 Team collaboration features
+**Code Generation:**
 
-### Future (v2.0)
+- ✅ Multi-language support: TypeScript, JavaScript, Python, Go, Java, Rust, Ruby, PHP, C#, Swift, Kotlin, Elixir
+- ✅ Framework-aware generation (React, NestJS, Django, Spring Boot, etc.)
+- ✅ Test generation (unit, integration, e2e) following project patterns
 
-- 📋 Autonomous sprint planning from epics
-- 📋 Code review agent
-- 📋 Performance optimization suggestions
-- 📋 Technical debt tracking
+### In Progress (Implemented but Not Yet Tested)
+
+- ⚠️ **Parallel ticket execution** — 10+ concurrent tickets with isolated environments
+- ⚠️ **Visual regression testing** — Pixel-perfect screenshot comparison with diff generation
+- ⚠️ **PR review iteration loop** — Deterministic max 3 iterations with auto-fix blocking issues
+- ⚠️ **Video/screenshot uploads to PRs** — Attach visual evidence to pull requests
+- ⚠️ **Self-healing test capability** — Auto-fix failing tests based on error analysis
+
+### Next TODOs (Ordered by Priority)
+
+1. **Deterministic Ticket Implementation Workflow** — Phase-based execution with retries similar to initialize-project (Phase 1: Planning, Phase 2: Implementation, Phase 3: Testing, Phase 4: Quality Gates, Phase 5: PR Creation, Phase 6: Validation)
+2. **Test and validate parallel ticket execution** — Verify 10+ concurrent ticket support with isolated environments
+3. **Test and validate visual regression testing** — Validate screenshot comparison and diff generation workflow
+4. **Test and validate PR review iteration** — Verify deterministic review loop with auto-fix capability
+5. **UI Comparison for Ticket Creation** — Integrate visual testing into `/create-sdd-ticket` for frontend requirements
+6. **Mobile Framework Support** — React Native, Flutter, iOS/Android build skills
+7. **CI/CD Integration for Sync** — Automated framework updates with version control workflow
+8. **Mobile Testing Capabilities** — iOS/Android emulator integration and mobile-specific test patterns
+
+### Future (Longer Term)
+
+- **Multi-Provider AI Support** — Abstraction layer for OpenAI, Gemini, and other LLM providers
+- **Component-Level Visual Testing** — Granular UI comparison beyond full-page screenshots
+- **Autonomous Sprint Planning** — Epic → Story breakdown with dependency mapping
+- **Cost Optimization** — Model routing and fallback strategies across providers
 
 ---
 
