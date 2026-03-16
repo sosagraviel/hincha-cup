@@ -20,9 +20,9 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Arguments
-PROJECT_PATH="${1:-$(pwd)}"
-FRAMEWORK_PATH="${2:-/Users/ignaciobarreto/itIsHere/projects/ai-agentic-framework}"
+# Arguments (both required, no defaults)
+PROJECT_PATH="$1"
+FRAMEWORK_PATH="$2"
 START_PHASE="${3:-1}"  # Default to phase 1, can override with --start-phase N
 
 # Parse optional flags
@@ -46,6 +46,18 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate arguments
+if [ -z "$PROJECT_PATH" ]; then
+    echo -e "${RED}Error: Project path is required${NC}"
+    echo "Usage: $0 <project-path> <framework-path> [--start-phase N] [--clean]"
+    exit 1
+fi
+
+if [ -z "$FRAMEWORK_PATH" ]; then
+    echo -e "${RED}Error: Framework path is required${NC}"
+    echo "Usage: $0 <project-path> <framework-path> [--start-phase N] [--clean]"
+    exit 1
+fi
+
 if [ ! -d "$PROJECT_PATH" ]; then
     echo -e "${RED}Error: Project path does not exist: $PROJECT_PATH${NC}"
     exit 1

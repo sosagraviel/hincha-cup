@@ -17,25 +17,42 @@ set -e
 # - Atomic operations with rollback on error
 # - Interactive merge options for conflicting changes
 #
-# Usage:
-#   ./scripts/sync-framework-resources.sh <project-path> [framework-path]
+# Setup:
+#   The framework must be cloned at your project root:
 #
-# Examples:
-#   ./scripts/sync-framework-resources.sh ~/my-project
-#   ./scripts/sync-framework-resources.sh ~/my-project ~/ai-framework
+#   cd /path/to/your/project
+#   git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework
+#
+# Usage:
+#   ./qubika-agentic-framework/scripts/sync-framework-resources.sh
 #
 # ============================================================================
 
-PROJECT_PATH="${1:-$PWD}"
-FRAMEWORK_PATH="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# Auto-detect framework path from script's own location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FRAMEWORK_PATH="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-if [ ! -d "$PROJECT_PATH" ]; then
-  echo "❌ Error: Project path does not exist: $PROJECT_PATH"
+# Validate framework path exists
+if [ ! -d "$FRAMEWORK_PATH" ]; then
+  echo "❌ Error: Framework path does not exist: $FRAMEWORK_PATH"
+  echo ""
+  echo "This script must be run from the framework's scripts/ directory."
   exit 1
 fi
 
-if [ ! -d "$FRAMEWORK_PATH" ]; then
-  echo "❌ Error: Framework path does not exist: $FRAMEWORK_PATH"
+# Detect project path from parent directory of framework
+PROJECT_PATH="$(cd "$FRAMEWORK_PATH/.." && pwd)"
+
+# Validate project path is not the same as framework
+if [ "$PROJECT_PATH" = "$FRAMEWORK_PATH" ]; then
+  echo "❌ Error: Framework is not inside a project directory"
+  echo ""
+  echo "The framework must be cloned at your project root:"
+  echo ""
+  echo "  cd /path/to/your/project"
+  echo "  git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework"
+  echo "  ./qubika-agentic-framework/scripts/sync-framework-resources.sh"
+  echo ""
   exit 1
 fi
 

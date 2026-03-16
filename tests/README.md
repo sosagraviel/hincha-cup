@@ -1,6 +1,6 @@
 # Integration Tests
 
-Integration tests for the ai-agentic-framework.
+Integration tests for the qubika-agentic-framework.
 
 ## Directory Structure
 

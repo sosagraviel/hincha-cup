@@ -725,7 +725,7 @@ Integrates OAuth 2.0 authentication to allow users to sign in with Google and Gi
 
 ---
 
-🤖 Generated with [AI Agentic Framework](https://github.com/your-org/ai-agentic-framework)
+🤖 Generated with [AI Agentic Framework](https://github.com/your-org/qubika-agentic-framework)
 📊 Confidence: 82% | ⏱️ Implementation: 3.8 hours | 🧪 Coverage: 87%
 ```
 

@@ -154,36 +154,35 @@ sequenceDiagram
 
 ### Step 1: One-Time Setup (10-15 minutes)
 
-> ### ⚠️ CRITICAL: Update .gitignore First!
->
-> **Before running initialization**, add these lines to your `.gitignore`:
->
-> ```gitignore
-> # AI Agentic Framework - DO NOT COMMIT
-> .claude-temp/
-> .claude-backups/
-> ```
->
-> **Why?** These directories contain temporary files and backups that:
-> - Change on every sync (causing merge conflicts)
-> - Can be 10+ MB in size
-> - Are automatically regenerated
-> - Should never be committed to version control
->
-> **What TO commit:** `.claude/CLAUDE.md`, `.claude/framework-config.json`, `.claude/skills/project-context/`
-
 ```bash
-# Clone framework into your project
+# 1. Navigate to your project root
 cd /path/to/your-project
-git clone https://github.com/your-org/ai-agentic-framework.git
 
-# IMPORTANT: Update .gitignore first (see warning above)!
-echo ".claude-temp/" >> .gitignore
-echo ".claude-backups/" >> .gitignore
+# 2. Clone framework at project root
+git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework
 
-# Initialize (analyzes your codebase and sets everything up)
-./ai-agentic-framework/scripts/initialize-project.sh
+# 3. Run initialization (analyzes your codebase and sets everything up)
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
+
+> ### ℹ️ What happens during initialization
+>
+> The script will:
+> 1. Auto-detect the project from the parent directory
+> 2. Automatically add `qubika-agentic-framework/`, `.claude-temp/`, and `.claude-backups/` to your `.gitignore`
+> 3. Analyze your codebase (10-15 minutes)
+> 4. Generate project-specific documentation and AI agents
+>
+> **What gets committed:**
+> - ✅ `.claude/CLAUDE.md` (Quick reference guide)
+> - ✅ `.claude/framework-config.json` (Framework state)
+> - ✅ `.claude/skills/` (Project-specific and language skills)
+> - ✅ `.claude/agents/` (Generated agents)
+>
+> **What's auto-ignored:**
+> - ❌ `qubika-agentic-framework/` (Framework source - managed separately)
+> - ❌ `.claude-temp/` (Temporary analysis files)
+> - ❌ `.claude-backups/` (Backup files)
 
 **What initialization does**:
 
@@ -537,9 +536,8 @@ The framework automatically detects and adapts to your stack:
 - 🎯 [Examples](./examples/) - Real-world scenarios
 
 ### Support Channels
-- **Issues**: [GitHub Issues](https://github.com/your-org/ai-agentic-framework/issues)
-- **Slack**: #ai-framework-support
-- **Email**: ai-team@yourcompany.com
+- **Issues**: [GitHub Issues](https://github.com/thisisqubika/qubika-agentic-framework/issues)
+- **Slack**: #qubika-agentic-framework
 
 ### Troubleshooting
 
@@ -549,7 +547,7 @@ The framework automatically detects and adapts to your stack:
 **Problem**: Implementation doesn't match project style
 → Solution: Re-run initialization to learn latest patterns:
   ```bash
-  ./ai-agentic-framework/scripts/initialize-project.sh
+  ./qubika-agentic-framework/scripts/initialize-project.sh
   ```
 
 **Problem**: Tests failing

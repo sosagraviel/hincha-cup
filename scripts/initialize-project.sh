@@ -49,17 +49,19 @@ show_help() {
     cat << EOF
 ${CYAN}AI Agentic Framework - Project Initialization${NC}
 
-${BLUE}USAGE:${NC}
-    $0 [OPTIONS] [project-path]
+${BLUE}SETUP:${NC}
+    This framework must be cloned at the root of your project:
 
-${BLUE}ARGUMENTS:${NC}
-    project-path          Path to the project to initialize
-                         Default: current directory (pwd)
+    cd /path/to/your/project
+    git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework
+
+    Then run from the framework directory:
+    ./qubika-agentic-framework/scripts/initialize-project.sh
+
+${BLUE}USAGE:${NC}
+    $0 [OPTIONS]
 
 ${BLUE}OPTIONS:${NC}
-    --framework-path PATH Path to ai-agentic-framework directory
-                         Default: <project-path>/ai-agentic-framework
-
     --skip-gap-questions  Skip gap analysis questions (fully automated mode)
                          Default: false (pauses if gaps detected)
 
@@ -76,23 +78,18 @@ ${BLUE}OPTIONS:${NC}
     --help, -h           Show this help message
 
 ${BLUE}EXAMPLES:${NC}
-    # Basic usage (current directory, framework in ./ai-agentic-framework)
-    $0
-
-    # Or specify project path explicitly
-    $0 /path/to/project
+    # Basic usage (run from project root)
+    cd /path/to/your/project
+    ./qubika-agentic-framework/scripts/initialize-project.sh
 
     # Fully automated (skip gap questions)
-    $0 --skip-gap-questions
+    ./qubika-agentic-framework/scripts/initialize-project.sh --skip-gap-questions
 
     # Re-run from phase 4 (skip AI analysis phases 1-3)
-    $0 --start-phase 4
-
-    # Custom framework location
-    $0 --framework-path /path/to/framework
+    ./qubika-agentic-framework/scripts/initialize-project.sh --start-phase 4
 
     # With custom timeout (60 minutes)
-    $0 --timeout 3600
+    ./qubika-agentic-framework/scripts/initialize-project.sh --timeout 3600
 
 ${BLUE}WHAT THIS DOES:${NC}
     1. Phase 1: Parallel analysis (4 agents with retry/feedback)
@@ -125,8 +122,6 @@ EOF
 # ARGUMENT PARSING
 # ============================================================================
 
-PROJECT_PATH=""
-FRAMEWORK_PATH=""
 SKIP_GAP_QUESTIONS="false"
 START_PHASE=1
 TIMEOUT=1800
@@ -134,10 +129,6 @@ CLEAN_TEMP="false"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --framework-path)
-            FRAMEWORK_PATH="$2"
-            shift 2
-            ;;
         --skip-gap-questions)
             SKIP_GAP_QUESTIONS="true"
             shift
@@ -158,20 +149,18 @@ while [[ $# -gt 0 ]]; do
             show_help
             exit 0
             ;;
-        -*)
-            echo -e "${RED}Error: Unknown option: $1${NC}"
-            echo "Use --help for usage information"
-            exit 1
-            ;;
         *)
-            if [ -z "$PROJECT_PATH" ]; then
-                PROJECT_PATH="$1"
-            else
-                echo -e "${RED}Error: Multiple project paths specified${NC}"
-                echo "Use --help for usage information"
-                exit 1
-            fi
-            shift
+            echo -e "${RED}Error: Unknown argument: $1${NC}"
+            echo ""
+            echo "This script no longer accepts path arguments."
+            echo "The framework must be cloned at your project root:"
+            echo ""
+            echo "  cd /path/to/your/project"
+            echo "  git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework"
+            echo "  ./qubika-agentic-framework/scripts/initialize-project.sh"
+            echo ""
+            echo "Use --help for more information"
+            exit 1
             ;;
     esac
 done
@@ -191,52 +180,42 @@ echo -e "${CYAN}  AI AGENTIC FRAMEWORK - PROJECT INITIALIZATION${NC}"
 echo -e "${CYAN}========================================================================${NC}"
 echo ""
 
-# Default to current directory if not specified
-if [ -z "$PROJECT_PATH" ]; then
-    PROJECT_PATH=$(pwd)
-    echo -e "${BLUE}ℹ No project path specified, using current directory${NC}"
-    echo ""
-fi
-
-# Resolve to absolute path
-PROJECT_PATH=$(cd "$PROJECT_PATH" 2>/dev/null && pwd || echo "$PROJECT_PATH")
-
-# Validate project path exists
-if [ ! -d "$PROJECT_PATH" ]; then
-    echo -e "${RED}Error: Project path does not exist: $PROJECT_PATH${NC}"
-    exit 1
-fi
-
 # Auto-detect framework path from script's own location
-if [ -z "$FRAMEWORK_PATH" ]; then
-    # This script is at: framework-dir/scripts/initialize-project.sh
-    # So framework root is one level up
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    FRAMEWORK_PATH="$(cd "$SCRIPT_DIR/.." && pwd)"
-    echo -e "${BLUE}ℹ Auto-detected framework at: $FRAMEWORK_PATH${NC}"
-    echo ""
-else
-    # Resolve user-provided path to absolute
-    if [ -d "$FRAMEWORK_PATH" ]; then
-        FRAMEWORK_PATH=$(cd "$FRAMEWORK_PATH" && pwd)
-    fi
-fi
+# This script is at: framework-dir/scripts/initialize-project.sh
+# So framework root is one level up
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FRAMEWORK_PATH="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Validate framework path exists
 if [ ! -d "$FRAMEWORK_PATH" ]; then
     echo -e "${RED}Error: Framework path does not exist: $FRAMEWORK_PATH${NC}"
     echo ""
-    echo "This usually means the script is not running from the framework's scripts/ directory."
-    echo ""
-    echo "Solutions:"
-    echo "  1. Run the script from its location:"
-    echo "     ./path/to/framework/scripts/initialize-project.sh"
-    echo ""
-    echo "  2. Or specify the framework path explicitly:"
-    echo "     ./path/to/framework/scripts/initialize-project.sh --framework-path /full/path/to/framework"
+    echo "This script must be run from the framework's scripts/ directory."
+    echo "Expected to find framework at: $FRAMEWORK_PATH"
     echo ""
     exit 1
 fi
+
+# Detect project path from parent directory of framework
+# Framework should be at: project-root/qubika-agentic-framework
+PROJECT_PATH="$(cd "$FRAMEWORK_PATH/.." && pwd)"
+
+# Validate project path is not the same as framework (framework should be inside project)
+if [ "$PROJECT_PATH" = "$FRAMEWORK_PATH" ]; then
+    echo -e "${RED}Error: Framework is not inside a project directory${NC}"
+    echo ""
+    echo "The framework must be cloned at your project root:"
+    echo ""
+    echo "  cd /path/to/your/project"
+    echo "  git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework"
+    echo "  ./qubika-agentic-framework/scripts/initialize-project.sh"
+    echo ""
+    exit 1
+fi
+
+echo -e "${BLUE}ℹ Framework location: $FRAMEWORK_PATH${NC}"
+echo -e "${BLUE}ℹ Project location:   $PROJECT_PATH${NC}"
+echo ""
 
 # Validate orchestrate script exists
 ORCHESTRATE_SCRIPT="$FRAMEWORK_PATH/skills/010-foundation/initialize-project/scripts/orchestrate-initialization.sh"

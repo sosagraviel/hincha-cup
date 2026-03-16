@@ -1928,9 +1928,9 @@ jobs:
 # Support and Feedback
 
 For issues, feature requests, or questions:
-- **GitHub Issues**: https://github.com/your-org/issues
-- **Documentation**: https://docs.your-org.com/implement-ticket
-- **Slack**: #ai-agentic-framework
+- **GitHub Issues**: https://github.com/thisisqubika/qubika-agentic-framework/issues
+- **Documentation**: https://github.com/thisisqubika/qubika-agentic-framework
+- **Slack**: #qubika-agentic-framework
 
 ---
 

@@ -46,17 +46,13 @@ Thank you for your interest in contributing to the AI Agentic Framework! This gu
 
 ```bash
 # 1. Fork and clone the repository
-git clone https://github.com/your-username/ai-agentic-framework.git
-cd ai-agentic-framework
+git clone https://github.com/your-username/qubika-agentic-framework.git
+cd qubika-agentic-framework
 
-# 2. Bootstrap the framework
-cd ai-agentic-framework
-./ai-agentic-framework/scripts/initialize-project.sh
-
-# 3. Test the framework on a sample project
+# 2. Test the framework on a sample project
 cd /path/to/test-project
-claude
-/initialize-project
+git clone https://github.com/your-username/qubika-agentic-framework.git qubika-agentic-framework
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
 ---
@@ -305,8 +301,8 @@ Expected output format (markdown, JSON, code, etc.).
 **Step 1**: Create agent template
 
 ```bash
-mkdir -p ai-agentic-framework/agents/templates
-touch ai-agentic-framework/agents/templates/your-agent.md
+mkdir -p qubika-agentic-framework/agents/templates
+touch qubika-agentic-framework/agents/templates/your-agent.md
 ```
 
 **Step 2**: Define agent role and skills
@@ -351,10 +347,10 @@ The framework includes integration tests for the full SDLC workflow:
 
 ```bash
 # Run all integration tests
-./ai-agentic-framework/tests/run-integration-tests.sh
+./qubika-agentic-framework/tests/run-integration-tests.sh
 
 # Run specific test
-./ai-agentic-framework/tests/run-integration-tests.sh go-microservice
+./qubika-agentic-framework/tests/run-integration-tests.sh go-microservice
 ```
 
 ### Manual Testing
@@ -398,7 +394,7 @@ git checkout -b feature/add-vue-skill
 
 ```bash
 # Run integration tests
-./ai-agentic-framework/tests/run-integration-tests.sh
+./qubika-agentic-framework/tests/run-integration-tests.sh
 
 # Test on real projects
 /initialize-project

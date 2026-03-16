@@ -58,7 +58,7 @@ function extractSkillReferences(content) {
  * Check if skill exists in framework
  */
 function checkSkillExists(skillPath, frameworkPath) {
-  const fullPath = path.join(frameworkPath, 'ai-agentic-framework/skills', skillPath);
+  const fullPath = path.join(frameworkPath, 'qubika-agentic-framework/skills', skillPath);
 
   // Check for SKILL.md
   const skillFile = path.join(fullPath, 'SKILL.md');
