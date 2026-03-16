@@ -154,7 +154,7 @@ cd "$PROJECT_PATH"
 # ============================================================================
 # Only check .gitignore if starting from Phase 1 (full initialization)
 if [ "$START_PHASE" -le 1 ]; then
-  bash "$SCRIPT_DIR/helpers/gitignore-manager.sh" "$PROJECT_PATH"
+  bash "$SCRIPT_DIR/helpers/gitignore-manager.sh" "$PROJECT_PATH" "$FRAMEWORK_PATH"
 fi
 
 echo ""
