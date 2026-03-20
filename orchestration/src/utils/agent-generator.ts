@@ -1,7 +1,25 @@
 import { readFileSync, existsSync, writeFileSync, readdirSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import Handlebars from 'handlebars';
 import type { StackProfile } from './config-generator.js';
 import type { ResolvedSkill } from './skill-resolver.js';
+
+// Register Handlebars helpers (matching bash implementation)
+Handlebars.registerHelper('formatSkills', (skills: string[] | undefined) => {
+  if (!skills?.length) return '[]';
+  return '\n  - ' + skills.join('\n  - ');
+});
+
+Handlebars.registerHelper('skillsDoc', (skills: string[] | undefined) => {
+  if (!skills?.length) return 'No skills preloaded.';
+  return (
+    'The following skills are preloaded and available:\n\n' +
+    skills
+      .map((s) => `- **${s}**: Provides patterns and conventions for this area`)
+      .join('\n') +
+    '\n'
+  );
+});
 
 /**
  * Agent metadata
@@ -89,82 +107,90 @@ function getDefaultCommands(language: string): Record<string, string> {
 }
 
 /**
- * Filter skills for planner (all language and framework skills)
+ * Agent skill assignments interface
  */
-function filterSkillsForPlanner(skills: ResolvedSkill[], stackProfile: StackProfile): string[] {
-  const allLanguages = stackProfile.languages.map(l => l.toLowerCase());
-
-  return skills
-    .filter(s => {
-      // Check if this is a language skill
-      const isLanguageSkill = allLanguages.some(lang =>
-        s.reason?.toLowerCase().includes(lang)
-      );
-
-      // Check if this is a framework skill
-      const isFrameworkSkill = s.reason?.toLowerCase().includes('triggered by:') && !isLanguageSkill;
-
-      return isLanguageSkill || isFrameworkSkill;
-    })
-    .map(s => s.name);
+interface AgentSkillAssignments {
+  planner: ResolvedSkill[];
+  [agentName: string]: ResolvedSkill[]; // implementer-typescript, implementer-python, etc.
 }
 
 /**
- * Filter skills for implementer (only relevant language and framework skills)
+ * Assign skills to agents based on configuration
+ * Pure configuration-driven logic - NO hardcoded filters
  */
-function filterSkillsForImplementer(
-  skills: ResolvedSkill[],
-  language: string,
-  stackProfile: StackProfile
-): string[] {
-  const langLower = language.toLowerCase();
-  const allLanguages = stackProfile.languages.map(l => l.toLowerCase());
+function assignSkillsToAgents(
+  resolvedSkills: ResolvedSkill[],
+  stackProfile: StackProfile,
+  frameworkPath: string
+): AgentSkillAssignments {
+  const assignments: AgentSkillAssignments = {
+    planner: [],
+    'implementer-generic': []
+  };
 
-  return skills
-    .filter(s => {
-      // Check if this skill is triggered by a programming language
-      const isLanguageSkill = allLanguages.some(lang =>
-        s.reason?.toLowerCase().includes(lang)
-      );
-
-      if (isLanguageSkill) {
-        // Only keep if it matches THIS implementer's language
-        return s.reason?.toLowerCase().includes(langLower);
-      }
-
-      // Check if this is a framework skill
-      const isFrameworkSkill = s.reason?.toLowerCase().includes('triggered by:') && !isLanguageSkill;
-
-      if (isFrameworkSkill) {
-        // Use compatible_languages to determine if this framework works with this language
-        if (s.compatible_languages && s.compatible_languages.length > 0) {
-          return s.compatible_languages.some(compatLang =>
-            compatLang.toLowerCase() === langLower
-          );
-        }
-        // If no compatible_languages defined, include it
-        return true;
-      }
-
-      // Filter out "always" skills
-      return false;
-    })
-    .map(s => s.name);
-}
-
-/**
- * Render template with variables
- */
-function renderTemplate(template: string, variables: Record<string, any>): string {
-  let rendered = template;
-
-  for (const [key, value] of Object.entries(variables)) {
-    const placeholder = `{{${key}}}`;
-    const replacement = Array.isArray(value) ? value.join(', ') : String(value);
-    rendered = rendered.replaceAll(placeholder, replacement);
+  // Initialize assignments for each detected language
+  for (const lang of stackProfile.languages) {
+    assignments[`implementer-${lang}`] = [];
   }
 
-  return rendered;
+  // Process resolved skills (from resolveSkills - does NOT include "generated" skills)
+  for (const skill of resolvedSkills) {
+    // "always" skills are copied but NOT linked to any agents
+    if (skill.trigger_mode === 'always') {
+      continue; // Skill is copied by resolveSkills but not linked to agents
+    }
+
+    // Skip non-linkable skills (external resources like Confluence, Notion)
+    if (skill.is_linkable_to_agents === false) {
+      continue; // Skill is copied but not added to any agent
+    }
+
+    // Only process "triggered" skills for linking
+    if (skill.trigger_mode === 'triggered') {
+      if (skill.compatible_languages && skill.compatible_languages.length > 0) {
+        // Language or framework skill
+        assignments.planner.push(skill); // Planner gets all language/framework skills
+
+        for (const compatLang of skill.compatible_languages) {
+          const agentName = `implementer-${compatLang}`;
+          if (assignments[agentName]) {
+            assignments[agentName].push(skill);
+          }
+        }
+      }
+      else {
+        // Infrastructure skill (docker, aws-cli) with empty compatible_languages
+        // At this point, is_linkable_to_agents is NOT false (already filtered above)
+        assignments.planner.push(skill);
+        assignments['implementer-generic'].push(skill);
+      }
+    }
+  }
+
+  // IMPORTANT: Manually add project-context to planner + all implementers
+  // project-context has trigger_mode="generated" so it's NOT in resolvedSkills
+  const projectContextSkill: ResolvedSkill = {
+    name: 'project-context',
+    path: join(frameworkPath, 'skills/010-foundation/project-context'),
+    reason: 'Always included',
+    description: 'Project-specific architecture and patterns'
+  };
+
+  assignments.planner.push(projectContextSkill);
+  assignments['implementer-generic'].push(projectContextSkill);
+  for (const lang of stackProfile.languages) {
+    assignments[`implementer-${lang}`].push(projectContextSkill);
+  }
+
+  return assignments;
+}
+
+/**
+ * Render template with variables using Handlebars (matching bash implementation)
+ */
+function renderTemplate(template: string, variables: Record<string, any>): string {
+  const compiledTemplate = Handlebars.compile(template);
+  return compiledTemplate(variables);
 }
 
 /**
@@ -172,8 +198,7 @@ function renderTemplate(template: string, variables: Record<string, any>): strin
  */
 function generatePlannerAgent(
   templatesPath: string,
-  skills: ResolvedSkill[],
-  stackProfile: StackProfile
+  skills: ResolvedSkill[]
 ): GeneratedAgent | null {
   const templatePath = join(templatesPath, 'planner.template.md');
 
@@ -182,10 +207,10 @@ function generatePlannerAgent(
   }
 
   const template = readFileSync(templatePath, 'utf-8');
-  const filteredSkills = filterSkillsForPlanner(skills, stackProfile);
+  const skillNames = skills.map(s => s.name);
 
   const content = renderTemplate(template, {
-    skills: filteredSkills
+    skills: skillNames
   });
 
   return {
@@ -205,7 +230,6 @@ function generateImplementerAgent(
   templatesPath: string,
   language: string,
   skills: ResolvedSkill[],
-  stackProfile: StackProfile,
   projectPath: string
 ): GeneratedAgent | null {
   const templatePath = join(templatesPath, `implementer-${language}.template.md`);
@@ -218,7 +242,7 @@ function generateImplementerAgent(
   }
 
   const template = readFileSync(actualTemplatePath, 'utf-8');
-  const filteredSkills = filterSkillsForImplementer(skills, language, stackProfile);
+  const skillNames = skills.map(s => s.name);
 
   // Get commands
   const packageCommands = extractPackageCommands(projectPath);
@@ -233,7 +257,7 @@ function generateImplementerAgent(
 
   const content = renderTemplate(template, {
     stack: language,
-    skills: filteredSkills,
+    skills: skillNames,
     ...commands
   });
 
@@ -251,7 +275,8 @@ function generateImplementerAgent(
  * Generate generic implementer agent (for non-code files)
  */
 function generateGenericImplementerAgent(
-  templatesPath: string
+  templatesPath: string,
+  skills: ResolvedSkill[]
 ): GeneratedAgent | null {
   const templatePath = join(templatesPath, 'implementer-generic.template.md');
 
@@ -260,7 +285,11 @@ function generateGenericImplementerAgent(
   }
 
   const template = readFileSync(templatePath, 'utf-8');
-  const content = renderTemplate(template, {});
+  const skillNames = skills.map(s => s.name);
+
+  const content = renderTemplate(template, {
+    skills: skillNames
+  });
 
   return {
     name: 'implementer-generic',
@@ -312,12 +341,16 @@ export function generateAgents(
   stackProfile: StackProfile,
   skills: ResolvedSkill[],
   projectPath: string,
-  templatesPath: string
+  templatesPath: string,
+  frameworkPath: string
 ): GeneratedAgent[] {
   const agents: GeneratedAgent[] = [];
 
+  // Assign skills to agents using configuration-driven logic
+  const assignments = assignSkillsToAgents(skills, stackProfile, frameworkPath);
+
   // Generate planner
-  const planner = generatePlannerAgent(templatesPath, skills, stackProfile);
+  const planner = generatePlannerAgent(templatesPath, assignments.planner);
   if (planner) {
     agents.push(planner);
   }
@@ -325,21 +358,28 @@ export function generateAgents(
   // Generate implementer for each language
   if (stackProfile.languages) {
     for (const language of stackProfile.languages) {
-      const implementer = generateImplementerAgent(
-        templatesPath,
-        language,
-        skills,
-        stackProfile,
-        projectPath
-      );
-      if (implementer) {
-        agents.push(implementer);
+      const agentName = `implementer-${language}`;
+      const agentSkills = assignments[agentName];
+
+      if (agentSkills) {
+        const implementer = generateImplementerAgent(
+          templatesPath,
+          language,
+          agentSkills,
+          projectPath
+        );
+        if (implementer) {
+          agents.push(implementer);
+        }
       }
     }
   }
 
-  // Generate generic implementer (for config files, YAML, Docker, etc.)
-  const genericImplementer = generateGenericImplementerAgent(templatesPath);
+  // Generate generic implementer
+  const genericImplementer = generateGenericImplementerAgent(
+    templatesPath,
+    assignments['implementer-generic']
+  );
   if (genericImplementer) {
     agents.push(genericImplementer);
   }

@@ -221,6 +221,9 @@ async function generateConfig() {
     // it tries to read from framework-config.json which doesn't exist yet
     const techStackData = phase1Analysis.tech_stack_dependencies?.findings || {};
 
+    // Also extract from code_patterns_testing for better testing framework detection
+    const codePatterns = phase1Analysis.code_patterns_testing?.findings || {};
+
     // Extract languages from phase1 workspaces
     const detectedLanguages = new Set();
     if (techStackData.multi_stack?.workspaces) {
@@ -293,6 +296,21 @@ async function generateConfig() {
               testingFrameworks[lang].push(dep);
             }
           });
+        }
+      });
+    }
+
+    // Extract testing frameworks from code_patterns_testing (more accurate)
+    if (codePatterns.multi_stack?.workspaces) {
+      codePatterns.multi_stack.workspaces.forEach(ws => {
+        if (ws.testing_framework) {
+          const lang = (ws.language || 'javascript').toLowerCase();
+          if (!testingFrameworks[lang]) {
+            testingFrameworks[lang] = [];
+          }
+          if (!testingFrameworks[lang].includes(ws.testing_framework)) {
+            testingFrameworks[lang].push(ws.testing_framework);
+          }
         }
       });
     }

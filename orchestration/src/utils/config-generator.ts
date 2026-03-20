@@ -125,6 +125,9 @@ function extractStackFromPhase1(phase1Analysis: Record<string, any>): {
   // Extract from tech-stack-dependencies analysis
   const techStackData = phase1Analysis.tech_stack_dependencies?.findings || {};
 
+  // Also extract from code_patterns_testing for better testing framework detection
+  const codePatterns = phase1Analysis.code_patterns_testing?.findings || {};
+
   // Extract workspaces and languages
   if (techStackData.multi_stack?.workspaces) {
     for (const ws of techStackData.multi_stack.workspaces) {
@@ -166,6 +169,21 @@ function extractStackFromPhase1(phase1Analysis: Record<string, any>): {
         type: inferWorkspaceType(ws),
         frameworks: ws.dependencies || []
       });
+    }
+  }
+
+  // Extract testing frameworks from code_patterns_testing (more accurate)
+  if (codePatterns.multi_stack?.workspaces) {
+    for (const ws of codePatterns.multi_stack.workspaces) {
+      if (ws.testing_framework) {
+        const lang = (ws.language || 'javascript').toLowerCase();
+        if (!testingFrameworks[lang]) {
+          testingFrameworks[lang] = [];
+        }
+        if (!testingFrameworks[lang].includes(ws.testing_framework)) {
+          testingFrameworks[lang].push(ws.testing_framework);
+        }
+      }
     }
   }
 
@@ -226,7 +244,7 @@ export function generateFrameworkConfig(
     primary_language: stackData.primaryLanguage,
     frameworks: stackData.frameworks,
     testing_frameworks: stackData.testingFrameworks,
-    detected_workspaces: stackData.detectedWorkspaces,
+    detected_workspaces: stackData.detectedWorkspaces || [],
     file_counts: stackProfile.file_counts || {}
   };
 

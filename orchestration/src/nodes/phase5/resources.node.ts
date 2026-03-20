@@ -52,7 +52,13 @@ export async function resourcesNode(
     // Step 2: Generate agents
     console.log('[Phase 5: Resources] Generating agents...');
     const templatesPath = join(state.framework_path, 'agents', 'templates');
-    const agents = generateAgents(stackProfile, resolvedSkills, state.project_path, templatesPath);
+    const agents = generateAgents(
+      stackProfile,
+      resolvedSkills,
+      state.project_path,
+      templatesPath,
+      state.framework_path
+    );
 
     // Write agents to disk
     writeAgents(agents, state.project_path);

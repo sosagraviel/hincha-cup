@@ -12,7 +12,8 @@ const SkillConfigSchema = z.object({
   description: z.string(),
   triggers: z.array(z.string()).optional(),
   trigger_mode: z.enum(['always', 'triggered', 'generated']).default('triggered'),
-  compatible_languages: z.array(z.string()).optional()
+  compatible_languages: z.array(z.string()).optional(),
+  is_linkable_to_agents: z.boolean().optional()
 });
 
 export type SkillConfig = z.infer<typeof SkillConfigSchema>;
@@ -30,6 +31,8 @@ export interface ResolvedSkill {
   reason: string;
   description: string;
   compatible_languages?: string[];
+  trigger_mode?: 'always' | 'triggered' | 'generated';
+  is_linkable_to_agents?: boolean;
 }
 
 /**
@@ -134,7 +137,9 @@ export function resolveSkills(
         path: join(frameworkPath, 'skills', skill.path),
         reason: 'Always included',
         description: skill.description,
-        compatible_languages: skill.compatible_languages
+        compatible_languages: skill.compatible_languages,
+        trigger_mode: skill.trigger_mode,
+        is_linkable_to_agents: skill.is_linkable_to_agents
       });
       continue;
     }
@@ -147,20 +152,15 @@ export function resolveSkills(
         path: join(frameworkPath, 'skills', skill.path),
         reason: `Triggered by: ${matchedTriggers.join(', ')}`,
         description: skill.description,
-        compatible_languages: skill.compatible_languages
+        compatible_languages: skill.compatible_languages,
+        trigger_mode: skill.trigger_mode,
+        is_linkable_to_agents: skill.is_linkable_to_agents
       });
     }
   }
 
-  // Always add project-context skill
-  resolved.push({
-    name: 'project-context',
-    path: join(frameworkPath, 'skills', '010-foundation', 'project-context'),
-    reason: 'Always included',
-    description: 'Project context and conventions',
-    compatible_languages: []
-  });
-
+  // NOTE: project-context is NOT added here because it's marked as "generated"
+  // Agents will add it manually after filtering to ensure it's always included
   return resolved;
 }
 

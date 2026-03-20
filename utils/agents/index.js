@@ -136,6 +136,25 @@ async function generateImplementerAgent(
   );
 }
 
+async function generateGenericImplementerAgent(templatesPath, skills) {
+  const template = await findTemplate(templatesPath, 'implementer-generic');
+  if (!template) return null;
+
+  // Extract skill names from skill objects
+  const skillNames = skills.map(s => s.name);
+
+  return createAgent(
+    template,
+    { skills: skillNames },
+    {
+      name: 'implementer-generic',
+      filename: 'implementer-generic.md',
+      model: 'sonnet',
+      description: 'Expert full-stack and DevOps specialist implementing any file type following best practices'
+    }
+  );
+}
+
 async function generateVisualVerifierAgent(templatesPath, skills, stackProfile) {
   const template = await findTemplate(templatesPath, 'visual-verifier');
   if (!template) return null;
@@ -182,8 +201,10 @@ async function generateAgents(stackProfile, projectPath, templatesPath, framewor
   }
 
   try {
-    // Planner gets only language + framework skills + project-context
+    // Resolve all skills once (same for all agents)
     const allSkills = resolveSkills(stackProfile, frameworkPath);
+
+    // Planner gets only language + framework skills + project-context
     const filteredForPlanner = filterSkillsForPlanner(allSkills, stackProfile);
     const plannerSkills = addProjectContext(filteredForPlanner, frameworkPath);
     const plannerAgent = await generatePlannerAgent(templatesPath, plannerSkills);
@@ -196,7 +217,6 @@ async function generateAgents(stackProfile, projectPath, templatesPath, framewor
       const commands = await extractCommandsForLanguage(projectPath, stackProfile, language);
 
       // Implementer gets filtered skills (only relevant language skills) + all frameworks + project-context
-      const allSkills = resolveSkills(stackProfile, frameworkPath);
       const filteredSkills = filterSkillsForImplementer(allSkills, language, stackProfile);
       const implementerSkills = addProjectContext(filteredSkills, frameworkPath);
       const implementerAgent = await generateImplementerAgent(
@@ -211,9 +231,19 @@ async function generateAgents(stackProfile, projectPath, templatesPath, framewor
       }
     }
 
+    // Generate generic implementer (for config files, YAML, Docker, etc.)
+    const genericSkills = addProjectContext(allSkills, frameworkPath);
+    const genericImplementerAgent = await generateGenericImplementerAgent(
+      templatesPath,
+      genericSkills
+    );
+    if (genericImplementerAgent) {
+      generation.implementation.push(genericImplementerAgent);
+    }
+
     const frontendFrameworks = stackProfile.frameworks?.frontend || [];
     if (frontendFrameworks.length > 0) {
-      const visualVerifierSkills = resolveSkills(stackProfile, frameworkPath).filter((s) =>
+      const visualVerifierSkills = allSkills.filter((s) =>
         s.name.includes('visual')
       );
       const visualVerifierAgent = await generateVisualVerifierAgent(
@@ -291,6 +321,8 @@ function hashFile(filePath) {
 function getTemplateFilename(agentName) {
   if (agentName === 'planner') {
     return 'planner.template.md';
+  } else if (agentName === 'implementer-generic') {
+    return 'implementer-generic.template.md';
   } else if (agentName.startsWith('implementer-')) {
     return 'implementer.template.md';
   } else if (agentName === 'visual-verifier') {
@@ -398,11 +430,19 @@ async function regenerateSingleAgent(agentName, projectPath, frameworkPath) {
       const skills = addProjectContext(filteredForPlanner, frameworkPath);
       agent = await generatePlannerAgent(templatesPath, skills);
     } else if (category === 'implementation') {
-      const allSkills = resolveSkills(stackProfile, frameworkPath);
-      const filteredSkills = filterSkillsForImplementer(allSkills, language, stackProfile);
-      const skills = addProjectContext(filteredSkills, frameworkPath);
-      const commands = await extractCommandsForLanguage(projectPath, stackProfile, language);
-      agent = await generateImplementerAgent(templatesPath, stackProfile, skills, commands, language);
+      if (agentName === 'implementer-generic') {
+        // Generic implementer (for non-code files)
+        const allSkills = resolveSkills(stackProfile, frameworkPath);
+        const skills = addProjectContext(allSkills, frameworkPath);
+        agent = await generateGenericImplementerAgent(templatesPath, skills);
+      } else {
+        // Language-specific implementer
+        const allSkills = resolveSkills(stackProfile, frameworkPath);
+        const filteredSkills = filterSkillsForImplementer(allSkills, language, stackProfile);
+        const skills = addProjectContext(filteredSkills, frameworkPath);
+        const commands = await extractCommandsForLanguage(projectPath, stackProfile, language);
+        agent = await generateImplementerAgent(templatesPath, stackProfile, skills, commands, language);
+      }
     } else if (category === 'verification') {
       const skills = resolveSkills(stackProfile, frameworkPath).filter((s) =>
         s.name.includes('visual')
