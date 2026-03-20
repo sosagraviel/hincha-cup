@@ -104,6 +104,11 @@ export async function dataFlowsIntegrationsAnalyzerNode(
     } catch (error) {
       const err = error as Error;
 
+      // Check if this is a SIGINT abort - throw immediately without retrying
+      if (err.message.includes('SIGINT') || err.message.includes('interrupted by user')) {
+        throw error; // Re-throw to propagate up to graph.invoke()
+      }
+
       // Save error to file for debugging
       const errorFilePath = join(tempDir, 'phase1-outputs', `${agentName}-attempt${retryState.attempt}.err`);
       writeFileSync(errorFilePath, `${err.message}\n\n${err.stack || ''}`);

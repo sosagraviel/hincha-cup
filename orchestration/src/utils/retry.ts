@@ -1,8 +1,5 @@
 import type { RetryState } from '../state/schemas/initialize-project.schema.js';
 
-/**
- * Retry configuration
- */
 export interface RetryConfig {
   maxAttempts: number;
   initialDelayMs: number;
@@ -11,14 +8,6 @@ export interface RetryConfig {
   jitter: boolean;
 }
 
-/**
- * Default retry configuration
- * - 5 attempts (matches bash implementation)
- * - Initial delay: 2 seconds
- * - Max delay: 30 seconds
- * - 2x backoff multiplier
- * - Jitter enabled to avoid thundering herd
- */
 export const DEFAULT_RETRY_CONFIG: RetryConfig = {
   maxAttempts: 5,
   initialDelayMs: 2000,
@@ -28,14 +17,7 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
 };
 
 /**
- * Calculate next delay using exponential backoff
- *
- * Formula: delay = min(initialDelay * (multiplier ^ attempt), maxDelay)
- * With jitter: delay = baseDelay * (0.5 + random * 0.5)
- *
- * @param attempt - Current attempt number (0-indexed)
- * @param config - Retry configuration
- * @returns Delay in milliseconds
+ * Calculate next delay using exponential backoff with jitter
  */
 export function calculateBackoffDelay(
   attempt: number,
@@ -47,23 +29,16 @@ export function calculateBackoffDelay(
   );
 
   if (config.jitter) {
-    // Add 0-50% jitter to prevent thundering herd
     return Math.floor(baseDelay * (0.5 + Math.random() * 0.5));
   }
 
   return baseDelay;
 }
 
-/**
- * Sleep for specified milliseconds
- */
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * Initialize retry state for a new operation
- */
 export function initRetryState(maxAttempts: number = DEFAULT_RETRY_CONFIG.maxAttempts): RetryState {
   return {
     attempt: 0,
@@ -74,12 +49,7 @@ export function initRetryState(maxAttempts: number = DEFAULT_RETRY_CONFIG.maxAtt
 }
 
 /**
- * Update retry state after a failed attempt
- *
- * @param state - Current retry state
- * @param error - Error message from failed attempt
- * @param config - Retry configuration
- * @returns Updated retry state
+ * Update retry state after failed attempt
  */
 export function updateRetryState(
   state: RetryState,
@@ -87,7 +57,7 @@ export function updateRetryState(
   config: RetryConfig = DEFAULT_RETRY_CONFIG
 ): RetryState {
   const nextAttempt = state.attempt + 1;
-  const errorHistory = [...state.error_history, error].slice(-3); // Keep last 3 errors
+  const errorHistory = [...state.error_history, error].slice(-3);
 
   return {
     ...state,
@@ -98,9 +68,6 @@ export function updateRetryState(
   };
 }
 
-/**
- * Mark retry state as completed successfully
- */
 export function completeRetryState(state: RetryState): RetryState {
   return {
     ...state,
@@ -110,22 +77,12 @@ export function completeRetryState(state: RetryState): RetryState {
   };
 }
 
-/**
- * Check if should retry based on current state
- */
 export function shouldRetry(state: RetryState): boolean {
   return state.attempt < state.max_attempts;
 }
 
 /**
  * Build error feedback prompt from retry state
- *
- * This creates a prompt that includes:
- * - Current attempt number
- * - Last error message
- * - History of previous errors (for pattern recognition)
- *
- * Used to feed back error information to agents for self-correction.
  */
 export function buildErrorFeedback(state: RetryState): string {
   if (!state.last_error) {

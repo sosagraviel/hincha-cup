@@ -22,21 +22,17 @@ program
   .option('--resume <thread-id>', 'Resume from checkpoint using thread ID')
   .option('--stream', 'Stream real-time progress (not yet implemented)', false)
   .action(async (options) => {
-    // Handle CTRL+C gracefully
     let isShuttingDown = false;
 
     const cleanup = (signal: string) => {
       if (isShuttingDown) return;
       isShuttingDown = true;
 
-      // Stop all spinners immediately
       logger.stopAllSpinners();
-
       console.log('\n');
       logger.warn(`Received ${signal} - Shutting down gracefully...`);
 
-      // CRITICAL: Kill all active Claude CLI processes FIRST (synchronous)
-      // This must happen before anything else to prevent orphaned processes
+      HybridAgentFactory.abortAllInvocations();
       HybridAgentFactory.killAllActiveProcesses();
 
       logger.info('Cleanup complete');
@@ -45,32 +41,30 @@ program
       logger.info(`  npm run initialize -- --resume <thread-id>`);
       logger.blank();
 
-      // Exit immediately with standard interrupted code (128 + 2 for SIGINT)
-      process.exit(signal === 'SIGINT' ? 130 : 143);
+      process.exit(130);
     };
 
-    // First CTRL+C: graceful shutdown
-    // Second CTRL+C: force quit immediately
     let sigintCount = 0;
     process.on('SIGINT', () => {
       sigintCount++;
       if (sigintCount === 1) {
         cleanup('SIGINT');
       } else {
-        // Second CTRL+C: force quit immediately
         console.log('\n');
         logger.error('Force quitting...');
+        HybridAgentFactory.abortAllInvocations();
         HybridAgentFactory.killAllActiveProcesses();
         process.exit(130);
       }
     });
 
-    process.on('SIGTERM', () => cleanup('SIGTERM'));
+    process.on('SIGTERM', () => {
+      cleanup('SIGTERM');
+    });
 
     try {
       const llmFactory = getLLMFactory();
 
-      // List available models
       if (options.listModels) {
         logger.section('Available Model Aliases');
         llmFactory.listAliases().forEach(alias => {
@@ -80,7 +74,6 @@ program
         process.exit(0);
       }
 
-      // List available tiers
       if (options.listTiers) {
         logger.section('Available Model Tiers');
         llmFactory.listTiers().forEach(tier => {
@@ -96,16 +89,13 @@ program
         process.exit(0);
       }
 
-      // Apply tier via environment variable
       if (options.modelTier) {
         process.env.MODEL_TIER = options.modelTier;
       }
 
-      // Resolve paths
       const projectPath = path.resolve(options.projectPath);
       const frameworkPath = path.resolve(options.frameworkPath);
 
-      // Validate paths exist
       const fs = await import('fs');
       if (!fs.existsSync(projectPath)) {
         logger.error(`Project path does not exist: ${projectPath}`);
@@ -119,17 +109,11 @@ program
         process.exit(1);
       }
 
-      // Initialize workflow
       const initSpinner = logger.spinner('Initializing workflow...', 'init');
-
-      // Initialize checkpointer
       await initializeDevCheckpointer();
-
-      // Create graph
       const graph = await createInitializeProjectGraph(devCheckpointer);
       logger.succeedSpinner('init', 'Workflow graph compiled');
 
-      // Display configuration
       const currentTier = llmFactory.getCurrentTier();
       const effectiveProvider = llmFactory.getEffectiveProvider();
       const tierMapping = llmFactory.getTierMapping();
@@ -154,7 +138,6 @@ program
       logger.decreaseIndent();
       logger.blank();
 
-      // Prepare initial state
       const tempDir = path.join(projectPath, '.claude-temp/initialize-project');
       const initialState = {
         project_path: projectPath,
@@ -165,7 +148,6 @@ program
         warnings: []
       };
 
-      // Prepare config for execution
       const threadId = options.resume || `init-${path.basename(projectPath)}-${Date.now()}`;
       const config = {
         configurable: { thread_id: threadId }
@@ -179,11 +161,9 @@ program
       }
       logger.blank();
 
-      // Execute workflow
       const executionSpinner = logger.spinner('Executing 6-phase workflow...', 'execution');
 
       if (options.stream) {
-        // TODO: Implement streaming
         logger.warnSpinner('execution', 'Streaming not yet implemented, falling back to non-streaming execution');
         logger.spinner('Executing 6-phase workflow...', 'execution');
       }
@@ -193,7 +173,6 @@ program
       logger.succeedSpinner('execution', 'Workflow completed successfully!');
       logger.blank();
 
-      // Display results
       logger.section('Initialization Complete');
 
       logger.info('Generated Files:');
@@ -246,6 +225,16 @@ program
     } catch (error) {
       logger.stopAllSpinners();
       logger.blank();
+
+      if (isShuttingDown ||
+          (error instanceof Error && (error.message.includes('SIGINT') || error.message.includes('interrupted by user')))) {
+        logger.info('Cleanup complete');
+        logger.blank();
+        logger.info('You can resume this workflow later using:');
+        logger.info(`  npm run initialize -- --resume <thread-id>`);
+        logger.blank();
+        process.exit(130); // Standard SIGINT exit code (128 + 2)
+      }
 
       logger.error('Workflow failed', error instanceof Error ? error : new Error(String(error)));
       logger.blank();

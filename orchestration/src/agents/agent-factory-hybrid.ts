@@ -5,51 +5,23 @@ import { AuthMode, AuthConfig, detectAuthMode, getAuthErrorMessage } from '../au
 import { createDeepAgent } from 'deepagents';
 import { getLLMFactory } from '../llm/llm-factory.js';
 
-/**
- * Configuration for creating an agent
- */
 export interface AgentConfig {
-  /** Name of the agent (e.g., 'planner', 'implementer-typescript') */
   agentName: string;
-
-  /** Agent markdown file name (e.g., 'planner.md') */
   agentFile: string;
-
-  /** Project path where agent will execute */
   projectPath: string;
-
-  /** Framework path where agents/ folder is located */
   frameworkPath: string;
-
-  /** Additional context to append to agent instructions */
   additionalContext?: string;
-
-  /** Timeout in milliseconds (default: 300000 = 5 minutes) */
   timeout?: number;
 }
 
-/**
- * Result from agent invocation
- */
 export interface AgentInvokeResult {
-  /** Agent output text */
   output: string;
-
-  /** Authentication mode used */
   mode: AuthMode;
-
-  /** Execution time in milliseconds */
   executionTimeMs: number;
 }
 
-/**
- * Unified agent interface that works with both DeepAgents.js and Claude CLI
- */
 export interface HybridAgent {
-  /** Invoke the agent with input text */
   invoke(input: { input: string }): Promise<AgentInvokeResult>;
-
-  /** Get information about the agent */
   getInfo(): {
     agentName: string;
     mode: AuthMode;
@@ -57,41 +29,41 @@ export interface HybridAgent {
 }
 
 /**
- * Hybrid Agent Factory
- *
- * Creates agents using either:
- * - DeepAgents.js with API keys (Mode 1)
- * - Claude CLI with subscription (Mode 2)
- *
- * The factory automatically detects available authentication and chooses the best mode.
- *
- * @example
- * ```typescript
- * const factory = await HybridAgentFactory.create();
- *
- * const agent = await factory.createAgent({
- *   agentName: 'planner',
- *   agentFile: 'planner.md',
- *   projectPath: '/path/to/project',
- *   frameworkPath: '/path/to/framework'
- * });
- *
- * const result = await agent.invoke({ input: 'Create a plan for PROJ-123' });
- * console.log(result.output);
- * ```
+ * Creates agents using DeepAgents.js (API key) or Claude CLI (subscription)
  */
 export class HybridAgentFactory {
   private authConfig: AuthConfig;
   private static activeProcesses: Set<ChildProcess> = new Set();
+  private static activeInvocations: Map<number, (reason: Error) => void> = new Map();
+  private static invocationCounter = 0;
+  private static isAborting = false;
 
   constructor(authConfig: AuthConfig) {
     this.authConfig = authConfig;
   }
 
   /**
+   * Abort all active invocations immediately
+   */
+  static abortAllInvocations() {
+    if (this.activeInvocations.size === 0) {
+      return;
+    }
+
+    this.isAborting = true;
+    const abortError = new Error('SIGINT: Workflow interrupted by user (CTRL+C)');
+
+    console.log(`\n⚠️  Aborting ${this.activeInvocations.size} active invocation(s)...`);
+
+    for (const [id, reject] of this.activeInvocations) {
+      reject(abortError);
+    }
+
+    this.activeInvocations.clear();
+  }
+
+  /**
    * Kill all active Claude CLI processes
-   * This is exposed as a public static method so the main CLI can call it
-   * during shutdown
    */
   static killAllActiveProcesses() {
     if (this.activeProcesses.size === 0) {
@@ -100,22 +72,15 @@ export class HybridAgentFactory {
 
     console.log(`\n⚠️  Killing ${this.activeProcesses.size} active Claude CLI process(es)...`);
 
-    // Kill all tracked processes
-    // Use SIGKILL immediately - we're exiting anyway, no point in graceful shutdown
     for (const proc of this.activeProcesses) {
       try {
         if (proc.pid && !proc.killed) {
-          // Send SIGKILL immediately to ensure process dies before parent exits
-          // This is critical for CTRL+C handling - we can't use async setTimeout
-          // because the parent process.exit() happens before the timeout fires
           try {
             proc.kill('SIGKILL');
           } catch (e) {
-            // Process already dead, ignore
           }
         }
       } catch (e) {
-        // Process already dead, ignore
       }
     }
 
@@ -123,12 +88,11 @@ export class HybridAgentFactory {
   }
 
   /**
-   * Create a factory instance with automatic auth detection
+   * Create factory instance with automatic auth detection
    */
   static async create(): Promise<HybridAgentFactory> {
     const authConfig = await detectAuthMode();
 
-    // If no authentication available, throw error with helpful message
     if (authConfig.mode === AuthMode.NONE) {
       throw new Error(getAuthErrorMessage(authConfig));
     }
@@ -136,15 +100,12 @@ export class HybridAgentFactory {
     return new HybridAgentFactory(authConfig);
   }
 
-  /**
-   * Get the current authentication configuration
-   */
   getAuthConfig(): AuthConfig {
     return this.authConfig;
   }
 
   /**
-   * Create an agent using the appropriate mode (DeepAgents.js or Claude CLI)
+   * Create agent using DeepAgents.js or Claude CLI
    */
   async createAgent(config: AgentConfig): Promise<HybridAgent> {
     if (this.authConfig.mode === AuthMode.API_KEY) {
@@ -158,14 +119,8 @@ export class HybridAgentFactory {
     }
   }
 
-  /**
-   * Create agent using DeepAgents.js with API key
-   * @private
-   */
   private async createDeepAgent(config: AgentConfig): Promise<HybridAgent> {
     const llmFactory = getLLMFactory();
-
-    // Get model info for logging before creating the model
     const modelInfo = llmFactory.getModelInfo(config.agentName);
 
     console.log(
@@ -175,7 +130,6 @@ export class HybridAgentFactory {
 
     const model = await llmFactory.createModel(config.agentName);
 
-    // Load agent markdown file
     const agentPath = path.join(
       config.frameworkPath,
       '.claude',
@@ -189,25 +143,22 @@ export class HybridAgentFactory {
 
     const agentInstructions = fs.readFileSync(agentPath, 'utf-8');
 
-    // Append additional context if provided
     const fullInstructions = config.additionalContext
       ? agentInstructions + '\n\n' + config.additionalContext
       : agentInstructions;
 
-    // Create DeepAgent
     const agent = await createDeepAgent({
       model: model,
-      systemPrompt: fullInstructions, // DeepAgents uses systemPrompt, not instructions
-      tools: [] // Tools are configured in agent markdown
+      systemPrompt: fullInstructions,
+      tools: []
     });
 
     return {
       invoke: async (input: { input: string }): Promise<AgentInvokeResult> => {
         const startTime = Date.now();
-        const timeout = config.timeout || 300000; // Default 5 minutes
+        const timeout = config.timeout || 300000;
 
         try {
-          // Invoke agent with timeout using Promise.race
           const agentPromise = (agent as any).invoke({
             messages: [{ role: 'user', content: input.input }]
           });
@@ -221,7 +172,6 @@ export class HybridAgentFactory {
           const result = await Promise.race([agentPromise, timeoutPromise]);
           const executionTimeMs = Date.now() - startTime;
 
-          // Extract output from result (supports both .output and .content properties)
           const output = (result as any).output || (result as any).content || JSON.stringify(result);
 
           return {
@@ -245,15 +195,10 @@ export class HybridAgentFactory {
     };
   }
 
-  /**
-   * Create agent using Claude CLI with subscription
-   * @private
-   */
   private async createCLIAgent(config: AgentConfig): Promise<HybridAgent> {
     const llmFactory = getLLMFactory();
     const modelInfo = llmFactory.getModelInfo(config.agentName);
 
-    // Log model information
     console.log(
       `[${config.agentName}] Tier: ${modelInfo.tier}, Model: Claude CLI (target: ${modelInfo.alias})`
     );
@@ -263,8 +208,6 @@ export class HybridAgentFactory {
         const startTime = Date.now();
 
         try {
-          // Use full prompt from additionalContext (has agent instructions)
-          // NOT the short input message
           const fullPrompt = config.additionalContext || input.input;
 
           const output = await this.invokeCLI(
@@ -297,28 +240,65 @@ export class HybridAgentFactory {
     };
   }
 
-  /**
-   * Invoke Claude CLI as a child process
-   * @private
-   */
   private async invokeCLI(
     agentName: string,
     prompt: string,
     projectPath: string,
     timeout: number = 300000
   ): Promise<string> {
-    return new Promise((resolve, reject) => {
+    if (HybridAgentFactory.isAborting) {
+      throw new Error('SIGINT: Workflow interrupted by user (CTRL+C)');
+    }
+
+    return new Promise(async (resolve, reject) => {
+      const invocationId = HybridAgentFactory.invocationCounter++;
+      HybridAgentFactory.activeInvocations.set(invocationId, reject);
+
+      const { mkdtemp, writeFile, rm } = await import('fs/promises');
+      const { tmpdir } = await import('os');
+      const { join } = await import('path');
+
+      const tempDir = await mkdtemp(join(tmpdir(), 'claude-prompt-'));
+      const promptFile = join(tempDir, 'prompt.txt');
+      let promptFileCreated = false;
+
+      try {
+        await writeFile(promptFile, prompt, 'utf-8');
+        promptFileCreated = true;
+      } catch (err) {
+        HybridAgentFactory.activeInvocations.delete(invocationId);
+        reject(new Error(`Failed to write prompt file: ${err}`));
+        return;
+      }
+
+      const cleanup = async () => {
+        HybridAgentFactory.activeInvocations.delete(invocationId);
+        clearTimeout(timeoutId);
+        if (promptFileCreated) {
+          try {
+            await rm(tempDir, { recursive: true, force: true });
+          } catch {
+          }
+        }
+      };
+
       let timeoutId: NodeJS.Timeout;
       let claudeProcess: ChildProcess;
 
-      // Set up timeout
-      timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(async () => {
+        await cleanup();
         claudeProcess.kill('SIGTERM');
         reject(new Error(`Claude CLI timeout after ${timeout}ms`));
       }, timeout);
 
-      // Spawn Claude CLI process - EXACT same arguments as bash script
-      // bash: claude --model sonnet --dangerously-skip-permissions
+      const { open } = await import('fs');
+      const promptFd = await new Promise<number>((res, rej) => {
+        open(promptFile, 'r', (err, fd) => {
+          if (err) rej(err);
+          else res(fd);
+        });
+      });
+
       claudeProcess = spawn('claude', [
         '--model',
         'sonnet',
@@ -329,14 +309,12 @@ export class HybridAgentFactory {
           ...process.env,
           CLAUDE_SKIP_CONFIRMATIONS: '1'
         },
-        stdio: ['pipe', 'pipe', 'pipe'],
-        detached: false // Don't detach - keep in same process group
+        stdio: [promptFd, 'pipe', 'pipe'],
+        detached: false
       });
 
-      // Track this process so we can kill it on SIGINT
       HybridAgentFactory.activeProcesses.add(claudeProcess);
 
-      // Remove from tracking when process ends
       claudeProcess.on('close', () => {
         HybridAgentFactory.activeProcesses.delete(claudeProcess);
       });
@@ -344,34 +322,27 @@ export class HybridAgentFactory {
       let stdout = '';
       let stderr = '';
 
-      // Send prompt to stdin (same as bash: claude <<< "$PROMPT")
-      if (claudeProcess.stdin) {
-        claudeProcess.stdin.write(prompt);
-        claudeProcess.stdin.end();
-      }
-
-      // Collect stdout
       if (claudeProcess.stdout) {
         claudeProcess.stdout.on('data', (data) => {
           stdout += data.toString();
         });
       }
 
-      // Collect stderr
       if (claudeProcess.stderr) {
         claudeProcess.stderr.on('data', (data) => {
           stderr += data.toString();
         });
       }
 
-      // Handle process completion
-      claudeProcess.on('close', (code) => {
-        clearTimeout(timeoutId);
+      claudeProcess.on('close', async (code) => {
+        await cleanup();
+
+        const { close } = await import('fs');
+        close(promptFd, () => {});
 
         if (code === 0) {
           resolve(stdout);
         } else {
-          // Check for rate limit error
           const isRateLimit = stdout.includes('Limit reached') ||
                              stdout.includes('resets') ||
                              stdout.includes('/upgrade to Max');
@@ -392,16 +363,14 @@ export class HybridAgentFactory {
                           `  # Framework will automatically detect and use API key mode`;
           }
 
-          // Include full output for debugging
           errorMessage += `\n\n=== STDOUT ===\n${stdout}\n\n=== STDERR ===\n${stderr}`;
 
           reject(new Error(errorMessage));
         }
       });
 
-      // Handle process errors
       claudeProcess.on('error', (error) => {
-        clearTimeout(timeoutId);
+        cleanup();
         reject(new Error(`Failed to spawn Claude CLI: ${error.message}`));
       });
     });

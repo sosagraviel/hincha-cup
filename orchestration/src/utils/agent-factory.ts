@@ -250,7 +250,7 @@ export function getAgentConfig(agentName: string) {
  * @param config - Agent configuration
  * @returns Configured DeepAgent instance
  */
-export async function createDeepAgentDirect(config: AgentConfig) {
+export async function createDeepAgentDirect(config: AgentConfig): Promise<any> {
   const {
     agentName,
     agentFile,

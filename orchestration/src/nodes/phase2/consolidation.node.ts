@@ -4,28 +4,13 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 
 /**
- * Phase 2: Consolidation Node
- *
- * This node consolidates the outputs from all 4 Phase 1 analyzer agents:
- * - Merges findings into unified structure
- * - Identifies overlaps (high confidence when multiple agents agree)
- * - Identifies gaps (missing information or needs verification)
- * - Detects conflicts (contradictory findings between agents)
- *
- * The consolidated output is used as input for Phase 3 (Opus synthesis).
- *
- * Note: This node runs AFTER all 4 Phase 1 agents complete (LangGraph
- * ensures this via the graph edges).
- *
- * @param state - Current workflow state
- * @returns Updated state with consolidated findings
+ * Consolidates outputs from all 4 Phase 1 analyzer agents
  */
 export async function consolidationNode(
   state: InitializeProjectState
 ): Promise<Partial<InitializeProjectState>> {
   console.log('\n[Phase 2: Consolidation] Starting...');
 
-  // Verify all 4 Phase 1 agents completed
   const phase1 = state.phase1_analysis;
   if (!phase1) {
     throw new Error('Phase 1 analysis not found in state');
@@ -44,7 +29,6 @@ export async function consolidationNode(
   }
 
   try {
-    // Consolidate all 4 analyzer outputs
     console.log('[Phase 2: Consolidation] Merging analyzer outputs...');
 
     const analyzers = [
@@ -56,7 +40,6 @@ export async function consolidationNode(
 
     const consolidated = consolidateAnalyses(analyzers);
 
-    // Save consolidated output to temp directory
     const tempDir = state.temp_dir!;
     const consolidatedPath = join(tempDir, 'phase2-consolidation.json');
     writeFileSync(consolidatedPath, JSON.stringify(consolidated, null, 2));
@@ -66,7 +49,6 @@ export async function consolidationNode(
     console.log(`  - Gaps identified: ${consolidated.identified_gaps?.length || 0}`);
     console.log(`  - Conflicts detected: ${consolidated.conflicting_findings?.length || 0}`);
 
-    // Mark Phase 1 as fully completed
     return {
       phase1_analysis: {
         ...phase1,

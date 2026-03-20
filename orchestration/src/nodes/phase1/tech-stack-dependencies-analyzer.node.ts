@@ -14,13 +14,7 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 /**
- * Tech Stack & Dependencies Analyzer Node
- *
- * Analyzes:
- * - Programming languages and versions
- * - Package managers and dependency files
- * - Dependencies and their versions
- * - Build tools and configurations
+ * Analyzes tech stack, programming languages, dependencies, and build tools
  */
 export async function techStackDependenciesAnalyzerNode(
   state: InitializeProjectState
@@ -28,7 +22,6 @@ export async function techStackDependenciesAnalyzerNode(
   const agentName = 'tech-stack-dependencies-analyzer';
   const agentFile = '02-tech-stack-dependencies.md';
 
-  // Create logger for this agent
   const agentLogger = logger.child(agentName);
   agentLogger.blank();
   agentLogger.info('Starting analysis...');
@@ -46,7 +39,6 @@ export async function techStackDependenciesAnalyzerNode(
 
       additionalContext = buildErrorFeedback(retryState);
 
-      // Create agent - model is determined by tier configuration
       const agent = await createAgentFromMarkdown({
         agentName,
         agentFile,
@@ -62,7 +54,6 @@ export async function techStackDependenciesAnalyzerNode(
 
       const rawOutput = result.output || result.content || JSON.stringify(result);
 
-      // Save raw output for debugging
       const rawOutputPath = join(tempDir, 'phase1-outputs', `${agentName}-attempt${retryState.attempt}.raw`);
       writeFileSync(rawOutputPath, rawOutput);
 
@@ -105,7 +96,10 @@ export async function techStackDependenciesAnalyzerNode(
     } catch (error) {
       const err = error as Error;
 
-      // Save error to file for debugging
+      if (err.message.includes('SIGINT') || err.message.includes('interrupted by user')) {
+        throw error;
+      }
+
       const errorFilePath = join(tempDir, 'phase1-outputs', `${agentName}-attempt${retryState.attempt}.err`);
       writeFileSync(errorFilePath, `${err.message}\n\n${err.stack || ''}`);
 

@@ -7,11 +7,9 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
-// ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Zod Schema for Model Configuration
 const ModelAliasSchema = z.object({
   provider: z.enum(["anthropic", "openai", "google"]),
   modelId: z.string(),
@@ -58,10 +56,8 @@ export class LLMFactory {
     const rawConfig = JSON.parse(readFileSync(path, "utf-8"));
     this.config = ModelConfigSchema.parse(rawConfig);
 
-    // Get tier from environment variable (MODEL_TIER) or default to "standard"
     this.currentTier = process.env.MODEL_TIER || "standard";
 
-    // Validate that the tier exists
     if (!this.config.tiers[this.currentTier]) {
       throw new Error(
         `Unknown tier: ${this.currentTier}. Available tiers: ${Object.keys(this.config.tiers).join(", ")}`
@@ -69,14 +65,8 @@ export class LLMFactory {
     }
   }
 
-  /**
-   * Resolve model alias for a given agent
-   * Simply looks up the agent in the current tier's configuration
-   */
   private resolveAlias(agentName: string): string {
     const tierConfig = this.config.tiers[this.currentTier];
-
-    // Get the alias from tier configuration
     const alias = tierConfig.agents[agentName];
 
     if (!alias) {
@@ -97,13 +87,11 @@ export class LLMFactory {
   ): Promise<BaseChatModel> {
     const alias = this.resolveAlias(agentName);
 
-    // Check cache
     const cacheKey = `${alias}:${JSON.stringify(overrides || {})}`;
     if (this.modelCache.has(cacheKey)) {
       return this.modelCache.get(cacheKey)!;
     }
 
-    // Get alias configuration
     const aliasConfig = this.config.modelAliases[alias];
     if (!aliasConfig) {
       throw new Error(
@@ -111,13 +99,11 @@ export class LLMFactory {
       );
     }
 
-    // Get provider configuration
     const providerConfig = this.config.providerConfig[aliasConfig.provider];
     if (!providerConfig) {
       throw new Error(`No configuration found for provider: ${aliasConfig.provider}`);
     }
 
-    // Get API key from environment
     const apiKey = process.env[providerConfig.apiKeyEnv];
     if (!apiKey) {
       throw new Error(
@@ -125,7 +111,6 @@ export class LLMFactory {
       );
     }
 
-    // Create provider-specific model
     let model: BaseChatModel;
 
     switch (aliasConfig.provider) {
@@ -166,7 +151,6 @@ export class LLMFactory {
         throw new Error(`Unsupported provider: ${aliasConfig.provider}`);
     }
 
-    // Cache and return
     this.modelCache.set(cacheKey, model);
     return model;
   }
@@ -233,9 +217,11 @@ export class LLMFactory {
   }
 }
 
-// Singleton instance
 let factoryInstance: LLMFactory | null = null;
 
+/**
+ * Get singleton LLMFactory instance
+ */
 export function getLLMFactory(configPath?: string): LLMFactory {
   if (!factoryInstance) {
     factoryInstance = new LLMFactory(configPath);

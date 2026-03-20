@@ -7,31 +7,8 @@
 # Spawns agents directly using: claude --model X --dangerously-skip-permissions
 # ============================================================================
 
-set -e  # Exit on error
-set -o pipefail  # Exit on pipe failure
-
-# Track if we're already cleaning up to prevent double cleanup
-CLEANUP_IN_PROGRESS=false
-
-# Signal handler for CTRL+C - must kill entire process group
-cleanup() {
-    if [ "$CLEANUP_IN_PROGRESS" = true ]; then
-        return
-    fi
-    CLEANUP_IN_PROGRESS=true
-
-    echo ""
-    echo "Initialization interrupted. Cleaning up..."
-
-    # Kill entire process group (negative PID sends to all processes in group)
-    # This ensures all child processes (timeout, bash, claude) receive the signal
-    kill -TERM -$$ 2>/dev/null
-
-    exit 130
-}
-
-# Trap SIGINT and SIGTERM
-trap cleanup SIGINT SIGTERM
+set -e
+set -o pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -481,8 +458,8 @@ if [ "$ORCHESTRATION_MODE" = "typescript" ]; then
 
     # Run TypeScript orchestration
     # Note: cd to orchestration directory so npx can find tsx in node_modules
-    # Use 'exec' to replace bash process with node, ensuring CTRL+C works correctly
-    # This makes the node process the foreground process that receives SIGINT directly
+    # Run tsx in foreground (NOT using exec) so CTRL+C signal handling works correctly
+    # When user presses CTRL+C, both bash and tsx receive SIGINT, tsx handles it properly
     cd "$FRAMEWORK_PATH/orchestration" || exit 1
 
     # Export environment variable for child process
@@ -490,9 +467,8 @@ if [ "$ORCHESTRATION_MODE" = "typescript" ]; then
     export PROJECT_PATH
     export FRAMEWORK_PATH
 
-    # exec replaces the bash script with tsx, so CTRL+C goes directly to the Node process
+    # Run tsx in foreground - CTRL+C will send SIGINT to tsx which has proper handlers
     # CRITICAL: Use node_modules/.bin/tsx directly, NOT npx (npx adds another process layer)
-    # Signal chain: terminal → tsx → node → claude (CTRL+C propagates correctly)
     TSX_BIN="$FRAMEWORK_PATH/orchestration/node_modules/.bin/tsx"
 
     if [ ! -f "$TSX_BIN" ]; then
@@ -500,9 +476,20 @@ if [ "$ORCHESTRATION_MODE" = "typescript" ]; then
         exit 1
     fi
 
-    exec "$TSX_BIN" "$ORCHESTRATION_CLI" \
+    trap '' SIGINT
+    "$TSX_BIN" "$ORCHESTRATION_CLI" \
       --project-path "$PROJECT_PATH" \
-      --framework-path "$FRAMEWORK_PATH"
+      --framework-path "$FRAMEWORK_PATH" &
+
+    TSX_PID=$!
+
+    # Wait for tsx to complete (even if SIGINT received)
+    # wait returns tsx's exit code
+    wait $TSX_PID
+    TSX_EXIT_CODE=$?
+
+    # Exit with the same code tsx used
+    exit $TSX_EXIT_CODE
 fi
 
 # ============================================================================
