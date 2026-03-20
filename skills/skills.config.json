@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "start-task",
+      "path": "010-foundation/start-task",
+      "category": "always"
+    },
+    {
+      "name": "code-quality-check",
+      "path": "030-quality-assurance/code-quality-check",
+      "category": "always"
+    },
+    {
+      "name": "mastering-typescript",
+      "path": "050-language-frameworks/mastering-typescript",
+      "category": "language",
+      "triggers": {
+        "languages": ["typescript"]
+      }
+    },
+    {
+      "name": "react-frontend",
+      "path": "050-language-frameworks/react-frontend",
+      "category": "framework",
+      "triggers": {
+        "frameworks": ["react"]
+      }
+    }
+  ]
+}

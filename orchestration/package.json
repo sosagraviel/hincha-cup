@@ -1,0 +1,52 @@
+{
+  "name": "orchestration",
+  "version": "1.0.0",
+  "description": "TypeScript DeepAgents orchestration for AI Agentic Framework",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx",
+    "initialize": "tsx src/cli/initialize.ts",
+    "test": "vitest",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration"
+  },
+  "bin": {
+    "orchestrate-init": "./src/cli/initialize.ts"
+  },
+  "keywords": [
+    "orchestration",
+    "deepagents",
+    "langgraph",
+    "ai",
+    "agents"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@langchain/anthropic": "^1.3.24",
+    "@langchain/core": "^1.1.33",
+    "@langchain/google-genai": "^2.1.26",
+    "@langchain/langgraph": "^1.2.3",
+    "@langchain/openai": "^1.3.0",
+    "ajv": "^8.12.0",
+    "chalk": "^5.3.0",
+    "commander": "^14.0.3",
+    "deepagents": "^1.8.4",
+    "fast-glob": "^3.3.2",
+    "handlebars": "^4.7.8",
+    "ora": "^9.3.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

@@ -77,10 +77,33 @@ ${BLUE}OPTIONS:${NC}
 
     --help, -h           Show this help message
 
+${BLUE}ENVIRONMENT VARIABLES:${NC}
+    ORCHESTRATION_MODE   Control execution mode
+                         Default: typescript (fails if TypeScript has errors)
+                         Options:
+                           - typescript: Use TypeScript orchestration (recommended)
+                           - bash: Use legacy bash orchestration
+                         Example: ORCHESTRATION_MODE=bash ./scripts/initialize-project.sh
+
+    MODEL_TIER           Model tier to use for all agents
+                         Default: standard
+                         Options: fast, standard, advanced, openai, gemini
+                         Example: MODEL_TIER=fast ./scripts/initialize-project.sh
+
+    ANTHROPIC_API_KEY    API key for Anthropic (Claude) provider
+    OPENAI_API_KEY       API key for OpenAI (GPT) provider
+    GOOGLE_API_KEY       API key for Google (Gemini) provider
+
 ${BLUE}EXAMPLES:${NC}
-    # Basic usage (run from project root)
+    # Basic usage (run from project root) - uses TypeScript by default
     cd /path/to/your/project
     ./qubika-agentic-framework/scripts/initialize-project.sh
+
+    # Use bash orchestration instead of TypeScript
+    ORCHESTRATION_MODE=bash ./qubika-agentic-framework/scripts/initialize-project.sh
+
+    # Use fast tier (haiku models for speed/cost)
+    MODEL_TIER=fast ./qubika-agentic-framework/scripts/initialize-project.sh
 
     # Fully automated (skip gap questions)
     ./qubika-agentic-framework/scripts/initialize-project.sh --skip-gap-questions
@@ -321,24 +344,178 @@ fi
 # RUN ORCHESTRATION
 # ============================================================================
 
-if [ "$START_PHASE" -gt 1 ]; then
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}  STARTING FROM PHASE $START_PHASE (SKIPPING PHASES 1-$((START_PHASE-1)))${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+# Track start time
+START_TIME=$(date +%s)
+
+# Bash implementation header (shown if TypeScript fails or is skipped)
+show_bash_header() {
+    if [ "$START_PHASE" -gt 1 ]; then
+        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${BLUE}  STARTING FROM PHASE $START_PHASE (SKIPPING PHASES 1-$((START_PHASE-1)))${NC}"
+        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+    else
+        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${BLUE}  STARTING 6-PHASE INITIALIZATION${NC}"
+        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+    fi
+}
+
+# ============================================================================
+# TYPESCRIPT ORCHESTRATION (DEFAULT)
+# ============================================================================
+
+# Environment variable to control execution mode
+ORCHESTRATION_MODE="${ORCHESTRATION_MODE:-typescript}"  # Default to TypeScript
+
+if [ "$ORCHESTRATION_MODE" = "typescript" ]; then
+    echo -e "${BLUE}🚀 Running TypeScript orchestration...${NC}"
     echo ""
-else
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}  STARTING 6-PHASE INITIALIZATION${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+    # Check if Node.js is available
+    if ! command -v node &> /dev/null; then
+        echo -e "${RED}❌ Error: Node.js is not installed${NC}"
+        echo ""
+        echo "Node.js is required for TypeScript orchestration."
+        echo "Install it from: https://nodejs.org/"
+        echo ""
+        echo "To use bash orchestration instead, run:"
+        echo "  ORCHESTRATION_MODE=bash $0"
+        echo ""
+        exit 1
+    fi
+
+    # Check if CLI file exists
+    ORCHESTRATION_CLI="$FRAMEWORK_PATH/orchestration/src/cli/initialize.ts"
+    if [ ! -f "$ORCHESTRATION_CLI" ]; then
+        echo -e "${RED}❌ Error: TypeScript CLI not found${NC}"
+        echo "  Expected: $ORCHESTRATION_CLI"
+        echo ""
+        echo "The orchestration module may not be set up correctly."
+        echo ""
+        echo "To use bash orchestration instead, run:"
+        echo "  ORCHESTRATION_MODE=bash $0"
+        echo ""
+        exit 1
+    fi
+
+    # Check if node_modules exists and is valid
+    NEED_INSTALL=false
+
+    if [ ! -d "$FRAMEWORK_PATH/orchestration/node_modules" ]; then
+        echo -e "${YELLOW}⚠️  Node modules not found${NC}"
+        NEED_INSTALL=true
+    else
+        # Verify tsx binary exists and is valid
+        if [ ! -f "$FRAMEWORK_PATH/orchestration/node_modules/.bin/tsx" ]; then
+            echo -e "${YELLOW}⚠️  tsx binary not found (corrupted node_modules)${NC}"
+            NEED_INSTALL=true
+        else
+            # Test if tsx can execute (detect corruption)
+            if ! cd "$FRAMEWORK_PATH/orchestration" || ! npx tsx --version &> /dev/null; then
+                echo -e "${YELLOW}⚠️  tsx binary is corrupted${NC}"
+                NEED_INSTALL=true
+            fi
+        fi
+    fi
+
+    # Install or reinstall dependencies if needed
+    if [ "$NEED_INSTALL" = true ]; then
+        echo -e "${YELLOW}Installing/reinstalling dependencies...${NC}"
+        echo ""
+
+        # Clean install to fix corruption
+        if ! cd "$FRAMEWORK_PATH/orchestration"; then
+            echo -e "${RED}❌ Error: Cannot access orchestration directory${NC}"
+            exit 1
+        fi
+
+        # Remove corrupted node_modules if it exists
+        if [ -d "node_modules" ]; then
+            echo "  Removing corrupted node_modules..."
+            rm -rf node_modules package-lock.json
+        fi
+
+        # Install fresh
+        echo "  Running npm install..."
+        if ! npm install --silent; then
+            echo ""
+            echo -e "${RED}❌ Error: Failed to install dependencies${NC}"
+            echo ""
+            echo "Please install manually:"
+            echo "  cd $FRAMEWORK_PATH/orchestration"
+            echo "  rm -rf node_modules package-lock.json"
+            echo "  npm install"
+            echo ""
+            echo "To use bash orchestration instead, run:"
+            echo "  ORCHESTRATION_MODE=bash $0"
+            echo ""
+            exit 1
+        fi
+
+        echo ""
+        echo -e "${GREEN}✓ Dependencies installed successfully${NC}"
+        echo ""
+    fi
+
+    # Build TypeScript to ensure code is up to date
+    cd "$FRAMEWORK_PATH/orchestration" || exit 1
+    echo "  Building TypeScript..."
+    if ! npm run build --silent; then
+        echo ""
+        echo -e "${RED}❌ Error: Failed to build TypeScript${NC}"
+        echo ""
+        echo "Please build manually:"
+        echo "  cd $FRAMEWORK_PATH/orchestration"
+        echo "  npm run build"
+        echo ""
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Build completed successfully${NC}"
     echo ""
+
+    echo "  Using TypeScript CLI: $ORCHESTRATION_CLI"
+    echo "  Node.js version: $(node --version)"
+    echo ""
+
+    # Run TypeScript orchestration
+    # Note: cd to orchestration directory so npx can find tsx in node_modules
+    # Use 'exec' to replace bash process with node, ensuring CTRL+C works correctly
+    # This makes the node process the foreground process that receives SIGINT directly
+    cd "$FRAMEWORK_PATH/orchestration" || exit 1
+
+    # Export environment variable for child process
+    export MODEL_TIER="${MODEL_TIER:-standard}"
+    export PROJECT_PATH
+    export FRAMEWORK_PATH
+
+    # exec replaces the bash script with tsx, so CTRL+C goes directly to the Node process
+    # CRITICAL: Use node_modules/.bin/tsx directly, NOT npx (npx adds another process layer)
+    # Signal chain: terminal → tsx → node → claude (CTRL+C propagates correctly)
+    TSX_BIN="$FRAMEWORK_PATH/orchestration/node_modules/.bin/tsx"
+
+    if [ ! -f "$TSX_BIN" ]; then
+        echo -e "${RED}❌ Error: tsx binary not found at $TSX_BIN${NC}"
+        exit 1
+    fi
+
+    exec "$TSX_BIN" "$ORCHESTRATION_CLI" \
+      --project-path "$PROJECT_PATH" \
+      --framework-path "$FRAMEWORK_PATH"
 fi
+
+# ============================================================================
+# BASH ORCHESTRATION (FALLBACK)
+# ============================================================================
+
+echo -e "${BLUE}🔧 Running bash orchestration...${NC}"
+echo ""
+show_bash_header
 
 # Export environment variables for orchestration
 export SKIP_GAP_QUESTIONS
 export CLEAN_TEMP
-
-# Track start time
-START_TIME=$(date +%s)
 
 # Run orchestration with or without timeout
 # Use --foreground flag with timeout to ensure proper signal propagation
