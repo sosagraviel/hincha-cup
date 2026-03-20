@@ -175,7 +175,7 @@ function generatePlannerAgent(
   skills: ResolvedSkill[],
   stackProfile: StackProfile
 ): GeneratedAgent | null {
-  const templatePath = join(templatesPath, 'planner.md');
+  const templatePath = join(templatesPath, 'planner.template.md');
 
   if (!existsSync(templatePath)) {
     return null;
@@ -208,8 +208,8 @@ function generateImplementerAgent(
   stackProfile: StackProfile,
   projectPath: string
 ): GeneratedAgent | null {
-  const templatePath = join(templatesPath, `implementer-${language}.md`);
-  const genericTemplatePath = join(templatesPath, 'implementer.md');
+  const templatePath = join(templatesPath, `implementer-${language}.template.md`);
+  const genericTemplatePath = join(templatesPath, 'implementer.template.md');
 
   const actualTemplatePath = existsSync(templatePath) ? templatePath : genericTemplatePath;
 
@@ -261,7 +261,7 @@ function generateVisualVerifierAgent(
     return null;
   }
 
-  const templatePath = join(templatesPath, 'visual-verifier.md');
+  const templatePath = join(templatesPath, 'visual-verifier.template.md');
 
   if (!existsSync(templatePath)) {
     return null;

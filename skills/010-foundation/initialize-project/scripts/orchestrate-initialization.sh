@@ -75,7 +75,7 @@ if ! [[ "$START_PHASE" =~ ^[1-6]$ ]]; then
 fi
 
 # Create temp directory for intermediate outputs
-TEMP_DIR="$PROJECT_PATH/.claude-temp"
+TEMP_DIR="$PROJECT_PATH/.claude-temp/initialize-project"
 mkdir -p "$TEMP_DIR"
 
 # Log file (logging disabled to prevent stdin/signal issues)

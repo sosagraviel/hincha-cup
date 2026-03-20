@@ -39,3 +39,4 @@ orchestration/package-lock.json
 orchestration/dist
 orchestration/.claude-temp
 orchestration/orchestration-checkpoints.db
+dist

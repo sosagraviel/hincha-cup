@@ -4,28 +4,30 @@
     {
       "name": "start-task",
       "path": "010-foundation/start-task",
-      "category": "always"
+      "description": "Task kickoff and requirements gathering",
+      "trigger_mode": "always"
     },
     {
       "name": "code-quality-check",
       "path": "030-quality-assurance/code-quality-check",
-      "category": "always"
+      "description": "Code quality and linting validation",
+      "trigger_mode": "always"
     },
     {
       "name": "mastering-typescript",
       "path": "050-language-frameworks/mastering-typescript",
-      "category": "language",
-      "triggers": {
-        "languages": ["typescript"]
-      }
+      "description": "TypeScript development patterns and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["typescript"],
+      "compatible_languages": ["typescript"]
     },
     {
       "name": "react-frontend",
       "path": "050-language-frameworks/react-frontend",
-      "category": "framework",
-      "triggers": {
-        "frameworks": ["react"]
-      }
+      "description": "React frontend development patterns",
+      "trigger_mode": "triggered",
+      "triggers": ["react"],
+      "compatible_languages": ["typescript", "javascript"]
     }
   ]
 }

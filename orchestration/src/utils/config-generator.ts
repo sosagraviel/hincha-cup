@@ -33,6 +33,7 @@ export type StackProfile = z.infer<typeof StackProfileSchema>;
  * Framework Config Schema
  */
 const FrameworkConfigSchema = z.object({
+  version: z.string(), // For backward compatibility
   schema_version: z.string(),
   framework_version: z.string(),
   project_metadata: z.object({
@@ -231,6 +232,7 @@ export function generateFrameworkConfig(
 
   // Build framework config
   const config: FrameworkConfig = {
+    version: frameworkVersion, // Add for backward compatibility with validation
     schema_version: '1.0.0',
     framework_version: frameworkVersion,
     project_metadata: {

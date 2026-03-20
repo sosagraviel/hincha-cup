@@ -89,7 +89,7 @@ ${additionalContext}
       }
 
       // Save raw synthesis
-      const synthesisPath = join(tempDir, 'phase3-synthesis.md');
+      const synthesisPath = join(tempDir, 'synthesis-raw.md');
       writeFileSync(synthesisPath, synthesisContent);
 
       console.log('[Phase 3: Synthesis] ✓ Synthesis complete');

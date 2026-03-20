@@ -50,7 +50,7 @@ ${BLUE}OPTIONS:${NC}
                          Default: 1800 (30 minutes)
 
     --clean              Remove temporary files after completion
-                         Default: false (keeps .claude-temp for re-running phases)
+                         Default: false (keeps .claude-temp/initialize-project for re-running phases)
 
     --help, -h           Show this help message
 
@@ -476,20 +476,27 @@ if [ "$ORCHESTRATION_MODE" = "typescript" ]; then
         exit 1
     fi
 
-    trap '' SIGINT
-    "$TSX_BIN" "$ORCHESTRATION_CLI" \
-      --project-path "$PROJECT_PATH" \
-      --framework-path "$FRAMEWORK_PATH" &
+    if [ "$START_PHASE" -gt 1 ]; then
+        echo -e "${YELLOW}⚠ Warning: --start-phase is not yet supported in TypeScript mode${NC}"
+        echo -e "${YELLOW}  Falling back to bash orchestration...${NC}"
+        echo ""
+        ORCHESTRATION_MODE="bash"
+    else
+        trap '' SIGINT
+        "$TSX_BIN" "$ORCHESTRATION_CLI" \
+          --project-path "$PROJECT_PATH" \
+          --framework-path "$FRAMEWORK_PATH" &
 
-    TSX_PID=$!
+        TSX_PID=$!
 
-    # Wait for tsx to complete (even if SIGINT received)
-    # wait returns tsx's exit code
-    wait $TSX_PID
-    TSX_EXIT_CODE=$?
+        # Wait for tsx to complete (even if SIGINT received)
+        # wait returns tsx's exit code
+        wait $TSX_PID
+        TSX_EXIT_CODE=$?
 
-    # Exit with the same code tsx used
-    exit $TSX_EXIT_CODE
+        # Exit with the same code tsx used
+        exit $TSX_EXIT_CODE
+    fi
 fi
 
 # ============================================================================
@@ -523,7 +530,7 @@ if [ "$USE_TIMEOUT" = "true" ]; then
             echo ""
             echo "Options:"
             echo "  1. Increase timeout with --timeout SECONDS"
-            echo "  2. Review partial output in: $PROJECT_PATH/.claude-temp/"
+            echo "  2. Review partial output in: $PROJECT_PATH/.claude-temp/initialize-project/"
             echo ""
             exit 124
         fi
@@ -586,8 +593,8 @@ else
     echo "Exit code: $EXIT_CODE"
     echo ""
     echo -e "${YELLOW}Troubleshooting:${NC}"
-    echo "  1. Check logs in: $PROJECT_PATH/.claude-temp/"
-    echo "  2. Review phase outputs: $PROJECT_PATH/.claude-temp/phase*"
+    echo "  1. Check logs in: $PROJECT_PATH/.claude-temp/initialize-project/"
+    echo "  2. Review phase outputs: $PROJECT_PATH/.claude-temp/initialize-project/phase*"
     echo "  3. Re-run with more verbose output"
     echo ""
     echo "For help, see: $FRAMEWORK_PATH/docs/INITIALIZE_PROJECT.md"
