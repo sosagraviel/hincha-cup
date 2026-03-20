@@ -248,6 +248,31 @@ function generateImplementerAgent(
 }
 
 /**
+ * Generate generic implementer agent (for non-code files)
+ */
+function generateGenericImplementerAgent(
+  templatesPath: string
+): GeneratedAgent | null {
+  const templatePath = join(templatesPath, 'implementer-generic.template.md');
+
+  if (!existsSync(templatePath)) {
+    return null;
+  }
+
+  const template = readFileSync(templatePath, 'utf-8');
+  const content = renderTemplate(template, {});
+
+  return {
+    name: 'implementer-generic',
+    filename: 'implementer-generic.md',
+    model: 'sonnet',
+    description: 'Expert full-stack and DevOps specialist implementing any file type following best practices',
+    content,
+    path: '' // Will be set when writing
+  };
+}
+
+/**
  * Generate visual verifier agent
  */
 function generateVisualVerifierAgent(
@@ -311,6 +336,12 @@ export function generateAgents(
         agents.push(implementer);
       }
     }
+  }
+
+  // Generate generic implementer (for config files, YAML, Docker, etc.)
+  const genericImplementer = generateGenericImplementerAgent(templatesPath);
+  if (genericImplementer) {
+    agents.push(genericImplementer);
   }
 
   // Generate visual verifier
