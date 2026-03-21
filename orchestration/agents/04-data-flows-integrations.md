@@ -8,6 +8,7 @@ tools: Read, Grep, Glob
 output_format: json
 output_schema: config/schemas/phase1-analysis.schema.json
 max_needs_verification: 3
+user-prompt-submit-hook: npx tsx ./hooks/validate-analyzer-json.ts
 ---
 
 # Data Flows & Integrations Analyzer

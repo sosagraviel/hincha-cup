@@ -5,6 +5,7 @@ description: Synthesizes codebase analysis into CLAUDE.md and project-context sk
 subagent_type: general-purpose
 run_in_background: true
 tools: Read, Grep, Glob, Bash, Tree, Cat
+user-prompt-submit-hook: ./hooks/validate-synthesis.sh
 ---
 
 # Architect Synthesizer

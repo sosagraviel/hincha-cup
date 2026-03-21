@@ -38,9 +38,9 @@ export async function contextGenerationNode(
   console.log('[Phase 4: Context Generation] ✓ Phase 3 synthesis loaded from disk');
 
   try {
+    console.log('[Phase 4: Context Generation] Extracting from markdown format...');
 
     // Extract CLAUDE.md using regex (matches bash implementation)
-    console.log('[Phase 4: Context Generation] Extracting CLAUDE.md...');
     const claudeMatch = synthesisContent.match(/# CLAUDE\.md Content\s*\n+([\s\S]*?)(?=\n+---\s*\n+# project-context)/);
     if (!claudeMatch) {
       throw new Error('Could not find CLAUDE.md Content section in synthesis');
@@ -50,7 +50,6 @@ export async function contextGenerationNode(
     console.log(`[Phase 4: Context Generation] ✓ Extracted CLAUDE.md (${claudeMdLines} lines)`);
 
     // Extract project-context/SKILL.md using regex (matches bash implementation)
-    console.log('[Phase 4: Context Generation] Extracting project-context/SKILL.md...');
     const contextMatch = synthesisContent.match(/# project-context\/SKILL\.md Content\s*\n+([\s\S]*$)/);
     if (!contextMatch) {
       throw new Error('Could not find project-context/SKILL.md Content section in synthesis');
@@ -82,6 +81,7 @@ export async function contextGenerationNode(
 
     const structureArchPath = join(phase1Dir, '01-structure-architecture.json');
     const techStackPath = join(phase1Dir, '02-tech-stack-dependencies.json');
+    const codePatternsPath = join(phase1Dir, '03-code-patterns-testing.json');
 
     if (!existsSync(structureArchPath) || !existsSync(techStackPath)) {
       throw new Error('Required Phase 1 analyzer outputs not found');
@@ -90,11 +90,17 @@ export async function contextGenerationNode(
     const structureArchData = JSON.parse(readFileSync(structureArchPath, 'utf-8'));
     const techStackData = JSON.parse(readFileSync(techStackPath, 'utf-8'));
 
+    // Also read code-patterns-testing for testing_framework field
+    const codePatternsData = existsSync(codePatternsPath)
+      ? JSON.parse(readFileSync(codePatternsPath, 'utf-8'))
+      : null;
+
     console.log('[Phase 4: Context Generation] ✓ Phase 1 analysis loaded from disk');
     console.log('[Phase 4: Context Generation] Extracting stack profile from Phase 1 analysis...');
 
     const structureFindings = structureArchData.findings as any;
     const techStackFindings = techStackData.findings as any;
+    const codePatternsFindings = codePatternsData?.findings as any;
 
     // Extract languages from structure analyzer
     const languagesFromPhase1 = Array.isArray(structureFindings?.languages)
@@ -158,28 +164,96 @@ export async function contextGenerationNode(
 
     console.log(`[Phase 4: Context Generation] Infrastructure from Phase 1: ${infrastructureFromPhase1.join(', ') || 'none'}`);
 
-    // Extract testing frameworks
+    // Extract testing frameworks from file 03 (code-patterns-testing) and file 02 (tech-stack-dependencies)
     const testingFrameworks: Record<string, string[]> = {};
-    workspaces.forEach((ws: any) => {
-      if (ws.language && ws.testing_framework && ws.testing_framework !== 'none') {
-        const lang = ws.language.toLowerCase();
-        if (!testingFrameworks[lang]) {
-          testingFrameworks[lang] = [];
-        }
-        if (!testingFrameworks[lang].includes(ws.testing_framework)) {
-          testingFrameworks[lang].push(ws.testing_framework);
+
+    // Source 1: Extract from code-patterns-testing (file 03) - has testing_framework field
+    if (codePatternsFindings?.multi_stack?.workspaces) {
+      for (const ws of codePatternsFindings.multi_stack.workspaces) {
+        if (ws.language && ws.testing_framework && ws.testing_framework !== 'none') {
+          const lang = ws.language.toLowerCase();
+          if (!testingFrameworks[lang]) testingFrameworks[lang] = [];
+          if (!testingFrameworks[lang].includes(ws.testing_framework)) {
+            testingFrameworks[lang].push(ws.testing_framework);
+          }
         }
       }
-    });
+    }
 
-    // Extract detected workspaces
-    const detectedWorkspaces = Array.isArray(structureFindings?.multi_stack?.workspaces)
+    // Source 2: Extract from tech-stack-dependencies (file 02) - check dependencies
+    const knownTestingFrameworks = new Set([
+      'pytest', 'unittest', 'nose', 'coverage',
+      'jest', 'mocha', 'jasmine', 'vitest', '@playwright/test', 'playwright',
+      'junit', 'testng',
+      'rspec', 'minitest',
+      'cargo test', 'testing', 'testify'
+    ]);
+
+    if (techStackFindings?.dependencies?.by_package) {
+      for (const [pkgName, deps] of Object.entries(techStackFindings.dependencies.by_package)) {
+        if (!deps || typeof deps !== 'object') continue;
+        const allDeps = { ...((deps as any).production || {}), ...((deps as any).dev || {}) };
+
+        // Find workspace language for this package
+        const workspace = techStackFindings?.multi_stack?.workspaces?.find((w: any) =>
+          w.path && pkgName.toLowerCase().includes(w.path.toLowerCase().split('/').pop())
+        );
+        const lang = workspace?.language?.toLowerCase();
+        if (!lang) continue;
+
+        // Check dependencies for testing frameworks
+        for (const depName of Object.keys(allDeps)) {
+          if (knownTestingFrameworks.has(depName.toLowerCase()) || knownTestingFrameworks.has(depName)) {
+            const framework = depName;
+            if (!testingFrameworks[lang]) testingFrameworks[lang] = [];
+            if (!testingFrameworks[lang].includes(framework)) {
+              testingFrameworks[lang].push(framework);
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`[Phase 4: Context Generation] Testing frameworks detected: ${JSON.stringify(testingFrameworks)}`);
+
+    // Helper function to infer workspace type
+    function inferWorkspaceType(workspace: any): string {
+      const name = (workspace.name || workspace.path || '').toLowerCase();
+
+      if (name.includes('web') || name.includes('frontend') || name.includes('ui')) {
+        return 'frontend';
+      }
+      if (name.includes('backend') || name.includes('api') || name.includes('server')) {
+        return 'backend';
+      }
+      if (name.includes('mobile') || name.includes('ios') || name.includes('android')) {
+        return 'mobile';
+      }
+      if (name.includes('function') || name.includes('lambda') || name.includes('service')) {
+        return 'service';
+      }
+      if (name.includes('lib') || name.includes('package') || name.includes('shared')) {
+        return 'library';
+      }
+
+      return 'service';
+    }
+
+    // Extract and transform detected workspaces
+    const rawWorkspaces = Array.isArray(structureFindings?.multi_stack?.workspaces)
       ? structureFindings.multi_stack.workspaces
       : [];
 
+    const detectedWorkspaces = rawWorkspaces.map((ws: any) => ({
+      path: ws.path || '',
+      language: ws.language || 'javascript',
+      type: inferWorkspaceType(ws),
+      frameworks: ws.dependencies || []
+    }));
+
     // Determine primary language (most common language in workspaces)
     const languageCounts: Record<string, number> = {};
-    workspaces.forEach((ws: any) => {
+    rawWorkspaces.forEach((ws: any) => {
       if (ws.language) {
         const lang = ws.language.toLowerCase();
         languageCounts[lang] = (languageCounts[lang] || 0) + 1;

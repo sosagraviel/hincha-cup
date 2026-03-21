@@ -4,7 +4,11 @@ import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { spawn } from 'child_process';
 import { createAgentFromMarkdown } from '../../utils/agent-factory.js';
-import { extractJSON } from '../../utils/validator.js';
+import { extractJSON, type ValidationResult } from '../../utils/validator.js';
+import {
+  retryWithEnhancedFeedback,
+  DEFAULT_RETRY_CONFIG
+} from '../../utils/enhanced-retry.js';
 
 interface Gap {
   type: 'needs_verification' | 'sparse_findings' | 'missing_language_coverage';
@@ -308,15 +312,12 @@ async function consolidateQuestions(
   frameworkPath: string,
   tempDir: string
 ): Promise<{ success: boolean; consolidated?: QuestionConsolidationOutput; error?: string }> {
-  const MAX_ATTEMPTS = 3;
+  try {
+    // Build prompt with gaps
+    const gapsJson = JSON.stringify(gaps, null, 2);
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      console.log(`  Consolidation attempt ${attempt} of ${MAX_ATTEMPTS}...`);
-
-      // Build prompt with gaps
-      const gapsJson = JSON.stringify(gaps, null, 2);
-
+    // Define agent invocation function with feedback support
+    const agentInvoke = async (feedbackPrompt: string): Promise<string> => {
       const additionalContext = `
 CRITICAL: Follow ALL instructions in the agent file below.
 Output ONLY valid JSON starting with { and ending with }
@@ -345,10 +346,10 @@ CRITICAL VALIDATION REQUIREMENTS:
 === INPUT DATA ===
 Current gaps that need consolidation:
 ${gapsJson}
+
+${feedbackPrompt}
 `;
 
-      // Create agent
-      // Note: createAgentFromMarkdown loads from frameworkPath/orchestration/agents
       const agent = await createAgentFromMarkdown({
         agentName: 'question-consolidator',
         agentFile: '06-question-consolidator.md',
@@ -358,54 +359,77 @@ ${gapsJson}
         timeout: 120000 // 2 minutes
       });
 
-      // Invoke agent
       const result = await agent.invoke({
         input: 'Consolidate the questions provided in the context above.'
       });
 
-      const rawOutput = result.output || result.content || JSON.stringify(result);
+      return result.output || result.content || JSON.stringify(result);
+    };
 
-      // Save raw output for debugging
-      const outputPath = join(tempDir, `question-consolidation-attempt${attempt}.json`);
-      writeFileSync(outputPath, rawOutput);
+    // Define validator function
+    const validator = (output: string): ValidationResult => {
+      try {
+        // Extract and parse JSON
+        const jsonOutput = extractJSON(output);
+        const parsed: QuestionConsolidationOutput = JSON.parse(jsonOutput);
 
-      // Extract and parse JSON
-      const jsonOutput = extractJSON(rawOutput);
-      const parsed: QuestionConsolidationOutput = JSON.parse(jsonOutput);
-
-      // Basic validation
-      if (!parsed.consolidated_gaps || !Array.isArray(parsed.consolidated_gaps)) {
-        throw new Error('Invalid output: missing consolidated_gaps array');
-      }
-
-      if (!parsed.consolidation_metadata) {
-        throw new Error('Invalid output: missing consolidation_metadata');
-      }
-
-      // Validate question format (must end with ?)
-      for (const gap of parsed.consolidated_gaps) {
-        if (!gap.question || !gap.question.endsWith('?')) {
-          throw new Error(`Invalid question format: "${gap.question}" must end with ?`);
+        // Basic validation
+        if (!parsed.consolidated_gaps || !Array.isArray(parsed.consolidated_gaps)) {
+          return {
+            valid: false,
+            errors: ['Invalid output: missing consolidated_gaps array'],
+            data: null
+          };
         }
+
+        if (!parsed.consolidation_metadata) {
+          return {
+            valid: false,
+            errors: ['Invalid output: missing consolidation_metadata'],
+            data: null
+          };
+        }
+
+        // Validate question format (must end with ?)
+        for (const gap of parsed.consolidated_gaps) {
+          if (!gap.question || !gap.question.endsWith('?')) {
+            return {
+              valid: false,
+              errors: [`Invalid question format: "${gap.question}" must end with ?`],
+              data: null
+            };
+          }
+        }
+
+        return {
+          valid: true,
+          errors: [],
+          data: parsed
+        };
+      } catch (error) {
+        return {
+          valid: false,
+          errors: [(error as Error).message],
+          data: null
+        };
       }
+    };
 
-      console.log('  ✓ Consolidation successful and validated');
+    // Use enhanced retry with progressive feedback
+    const parsed = await retryWithEnhancedFeedback<QuestionConsolidationOutput>(
+      agentInvoke,
+      validator,
+      DEFAULT_RETRY_CONFIG
+    );
 
-      return { success: true, consolidated: parsed };
+    console.log('  ✓ Consolidation successful and validated');
+    return { success: true, consolidated: parsed };
 
-    } catch (error) {
-      const errMsg = (error as Error).message;
-      console.log(`  ✗ Consolidation attempt ${attempt} failed: ${errMsg}`);
-
-      if (attempt === MAX_ATTEMPTS) {
-        return { success: false, error: errMsg };
-      }
-
-      console.log('  Retrying...');
-    }
+  } catch (error) {
+    const errMsg = (error as Error).message;
+    console.log(`  ✗ Consolidation failed: ${errMsg}`);
+    return { success: false, error: errMsg };
   }
-
-  return { success: false, error: 'Max attempts exceeded' };
 }
 
 /**

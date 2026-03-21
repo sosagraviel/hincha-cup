@@ -1,13 +1,11 @@
 import type { InitializeProjectState } from '../../state/schemas/initialize-project.schema.js';
 import { createAgentFromMarkdown } from '../../utils/agent-factory.js';
 import {
-  initRetryState,
-  updateRetryState,
-  completeRetryState,
-  shouldRetry,
-  buildErrorFeedback,
-  sleep
-} from '../../utils/retry.js';
+  retryWithEnhancedFeedback,
+  DEFAULT_RETRY_CONFIG,
+  type RetryConfig
+} from '../../utils/enhanced-retry.js';
+import type { ValidationResult } from '../../utils/validator.js';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -49,26 +47,16 @@ export async function synthesisNode(
   const phase2Consolidation = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
   console.log('[Phase 3: Synthesis] ✓ Phase 2 consolidation loaded from disk');
 
-  // Initialize retry state with 10 attempts (more than Phase 1)
-  let retryState = state.phase3_retry || initRetryState(10);
-
-  let additionalContext = '';
-
-  // Retry loop
-  while (shouldRetry(retryState)) {
-    try {
-      console.log(`[Phase 3: Synthesis] Attempt ${retryState.attempt + 1}/${retryState.max_attempts}`);
-
-      // Build error feedback from previous attempts
-      additionalContext = buildErrorFeedback(retryState);
-
+  try {
+    // Define agent invocation function with feedback support
+    const agentInvoke = async (feedbackPrompt: string): Promise<string> => {
       // Add consolidated findings to context
       const consolidatedContext = `
 === CONSOLIDATED ANALYSIS FROM PHASE 2 ===
 
 ${JSON.stringify(phase2Consolidation, null, 2)}
 
-${additionalContext}
+${feedbackPrompt}
 `;
 
       // Create Opus agent
@@ -86,54 +74,57 @@ ${additionalContext}
         input: `Synthesize comprehensive analysis for: ${state.project_path}`
       });
 
-      // Extract synthesis content
-      const synthesisContent = result.output || result.content || String(result);
+      return result.output || result.content || String(result);
+    };
 
+    // Define validator function
+    const validator = (output: string): ValidationResult => {
       // Basic validation: should contain markdown content
-      if (!synthesisContent || synthesisContent.length < 500) {
-        throw new Error('Synthesis output too short or empty');
+      if (!output || output.length < 500) {
+        return {
+          valid: false,
+          errors: ['Synthesis output too short or empty (minimum 500 characters)'],
+          data: null
+        };
       }
-
-      // Save raw synthesis
-      const synthesisPath = join(tempDir, 'synthesis-raw.md');
-      writeFileSync(synthesisPath, synthesisContent);
-
-      console.log('[Phase 3: Synthesis] ✓ Synthesis complete');
-      console.log(`  - Output length: ${synthesisContent.length} characters`);
-
-      retryState = completeRetryState(retryState);
 
       return {
-        phase3_synthesis: {
-          synthesis_content: synthesisContent,
-          timestamp: new Date().toISOString(),
-          validation_passed: true
-        },
-        phase3_retry: retryState,
-        current_phase: 'phase3_synthesis'
+        valid: true,
+        errors: [],
+        data: output
       };
+    };
 
-    } catch (error) {
-      const errorMessage = `Synthesis failed: ${(error as Error).message}`;
-      retryState = updateRetryState(retryState, errorMessage);
+    // Use enhanced retry with progressive feedback (10 attempts for Opus)
+    const synthesisContent = await retryWithEnhancedFeedback<string>(
+      agentInvoke,
+      validator,
+      { ...DEFAULT_RETRY_CONFIG, maxAttempts: 10 }
+    );
 
-      console.error(`[Phase 3: Synthesis] Error:`, errorMessage);
+    // Save raw synthesis
+    const synthesisPath = join(tempDir, 'synthesis-raw.md');
+    writeFileSync(synthesisPath, synthesisContent);
 
-      if (shouldRetry(retryState) && retryState.next_delay_ms) {
-        console.log(`[Phase 3: Synthesis] Retrying in ${retryState.next_delay_ms}ms...`);
-        await sleep(retryState.next_delay_ms);
-      }
-    }
+    console.log('[Phase 3: Synthesis] ✓ Synthesis complete');
+    console.log(`  - Output length: ${synthesisContent.length} characters`);
+
+    return {
+      phase3_synthesis: {
+        synthesis_content: synthesisContent,
+        timestamp: new Date().toISOString(),
+        validation_passed: true
+      },
+      current_phase: 'phase3_synthesis'
+    };
+
+  } catch (error) {
+    const errorMessage = `Synthesis failed: ${(error as Error).message}`;
+    console.error(`[Phase 3: Synthesis] ✗ ${errorMessage}`);
+
+    return {
+      errors: [...state.errors, errorMessage],
+      current_phase: 'failed'
+    };
   }
-
-  // Max retries exceeded
-  const finalError = `Synthesis failed after ${retryState.max_attempts} attempts. Last error: ${retryState.last_error}`;
-
-  console.error(`[Phase 3: Synthesis] ✗ ${finalError}`);
-
-  return {
-    phase3_retry: retryState,
-    errors: [...state.errors, finalError],
-    current_phase: 'failed'
-  };
 }

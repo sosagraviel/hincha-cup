@@ -1,14 +1,10 @@
 import type { InitializeProjectState } from '../../state/schemas/initialize-project.schema.js';
 import { createAgentFromMarkdown } from '../../utils/agent-factory.js';
-import { validateAndParseAgentOutput, buildValidationErrorFeedback } from '../../utils/validator.js';
+import { validateAndParseAgentOutput, type ValidationResult } from '../../utils/validator.js';
 import {
-  initRetryState,
-  updateRetryState,
-  completeRetryState,
-  shouldRetry,
-  buildErrorFeedback,
-  sleep
-} from '../../utils/retry.js';
+  retryWithEnhancedFeedback,
+  DEFAULT_RETRY_CONFIG
+} from '../../utils/enhanced-retry.js';
 import { logger } from '../../utils/logger.js';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -26,25 +22,18 @@ export async function techStackDependenciesAnalyzerNode(
   agentLogger.blank();
   agentLogger.info('Starting analysis...');
 
-  let retryState = state.phase1_retry_tracking?.tech_stack_dependencies || initRetryState();
-
   const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
   mkdirSync(join(tempDir, 'phase1-outputs'), { recursive: true });
 
-  let additionalContext = '';
-
-  while (shouldRetry(retryState)) {
-    try {
-      agentLogger.info(`Attempt ${retryState.attempt + 1}/${retryState.max_attempts}`);
-
-      additionalContext = buildErrorFeedback(retryState);
-
+  try {
+    // Define agent invocation function with feedback support
+    const agentInvoke = async (feedbackPrompt: string): Promise<string> => {
       const agent = await createAgentFromMarkdown({
         agentName,
         agentFile,
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
-        additionalContext,
+        additionalContext: feedbackPrompt,
         timeout: 600000 // 10 minutes
       });
 
@@ -52,99 +41,55 @@ export async function techStackDependenciesAnalyzerNode(
         input: `Analyze the tech stack and dependencies at: ${state.project_path}`
       });
 
-      const rawOutput = result.output || result.content || JSON.stringify(result);
+      return result.output || result.content || JSON.stringify(result);
+    };
 
-      const rawOutputPath = join(tempDir, 'phase1-outputs', `${agentName}-attempt${retryState.attempt}.raw`);
-      writeFileSync(rawOutputPath, rawOutput);
+    // Define validator function
+    const validator = (output: string): ValidationResult => {
+      return validateAndParseAgentOutput(output, agentName);
+    };
 
-      const validation = validateAndParseAgentOutput(rawOutput, agentName);
+    // Use enhanced retry with progressive feedback
+    const validatedData = await retryWithEnhancedFeedback(
+      agentInvoke,
+      validator,
+      DEFAULT_RETRY_CONFIG
+    );
 
-      if (!validation.valid) {
-        const errorMessage = buildValidationErrorFeedback(validation);
-        retryState = updateRetryState(retryState, errorMessage);
+    // Success! Save output
+    const outputPath = join(tempDir, 'phase1-outputs', '02-tech-stack-dependencies.json');
+    writeFileSync(outputPath, JSON.stringify(validatedData, null, 2));
 
-        agentLogger.warn('Validation failed');
-        agentLogger.increaseIndent();
-        validation.errors?.forEach(err => agentLogger.warn(err));
-        agentLogger.decreaseIndent();
+    agentLogger.success('Analysis complete');
 
-        if (shouldRetry(retryState) && retryState.next_delay_ms) {
-          agentLogger.info(`Retrying in ${Math.round(retryState.next_delay_ms / 1000)}s...`);
-          await sleep(retryState.next_delay_ms);
-        }
-        continue;
-      }
+    return {
+      temp_dir: tempDir
+    };
 
-      const outputPath = join(tempDir, 'phase1-outputs', '02-tech-stack-dependencies.json');
-      writeFileSync(outputPath, JSON.stringify(validation.data, null, 2));
+  } catch (error) {
+    const err = error as Error;
 
-      agentLogger.success('Analysis complete');
-      retryState = completeRetryState(retryState);
-
-      // Don't return phase1_analysis - Phase 2 will read from disk files
-      return {
-        phase1_retry_tracking: {
-          ...state.phase1_retry_tracking,
-          tech_stack_dependencies: retryState
-        },
-        temp_dir: tempDir
-      };
-
-    } catch (error) {
-      const err = error as Error;
-
-      if (err.message.includes('SIGINT') || err.message.includes('interrupted by user')) {
-        throw error;
-      }
-
-      const errorFilePath = join(tempDir, 'phase1-outputs', `${agentName}-attempt${retryState.attempt}.err`);
-      writeFileSync(errorFilePath, `${err.message}\n\n${err.stack || ''}`);
-
-      const errorMessage = `Agent execution failed: ${err.message}`;
-      retryState = updateRetryState(retryState, errorMessage);
-
-      agentLogger.blank();
-      agentLogger.error('Agent execution failed', err);
-
-      if (err.message.includes('RATE_LIMIT')) {
-        agentLogger.blank();
-        agentLogger.warn('This is a RATE LIMIT error - retrying will not help until limit resets.');
-        agentLogger.warn('Please follow the instructions above to switch to API key mode or wait.');
-        agentLogger.blank();
-
-        // Don't return phase1_analysis - Phase 2 will read from disk files
-        return {
-          phase1_retry_tracking: {
-            ...state.phase1_retry_tracking,
-            tech_stack_dependencies: retryState
-          },
-          temp_dir: tempDir,
-          errors: [
-            ...state.errors,
-            `${agentName}: ${err.message}`
-          ],
-          current_phase: 'failed'
-        };
-      }
-
-      if (shouldRetry(retryState) && retryState.next_delay_ms) {
-        agentLogger.info(`Retrying in ${Math.round(retryState.next_delay_ms / 1000)}s...`);
-        await sleep(retryState.next_delay_ms);
-      }
+    // Check if this is a SIGINT abort
+    if (err.message.includes('SIGINT') || err.message.includes('interrupted by user')) {
+      throw error;
     }
+
+    // Check if this is a rate limit error
+    if (err.message.includes('RATE_LIMIT')) {
+      agentLogger.blank();
+      agentLogger.warn('This is a RATE LIMIT error - retrying will not help until limit resets.');
+      agentLogger.warn('Please follow the instructions above to switch to API key mode or wait.');
+      agentLogger.blank();
+    }
+
+    agentLogger.error('Analysis failed', err);
+
+    return {
+      errors: [
+        ...state.errors,
+        `${agentName}: ${err.message}`
+      ],
+      current_phase: 'failed'
+    };
   }
-
-  const finalError = `Failed after ${retryState.max_attempts} attempts. Last error: ${retryState.last_error}`;
-  agentLogger.error(finalError);
-
-  // Don't return phase1_analysis - Phase 2 will read from disk files
-  return {
-    phase1_retry_tracking: {
-      ...state.phase1_retry_tracking,
-      tech_stack_dependencies: retryState
-    },
-    temp_dir: tempDir,
-    errors: [...state.errors, `${agentName}: ${finalError}`],
-    current_phase: 'failed'
-  };
 }

@@ -84,14 +84,6 @@ export async function resourcesNode(
 
     console.log(`[Phase 5: Resources] ✓ Copied ${commandFiles.length} commands`);
 
-    // Copy Claude Code hooks from framework
-    const frameworkHooksDir = join(state.framework_path, 'orchestration', 'resources', 'claude-hooks');
-    const hooksTargetDir = join(projectClaudeDir, 'hooks');
-
-    console.log(`[Phase 5: Resources] Copying Claude Code hooks...`);
-    const hooksCopied = copyDirectoryRecursive(frameworkHooksDir, hooksTargetDir);
-    console.log(`[Phase 5: Resources] ✓ Copied ${hooksCopied} hook files`);
-
     console.log('[Phase 5: Resources] ✓ Resource copying complete');
 
     return {

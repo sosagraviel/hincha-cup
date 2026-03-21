@@ -9,6 +9,7 @@ output_format: json
 output_schema: config/schemas/question-consolidation.schema.json
 max_retries: 3
 timeout: 120
+user-prompt-submit-hook: npx tsx ./hooks/validate-extraction-json.ts
 ---
 
 # Question Consolidation Agent

@@ -242,7 +242,6 @@
       "description": "Docker development and containerization",
       "trigger_mode": "triggered",
       "triggers": ["docker", "dockerfile"],
-      "compatible_languages": [],
       "is_linkable_to_agents": true
     },
     {
@@ -260,7 +259,6 @@
       "description": "AWS CLI commands and automation",
       "trigger_mode": "triggered",
       "triggers": ["aws"],
-      "compatible_languages": [],
       "is_linkable_to_agents": true
     },
     {
@@ -269,7 +267,6 @@
       "description": "Google Cloud CLI commands and workflows",
       "trigger_mode": "triggered",
       "triggers": ["gcloud", "google-cloud"],
-      "compatible_languages": [],
       "is_linkable_to_agents": true
     },
     {
