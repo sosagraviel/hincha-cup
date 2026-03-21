@@ -67,7 +67,7 @@ export async function structureArchitectureAnalyzerNode(
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
         additionalContext,
-        timeout: 300000 // 5 minutes
+        timeout: 600000 // 10 minutes
       });
 
       // Invoke agent
@@ -112,16 +112,13 @@ export async function structureArchitectureAnalyzerNode(
 
       retryState = completeRetryState(retryState);
 
+      // Don't return phase1_analysis - Phase 2 will read from disk files
       return {
-        phase1_analysis: {
-          ...state.phase1_analysis,
-          structure_architecture: validation.data,
-          all_completed: false // Will be set when all 4 agents complete
-        },
         phase1_retry_tracking: {
           ...state.phase1_retry_tracking,
           structure_architecture: retryState
         },
+        temp_dir: tempDir
       };
 
     } catch (error) {

@@ -169,9 +169,11 @@ function assignSkillsToAgents(
 
   // IMPORTANT: Manually add project-context to planner + all implementers
   // project-context has trigger_mode="generated" so it's NOT in resolvedSkills
+  // NOTE: project-context is saved at root of .claude/skills/ (not in 010-foundation/)
   const projectContextSkill: ResolvedSkill = {
     name: 'project-context',
     path: join(frameworkPath, 'skills/010-foundation/project-context'),
+    relative_path: 'project-context',
     reason: 'Always included',
     description: 'Project-specific architecture and patterns'
   };

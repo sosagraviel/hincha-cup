@@ -45,22 +45,37 @@ export async function consolidationNode(
 ): Promise<Partial<InitializeProjectState>> {
   console.log('\n[Phase 2: Consolidation] Starting...');
 
-  const phase1 = state.phase1_analysis;
-  if (!phase1) {
-    throw new Error('Phase 1 analysis not found in state');
+  // Read Phase 1 outputs from disk (not from state)
+  const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
+  const phase1Dir = join(tempDir, 'phase1-outputs');
+
+  if (!existsSync(phase1Dir)) {
+    throw new Error(`Phase 1 outputs directory not found: ${phase1Dir}`);
   }
 
-  const {
-    structure_architecture,
-    tech_stack_dependencies,
-    code_patterns_testing,
-    data_flows_integrations
-  } = phase1;
+  console.log('[Phase 2: Consolidation] Loading Phase 1 outputs from disk...');
 
-  if (!structure_architecture || !tech_stack_dependencies ||
-      !code_patterns_testing || !data_flows_integrations) {
-    throw new Error('Not all Phase 1 analyzers completed successfully');
+  // Load all 4 analyzer outputs from disk
+  const phase1Files = [
+    '01-structure-architecture.json',
+    '02-tech-stack-dependencies.json',
+    '03-code-patterns-testing.json',
+    '04-data-flows-integrations.json'
+  ];
+
+  const analyzers: any[] = [];
+
+  for (const filename of phase1Files) {
+    const filePath = join(phase1Dir, filename);
+    if (!existsSync(filePath)) {
+      throw new Error(`Phase 1 output file not found: ${filePath}`);
+    }
+    const content = JSON.parse(readFileSync(filePath, 'utf-8'));
+    analyzers.push(content);
+    console.log(`  ✓ Loaded ${filename}`);
   }
+
+  console.log('[Phase 2: Consolidation] ✓ All Phase 1 outputs loaded from disk');
 
   try {
     // ========================================================================
@@ -68,12 +83,7 @@ export async function consolidationNode(
     // ========================================================================
     console.log('[Phase 2: Consolidation] Step 1: Merging analyzer outputs...');
 
-    const analyzers = [
-      structure_architecture,
-      tech_stack_dependencies,
-      code_patterns_testing,
-      data_flows_integrations
-    ];
+    // analyzers array is already populated from files
 
     const consolidated = consolidateAnalyses(analyzers);
 
@@ -214,8 +224,8 @@ export async function consolidationNode(
     console.log(`  - Gaps identified: ${gaps.length}`);
 
     return {
+      // Mark Phase 1 as completed (Phase 6 validation checks this)
       phase1_analysis: {
-        ...phase1,
         all_completed: true,
         completion_timestamp: new Date().toISOString()
       },

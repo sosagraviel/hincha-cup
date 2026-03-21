@@ -52,7 +52,7 @@ export async function dataFlowsIntegrationsAnalyzerNode(
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
         additionalContext,
-        timeout: 300000
+        timeout: 600000 // 10 minutes
       });
 
       const result = await agent.invoke({
@@ -89,16 +89,13 @@ export async function dataFlowsIntegrationsAnalyzerNode(
       agentLogger.success('Analysis complete');
       retryState = completeRetryState(retryState);
 
+      // Don't return phase1_analysis - Phase 2 will read from disk files
       return {
-        phase1_analysis: {
-          ...state.phase1_analysis,
-          data_flows_integrations: validation.data,
-          all_completed: false
-        },
         phase1_retry_tracking: {
           ...state.phase1_retry_tracking,
           data_flows_integrations: retryState
         },
+        temp_dir: tempDir
       };
 
     } catch (error) {
@@ -125,11 +122,13 @@ export async function dataFlowsIntegrationsAnalyzerNode(
         agentLogger.warn('Please follow the instructions above to switch to API key mode or wait.');
         agentLogger.blank();
 
+        // Don't return phase1_analysis - Phase 2 will read from disk files
         return {
           phase1_retry_tracking: {
             ...state.phase1_retry_tracking,
             data_flows_integrations: retryState
           },
+          temp_dir: tempDir,
           errors: [
             ...state.errors,
             `${agentName}: ${err.message}`
@@ -148,11 +147,13 @@ export async function dataFlowsIntegrationsAnalyzerNode(
   const finalError = `Failed after ${retryState.max_attempts} attempts. Last error: ${retryState.last_error}`;
   agentLogger.error(finalError);
 
+  // Don't return phase1_analysis - Phase 2 will read from disk files
   return {
     phase1_retry_tracking: {
       ...state.phase1_retry_tracking,
       data_flows_integrations: retryState
     },
+    temp_dir: tempDir,
     errors: [...state.errors, `${agentName}: ${finalError}`],
     current_phase: 'failed'
   };

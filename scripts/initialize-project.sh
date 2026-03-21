@@ -55,13 +55,6 @@ ${BLUE}OPTIONS:${NC}
     --help, -h           Show this help message
 
 ${BLUE}ENVIRONMENT VARIABLES:${NC}
-    ORCHESTRATION_MODE   Control execution mode
-                         Default: typescript (fails if TypeScript has errors)
-                         Options:
-                           - typescript: Use TypeScript orchestration (recommended)
-                           - bash: Use legacy bash orchestration
-                         Example: ORCHESTRATION_MODE=bash ./scripts/initialize-project.sh
-
     MODEL_TIER           Model tier to use for all agents
                          Default: standard
                          Options: fast, standard, advanced, openai, gemini
@@ -72,12 +65,9 @@ ${BLUE}ENVIRONMENT VARIABLES:${NC}
     GOOGLE_API_KEY       API key for Google (Gemini) provider
 
 ${BLUE}EXAMPLES:${NC}
-    # Basic usage (run from project root) - uses TypeScript by default
+    # Basic usage (run from project root)
     cd /path/to/your/project
     ./qubika-agentic-framework/scripts/initialize-project.sh
-
-    # Use bash orchestration instead of TypeScript
-    ORCHESTRATION_MODE=bash ./qubika-agentic-framework/scripts/initialize-project.sh
 
     # Use fast tier (haiku models for speed/cost)
     MODEL_TIER=fast ./qubika-agentic-framework/scripts/initialize-project.sh
@@ -324,29 +314,12 @@ fi
 # Track start time
 START_TIME=$(date +%s)
 
-# Bash implementation header (shown if TypeScript fails or is skipped)
-show_bash_header() {
-    if [ "$START_PHASE" -gt 1 ]; then
-        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo -e "${BLUE}  STARTING FROM PHASE $START_PHASE (SKIPPING PHASES 1-$((START_PHASE-1)))${NC}"
-        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo ""
-    else
-        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo -e "${BLUE}  STARTING 6-PHASE INITIALIZATION${NC}"
-        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo ""
-    fi
-}
-
 # ============================================================================
-# TYPESCRIPT ORCHESTRATION (DEFAULT)
+# TYPESCRIPT ORCHESTRATION
 # ============================================================================
 
-# Environment variable to control execution mode
-ORCHESTRATION_MODE="${ORCHESTRATION_MODE:-typescript}"  # Default to TypeScript
-
-if [ "$ORCHESTRATION_MODE" = "typescript" ]; then
+# Always use TypeScript orchestration
+if true; then
     echo -e "${BLUE}🚀 Running TypeScript orchestration...${NC}"
     echo ""
 
@@ -354,11 +327,8 @@ if [ "$ORCHESTRATION_MODE" = "typescript" ]; then
     if ! command -v node &> /dev/null; then
         echo -e "${RED}❌ Error: Node.js is not installed${NC}"
         echo ""
-        echo "Node.js is required for TypeScript orchestration."
+        echo "Node.js is required for the AI Agentic Framework."
         echo "Install it from: https://nodejs.org/"
-        echo ""
-        echo "To use bash orchestration instead, run:"
-        echo "  ORCHESTRATION_MODE=bash $0"
         echo ""
         exit 1
     fi
@@ -370,9 +340,6 @@ if [ "$ORCHESTRATION_MODE" = "typescript" ]; then
         echo "  Expected: $ORCHESTRATION_CLI"
         echo ""
         echo "The orchestration module may not be set up correctly."
-        echo ""
-        echo "To use bash orchestration instead, run:"
-        echo "  ORCHESTRATION_MODE=bash $0"
         echo ""
         exit 1
     fi
@@ -425,9 +392,6 @@ if [ "$ORCHESTRATION_MODE" = "typescript" ]; then
             echo "  rm -rf node_modules package-lock.json"
             echo "  npm install"
             echo ""
-            echo "To use bash orchestration instead, run:"
-            echo "  ORCHESTRATION_MODE=bash $0"
-            echo ""
             exit 1
         fi
 
@@ -476,78 +440,39 @@ if [ "$ORCHESTRATION_MODE" = "typescript" ]; then
         exit 1
     fi
 
+    # Run TypeScript orchestration with --start-phase support
+    trap '' SIGINT
+
+    # Build tsx command with optional start-phase parameter
     if [ "$START_PHASE" -gt 1 ]; then
-        echo -e "${YELLOW}⚠ Warning: --start-phase is not yet supported in TypeScript mode${NC}"
-        echo -e "${YELLOW}  Falling back to bash orchestration...${NC}"
+        echo -e "${BLUE}Starting from Phase $START_PHASE...${NC}"
         echo ""
-        ORCHESTRATION_MODE="bash"
+        "$TSX_BIN" "$ORCHESTRATION_CLI" \
+          --project-path "$PROJECT_PATH" \
+          --framework-path "$FRAMEWORK_PATH" \
+          --start-phase "$START_PHASE" &
     else
-        trap '' SIGINT
         "$TSX_BIN" "$ORCHESTRATION_CLI" \
           --project-path "$PROJECT_PATH" \
           --framework-path "$FRAMEWORK_PATH" &
-
-        TSX_PID=$!
-
-        # Wait for tsx to complete (even if SIGINT received)
-        # wait returns tsx's exit code
-        wait $TSX_PID
-        TSX_EXIT_CODE=$?
-
-        # Exit with the same code tsx used
-        exit $TSX_EXIT_CODE
     fi
+
+    TSX_PID=$!
+
+    # Wait for tsx to complete (even if SIGINT received)
+    # wait returns tsx's exit code
+    wait $TSX_PID
+    TSX_EXIT_CODE=$?
+
+    # Calculate duration
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
+    MINUTES=$((DURATION / 60))
+    SECONDS=$((DURATION % 60))
+
+    # Exit with the same code tsx used
+    exit $TSX_EXIT_CODE
 fi
-
-# ============================================================================
-# BASH ORCHESTRATION (FALLBACK)
-# ============================================================================
-
-echo -e "${BLUE}🔧 Running bash orchestration...${NC}"
-echo ""
-show_bash_header
-
-# Export environment variables for orchestration
-export SKIP_GAP_QUESTIONS
-export CLEAN_TEMP
-
-# Run orchestration with or without timeout
-# Use --foreground flag with timeout to ensure proper signal propagation
-if [ "$USE_TIMEOUT" = "true" ]; then
-    # --foreground: don't create new process group, allows SIGINT to propagate
-    # --signal=TERM: send TERM on timeout (not KILL)
-    if timeout --foreground --signal=TERM ${TIMEOUT}s bash "$ORCHESTRATE_SCRIPT" "$PROJECT_PATH" "$FRAMEWORK_PATH" --start-phase "$START_PHASE"; then
-        EXIT_CODE=0
-    else
-        EXIT_CODE=$?
-        if [ $EXIT_CODE -eq 124 ]; then
-            echo ""
-            echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-            echo -e "${RED}  TIMEOUT EXCEEDED${NC}"
-            echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-            echo ""
-            echo "Initialization exceeded the timeout of ${TIMEOUT}s ($(($TIMEOUT / 60)) minutes)"
-            echo ""
-            echo "Options:"
-            echo "  1. Increase timeout with --timeout SECONDS"
-            echo "  2. Review partial output in: $PROJECT_PATH/.claude-temp/initialize-project/"
-            echo ""
-            exit 124
-        fi
-    fi
-else
-    if bash "$ORCHESTRATE_SCRIPT" "$PROJECT_PATH" "$FRAMEWORK_PATH" --start-phase "$START_PHASE"; then
-        EXIT_CODE=0
-    else
-        EXIT_CODE=$?
-    fi
-fi
-
-# Calculate duration
-END_TIME=$(date +%s)
-DURATION=$((END_TIME - START_TIME))
-MINUTES=$((DURATION / 60))
-SECONDS=$((DURATION % 60))
 
 # ============================================================================
 # COMPLETION

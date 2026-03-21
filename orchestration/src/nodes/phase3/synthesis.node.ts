@@ -8,7 +8,7 @@ import {
   buildErrorFeedback,
   sleep
 } from '../../utils/retry.js';
-import { writeFileSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
 /**
@@ -37,15 +37,21 @@ export async function synthesisNode(
 
   console.log('\n[Phase 3: Synthesis] Starting Opus synthesis...');
 
-  // Verify Phase 2 completed
-  if (!state.phase2_consolidation) {
-    throw new Error('Phase 2 consolidation not found in state');
+  // Read Phase 2 consolidation from disk (not from state)
+  const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
+  const consolidationPath = join(tempDir, 'phase2-consolidation.json');
+
+  if (!existsSync(consolidationPath)) {
+    throw new Error(`Phase 2 consolidation file not found: ${consolidationPath}`);
   }
+
+  console.log('[Phase 3: Synthesis] Loading Phase 2 consolidation from disk...');
+  const phase2Consolidation = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
+  console.log('[Phase 3: Synthesis] ✓ Phase 2 consolidation loaded from disk');
 
   // Initialize retry state with 10 attempts (more than Phase 1)
   let retryState = state.phase3_retry || initRetryState(10);
 
-  const tempDir = state.temp_dir!;
   let additionalContext = '';
 
   // Retry loop
@@ -60,7 +66,7 @@ export async function synthesisNode(
       const consolidatedContext = `
 === CONSOLIDATED ANALYSIS FROM PHASE 2 ===
 
-${JSON.stringify(state.phase2_consolidation, null, 2)}
+${JSON.stringify(phase2Consolidation, null, 2)}
 
 ${additionalContext}
 `;

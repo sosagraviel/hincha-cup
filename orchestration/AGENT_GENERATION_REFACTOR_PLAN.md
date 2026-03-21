@@ -261,6 +261,8 @@ function generateAgents(...): GeneratedAgent[] {
 
 ## Implementation TODO List
 
+### ✅ COMPLETED: Phase 2 - Configuration-Driven Agent Generation
+
 - [x] **Phase 1: Complete skills.config.json** - Configure all 39 skills with proper triggers, compatible_languages, and is_linkable_to_agents attributes
 - [x] **Phase 2a: Update skill-resolver.ts types** - Add is_linkable_to_agents and trigger_mode to ResolvedSkill interface
 - [x] **Phase 2b: Rewrite agent-generator.ts** - Implement assignSkillsToAgents() with configuration-driven logic (NO hardcoded filters) + manually add project-context to all agents
@@ -268,8 +270,34 @@ function generateAgents(...): GeneratedAgent[] {
 - [x] **Phase 2d: Update generateAgents()** - Use new assignSkillsToAgents() function
 - [x] **Phase 3: Build TypeScript** - Run npm run build and fix any compilation errors
 - [x] **Phase 4: Test skill assignment logic** - Created unit test validating configuration-driven logic (10/10 checks passed)
-- [ ] **Phase 5: Test on stride-origin project** - Run initialization and verify agents have correct skills
-- [ ] **Phase 6: Production testing** - Full end-to-end test on real projects
+
+**Status:** Agent generation is now purely configuration-driven. All hardcoded filters removed. ✅
+
+### 🔄 IN PROGRESS: Phase 3 - Skill Detection Enhancement
+
+**Problem:** Firebase, Google Cloud, and Docker skills not detected in stride-origin project
+- Firebase packages (`firebase`, `firebase-functions`, `firebase-admin`) detected in workspaces but NOT extracted
+- Google Cloud packages (`@google-cloud/firestore`, `@google-cloud/kms`) detected but NOT matched (scoped package issue)
+- Docker NOT detected (no infrastructure field in stack_profile)
+
+**Root Causes Identified:**
+1. `extractDetectedStack()` doesn't extract from `detected_workspaces[].frameworks`
+2. `matchesTriggers()` uses exact match - fails for scoped packages like `@google-cloud/*`
+3. No `infrastructure` field in StackProfile to store docker/kubernetes/terraform
+
+**Phases:**
+
+- [ ] **Phase 5a: Add infrastructure field to StackProfile** - Add `infrastructure?: string[]` to StackProfile type definition
+- [ ] **Phase 5b: Extract from detected_workspaces** - Update `extractDetectedStack()` to iterate through workspace frameworks
+- [ ] **Phase 5c: Add prefix matching to matchesTriggers** - Support matching scoped packages (e.g., "googlecloud" matches "@google-cloud/firestore")
+- [ ] **Phase 5d: Update extractDetectedStack to use infrastructure** - Extract from `stack_profile.infrastructure` if present
+- [ ] **Phase 5e: Build and unit test** - Test prefix matching logic with unit tests
+- [ ] **Phase 5f: Test on stride-origin** - Verify firebase, google-cloud, and (future) docker skills are detected and linked
+- [ ] **Phase 5g: Verify skill linking** - Check that planner has firebase/gcloud skills, implementers have matching skills
+
+### 📋 FUTURE: Phase 4 - Production Testing & Cleanup
+
+- [ ] **Phase 6: Production testing** - Full end-to-end test on real projects (gira, stride-origin)
 - [ ] **Phase 7: Clean up** - After successful testing, can remove utils/ and scripts/initialize-project/
 
 ## Migration Path

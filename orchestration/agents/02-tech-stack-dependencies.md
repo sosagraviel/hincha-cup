@@ -164,7 +164,67 @@ Use Glob to find dependency manifest files:
 - Building the application
 - Deploying to each environment
 
-### 4. Deployment Configuration
+### 4. Infrastructure & DevOps Tools
+
+**CRITICAL INSTRUCTION:** You MUST populate the `infrastructure` array with ANY infrastructure, virtualization, containerization, orchestration, provisioning, or deployment automation tools you discover.
+
+**What is Infrastructure?** Infrastructure tools help manage deployment, hosting, virtualization, containerization, orchestration, provisioning, configuration, or automation of application environments. If a tool fits this description, add it to the infrastructure array.
+
+**Your Task:** Search for configuration files that indicate the presence of infrastructure tools. Use your knowledge to identify tools from file names, directory structures, and configuration files. DO NOT limit yourself to the examples below - these are just common patterns to get you started.
+
+**Common Infrastructure Categories & Example Patterns:**
+
+**Containerization & Virtualization:**
+- Docker: `Dockerfile`, `docker-compose*.yml`, `.dockerignore`
+- Vagrant: `Vagrantfile`, `.vagrant/`
+- VirtualBox, VMware: `*.vbox`, `*.vmx`, `Vagrantfile`
+- Podman, containerd, LXC: relevant config files
+
+**Container Orchestration:**
+- Kubernetes: `**/k8s/**`, `**/kubernetes/**`, manifests with `kind: Deployment|Service|Pod`
+- Helm: `Chart.yaml`, `values.yaml`, `**/charts/**`
+- Docker Swarm, Nomad, Rancher: relevant config files
+- Minikube, k3s, kind: dev cluster configs
+
+**Infrastructure as Code (IaC):**
+- Terraform: `**/*.tf`, `terraform.tfvars`, `.terraform/`
+- Pulumi: `Pulumi.yaml`, stack files
+- CloudFormation: `*.cloudformation.{yml,json}`, AWS templates
+- Azure ARM/Bicep: `*.bicep`, ARM templates
+- Google Deployment Manager: `*.jinja`, `*.py` deployment files
+
+**Configuration Management:**
+- Ansible: `playbooks/**/*.yml`, `ansible.cfg`, `inventory`, `roles/**`
+- Chef: `Berksfile`, `Cheffile`, `cookbooks/**`
+- Puppet: `Puppetfile`, `manifests/**/*.pp`
+- Salt: `*.sls` files in typical Salt structure
+
+**Serverless & Platform Tools:**
+- Serverless Framework: `serverless.yml`
+- AWS SAM: `template.{yaml,yml}` with SAM syntax
+- Vercel, Netlify: `vercel.json`, `netlify.toml`
+- Heroku: `Procfile`, `app.json`
+
+**CI/CD & Automation** (only if clearly infrastructure-related):
+- Jenkins: `Jenkinsfile` for infrastructure pipelines
+- GitOps: ArgoCD, Flux configs
+
+**IMPORTANT RULES:**
+
+1. **Be Comprehensive:** If you find evidence of an infrastructure tool (even if not listed above), ADD IT to the array
+2. **Use Tool Names:** Output the canonical tool name in lowercase (e.g., `"docker"`, `"terraform"`, `"vagrant"`, `"ansible"`)
+3. **No File Paths:** Output tool names, NOT file paths
+4. **Be Intelligent:** Use context clues - a file named `Vagrantfile` clearly indicates Vagrant
+5. **Include Variants:** Docker Compose is still "docker", Minikube is "kubernetes" for development
+
+**Examples:**
+- Good: `["docker", "kubernetes", "terraform", "vagrant", "ansible"]`
+- Good: `["docker", "minikube", "helm"]` (detected k8s dev setup)
+- Bad: `["Dockerfile", "k8s/deployment.yml"]` (file paths not tool names)
+
+**If you discover an infrastructure tool not in the examples above, still add it!** Your knowledge extends beyond this list.
+
+### 5. Deployment Configuration
 
 **Search for deployment-related files using Glob:**
 
@@ -321,6 +381,7 @@ Return valid JSON matching this structure:
   "agent_name": "tech-stack-dependencies-analyzer",
   "timestamp": "ISO 8601 timestamp",
   "findings": {
+    "infrastructure": ["docker", "kubernetes", "terraform"],
     "dependencies": {
       "by_package": {
         "package_name": {

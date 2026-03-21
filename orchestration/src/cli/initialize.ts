@@ -20,6 +20,7 @@ program
   .option('--list-models', 'List available model aliases and exit')
   .option('--list-tiers', 'List available tiers and exit')
   .option('--resume <thread-id>', 'Resume from checkpoint using thread ID')
+  .option('--start-phase <number>', 'Start from specific phase (1-6)', '1')
   .option('--stream', 'Stream real-time progress (not yet implemented)', false)
   .action(async (options) => {
     let isShuttingDown = false;
@@ -96,6 +97,25 @@ program
       const projectPath = path.resolve(options.projectPath);
       const frameworkPath = path.resolve(options.frameworkPath);
 
+      // Parse and validate start-phase option
+      const startPhase = parseInt(options.startPhase || '1', 10);
+      if (isNaN(startPhase) || startPhase < 1 || startPhase > 6) {
+        logger.error(`Invalid start-phase: ${options.startPhase}. Must be between 1 and 6.`);
+        process.exit(1);
+      }
+
+      /**
+       * Derive schema key from agent name
+       * Pattern: "structure-architecture-analyzer" → "structure_architecture"
+       * 1. Remove "-analyzer" suffix
+       * 2. Replace hyphens with underscores
+       */
+      const getSchemaKeyFromAgentName = (agentName: string): string => {
+        return agentName
+          .replace(/-analyzer$/, '')  // Remove -analyzer suffix
+          .replace(/-/g, '_');         // Replace hyphens with underscores
+      };
+
       const fs = await import('fs');
       if (!fs.existsSync(projectPath)) {
         logger.error(`Project path does not exist: ${projectPath}`);
@@ -139,13 +159,129 @@ program
       logger.blank();
 
       const tempDir = path.join(projectPath, '.claude-temp/initialize-project');
+
+      // Load previous phase data if starting from phase > 1
+      let previousPhaseData = {};
+      if (startPhase > 1) {
+        logger.info(`Starting from Phase ${startPhase} - loading previous phase outputs...`);
+
+        if (!fs.existsSync(tempDir)) {
+          logger.error(`Cannot start from Phase ${startPhase}: temp directory not found`);
+          logger.increaseIndent();
+          logger.info(`Expected: ${tempDir}`);
+          logger.info('Run Phase 1 first or remove --start-phase flag');
+          logger.decreaseIndent();
+          process.exit(1);
+        }
+
+        try {
+          // Load Phase 1 outputs if starting from Phase 2+
+          if (startPhase >= 2) {
+            const phase1Dir = path.join(tempDir, 'phase1-outputs');
+            if (!fs.existsSync(phase1Dir)) {
+              logger.error(`Cannot start from Phase ${startPhase}: Phase 1 outputs not found`);
+              logger.increaseIndent();
+              logger.info(`Expected: ${phase1Dir}`);
+              logger.info('Run from Phase 1 first or use a lower --start-phase value');
+              logger.decreaseIndent();
+              process.exit(1);
+            }
+
+            const phase1Files = fs.readdirSync(phase1Dir);
+            const phase1Analysis: any = {};
+
+            for (const file of phase1Files) {
+              if (file.endsWith('.json')) {
+                const content = JSON.parse(fs.readFileSync(path.join(phase1Dir, file), 'utf-8'));
+                const agentName = content.agent_name;
+
+                // Derive schema key from agent name using algorithmic transformation
+                // e.g., "structure-architecture-analyzer" → "structure_architecture"
+                const schemaKey = getSchemaKeyFromAgentName(agentName);
+                phase1Analysis[schemaKey] = content;
+              }
+            }
+
+            // Validate that we have all 4 required analyzer outputs
+            // Use the same transformation to derive schema keys from agent names
+            const requiredAgentNames = [
+              'structure-architecture-analyzer',
+              'tech-stack-dependencies-analyzer',
+              'code-patterns-testing-analyzer',
+              'data-flows-integrations-analyzer'
+            ];
+            const requiredSchemaKeys = requiredAgentNames.map(getSchemaKeyFromAgentName);
+            const missingAnalyzers = requiredSchemaKeys.filter(key => !phase1Analysis[key]);
+            if (missingAnalyzers.length > 0) {
+              logger.error(`Cannot start from Phase ${startPhase}: Missing Phase 1 analyzer outputs`);
+              logger.increaseIndent();
+              logger.info(`Missing: ${missingAnalyzers.join(', ')}`);
+              logger.info('Run from Phase 1 first or use a lower --start-phase value');
+              logger.decreaseIndent();
+              process.exit(1);
+            }
+
+            // Mark Phase 1 as completed since all analyzers are present
+            phase1Analysis.all_completed = true;
+            phase1Analysis.completion_timestamp = new Date().toISOString();
+
+            previousPhaseData = { ...previousPhaseData, phase1_analysis: phase1Analysis };
+            logger.info(`  ✓ Loaded Phase 1 outputs (${Object.keys(phase1Analysis).length} analyzers)`);
+          }
+
+          // Load Phase 2 consolidation if starting from Phase 3+
+          if (startPhase >= 3) {
+            const consolidationPath = path.join(tempDir, 'phase2-consolidation.json');
+            if (fs.existsSync(consolidationPath)) {
+              const consolidation = JSON.parse(fs.readFileSync(consolidationPath, 'utf-8'));
+              previousPhaseData = { ...previousPhaseData, phase2_consolidation: consolidation };
+              logger.info(`  ✓ Loaded Phase 2 consolidation`);
+            } else {
+              logger.error(`Cannot start from Phase ${startPhase}: Phase 2 consolidation not found`);
+              logger.increaseIndent();
+              logger.info(`Expected: ${consolidationPath}`);
+              logger.info('Run from Phase 1 first or use a lower --start-phase value');
+              logger.decreaseIndent();
+              process.exit(1);
+            }
+          }
+
+          // Load Phase 3 synthesis if starting from Phase 4+
+          if (startPhase >= 4) {
+            const synthesisPath = path.join(tempDir, 'synthesis-raw.md');
+            if (fs.existsSync(synthesisPath)) {
+              const synthesisContent = fs.readFileSync(synthesisPath, 'utf-8');
+              previousPhaseData = {
+                ...previousPhaseData,
+                phase3_synthesis: { synthesis_content: synthesisContent }
+              };
+              logger.info(`  ✓ Loaded Phase 3 synthesis`);
+            } else {
+              logger.error(`Cannot start from Phase ${startPhase}: Phase 3 synthesis not found`);
+              logger.increaseIndent();
+              logger.info(`Expected: ${synthesisPath}`);
+              logger.info('Run from Phase 1 first or use a lower --start-phase value');
+              logger.decreaseIndent();
+              process.exit(1);
+            }
+          }
+
+          logger.blank();
+        } catch (error) {
+          logger.error(`Failed to load previous phase data: ${(error as Error).message}`);
+          process.exit(1);
+        }
+      }
+
       const initialState = {
         project_path: projectPath,
         framework_path: frameworkPath,
         temp_dir: tempDir,
         current_phase: 'init' as const,
         errors: [],
-        warnings: []
+        warnings: [],
+        start_phase: startPhase,
+        ...previousPhaseData
       };
 
       const threadId = options.resume || `init-${path.basename(projectPath)}-${Date.now()}`;

@@ -110,6 +110,9 @@ export const InitializeProjectStateSchema = z.object({
   project_path: z.string(),
   framework_path: z.string(),
 
+  // Phase control
+  start_phase: z.number().min(1).max(6).default(1).optional(),
+
   // Current phase tracking
   current_phase: z.enum([
     'init',
@@ -205,6 +208,11 @@ export const InitializeProjectAnnotation = Annotation.Root({
   framework_path: Annotation<string>,
 
   // ============================================================================
+  // PHASE CONTROL (use default LastValue reducer)
+  // ============================================================================
+  start_phase: Annotation<number | undefined>,
+
+  // ============================================================================
   // PHASE TRACKING (use custom reducer for parallel phase updates)
   // ============================================================================
   // Note: Phase 1 has 4 parallel nodes that may all fail simultaneously
@@ -262,9 +270,14 @@ export const InitializeProjectAnnotation = Annotation.Root({
   phase4_context: Annotation<Phase4Context | undefined>,
 
   // ============================================================================
-  // TEMP DIRECTORY (use default LastValue reducer)
+  // TEMP DIRECTORY (use custom reducer for parallel updates from Phase 1)
   // ============================================================================
-  temp_dir: Annotation<string | undefined>,
+  // Note: All 4 Phase 1 analyzers return the same temp_dir value
+  // We need a reducer that can handle multiple identical updates
+  temp_dir: Annotation<string | undefined>({
+    reducer: (left, right) => right ?? left,
+    default: () => undefined
+  }),
 
   // ============================================================================
   // RETRY TRACKING (use merge reducer for Phase 1, LastValue for others)

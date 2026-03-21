@@ -15,6 +15,7 @@ const StackProfileSchema = z.object({
     mobile: z.array(z.string()).default([]).optional()
   }).default({ frontend: [], backend: [], mobile: [] }),
   testing_frameworks: z.record(z.string(), z.array(z.string())).optional(),
+  infrastructure: z.array(z.string()).optional(),
   detected_workspaces: z.array(z.object({
     path: z.string(),
     language: z.string(),
@@ -56,6 +57,7 @@ const FrameworkConfigSchema = z.object({
       mobile: z.array(z.string()).optional()
     }),
     testing_frameworks: z.record(z.string(), z.array(z.string())),
+    infrastructure: z.array(z.string()).optional(),
     detected_workspaces: z.array(z.object({
       path: z.string(),
       language: z.string(),
@@ -235,16 +237,15 @@ export function generateFrameworkConfig(
     frameworkVersion = packageJson.version || '2.0.0';
   }
 
-  // Extract stack data from Phase 1
-  const stackData = extractStackFromPhase1(state.phase1_analysis || {});
-
-  // Build stack profile data
+  // Use the provided stack profile (which Phase 4 extracted from disk)
+  // After idempotency refactor, state.phase1_analysis only contains completion status
   const stackProfileData = {
-    languages: Array.from(stackData.languages),
-    primary_language: stackData.primaryLanguage,
-    frameworks: stackData.frameworks,
-    testing_frameworks: stackData.testingFrameworks,
-    detected_workspaces: stackData.detectedWorkspaces || [],
+    languages: stackProfile.languages || [],
+    primary_language: stackProfile.primary_language,
+    frameworks: stackProfile.frameworks || { frontend: [], backend: [], mobile: [] },
+    testing_frameworks: stackProfile.testing_frameworks || {},
+    infrastructure: stackProfile.infrastructure,
+    detected_workspaces: stackProfile.detected_workspaces || stackProfile.workspaces || [],
     file_counts: stackProfile.file_counts || {}
   };
 

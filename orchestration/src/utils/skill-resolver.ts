@@ -28,6 +28,7 @@ const SkillsConfigFileSchema = z.object({
 export interface ResolvedSkill {
   name: string;
   path: string;
+  relative_path: string; // Relative path from skills directory (e.g., "010-foundation/start-task")
   reason: string;
   description: string;
   compatible_languages?: string[];
@@ -52,26 +53,49 @@ function loadSkillsConfig(frameworkPath: string): SkillConfig[] {
 }
 
 /**
- * Extract detected technologies from stack profile
+ * Detected stack with both normalized and original package names
  */
-function extractDetectedStack(stackProfile: StackProfile): Set<string> {
-  const detected = new Set<string>();
+interface DetectedStack {
+  normalized: Set<string>;  // For exact matching: "firebase" -> "firebase"
+  original: Set<string>;     // For prefix matching with delimiters: "@google-cloud/firestore"
+}
 
-  // Add languages
+/**
+ * Extract detected technologies from stack profile
+ * Returns both normalized (for exact matching) and original (for delimiter-based prefix matching)
+ */
+function extractDetectedStack(stackProfile: StackProfile): DetectedStack {
+  const normalized = new Set<string>();
+  const original = new Set<string>();
+
+  // Add languages (always exact match, no prefix needed)
   if (stackProfile.languages) {
-    stackProfile.languages.forEach(lang => detected.add(lang.toLowerCase()));
+    stackProfile.languages.forEach(lang => {
+      const lower = lang.toLowerCase();
+      normalized.add(lower);
+      original.add(lower);
+    });
   }
 
   // Add frameworks
   if (stackProfile.frameworks) {
     if (stackProfile.frameworks.frontend) {
-      stackProfile.frameworks.frontend.forEach(f => detected.add(f.toLowerCase().replace(/[^a-z0-9]/g, '')));
+      stackProfile.frameworks.frontend.forEach(f => {
+        normalized.add(f.toLowerCase().replace(/[^a-z0-9]/g, ''));
+        original.add(f.toLowerCase());
+      });
     }
     if (stackProfile.frameworks.backend) {
-      stackProfile.frameworks.backend.forEach(f => detected.add(f.toLowerCase().replace(/[^a-z0-9]/g, '')));
+      stackProfile.frameworks.backend.forEach(f => {
+        normalized.add(f.toLowerCase().replace(/[^a-z0-9]/g, ''));
+        original.add(f.toLowerCase());
+      });
     }
     if (stackProfile.frameworks.mobile) {
-      stackProfile.frameworks.mobile.forEach(f => detected.add(f.toLowerCase().replace(/[^a-z0-9]/g, '')));
+      stackProfile.frameworks.mobile.forEach(f => {
+        normalized.add(f.toLowerCase().replace(/[^a-z0-9]/g, ''));
+        original.add(f.toLowerCase());
+      });
     }
   }
 
@@ -79,18 +103,43 @@ function extractDetectedStack(stackProfile: StackProfile): Set<string> {
   if (stackProfile.testing_frameworks) {
     Object.values(stackProfile.testing_frameworks).forEach((tests: unknown) => {
       if (Array.isArray(tests)) {
-        tests.forEach((t: string) => detected.add(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
+        tests.forEach((t: string) => {
+          normalized.add(t.toLowerCase().replace(/[^a-z0-9]/g, ''));
+          original.add(t.toLowerCase());
+        });
       }
     });
   }
 
-  return detected;
+  // Add infrastructure (docker, kubernetes, etc.)
+  if (stackProfile.infrastructure) {
+    stackProfile.infrastructure.forEach(infra => {
+      const lower = infra.toLowerCase();
+      normalized.add(lower.replace(/[^a-z0-9]/g, ''));
+      original.add(lower);
+    });
+  }
+
+  // Extract from detected workspaces (packages/libraries detected in monorepos)
+  if (stackProfile.detected_workspaces) {
+    for (const workspace of stackProfile.detected_workspaces) {
+      if (workspace.frameworks && Array.isArray(workspace.frameworks)) {
+        workspace.frameworks.forEach(fw => {
+          normalized.add(fw.toLowerCase().replace(/[^a-z0-9]/g, ''));
+          original.add(fw.toLowerCase());
+        });
+      }
+    }
+  }
+
+  return { normalized, original };
 }
 
 /**
  * Check if skill triggers match detected stack
+ * Uses delimiter-based prefix matching to avoid false positives
  */
-function matchesTriggers(skill: SkillConfig, detectedStack: Set<string>): {
+function matchesTriggers(skill: SkillConfig, detectedStack: DetectedStack): {
   matches: boolean;
   matchedTriggers: string[];
 } {
@@ -102,8 +151,33 @@ function matchesTriggers(skill: SkillConfig, detectedStack: Set<string>): {
 
   for (const trigger of skill.triggers) {
     const triggerNormalized = trigger.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (detectedStack.has(triggerNormalized)) {
+    const triggerLower = trigger.toLowerCase();
+
+    // Try exact match first (fast path using normalized strings)
+    if (detectedStack.normalized.has(triggerNormalized)) {
       matchedTriggers.push(trigger);
+      continue;
+    }
+
+    // Fallback to prefix matching with delimiter check (using original strings)
+    // This prevents false positives like "go" matching "googleapis" or "java" matching "javascript"
+    // while allowing "google-cloud" to match "@google-cloud/firestore"
+    for (const original of detectedStack.original) {
+      // Handle scoped packages: strip leading @ if present
+      const packageName = original.startsWith('@') ? original.slice(1) : original;
+
+      if (packageName.startsWith(triggerLower)) {
+        const nextCharIndex = triggerLower.length;
+        const nextChar = packageName[nextCharIndex];
+
+        // Match if:
+        // 1. Trigger matches entire package name (nextChar is undefined), OR
+        // 2. Next character is a delimiter: /, -, _, or @
+        if (!nextChar || /[\/\-_@]/.test(nextChar)) {
+          matchedTriggers.push(trigger);
+          break; // Found a match, move to next trigger
+        }
+      }
     }
   }
 
@@ -135,6 +209,7 @@ export function resolveSkills(
       resolved.push({
         name: skill.name,
         path: join(frameworkPath, 'skills', skill.path),
+        relative_path: skill.path,
         reason: 'Always included',
         description: skill.description,
         compatible_languages: skill.compatible_languages,
@@ -150,6 +225,7 @@ export function resolveSkills(
       resolved.push({
         name: skill.name,
         path: join(frameworkPath, 'skills', skill.path),
+        relative_path: skill.path,
         reason: `Triggered by: ${matchedTriggers.join(', ')}`,
         description: skill.description,
         compatible_languages: skill.compatible_languages,
@@ -197,6 +273,7 @@ function copySkillDirectory(srcPath: string, destPath: string): number {
 
 /**
  * Copy resolved skills to project
+ * Preserves the directory structure from the source (e.g., 010-foundation/start-task)
  */
 export function copyResolvedSkills(
   resolvedSkills: ResolvedSkill[],
@@ -208,7 +285,8 @@ export function copyResolvedSkills(
   let totalFiles = 0;
 
   for (const skill of resolvedSkills) {
-    const targetPath = join(skillsTargetDir, skill.name);
+    // Use relative_path to preserve directory structure
+    const targetPath = join(skillsTargetDir, skill.relative_path);
     const copiedFiles = copySkillDirectory(skill.path, targetPath);
     totalFiles += copiedFiles;
   }
