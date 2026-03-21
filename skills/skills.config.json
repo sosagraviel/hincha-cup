@@ -275,8 +275,7 @@
       "description": "Firebase development patterns",
       "trigger_mode": "triggered",
       "triggers": ["firebase"],
-      "compatible_languages": ["typescript", "javascript"],
-      "is_linkable_to_agents": true
+      "compatible_languages": ["typescript", "javascript"]
     },
     {
       "name": "project-context",
