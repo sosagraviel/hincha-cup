@@ -151,9 +151,9 @@ export function validateAnalyzerOutput(
  * Extract JSON from agent output
  *
  * This function replicates the bash script's JSON extraction logic (phase1-analysis.sh:182-196).
- * It handles two common cases:
+ * It handles common cases:
  * 1. Markdown-wrapped JSON: ```json\n{...}\n```
- * 2. JSON with preceding text: "Here is the output:\n{...}"
+ * 2. JSON with preceding/trailing text: "Here is the output:\n{...}\nHope this helps!"
  *
  * @param output - Raw agent output (may contain markdown, explanatory text, etc.)
  * @returns Extracted JSON string
@@ -173,19 +173,69 @@ export function extractJSON(output: string): string {
     // If we found ```json but couldn't extract, try fallback
   }
 
-  // Case 2: Find first line starting with '{' and extract from there
-  // Matches bash: grep -n '^{' "$OUTPUT_FILE" | head -1
-  const lines = cleaned.split('\n');
-  const firstBraceIndex = lines.findIndex(line => line.trimStart().startsWith('{'));
-
-  if (firstBraceIndex >= 0) {
-    // Extract from first { to end
-    // Matches bash: tail -n +$first_brace "$OUTPUT_FILE"
-    return lines.slice(firstBraceIndex).join('\n').trim();
+  // Case 2: Find first '{' and extract the balanced JSON object
+  const startIndex = cleaned.indexOf('{');
+  if (startIndex >= 0) {
+    const extracted = extractBalancedJSON(cleaned, startIndex);
+    if (extracted) {
+      return extracted;
+    }
+    // Fallback: take from first { to end (original behavior)
+    const lines = cleaned.split('\n');
+    const firstBraceIndex = lines.findIndex(line => line.trimStart().startsWith('{'));
+    if (firstBraceIndex >= 0) {
+      return lines.slice(firstBraceIndex).join('\n').trim();
+    }
   }
 
   // If no JSON found, return as-is and let validation fail with helpful error
   return cleaned;
+}
+
+/**
+ * Extract a balanced JSON object from a string starting at a given position.
+ * Tracks brace depth while respecting strings so trailing text is excluded.
+ *
+ * @param text - The full text to extract from
+ * @param startIndex - Index of the opening '{'
+ * @returns The balanced JSON substring, or null if braces never balance
+ */
+function extractBalancedJSON(text: string, startIndex: number): string | null {
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = startIndex; i < text.length; i++) {
+    const ch = text[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (ch === '\\' && inString) {
+      escape = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        return text.substring(startIndex, i + 1);
+      }
+    }
+  }
+
+  // Braces never balanced
+  return null;
 }
 
 /**
