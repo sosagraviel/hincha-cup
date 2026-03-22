@@ -149,12 +149,24 @@ Please fix these issues and provide valid JSON output."
       fi
     fi
 
+    # Derive framework directory name relative to project root
+    local FRAMEWORK_DIR_NAME
+    FRAMEWORK_DIR_NAME="$(basename "$FRAMEWORK_ROOT")"
+
     # Create prompt
     local PROMPT="You are the $AGENT_NAME agent.
 
 Follow ALL instructions in the agent file below.
 
 Analyze the codebase at: $PROJECT_PATH
+
+CRITICAL: EXCLUDED DIRECTORIES
+The following directories are NOT part of the project codebase and MUST be completely ignored during analysis:
+- ${FRAMEWORK_DIR_NAME}/ (this is the AI Agentic Framework tooling, not the project itself)
+- .claude-temp/ (temporary analysis files)
+- .claude-backups/ (backup files)
+Do NOT include files, dependencies, patterns, or any findings from these directories in your analysis.
+Only analyze the actual project code.
 
 CRITICAL OUTPUT FORMAT:
 - Output ONLY raw JSON starting with { and ending with }
