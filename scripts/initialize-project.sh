@@ -207,14 +207,6 @@ echo -e "${BLUE}ℹ Framework location: $FRAMEWORK_PATH${NC}"
 echo -e "${BLUE}ℹ Project location:   $PROJECT_PATH${NC}"
 echo ""
 
-# Validate orchestrate script exists
-ORCHESTRATE_SCRIPT="$FRAMEWORK_PATH/skills/010-foundation/initialize-project/scripts/orchestrate-initialization.sh"
-if [ ! -f "$ORCHESTRATE_SCRIPT" ]; then
-    echo -e "${RED}Error: Orchestration script not found${NC}"
-    echo "Expected: $ORCHESTRATE_SCRIPT"
-    exit 1
-fi
-
 # ============================================================================
 # PREREQUISITE CHECKS
 # ============================================================================
