@@ -371,22 +371,59 @@ ${feedbackPrompt}
       try {
         // Extract and parse JSON
         const jsonOutput = extractJSON(output);
-        const parsed: QuestionConsolidationOutput = JSON.parse(jsonOutput);
+        let parsed: any = JSON.parse(jsonOutput);
+
+        // Unwrap: LLM often wraps output in analyzer schema { findings: { consolidated_gaps, ... } }
+        if (parsed.findings && typeof parsed.findings === 'object') {
+          parsed = parsed.findings;
+        }
+
+        // Auto-wrap: if the LLM returned a bare array of gaps
+        if (Array.isArray(parsed)) {
+          parsed = {
+            consolidated_gaps: parsed,
+            consolidation_metadata: {
+              original_gap_count: gaps.length,
+              consolidated_gap_count: parsed.length,
+              reduction_percentage: gaps.length > 0
+                ? Math.round(((gaps.length - parsed.length) / gaps.length) * 100)
+                : 0,
+              consolidation_groups: []
+            }
+          };
+        }
+
+        // Auto-remap: if the LLM used a different key name for the gaps array
+        if (!parsed.consolidated_gaps && !Array.isArray(parsed)) {
+          const arrayKey = Object.keys(parsed).find(
+            k => Array.isArray(parsed[k]) && k !== 'consolidation_groups'
+          );
+          if (arrayKey) {
+            parsed.consolidated_gaps = parsed[arrayKey];
+          }
+        }
 
         // Basic validation
         if (!parsed.consolidated_gaps || !Array.isArray(parsed.consolidated_gaps)) {
           return {
             valid: false,
-            errors: ['Invalid output: missing consolidated_gaps array'],
+            errors: [
+              'Invalid output: missing consolidated_gaps array.',
+              `Top-level keys found: ${Object.keys(parsed).join(', ')}`
+            ],
             data: null
           };
         }
 
         if (!parsed.consolidation_metadata) {
-          return {
-            valid: false,
-            errors: ['Invalid output: missing consolidation_metadata'],
-            data: null
+          // Auto-generate metadata if gaps are valid but metadata is missing
+          parsed.consolidation_metadata = {
+            original_gap_count: gaps.length,
+            consolidated_gap_count: parsed.consolidated_gaps.length,
+            reduction_percentage: gaps.length > 0
+              ? Math.round(((gaps.length - parsed.consolidated_gaps.length) / gaps.length) * 100)
+              : 0,
+            consolidation_groups: []
           };
         }
 
@@ -404,7 +441,7 @@ ${feedbackPrompt}
         return {
           valid: true,
           errors: [],
-          data: parsed
+          data: parsed as QuestionConsolidationOutput
         };
       } catch (error) {
         return {
