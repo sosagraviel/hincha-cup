@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { join, relative } from 'path';
 import { createDeepAgent } from 'deepagents';
 import { getLLMFactory } from '../llm/llm-factory.js';
 import { HybridAgentFactory } from '../agents/agent-factory-hybrid.js';
@@ -65,7 +65,8 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
   const fullInstructions = buildAgentPrompt(
     agentInstructions,
     projectPath,
-    additionalContext
+    additionalContext,
+    frameworkPath
   );
 
   // Create hybrid factory (automatically detects auth mode)
@@ -165,7 +166,8 @@ function removeFrontmatter(content: string): string {
 function buildAgentPrompt(
   agentInstructions: string,
   projectPath: string,
-  additionalContext: string
+  additionalContext: string,
+  frameworkPath?: string
 ): string {
   // Remove YAML frontmatter (used by DeepAgents, not needed for Claude CLI)
   const cleanInstructions = removeFrontmatter(agentInstructions);
@@ -174,6 +176,12 @@ function buildAgentPrompt(
   const agentNameMatch = cleanInstructions.match(/^#\s+(.+)/m);
   const agentDisplayName = agentNameMatch ? agentNameMatch[1] : 'Analyzer Agent';
 
+  // Derive the framework directory name relative to the project root
+  // e.g., "/home/user/project/qubika-agentic-framework" → "qubika-agentic-framework"
+  const frameworkDirName = frameworkPath
+    ? relative(projectPath, frameworkPath)
+    : 'qubika-agentic-framework';
+
   // Build prompt EXACTLY like bash script does
   const lines = [
     `You are the ${agentDisplayName}.`,
@@ -181,6 +189,14 @@ function buildAgentPrompt(
     `Follow ALL instructions in the agent file below.`,
     ``,
     `Analyze the codebase at: ${projectPath}`,
+    ``,
+    `CRITICAL: EXCLUDED DIRECTORIES`,
+    `The following directories are NOT part of the project codebase and MUST be completely ignored during analysis:`,
+    `- ${frameworkDirName}/ (this is the AI Agentic Framework tooling, not the project itself)`,
+    `- .claude-temp/ (temporary analysis files)`,
+    `- .claude-backups/ (backup files)`,
+    `Do NOT include files, dependencies, patterns, or any findings from these directories in your analysis.`,
+    `Only analyze the actual project code.`,
     ``,
     `CRITICAL OUTPUT FORMAT:`,
     `- Output ONLY raw JSON starting with { and ending with }`,
@@ -276,7 +292,8 @@ export async function createDeepAgentDirect(config: AgentConfig): Promise<any> {
   const fullInstructions = buildAgentPrompt(
     agentInstructions,
     projectPath,
-    additionalContext
+    additionalContext,
+    frameworkPath
   );
 
   // Create DeepAgent with LLM instance
