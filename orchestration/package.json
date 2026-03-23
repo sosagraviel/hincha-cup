@@ -12,6 +12,7 @@
     "build": "tsc",
     "dev": "tsx",
     "initialize": "tsx src/cli/initialize.ts",
+    "implement": "tsx src/cli/implement.ts",
     "test": "vitest",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration"
