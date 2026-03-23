@@ -297,16 +297,12 @@ program
       }
       logger.blank();
 
-      const executionSpinner = logger.spinner('Executing 6-phase workflow...', 'execution');
-
       if (options.stream) {
-        logger.warnSpinner('execution', 'Streaming not yet implemented, falling back to non-streaming execution');
-        logger.spinner('Executing 6-phase workflow...', 'execution');
+        logger.warn('Streaming not yet implemented, falling back to non-streaming execution');
       }
 
       const result = await graph.invoke(initialState, config);
 
-      logger.succeedSpinner('execution', 'Workflow completed successfully!');
       logger.blank();
 
       logger.section('Initialization Complete');

@@ -4,6 +4,7 @@ import fs from 'fs';
 import { AuthMode, AuthConfig, detectAuthMode, getAuthErrorMessage } from '../auth/auth-detector.js';
 import { createDeepAgent } from 'deepagents';
 import { getLLMFactory } from '../llm/llm-factory.js';
+import { logger } from '../utils/logger.js';
 
 export interface AgentConfig {
   agentName: string;
@@ -109,10 +110,8 @@ export class HybridAgentFactory {
    */
   async createAgent(config: AgentConfig): Promise<HybridAgent> {
     if (this.authConfig.mode === AuthMode.API_KEY) {
-      console.log(`[HybridAgentFactory] Auth: DeepAgents.js (${this.authConfig.provider} API Key)`);
       return this.createDeepAgent(config);
     } else if (this.authConfig.mode === AuthMode.CLAUDE_CLI) {
-      console.log(`[HybridAgentFactory] Auth: Claude CLI (Subscription)`);
       return this.createCLIAgent(config);
     } else {
       throw new Error(getAuthErrorMessage(this.authConfig));
@@ -122,11 +121,6 @@ export class HybridAgentFactory {
   private async createDeepAgent(config: AgentConfig): Promise<HybridAgent> {
     const llmFactory = getLLMFactory();
     const modelInfo = llmFactory.getModelInfo(config.agentName);
-
-    console.log(
-      `[${config.agentName}] Tier: ${modelInfo.tier}, Model: ${modelInfo.modelId} ` +
-      `(alias: ${modelInfo.alias}, provider: ${modelInfo.provider})`
-    );
 
     const model = await llmFactory.createModel(config.agentName);
 
@@ -155,10 +149,23 @@ export class HybridAgentFactory {
 
     return {
       invoke: async (input: { input: string }): Promise<AgentInvokeResult> => {
+        // Initial state: Starting analysis with auth info
+        logger.trackConcurrentAgentStart(
+          config.agentName,
+          config.agentName,
+          `Starting analysis using DeepAgents.js (${this.authConfig.provider} API Key)...`
+        );
+
         const startTime = Date.now();
         const timeout = config.timeout || 300000;
 
         try {
+          // Update to analyzing state
+          // logger.trackConcurrentAgentUpdate(
+          //   config.agentName,
+          //   `Analyzing the codebase (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})...`
+          // );
+
           const agentPromise = (agent as any).invoke({
             messages: [{ role: 'user', content: input.input }]
           });
@@ -174,14 +181,27 @@ export class HybridAgentFactory {
 
           const output = (result as any).output || (result as any).content || JSON.stringify(result);
 
+          // Update to success state
+          // logger.trackConcurrentAgentSucceed(
+          //   config.agentName,
+          //   `Analysis completed successfully (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`
+          // );
+
           return {
             output,
             mode: AuthMode.API_KEY,
             executionTimeMs
           };
         } catch (error: unknown) {
+          // Update to failure state
           const executionTimeMs = Date.now() - startTime;
           const errorMessage = error instanceof Error ? error.message : String(error);
+
+          logger.trackConcurrentAgentFail(
+            config.agentName,
+            `Analysis failed after ${Math.round(executionTimeMs / 1000)}s (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`
+          );
+
           throw new Error(
             `DeepAgent execution failed after ${executionTimeMs}ms: ${errorMessage}`
           );
@@ -199,15 +219,24 @@ export class HybridAgentFactory {
     const llmFactory = getLLMFactory();
     const modelInfo = llmFactory.getModelInfo(config.agentName);
 
-    console.log(
-      `[${config.agentName}] Tier: ${modelInfo.tier}, Model: Claude CLI (target: ${modelInfo.alias})`
-    );
-
     return {
       invoke: async (input: { input: string }): Promise<AgentInvokeResult> => {
+        // Initial state: Starting analysis with auth info
+        logger.trackConcurrentAgentStart(
+          config.agentName,
+          config.agentName,
+          `Starting analysis using Claude CLI (Subscription)...`
+        );
+
         const startTime = Date.now();
 
         try {
+          // Update to analyzing state
+          // logger.trackConcurrentAgentUpdate(
+          //   config.agentName,
+          //   `Analyzing the codebase (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})...`
+          // );
+
           const fullPrompt = config.additionalContext || input.input;
 
           const output = await this.invokeCLI(
@@ -219,14 +248,27 @@ export class HybridAgentFactory {
 
           const executionTimeMs = Date.now() - startTime;
 
+          // Update to success state
+          // logger.trackConcurrentAgentSucceed(
+          //   config.agentName,
+          //   `Analysis completed successfully (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`
+          // );
+
           return {
             output,
             mode: AuthMode.CLAUDE_CLI,
             executionTimeMs
           };
         } catch (error: unknown) {
+          // Update to failure state
           const executionTimeMs = Date.now() - startTime;
           const errorMessage = error instanceof Error ? error.message : String(error);
+
+          logger.trackConcurrentAgentFail(
+            config.agentName,
+            `Analysis failed after ${Math.round(executionTimeMs / 1000)}s (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`
+          );
+
           throw new Error(
             `Claude CLI execution failed after ${executionTimeMs}ms: ${errorMessage}`
           );

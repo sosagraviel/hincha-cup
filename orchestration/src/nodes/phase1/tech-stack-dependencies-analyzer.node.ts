@@ -18,9 +18,6 @@ export async function techStackDependenciesAnalyzerNode(
   const agentName = 'tech-stack-dependencies-analyzer';
   const agentFile = '02-tech-stack-dependencies.md';
 
-  const agentLogger = logger.child(agentName);
-  agentLogger.blank();
-  agentLogger.info('Starting analysis...');
 
   const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
   mkdirSync(join(tempDir, 'phase1-outputs'), { recursive: true });
@@ -60,7 +57,6 @@ export async function techStackDependenciesAnalyzerNode(
     const outputPath = join(tempDir, 'phase1-outputs', '02-tech-stack-dependencies.json');
     writeFileSync(outputPath, JSON.stringify(validatedData, null, 2));
 
-    agentLogger.success('Analysis complete');
 
     return {
       temp_dir: tempDir
@@ -76,13 +72,8 @@ export async function techStackDependenciesAnalyzerNode(
 
     // Check if this is a rate limit error
     if (err.message.includes('RATE_LIMIT')) {
-      agentLogger.blank();
-      agentLogger.warn('This is a RATE LIMIT error - retrying will not help until limit resets.');
-      agentLogger.warn('Please follow the instructions above to switch to API key mode or wait.');
-      agentLogger.blank();
     }
 
-    agentLogger.error('Analysis failed', err);
 
     return {
       errors: [

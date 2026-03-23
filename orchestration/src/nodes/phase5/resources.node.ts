@@ -4,6 +4,7 @@ import { join } from 'path';
 import { resolveSkills, copyResolvedSkills } from '../../utils/skill-resolver.js';
 import { generateAgents, writeAgents } from '../../utils/agent-generator.js';
 import type { StackProfile } from '../../utils/config-generator.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Phase 5: Resources Node
@@ -20,7 +21,9 @@ import type { StackProfile } from '../../utils/config-generator.js';
 export async function resourcesNode(
   state: InitializeProjectState
 ): Promise<Partial<InitializeProjectState>> {
-  console.log('\n[Phase 5: Resources] Copying resources...');
+  logger.blank();
+  const phaseLogger = logger.child('Phase 5: Resources');
+  phaseLogger.info(' Copying resources...');
 
   // Verify Phase 4 completed
   if (!state.phase4_context?.framework_config_generated) {
@@ -35,22 +38,22 @@ export async function resourcesNode(
     const frameworkConfig = JSON.parse(readFileSync(frameworkConfigPath, 'utf-8'));
     const stackProfile: StackProfile = frameworkConfig.stack_profile;
 
-    console.log(`[Phase 5: Resources] Stack profile loaded`);
-    console.log(`[Phase 5: Resources] Languages: ${stackProfile.languages?.join(', ') || 'none'}`);
+    phaseLogger.info(' Stack profile loaded');
+    phaseLogger.info(`  Languages: ${stackProfile.languages?.join(', ') || 'none'}`);
 
     // Step 1: Resolve and copy filtered skills
-    console.log('[Phase 5: Resources] Resolving skills...');
+    phaseLogger.info(' Resolving skills...');
     const resolvedSkills = resolveSkills(stackProfile, state.framework_path);
 
-    console.log(`[Phase 5: Resources] Resolved ${resolvedSkills.length} skills`);
+    phaseLogger.info(`  Resolved ${resolvedSkills.length} skills`);
 
     // Copy resolved skills
     const copiedSkillsCount = copyResolvedSkills(resolvedSkills, state.project_path);
 
-    console.log(`[Phase 5: Resources] ✓ Copied ${resolvedSkills.length} skills (${copiedSkillsCount} files)`);
+    phaseLogger.success(`✓ Copied ${resolvedSkills.length} skills (${copiedSkillsCount} files)`);
 
     // Step 2: Generate agents
-    console.log('[Phase 5: Resources] Generating agents...');
+    phaseLogger.info(' Generating agents...');
     const templatesPath = join(state.framework_path, 'agents', 'templates');
     const agents = generateAgents(
       stackProfile,
@@ -63,10 +66,10 @@ export async function resourcesNode(
     // Write agents to disk
     writeAgents(agents, state.project_path);
 
-    console.log(`[Phase 5: Resources] ✓ Generated ${agents.length} agents`);
+    phaseLogger.success(`✓ Generated ${agents.length} agents`);
 
     // Step 3: Copy commands
-    console.log('[Phase 5: Resources] Copying commands...');
+    phaseLogger.info(' Copying commands...');
     const commandsTargetDir = join(projectClaudeDir, 'commands');
     const frameworkCommandsDir = join(state.framework_path, 'commands');
 
@@ -82,9 +85,9 @@ export async function resourcesNode(
       );
     }
 
-    console.log(`[Phase 5: Resources] ✓ Copied ${commandFiles.length} commands`);
+    phaseLogger.success(`✓ Copied ${commandFiles.length} commands`);
 
-    console.log('[Phase 5: Resources] ✓ Resource copying complete');
+    phaseLogger.success(' ✓ Resource copying complete');
 
     return {
       current_phase: 'phase5_resources'
@@ -92,8 +95,8 @@ export async function resourcesNode(
 
   } catch (error) {
     const errorMessage = `Resources copying failed: ${(error as Error).message}`;
-    console.error(`[Phase 5: Resources] ✗ ${errorMessage}`);
-    console.error((error as Error).stack);
+    phaseLogger.error(` ✗ ${errorMessage}`);
+    phaseLogger.error((error as Error).stack || '');
 
     return {
       errors: [...state.errors, errorMessage],

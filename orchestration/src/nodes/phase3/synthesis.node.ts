@@ -8,6 +8,7 @@ import {
 import type { ValidationResult } from '../../utils/validator.js';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Phase 3: Opus Synthesis Node
@@ -30,10 +31,13 @@ import { join } from 'path';
 export async function synthesisNode(
   state: InitializeProjectState
 ): Promise<Partial<InitializeProjectState>> {
+  logger.blank();
+  const phaseLogger = logger.child('Phase 3: Synthesis');
+
   const agentName = 'architect-synthesizer';
   const agentFile = '05-architect-synthesizer.md';
 
-  console.log('\n[Phase 3: Synthesis] Starting Opus synthesis...');
+  phaseLogger.info(' Starting Opus synthesis...');
 
   // Read Phase 2 consolidation from disk (not from state)
   const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
@@ -43,9 +47,9 @@ export async function synthesisNode(
     throw new Error(`Phase 2 consolidation file not found: ${consolidationPath}`);
   }
 
-  console.log('[Phase 3: Synthesis] Loading Phase 2 consolidation from disk...');
+  phaseLogger.info(' Loading Phase 2 consolidation from disk...');
   const phase2Consolidation = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
-  console.log('[Phase 3: Synthesis] ✓ Phase 2 consolidation loaded from disk');
+  phaseLogger.success(' ✓ Phase 2 consolidation loaded from disk');
 
   try {
     // Define agent invocation function with feedback support
@@ -71,7 +75,7 @@ ${feedbackPrompt}
 
       // Invoke synthesis agent
       const result = await agent.invoke({
-        input: `Synthesize comprehensive analysis for: ${state.project_path}`
+        input: `Synthesize comprehensive results for: ${state.project_path}`
       });
 
       return result.output || result.content || String(result);
@@ -106,8 +110,8 @@ ${feedbackPrompt}
     const synthesisPath = join(tempDir, 'synthesis-raw.md');
     writeFileSync(synthesisPath, synthesisContent);
 
-    console.log('[Phase 3: Synthesis] ✓ Synthesis complete');
-    console.log(`  - Output length: ${synthesisContent.length} characters`);
+    phaseLogger.success(' ✓ Synthesis complete');
+    phaseLogger.info(`  - Output length: ${synthesisContent.length} characters`);
 
     return {
       phase3_synthesis: {
@@ -120,7 +124,7 @@ ${feedbackPrompt}
 
   } catch (error) {
     const errorMessage = `Synthesis failed: ${(error as Error).message}`;
-    console.error(`[Phase 3: Synthesis] ✗ ${errorMessage}`);
+    phaseLogger.error(` ✗ ${errorMessage}`);
 
     return {
       errors: [...state.errors, errorMessage],

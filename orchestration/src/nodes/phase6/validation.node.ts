@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
 import type { StackProfile } from '../../utils/config-generator.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Phase 6: Validation Node
@@ -21,7 +22,9 @@ import type { StackProfile } from '../../utils/config-generator.js';
 export async function validationNode(
   state: InitializeProjectState
 ): Promise<Partial<InitializeProjectState>> {
-  console.log('\n[Phase 6: Validation] Starting final validation...');
+  logger.blank();
+  const phaseLogger = logger.child('Phase 6: Validation');
+  phaseLogger.info(' Starting final validation...');
 
   const validationErrors: string[] = [];
   const validationWarnings: string[] = [];
@@ -35,7 +38,7 @@ export async function validationNode(
       if (claudeMdContent.length < 100) {
         validationWarnings.push('CLAUDE.md content seems too short');
       }
-      console.log('[Phase 6: Validation] ✓ CLAUDE.md validated');
+      phaseLogger.success(' ✓ CLAUDE.md validated');
     }
 
     // 2. Validate project-context/SKILL.md exists and is valid
@@ -46,7 +49,7 @@ export async function validationNode(
       if (projectContextContent.length < 100) {
         validationWarnings.push('project-context/SKILL.md content seems too short');
       }
-      console.log('[Phase 6: Validation] ✓ project-context/SKILL.md validated');
+      phaseLogger.success(' ✓ project-context/SKILL.md validated');
     }
 
     // 3. Validate framework-config.json exists and is valid
@@ -68,7 +71,7 @@ export async function validationNode(
           validationErrors.push('framework-config.json missing analysis_results');
         }
 
-        console.log('[Phase 6: Validation] ✓ framework-config.json validated');
+        phaseLogger.success(' ✓ framework-config.json validated');
       } catch (error) {
         validationErrors.push(`framework-config.json invalid JSON: ${(error as Error).message}`);
       }
@@ -79,7 +82,7 @@ export async function validationNode(
     if (!existsSync(skillsDir)) {
       validationErrors.push('Skills directory not found');
     } else {
-      console.log('[Phase 6: Validation] ✓ Skills directory exists');
+      phaseLogger.success(' ✓ Skills directory exists');
     }
 
     // 5. Validate agents directory exists and has minimum agents
@@ -94,7 +97,7 @@ export async function validationNode(
       if (agentCount < 2) {
         validationErrors.push(`Insufficient agents generated: found ${agentCount}, expected at least 2 (planner + implementer)`);
       } else {
-        console.log(`[Phase 6: Validation] ✓ Agents directory exists with ${agentCount} agents`);
+        phaseLogger.success(` ✓ Agents directory exists with ${agentCount} agents`);
       }
 
       // Validate planner exists
@@ -132,7 +135,7 @@ export async function validationNode(
                 `Missing implementers for significant languages: ${missingImplementers.join(', ')}`
               );
             } else if (significantLanguages.length > 0) {
-              console.log(`[Phase 6: Validation] ✓ Multi-stack coverage validated for ${significantLanguages.length} languages`);
+              phaseLogger.success(` ✓ Multi-stack coverage validated for ${significantLanguages.length} languages`);
             }
           }
         } catch (error) {
@@ -147,7 +150,7 @@ export async function validationNode(
       validationErrors.push('Commands directory not found');
     } else {
       const commandFiles = readdirSync(commandsDir).filter(f => f.endsWith('.md'));
-      console.log(`[Phase 6: Validation] ✓ Commands directory exists with ${commandFiles.length} commands`);
+      phaseLogger.success(` ✓ Commands directory exists with ${commandFiles.length} commands`);
     }
 
     // 7. Validate all phases completed
@@ -166,7 +169,7 @@ export async function validationNode(
 
     // Check for validation errors
     if (validationErrors.length > 0) {
-      console.error('[Phase 6: Validation] ✗ Validation failed:');
+      phaseLogger.error(' ✗ Validation failed:');
       validationErrors.forEach(err => console.error(`  - ${err}`));
 
       return {
@@ -182,18 +185,19 @@ export async function validationNode(
       ? new Date(completedAt).getTime() - new Date(state.started_at).getTime()
       : undefined;
 
-    console.log('[Phase 6: Validation] ✓ All validations passed');
+    phaseLogger.success(' ✓ All validations passed');
     if (validationWarnings.length > 0) {
-      console.log('[Phase 6: Validation] Warnings:');
+      phaseLogger.success(' Warnings:');
       validationWarnings.forEach(warn => console.log(`  - ${warn}`));
     }
 
-    console.log('\n=== INITIALIZATION COMPLETE ===');
-    console.log(`Project: ${state.project_path}`);
-    console.log(`CLAUDE.md: ${state.claude_md_path}`);
-    console.log(`Config: ${state.framework_config_path}`);
+    phaseLogger.blank();
+    phaseLogger.success('=== INITIALIZATION COMPLETE ===');
+    phaseLogger.info(`Project: ${state.project_path}`);
+    phaseLogger.info(`CLAUDE.md: ${state.claude_md_path}`);
+    phaseLogger.info(`Config: ${state.framework_config_path}`);
     if (totalDuration) {
-      console.log(`Duration: ${(totalDuration / 1000).toFixed(2)}s`);
+      phaseLogger.info(`Duration: ${(totalDuration / 1000).toFixed(2)}s`);
     }
 
     return {

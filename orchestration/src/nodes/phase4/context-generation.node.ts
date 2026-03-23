@@ -2,6 +2,7 @@ import type { InitializeProjectState } from '../../state/schemas/initialize-proj
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { generateFrameworkConfig, type StackProfile } from '../../utils/config-generator.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Phase 4: Context Generation Node
@@ -23,7 +24,9 @@ import { generateFrameworkConfig, type StackProfile } from '../../utils/config-g
 export async function contextGenerationNode(
   state: InitializeProjectState
 ): Promise<Partial<InitializeProjectState>> {
-  console.log('\n[Phase 4: Context Generation] Starting file extraction...');
+  logger.blank();
+  const phaseLogger = logger.child('Phase 4: Context Generation');
+  phaseLogger.info(' Starting file extraction...');
 
   // Read Phase 3 synthesis from disk (not from state)
   const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
@@ -33,12 +36,12 @@ export async function contextGenerationNode(
     throw new Error(`Phase 3 synthesis file not found: ${synthesisPath}`);
   }
 
-  console.log('[Phase 4: Context Generation] Loading Phase 3 synthesis from disk...');
+  phaseLogger.info(' Loading Phase 3 synthesis from disk...');
   const synthesisContent = readFileSync(synthesisPath, 'utf-8');
-  console.log('[Phase 4: Context Generation] ✓ Phase 3 synthesis loaded from disk');
+  phaseLogger.success(' ✓ Phase 3 synthesis loaded from disk');
 
   try {
-    console.log('[Phase 4: Context Generation] Extracting from markdown format...');
+    phaseLogger.info(' Extracting from markdown format...');
 
     // Extract CLAUDE.md using regex (matches bash implementation)
     const claudeMatch = synthesisContent.match(/# CLAUDE\.md Content\s*\n+([\s\S]*?)(?=\n+---\s*\n+# project-context)/);
@@ -47,7 +50,7 @@ export async function contextGenerationNode(
     }
     const claudeMdContent = claudeMatch[1].trim();
     const claudeMdLines = claudeMdContent.split('\n').length;
-    console.log(`[Phase 4: Context Generation] ✓ Extracted CLAUDE.md (${claudeMdLines} lines)`);
+    phaseLogger.success(`✓ Extracted CLAUDE.md (${claudeMdLines} lines)`);
 
     // Extract project-context/SKILL.md using regex (matches bash implementation)
     const contextMatch = synthesisContent.match(/# project-context\/SKILL\.md Content\s*\n+([\s\S]*$)/);
@@ -56,23 +59,23 @@ export async function contextGenerationNode(
     }
     const projectContextContent = contextMatch[1].trim();
     const projectContextLines = projectContextContent.split('\n').length;
-    console.log(`[Phase 4: Context Generation] ✓ Extracted project-context/SKILL.md (${projectContextLines} lines)`);
+    phaseLogger.success(`✓ Extracted project-context/SKILL.md (${projectContextLines} lines)`);
 
     // Write CLAUDE.md
     const claudeMdPath = join(state.project_path, '.claude', 'CLAUDE.md');
     mkdirSync(join(state.project_path, '.claude'), { recursive: true });
     writeFileSync(claudeMdPath, claudeMdContent);
-    console.log(`[Phase 4: Context Generation] ✓ Written: ${claudeMdPath}`);
+    phaseLogger.success(`✓ Written: ${claudeMdPath}`);
 
     // Write project-context/SKILL.md
     const projectContextDir = join(state.project_path, '.claude', 'project-context');
     mkdirSync(projectContextDir, { recursive: true });
     const projectContextPath = join(projectContextDir, 'SKILL.md');
     writeFileSync(projectContextPath, projectContextContent);
-    console.log(`[Phase 4: Context Generation] ✓ Written: ${projectContextPath}`);
+    phaseLogger.success(`✓ Written: ${projectContextPath}`);
 
     // Read Phase 1 analysis files from disk (not from state)
-    console.log('[Phase 4: Context Generation] Loading Phase 1 analysis from disk...');
+    phaseLogger.info(' Loading Phase 1 analysis from disk...');
 
     const phase1Dir = join(tempDir, 'phase1-outputs');
     if (!existsSync(phase1Dir)) {
@@ -95,8 +98,8 @@ export async function contextGenerationNode(
       ? JSON.parse(readFileSync(codePatternsPath, 'utf-8'))
       : null;
 
-    console.log('[Phase 4: Context Generation] ✓ Phase 1 analysis loaded from disk');
-    console.log('[Phase 4: Context Generation] Extracting stack profile from Phase 1 analysis...');
+    phaseLogger.success(' ✓ Phase 1 analysis loaded from disk');
+    phaseLogger.info(' Extracting stack profile from Phase 1 analysis...');
 
     const structureFindings = structureArchData.findings as any;
     const techStackFindings = techStackData.findings as any;
@@ -107,7 +110,7 @@ export async function contextGenerationNode(
       ? structureFindings.languages.map((l: string) => l.toLowerCase())
       : [];
 
-    console.log(`[Phase 4: Context Generation] Languages from Phase 1: ${languagesFromPhase1.join(', ') || 'none'}`);
+    phaseLogger.info(`  Languages from Phase 1: ${languagesFromPhase1.join(', ') || 'none'}`);
 
     // Extract frameworks from structure analyzer
     const frameworksObj = structureFindings?.frameworks || {};
@@ -154,15 +157,15 @@ export async function contextGenerationNode(
       }
     });
 
-    console.log(`[Phase 4: Context Generation] Frontend frameworks: ${frontendFrameworks.join(', ') || 'none'}`);
-    console.log(`[Phase 4: Context Generation] Backend frameworks: ${backendFrameworks.join(', ') || 'none'}`);
+    phaseLogger.info(`  Frontend frameworks: ${frontendFrameworks.join(', ') || 'none'}`);
+    phaseLogger.info(`  Backend frameworks: ${backendFrameworks.join(', ') || 'none'}`);
 
     // Extract infrastructure from Phase 1 tech-stack-dependencies analyzer
     const infrastructureFromPhase1 = Array.isArray(techStackFindings?.infrastructure)
       ? techStackFindings.infrastructure as string[]
       : [];
 
-    console.log(`[Phase 4: Context Generation] Infrastructure from Phase 1: ${infrastructureFromPhase1.join(', ') || 'none'}`);
+    phaseLogger.info(`  Infrastructure from Phase 1: ${infrastructureFromPhase1.join(', ') || 'none'}`);
 
     // Extract testing frameworks from file 03 (code-patterns-testing) and file 02 (tech-stack-dependencies)
     const testingFrameworks: Record<string, string[]> = {};
@@ -214,7 +217,7 @@ export async function contextGenerationNode(
       }
     }
 
-    console.log(`[Phase 4: Context Generation] Testing frameworks detected: ${JSON.stringify(testingFrameworks)}`);
+    phaseLogger.info(`  Testing frameworks detected: ${JSON.stringify(testingFrameworks)}`);
 
     // Helper function to infer workspace type
     function inferWorkspaceType(workspace: any): string {
@@ -284,12 +287,12 @@ export async function contextGenerationNode(
     writeFileSync(stackProfilePath, JSON.stringify(stackProfile, null, 2));
 
     // Generate framework-config.json using TypeScript utility
-    console.log('[Phase 4: Context Generation] Generating framework-config.json...');
+    phaseLogger.info(' Generating framework-config.json...');
     const frameworkConfig = generateFrameworkConfig(state, stackProfile, state.framework_path);
 
     const configPath = join(state.project_path, '.claude', 'framework-config.json');
     writeFileSync(configPath, JSON.stringify(frameworkConfig, null, 2));
-    console.log(`[Phase 4: Context Generation] ✓ Written: ${configPath}`);
+    phaseLogger.success(`✓ Written: ${configPath}`);
 
     return {
       phase3_synthesis: {
@@ -316,7 +319,7 @@ export async function contextGenerationNode(
 
   } catch (error) {
     const errorMessage = `Context generation failed: ${(error as Error).message}`;
-    console.error(`[Phase 4: Context Generation] ✗ ${errorMessage}`);
+    phaseLogger.error(` ✗ ${errorMessage}`);
 
     return {
       errors: [...state.errors, errorMessage],

@@ -1,5 +1,6 @@
 import ora, { Ora } from 'ora';
 import chalk from 'chalk';
+import { getGlobalTracker, stopGlobalTracker } from './concurrent-agent-tracker.js';
 
 export enum LogLevel {
   DEBUG = 0,
@@ -46,9 +47,27 @@ export class Logger {
     this.indent = 0;
   }
 
-  private format(message: string, prefix?: string): string {
+  /**
+   * Format a message with context, prefix, and custom bracket color
+   * @param message - The message to format
+   * @param prefix - Optional prefix (like emoji icons)
+   * @param bracketColor - Hex color for brackets (default: #9EA1D4), or 'dim' for dimmed gray
+   */
+  private format(message: string, prefix?: string, bracketColor: string = '#9EA1D4'): string {
     const indentation = ' '.repeat(this.indent);
-    const contextStr = this.context ? chalk.dim(`[${this.context}]`) + ' ' : '';
+
+    let contextStr = '';
+    if (this.context) {
+      if (bracketColor === 'dim') {
+        // Use dimmed gray (original behavior)
+        contextStr = chalk.dim(`[${this.context}]`) + ' ';
+      } else {
+        // Use custom hex color for brackets and context name
+        const customColor = chalk.hex(bracketColor);
+        contextStr = customColor(`[${this.context}]`) + ' ';
+      }
+    }
+
     const prefixStr = prefix ? prefix + ' ' : '';
 
     return `${indentation}${prefixStr}${contextStr}${message}`;
@@ -107,7 +126,28 @@ export class Logger {
     }
   }
 
+  /**
+   * Create a standard spinner with dimmed gray context brackets
+   */
   spinner(text: string, id?: string): Ora {
+    return this.createSpinner(text, id, 'dim');
+  }
+
+  /**
+   * Create an agent-specific spinner with lavender (#9EA1D4) context brackets
+   * Use this for per-agent/per-phase spinners
+   */
+  agentSpinner(text: string, id?: string): Ora {
+    return this.createSpinner(text, id); // Uses default #9EA1D4
+  }
+
+  /**
+   * Internal method to create spinners with custom bracket color
+   * @param text - Spinner text
+   * @param id - Optional spinner ID for later reference
+   * @param bracketColor - Hex color for brackets (default: #9EA1D4), or 'dim' for dimmed gray
+   */
+  private createSpinner(text: string, id?: string, bracketColor: string = '#9EA1D4'): Ora {
     const spinnerId = id || text;
 
     if (this.spinners.has(spinnerId)) {
@@ -115,7 +155,19 @@ export class Logger {
     }
 
     const indentation = ' '.repeat(this.indent);
-    const contextStr = this.context ? chalk.dim(`[${this.context}]`) + ' ' : '';
+
+    let contextStr = '';
+    if (this.context) {
+      if (bracketColor === 'dim') {
+        // Use dimmed gray (original behavior)
+        contextStr = chalk.dim(`[${this.context}]`) + ' ';
+      } else {
+        // Use custom hex color for brackets and context name
+        const customColor = chalk.hex(bracketColor);
+        contextStr = customColor(`[${this.context}]`) + ' ';
+      }
+    }
+
     const fullText = `${indentation}${contextStr}${text}`;
 
     const spinner = ora({
@@ -128,21 +180,37 @@ export class Logger {
     return spinner;
   }
 
-  updateSpinner(id: string, text: string): void {
+  updateSpinner(id: string, text: string, bracketColor: string = '#9EA1D4'): void {
     const spinner = this.spinners.get(id);
     if (spinner) {
       const indentation = ' '.repeat(this.indent);
-      const contextStr = this.context ? chalk.dim(`[${this.context}]`) + ' ' : '';
+      let contextStr = '';
+      if (this.context) {
+        if (bracketColor === 'dim') {
+          contextStr = chalk.dim(`[${this.context}]`) + ' ';
+        } else {
+          const customColor = chalk.hex(bracketColor);
+          contextStr = customColor(`[${this.context}]`) + ' ';
+        }
+      }
       spinner.text = `${indentation}${contextStr}${text}`;
     }
   }
 
-  succeedSpinner(id: string, text?: string): void {
+  succeedSpinner(id: string, text?: string, bracketColor: string = '#9EA1D4'): void {
     const spinner = this.spinners.get(id);
     if (spinner) {
       if (text) {
         const indentation = ' '.repeat(this.indent);
-        const contextStr = this.context ? chalk.dim(`[${this.context}]`) + ' ' : '';
+        let contextStr = '';
+        if (this.context) {
+          if (bracketColor === 'dim') {
+            contextStr = chalk.dim(`[${this.context}]`) + ' ';
+          } else {
+            const customColor = chalk.hex(bracketColor);
+            contextStr = customColor(`[${this.context}]`) + ' ';
+          }
+        }
         spinner.succeed(`${indentation}${contextStr}${text}`);
       } else {
         spinner.succeed();
@@ -151,12 +219,20 @@ export class Logger {
     }
   }
 
-  failSpinner(id: string, text?: string): void {
+  failSpinner(id: string, text?: string, bracketColor: string = '#9EA1D4'): void {
     const spinner = this.spinners.get(id);
     if (spinner) {
       if (text) {
         const indentation = ' '.repeat(this.indent);
-        const contextStr = this.context ? chalk.dim(`[${this.context}]`) + ' ' : '';
+        let contextStr = '';
+        if (this.context) {
+          if (bracketColor === 'dim') {
+            contextStr = chalk.dim(`[${this.context}]`) + ' ';
+          } else {
+            const customColor = chalk.hex(bracketColor);
+            contextStr = customColor(`[${this.context}]`) + ' ';
+          }
+        }
         spinner.fail(`${indentation}${contextStr}${text}`);
       } else {
         spinner.fail();
@@ -165,12 +241,20 @@ export class Logger {
     }
   }
 
-  warnSpinner(id: string, text?: string): void {
+  warnSpinner(id: string, text?: string, bracketColor: string = '#9EA1D4'): void {
     const spinner = this.spinners.get(id);
     if (spinner) {
       if (text) {
         const indentation = ' '.repeat(this.indent);
-        const contextStr = this.context ? chalk.dim(`[${this.context}]`) + ' ' : '';
+        let contextStr = '';
+        if (this.context) {
+          if (bracketColor === 'dim') {
+            contextStr = chalk.dim(`[${this.context}]`) + ' ';
+          } else {
+            const customColor = chalk.hex(bracketColor);
+            contextStr = customColor(`[${this.context}]`) + ' ';
+          }
+        }
         spinner.warn(`${indentation}${contextStr}${text}`);
       } else {
         spinner.warn();
@@ -179,12 +263,20 @@ export class Logger {
     }
   }
 
-  infoSpinner(id: string, text?: string): void {
+  infoSpinner(id: string, text?: string, bracketColor: string = '#9EA1D4'): void {
     const spinner = this.spinners.get(id);
     if (spinner) {
       if (text) {
         const indentation = ' '.repeat(this.indent);
-        const contextStr = this.context ? chalk.dim(`[${this.context}]`) + ' ' : '';
+        let contextStr = '';
+        if (this.context) {
+          if (bracketColor === 'dim') {
+            contextStr = chalk.dim(`[${this.context}]`) + ' ';
+          } else {
+            const customColor = chalk.hex(bracketColor);
+            contextStr = customColor(`[${this.context}]`) + ' ';
+          }
+        }
         spinner.info(`${indentation}${contextStr}${text}`);
       } else {
         spinner.info();
@@ -196,6 +288,57 @@ export class Logger {
   stopAllSpinners(): void {
     this.spinners.forEach(spinner => spinner.stop());
     this.spinners.clear();
+
+    // Also stop concurrent agent tracker if active
+    stopGlobalTracker();
+  }
+
+  /**
+   * Start tracking a concurrent agent (uses log-update multi-line display)
+   * Use this for parallel agent execution (e.g., Phase 1 analyzers)
+   */
+  trackConcurrentAgentStart(id: string, name: string, message: string): void {
+    const tracker = getGlobalTracker();
+    tracker.start(id, name, message);
+  }
+
+  /**
+   * Mark a concurrent agent as successful
+   */
+  trackConcurrentAgentSucceed(id: string, message?: string): void {
+    const tracker = getGlobalTracker();
+    tracker.succeed(id, message);
+  }
+
+  /**
+   * Mark a concurrent agent as failed
+   */
+  trackConcurrentAgentFail(id: string, message?: string): void {
+    const tracker = getGlobalTracker();
+    tracker.fail(id, message);
+  }
+
+  /**
+   * Mark a concurrent agent as warning
+   */
+  trackConcurrentAgentWarn(id: string, message?: string): void {
+    const tracker = getGlobalTracker();
+    tracker.warn(id, message);
+  }
+
+  /**
+   * Update a concurrent agent's message
+   */
+  trackConcurrentAgentUpdate(id: string, message: string): void {
+    const tracker = getGlobalTracker();
+    tracker.update(id, message);
+  }
+
+  /**
+   * Stop concurrent agent tracking
+   */
+  stopConcurrentTracking(): void {
+    stopGlobalTracker();
   }
 
   section(title: string): void {

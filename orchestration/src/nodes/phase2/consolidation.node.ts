@@ -9,6 +9,7 @@ import {
   retryWithEnhancedFeedback,
   DEFAULT_RETRY_CONFIG
 } from '../../utils/enhanced-retry.js';
+import { logger } from '../../utils/logger.js';
 
 interface Gap {
   type: 'needs_verification' | 'sparse_findings' | 'missing_language_coverage';
@@ -47,7 +48,9 @@ interface QuestionConsolidationOutput {
 export async function consolidationNode(
   state: InitializeProjectState
 ): Promise<Partial<InitializeProjectState>> {
-  console.log('\n[Phase 2: Consolidation] Starting...');
+  logger.blank();
+  const phaseLogger = logger.child("Phase 2: Consolidation");
+  phaseLogger.info(' Starting...');
 
   // Read Phase 1 outputs from disk (not from state)
   const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
@@ -57,7 +60,7 @@ export async function consolidationNode(
     throw new Error(`Phase 1 outputs directory not found: ${phase1Dir}`);
   }
 
-  console.log('[Phase 2: Consolidation] Loading Phase 1 outputs from disk...');
+  phaseLogger.info(' Loading Phase 1 outputs from disk...');
 
   // Load all 4 analyzer outputs from disk
   const phase1Files = [
@@ -76,16 +79,16 @@ export async function consolidationNode(
     }
     const content = JSON.parse(readFileSync(filePath, 'utf-8'));
     analyzers.push(content);
-    console.log(`  ✓ Loaded ${filename}`);
+    phaseLogger.success(`  ✓ Loaded ${filename}`);
   }
 
-  console.log('[Phase 2: Consolidation] ✓ All Phase 1 outputs loaded from disk');
+  phaseLogger.info(' ✓ All Phase 1 outputs loaded from disk');
 
   try {
     // ========================================================================
     // STEP 1: MERGE ANALYSES
     // ========================================================================
-    console.log('[Phase 2: Consolidation] Step 1: Merging analyzer outputs...');
+    phaseLogger.info(' Step 1: Merging analyzer outputs...');
 
     // analyzers array is already populated from files
 
@@ -95,13 +98,13 @@ export async function consolidationNode(
     const consolidatedPath = join(tempDir, 'phase2-consolidation.json');
     writeFileSync(consolidatedPath, JSON.stringify(consolidated, null, 2));
 
-    console.log('[Phase 2: Consolidation] ✓ Consolidation complete');
-    console.log('');
+    phaseLogger.info(' ✓ Consolidation complete');
+    logger.blank();
 
     // ========================================================================
     // STEP 2: GAP ANALYSIS
     // ========================================================================
-    console.log('[Phase 2: Consolidation] Step 2: Analyzing gaps...');
+    phaseLogger.info(' Step 2: Analyzing gaps...');
 
     // Parse consolidation to extract structured gaps
     const consolidationData = JSON.parse(readFileSync(consolidatedPath, 'utf-8'));
@@ -116,17 +119,17 @@ export async function consolidationNode(
 
     const conflictsCount = consolidationData.conflicting_findings?.length || 0;
 
-    console.log(`  Gaps identified: ${gaps.length}`);
-    console.log(`  Conflicts detected: ${conflictsCount}`);
-    console.log('');
+    phaseLogger.info(`  Gaps identified: ${gaps.length}`);
+    phaseLogger.info(`  Conflicts detected: ${conflictsCount}`);
+    logger.blank();
 
     // ========================================================================
     // STEP 3: QUESTION CONSOLIDATION (if > 1 gap)
     // ========================================================================
     if (gaps.length > 1) {
-      console.log('[Phase 2: Consolidation] Step 3: Consolidating similar questions...');
-      console.log('  Running AI-powered question consolidation agent...');
-      console.log('');
+      phaseLogger.info(' Step 3: Consolidating similar questions...');
+      phaseLogger.info('  Running AI-powered question consolidation agent...');
+      logger.blank();
 
       const consolidationResult = await consolidateQuestions(
         gaps,
@@ -142,24 +145,24 @@ export async function consolidationNode(
         writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
 
         const newGapCount = consolidationResult.consolidated.consolidated_gaps.length;
-        console.log(`  Questions after consolidation: ${newGapCount} (was ${gaps.length})`);
+        phaseLogger.info(`  Questions after consolidation: ${newGapCount} (was ${gaps.length})`);
         gaps = consolidationResult.consolidated.consolidated_gaps;
       } else {
-        console.log('  ⚠ WARNING: Question consolidation failed');
-        console.log('  Proceeding with original unconsolidated gaps');
+        phaseLogger.info('  ⚠ WARNING: Question consolidation failed');
+        phaseLogger.info('  Proceeding with original unconsolidated gaps');
         // Store gaps as-is for interactive questioning
         consolidationData.gaps = gaps;
         writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
       }
-      console.log('');
+      logger.blank();
     } else if (gaps.length === 1) {
-      console.log('[Phase 2: Consolidation] Step 3: Only 1 gap found - skipping consolidation');
+      phaseLogger.info(' Step 3: Only 1 gap found - skipping consolidation');
       consolidationData.gaps = gaps;
       writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
-      console.log('');
+      logger.blank();
     } else {
-      console.log('[Phase 2: Consolidation] Step 3: No gaps found - skipping consolidation');
-      console.log('');
+      phaseLogger.info(' Step 3: No gaps found - skipping consolidation');
+      logger.blank();
     }
 
     // ========================================================================
@@ -168,20 +171,22 @@ export async function consolidationNode(
     const needsUserInput = gaps.length > 5 || conflictsCount > 0;
 
     if (needsUserInput) {
-      console.log('⚠ Warning: Gaps or conflicts detected in analysis');
-      console.log(`  Gaps: ${gaps.length}`);
-      console.log(`  Conflicts: ${conflictsCount}`);
-      console.log('');
+      phaseLogger.warn('Warning: Gaps or conflicts detected in analysis');
+      phaseLogger.info(`  Gaps: ${gaps.length}`);
+      phaseLogger.info(`  Conflicts: ${conflictsCount}`);
+      logger.blank();
 
       const skipQuestions = process.env.SKIP_GAP_QUESTIONS === 'true';
 
       if (skipQuestions) {
-        console.log('ℹ SKIP_GAP_QUESTIONS=true - Continuing without user input');
-        console.log('  (Synthesis will proceed with available data)');
-        console.log('');
+        phaseLogger.info('ℹ SKIP_GAP_QUESTIONS=true - Continuing without user input');
+        phaseLogger.info('  (Synthesis will proceed with available data)');
+        logger.blank();
       } else {
-        console.log('Launching interactive questionnaire...');
-        console.log('');
+        // Stop all ora spinners to prevent interference with user input
+        logger.stopAllSpinners();
+        phaseLogger.info('Launching interactive questionnaire...');
+        logger.blank();
 
         const askResult = await askGapQuestions(
           consolidatedPath,
@@ -189,14 +194,14 @@ export async function consolidationNode(
         );
 
         if (!askResult.success) {
-          console.log('');
-          console.log('❌ Error during gap questionnaire');
-          console.log('');
-          console.log('You can:');
-          console.log('  1. Set SKIP_GAP_QUESTIONS=true to skip questions');
-          console.log(`  2. Manually edit: ${consolidatedPath}`);
-          console.log('  3. Try again');
-          console.log('');
+          logger.blank();
+          phaseLogger.error('❌ Error during gap questionnaire');
+          logger.blank();
+          phaseLogger.info('You can:');
+          phaseLogger.info('  1. Set SKIP_GAP_QUESTIONS=true to skip questions');
+          phaseLogger.info(`  2. Manually edit: ${consolidatedPath}`);
+          phaseLogger.info('  3. Try again');
+          logger.blank();
 
           return {
             errors: [...state.errors, 'Gap questionnaire failed'],
@@ -204,28 +209,28 @@ export async function consolidationNode(
           };
         }
 
-        console.log('✓ Gap clarifications complete');
-        console.log('');
+        phaseLogger.success('Gap clarifications complete');
+        logger.blank();
       }
     } else {
-      console.log('✓ No critical gaps requiring user input');
-      console.log('');
+      phaseLogger.success('No critical gaps requiring user input');
+      logger.blank();
     }
 
     // ========================================================================
     // STEP 5: FINALIZE CONSOLIDATION
     // ========================================================================
-    console.log('[Phase 2: Consolidation] Step 4: Finalizing consolidation...');
+    phaseLogger.info(' Step 4: Finalizing consolidation...');
 
     // Re-read consolidation file (may have user clarifications)
     const finalConsolidation = JSON.parse(readFileSync(consolidatedPath, 'utf-8'));
 
-    console.log('✓ Consolidation ready for synthesis');
-    console.log(`  File: ${consolidatedPath}`);
-    console.log('');
+    phaseLogger.success('Consolidation ready for synthesis');
+    phaseLogger.info(`  File: ${consolidatedPath}`);
+    logger.blank();
 
-    console.log('[Phase 2: Consolidation] ✓ Complete');
-    console.log(`  - Gaps identified: ${gaps.length}`);
+    phaseLogger.info(' ✓ Complete');
+    phaseLogger.info(`  - Gaps identified: ${gaps.length}`);
 
     return {
       // Mark Phase 1 as completed (Phase 6 validation checks this)
@@ -243,7 +248,7 @@ export async function consolidationNode(
 
   } catch (error) {
     const errorMessage = `Consolidation failed: ${(error as Error).message}`;
-    console.error('[Phase 2: Consolidation] ✗ Error:', errorMessage);
+    phaseLogger.error(` ✗ Error: ${errorMessage}`);
 
     return {
       errors: [...state.errors, errorMessage],
@@ -312,6 +317,8 @@ async function consolidateQuestions(
   frameworkPath: string,
   tempDir: string
 ): Promise<{ success: boolean; consolidated?: QuestionConsolidationOutput; error?: string }> {
+  const consolidationLogger = logger.child('Phase 2: Consolidation');
+
   try {
     // Build prompt with gaps
     const gapsJson = JSON.stringify(gaps, null, 2);
@@ -459,12 +466,12 @@ ${feedbackPrompt}
       DEFAULT_RETRY_CONFIG
     );
 
-    console.log('  ✓ Consolidation successful and validated');
+    consolidationLogger.info('  ✓ Consolidation successful and validated');
     return { success: true, consolidated: parsed };
 
   } catch (error) {
     const errMsg = (error as Error).message;
-    console.log(`  ✗ Consolidation failed: ${errMsg}`);
+    consolidationLogger.error(`  ✗ Consolidation failed: ${errMsg}`);
     return { success: false, error: errMsg };
   }
 }

@@ -33,11 +33,6 @@ export async function structureArchitectureAnalyzerNode(
   const agentName = 'structure-architecture-analyzer';
   const agentFile = '01-structure-architecture.md';
 
-  // Create logger for this agent
-  const agentLogger = logger.child(agentName);
-  agentLogger.blank();
-  agentLogger.info('Starting analysis...');
-
   // Ensure temp directory exists
   const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
   mkdirSync(join(tempDir, 'phase1-outputs'), { recursive: true });
@@ -80,7 +75,6 @@ export async function structureArchitectureAnalyzerNode(
     const outputPath = join(tempDir, 'phase1-outputs', '01-structure-architecture.json');
     writeFileSync(outputPath, JSON.stringify(validatedData, null, 2));
 
-    agentLogger.success('Analysis complete');
 
     return {
       temp_dir: tempDir
@@ -96,13 +90,8 @@ export async function structureArchitectureAnalyzerNode(
 
     // Check if this is a rate limit error (non-retriable)
     if (err.message.includes('RATE_LIMIT')) {
-      agentLogger.blank();
-      agentLogger.warn('This is a RATE LIMIT error - retrying will not help until limit resets.');
-      agentLogger.warn('Please follow the instructions above to switch to API key mode or wait.');
-      agentLogger.blank();
     }
 
-    agentLogger.error('Analysis failed', err);
 
     return {
       errors: [

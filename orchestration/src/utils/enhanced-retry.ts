@@ -259,7 +259,6 @@ export async function retryWithEnhancedFeedback<T>(
       if (validation.valid) {
         // Success! Return validated data
         retryState = completeRetryState(retryState);
-        logger.info(`✓ Validation succeeded on attempt ${retryState.attempt + 1}`);
         return validation.data as T;
       }
 
@@ -267,11 +266,8 @@ export async function retryWithEnhancedFeedback<T>(
       const errorMessage = validation.errors.join('; ');
       retryState = updateRetryState(retryState, errorMessage, config);
 
-      logger.warn(`✗ Attempt ${retryState.attempt}/${config.maxAttempts} failed: ${errorMessage.substring(0, 100)}`);
-
       // Wait before retry (with exponential backoff)
       if (retryState.next_delay_ms && shouldRetry(retryState)) {
-        logger.info(`  Waiting ${retryState.next_delay_ms}ms before retry...`);
         await sleep(retryState.next_delay_ms);
       }
 
@@ -279,10 +275,7 @@ export async function retryWithEnhancedFeedback<T>(
       const errorMessage = error instanceof Error ? error.message : String(error);
       retryState = updateRetryState(retryState, errorMessage, config);
 
-      logger.error(`✗ Attempt ${retryState.attempt}/${config.maxAttempts} threw exception: ${errorMessage}`);
-
       if (shouldRetry(retryState) && retryState.next_delay_ms) {
-        logger.info(`  Waiting ${retryState.next_delay_ms}ms before retry...`);
         await sleep(retryState.next_delay_ms);
       }
     }
