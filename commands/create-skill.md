@@ -62,11 +62,26 @@ Create new skills, improve existing skills, and measure skill performance with s
 
 ## Framework Conventions
 
-When creating skills for this framework, follow these conventions:
-- Place skills under the appropriate `skills/{NNN-category}/` directory
-- Use the frontmatter schema: name, description, version, category, keywords, allowed-tools, last_updated
-- Register new skills in `skills/skills.config.json`
-- Follow the existing skill structure (SKILL.md + optional agents/, references/, scripts/, assets/)
+All skills created through this command MUST comply with the framework's specification and conventions. The skill-creator skill reads and applies these documents automatically:
+
+### Required References
+
+| Document | Path | Purpose |
+|----------|------|---------|
+| **Skills Specification** | `docs/SKILLS_SPEC.md` | Canonical authoring contract: frontmatter schema, archetypes, validation rules, anti-patterns |
+| **Adding Skills Guide** | `docs/ADDING_SKILLS.md` | Registration procedure for `skills/skills.config.json` |
+| **Workflow Template** | `docs/templates/SKILL_TEMPLATE_WORKFLOW.md` | Starter template for workflow/orchestration skills |
+| **Reference Template** | `docs/templates/SKILL_TEMPLATE_REFERENCE.md` | Starter template for reference/mastery skills |
+| **Skills Config** | `skills/skills.config.json` | Runtime skill registry — every skill must be registered here |
+| **Skill Catalog** | `SKILL_CATALOG.md` | Framework-wide catalog — update after adding a new skill |
+
+### Key Rules
+
+- Place skills under `skills/{NNN-category}/{skill-name}/` using the Johnny Decimal system
+- Frontmatter must include: `name`, `description` (with "Use when..." phrases), `version`, `category`, `keywords`, `allowed-tools`, `last_updated`
+- Choose one archetype: **Workflow** (numbered phases) or **Reference** (Quick Start + Core Concepts)
+- Register in `skills/skills.config.json` with `trigger_mode` and optional `triggers`
+- Keep `SKILL.md` under 500 lines — move detailed content to `references/` subdirectory
 
 ## Integration with Other Skills
 

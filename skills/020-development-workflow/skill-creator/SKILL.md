@@ -79,6 +79,61 @@ Based on the user interview, fill in these components:
 - **compatibility**: Required tools, dependencies (optional, rarely needed)
 - **the rest of the skill :)**
 
+### Framework Integration
+
+When creating or improving skills within this framework, you MUST follow the framework's skill specification and conventions. Read and apply these documents during skill authoring:
+
+#### Required References
+
+1. **Skill Specification** — `docs/SKILLS_SPEC.md`
+   The canonical contract for authoring `SKILL.md` files. Defines:
+   - YAML frontmatter schema (official Claude Code fields + framework extensions)
+   - Two skill archetypes: **Workflow/Orchestration** and **Reference/Mastery**
+   - Markdown body guidelines, validation rules, and anti-patterns
+   - Tool declaration patterns (`allowed-tools`)
+   - Invocation control (`user-invocable`, `disable-model-invocation`)
+
+2. **Adding Skills Guide** — `docs/ADDING_SKILLS.md`
+   Step-by-step procedure for registering skills in `skills/skills.config.json`.
+
+3. **Starter Templates** — Copy and fill in:
+   - `docs/templates/SKILL_TEMPLATE_WORKFLOW.md` — For workflow/orchestration skills
+   - `docs/templates/SKILL_TEMPLATE_REFERENCE.md` — For reference/mastery skills
+
+#### Framework Conventions Checklist
+
+When writing a new skill's `SKILL.md`, ensure:
+
+- [ ] **Directory placement**: `skills/{NNN-category}/{skill-name}/` using the Johnny Decimal system:
+  - `010-foundation`, `020-development-workflow`, `030-quality-assurance`, `040-integrations`, `050-language-frameworks`, `060-documentation`, `070-infrastructure`, `080-cloud-platforms`
+- [ ] **Frontmatter** includes all required/recommended fields:
+  ```yaml
+  ---
+  name: skill-name              # kebab-case, must match directory name
+  description: >                # 20-500 chars, include "Use when..." phrases
+    What the skill does. Use when [specific contexts].
+  version: 1.0.0
+  category: category-name       # kebab-case
+  keywords: [keyword1, keyword2]
+  allowed-tools:                # only tools actually used
+    - Read
+    - Write
+  last_updated: YYYY-MM-DD
+  ---
+  ```
+- [ ] **Archetype chosen**: Either Workflow (numbered phases with Actions/Tools/Output) or Reference (Quick Start + Core Concepts). Do not mix.
+- [ ] **Registered** in `skills/skills.config.json` with `name`, `path`, `description`, and either `trigger_mode: "always"` or appropriate `triggers` array
+- [ ] **Single H1 heading**, all code blocks have language tags, file under 500 lines
+- [ ] **No anti-patterns**: no name/directory mismatch, no `metadata` wrapper, no weak descriptions, no hardcoded credentials
+
+#### Real-World Examples
+
+Study these existing skills for patterns:
+- **Workflow**: `skills/020-development-workflow/create-sdd-ticket/SKILL.md`
+- **Reference**: `skills/050-language-frameworks/mastering-typescript/SKILL.md`
+
+---
+
 ### Skill Writing Guide
 
 #### Anatomy of a Skill
