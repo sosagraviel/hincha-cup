@@ -2,7 +2,6 @@ import type { InitializeProjectState } from "../../../state/schemas/initialize-p
 import { consolidateAnalyses } from "../../../utils/consolidation.js";
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { spawn } from "child_process";
 import { createAgentFromMarkdown } from "../../../utils/agent-factory.js";
 import {
   extractJSON,
@@ -13,6 +12,7 @@ import {
   DEFAULT_RETRY_CONFIG,
 } from "../../../utils/enhanced-retry.js";
 import { logger } from "../../../utils/logger.js";
+import { GapQuestionsService } from "../../../services/gap-questions.service.js";
 
 interface Gap {
   type: "needs_verification" | "sparse_findings" | "missing_language_coverage";
@@ -212,10 +212,7 @@ export async function consolidationNode(
         phaseLogger.info("Launching interactive questionnaire...");
         logger.blank();
 
-        const askResult = await askGapQuestions(
-          consolidatedPath,
-          state.framework_path,
-        );
+        const askResult = await askGapQuestions(consolidatedPath, false);
 
         if (!askResult.success) {
           logger.blank();
@@ -521,38 +518,28 @@ ${feedbackPrompt}
 }
 
 /**
- * Ask gap questions interactively using Node.js helper script
+ * Ask gap questions interactively using TypeScript service
  */
 async function askGapQuestions(
   consolidationPath: string,
-  frameworkPath: string,
+  skipQuestions: boolean = false,
 ): Promise<{ success: boolean; error?: string }> {
-  return new Promise((resolve) => {
-    const askScript = join(
-      frameworkPath,
-      "skills/010-foundation/initialize-project/scripts/helpers/ask-gap-questions.js",
+  const gapService = new GapQuestionsService();
+
+  try {
+    const result = await gapService.askGapQuestions(
+      consolidationPath,
+      skipQuestions,
     );
 
-    if (!existsSync(askScript)) {
-      resolve({ success: false, error: `Script not found: ${askScript}` });
-      return;
-    }
-
-    const child = spawn("node", [askScript, consolidationPath], {
-      stdio: "inherit", // Allow terminal interaction
-      env: process.env,
-    });
-
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve({ success: true });
-      } else {
-        resolve({ success: false, error: `Script exited with code ${code}` });
-      }
-    });
-
-    child.on("error", (error) => {
-      resolve({ success: false, error: error.message });
-    });
-  });
+    return {
+      success: result.success,
+      error: result.error,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Gap questions failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }

@@ -54,6 +54,50 @@ export async function resourcesNode(
       `  Languages: ${stackProfile.languages?.join(", ") || "none"}`,
     );
 
+    // VALIDATION: Ensure stack profile is complete before generating resources
+    phaseLogger.info(" Validating stack profile before resource generation...");
+
+    if (!stackProfile || !stackProfile.languages || stackProfile.languages.length === 0) {
+      throw new Error(
+        "Stack profile is empty or invalid. Cannot generate agents/skills without knowing project languages.",
+      );
+    }
+
+    // If we have file counts, verify they match languages
+    if (stackProfile.file_counts) {
+      const languagesWithFiles = stackProfile.file_counts.by_language
+        .filter((lc) => lc.count >= 5)
+        .map((lc) => lc.language.toLowerCase());
+
+      const profileLanguages = new Set(
+        stackProfile.languages.map((l) => l.toLowerCase()),
+      );
+
+      for (const lang of languagesWithFiles) {
+        if (!profileLanguages.has(lang)) {
+          const fileCount = stackProfile.file_counts.by_language.find(
+            (lc) => lc.language.toLowerCase() === lang,
+          )?.count;
+          phaseLogger.error(
+            ` Language ${lang} has ${fileCount} files but is not in stack profile`,
+          );
+          throw new Error(
+            `Stack profile validation failed: ${lang} detected but not included. ` +
+              `This indicates a Phase 4 bug. Check file counting and language detection.`,
+          );
+        }
+      }
+    }
+
+    phaseLogger.success(
+      ` ✓ Stack profile validated: ${stackProfile.languages.join(", ")}`,
+    );
+    if (stackProfile.multi_stack?.is_monorepo) {
+      phaseLogger.info(
+        `  Monorepo with ${stackProfile.multi_stack.workspaces.length} workspaces`,
+      );
+    }
+
     // Step 1: Resolve and copy filtered skills
     phaseLogger.info(" Resolving skills...");
     const resolvedSkills = resolveSkills(stackProfile, state.framework_path);
