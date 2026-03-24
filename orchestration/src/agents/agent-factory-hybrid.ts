@@ -189,6 +189,12 @@ export class HybridAgentFactory {
             (result as any).content ||
             JSON.stringify(result);
 
+          // Update tracker to success
+          logger.trackConcurrentAgentSucceed(
+            config.agentName,
+            `Completed in ${executionTimeMs}ms using ${AuthMode.API_KEY} mode`,
+          );
+
           return {
             output,
             mode: AuthMode.API_KEY,
@@ -243,6 +249,12 @@ export class HybridAgentFactory {
           );
 
           const executionTimeMs = Date.now() - startTime;
+
+          // Update tracker to success
+          logger.trackConcurrentAgentSucceed(
+            config.agentName,
+            `Completed in ${executionTimeMs}ms using ${AuthMode.CLAUDE_CLI} mode`,
+          );
 
           return {
             output,

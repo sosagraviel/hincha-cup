@@ -82,11 +82,6 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
     invoke: async (input: { input: string }) => {
       const result = await hybridAgent.invoke(input);
 
-      console.log(
-        `[${agentName}] Completed in ${result.executionTimeMs}ms ` +
-          `using ${result.mode} mode`,
-      );
-
       return {
         output: result.output,
         content: result.output,

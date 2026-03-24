@@ -162,7 +162,10 @@ export class ConcurrentAgentTracker {
     );
 
     if (allComplete && this.isActive) {
-      // Don't call done() - let spinners stay visible with their final state
+      // Stop all spinners - they're all in their final state (success/fail/warn)
+      if (this.spinnies) {
+        this.spinnies.stopAll();
+      }
       this.isActive = false;
     }
   }

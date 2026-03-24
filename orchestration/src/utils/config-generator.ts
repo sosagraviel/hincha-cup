@@ -96,7 +96,17 @@ const FrameworkConfigSchema = z.object({
         frameworks: z.array(z.string()),
       }),
     ),
-    file_counts: z.record(z.string(), z.number()),
+    file_counts: z
+      .object({
+        total: z.number(),
+        by_language: z.array(
+          z.object({
+            language: z.string(),
+            count: z.number(),
+          }),
+        ),
+      })
+      .optional(),
   }),
   resource_state: z.object({
     skills: z.record(z.string(), z.any()),
@@ -130,7 +140,7 @@ export function generateFrameworkConfig(
     frameworkVersion = packageJson.version || "2.0.0";
   }
 
-  const stackProfileData = {
+  const stackProfileData: any = {
     languages: stackProfile.languages || [],
     primary_language: stackProfile.primary_language,
     frameworks: stackProfile.frameworks || {
@@ -142,8 +152,12 @@ export function generateFrameworkConfig(
     infrastructure: stackProfile.infrastructure,
     detected_workspaces:
       stackProfile.detected_workspaces || stackProfile.workspaces || [],
-    file_counts: stackProfile.file_counts || {},
   };
+
+  // Only include file_counts if it exists
+  if (stackProfile.file_counts) {
+    stackProfileData.file_counts = stackProfile.file_counts;
+  }
 
   const config: FrameworkConfig = {
     version: frameworkVersion,

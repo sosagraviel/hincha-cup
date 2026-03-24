@@ -46,7 +46,7 @@ vi.mock('../../../src/utils/logger.js', () => ({
     success: vi.fn(),
     trackConcurrentAgentStart: vi.fn(),
     trackConcurrentAgentFail: vi.fn(),
-    trackConcurrentAgentSuccess: vi.fn(),
+    trackConcurrentAgentSucceed: vi.fn(),
   },
 }));
 

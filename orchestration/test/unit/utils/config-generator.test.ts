@@ -43,7 +43,10 @@ describe('config-generator', () => {
       typescript: ['vitest']
     },
     detected_workspaces: [],
-    file_counts: {},
+    file_counts: {
+      total: 0,
+      by_language: [],
+    },
     ...overrides
   });
 
@@ -222,9 +225,11 @@ describe('config-generator', () => {
       const state = createMockState();
       const stackProfile = createMockStackProfile({
         file_counts: {
-          '.ts': 150,
-          '.tsx': 50,
-          '.py': 20
+          total: 220,
+          by_language: [
+            { language: 'typescript', count: 200 },
+            { language: 'python', count: 20 },
+          ],
         }
       });
 
@@ -233,9 +238,11 @@ describe('config-generator', () => {
       const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
 
       expect(config.stack_profile.file_counts).toEqual({
-        '.ts': 150,
-        '.tsx': 50,
-        '.py': 20
+        total: 220,
+        by_language: [
+          { language: 'typescript', count: 200 },
+          { language: 'python', count: 20 },
+        ],
       });
     });
 
