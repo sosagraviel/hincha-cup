@@ -11,6 +11,38 @@ import { createDeepAgent } from "deepagents";
 import { getLLMFactory } from "../llm/llm-factory.js";
 import { logger } from "../utils/logger.js";
 
+/**
+ * Get the action verb for an agent based on its name
+ */
+function getAgentAction(agentName: string): string {
+  const lowerName = agentName.toLowerCase();
+
+  if (lowerName.includes("analyzer")) {
+    return "Analyzing codebase";
+  }
+  if (lowerName.includes("synthesizer") || lowerName.includes("architect")) {
+    return "Synthesizing analysis results";
+  }
+  if (lowerName.includes("consolidat")) {
+    return "Consolidating findings";
+  }
+  if (lowerName.includes("planner")) {
+    return "Planning implementation";
+  }
+  if (lowerName.includes("implementer")) {
+    return "Implementing changes";
+  }
+  if (lowerName.includes("reviewer")) {
+    return "Reviewing code";
+  }
+  if (lowerName.includes("verifier")) {
+    return "Verifying output";
+  }
+
+  // Default fallback
+  return "Processing";
+}
+
 export interface AgentConfig {
   agentName: string;
   agentFile: string;
@@ -159,10 +191,13 @@ export class HybridAgentFactory {
 
     return {
       invoke: async (input: { input: string }): Promise<AgentInvokeResult> => {
+        const action = getAgentAction(config.agentName);
+        const authInfo = `Auth: API Key, Provider: ${this.authConfig.provider}, Model: ${modelInfo.alias}`;
+
         logger.trackConcurrentAgentStart(
           config.agentName,
           config.agentName,
-          `Starting analysis using DeepAgents.js (${this.authConfig.provider} API Key)...`,
+          `${action} (${authInfo})`,
         );
 
         const startTime = Date.now();
@@ -192,7 +227,7 @@ export class HybridAgentFactory {
           // Update tracker to success
           logger.trackConcurrentAgentSucceed(
             config.agentName,
-            `Completed in ${executionTimeMs}ms using ${AuthMode.API_KEY} mode`,
+            `Completed in ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
           );
 
           return {
@@ -208,7 +243,7 @@ export class HybridAgentFactory {
 
           logger.trackConcurrentAgentFail(
             config.agentName,
-            `Analysis failed after ${Math.round(executionTimeMs / 1000)}s (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`,
+            `Failed after ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
           );
 
           throw new Error(
@@ -230,10 +265,13 @@ export class HybridAgentFactory {
 
     return {
       invoke: async (input: { input: string }): Promise<AgentInvokeResult> => {
+        const action = getAgentAction(config.agentName);
+        const authInfo = `Auth: Subscription, Provider: anthropic, Model: ${modelInfo.alias}`;
+
         logger.trackConcurrentAgentStart(
           config.agentName,
           config.agentName,
-          `Starting analysis using Claude CLI (Subscription)...`,
+          `${action} (${authInfo})`,
         );
 
         const startTime = Date.now();
@@ -253,7 +291,7 @@ export class HybridAgentFactory {
           // Update tracker to success
           logger.trackConcurrentAgentSucceed(
             config.agentName,
-            `Completed in ${executionTimeMs}ms using ${AuthMode.CLAUDE_CLI} mode`,
+            `Completed in ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
           );
 
           return {
@@ -268,7 +306,7 @@ export class HybridAgentFactory {
 
           logger.trackConcurrentAgentFail(
             config.agentName,
-            `Analysis failed after ${Math.round(executionTimeMs / 1000)}s (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`,
+            `Failed after ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
           );
 
           throw new Error(

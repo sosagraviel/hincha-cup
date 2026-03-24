@@ -3,6 +3,8 @@ import { contextGenerationNode } from '../../../../../src/nodes/initialize-proje
 import type { InitializeProjectState } from '../../../../../src/state/schemas/initialize-project.schema.js';
 import * as fs from 'fs';
 import * as configGenerator from '../../../../../src/utils/config-generator.js';
+import * as fileCounter from '../../../../../src/utils/file-counter.js';
+import * as workspaceDetector from '../../../../../src/utils/workspace-detector.js';
 
 vi.mock('fs', () => ({
   writeFileSync: vi.fn(),
@@ -29,6 +31,14 @@ vi.mock('../../../../../src/utils/logger.js', () => ({
 
 vi.mock('../../../../../src/utils/config-generator.js', () => ({
   generateFrameworkConfig: vi.fn(),
+}));
+
+vi.mock('../../../../../src/utils/file-counter.js', () => ({
+  countFilesByLanguage: vi.fn(),
+}));
+
+vi.mock('../../../../../src/utils/workspace-detector.js', () => ({
+  detectWorkspaces: vi.fn(),
 }));
 
 describe('contextGenerationNode', () => {
@@ -86,7 +96,15 @@ This is the project context content
           findings: {},
         });
       }
-      return '';
+      if (path.includes('04-data-flows-integrations.json')) {
+        return JSON.stringify({
+          agent_name: 'data-flows-integrations-analyzer',
+          timestamp: '2024-01-01T00:00:00Z',
+          findings: {},
+        });
+      }
+      // Default: return empty JSON object for any other file
+      return JSON.stringify({});
     });
 
     vi.mocked(configGenerator.generateFrameworkConfig).mockReturnValue({
@@ -98,6 +116,22 @@ This is the project context content
       stack_profile: {},
       resource_state: {},
     } as any);
+
+    // Mock file counting utility
+    vi.mocked(fileCounter.countFilesByLanguage).mockResolvedValue({
+      total_files: 100,
+      by_language: [
+        { language: 'typescript', count: 80 },
+        { language: 'javascript', count: 20 },
+      ],
+    });
+
+    // Mock workspace detection utility
+    vi.mocked(workspaceDetector.detectWorkspaces).mockResolvedValue({
+      is_monorepo: false,
+      total_workspaces: 0,
+      workspaces: [],
+    });
   });
 
   it('should throw if synthesis file not found', async () => {
@@ -508,7 +542,8 @@ Wrong content
           },
         });
       }
-      return '';
+      // Default: return empty JSON object
+      return JSON.stringify({});
     });
 
     const result = await contextGenerationNode(mockState);
@@ -556,7 +591,8 @@ Wrong content
           findings: {},
         });
       }
-      return '';
+      // Default: return empty JSON object
+      return JSON.stringify({});
     });
 
     const result = await contextGenerationNode(mockState);

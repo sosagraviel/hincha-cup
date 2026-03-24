@@ -106,6 +106,7 @@ export async function contextGenerationNode(
     const structureArchPath = join(phase1Dir, "01-structure-architecture.json");
     const techStackPath = join(phase1Dir, "02-tech-stack-dependencies.json");
     const codePatternsPath = join(phase1Dir, "03-code-patterns-testing.json");
+    const dataFlowsPath = join(phase1Dir, "04-data-flows-integrations.json");
 
     if (!existsSync(structureArchPath) || !existsSync(techStackPath)) {
       throw new Error("Required Phase 1 analyzer outputs not found");
@@ -119,6 +120,15 @@ export async function contextGenerationNode(
     // Also read code-patterns-testing for testing_framework field
     const codePatternsData = existsSync(codePatternsPath)
       ? JSON.parse(readFileSync(codePatternsPath, "utf-8"))
+      : {
+          agent_name: "code-patterns-testing-analyzer",
+          timestamp: new Date().toISOString(),
+          findings: {},
+        };
+
+    // Read data-flows-integrations if it exists
+    const dataFlowsData = existsSync(dataFlowsPath)
+      ? JSON.parse(readFileSync(dataFlowsPath, "utf-8"))
       : null;
 
     phaseLogger.success(" ✓ Phase 1 analysis loaded from disk");
@@ -529,8 +539,20 @@ export async function contextGenerationNode(
     writeFileSync(stackProfilePath, JSON.stringify(stackProfile, null, 2));
 
     phaseLogger.info(" Generating framework-config.json...");
+
+    // Prepare Phase 1 analysis data for config generator
+    const phase1Data = {
+      structure_architecture: structureArchData,
+      tech_stack_dependencies: techStackData,
+      code_patterns_testing: codePatternsData,
+      ...(dataFlowsData && { data_flows_integrations: dataFlowsData }),
+    };
+
     const frameworkConfig = generateFrameworkConfig(
-      state,
+      state.project_path,
+      tempDir,
+      phase1Data,
+      synthesisContent,
       stackProfile,
       state.framework_path,
     );

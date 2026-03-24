@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateFrameworkConfig, type StackProfile } from '../../../src/utils/config-generator.js';
-import type { InitializeProjectState } from '../../../src/state/schemas/initialize-project.schema.js';
+import { generateFrameworkConfig, type StackProfile, type Phase1AnalysisData } from '../../../src/utils/config-generator.js';
 import * as fs from 'fs';
 
 // Mock fs module
@@ -18,16 +17,22 @@ describe('config-generator', () => {
     vi.restoreAllMocks();
   });
 
-  const createMockState = (overrides: Partial<InitializeProjectState> = {}): InitializeProjectState => ({
-    project_path: '/test/project',
-    framework_path: '/test/framework',
-    current_phase: 'complete',
-    phase1_analysis: {
-      all_completed: false
+  const createMockPhase1Data = (overrides: Partial<Phase1AnalysisData> = {}): Phase1AnalysisData => ({
+    structure_architecture: {
+      agent_name: 'structure-architecture-analyzer',
+      timestamp: '2024-01-01T00:00:00Z',
+      findings: {}
     },
-    phase1_retry_tracking: {},
-    errors: [],
-    warnings: [],
+    tech_stack_dependencies: {
+      agent_name: 'tech-stack-dependencies-analyzer',
+      timestamp: '2024-01-01T00:00:00Z',
+      findings: {}
+    },
+    code_patterns_testing: {
+      agent_name: 'code-patterns-testing-analyzer',
+      timestamp: '2024-01-01T00:00:00Z',
+      findings: {}
+    },
     ...overrides
   });
 
@@ -52,12 +57,19 @@ describe('config-generator', () => {
 
   describe('generateFrameworkConfig', () => {
     it('should generate valid framework config with minimal data', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis content',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config).toBeDefined();
       expect(config.version).toBe('2.0.0');
@@ -69,32 +81,46 @@ describe('config-generator', () => {
     });
 
     it('should read framework version from package.json', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ version: '3.5.0' }));
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis content',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.version).toBe('3.5.0');
       expect(config.framework_version).toBe('3.5.0');
     });
 
     it('should use default version when package.json has no version', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({}));
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis content',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.version).toBe('2.0.0');
     });
 
     it('should include stack profile data', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
         languages: ['typescript', 'python'],
         primary_language: 'typescript',
@@ -107,7 +133,14 @@ describe('config-generator', () => {
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.stack_profile.languages).toEqual(['typescript', 'python']);
       expect(config.stack_profile.primary_language).toBe('typescript');
@@ -116,7 +149,7 @@ describe('config-generator', () => {
     });
 
     it('should include detected workspaces', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
         detected_workspaces: [
           { path: 'packages/web', language: 'typescript', type: 'frontend', frameworks: ['react'] },
@@ -126,7 +159,14 @@ describe('config-generator', () => {
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.stack_profile.detected_workspaces).toHaveLength(2);
       expect(config.stack_profile.detected_workspaces[0].path).toBe('packages/web');
@@ -134,63 +174,82 @@ describe('config-generator', () => {
     });
 
     it('should handle phase1_analysis data', () => {
-      const state = createMockState({
-        phase1_analysis: {
-          structure_architecture: {
-            agent_name: 'structure-architecture-analyzer',
-            timestamp: '2024-01-01T00:00:00Z',
-            findings: { project_type: 'monorepo' }
-          },
-          all_completed: true
+      const phase1Data = createMockPhase1Data({
+        structure_architecture: {
+          agent_name: 'structure-architecture-analyzer',
+          timestamp: '2024-01-01T00:00:00Z',
+          findings: { project_type: 'monorepo' }
         }
       });
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.analysis_results.phase1_analysis).toBeDefined();
       expect(config.analysis_results.phase1_analysis.structure_architecture).toBeDefined();
+      expect(config.analysis_results.phase1_analysis.structure_architecture.findings.project_type).toBe('monorepo');
     });
 
-    it('should handle phase2_consolidation data', () => {
-      const state = createMockState({
-        phase2_consolidation: {
-          consolidated_findings: {},
-          timestamp: '2024-01-01T10:00:00Z'
-        }
-      });
+    it('should handle phase2_consolidation data from disk', () => {
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
-      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('phase2-consolidation.json')) return true;
+        return false;
+      });
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('phase2-consolidation.json')) {
+          return JSON.stringify({
+            consolidated_findings: {},
+            timestamp: '2024-01-01T10:00:00Z'
+          });
+        }
+        return '{}';
+      });
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
-      expect(config.analysis_results.phase2_consolidation.consolidation_timestamp)
-        .toBe('2024-01-01T10:00:00Z');
+      expect(config.analysis_results.phase2_consolidation.timestamp).toBe('2024-01-01T10:00:00Z');
     });
 
     it('should handle phase3_synthesis data', () => {
-      const state = createMockState({
-        phase3_synthesis: {
-          synthesis_content: '# Synthesis',
-          timestamp: '2024-01-01T11:00:00Z',
-          validation_passed: true
-        }
-      });
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const synthesisContent = '# Synthesis\n\nProject overview...';
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        synthesisContent,
+        stackProfile,
+        '/test/framework'
+      );
 
-      expect(config.analysis_results.phase3_synthesis.synthesis_timestamp)
-        .toBe('2024-01-01T11:00:00Z');
+      expect(config.analysis_results.phase3_synthesis.raw_content).toBe(synthesisContent);
     });
 
     it('should handle testing frameworks', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
         testing_frameworks: {
           typescript: ['vitest', 'playwright'],
@@ -200,7 +259,14 @@ describe('config-generator', () => {
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.stack_profile.testing_frameworks).toEqual({
         typescript: ['vitest', 'playwright'],
@@ -209,20 +275,27 @@ describe('config-generator', () => {
     });
 
     it('should handle infrastructure data', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
         infrastructure: ['docker', 'kubernetes', 'aws']
       });
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.stack_profile.infrastructure).toEqual(['docker', 'kubernetes', 'aws']);
     });
 
     it('should handle file counts', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
         file_counts: {
           total: 220,
@@ -235,7 +308,14 @@ describe('config-generator', () => {
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.stack_profile.file_counts).toEqual({
         total: 220,
@@ -247,13 +327,27 @@ describe('config-generator', () => {
     });
 
     it('should generate unique initialization hash', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config1 = generateFrameworkConfig(state, stackProfile, '/test/framework');
-      const config2 = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config1 = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
+      const config2 = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config1.project_metadata.initialization_hash).toBeDefined();
       expect(config2.project_metadata.initialization_hash).toBeDefined();
@@ -262,12 +356,19 @@ describe('config-generator', () => {
     });
 
     it('should include resource state', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.resource_state).toBeDefined();
       expect(config.resource_state.skills).toEqual({});
@@ -277,7 +378,7 @@ describe('config-generator', () => {
     });
 
     it('should handle empty stack profile', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile: StackProfile = {
         languages: [],
         frameworks: {
@@ -289,14 +390,21 @@ describe('config-generator', () => {
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.stack_profile.languages).toEqual([]);
       expect(config.stack_profile.frameworks.frontend).toEqual([]);
     });
 
     it('should handle workspaces fallback to detected_workspaces', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
         detected_workspaces: undefined,
         workspaces: [
@@ -306,45 +414,59 @@ describe('config-generator', () => {
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.stack_profile.detected_workspaces).toHaveLength(1);
       expect(config.stack_profile.detected_workspaces[0].path).toBe('packages/lib');
     });
 
     it('should include phase4_context data', () => {
-      const state = createMockState({
-        phase4_context: {
-          claude_md_written: true,
-          project_context_written: true,
-          framework_config_generated: true,
-          timestamp: '2024-01-01T12:00:00Z'
-        }
-      });
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.analysis_results.phase4_context).toBeDefined();
       expect(config.analysis_results.phase4_context.files_generated).toContain('.claude/CLAUDE.md');
     });
 
     it('should validate generated config against schema', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
       // Should not throw
       expect(() => {
-        generateFrameworkConfig(state, stackProfile, '/test/framework');
+        generateFrameworkConfig(
+          '/test/project',
+          '/test/temp',
+          phase1Data,
+          '# Synthesis',
+          stackProfile,
+          '/test/framework'
+        );
       }).not.toThrow();
     });
 
     it('should handle missing optional fields gracefully', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile: StackProfile = {
         languages: ['typescript'],
         frameworks: {
@@ -355,7 +477,14 @@ describe('config-generator', () => {
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.stack_profile.primary_language).toBeUndefined();
       expect(config.stack_profile.infrastructure).toBeUndefined();
@@ -363,7 +492,7 @@ describe('config-generator', () => {
     });
 
     it('should handle complex multi-workspace monorepo', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
         languages: ['typescript', 'python', 'go'],
         primary_language: 'typescript',
@@ -378,7 +507,14 @@ describe('config-generator', () => {
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.stack_profile.languages).toEqual(['typescript', 'python', 'go']);
       expect(config.stack_profile.detected_workspaces).toHaveLength(5);
@@ -386,7 +522,7 @@ describe('config-generator', () => {
     });
 
     it('should handle mobile frameworks', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
         frameworks: {
           frontend: ['react'],
@@ -397,24 +533,38 @@ describe('config-generator', () => {
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.stack_profile.frameworks.mobile).toEqual(['react-native', 'flutter']);
     });
 
     it('should generate ISO timestamp for last_analysis', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.project_metadata.last_analysis).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     });
 
     it('should handle package.json read error gracefully', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -424,12 +574,19 @@ describe('config-generator', () => {
 
       // Should throw since it's not caught
       expect(() => {
-        generateFrameworkConfig(state, stackProfile, '/test/framework');
+        generateFrameworkConfig(
+          '/test/project',
+          '/test/temp',
+          phase1Data,
+          '# Synthesis',
+          stackProfile,
+          '/test/framework'
+        );
       }).toThrow('File read error');
     });
 
     it('should handle workspaces with package_manager', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
         package_manager: 'pnpm',
         workspace_type: 'monorepo'
@@ -437,36 +594,52 @@ describe('config-generator', () => {
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config).toBeDefined();
       expect(config.stack_profile).toBeDefined();
     });
 
     it('should use provided phase data timestamps', () => {
-      const state = createMockState({
-        phase2_consolidation: {
-          consolidated_findings: {},
-          timestamp: '2024-06-15T10:00:00Z'
-        },
-        phase3_synthesis: {
-          synthesis_content: '# Test',
-          timestamp: '2024-06-15T11:00:00Z',
-          validation_passed: true
-        }
-      });
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
-      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('phase2-consolidation.json')) return true;
+        return false;
+      });
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('phase2-consolidation.json')) {
+          return JSON.stringify({
+            consolidated_findings: {},
+            timestamp: '2024-06-15T10:00:00Z'
+          });
+        }
+        return '{}';
+      });
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Test',
+        stackProfile,
+        '/test/framework'
+      );
 
-      expect(config.analysis_results.phase2_consolidation.consolidation_timestamp).toBe('2024-06-15T10:00:00Z');
-      expect(config.analysis_results.phase3_synthesis.synthesis_timestamp).toBe('2024-06-15T11:00:00Z');
+      expect(config.analysis_results.phase2_consolidation.timestamp).toBe('2024-06-15T10:00:00Z');
+      expect(config.analysis_results.phase3_synthesis.raw_content).toBe('# Test');
     });
 
     it('should handle fallback to empty workspaces array', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
         detected_workspaces: undefined,
         workspaces: undefined
@@ -474,32 +647,53 @@ describe('config-generator', () => {
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.stack_profile.detected_workspaces).toEqual([]);
     });
 
     it('should include phase4_context with standard files', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
 
       expect(config.analysis_results.phase4_context.files_generated).toContain('.claude/CLAUDE.md');
       expect(config.analysis_results.phase4_context.files_generated).toContain('.claude/project-context/SKILL.md');
     });
 
     it('should validate against schema', () => {
-      const state = createMockState();
+      const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
       // Should not throw Zod validation error
       expect(() => {
-        const config = generateFrameworkConfig(state, stackProfile, '/test/framework');
+        const config = generateFrameworkConfig(
+          '/test/project',
+          '/test/temp',
+          phase1Data,
+          '# Synthesis',
+          stackProfile,
+          '/test/framework'
+        );
         expect(config.schema_version).toBe('1.0.0');
       }).not.toThrow();
     });

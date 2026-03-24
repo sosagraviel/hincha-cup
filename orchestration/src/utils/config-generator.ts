@@ -75,7 +75,21 @@ const FrameworkConfigSchema = z.object({
   analysis_results: z.object({
     phase1_analysis: z.record(z.string(), z.any()),
     phase2_consolidation: z.any(),
-    phase3_synthesis: z.any(),
+    phase3_synthesis: z
+      .object({
+        synthesis_timestamp: z.string(),
+        raw_content: z.string().optional(),
+        extracted_files: z
+          .object({
+            claude_md: z.string().optional(),
+            project_context_md: z.string().optional(),
+          })
+          .optional(),
+        project_understanding: z.any().optional(),
+        architectural_patterns: z.array(z.any()).optional(),
+        key_insights: z.array(z.any()).optional(),
+      })
+      .passthrough(),
     phase4_context: z.any(),
   }),
   stack_profile: z.object({
@@ -126,10 +140,24 @@ function generateProjectHash(): string {
 }
 
 /**
- * Generate framework configuration from workflow state and stack profile
+ * Phase 1 Analysis Data (read from disk files)
+ */
+export interface Phase1AnalysisData {
+  structure_architecture: any;
+  tech_stack_dependencies: any;
+  code_patterns_testing: any;
+  data_flows_integrations?: any;
+}
+
+/**
+ * Generate framework configuration from disk files and stack profile
+ * This function is idempotent - it reads from disk files, not state
  */
 export function generateFrameworkConfig(
-  state: InitializeProjectState,
+  projectPath: string,
+  tempDir: string,
+  phase1Data: Phase1AnalysisData,
+  phase3SynthesisContent: string,
   stackProfile: StackProfile,
   frameworkPath: string,
 ): FrameworkConfig {
@@ -159,26 +187,51 @@ export function generateFrameworkConfig(
     stackProfileData.file_counts = stackProfile.file_counts;
   }
 
+  // Read Phase 2 consolidation from disk if it exists
+  let phase2Data: any = {
+    gaps_identified: [],
+    validation_status: "valid",
+  };
+
+  if (tempDir) {
+    const phase2Path = join(tempDir, "phase2-consolidation.json");
+    if (existsSync(phase2Path)) {
+      try {
+        const fileContent = readFileSync(phase2Path, "utf-8");
+        phase2Data = JSON.parse(fileContent);
+      } catch (err) {
+        // If file exists but can't be read/parsed, use defaults
+      }
+    }
+  }
+
   const config: FrameworkConfig = {
     version: frameworkVersion,
     schema_version: "1.0.0",
     framework_version: frameworkVersion,
     project_metadata: {
-      project_path: state.project_path,
+      project_path: projectPath,
       last_analysis: new Date().toISOString(),
       initialization_hash: generateProjectHash(),
     },
     analysis_results: {
-      phase1_analysis: state.phase1_analysis || {},
+      phase1_analysis: {
+        structure_architecture: phase1Data.structure_architecture,
+        tech_stack_dependencies: phase1Data.tech_stack_dependencies,
+        code_patterns_testing: phase1Data.code_patterns_testing,
+        ...(phase1Data.data_flows_integrations && {
+          data_flows_integrations: phase1Data.data_flows_integrations,
+        }),
+        all_completed: true,
+        completion_timestamp: new Date().toISOString(),
+      },
       phase2_consolidation: {
-        gaps_identified: [],
-        consolidation_timestamp:
-          state.phase2_consolidation?.timestamp || new Date().toISOString(),
-        validation_status: "valid",
+        ...phase2Data,
+        timestamp: phase2Data.timestamp || new Date().toISOString(),
       },
       phase3_synthesis: {
-        synthesis_timestamp:
-          state.phase3_synthesis?.timestamp || new Date().toISOString(),
+        synthesis_timestamp: new Date().toISOString(),
+        raw_content: phase3SynthesisContent,
         project_understanding: {},
         architectural_patterns: [],
         key_insights: [],
