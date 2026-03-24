@@ -6,6 +6,14 @@ import {
   type StackProfile,
 } from "../../../utils/config-generator.js";
 import { logger } from "../../../utils/logger.js";
+import {
+  countFilesByLanguage,
+  type FileCountResult,
+} from "../../../utils/file-counter.js";
+import {
+  detectWorkspaces,
+  type WorkspaceDetectionResult,
+} from "../../../utils/workspace-detector.js";
 
 /**
  * Phase 4: Context Generation Node
@@ -128,6 +136,83 @@ export async function contextGenerationNode(
     phaseLogger.info(
       `  Languages from Phase 1: ${languagesFromPhase1.join(", ") || "none"}`,
     );
+
+    // STEP 1: Count files by language (independent validation)
+    phaseLogger.info(" Counting files by language for validation...");
+    let fileCountResult: FileCountResult | undefined;
+    try {
+      fileCountResult = await countFilesByLanguage(state.project_path, 10);
+      phaseLogger.success(
+        ` ✓ Found ${fileCountResult.total_files} files across ${fileCountResult.by_language.length} languages`,
+      );
+
+      // Log breakdown
+      for (const langCount of fileCountResult.by_language) {
+        phaseLogger.info(`   ${langCount.language}: ${langCount.count} files`);
+      }
+    } catch (error) {
+      phaseLogger.warn(
+        ` File counting failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      phaseLogger.warn(" Continuing with agent-detected languages only");
+    }
+
+    // STEP 2: Cross-validate agent findings with file counts
+    const detectedLanguages = new Set<string>(languagesFromPhase1);
+
+    if (fileCountResult) {
+      for (const langCount of fileCountResult.by_language) {
+        const lang = langCount.language.toLowerCase();
+
+        // If file counter found significant files but agent missed it
+        if (langCount.count >= 5 && !detectedLanguages.has(lang)) {
+          phaseLogger.warn(
+            ` Agent missed ${lang} (${langCount.count} files) - adding to stack profile`,
+          );
+          detectedLanguages.add(lang);
+        }
+      }
+    }
+
+    // STEP 3: Detect workspaces for monorepo projects
+    phaseLogger.info(" Detecting workspaces...");
+    let workspaceResult: WorkspaceDetectionResult | undefined;
+    try {
+      workspaceResult = await detectWorkspaces(state.project_path, 5);
+
+      if (workspaceResult.is_monorepo) {
+        phaseLogger.success(
+          ` ✓ Monorepo detected with ${workspaceResult.total_workspaces} workspaces`,
+        );
+        for (const ws of workspaceResult.workspaces) {
+          phaseLogger.info(`   ${ws.path} (${ws.language} - ${ws.type})`);
+        }
+      } else {
+        phaseLogger.info(" Single-repo project (no additional workspaces)");
+      }
+    } catch (error) {
+      phaseLogger.warn(
+        ` Workspace detection failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    // STEP 4: Merge workspace detection results with agent findings
+    if (workspaceResult && workspaceResult.is_monorepo) {
+      // Extract unique languages from workspaces
+      const workspaceLanguages = new Set(
+        workspaceResult.workspaces.map((ws) => ws.language.toLowerCase()),
+      );
+
+      // Merge with detected languages
+      for (const lang of workspaceLanguages) {
+        if (!detectedLanguages.has(lang)) {
+          phaseLogger.info(` Added ${lang} from workspace detection`);
+          detectedLanguages.add(lang);
+        }
+      }
+    }
+
+    const finalLanguages = Array.from(detectedLanguages);
 
     const frameworksObj = structureFindings?.frameworks || {};
     const frontendFrameworks: string[] = [];
@@ -358,9 +443,45 @@ export async function contextGenerationNode(
         (a, b) => languageCounts[b] - languageCounts[a],
       )[0] || undefined;
 
+    // STEP 5: Validate stack profile completeness
+    phaseLogger.info(" Validating stack profile completeness...");
+
+    // Check 1: If file counts show significant files for a language, it must be in languages array
+    if (fileCountResult) {
+      for (const langCount of fileCountResult.by_language) {
+        if (langCount.count >= 10) {
+          const lang = langCount.language.toLowerCase();
+          if (!finalLanguages.includes(lang)) {
+            phaseLogger.error(
+              ` Validation failed: ${langCount.count} ${lang} files found but language not in profile`,
+            );
+            throw new Error(
+              `Stack profile missing ${lang} despite ${langCount.count} files detected. ` +
+                `This will cause incorrect agent generation.`,
+            );
+          }
+        }
+      }
+    }
+
+    // Check 2: Warn if no files found for a detected language
+    for (const lang of finalLanguages) {
+      const fileCount = fileCountResult?.by_language.find(
+        (lc) => lc.language.toLowerCase() === lang.toLowerCase(),
+      );
+
+      if (!fileCount || fileCount.count === 0) {
+        phaseLogger.warn(
+          ` Language ${lang} in profile but no files found - may be configuration-only`,
+        );
+      }
+    }
+
+    phaseLogger.success(" ✓ Stack profile validation passed");
+    phaseLogger.info(`  Final languages: ${finalLanguages.join(", ")}`);
+
     const stackProfile: StackProfile = {
-      languages:
-        languagesFromPhase1.length > 0 ? languagesFromPhase1 : undefined,
+      languages: finalLanguages,
       primary_language: primaryLanguage,
       frameworks: {
         frontend: frontendFrameworks.length > 0 ? frontendFrameworks : [],
@@ -377,9 +498,27 @@ export async function contextGenerationNode(
           : undefined,
       detected_workspaces:
         detectedWorkspaces.length > 0 ? detectedWorkspaces : undefined,
-      file_counts: undefined,
+      file_counts: fileCountResult
+        ? {
+            total: fileCountResult.total_files,
+            by_language: fileCountResult.by_language.map((lc) => ({
+              language: lc.language,
+              count: lc.count,
+            })),
+          }
+        : undefined,
       workspaces:
         detectedWorkspaces.length > 0 ? detectedWorkspaces : undefined,
+      multi_stack: workspaceResult?.is_monorepo
+        ? {
+            is_monorepo: true,
+            workspaces: workspaceResult.workspaces.map((ws) => ({
+              path: ws.path,
+              language: ws.language,
+              manifest: ws.manifest_file,
+            })),
+          }
+        : undefined,
       package_manager: techStackFindings?.monorepo?.workspace_manager as
         | string
         | undefined,

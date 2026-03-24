@@ -60,7 +60,15 @@ describe('validationNode', () => {
           version: '2.0.0',
           project_metadata: {},
           analysis_results: {},
-          stack_profile: { file_counts: { '.ts': 50, '.js': 20 } },
+          stack_profile: {
+            file_counts: {
+              total: 70,
+              by_language: [
+                { language: 'typescript', count: 50 },
+                { language: 'javascript', count: 20 },
+              ],
+            },
+          },
         });
       }
       return '';

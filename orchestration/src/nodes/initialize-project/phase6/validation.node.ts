@@ -141,11 +141,9 @@ export async function validationNode(
           const stackProfile: StackProfile = config.stack_profile;
 
           if (stackProfile && stackProfile.file_counts) {
-            const significantLanguages = Object.entries(
-              stackProfile.file_counts,
-            )
-              .filter(([_, count]) => count > 10)
-              .map(([lang]) => lang.toLowerCase());
+            const significantLanguages = stackProfile.file_counts.by_language
+              .filter((lc) => lc.count > 10)
+              .map((lc) => lc.language.toLowerCase());
 
             // Check if there's an implementer for each significant language
             const missingImplementers: string[] = [];

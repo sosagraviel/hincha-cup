@@ -29,7 +29,29 @@ const StackProfileSchema = z
         }),
       )
       .optional(),
-    file_counts: z.record(z.string(), z.number()).optional(),
+    file_counts: z
+      .object({
+        total: z.number(),
+        by_language: z.array(
+          z.object({
+            language: z.string(),
+            count: z.number(),
+          }),
+        ),
+      })
+      .optional(),
+    multi_stack: z
+      .object({
+        is_monorepo: z.boolean(),
+        workspaces: z.array(
+          z.object({
+            path: z.string(),
+            language: z.string(),
+            manifest: z.string(),
+          }),
+        ),
+      })
+      .optional(),
     workspaces: z.array(z.any()).optional(),
     package_manager: z.string().optional(),
     workspace_type: z.string().optional(),
