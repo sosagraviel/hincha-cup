@@ -1,10 +1,15 @@
-import { spawn, ChildProcess } from 'child_process';
-import path from 'path';
-import fs from 'fs';
-import { AuthMode, AuthConfig, detectAuthMode, getAuthErrorMessage } from '../auth/auth-detector.js';
-import { createDeepAgent } from 'deepagents';
-import { getLLMFactory } from '../llm/llm-factory.js';
-import { logger } from '../utils/logger.js';
+import { spawn, ChildProcess } from "child_process";
+import path from "path";
+import fs from "fs";
+import {
+  AuthMode,
+  AuthConfig,
+  detectAuthMode,
+  getAuthErrorMessage,
+} from "../auth/auth-detector.js";
+import { createDeepAgent } from "deepagents";
+import { getLLMFactory } from "../llm/llm-factory.js";
+import { logger } from "../utils/logger.js";
 
 export interface AgentConfig {
   agentName: string;
@@ -35,7 +40,8 @@ export interface HybridAgent {
 export class HybridAgentFactory {
   private authConfig: AuthConfig;
   private static activeProcesses: Set<ChildProcess> = new Set();
-  private static activeInvocations: Map<number, (reason: Error) => void> = new Map();
+  private static activeInvocations: Map<number, (reason: Error) => void> =
+    new Map();
   private static invocationCounter = 0;
   private static isAborting = false;
 
@@ -52,9 +58,13 @@ export class HybridAgentFactory {
     }
 
     this.isAborting = true;
-    const abortError = new Error('SIGINT: Workflow interrupted by user (CTRL+C)');
+    const abortError = new Error(
+      "SIGINT: Workflow interrupted by user (CTRL+C)",
+    );
 
-    console.log(`\n⚠️  Aborting ${this.activeInvocations.size} active invocation(s)...`);
+    console.log(
+      `\n⚠️  Aborting ${this.activeInvocations.size} active invocation(s)...`,
+    );
 
     for (const [id, reject] of this.activeInvocations) {
       reject(abortError);
@@ -71,18 +81,18 @@ export class HybridAgentFactory {
       return;
     }
 
-    console.log(`\n⚠️  Killing ${this.activeProcesses.size} active Claude CLI process(es)...`);
+    console.log(
+      `\n⚠️  Killing ${this.activeProcesses.size} active Claude CLI process(es)...`,
+    );
 
     for (const proc of this.activeProcesses) {
       try {
         if (proc.pid && !proc.killed) {
           try {
-            proc.kill('SIGKILL');
-          } catch (e) {
-          }
+            proc.kill("SIGKILL");
+          } catch (e) {}
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     this.activeProcesses.clear();
@@ -126,92 +136,85 @@ export class HybridAgentFactory {
 
     const agentPath = path.join(
       config.frameworkPath,
-      '.claude',
-      'agents',
-      config.agentFile
+      ".claude",
+      "agents",
+      config.agentFile,
     );
 
     if (!fs.existsSync(agentPath)) {
       throw new Error(`Agent file not found: ${agentPath}`);
     }
 
-    const agentInstructions = fs.readFileSync(agentPath, 'utf-8');
+    const agentInstructions = fs.readFileSync(agentPath, "utf-8");
 
     const fullInstructions = config.additionalContext
-      ? agentInstructions + '\n\n' + config.additionalContext
+      ? agentInstructions + "\n\n" + config.additionalContext
       : agentInstructions;
 
     const agent = await createDeepAgent({
       model: model,
       systemPrompt: fullInstructions,
-      tools: []
+      tools: [],
     });
 
     return {
       invoke: async (input: { input: string }): Promise<AgentInvokeResult> => {
-        // Initial state: Starting analysis with auth info
         logger.trackConcurrentAgentStart(
           config.agentName,
           config.agentName,
-          `Starting analysis using DeepAgents.js (${this.authConfig.provider} API Key)...`
+          `Starting analysis using DeepAgents.js (${this.authConfig.provider} API Key)...`,
         );
 
         const startTime = Date.now();
         const timeout = config.timeout || 300000;
 
         try {
-          // Update to analyzing state
-          // logger.trackConcurrentAgentUpdate(
-          //   config.agentName,
-          //   `Analyzing the codebase (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})...`
-          // );
-
           const agentPromise = (agent as any).invoke({
-            messages: [{ role: 'user', content: input.input }]
+            messages: [{ role: "user", content: input.input }],
           });
 
           const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => {
-              reject(new Error(`DeepAgent execution timeout after ${timeout}ms`));
+              reject(
+                new Error(`DeepAgent execution timeout after ${timeout}ms`),
+              );
             }, timeout);
           });
 
           const result = await Promise.race([agentPromise, timeoutPromise]);
           const executionTimeMs = Date.now() - startTime;
 
-          const output = (result as any).output || (result as any).content || JSON.stringify(result);
-
-          // Update to success state
-          // logger.trackConcurrentAgentSucceed(
-          //   config.agentName,
-          //   `Analysis completed successfully (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`
-          // );
+          const output =
+            (result as any).output ||
+            (result as any).content ||
+            JSON.stringify(result);
 
           return {
             output,
             mode: AuthMode.API_KEY,
-            executionTimeMs
+            executionTimeMs,
           };
         } catch (error: unknown) {
           // Update to failure state
           const executionTimeMs = Date.now() - startTime;
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
 
           logger.trackConcurrentAgentFail(
             config.agentName,
-            `Analysis failed after ${Math.round(executionTimeMs / 1000)}s (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`
+            `Analysis failed after ${Math.round(executionTimeMs / 1000)}s (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`,
           );
 
           throw new Error(
-            `DeepAgent execution failed after ${executionTimeMs}ms: ${errorMessage}`
+            `DeepAgent execution failed after ${executionTimeMs}ms: ${errorMessage}`,
           );
         }
       },
 
       getInfo: () => ({
         agentName: config.agentName,
-        mode: AuthMode.API_KEY
-      })
+        mode: AuthMode.API_KEY,
+      }),
     };
   }
 
@@ -221,64 +224,51 @@ export class HybridAgentFactory {
 
     return {
       invoke: async (input: { input: string }): Promise<AgentInvokeResult> => {
-        // Initial state: Starting analysis with auth info
         logger.trackConcurrentAgentStart(
           config.agentName,
           config.agentName,
-          `Starting analysis using Claude CLI (Subscription)...`
+          `Starting analysis using Claude CLI (Subscription)...`,
         );
 
         const startTime = Date.now();
 
         try {
-          // Update to analyzing state
-          // logger.trackConcurrentAgentUpdate(
-          //   config.agentName,
-          //   `Analyzing the codebase (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})...`
-          // );
-
           const fullPrompt = config.additionalContext || input.input;
 
           const output = await this.invokeCLI(
             config.agentName,
             fullPrompt,
             config.projectPath,
-            config.timeout
+            config.timeout,
           );
 
           const executionTimeMs = Date.now() - startTime;
-
-          // Update to success state
-          // logger.trackConcurrentAgentSucceed(
-          //   config.agentName,
-          //   `Analysis completed successfully (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`
-          // );
 
           return {
             output,
             mode: AuthMode.CLAUDE_CLI,
-            executionTimeMs
+            executionTimeMs,
           };
         } catch (error: unknown) {
-          // Update to failure state
           const executionTimeMs = Date.now() - startTime;
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
 
           logger.trackConcurrentAgentFail(
             config.agentName,
-            `Analysis failed after ${Math.round(executionTimeMs / 1000)}s (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`
+            `Analysis failed after ${Math.round(executionTimeMs / 1000)}s (Tier: ${modelInfo.tier}, target: ${modelInfo.alias})`,
           );
 
           throw new Error(
-            `Claude CLI execution failed after ${executionTimeMs}ms: ${errorMessage}`
+            `Claude CLI execution failed after ${executionTimeMs}ms: ${errorMessage}`,
           );
         }
       },
 
       getInfo: () => ({
         agentName: config.agentName,
-        mode: AuthMode.CLAUDE_CLI
-      })
+        mode: AuthMode.CLAUDE_CLI,
+      }),
     };
   }
 
@@ -286,26 +276,26 @@ export class HybridAgentFactory {
     agentName: string,
     prompt: string,
     projectPath: string,
-    timeout: number = 300000
+    timeout: number = 300000,
   ): Promise<string> {
     if (HybridAgentFactory.isAborting) {
-      throw new Error('SIGINT: Workflow interrupted by user (CTRL+C)');
+      throw new Error("SIGINT: Workflow interrupted by user (CTRL+C)");
     }
 
     return new Promise(async (resolve, reject) => {
       const invocationId = HybridAgentFactory.invocationCounter++;
       HybridAgentFactory.activeInvocations.set(invocationId, reject);
 
-      const { mkdtemp, writeFile, rm } = await import('fs/promises');
-      const { tmpdir } = await import('os');
-      const { join } = await import('path');
+      const { mkdtemp, writeFile, rm } = await import("fs/promises");
+      const { tmpdir } = await import("os");
+      const { join } = await import("path");
 
-      const tempDir = await mkdtemp(join(tmpdir(), 'claude-prompt-'));
-      const promptFile = join(tempDir, 'prompt.txt');
+      const tempDir = await mkdtemp(join(tmpdir(), "claude-prompt-"));
+      const promptFile = join(tempDir, "prompt.txt");
       let promptFileCreated = false;
 
       try {
-        await writeFile(promptFile, prompt, 'utf-8');
+        await writeFile(promptFile, prompt, "utf-8");
         promptFileCreated = true;
       } catch (err) {
         HybridAgentFactory.activeInvocations.delete(invocationId);
@@ -319,8 +309,7 @@ export class HybridAgentFactory {
         if (promptFileCreated) {
           try {
             await rm(tempDir, { recursive: true, force: true });
-          } catch {
-          }
+          } catch {}
         }
       };
 
@@ -329,80 +318,86 @@ export class HybridAgentFactory {
 
       timeoutId = setTimeout(async () => {
         await cleanup();
-        claudeProcess.kill('SIGTERM');
+        claudeProcess.kill("SIGTERM");
         reject(new Error(`Claude CLI timeout after ${timeout}ms`));
       }, timeout);
 
-      const { open } = await import('fs');
+      const { open } = await import("fs");
       const promptFd = await new Promise<number>((res, rej) => {
-        open(promptFile, 'r', (err, fd) => {
+        open(promptFile, "r", (err, fd) => {
           if (err) rej(err);
           else res(fd);
         });
       });
 
-      claudeProcess = spawn('claude', [
-        '--model',
-        'sonnet',
-        '--dangerously-skip-permissions'
-      ], {
-        cwd: projectPath,
-        env: {
-          ...process.env,
-          CLAUDE_SKIP_CONFIRMATIONS: '1'
+      claudeProcess = spawn(
+        "claude",
+        ["--model", "sonnet", "--dangerously-skip-permissions"],
+        {
+          cwd: projectPath,
+          env: {
+            ...process.env,
+            CLAUDE_SKIP_CONFIRMATIONS: "1",
+          },
+          stdio: [promptFd, "pipe", "pipe"],
+          detached: false,
         },
-        stdio: [promptFd, 'pipe', 'pipe'],
-        detached: false
-      });
+      );
 
       HybridAgentFactory.activeProcesses.add(claudeProcess);
 
-      claudeProcess.on('close', () => {
+      claudeProcess.on("close", () => {
         HybridAgentFactory.activeProcesses.delete(claudeProcess);
       });
 
-      let stdout = '';
-      let stderr = '';
+      let stdout = "";
+      let stderr = "";
 
       if (claudeProcess.stdout) {
-        claudeProcess.stdout.on('data', (data) => {
+        claudeProcess.stdout.on("data", (data) => {
           stdout += data.toString();
         });
       }
 
       if (claudeProcess.stderr) {
-        claudeProcess.stderr.on('data', (data) => {
+        claudeProcess.stderr.on("data", (data) => {
           stderr += data.toString();
         });
       }
 
-      claudeProcess.on('close', async (code) => {
+      claudeProcess.on("close", async (code) => {
         await cleanup();
 
-        const { close } = await import('fs');
+        const { close } = await import("fs");
         close(promptFd, () => {});
 
         if (code === 0) {
           resolve(stdout);
         } else {
-          const isRateLimit = stdout.includes('Limit reached') ||
-                             stdout.includes('resets') ||
-                             stdout.includes('/upgrade to Max');
+          const isRateLimit =
+            stdout.includes("Limit reached") ||
+            stdout.includes("resets") ||
+            stdout.includes("/upgrade to Max");
 
           let errorMessage = `Claude CLI exited with code ${code}`;
 
           if (isRateLimit) {
-            const resetMatch = stdout.match(/resets (\d+(?:am|pm)) \(([^)]+)\)/);
-            const resetTime = resetMatch ? `${resetMatch[1]} ${resetMatch[2]}` : 'unknown';
+            const resetMatch = stdout.match(
+              /resets (\d+(?:am|pm)) \(([^)]+)\)/,
+            );
+            const resetTime = resetMatch
+              ? `${resetMatch[1]} ${resetMatch[2]}`
+              : "unknown";
 
-            errorMessage = `RATE_LIMIT: Claude CLI usage limit reached. Resets at ${resetTime}.\n` +
-                          `Options:\n` +
-                          `  1. Wait until rate limit resets\n` +
-                          `  2. Set ANTHROPIC_API_KEY environment variable to use API key mode\n` +
-                          `  3. Upgrade to Max (20x limits) or enable /extra-usage\n\n` +
-                          `To switch to API key mode:\n` +
-                          `  export ANTHROPIC_API_KEY="your-api-key"\n` +
-                          `  # Framework will automatically detect and use API key mode`;
+            errorMessage =
+              `RATE_LIMIT: Claude CLI usage limit reached. Resets at ${resetTime}.\n` +
+              `Options:\n` +
+              `  1. Wait until rate limit resets\n` +
+              `  2. Set ANTHROPIC_API_KEY environment variable to use API key mode\n` +
+              `  3. Upgrade to Max (20x limits) or enable /extra-usage\n\n` +
+              `To switch to API key mode:\n` +
+              `  export ANTHROPIC_API_KEY="your-api-key"\n` +
+              `  # Framework will automatically detect and use API key mode`;
           }
 
           errorMessage += `\n\n=== STDOUT ===\n${stdout}\n\n=== STDERR ===\n${stderr}`;
@@ -411,7 +406,7 @@ export class HybridAgentFactory {
         }
       });
 
-      claudeProcess.on('error', (error) => {
+      claudeProcess.on("error", (error) => {
         cleanup();
         reject(new Error(`Failed to spawn Claude CLI: ${error.message}`));
       });

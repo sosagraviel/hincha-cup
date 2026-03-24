@@ -31,7 +31,6 @@ export async function phase5TestingNode(
 
   console.log('\n[Phase 5: Testing] Starting test execution...');
 
-  // 1. Check if already complete (idempotency)
   const completionMarkerPath = join(phase5Dir, 'testing-complete.json');
   if (existsSync(completionMarkerPath)) {
     console.log('[Phase 5: Testing] Already complete, skipping');
@@ -44,7 +43,6 @@ export async function phase5TestingNode(
   }
 
   try {
-    // 2. Validate Phase 4 completed (read from disk, NOT state)
     console.log('[Phase 5: Testing] Validating Phase 4 completion...');
     const phase4Dir = join(tempDir, 'phase4');
     const phase4CompletionPath = join(phase4Dir, 'implementation-complete.json');
@@ -56,7 +54,6 @@ export async function phase5TestingNode(
     }
     console.log('[Phase 5: Testing] ✓ Phase 4 verified');
 
-    // 3. Read implementation data from Phase 4 (from disk)
     const implementationDataPath = join(phase4Dir, 'implementation-data.json');
     if (!existsSync(implementationDataPath)) {
       throw new Error('Implementation data not found from Phase 4');
@@ -65,7 +62,6 @@ export async function phase5TestingNode(
     const implementationData = JSON.parse(readFileSync(implementationDataPath, 'utf-8'));
     console.log(`[Phase 5: Testing] ✓ Implementation data loaded (${implementationData.files_modified.length} files modified)`);
 
-    // 4. Read stack profile from Phase 0 (from disk)
     const phase0Dir = join(tempDir, 'phase0');
     const stackProfilePath = join(phase0Dir, 'stack-profile.json');
 
@@ -164,13 +160,11 @@ export async function phase5TestingNode(
     console.log('[Phase 5: Testing] Writing outputs to disk...');
     mkdirSync(phase5Dir, { recursive: true });
 
-    // Save test results
     writeFileSync(
       join(phase5Dir, 'test-results.json'),
       JSON.stringify(allTestResults, null, 2)
     );
 
-    // Save test summary markdown
     const testSummaryLines: string[] = [];
     testSummaryLines.push('# Test Results Summary\n');
     testSummaryLines.push(`**Ticket ID**: ${ticketId}`);
@@ -200,7 +194,6 @@ export async function phase5TestingNode(
       testSummaryLines.join('\n')
     );
 
-    // Save testing data
     const testingData = {
       test_results: allTestResults,
       total_tests: allTestResults.reduce((sum, r) => sum + r.totalTests, 0),

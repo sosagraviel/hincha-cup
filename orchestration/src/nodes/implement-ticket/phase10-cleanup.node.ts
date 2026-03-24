@@ -34,7 +34,6 @@ export async function phase10CleanupNode(
 
   console.log('\n[Phase 10: Cleanup] Starting cleanup...');
 
-  // 1. Check if already complete (idempotency)
   const completionMarkerPath = join(phase10Dir, 'cleanup-complete.json');
   if (existsSync(completionMarkerPath)) {
     console.log('[Phase 10: Cleanup] Already complete, skipping');
@@ -46,12 +45,10 @@ export async function phase10CleanupNode(
     };
   }
 
-  // 2. Initialize cleanup tracking
   const cleanupLog: string[] = [];
   const cleanupErrors: string[] = [];
 
   try {
-    // 3. Validate Phase 9 completed (read from disk, NOT state) - NON-BLOCKING
     console.log('[Phase 10: Cleanup] Validating Phase 9 completion...');
     const phase9Dir = join(tempDir, 'phase9');
     const phase9CompletionPath = join(phase9Dir, 'review-complete.json');
@@ -64,7 +61,6 @@ export async function phase10CleanupNode(
       cleanupLog.push('✓ Phase 9 verified');
     }
 
-    // 4. Read environment config from Phase 3 (from disk) - NON-BLOCKING
     const phase3Dir = join(tempDir, 'phase3');
     const envConfigPath = join(phase3Dir, 'environment-config.json');
 
@@ -178,13 +174,11 @@ export async function phase10CleanupNode(
     console.log('[Phase 10: Cleanup] Writing outputs to disk...');
     mkdirSync(phase10Dir, { recursive: true });
 
-    // Save cleanup log
     writeFileSync(
       join(phase10Dir, 'cleanup-log.txt'),
       cleanupLog.join('\n')
     );
 
-    // Save cleanup errors (if any)
     if (cleanupErrors.length > 0) {
       writeFileSync(
         join(phase10Dir, 'cleanup-errors.txt'),
@@ -192,7 +186,6 @@ export async function phase10CleanupNode(
       );
     }
 
-    // Save cleanup data
     const cleanupData = {
       cleanup_log: cleanupLog,
       cleanup_errors: cleanupErrors,

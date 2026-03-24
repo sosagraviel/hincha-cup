@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
-import { Command } from 'commander';
-import { existsSync, readFileSync, mkdirSync } from 'fs';
-import { join, resolve } from 'path';
-import { getLLMFactory } from '../llm/llm-factory.js';
-import { HybridAgentFactory } from '../agents/agent-factory-hybrid.js';
-import { Logger } from '../utils/logger.js';
-import { compileImplementTicketGraph } from '../graphs/implement-ticket.graph.js';
-import { MemorySaver } from '@langchain/langgraph';
-import type { ImplementTicketState } from '../state/schemas/implement-ticket.schema.js';
+import { Command } from "commander";
+import { existsSync, readFileSync, mkdirSync } from "fs";
+import { join, resolve } from "path";
+import { getLLMFactory } from "../llm/llm-factory.js";
+import { HybridAgentFactory } from "../agents/agent-factory-hybrid.js";
+import { Logger } from "../utils/logger.js";
+import { compileImplementTicketGraph } from "../graphs/implement-ticket.graph.js";
+import { MemorySaver } from "@langchain/langgraph";
+import type { ImplementTicketState } from "../state/schemas/implement-ticket.schema.js";
 
-const logger = new Logger('implement-ticket');
+const logger = new Logger("implement-ticket");
 
 /**
  * CLI Entry Point for Implement-Ticket Workflow
@@ -39,23 +39,32 @@ const logger = new Logger('implement-ticket');
 const program = new Command();
 
 program
-  .name('implement-ticket')
-  .description('Implement a ticket using the Claude Code framework')
-  .version('1.0.0')
-  .requiredOption('-p, --project-path <path>', 'Path to the project to implement in')
-  .requiredOption('-f, --framework-path <path>', 'Path to the Claude Code framework')
-  .requiredOption('--ticket-id <id>', 'Ticket ID (e.g., PROJ-123)')
-  .option('--from-jira', 'Fetch ticket context from Jira + Confluence')
-  .option('--from-markdown <path>', 'Read ticket context from markdown file')
-  .option('--from-input', 'Read ticket context from stdin')
-  .option('--start-phase <phase>', 'Start from specific phase (0-10)', parseInt)
-  .option('--resume', 'Auto-detect last completed phase and resume from next')
-  .option('--model-tier <tier>', 'Model tier to use (sonnet, opus, haiku)', 'sonnet')
+  .name("implement-ticket")
+  .description("Implement a ticket using the Claude Code framework")
+  .version("1.0.0")
+  .requiredOption(
+    "-p, --project-path <path>",
+    "Path to the project to implement in",
+  )
+  .requiredOption(
+    "-f, --framework-path <path>",
+    "Path to the Claude Code framework",
+  )
+  .requiredOption("--ticket-id <id>", "Ticket ID (e.g., PROJ-123)")
+  .option("--from-jira", "Fetch ticket context from Jira + Confluence")
+  .option("--from-markdown <path>", "Read ticket context from markdown file")
+  .option("--from-input", "Read ticket context from stdin")
+  .option("--start-phase <phase>", "Start from specific phase (0-10)", parseInt)
+  .option("--resume", "Auto-detect last completed phase and resume from next")
+  .option(
+    "--model-tier <tier>",
+    "Model tier to use (sonnet, opus, haiku)",
+    "sonnet",
+  )
   .parse(process.argv);
 
 const options = program.opts();
 
-// Validate paths
 const projectPath = resolve(options.projectPath);
 const frameworkPath = resolve(options.frameworkPath);
 
@@ -69,33 +78,36 @@ if (!existsSync(frameworkPath)) {
   process.exit(1);
 }
 
-// Validate ticket ID
 const ticketId = options.ticketId;
-if (!ticketId || ticketId.trim() === '') {
-  logger.error('Ticket ID is required');
+if (!ticketId || ticketId.trim() === "") {
+  logger.error("Ticket ID is required");
   process.exit(1);
 }
 
-// Validate input source
-const inputSourceCount = [options.fromJira, options.fromMarkdown, options.fromInput].filter(Boolean).length;
+const inputSourceCount = [
+  options.fromJira,
+  options.fromMarkdown,
+  options.fromInput,
+].filter(Boolean).length;
 if (inputSourceCount === 0) {
-  logger.error('Must specify one input source: --from-jira, --from-markdown, or --from-input');
+  logger.error(
+    "Must specify one input source: --from-jira, --from-markdown, or --from-input",
+  );
   process.exit(1);
 }
 if (inputSourceCount > 1) {
-  logger.error('Cannot specify multiple input sources');
+  logger.error("Cannot specify multiple input sources");
   process.exit(1);
 }
 
-// Determine input source and value
-let inputSource: 'jira' | 'markdown' | 'input';
-let inputValue = '';
+let inputSource: "jira" | "markdown" | "input";
+let inputValue = "";
 
 if (options.fromJira) {
-  inputSource = 'jira';
-  inputValue = ticketId; // Use ticket ID for Jira lookup
+  inputSource = "jira";
+  inputValue = ticketId;
 } else if (options.fromMarkdown) {
-  inputSource = 'markdown';
+  inputSource = "markdown";
   const markdownPath = resolve(options.fromMarkdown);
   if (!existsSync(markdownPath)) {
     logger.error(`Markdown file does not exist: ${markdownPath}`);
@@ -103,27 +115,23 @@ if (options.fromJira) {
   }
   inputValue = markdownPath;
 } else {
-  inputSource = 'input';
-  // inputValue will be read from stdin during Phase 1
+  inputSource = "input";
 }
 
-// Determine start phase
-const tempDir = join(projectPath, '.claude-temp/implement-ticket', ticketId);
+const tempDir = join(projectPath, ".claude-temp/implement-ticket", ticketId);
 let startPhase = 0;
 
 if (options.resume) {
-  // Auto-detect last completed phase
   startPhase = detectLastCompletedPhase(tempDir);
   if (startPhase > 0) {
     logger.info(`Resuming from Phase ${startPhase} (auto-detected)`);
   } else {
-    logger.info('No completed phases found, starting from beginning');
+    logger.info("No completed phases found, starting from beginning");
   }
 } else if (options.startPhase !== undefined) {
-  // Manual override
   startPhase = options.startPhase;
   if (startPhase < 0 || startPhase > 10) {
-    logger.error('Start phase must be between 0 and 10');
+    logger.error("Start phase must be between 0 and 10");
     process.exit(1);
   }
   if (startPhase > 0) {
@@ -132,10 +140,11 @@ if (options.resume) {
   }
 }
 
-// Validate model tier
-const validTiers = ['sonnet', 'opus', 'haiku'];
+const validTiers = ["sonnet", "opus", "haiku"];
 if (!validTiers.includes(options.modelTier)) {
-  logger.error(`Invalid model tier: ${options.modelTier}. Must be one of: ${validTiers.join(', ')}`);
+  logger.error(
+    `Invalid model tier: ${options.modelTier}. Must be one of: ${validTiers.join(", ")}`,
+  );
   process.exit(1);
 }
 
@@ -144,28 +153,26 @@ if (!validTiers.includes(options.modelTier)) {
  */
 function detectLastCompletedPhase(tempDir: string): number {
   const phaseCompletionFiles = [
-    'phase0/preflight-complete.json',
-    'phase1/context-complete.json',
-    'phase2/planning-complete.json',
-    'phase3/environment-complete.json',
-    'phase4/implementation-complete.json',
-    'phase5/testing-complete.json',
-    'phase6/visual-complete.json',
-    'phase7/documentation-complete.json',
-    'phase8/pr-complete.json',
-    'phase9/review-complete.json',
-    'phase10/cleanup-complete.json'
+    "phase0/preflight-complete.json",
+    "phase1/context-complete.json",
+    "phase2/planning-complete.json",
+    "phase3/environment-complete.json",
+    "phase4/implementation-complete.json",
+    "phase5/testing-complete.json",
+    "phase6/visual-complete.json",
+    "phase7/documentation-complete.json",
+    "phase8/pr-complete.json",
+    "phase9/review-complete.json",
+    "phase10/cleanup-complete.json",
   ];
 
   for (let phase = 10; phase >= 0; phase--) {
     const completionPath = join(tempDir, phaseCompletionFiles[phase]);
     if (existsSync(completionPath)) {
-      // Phase N complete, resume from N+1
       return phase + 1;
     }
   }
 
-  // No phases complete, start from beginning
   return 0;
 }
 
@@ -173,7 +180,7 @@ function detectLastCompletedPhase(tempDir: string): number {
  * Main execution
  */
 async function main() {
-  logger.info('Starting Implement-Ticket workflow');
+  logger.info("Starting Implement-Ticket workflow");
   logger.info(`Project: ${projectPath}`);
   logger.info(`Framework: ${frameworkPath}`);
   logger.info(`Ticket ID: ${ticketId}`);
@@ -181,37 +188,30 @@ async function main() {
   logger.info(`Start phase: ${startPhase}`);
   logger.info(`Model tier: ${options.modelTier}`);
 
-  // Ensure temp directory exists
   mkdirSync(tempDir, { recursive: true });
 
-  // Set MODEL_TIER environment variable for LLMFactory
   process.env.MODEL_TIER = options.modelTier;
   logger.info(`Model tier set to: ${options.modelTier}`);
 
-  // Setup signal handlers for graceful shutdown
   const cleanup = (signal: string) => {
     logger.warn(`\nReceived ${signal}, cleaning up...`);
     logger.stopAllSpinners();
     HybridAgentFactory.abortAllInvocations();
     HybridAgentFactory.killAllActiveProcesses();
-    logger.info('Cleanup complete');
+    logger.info("Cleanup complete");
     process.exit(130);
   };
 
-  process.on('SIGINT', () => cleanup('SIGINT'));
-  process.on('SIGTERM', () => cleanup('SIGTERM'));
+  process.on("SIGINT", () => cleanup("SIGINT"));
+  process.on("SIGTERM", () => cleanup("SIGTERM"));
 
   try {
-    // Create checkpointer for persistence
     const checkpointer = new MemorySaver();
 
-    // Compile graph with checkpointer
     const app = compileImplementTicketGraph(checkpointer);
 
-    // Create unique thread ID for this ticket
     const threadId = `implement-ticket-${ticketId}-${Date.now()}`;
 
-    // Prepare initial state
     const initialState: Partial<ImplementTicketState> = {
       ticket_id: ticketId,
       project_path: projectPath,
@@ -220,40 +220,38 @@ async function main() {
       input_source: inputSource,
       input_value: inputValue,
       start_phase: startPhase,
-      current_phase: `phase${startPhase}_${getPhaseNameFromNumber(startPhase)}` as any,
+      current_phase:
+        `phase${startPhase}_${getPhaseNameFromNumber(startPhase)}` as any,
       errors: [],
-      warnings: []
+      warnings: [],
     };
 
     logger.info(`Thread ID: ${threadId}`);
-    logger.info('Invoking workflow graph...\n');
+    logger.info("Invoking workflow graph...\n");
 
-    // Invoke graph
-    const finalState = await app.invoke(
-      initialState,
-      {
-        configurable: { thread_id: threadId },
-        recursionLimit: 50 // 11 phases + room for retries
-      }
-    );
+    const finalState = await app.invoke(initialState, {
+      configurable: { thread_id: threadId },
+      recursionLimit: 50,
+    });
 
-    // Check final state
-    if (finalState.current_phase === 'complete') {
-      logger.success('\n✨ Implement-Ticket workflow completed successfully!\n');
+    if (finalState.current_phase === "complete") {
+      logger.success(
+        "\n✨ Implement-Ticket workflow completed successfully!\n",
+      );
 
-      // Display PR URL if Phase 8 completed
       if (finalState.phase8_complete && finalState.phase8_pr?.pr_url) {
         logger.info(`🔗 Pull Request: ${finalState.phase8_pr.pr_url}`);
       }
 
-      // Display artifacts if Phase 10 completed
-      if (finalState.phase10_complete && finalState.phase10_cleanup?.archive_path) {
+      if (
+        finalState.phase10_complete &&
+        finalState.phase10_cleanup?.archive_path
+      ) {
         logger.info(`📦 Artifacts: ${finalState.phase10_cleanup.archive_path}`);
       }
 
-      // Display warnings if any
       if (finalState.warnings && finalState.warnings.length > 0) {
-        logger.warn('\n⚠️  Warnings:');
+        logger.warn("\n⚠️  Warnings:");
         for (const warning of finalState.warnings) {
           logger.warn(`   • ${warning}`);
         }
@@ -261,38 +259,39 @@ async function main() {
 
       logger.info(`\nOutputs saved to: ${tempDir}\n`);
       process.exit(0);
-
-    } else if (finalState.current_phase === 'failed') {
-      logger.error('\n✗ Implement-Ticket workflow failed\n');
+    } else if (finalState.current_phase === "failed") {
+      logger.error("\n✗ Implement-Ticket workflow failed\n");
 
       if (finalState.errors && finalState.errors.length > 0) {
-        logger.error('Errors:');
+        logger.error("Errors:");
         for (const error of finalState.errors) {
           logger.error(`   • ${error}`);
         }
       }
 
       logger.info(`\nOutputs saved to: ${tempDir}`);
-      logger.info('You can resume from the last successful phase using --resume\n');
+      logger.info(
+        "You can resume from the last successful phase using --resume\n",
+      );
       process.exit(1);
-
     } else {
-      logger.warn(`\n⚠️  Workflow stopped at phase: ${finalState.current_phase}\n`);
+      logger.warn(
+        `\n⚠️  Workflow stopped at phase: ${finalState.current_phase}\n`,
+      );
 
       if (finalState.warnings && finalState.warnings.length > 0) {
-        logger.warn('Warnings:');
+        logger.warn("Warnings:");
         for (const warning of finalState.warnings) {
           logger.warn(`   • ${warning}`);
         }
       }
 
       logger.info(`\nOutputs saved to: ${tempDir}`);
-      logger.info('You can resume from this phase using --resume\n');
+      logger.info("You can resume from this phase using --resume\n");
       process.exit(0);
     }
-
   } catch (error: any) {
-    logger.error('\n✗ Fatal error during workflow execution\n');
+    logger.error("\n✗ Fatal error during workflow execution\n");
     logger.error(error.message);
 
     if (error.stack) {
@@ -300,11 +299,11 @@ async function main() {
     }
 
     logger.info(`\nOutputs saved to: ${tempDir}`);
-    logger.info('You can resume from the last successful phase using --resume\n');
+    logger.info(
+      "You can resume from the last successful phase using --resume\n",
+    );
     process.exit(1);
-
   } finally {
-    // Cleanup
     logger.stopAllSpinners();
   }
 }
@@ -314,24 +313,23 @@ async function main() {
  */
 function getPhaseNameFromNumber(phase: number): string {
   const phaseNames = [
-    'preflight',
-    'context',
-    'planning',
-    'environment',
-    'implementation',
-    'testing',
-    'visual',
-    'documentation',
-    'pr',
-    'review',
-    'cleanup'
+    "preflight",
+    "context",
+    "planning",
+    "environment",
+    "implementation",
+    "testing",
+    "visual",
+    "documentation",
+    "pr",
+    "review",
+    "cleanup",
   ];
 
-  return phaseNames[phase] || 'unknown';
+  return phaseNames[phase] || "unknown";
 }
 
-// Run main
 main().catch((error) => {
-  logger.error('Unhandled error:', error);
+  logger.error("Unhandled error:", error);
   process.exit(1);
 });

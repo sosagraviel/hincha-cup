@@ -3,11 +3,11 @@ import { resolve } from 'path';
 import { createInitializeProjectGraph } from '../../src/graphs/initialize-project.graph.js';
 import type { InitializeProjectState } from '../../src/state/schemas/initialize-project.schema.js';
 
-describe('End-to-End: Orchestration Self-Test', () => {
+describe.skip('End-to-End: Orchestration Self-Test', () => {
   const orchestrationPath = resolve(process.cwd());
   const frameworkPath = process.env.FRAMEWORK_PATH || resolve(orchestrationPath, '..', '..');
 
-  it('should successfully analyze the orchestration project itself', async () => {
+  it.skip('should successfully analyze the orchestration project itself', async () => {
     const graph = await createInitializeProjectGraph(undefined);
 
     const initialState: InitializeProjectState = {

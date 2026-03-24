@@ -34,7 +34,6 @@ export async function phase8PRNode(
 
   console.log('\n[Phase 8: PR Creation] Starting PR creation...');
 
-  // 1. Check if already complete (idempotency)
   const completionMarkerPath = join(phase8Dir, 'pr-complete.json');
   if (existsSync(completionMarkerPath)) {
     console.log('[Phase 8: PR Creation] Already complete, skipping');
@@ -47,7 +46,6 @@ export async function phase8PRNode(
   }
 
   try {
-    // 2. Validate Phase 7 completed (read from disk, NOT state)
     console.log('[Phase 8: PR Creation] Validating Phase 7 completion...');
     const phase7Dir = join(tempDir, 'phase7');
     const phase7CompletionPath = join(phase7Dir, 'documentation-complete.json');
@@ -59,7 +57,6 @@ export async function phase8PRNode(
     }
     console.log('[Phase 8: PR Creation] ✓ Phase 7 verified');
 
-    // 3. Read test results from Phase 5 (from disk)
     const phase5Dir = join(tempDir, 'phase5');
     const testResultsPath = join(phase5Dir, 'test-results.json');
 
@@ -70,7 +67,6 @@ export async function phase8PRNode(
     const testResults = JSON.parse(readFileSync(testResultsPath, 'utf-8'));
     console.log(`[Phase 8: PR Creation] ✓ Test results loaded`);
 
-    // 4. Read visual verification data from Phase 6 (from disk)
     const phase6Dir = join(tempDir, 'phase6');
     const visualDataPath = join(phase6Dir, 'visual-data.json');
 
@@ -253,31 +249,26 @@ export async function phase8PRNode(
     console.log('[Phase 8: PR Creation] Writing outputs to disk...');
     mkdirSync(phase8Dir, { recursive: true });
 
-    // Save PR URL
     writeFileSync(
       join(phase8Dir, 'pr-url.txt'),
       prUrl
     );
 
-    // Save PR description
     writeFileSync(
       join(phase8Dir, 'pr-description.md'),
       prBody
     );
 
-    // Save commit message
     writeFileSync(
       join(phase8Dir, 'commit-message.txt'),
       commitMessage
     );
 
-    // Save artifact collection metadata
     writeFileSync(
       join(phase8Dir, 'artifact-collection.json'),
       JSON.stringify(artifactCollection, null, 2)
     );
 
-    // Save PR data
     const prData = {
       pr_url: prUrl,
       pr_title: prTitle,

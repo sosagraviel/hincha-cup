@@ -39,7 +39,6 @@ export async function phase9ReviewNode(
 
   console.log('\n[Phase 9: Review Loop] Starting automated PR review...');
 
-  // 1. Check if already complete (idempotency)
   const completionMarkerPath = join(phase9Dir, 'review-complete.json');
   if (existsSync(completionMarkerPath)) {
     console.log('[Phase 9: Review Loop] Already complete, skipping');
@@ -52,7 +51,6 @@ export async function phase9ReviewNode(
   }
 
   try {
-    // 2. Validate Phase 8 completed (read from disk, NOT state)
     console.log('[Phase 9: Review Loop] Validating Phase 8 completion...');
     const phase8Dir = join(tempDir, 'phase8');
     const phase8CompletionPath = join(phase8Dir, 'pr-complete.json');
@@ -64,7 +62,6 @@ export async function phase9ReviewNode(
     }
     console.log('[Phase 9: Review Loop] ✓ Phase 8 verified');
 
-    // 3. Read PR data from Phase 8 (from disk)
     const prDataPath = join(phase8Dir, 'pr-data.json');
     if (!existsSync(prDataPath)) {
       throw new Error('PR data not found from Phase 8');
@@ -75,7 +72,6 @@ export async function phase9ReviewNode(
 
     console.log(`[Phase 9: Review Loop] ✓ PR URL: ${prUrl}`);
 
-    // 4. Read stack profile and framework config from Phase 0
     const phase0Dir = join(tempDir, 'phase0');
     const stackProfile = JSON.parse(readFileSync(join(phase0Dir, 'stack-profile.json'), 'utf-8'));
     const frameworkConfig = JSON.parse(readFileSync(join(phase0Dir, 'framework-config.json'), 'utf-8'));
@@ -141,13 +137,11 @@ export async function phase9ReviewNode(
     console.log('[Phase 9: Review Loop] Writing outputs to disk...');
     mkdirSync(phase9Dir, { recursive: true });
 
-    // Save review loop result
     writeFileSync(
       join(phase9Dir, 'review-results.json'),
       JSON.stringify(reviewLoopResult, null, 2)
     );
 
-    // Save review summary markdown
     const reviewSummary: string[] = [];
     reviewSummary.push(`# Review Loop Summary for ${ticketId}\n`);
     reviewSummary.push(`**PR URL**: ${prUrl}`);
@@ -198,7 +192,6 @@ export async function phase9ReviewNode(
       reviewSummary.join('\n')
     );
 
-    // Save review data
     const reviewData = {
       pr_review_results: reviewLoopResult,
       security_review_results: reviewLoopResult.iterations.length > 0

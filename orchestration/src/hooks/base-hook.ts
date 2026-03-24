@@ -19,7 +19,6 @@
  * Contains phase state, config, and utilities
  */
 export interface HookContext {
-  // Phase identification
   phase: string; // e.g., 'phase4_implementation'
   ticketId: string;
 
@@ -28,18 +27,14 @@ export interface HookContext {
   frameworkPath: string;
   tempDir: string;
 
-  // Phase-specific data (read from disk)
   phaseInput?: any; // Data from previous phase's disk output
   phaseOutput?: any; // Current phase's output (for postExecution)
 
-  // Error handling
   error?: Error;
   attempt?: number; // Current retry attempt
 
-  // Metadata
   timestamp: string;
 
-  // Utilities
   logger: {
     info: (message: string) => void;
     warn: (message: string) => void;
@@ -53,10 +48,10 @@ export interface HookContext {
  * Determines how to handle the error
  */
 export type ErrorAction =
-  | 'retry'    // Retry the phase
-  | 'continue' // Continue to next phase despite error
-  | 'fail'     // Fail the entire workflow
-  | 'skip';    // Skip this phase
+  | "retry" // Retry the phase
+  | "continue" // Continue to next phase despite error
+  | "fail" // Fail the entire workflow
+  | "skip"; // Skip this phase
 
 /**
  * Abstract base class for all hooks
@@ -93,10 +88,7 @@ export abstract class BaseHook {
    * @param result Phase execution result
    * @returns Modified result or void
    */
-  async postExecution?(
-    context: HookContext,
-    result: any
-  ): Promise<any | void> {
+  async postExecution?(context: HookContext, result: any): Promise<any | void> {
     // Default: no-op
   }
 
@@ -108,12 +100,9 @@ export abstract class BaseHook {
    * @param error The error that occurred
    * @returns Error handling action
    */
-  async onError?(
-    context: HookContext,
-    error: Error
-  ): Promise<ErrorAction> {
+  async onError?(context: HookContext, error: Error): Promise<ErrorAction> {
     // Default: retry
-    return 'retry';
+    return "retry";
   }
 
   /**
@@ -143,7 +132,11 @@ export abstract class BaseHook {
 /**
  * Utility type for hook lifecycle method names
  */
-export type HookLifecycle = 'preExecution' | 'postExecution' | 'onError' | 'onRetry';
+export type HookLifecycle =
+  | "preExecution"
+  | "postExecution"
+  | "onError"
+  | "onRetry";
 
 /**
  * Hook execution result

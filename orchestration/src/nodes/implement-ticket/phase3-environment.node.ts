@@ -32,7 +32,6 @@ export async function phase3EnvironmentNode(
 
   console.log('\n[Phase 3: Environment] Starting environment setup...');
 
-  // 1. Check if already complete (idempotency)
   const completionMarkerPath = join(phase3Dir, 'environment-complete.json');
   if (existsSync(completionMarkerPath)) {
     console.log('[Phase 3: Environment] Already complete, skipping');
@@ -45,7 +44,6 @@ export async function phase3EnvironmentNode(
   }
 
   try {
-    // 2. Validate Phase 2 completed (read from disk, NOT state)
     console.log('[Phase 3: Environment] Validating Phase 2 completion...');
     const phase2Dir = join(tempDir, 'phase2');
     const phase2CompletionPath = join(phase2Dir, 'planning-complete.json');
@@ -57,10 +55,8 @@ export async function phase3EnvironmentNode(
     }
     console.log('[Phase 3: Environment] ✓ Phase 2 verified');
 
-    // 3. Create environment manager
     const envManager = new EnvironmentManagerService(projectPath);
 
-    // 4. Setup environment (port allocation, Docker, Playwright)
     console.log('[Phase 3: Environment] Setting up environment...');
     const envConfig = await envManager.setupEnvironment(ticketId, true);
 
@@ -105,13 +101,11 @@ export async function phase3EnvironmentNode(
     console.log('[Phase 3: Environment] Writing outputs to disk...');
     mkdirSync(phase3Dir, { recursive: true });
 
-    // Save environment config
     writeFileSync(
       join(phase3Dir, 'environment-config.json'),
       JSON.stringify(envConfig, null, 2)
     );
 
-    // Save screenshot metadata
     if (beforeScreenshots.length > 0) {
       writeFileSync(
         join(phase3Dir, 'screenshots-before.json'),
@@ -119,7 +113,6 @@ export async function phase3EnvironmentNode(
       );
     }
 
-    // Save environment data
     const environmentData = {
       environment_config: envConfig,
       screenshots_before: beforeScreenshots,

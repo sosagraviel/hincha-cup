@@ -1,9 +1,9 @@
-import { readFileSync } from 'fs';
-import { join, relative } from 'path';
-import { createDeepAgent } from 'deepagents';
-import { getLLMFactory } from '../llm/llm-factory.js';
-import { HybridAgentFactory } from '../agents/agent-factory-hybrid.js';
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { readFileSync } from "fs";
+import { join, relative } from "path";
+import { createDeepAgent } from "deepagents";
+import { getLLMFactory } from "../llm/llm-factory.js";
+import { HybridAgentFactory } from "../agents/agent-factory-hybrid.js";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 /**
  * Agent configuration for creating DeepAgents from markdown files
@@ -53,57 +53,49 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
     agentFile,
     projectPath,
     frameworkPath,
-    additionalContext = '',
-    timeout = 300000 // 5 minutes default
+    additionalContext = "",
+    timeout = 300000, // 5 minutes default
   } = config;
 
-  // Load agent markdown instructions
-  const agentPath = join(frameworkPath, 'orchestration/agents', agentFile);
-  const agentInstructions = readFileSync(agentPath, 'utf-8');
+  const agentPath = join(frameworkPath, "orchestration/agents", agentFile);
+  const agentInstructions = readFileSync(agentPath, "utf-8");
 
-  // Build full instructions with context
   const fullInstructions = buildAgentPrompt(
     agentInstructions,
     projectPath,
     additionalContext,
-    frameworkPath
+    frameworkPath,
   );
 
-  // Create hybrid factory (automatically detects auth mode)
   const factory = await HybridAgentFactory.create();
 
-  // Create agent using hybrid factory
-  // The factory will use either DeepAgents.js or Claude CLI based on available auth
   const hybridAgent = await factory.createAgent({
     agentName,
     agentFile,
     projectPath,
     frameworkPath,
     additionalContext: fullInstructions,
-    timeout
+    timeout,
   });
 
-  // Return a wrapper that matches the existing interface
-  // This allows existing node code to work without changes
   return {
     invoke: async (input: { input: string }) => {
       const result = await hybridAgent.invoke(input);
 
-      // Log execution info
       console.log(
         `[${agentName}] Completed in ${result.executionTimeMs}ms ` +
-        `using ${result.mode} mode`
+          `using ${result.mode} mode`,
       );
 
       return {
         output: result.output,
-        content: result.output, // For backward compatibility
+        content: result.output,
         mode: result.mode,
-        executionTimeMs: result.executionTimeMs
+        executionTimeMs: result.executionTimeMs,
       };
     },
 
-    getInfo: () => hybridAgent.getInfo()
+    getInfo: () => hybridAgent.getInfo(),
   };
 }
 
@@ -123,29 +115,28 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
  * @returns Markdown content without frontmatter
  */
 function removeFrontmatter(content: string): string {
-  // Check if content starts with frontmatter delimiter
-  if (!content.trim().startsWith('---')) {
+  if (!content.trim().startsWith("---")) {
     return content;
   }
 
-  // Find the closing delimiter
-  const lines = content.split('\n');
+  const lines = content.split("\n");
   let endIndex = -1;
 
   for (let i = 1; i < lines.length; i++) {
-    if (lines[i].trim() === '---') {
+    if (lines[i].trim() === "---") {
       endIndex = i;
       break;
     }
   }
 
   if (endIndex === -1) {
-    // No closing delimiter found, return as-is
     return content;
   }
 
-  // Return content after frontmatter
-  return lines.slice(endIndex + 1).join('\n').trim();
+  return lines
+    .slice(endIndex + 1)
+    .join("\n")
+    .trim();
 }
 
 /**
@@ -167,22 +158,21 @@ function buildAgentPrompt(
   agentInstructions: string,
   projectPath: string,
   additionalContext: string,
-  frameworkPath?: string
+  frameworkPath?: string,
 ): string {
-  // Remove YAML frontmatter (used by DeepAgents, not needed for Claude CLI)
   const cleanInstructions = removeFrontmatter(agentInstructions);
 
-  // Extract agent name from instructions (first heading or filename)
   const agentNameMatch = cleanInstructions.match(/^#\s+(.+)/m);
-  const agentDisplayName = agentNameMatch ? agentNameMatch[1] : 'Analyzer Agent';
+  const agentDisplayName = agentNameMatch
+    ? agentNameMatch[1]
+    : "Analyzer Agent";
 
   // Derive the framework directory name relative to the project root
   // e.g., "/home/user/project/qubika-agentic-framework" → "qubika-agentic-framework"
   const frameworkDirName = frameworkPath
     ? relative(projectPath, frameworkPath)
-    : 'qubika-agentic-framework';
+    : "qubika-agentic-framework";
 
-  // Build prompt EXACTLY like bash script does
   const lines = [
     `You are the ${agentDisplayName}.`,
     ``,
@@ -211,19 +201,19 @@ function buildAgentPrompt(
     `  "timestamp": "ISO 8601 timestamp",`,
     `  "findings": {},`,
     `  "needs_verification": []`,
-    `}`
+    `}`,
   ];
 
   if (additionalContext) {
-    lines.push('');
+    lines.push("");
     lines.push(additionalContext);
   }
 
-  lines.push('');
-  lines.push('=== AGENT INSTRUCTIONS ===');
+  lines.push("");
+  lines.push("=== AGENT INSTRUCTIONS ===");
   lines.push(cleanInstructions);
 
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 /**
@@ -232,28 +222,28 @@ function buildAgentPrompt(
  */
 export const PHASE1_AGENTS = [
   {
-    name: 'structure-architecture-analyzer',
-    file: '01-structure-architecture.md'
+    name: "structure-architecture-analyzer",
+    file: "01-structure-architecture.md",
   },
   {
-    name: 'tech-stack-dependencies-analyzer',
-    file: '02-tech-stack-dependencies.md'
+    name: "tech-stack-dependencies-analyzer",
+    file: "02-tech-stack-dependencies.md",
   },
   {
-    name: 'code-patterns-testing-analyzer',
-    file: '03-code-patterns-testing.md'
+    name: "code-patterns-testing-analyzer",
+    file: "03-code-patterns-testing.md",
   },
   {
-    name: 'data-flows-integrations-analyzer',
-    file: '04-data-flows-integrations.md'
-  }
+    name: "data-flows-integrations-analyzer",
+    file: "04-data-flows-integrations.md",
+  },
 ] as const;
 
 /**
  * Get agent config by name
  */
 export function getAgentConfig(agentName: string) {
-  return PHASE1_AGENTS.find(a => a.name === agentName);
+  return PHASE1_AGENTS.find((a) => a.name === agentName);
 }
 
 /**
@@ -272,35 +262,32 @@ export async function createDeepAgentDirect(config: AgentConfig): Promise<any> {
     agentFile,
     projectPath,
     frameworkPath,
-    additionalContext = '',
-    timeout = 300000
+    additionalContext = "",
+    timeout = 300000,
   } = config;
 
-  // Load agent markdown instructions
-  const agentPath = join(frameworkPath, 'orchestration/agents', agentFile);
-  const agentInstructions = readFileSync(agentPath, 'utf-8');
+  const agentPath = join(frameworkPath, "orchestration/agents", agentFile);
+  const agentInstructions = readFileSync(agentPath, "utf-8");
 
-  // Get LLM instance from factory (provider-agnostic, tier-based)
   const llmFactory = getLLMFactory();
   const model = await llmFactory.createModel(agentName);
 
-  // Log model info for debugging
   const modelInfo = llmFactory.getModelInfo(agentName);
-  console.log(`[${agentName}] Tier: ${modelInfo.tier}, Model: ${modelInfo.modelId} (${modelInfo.provider})`);
+  console.log(
+    `[${agentName}] Tier: ${modelInfo.tier}, Model: ${modelInfo.modelId} (${modelInfo.provider})`,
+  );
 
-  // Build full instructions with context
   const fullInstructions = buildAgentPrompt(
     agentInstructions,
     projectPath,
     additionalContext,
-    frameworkPath
+    frameworkPath,
   );
 
-  // Create DeepAgent with LLM instance
   const agent = await createDeepAgent({
     model: model as BaseChatModel,
-    systemPrompt: fullInstructions, // DeepAgents uses systemPrompt, not instructions
-    tools: [] // Agents use built-in tools (Read, Grep, Glob, etc.)
+    systemPrompt: fullInstructions,
+    tools: [],
   });
 
   return agent;

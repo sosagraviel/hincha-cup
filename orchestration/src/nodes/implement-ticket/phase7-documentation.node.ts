@@ -32,7 +32,6 @@ export async function phase7DocumentationNode(
 
   console.log('\n[Phase 7: Documentation] Starting documentation update...');
 
-  // 1. Check if already complete (idempotency)
   const completionMarkerPath = join(phase7Dir, 'documentation-complete.json');
   if (existsSync(completionMarkerPath)) {
     console.log('[Phase 7: Documentation] Already complete, skipping');
@@ -45,7 +44,6 @@ export async function phase7DocumentationNode(
   }
 
   try {
-    // 2. Validate Phase 6 completed (read from disk, NOT state)
     console.log('[Phase 7: Documentation] Validating Phase 6 completion...');
     const phase6Dir = join(tempDir, 'phase6');
     const phase6CompletionPath = join(phase6Dir, 'visual-complete.json');
@@ -57,7 +55,6 @@ export async function phase7DocumentationNode(
     }
     console.log('[Phase 7: Documentation] ✓ Phase 6 verified');
 
-    // 3. Read modified files from Phase 4 (from disk)
     const phase4Dir = join(tempDir, 'phase4');
     const filesModifiedPath = join(phase4Dir, 'files-modified.txt');
 
@@ -71,11 +68,9 @@ export async function phase7DocumentationNode(
 
     console.log(`[Phase 7: Documentation] ✓ Found ${modifiedFiles.length} modified files`);
 
-    // 4. Read implementation plan and context
     const implementationPlan = readFileSync(join(tempDir, 'phase2', 'implementation-plan.md'), 'utf-8');
     const fullContext = readFileSync(join(tempDir, 'phase1', 'full-context.md'), 'utf-8');
 
-    // 5. Apply "maintenance test" - only document hard-to-discover knowledge
     console.log('[Phase 7: Documentation] Analyzing changes for documentation updates...');
 
     const docUpdates = analyzeDocumentationNeeds(
@@ -92,7 +87,6 @@ export async function phase7DocumentationNode(
 
     console.log(`[Phase 7: Documentation] Found ${docUpdates.length} documentation updates needed`);
 
-    // 6. Update CLAUDE.md
     const claudeMdPath = join(projectPath, '.claude', 'CLAUDE.md');
     let claudeMdContent = '';
     let claudeMdUpdated = false;
@@ -117,7 +111,6 @@ export async function phase7DocumentationNode(
       console.log('[Phase 7: Documentation] ⚠ CLAUDE.md not found, skipping update');
     }
 
-    // 7. Update stack profile if needed
     console.log('[Phase 7: Documentation] Checking for stack profile updates...');
 
     const stackProfileUpdates = detectStackProfileChanges(modifiedFiles, projectPath);
@@ -144,19 +137,16 @@ export async function phase7DocumentationNode(
     console.log('[Phase 7: Documentation] Writing outputs to disk...');
     mkdirSync(phase7Dir, { recursive: true });
 
-    // Save documentation updates
     writeFileSync(
       join(phase7Dir, 'doc-updates.json'),
       JSON.stringify(docUpdates, null, 2)
     );
 
-    // Save stack profile updates
     writeFileSync(
       join(phase7Dir, 'stack-profile-updates.json'),
       JSON.stringify(stackProfileUpdates, null, 2)
     );
 
-    // Save documentation summary
     const docSummary: string[] = [];
     docSummary.push(`# Documentation Updates for ${ticketId}\n`);
     docSummary.push(`**Timestamp**: ${new Date().toISOString()}\n`);
@@ -180,7 +170,6 @@ export async function phase7DocumentationNode(
       docSummary.join('\n')
     );
 
-    // Save documentation data
     const documentationData = {
       doc_updates: docUpdates,
       stack_profile_updates: stackProfileUpdates,

@@ -36,7 +36,6 @@ export async function phase6VisualNode(
 
   console.log('\n[Phase 6: Visual Verification] Starting visual regression testing...');
 
-  // 1. Check if already complete (idempotency)
   const completionMarkerPath = join(phase6Dir, 'visual-complete.json');
   if (existsSync(completionMarkerPath)) {
     console.log('[Phase 6: Visual Verification] Already complete, skipping');
@@ -49,7 +48,6 @@ export async function phase6VisualNode(
   }
 
   try {
-    // 2. Validate Phase 5 completed (read from disk, NOT state)
     console.log('[Phase 6: Visual Verification] Validating Phase 5 completion...');
     const phase5Dir = join(tempDir, 'phase5');
     const phase5CompletionPath = join(phase5Dir, 'testing-complete.json');
@@ -61,7 +59,6 @@ export async function phase6VisualNode(
     }
     console.log('[Phase 6: Visual Verification] ✓ Phase 5 verified');
 
-    // 3. Read environment config from Phase 3 (from disk)
     const phase3Dir = join(tempDir, 'phase3');
     const envConfigPath = join(phase3Dir, 'environment-config.json');
 
@@ -72,7 +69,6 @@ export async function phase6VisualNode(
 
     const envConfig = JSON.parse(readFileSync(envConfigPath, 'utf-8'));
 
-    // 4. Check if Playwright was initialized in Phase 3
     if (!envConfig.playwrightInitialized) {
       console.log('[Phase 6: Visual Verification] ⚠ Playwright not initialized, skipping visual verification');
       return skipVisualVerification(phase6Dir, completionMarkerPath, ticketId);
@@ -300,25 +296,21 @@ export async function phase6VisualNode(
     console.log('[Phase 6: Visual Verification] Writing outputs to disk...');
     mkdirSync(phase6Dir, { recursive: true });
 
-    // Save final diff results
     writeFileSync(
       join(phase6Dir, 'diff-results.json'),
       JSON.stringify(finalDiffResults, null, 2)
     );
 
-    // Save final after screenshots metadata
     writeFileSync(
       join(phase6Dir, 'screenshots-after-final.json'),
       JSON.stringify(finalAfterScreenshots, null, 2)
     );
 
-    // Save iteration log
     writeFileSync(
       join(phase6Dir, 'iteration-log.md'),
       `# Visual Verification Iteration Log\n\n${iterationLog.join('\n')}`
     );
 
-    // Save visual verdict
     writeFileSync(
       join(phase6Dir, 'visual-verdict.md'),
       `# Visual Verification Verdict\n\n${finalVerdict}\n\n## Summary\n\n` +
@@ -329,7 +321,6 @@ export async function phase6VisualNode(
       `## Details\n\n${iterationLog.join('\n')}`
     );
 
-    // Save visual data
     const visualData = {
       screenshots_after: finalAfterScreenshots,
       diff_report: {

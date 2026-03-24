@@ -31,7 +31,6 @@ export async function phase2PlanningNode(
 
   console.log('\n[Phase 2: Planning] Starting planning...');
 
-  // 1. Check if already complete (idempotency)
   const completionMarkerPath = join(phase2Dir, 'planning-complete.json');
   if (existsSync(completionMarkerPath)) {
     console.log('[Phase 2: Planning] Already complete, skipping');
@@ -44,7 +43,6 @@ export async function phase2PlanningNode(
   }
 
   try {
-    // 2. Validate Phase 1 completed (read from disk, NOT state)
     console.log('[Phase 2: Planning] Validating Phase 1 completion...');
     const phase1Dir = join(tempDir, 'phase1');
     const phase1CompletionPath = join(phase1Dir, 'context-complete.json');
@@ -60,7 +58,6 @@ export async function phase2PlanningNode(
     const fullContext = readFileSync(fullContextPath, 'utf-8');
     console.log(`[Phase 2: Planning] ✓ Context loaded (${fullContext.length} characters)`);
 
-    // 3. Read stack profile from Phase 0 (from disk, NOT state)
     const phase0Dir = join(tempDir, 'phase0');
     const stackProfilePath = join(phase0Dir, 'stack-profile.json');
 
@@ -71,7 +68,6 @@ export async function phase2PlanningNode(
     const stackProfile = JSON.parse(readFileSync(stackProfilePath, 'utf-8'));
     console.log(`[Phase 2: Planning] ✓ Stack profile loaded (primary language: ${stackProfile.primary_language || 'unknown'})`);
 
-    // 4. Generate implementation plan using planner agent
     console.log('[Phase 2: Planning] Invoking planner agent...');
 
     const frameworkPath = state.framework_path;
@@ -165,16 +161,13 @@ export async function phase2PlanningNode(
     console.log('[Phase 2: Planning] Writing outputs to disk...');
     mkdirSync(phase2Dir, { recursive: true });
 
-    // Save implementation plan
     writeFileSync(join(phase2Dir, 'implementation-plan.md'), implementationPlan);
 
-    // Save test plan
     writeFileSync(
       join(phase2Dir, 'test-plan.json'),
       JSON.stringify(testPlan, null, 2)
     );
 
-    // Save environment requirements
     if (environmentRequirements) {
       writeFileSync(
         join(phase2Dir, 'environment-requirements.json'),
@@ -182,7 +175,6 @@ export async function phase2PlanningNode(
       );
     }
 
-    // Save planning data
     const planningData = {
       implementation_plan: implementationPlan,
       test_plan: testPlan,

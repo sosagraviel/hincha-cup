@@ -108,7 +108,6 @@ export async function phase1ContextNode(
 
   console.log('\n[Phase 1: Context] Starting context gathering...');
 
-  // 1. Check if already complete (idempotency)
   const completionMarkerPath = join(phase1Dir, 'context-complete.json');
   if (existsSync(completionMarkerPath)) {
     console.log('[Phase 1: Context] Already complete, skipping');
@@ -121,7 +120,6 @@ export async function phase1ContextNode(
   }
 
   try {
-    // 2. Validate Phase 0 completed (read from disk, NOT state)
     console.log('[Phase 1: Context] Validating Phase 0 completion...');
     const phase0Dir = join(tempDir, 'phase0');
     const phase0CompletionPath = join(phase0Dir, 'preflight-complete.json');
@@ -133,7 +131,6 @@ export async function phase1ContextNode(
     }
     console.log('[Phase 1: Context] ✓ Phase 0 verified');
 
-    // 3. Gather context based on input source
     const inputSource = state.input_source;
     const inputValue = state.input_value;
     let fullContext = '';
@@ -336,7 +333,6 @@ export async function phase1ContextNode(
         throw new Error(`Unknown input source: ${inputSource}`);
     }
 
-    // 4. Validate context completeness
     if (!fullContext || fullContext.trim().length === 0) {
       throw new Error('Context is empty. Please provide valid context.');
     }
@@ -351,19 +347,16 @@ export async function phase1ContextNode(
 
     console.log(`[Phase 1: Context] ✓ Context validated (${fullContext.length} characters)`);
 
-    // 5. PERSIST TO DISK FIRST (critical for idempotency!)
+    // PERSIST TO DISK FIRST (critical for idempotency!)
     console.log('[Phase 1: Context] Writing outputs to disk...');
     mkdirSync(phase1Dir, { recursive: true });
 
-    // Save full context
     writeFileSync(join(phase1Dir, 'full-context.md'), fullContext);
 
-    // Save external docs (if any)
     if (externalDocs) {
       writeFileSync(join(phase1Dir, 'external-docs.md'), externalDocs);
     }
 
-    // Save context data
     const contextData = {
       full_context: fullContext,
       external_docs: externalDocs || undefined,
@@ -389,7 +382,7 @@ export async function phase1ContextNode(
     console.log('[Phase 1: Context] ✓ Outputs written to disk');
     console.log(`[Phase 1: Context] ✓ Phase complete (outputs: ${phase1Dir})`);
 
-    // 6. Return MINIMAL state (just flow control, NO data!)
+    // Return MINIMAL state (just flow control, NO data!)
     return {
       current_phase: 'phase2_planning',
       phase1_complete: true,

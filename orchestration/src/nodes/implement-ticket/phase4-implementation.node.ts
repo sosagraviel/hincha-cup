@@ -34,7 +34,6 @@ export async function phase4ImplementationNode(
 
   console.log('\n[Phase 4: Implementation] Starting implementation...');
 
-  // 1. Check if already complete (idempotency)
   const completionMarkerPath = join(phase4Dir, 'implementation-complete.json');
   if (existsSync(completionMarkerPath)) {
     console.log('[Phase 4: Implementation] Already complete, skipping');
@@ -47,7 +46,6 @@ export async function phase4ImplementationNode(
   }
 
   try {
-    // 2. Validate Phase 3 completed (read from disk, NOT state)
     console.log('[Phase 4: Implementation] Validating Phase 3 completion...');
     const phase3Dir = join(tempDir, 'phase3');
     const phase3CompletionPath = join(phase3Dir, 'environment-complete.json');
@@ -59,7 +57,6 @@ export async function phase4ImplementationNode(
     }
     console.log('[Phase 4: Implementation] ✓ Phase 3 verified');
 
-    // 3. Read implementation plan from Phase 2 (from disk)
     const phase2Dir = join(tempDir, 'phase2');
     const implementationPlanPath = join(phase2Dir, 'implementation-plan.md');
 
@@ -70,7 +67,6 @@ export async function phase4ImplementationNode(
     const implementationPlan = readFileSync(implementationPlanPath, 'utf-8');
     console.log(`[Phase 4: Implementation] ✓ Plan loaded (${implementationPlan.split('\n').length} lines)`);
 
-    // 4. Read context from Phase 1 (from disk)
     const phase1Dir = join(tempDir, 'phase1');
     const fullContextPath = join(phase1Dir, 'full-context.md');
 
@@ -176,25 +172,21 @@ export async function phase4ImplementationNode(
     console.log('[Phase 4: Implementation] Writing outputs to disk...');
     mkdirSync(phase4Dir, { recursive: true });
 
-    // Save implementation log (agent output)
     writeFileSync(
       join(phase4Dir, 'implementation-log.md'),
       implementerOutput
     );
 
-    // Save modified files list
     writeFileSync(
       join(phase4Dir, 'files-modified.txt'),
       modifiedFiles.join('\n')
     );
 
-    // Save file statistics
     writeFileSync(
       join(phase4Dir, 'file-statistics.json'),
       JSON.stringify(fileStatistics, null, 2)
     );
 
-    // Save implementation data
     const implementationData = {
       implementation_log: implementerOutput,
       files_modified: modifiedFiles,

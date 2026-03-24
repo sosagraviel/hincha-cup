@@ -128,7 +128,6 @@ function assignSkillsToAgents(
     'implementer-generic': []
   };
 
-  // Initialize assignments for each detected language
   for (const lang of stackProfile.languages) {
     assignments[`implementer-${lang}`] = [];
   }
@@ -246,7 +245,6 @@ function generateImplementerAgent(
   const template = readFileSync(actualTemplatePath, 'utf-8');
   const skillNames = skills.map(s => s.name);
 
-  // Get commands
   const packageCommands = extractPackageCommands(projectPath);
   const defaultCommands = getDefaultCommands(language);
   const commands = {
@@ -310,7 +308,6 @@ function generateVisualVerifierAgent(
   templatesPath: string,
   stackProfile: StackProfile
 ): GeneratedAgent | null {
-  // Only generate if there are frontend frameworks
   const hasFrontend = stackProfile.frameworks?.frontend && stackProfile.frameworks.frontend.length > 0;
 
   if (!hasFrontend) {
@@ -348,16 +345,13 @@ export function generateAgents(
 ): GeneratedAgent[] {
   const agents: GeneratedAgent[] = [];
 
-  // Assign skills to agents using configuration-driven logic
   const assignments = assignSkillsToAgents(skills, stackProfile, frameworkPath);
 
-  // Generate planner
   const planner = generatePlannerAgent(templatesPath, assignments.planner);
   if (planner) {
     agents.push(planner);
   }
 
-  // Generate implementer for each language
   if (stackProfile.languages) {
     for (const language of stackProfile.languages) {
       const agentName = `implementer-${language}`;
@@ -377,7 +371,6 @@ export function generateAgents(
     }
   }
 
-  // Generate generic implementer
   const genericImplementer = generateGenericImplementerAgent(
     templatesPath,
     assignments['implementer-generic']
@@ -386,7 +379,6 @@ export function generateAgents(
     agents.push(genericImplementer);
   }
 
-  // Generate visual verifier
   const visualVerifier = generateVisualVerifierAgent(templatesPath, stackProfile);
   if (visualVerifier) {
     agents.push(visualVerifier);
