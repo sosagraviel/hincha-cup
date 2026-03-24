@@ -2,6 +2,8 @@
 
 Single config file. Simple trigger matching. Production-ready.
 
+> For the full `SKILL.md` authoring contract — frontmatter schema, archetypes, validation rules, and templates — see [SKILLS_SPEC.md](SKILLS_SPEC.md).
+
 ## How It Works
 
 **1. Stack detection** scans project → finds: `["typescript", "react", "jest"]`
