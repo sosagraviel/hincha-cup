@@ -29,7 +29,7 @@ describe('phase7DocumentationNode', () => {
       temp_dir: '/test/temp',
       current_phase: 'phase7_documentation',
       errors: [],
-    } as ImplementTicketState;
+    } as unknown as ImplementTicketState;
 
     mockAgentInvoker = {
       invokeAgent: vi.fn().mockResolvedValue('PR Title\n\nPR Body'),

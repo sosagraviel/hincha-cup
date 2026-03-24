@@ -28,7 +28,7 @@ describe('phase8PRNode', () => {
       temp_dir: '/test/temp',
       current_phase: 'phase8_pr',
       errors: [],
-    } as ImplementTicketState;
+    } as unknown as ImplementTicketState;
 
     vi.mocked(fs.existsSync).mockImplementation((path: any) => {
       if (path.includes('pr-complete.json')) return false;

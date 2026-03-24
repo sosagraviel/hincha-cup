@@ -25,7 +25,7 @@ describe('phase1ContextNode', () => {
       input_value: 'Implement a new user authentication feature with JWT tokens. This should include login, logout, and token refresh endpoints. The authentication should integrate with the existing user database and follow security best practices including password hashing and rate limiting.',
       current_phase: 'phase1_context',
       errors: [],
-    } as ImplementTicketState;
+    } as unknown as ImplementTicketState;
 
     vi.mocked(fs.existsSync).mockImplementation((path: any) => {
       if (path.includes('context-complete.json')) return false;

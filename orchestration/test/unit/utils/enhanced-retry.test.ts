@@ -4,8 +4,8 @@ import {
   retryWithEnhancedFeedback,
   initRetryState,
   updateRetryState,
-  type ValidationResult,
 } from '../../../src/utils/enhanced-retry.js';
+import type { ValidationResult } from '../../../src/utils/validator.js';
 
 // Mock logger to avoid console output during tests
 vi.mock('../../../src/utils/logger.js', () => ({

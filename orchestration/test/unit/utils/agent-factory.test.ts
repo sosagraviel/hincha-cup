@@ -416,7 +416,7 @@ Instructions here.`;
           provider: 'anthropic'
         })
       };
-      const mockAgent = { invoke: vi.fn() };
+      const mockAgent = { invoke: vi.fn() } as any;
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockAgentInstructions);
       const { getLLMFactory } = await import('../../../src/llm/llm-factory.js');
@@ -441,7 +441,7 @@ Instructions here.`;
         createModel: vi.fn().mockResolvedValue(mockModel),
         getModelInfo: vi.fn().mockReturnValue({ tier: 'standard', modelId: 'test', provider: 'test' })
       };
-      const mockAgent = {};
+      const mockAgent = { invoke: vi.fn() } as any;
 
       vi.mocked(fs.readFileSync).mockReturnValue('# Direct Agent');
       const { getLLMFactory } = await import('../../../src/llm/llm-factory.js');
@@ -475,7 +475,7 @@ Instructions here.`;
       const { getLLMFactory } = await import('../../../src/llm/llm-factory.js');
       vi.mocked(getLLMFactory).mockReturnValue(mockLLMFactory as any);
       const { createDeepAgent } = await import('deepagents');
-      vi.mocked(createDeepAgent).mockResolvedValue({});
+      vi.mocked(createDeepAgent).mockResolvedValue({ invoke: vi.fn() } as any);
 
       await createDeepAgentDirect(config);
 
@@ -497,7 +497,7 @@ Instructions here.`;
       const { getLLMFactory } = await import('../../../src/llm/llm-factory.js');
       vi.mocked(getLLMFactory).mockReturnValue(mockLLMFactory as any);
       const { createDeepAgent } = await import('deepagents');
-      vi.mocked(createDeepAgent).mockResolvedValue({});
+      vi.mocked(createDeepAgent).mockResolvedValue({ invoke: vi.fn() } as any);
 
       await createDeepAgentDirect(config);
 
@@ -521,7 +521,7 @@ Instructions here.`;
       const { getLLMFactory } = await import('../../../src/llm/llm-factory.js');
       vi.mocked(getLLMFactory).mockReturnValue(mockLLMFactory as any);
       const { createDeepAgent } = await import('deepagents');
-      vi.mocked(createDeepAgent).mockResolvedValue({});
+      vi.mocked(createDeepAgent).mockResolvedValue({ invoke: vi.fn() } as any);
 
       await createDeepAgentDirect(config);
 

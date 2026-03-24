@@ -48,7 +48,7 @@ describe('phase5TestingNode', () => {
       temp_dir: '/test/temp',
       current_phase: 'phase5_testing',
       errors: [],
-    } as ImplementTicketState;
+    } as unknown as ImplementTicketState;
 
     mockTestOrchestrator = {
       runAllTests: vi.fn().mockResolvedValue(mockTestResults),

@@ -35,7 +35,7 @@ describe('validationNode', () => {
     mockState = {
       project_path: '/test/project',
       framework_path: '/test/framework',
-      current_phase: 'phase5',
+      current_phase: 'phase5_resources',
       temp_dir: '/test/temp',
       claude_md_path: '/test/project/.claude/CLAUDE.md',
       project_context_path: '/test/project/.claude/project-context/SKILL.md',

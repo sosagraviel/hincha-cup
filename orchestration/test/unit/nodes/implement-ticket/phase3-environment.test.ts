@@ -35,7 +35,7 @@ describe('phase3EnvironmentNode', () => {
       temp_dir: '/test/temp',
       current_phase: 'phase3_environment',
       errors: [],
-    } as ImplementTicketState;
+    } as unknown as ImplementTicketState;
 
     mockPage = {
       screenshot: vi.fn(),

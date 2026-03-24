@@ -34,7 +34,7 @@ describe('phase4ImplementationNode', () => {
       temp_dir: '/test/temp',
       current_phase: 'phase4_implementation',
       errors: [],
-    } as ImplementTicketState;
+    } as unknown as ImplementTicketState;
 
     mockAgentInvoker = {
       invokeImplementer: vi.fn().mockResolvedValue('Implementation completed successfully'),

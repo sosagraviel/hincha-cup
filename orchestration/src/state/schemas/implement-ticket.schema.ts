@@ -76,6 +76,12 @@ export const Phase3EnvironmentSchema = z.object({
 export const Phase4ImplementationSchema = z.object({
   implementation_log: z.string(), // Log of implementation
   files_modified: z.array(z.string()), // List of modified files
+  file_statistics: z.object({
+    filesChanged: z.number(),
+    linesAdded: z.number(),
+    linesRemoved: z.number()
+  }), // Git statistics about changes
+  primary_language: z.string().optional(), // Primary language used
   agent_used: z.string(), // Which implementer agent was used
   timestamp: z.string()
 });

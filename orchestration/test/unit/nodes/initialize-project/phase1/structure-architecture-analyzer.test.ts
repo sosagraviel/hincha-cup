@@ -36,9 +36,9 @@ describe('structureArchitectureAnalyzerNode', () => {
     mockState = {
       project_path: '/test/project',
       framework_path: '/test/framework',
-      current_phase: 'phase1',
+      current_phase: 'phase1_analysis',
       temp_dir: '/test/temp',
-      phase1_analysis: {},
+      phase1_analysis: { all_completed: false },
       phase1_retry_tracking: {},
       errors: [],
       warnings: [],

@@ -41,7 +41,7 @@ describe('phase6VisualNode', () => {
       temp_dir: '/test/temp',
       current_phase: 'phase6_visual',
       errors: [],
-    } as ImplementTicketState;
+    } as unknown as ImplementTicketState;
 
     mockScreenshotService = {
       captureMultipleScreenshots: vi.fn().mockResolvedValue([]),

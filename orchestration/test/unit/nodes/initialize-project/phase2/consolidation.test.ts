@@ -80,9 +80,9 @@ describe('consolidationNode', () => {
     mockState = {
       project_path: '/test/project',
       framework_path: '/test/framework',
-      current_phase: 'phase1',
+      current_phase: 'phase1_analysis',
       temp_dir: '/test/temp',
-      phase1_analysis: {},
+      phase1_analysis: { all_completed: false },
       phase1_retry_tracking: {},
       errors: [],
       warnings: [],
@@ -91,9 +91,9 @@ describe('consolidationNode', () => {
     // Mock successful scenario
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
-      const filename = path.split('/').pop();
-      if (mockPhase1Files[filename]) {
-        return mockPhase1Files[filename];
+      const filename = path.split('/').pop() as string;
+      if (mockPhase1Files[filename as keyof typeof mockPhase1Files]) {
+        return mockPhase1Files[filename as keyof typeof mockPhase1Files];
       }
       if (path.includes('phase2-consolidation.json')) {
         return JSON.stringify({

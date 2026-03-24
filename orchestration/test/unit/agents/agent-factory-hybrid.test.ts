@@ -99,6 +99,8 @@ describe('HybridAgentFactory', () => {
     const mockAuthConfig = {
       mode: 'api_key' as any,
       apiKey: 'test-key',
+      hasClaudeCLI: false,
+      hasAPIKey: true,
     };
 
     factory = new HybridAgentFactory(mockAuthConfig);

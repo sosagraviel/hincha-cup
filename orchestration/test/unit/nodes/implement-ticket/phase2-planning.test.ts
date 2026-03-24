@@ -46,7 +46,7 @@ Environment variables: DATABASE_URL=postgres://...
       temp_dir: '/test/temp',
       current_phase: 'phase2_planning',
       errors: [],
-    } as ImplementTicketState;
+    } as unknown as ImplementTicketState;
 
     mockAgentInvoker = {
       invokePlanner: vi.fn().mockResolvedValue(defaultPlannerOutput),

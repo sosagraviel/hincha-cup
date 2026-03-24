@@ -44,9 +44,9 @@ describe('techStackDependenciesAnalyzerNode', () => {
     mockState = {
       project_path: '/test/project',
       framework_path: '/test/framework',
-      current_phase: 'phase1',
+      current_phase: 'phase1_analysis',
       temp_dir: '/test/temp',
-      phase1_analysis: {},
+      phase1_analysis: { all_completed: false },
       phase1_retry_tracking: {},
       errors: [],
       warnings: [],
@@ -263,7 +263,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     await techStackDependenciesAnalyzerNode(mockState);
 
     const mkdirCalls = vi.mocked(fs.mkdirSync).mock.calls;
-    expect(mkdirCalls.some((call) => call[1]?.recursive === true)).toBe(true);
+    expect(mkdirCalls.some((call) => typeof call[1] === 'object' && call[1] !== null && 'recursive' in call[1] && call[1].recursive === true)).toBe(true);
   });
 
   it('should use correct agent file name', async () => {

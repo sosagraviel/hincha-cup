@@ -35,7 +35,7 @@ describe('phase10CleanupNode', () => {
       temp_dir: '/test/temp',
       current_phase: 'phase10_cleanup',
       errors: [],
-    } as ImplementTicketState;
+    } as unknown as ImplementTicketState;
 
     mockEnvManager = {
       teardownEnvironment: vi.fn().mockResolvedValue(undefined),

@@ -101,7 +101,9 @@ describe('retry utilities', () => {
       expect(state.max_attempts).toBe(5);
       expect(state.error_history).toEqual([]);
       expect(state.started_at).toBeDefined();
-      expect(new Date(state.started_at).getTime()).toBeCloseTo(Date.now(), -2);
+      if (state.started_at) {
+        expect(new Date(state.started_at).getTime()).toBeCloseTo(Date.now(), -2);
+      }
     });
 
     it('should initialize with custom max attempts', () => {
@@ -114,8 +116,11 @@ describe('retry utilities', () => {
     it('should have valid ISO timestamp', () => {
       const state = initRetryState();
 
-      expect(() => new Date(state.started_at)).not.toThrow();
-      expect(state.started_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(state.started_at).toBeDefined();
+      if (state.started_at) {
+        expect(() => new Date(state.started_at!)).not.toThrow();
+        expect(state.started_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      }
     });
   });
 

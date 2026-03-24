@@ -50,7 +50,7 @@ describe("resourcesNode", () => {
       framework_path: "/test/framework",
       current_phase: "phase4_context",
       temp_dir: "/test/temp",
-      phase1_analysis: {},
+      phase1_analysis: { all_completed: false },
       phase1_retry_tracking: {},
       phase4_context: {
         framework_config_generated: true,
@@ -74,8 +74,8 @@ describe("resourcesNode", () => {
 
     // Mock skills resolution
     vi.mocked(skillResolver.resolveSkills).mockReturnValue([
-      { name: "typescript-skill", path: "/skills/typescript" },
-      { name: "react-skill", path: "/skills/react" },
+      { name: "typescript-skill", path: "/skills/typescript", relative_path: "skills/typescript", reason: "test", description: "test" },
+      { name: "react-skill", path: "/skills/react", relative_path: "skills/react", reason: "test", description: "test" },
     ]);
 
     vi.mocked(skillResolver.copyResolvedSkills).mockReturnValue(5);
@@ -293,6 +293,6 @@ describe("resourcesNode", () => {
   it("should return phase5_resources on success", async () => {
     const result = await resourcesNode(mockState);
 
-    expect(result).toEqual({ current_phase: "phase5_resources" });
+    expect(result).toEqual({ current_phase: 'phase5_resources' });
   });
 });

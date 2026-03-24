@@ -53,9 +53,9 @@ This is the project context content
     mockState = {
       project_path: '/test/project',
       framework_path: '/test/framework',
-      current_phase: 'phase3',
+      current_phase: 'phase3_synthesis',
       temp_dir: '/test/temp',
-      phase1_analysis: {},
+      phase1_analysis: { all_completed: false },
       phase1_retry_tracking: {},
       errors: [],
       warnings: [],

@@ -35,7 +35,7 @@ describe('phase0PreflightNode', () => {
       input_value: 'test context',
       current_phase: 'phase0_preflight',
       errors: [],
-    } as ImplementTicketState;
+    } as unknown as ImplementTicketState;
 
     mockConfigReader = {
       readFrameworkConfig: vi.fn().mockReturnValue({

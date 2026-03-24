@@ -57,7 +57,7 @@ describe('phase9ReviewNode', () => {
       temp_dir: '/test/temp',
       current_phase: 'phase9_review',
       errors: [],
-    } as ImplementTicketState;
+    } as unknown as ImplementTicketState;
 
     mockReviewLoop = {
       runReviewLoop: vi.fn().mockResolvedValue(mockReviewResult),

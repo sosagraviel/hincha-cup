@@ -136,12 +136,14 @@ describe('ArtifactCollectorService', () => {
     });
 
     it('should collect artifacts with screenshots', async () => {
-      const beforeScreenshots = [{ path: '/before.png', timestamp: Date.now(), url: 'http://test' }];
-      const afterScreenshots = [{ path: '/after.png', timestamp: Date.now(), url: 'http://test' }];
+      const beforeScreenshots = [{ path: '/before.png', timestamp: new Date().toISOString(), url: 'http://test', viewport: { width: 1920, height: 1080 } }];
+      const afterScreenshots = [{ path: '/after.png', timestamp: new Date().toISOString(), url: 'http://test', viewport: { width: 1920, height: 1080 } }];
       const diffResults = [{
         passed: true,
         diffPercentage: 0.5,
         diffPixels: 100,
+        totalPixels: 1000,
+        threshold: 0.1,
         diffImagePath: '/diff.png',
         beforeImage: '/before.png',
         afterImage: '/after.png'
@@ -361,6 +363,8 @@ describe('ArtifactCollectorService', () => {
         passed: true,
         diffPercentage: 0.5,
         diffPixels: 100,
+        totalPixels: 1000,
+        threshold: 0.1,
         diffImagePath: '/diff.png',
         beforeImage: '/before.png',
         afterImage: '/after.png'

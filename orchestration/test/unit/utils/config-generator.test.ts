@@ -22,7 +22,9 @@ describe('config-generator', () => {
     project_path: '/test/project',
     framework_path: '/test/framework',
     current_phase: 'complete',
-    phase1_analysis: {},
+    phase1_analysis: {
+      all_completed: false
+    },
     phase1_retry_tracking: {},
     errors: [],
     warnings: [],

@@ -43,13 +43,13 @@ describe('validator', () => {
         findings: {},
       };
 
-      const result = validateAnalyzerOutput(invalidOutput);
+      const result = validateAnalyzerOutput(invalidOutput, 'structure-architecture-analyzer');
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
     });
 
     it('should handle generic errors', () => {
-      const result = validateAnalyzerOutput(null as any);
+      const result = validateAnalyzerOutput(null as any, 'structure-architecture-analyzer');
       expect(result.valid).toBe(false);
     });
 
