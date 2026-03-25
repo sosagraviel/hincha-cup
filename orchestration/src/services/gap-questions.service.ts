@@ -86,6 +86,31 @@ export class GapQuestionsService {
 
       // Interactive mode
       this.serviceLogger.info(`Found ${gaps.length} gaps to address`);
+
+      // Check if stdin is available for reading
+      if (input.readableEnded) {
+        this.serviceLogger.error("stdin has been closed/ended - cannot read user input");
+        // Mark all as skipped since we can't read input
+        for (const gap of gaps) {
+          gap.status = "skipped";
+        }
+        writeFileSync(
+          consolidationPath,
+          JSON.stringify(consolidationData, null, 2),
+        );
+        return {
+          success: true,
+          answered_count: 0,
+          skipped_count: gaps.length,
+          error: "stdin not available for interactive input",
+        };
+      }
+
+      // Resume stdin to ensure it's in readable state
+      // This is critical because stdin might be paused after the shell script's confirmation prompt
+      // Calling resume() is safe even if stdin is already flowing
+      input.resume();
+
       console.log("\n");
       console.log(chalk.cyan("━".repeat(70)));
       console.log(
@@ -102,6 +127,7 @@ export class GapQuestionsService {
       );
 
       const rl = createInterface({ input, output });
+
       let answeredCount = 0;
       let skippedCount = 0;
 

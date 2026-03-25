@@ -433,7 +433,8 @@ if true; then
     fi
 
     # Run TypeScript orchestration with --start-phase support
-    trap '' SIGINT
+    # NOTE: tsx must run in foreground to preserve stdin access for interactive prompts
+    # The gap questions feature requires stdin to be connected to the terminal
 
     # Build tsx command with optional start-phase parameter
     if [ "$START_PHASE" -gt 1 ]; then
@@ -442,19 +443,14 @@ if true; then
         "$TSX_BIN" "$ORCHESTRATION_CLI" \
           --project-path "$PROJECT_PATH" \
           --framework-path "$FRAMEWORK_PATH" \
-          --start-phase "$START_PHASE" &
+          --start-phase "$START_PHASE"
+        TSX_EXIT_CODE=$?
     else
         "$TSX_BIN" "$ORCHESTRATION_CLI" \
           --project-path "$PROJECT_PATH" \
-          --framework-path "$FRAMEWORK_PATH" &
+          --framework-path "$FRAMEWORK_PATH"
+        TSX_EXIT_CODE=$?
     fi
-
-    TSX_PID=$!
-
-    # Wait for tsx to complete (even if SIGINT received)
-    # wait returns tsx's exit code
-    wait $TSX_PID
-    TSX_EXIT_CODE=$?
 
     # Calculate duration
     END_TIME=$(date +%s)
