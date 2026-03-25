@@ -1,0 +1,287 @@
+{
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "start-task",
+      "path": "010-foundation/start-task",
+      "description": "Task kickoff and requirements gathering",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "analyze-requirements",
+      "path": "020-development-workflow/analyze-requirements",
+      "description": "Requirements analysis and clarification patterns",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "architect-agent",
+      "path": "020-development-workflow/architect-agent",
+      "description": "Software architecture and design patterns",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "code-implementation",
+      "path": "020-development-workflow/code-implementation",
+      "description": "Code implementation best practices",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "create-sdd-ticket",
+      "path": "020-development-workflow/create-sdd-ticket",
+      "description": "Software Design Document ticket creation",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "implement-ticket",
+      "path": "020-development-workflow/implement-ticket",
+      "description": "Ticket implementation workflow",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "mastering-git-cli",
+      "path": "020-development-workflow/mastering-git-cli",
+      "description": "Git CLI commands and workflows",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "code-quality-check",
+      "path": "030-quality-assurance/code-quality-check",
+      "description": "Code quality and linting validation",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "create-pr",
+      "path": "030-quality-assurance/create-pr",
+      "description": "Pull request creation and management",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "doc-updater",
+      "path": "030-quality-assurance/doc-updater",
+      "description": "Documentation update patterns",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "pr-reviewer",
+      "path": "030-quality-assurance/pr-reviewer",
+      "description": "Pull request review guidelines",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "security-review",
+      "path": "030-quality-assurance/security-review",
+      "description": "Security review and vulnerability scanning",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "jest-coverage-automation",
+      "path": "030-quality-assurance/jest-coverage-automation",
+      "description": "Jest testing framework automation",
+      "trigger_mode": "triggered",
+      "triggers": ["jest"],
+      "compatible_languages": ["typescript", "javascript"]
+    },
+    {
+      "name": "playwright-e2e-automation",
+      "path": "030-quality-assurance/playwright-e2e-automation",
+      "description": "Playwright E2E testing automation",
+      "trigger_mode": "triggered",
+      "triggers": ["playwright", "@playwright/test"],
+      "compatible_languages": ["typescript", "javascript"]
+    },
+    {
+      "name": "pytest-patterns",
+      "path": "030-quality-assurance/pytest-patterns",
+      "description": "Pytest testing patterns for Python",
+      "trigger_mode": "triggered",
+      "triggers": ["pytest"],
+      "compatible_languages": ["python"]
+    },
+    {
+      "name": "fetch-ticket-context",
+      "path": "040-integrations/fetch-ticket-context",
+      "description": "Fetch ticket context from external systems",
+      "trigger_mode": "triggered",
+      "triggers": ["jira"],
+      "compatible_languages": [],
+      "is_linkable_to_agents": false
+    },
+    {
+      "name": "jira",
+      "path": "040-integrations/jira",
+      "description": "Jira integration and workflows",
+      "trigger_mode": "triggered",
+      "triggers": ["jira"],
+      "compatible_languages": [],
+      "is_linkable_to_agents": false
+    },
+    {
+      "name": "mastering-confluence",
+      "path": "040-integrations/mastering-confluence",
+      "description": "Confluence documentation management",
+      "trigger_mode": "triggered",
+      "triggers": ["confluence"],
+      "compatible_languages": [],
+      "is_linkable_to_agents": false
+    },
+    {
+      "name": "mastering-github-cli",
+      "path": "040-integrations/mastering-github-cli",
+      "description": "GitHub CLI commands and automation",
+      "trigger_mode": "triggered",
+      "triggers": ["github"],
+      "compatible_languages": [],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "notion-document-manager",
+      "path": "040-integrations/notion-document-manager",
+      "description": "Notion document management",
+      "trigger_mode": "triggered",
+      "triggers": ["notion"],
+      "compatible_languages": [],
+      "is_linkable_to_agents": false
+    },
+    {
+      "name": "mastering-typescript",
+      "path": "050-language-frameworks/mastering-typescript",
+      "description": "TypeScript development patterns and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["typescript"],
+      "compatible_languages": ["typescript"]
+    },
+    {
+      "name": "mastering-python-skill",
+      "path": "050-language-frameworks/mastering-python-skill",
+      "description": "Python development patterns and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["python"],
+      "compatible_languages": ["python"]
+    },
+    {
+      "name": "mastering-go-skill",
+      "path": "050-language-frameworks/mastering-go-skill",
+      "description": "Go development patterns and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["go"],
+      "compatible_languages": ["go"]
+    },
+    {
+      "name": "mastering-java-skill",
+      "path": "050-language-frameworks/mastering-java-skill",
+      "description": "Java development patterns and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["java"],
+      "compatible_languages": ["java"]
+    },
+    {
+      "name": "mastering-ruby-skill",
+      "path": "050-language-frameworks/mastering-ruby-skill",
+      "description": "Ruby development patterns and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["ruby"],
+      "compatible_languages": ["ruby"]
+    },
+    {
+      "name": "mastering-rust-skill",
+      "path": "050-language-frameworks/mastering-rust-skill",
+      "description": "Rust development patterns and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["rust"],
+      "compatible_languages": ["rust"]
+    },
+    {
+      "name": "react-frontend",
+      "path": "050-language-frameworks/react-frontend",
+      "description": "React frontend development patterns",
+      "trigger_mode": "triggered",
+      "triggers": ["react"],
+      "compatible_languages": ["typescript", "javascript"]
+    },
+    {
+      "name": "vue-frontend",
+      "path": "050-language-frameworks/vue-frontend",
+      "description": "Vue.js frontend development patterns",
+      "trigger_mode": "triggered",
+      "triggers": ["vue"],
+      "compatible_languages": ["typescript", "javascript"]
+    },
+    {
+      "name": "mastering-nextjs",
+      "path": "050-language-frameworks/mastering-nextjs",
+      "description": "Next.js framework patterns and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["next", "nextjs"],
+      "compatible_languages": ["typescript", "javascript"]
+    },
+    {
+      "name": "atomic-design-react",
+      "path": "050-language-frameworks/atomic-design-react",
+      "description": "Atomic Design methodology for React applications",
+      "trigger_mode": "triggered",
+      "triggers": ["react"],
+      "compatible_languages": ["typescript", "javascript"]
+    },
+    {
+      "name": "mastering-langgraph-agent-skill",
+      "path": "050-language-frameworks/mastering-langgraph-agent-skill",
+      "description": "LangGraph agent development patterns",
+      "trigger_mode": "triggered",
+      "triggers": ["langgraph", "@langchain/langgraph"],
+      "compatible_languages": ["typescript", "javascript", "python"]
+    },
+    {
+      "name": "design-doc-mermaid",
+      "path": "060-documentation/design-doc-mermaid",
+      "description": "Mermaid diagram creation for design docs",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "developing-with-docker",
+      "path": "070-infrastructure/developing-with-docker",
+      "description": "Docker development and containerization",
+      "trigger_mode": "triggered",
+      "triggers": ["docker", "dockerfile"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "mastering-aws-cdk",
+      "path": "080-cloud-platforms/mastering-aws-cdk",
+      "description": "AWS CDK infrastructure as code",
+      "trigger_mode": "triggered",
+      "triggers": ["aws-cdk", "@aws-cdk"],
+      "compatible_languages": ["typescript", "javascript", "python"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "mastering-aws-cli",
+      "path": "080-cloud-platforms/mastering-aws-cli",
+      "description": "AWS CLI commands and automation",
+      "trigger_mode": "triggered",
+      "triggers": ["aws"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "mastering-gcloud-commands",
+      "path": "080-cloud-platforms/mastering-gcloud-commands",
+      "description": "Google Cloud CLI commands and workflows",
+      "trigger_mode": "triggered",
+      "triggers": ["gcloud", "google-cloud"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "using-firebase",
+      "path": "080-cloud-platforms/using-firebase",
+      "description": "Firebase development patterns",
+      "trigger_mode": "triggered",
+      "triggers": ["firebase"],
+      "compatible_languages": ["typescript", "javascript"]
+    },
+    {
+      "name": "project-context",
+      "path": "010-foundation/project-context",
+      "description": "Project-specific architecture and patterns (generated during initialization)",
+      "trigger_mode": "generated"
+    }
+  ]
+}

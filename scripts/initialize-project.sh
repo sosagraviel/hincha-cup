@@ -7,31 +7,8 @@
 # Spawns agents directly using: claude --model X --dangerously-skip-permissions
 # ============================================================================
 
-set -e  # Exit on error
-set -o pipefail  # Exit on pipe failure
-
-# Track if we're already cleaning up to prevent double cleanup
-CLEANUP_IN_PROGRESS=false
-
-# Signal handler for CTRL+C - must kill entire process group
-cleanup() {
-    if [ "$CLEANUP_IN_PROGRESS" = true ]; then
-        return
-    fi
-    CLEANUP_IN_PROGRESS=true
-
-    echo ""
-    echo "Initialization interrupted. Cleaning up..."
-
-    # Kill entire process group (negative PID sends to all processes in group)
-    # This ensures all child processes (timeout, bash, claude) receive the signal
-    kill -TERM -$$ 2>/dev/null
-
-    exit 130
-}
-
-# Trap SIGINT and SIGTERM
-trap cleanup SIGINT SIGTERM
+set -e
+set -o pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -73,14 +50,27 @@ ${BLUE}OPTIONS:${NC}
                          Default: 1800 (30 minutes)
 
     --clean              Remove temporary files after completion
-                         Default: false (keeps .claude-temp for re-running phases)
+                         Default: false (keeps .claude-temp/initialize-project for re-running phases)
 
     --help, -h           Show this help message
+
+${BLUE}ENVIRONMENT VARIABLES:${NC}
+    MODEL_TIER           Model tier to use for all agents
+                         Default: standard
+                         Options: fast, standard, advanced, openai, gemini
+                         Example: MODEL_TIER=fast ./scripts/initialize-project.sh
+
+    ANTHROPIC_API_KEY    API key for Anthropic (Claude) provider
+    OPENAI_API_KEY       API key for OpenAI (GPT) provider
+    GOOGLE_API_KEY       API key for Google (Gemini) provider
 
 ${BLUE}EXAMPLES:${NC}
     # Basic usage (run from project root)
     cd /path/to/your/project
     ./qubika-agentic-framework/scripts/initialize-project.sh
+
+    # Use fast tier (haiku models for speed/cost)
+    MODEL_TIER=fast ./qubika-agentic-framework/scripts/initialize-project.sh
 
     # Fully automated (skip gap questions)
     ./qubika-agentic-framework/scripts/initialize-project.sh --skip-gap-questions
@@ -217,14 +207,6 @@ echo -e "${BLUE}ℹ Framework location: $FRAMEWORK_PATH${NC}"
 echo -e "${BLUE}ℹ Project location:   $PROJECT_PATH${NC}"
 echo ""
 
-# Validate orchestrate script exists
-ORCHESTRATE_SCRIPT="$FRAMEWORK_PATH/skills/010-foundation/initialize-project/scripts/orchestrate-initialization.sh"
-if [ ! -f "$ORCHESTRATE_SCRIPT" ]; then
-    echo -e "${RED}Error: Orchestration script not found${NC}"
-    echo "Expected: $ORCHESTRATE_SCRIPT"
-    exit 1
-fi
-
 # ============================================================================
 # PREREQUISITE CHECKS
 # ============================================================================
@@ -321,62 +303,164 @@ fi
 # RUN ORCHESTRATION
 # ============================================================================
 
-if [ "$START_PHASE" -gt 1 ]; then
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}  STARTING FROM PHASE $START_PHASE (SKIPPING PHASES 1-$((START_PHASE-1)))${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-else
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}  STARTING 6-PHASE INITIALIZATION${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-fi
-
-# Export environment variables for orchestration
-export SKIP_GAP_QUESTIONS
-export CLEAN_TEMP
-
 # Track start time
 START_TIME=$(date +%s)
 
-# Run orchestration with or without timeout
-# Use --foreground flag with timeout to ensure proper signal propagation
-if [ "$USE_TIMEOUT" = "true" ]; then
-    # --foreground: don't create new process group, allows SIGINT to propagate
-    # --signal=TERM: send TERM on timeout (not KILL)
-    if timeout --foreground --signal=TERM ${TIMEOUT}s bash "$ORCHESTRATE_SCRIPT" "$PROJECT_PATH" "$FRAMEWORK_PATH" --start-phase "$START_PHASE"; then
-        EXIT_CODE=0
+# ============================================================================
+# TYPESCRIPT ORCHESTRATION
+# ============================================================================
+
+# Always use TypeScript orchestration
+if true; then
+    echo -e "${BLUE}🚀 Running TypeScript orchestration...${NC}"
+    echo ""
+
+    # Check if Node.js is available
+    if ! command -v node &> /dev/null; then
+        echo -e "${RED}❌ Error: Node.js is not installed${NC}"
+        echo ""
+        echo "Node.js is required for the AI Agentic Framework."
+        echo "Install it from: https://nodejs.org/"
+        echo ""
+        exit 1
+    fi
+
+    # Check if CLI file exists
+    ORCHESTRATION_CLI="$FRAMEWORK_PATH/orchestration/src/cli/initialize.ts"
+    if [ ! -f "$ORCHESTRATION_CLI" ]; then
+        echo -e "${RED}❌ Error: TypeScript CLI not found${NC}"
+        echo "  Expected: $ORCHESTRATION_CLI"
+        echo ""
+        echo "The orchestration module may not be set up correctly."
+        echo ""
+        exit 1
+    fi
+
+    # Check if node_modules exists and is valid
+    NEED_INSTALL=false
+
+    if [ ! -d "$FRAMEWORK_PATH/orchestration/node_modules" ]; then
+        echo -e "${YELLOW}⚠️  Node modules not found${NC}"
+        NEED_INSTALL=true
     else
-        EXIT_CODE=$?
-        if [ $EXIT_CODE -eq 124 ]; then
-            echo ""
-            echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-            echo -e "${RED}  TIMEOUT EXCEEDED${NC}"
-            echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-            echo ""
-            echo "Initialization exceeded the timeout of ${TIMEOUT}s ($(($TIMEOUT / 60)) minutes)"
-            echo ""
-            echo "Options:"
-            echo "  1. Increase timeout with --timeout SECONDS"
-            echo "  2. Review partial output in: $PROJECT_PATH/.claude-temp/"
-            echo ""
-            exit 124
+        # Verify tsx binary exists and is valid
+        if [ ! -f "$FRAMEWORK_PATH/orchestration/node_modules/.bin/tsx" ]; then
+            echo -e "${YELLOW}⚠️  tsx binary not found (corrupted node_modules)${NC}"
+            NEED_INSTALL=true
+        else
+            # Test if tsx can execute (detect corruption)
+            if ! cd "$FRAMEWORK_PATH/orchestration" || ! npx tsx --version &> /dev/null; then
+                echo -e "${YELLOW}⚠️  tsx binary is corrupted${NC}"
+                NEED_INSTALL=true
+            fi
         fi
     fi
-else
-    if bash "$ORCHESTRATE_SCRIPT" "$PROJECT_PATH" "$FRAMEWORK_PATH" --start-phase "$START_PHASE"; then
-        EXIT_CODE=0
-    else
-        EXIT_CODE=$?
-    fi
-fi
 
-# Calculate duration
-END_TIME=$(date +%s)
-DURATION=$((END_TIME - START_TIME))
-MINUTES=$((DURATION / 60))
-SECONDS=$((DURATION % 60))
+    # Install or reinstall dependencies if needed
+    if [ "$NEED_INSTALL" = true ]; then
+        echo -e "${YELLOW}Installing/reinstalling dependencies...${NC}"
+        echo ""
+
+        # Clean install to fix corruption
+        if ! cd "$FRAMEWORK_PATH/orchestration"; then
+            echo -e "${RED}❌ Error: Cannot access orchestration directory${NC}"
+            exit 1
+        fi
+
+        # Remove corrupted node_modules if it exists
+        if [ -d "node_modules" ]; then
+            echo "  Removing corrupted node_modules..."
+            rm -rf node_modules package-lock.json
+        fi
+
+        # Install fresh
+        echo "  Running npm install..."
+        if ! npm install --silent; then
+            echo ""
+            echo -e "${RED}❌ Error: Failed to install dependencies${NC}"
+            echo ""
+            echo "Please install manually:"
+            echo "  cd $FRAMEWORK_PATH/orchestration"
+            echo "  rm -rf node_modules package-lock.json"
+            echo "  npm install"
+            echo ""
+            exit 1
+        fi
+
+        echo ""
+        echo -e "${GREEN}✓ Dependencies installed successfully${NC}"
+        echo ""
+    fi
+
+    # Build TypeScript to ensure code is up to date
+    cd "$FRAMEWORK_PATH/orchestration" || exit 1
+    echo "  Building TypeScript..."
+    if ! npm run build --silent; then
+        echo ""
+        echo -e "${RED}❌ Error: Failed to build TypeScript${NC}"
+        echo ""
+        echo "Please build manually:"
+        echo "  cd $FRAMEWORK_PATH/orchestration"
+        echo "  npm run build"
+        echo ""
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Build completed successfully${NC}"
+    echo ""
+
+    echo "  Using TypeScript CLI: $ORCHESTRATION_CLI"
+    echo "  Node.js version: $(node --version)"
+    echo ""
+
+    # Run TypeScript orchestration
+    # Note: cd to orchestration directory so npx can find tsx in node_modules
+    # Run tsx in foreground (NOT using exec) so CTRL+C signal handling works correctly
+    # When user presses CTRL+C, both bash and tsx receive SIGINT, tsx handles it properly
+    cd "$FRAMEWORK_PATH/orchestration" || exit 1
+
+    # Export environment variable for child process
+    export MODEL_TIER="${MODEL_TIER:-standard}"
+    export PROJECT_PATH
+    export FRAMEWORK_PATH
+
+    # Run tsx in foreground - CTRL+C will send SIGINT to tsx which has proper handlers
+    # CRITICAL: Use node_modules/.bin/tsx directly, NOT npx (npx adds another process layer)
+    TSX_BIN="$FRAMEWORK_PATH/orchestration/node_modules/.bin/tsx"
+
+    if [ ! -f "$TSX_BIN" ]; then
+        echo -e "${RED}❌ Error: tsx binary not found at $TSX_BIN${NC}"
+        exit 1
+    fi
+
+    # Run TypeScript orchestration with --start-phase support
+    # NOTE: tsx must run in foreground to preserve stdin access for interactive prompts
+    # The gap questions feature requires stdin to be connected to the terminal
+
+    # Build tsx command with optional start-phase parameter
+    if [ "$START_PHASE" -gt 1 ]; then
+        echo -e "${BLUE}Starting from Phase $START_PHASE...${NC}"
+        echo ""
+        "$TSX_BIN" "$ORCHESTRATION_CLI" \
+          --project-path "$PROJECT_PATH" \
+          --framework-path "$FRAMEWORK_PATH" \
+          --start-phase "$START_PHASE"
+        TSX_EXIT_CODE=$?
+    else
+        "$TSX_BIN" "$ORCHESTRATION_CLI" \
+          --project-path "$PROJECT_PATH" \
+          --framework-path "$FRAMEWORK_PATH"
+        TSX_EXIT_CODE=$?
+    fi
+
+    # Calculate duration
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
+    MINUTES=$((DURATION / 60))
+    SECONDS=$((DURATION % 60))
+
+    # Exit with the same code tsx used
+    exit $TSX_EXIT_CODE
+fi
 
 # ============================================================================
 # COMPLETION
@@ -422,8 +506,8 @@ else
     echo "Exit code: $EXIT_CODE"
     echo ""
     echo -e "${YELLOW}Troubleshooting:${NC}"
-    echo "  1. Check logs in: $PROJECT_PATH/.claude-temp/"
-    echo "  2. Review phase outputs: $PROJECT_PATH/.claude-temp/phase*"
+    echo "  1. Check logs in: $PROJECT_PATH/.claude-temp/initialize-project/"
+    echo "  2. Review phase outputs: $PROJECT_PATH/.claude-temp/initialize-project/phase*"
     echo "  3. Re-run with more verbose output"
     echo ""
     echo "For help, see: $FRAMEWORK_PATH/docs/INITIALIZE_PROJECT.md"

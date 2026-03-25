@@ -27,6 +27,26 @@ tags:
 
 # PR Reviewer Skill V2
 
+## ⚠️ Migration Notice
+
+> **Review loop orchestration has been migrated to the TypeScript orchestration module.**
+>
+> ### New Approach
+>
+> ```bash
+> cd orchestration
+> npm run review-loop -- --ticket PROJ-123
+> ```
+>
+> ### Orchestration Implementation
+>
+> - **Review Loop Service**: `orchestration/src/services/implement-ticket/review-loop.service.ts`
+> - **PR Review Integration**: Part of `implement-ticket` Phase 9 workflow
+>
+> **References to `utils/review-loop-orchestrator.js` below are deprecated.**
+
+---
+
 Conduct comprehensive, professional code reviews for GitHub Pull Requests using industry-standard criteria and automated tooling. Integrates with implement-ticket Phase 9 review loop for automated fix iteration.
 
 ## Table of Contents

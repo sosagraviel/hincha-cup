@@ -32,3 +32,13 @@ Thumbs.db
 .env.*.local
 
 .worktrees
+
+# Orchestration
+orchestration/node_modules
+orchestration/package-lock.json
+orchestration/dist
+orchestration/.claude-temp
+orchestration/orchestration-checkpoints.db
+dist
+coverage
+.coverage-test.json

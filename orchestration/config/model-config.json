@@ -1,0 +1,180 @@
+{
+  "version": "1.0.0",
+  "modelAliases": {
+    "sonnet-latest": {
+      "provider": "anthropic",
+      "modelId": "claude-sonnet-4-6",
+      "description": "Latest Sonnet model - best combination of speed and intelligence (Feb 2026)",
+      "capabilities": [
+        "code",
+        "planning",
+        "reasoning",
+        "extended-thinking",
+        "adaptive-thinking"
+      ],
+      "contextWindow": 1000000,
+      "maxOutput": 64000,
+      "knowledgeCutoff": "2025-08"
+    },
+    "haiku-latest": {
+      "provider": "anthropic",
+      "modelId": "claude-haiku-4-5-20251001",
+      "description": "Fastest model with near-frontier intelligence (Oct 2025)",
+      "capabilities": ["code", "quick-tasks", "extended-thinking"],
+      "contextWindow": 200000,
+      "maxOutput": 64000,
+      "knowledgeCutoff": "2025-02"
+    },
+    "opus-latest": {
+      "provider": "anthropic",
+      "modelId": "claude-opus-4-6",
+      "description": "Most intelligent model for building agents and coding (Feb 2026)",
+      "capabilities": [
+        "code",
+        "planning",
+        "reasoning",
+        "advanced",
+        "extended-thinking",
+        "adaptive-thinking"
+      ],
+      "contextWindow": 1000000,
+      "maxOutput": 128000,
+      "knowledgeCutoff": "2025-05"
+    },
+    "gpt5-latest": {
+      "provider": "openai",
+      "modelId": "gpt-5.4-2026-03-05",
+      "description": "Latest GPT-5.4 flagship model for complex reasoning (Mar 2026)",
+      "capabilities": ["code", "planning", "reasoning", "advanced"],
+      "contextWindow": 200000,
+      "maxOutput": 16384
+    },
+    "gpt5-mini": {
+      "provider": "openai",
+      "modelId": "gpt-5.4-mini-2026-03-17",
+      "description": "Fast GPT-5.4 mini for high-volume workloads (Mar 2026)",
+      "capabilities": ["code", "quick-tasks"],
+      "contextWindow": 128000,
+      "maxOutput": 16384
+    },
+    "gemini-latest": {
+      "provider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "description": "Latest Gemini 3.1 Pro - most advanced reasoning model (Feb 2026)",
+      "capabilities": ["code", "planning", "reasoning", "advanced"],
+      "contextWindow": 1000000,
+      "maxOutput": 8192
+    },
+    "gemini-flash": {
+      "provider": "google",
+      "modelId": "gemini-2.5-flash",
+      "description": "Best price-performance for low-latency tasks (2026)",
+      "capabilities": ["code", "reasoning"],
+      "contextWindow": 1000000,
+      "maxOutput": 8192
+    }
+  },
+  "tiers": {
+    "standard": {
+      "description": "Standard tier - balanced performance and cost",
+      "provider": "anthropic",
+      "agents": {
+        "planner": "sonnet-latest",
+        "implementer": "sonnet-latest",
+        "reviewer": "sonnet-latest",
+        "visual-verifier": "sonnet-latest",
+        "structure-architecture-analyzer": "sonnet-latest",
+        "tech-stack-dependencies-analyzer": "sonnet-latest",
+        "code-patterns-testing-analyzer": "sonnet-latest",
+        "data-flows-integrations-analyzer": "sonnet-latest",
+        "architect-synthesizer": "sonnet-latest",
+        "question-consolidator": "sonnet-latest"
+      }
+    },
+    "fast": {
+      "description": "Fast tier - optimized for speed and cost",
+      "provider": "anthropic",
+      "agents": {
+        "planner": "sonnet-latest",
+        "implementer": "sonnet-latest",
+        "reviewer": "sonnet-latest",
+        "visual-verifier": "sonnet-latest",
+        "structure-architecture-analyzer": "haiku-latest",
+        "tech-stack-dependencies-analyzer": "haiku-latest",
+        "code-patterns-testing-analyzer": "haiku-latest",
+        "data-flows-integrations-analyzer": "haiku-latest",
+        "architect-synthesizer": "sonnet-latest",
+        "question-consolidator": "sonnet-latest"
+      }
+    },
+    "advanced": {
+      "description": "Advanced tier - maximum capability",
+      "provider": "anthropic",
+      "agents": {
+        "planner": "opus-latest",
+        "implementer": "opus-latest",
+        "reviewer": "opus-latest",
+        "visual-verifier": "opus-latest",
+        "structure-architecture-analyzer": "opus-latest",
+        "tech-stack-dependencies-analyzer": "opus-latest",
+        "code-patterns-testing-analyzer": "opus-latest",
+        "data-flows-integrations-analyzer": "opus-latest",
+        "architect-synthesizer": "opus-latest",
+        "question-consolidator": "opus-latest"
+      }
+    },
+    "openai": {
+      "description": "OpenAI tier - GPT-5.4 models",
+      "provider": "openai",
+      "agents": {
+        "planner": "gpt5-latest",
+        "implementer": "gpt5-latest",
+        "reviewer": "gpt5-latest",
+        "visual-verifier": "gpt5-latest",
+        "structure-architecture-analyzer": "gpt5-mini",
+        "tech-stack-dependencies-analyzer": "gpt5-mini",
+        "code-patterns-testing-analyzer": "gpt5-mini",
+        "data-flows-integrations-analyzer": "gpt5-mini",
+        "architect-synthesizer": "gpt5-latest",
+        "question-consolidator": "gpt5-latest"
+      }
+    },
+    "gemini": {
+      "description": "Google Gemini tier",
+      "provider": "google",
+      "agents": {
+        "planner": "gemini-latest",
+        "implementer": "gemini-latest",
+        "reviewer": "gemini-latest",
+        "visual-verifier": "gemini-latest",
+        "structure-architecture-analyzer": "gemini-flash",
+        "tech-stack-dependencies-analyzer": "gemini-flash",
+        "code-patterns-testing-analyzer": "gemini-flash",
+        "data-flows-integrations-analyzer": "gemini-flash",
+        "architect-synthesizer": "gemini-latest",
+        "question-consolidator": "gemini-latest"
+      }
+    }
+  },
+  "providerConfig": {
+    "anthropic": {
+      "apiKeyEnv": "ANTHROPIC_API_KEY",
+      "defaultTemperature": 0,
+      "defaultMaxTokens": 4096,
+      "headers": {
+        "anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15"
+      }
+    },
+    "openai": {
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "defaultTemperature": 0,
+      "defaultMaxTokens": 4096,
+      "baseURL": "https://api.openai.com/v1"
+    },
+    "google": {
+      "apiKeyEnv": "GOOGLE_API_KEY",
+      "defaultTemperature": 0,
+      "defaultMaxTokens": 8192
+    }
+  }
+}
