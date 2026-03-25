@@ -46,25 +46,25 @@ ONLY use [NEEDS_VERIFICATION] for things that are genuinely unknowable from code
 Example GOOD question: "What environment variables are required for production? Please list them with descriptions."
 Example BAD question: "Environment variables" (not a question - WRONG!)
 
-## CRITICAL MINDSET - Finding "none" means you searched incorrectly
+## CRITICAL MINDSET - Search systematically before reporting "none"
 
-**If you report empty/none for any section, you are WRONG. Real projects have dependencies, build tools, and configurations.**
+**Most projects have dependencies, build tools, and configurations. Verify thoroughly before reporting "none".**
 
 Before finalizing your analysis, verify:
 
-- ❌ **Dependencies: "none" or empty?** → IMPOSSIBLE. Real projects have dependencies. Use Glob with broad patterns: `**/package.json`, `**/requirements*.txt`, `**/Pipfile`, `**/pyproject.toml`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`, `**/build.gradle*`, `**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/pubspec.yaml`, `**/mix.exs`. Then READ each file found.
+- ❌ **Dependencies: "none" or empty?** → IMPOSSIBLE. All working projects have dependencies. Use Glob with broad patterns: `**/package.json`, `**/requirements*.txt`, `**/Pipfile`, `**/pyproject.toml`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`, `**/build.gradle*`, `**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/pubspec.yaml`, `**/mix.exs`. Then READ each file found.
 
-- ❌ **Build tools: "none"?** → WRONG. Check: package.json scripts section, Makefile, build.gradle, Cargo.toml build profiles, pyproject.toml build-system, docker-compose.yml, justfile, task files.
+- ⚠️ **Build tools: "none"?** → Verify thoroughly. Check: package.json scripts section, Makefile, build.gradle, Cargo.toml build profiles, pyproject.toml build-system, docker-compose.yml, justfile, task files. Some simple projects may not have formal build tools.
 
-- ❌ **CI/CD: "none"?** → SEARCH AGAIN. Use Glob: `.github/workflows/**/*.{yml,yaml}`, `.gitlab-ci.yml`, `.circleci/**`, `Jenkinsfile`, `**/azure-pipelines*.yml`, `.travis.yml`, `bitbucket-pipelines.yml`, `.buildkite/**`.
+- ⚠️ **CI/CD: "none"?** → Search before concluding. Use Glob: `.github/workflows/**/*.{yml,yaml}`, `.gitlab-ci.yml`, `.circleci/**`, `Jenkinsfile`, `**/azure-pipelines*.yml`, `.travis.yml`, `bitbucket-pipelines.yml`, `.buildkite/**`. Not all projects use CI/CD (especially internal/personal projects).
 
-- ❌ **Infrastructure: empty array?** → UNLIKELY. Search for: `Dockerfile*`, `docker-compose*.yml`, `**/k8s/**`, `**/kubernetes/**`, `**/*.tf`, `Vagrantfile`, `serverless.yml`, `Pulumi.yaml`, `ansible.cfg`, `Berksfile`, `Puppetfile`.
+- ⚠️ **Infrastructure: empty array?** → Check common patterns. Search for: `Dockerfile*`, `docker-compose*.yml`, `**/k8s/**`, `**/kubernetes/**`, `**/*.tf`, `Vagrantfile`, `serverless.yml`, `Pulumi.yaml`, `ansible.cfg`, `Berksfile`, `Puppetfile`. Simple apps may not have infrastructure-as-code.
 
-- ❌ **Databases: "none"?** → CHECK DEPENDENCIES. Database clients appear in dependencies. Search for: postgres/pg/psycopg2, mysql/mysql2, mongodb/mongoose/pymongo, redis/ioredis, sqlite3, prisma, typeorm, sequelize, sqlalchemy, gorm, diesel, activerecord.
+- ⚠️ **Databases: "none"?** → Verify in dependencies. Database clients appear as dependencies. Search for: postgres/pg/psycopg2, mysql/mysql2, mongodb/mongoose/pymongo, redis/ioredis, sqlite3, prisma, typeorm, sequelize, sqlalchemy, gorm, diesel, activerecord. Some projects are database-free (static sites, CLIs).
 
-- ❌ **External services: "none"?** → READ dependencies files completely. Look for: AWS SDK, Google Cloud, Azure SDK, Stripe, Twilio, SendGrid, Auth0, Firebase, Sentry, DataDog, etc.
+- ⚠️ **External services: "none"?** → Read dependencies thoroughly. Look for: AWS SDK, Google Cloud, Azure SDK, Stripe, Twilio, SendGrid, Auth0, Firebase, Sentry, DataDog. Not all projects use external services.
 
-**Your job is to be THOROUGH. Use Glob with multiple patterns, then READ files to extract details. Don't give up after one search.**
+**Your job is to be THOROUGH. Use Glob with multiple patterns, then READ files to extract details. Search systematically before reporting "none".**
 
 ## CRITICAL: Multi-Stack & Monorepo Analysis
 
