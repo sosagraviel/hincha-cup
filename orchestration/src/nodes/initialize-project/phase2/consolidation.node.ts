@@ -393,6 +393,7 @@ ${feedbackPrompt}
         frameworkPath,
         additionalContext,
         timeout: 120000, // 2 minutes
+        useUltrathink: true, // Enable maximum thinking for thorough consolidation
       });
 
       const result = await agent.invoke({

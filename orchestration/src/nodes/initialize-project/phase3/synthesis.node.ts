@@ -75,6 +75,7 @@ ${feedbackPrompt}
         frameworkPath: state.framework_path,
         additionalContext: consolidatedContext,
         timeout: 600000, // 10 minutes (longer for Opus)
+        useUltrathink: true, // Enable maximum thinking for thorough synthesis
       });
 
       const result = await agent.invoke({

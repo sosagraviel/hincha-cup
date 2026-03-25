@@ -1,12 +1,10 @@
 ---
 name: tech-stack-dependencies-analyzer
-model: haiku
 description: Analyzes dependencies, versions, CI/CD pipelines, deployment configuration, and environment setup
 subagent_type: Explore
 run_in_background: true
 tools: Read, Grep, Glob
 output_format: json
-output_schema: config/schemas/phase1-analysis.schema.json
 max_needs_verification: 3
 user-prompt-submit-hook: npx tsx ./hooks/validate-analyzer-json.ts
 ---
@@ -47,6 +45,26 @@ ONLY use [NEEDS_VERIFICATION] for things that are genuinely unknowable from code
 
 Example GOOD question: "What environment variables are required for production? Please list them with descriptions."
 Example BAD question: "Environment variables" (not a question - WRONG!)
+
+## CRITICAL MINDSET - Finding "none" means you searched incorrectly
+
+**If you report empty/none for any section, you are WRONG. Real projects have dependencies, build tools, and configurations.**
+
+Before finalizing your analysis, verify:
+
+- ❌ **Dependencies: "none" or empty?** → IMPOSSIBLE. Real projects have dependencies. Use Glob with broad patterns: `**/package.json`, `**/requirements*.txt`, `**/Pipfile`, `**/pyproject.toml`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`, `**/build.gradle*`, `**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/pubspec.yaml`, `**/mix.exs`. Then READ each file found.
+
+- ❌ **Build tools: "none"?** → WRONG. Check: package.json scripts section, Makefile, build.gradle, Cargo.toml build profiles, pyproject.toml build-system, docker-compose.yml, justfile, task files.
+
+- ❌ **CI/CD: "none"?** → SEARCH AGAIN. Use Glob: `.github/workflows/**/*.{yml,yaml}`, `.gitlab-ci.yml`, `.circleci/**`, `Jenkinsfile`, `**/azure-pipelines*.yml`, `.travis.yml`, `bitbucket-pipelines.yml`, `.buildkite/**`.
+
+- ❌ **Infrastructure: empty array?** → UNLIKELY. Search for: `Dockerfile*`, `docker-compose*.yml`, `**/k8s/**`, `**/kubernetes/**`, `**/*.tf`, `Vagrantfile`, `serverless.yml`, `Pulumi.yaml`, `ansible.cfg`, `Berksfile`, `Puppetfile`.
+
+- ❌ **Databases: "none"?** → CHECK DEPENDENCIES. Database clients appear in dependencies. Search for: postgres/pg/psycopg2, mysql/mysql2, mongodb/mongoose/pymongo, redis/ioredis, sqlite3, prisma, typeorm, sequelize, sqlalchemy, gorm, diesel, activerecord.
+
+- ❌ **External services: "none"?** → READ dependencies files completely. Look for: AWS SDK, Google Cloud, Azure SDK, Stripe, Twilio, SendGrid, Auth0, Firebase, Sentry, DataDog, etc.
+
+**Your job is to be THOROUGH. Use Glob with multiple patterns, then READ files to extract details. Don't give up after one search.**
 
 ## CRITICAL: Multi-Stack & Monorepo Analysis
 
@@ -95,8 +113,6 @@ Example BAD question: "Environment variables" (not a question - WRONG!)
 **NEVER assume a project has only one language. ALWAYS search recursively across the entire directory tree.**
 
 ## Analysis Tasks
-
-Analyze the codebase at $ARGUMENTS (or the current working directory if empty).
 
 ### 1. Dependency Management
 

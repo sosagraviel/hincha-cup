@@ -15,6 +15,7 @@ export interface AgentConfig {
   frameworkPath: string;
   additionalContext?: string;
   timeout?: number;
+  useUltrathink?: boolean;
 }
 
 /**
@@ -55,6 +56,7 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
     frameworkPath,
     additionalContext = "",
     timeout = 300000, // 5 minutes default
+    useUltrathink = false,
   } = config;
 
   const agentPath = join(frameworkPath, "orchestration/agents", agentFile);
@@ -76,6 +78,7 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
     frameworkPath,
     additionalContext: fullInstructions,
     timeout,
+    useUltrathink,
   });
 
   return {

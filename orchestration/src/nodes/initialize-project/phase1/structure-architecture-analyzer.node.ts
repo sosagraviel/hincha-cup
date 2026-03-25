@@ -51,6 +51,7 @@ export async function structureArchitectureAnalyzerNode(
         frameworkPath: state.framework_path,
         additionalContext: feedbackPrompt,
         timeout: 600000, // 10 minutes
+        useUltrathink: true, // Enable maximum thinking for thorough analysis
       });
 
       const result = await agent.invoke({

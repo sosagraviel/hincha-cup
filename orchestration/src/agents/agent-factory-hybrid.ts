@@ -50,6 +50,7 @@ export interface AgentConfig {
   frameworkPath: string;
   additionalContext?: string;
   timeout?: number;
+  useUltrathink?: boolean;
 }
 
 export interface AgentInvokeResult {
@@ -284,6 +285,7 @@ export class HybridAgentFactory {
             fullPrompt,
             config.projectPath,
             config.timeout,
+            config.useUltrathink,
           );
 
           const executionTimeMs = Date.now() - startTime;
@@ -327,6 +329,7 @@ export class HybridAgentFactory {
     prompt: string,
     projectPath: string,
     timeout: number = 300000,
+    useUltrathink: boolean = false,
   ): Promise<string> {
     if (HybridAgentFactory.isAborting) {
       throw new Error("SIGINT: Workflow interrupted by user (CTRL+C)");
@@ -345,7 +348,8 @@ export class HybridAgentFactory {
       let promptFileCreated = false;
 
       try {
-        await writeFile(promptFile, prompt, "utf-8");
+        const finalPrompt = useUltrathink ? `ultrathink\n\n${prompt}` : prompt;
+        await writeFile(promptFile, finalPrompt, "utf-8");
         promptFileCreated = true;
       } catch (err) {
         HybridAgentFactory.activeInvocations.delete(invocationId);
