@@ -10,8 +10,10 @@ vi.mock('fs');
 vi.mock('fs/promises');
 vi.mock('child_process');
 vi.mock('ajv', () => {
-  const mockValidate = vi.fn().mockReturnValue(true);
-  mockValidate.errors = null;
+  const mockValidate = Object.assign(
+    vi.fn().mockReturnValue(true),
+    { errors: null }
+  );
 
   const MockAjv = vi.fn().mockImplementation(() => ({
     compile: vi.fn().mockReturnValue(mockValidate),

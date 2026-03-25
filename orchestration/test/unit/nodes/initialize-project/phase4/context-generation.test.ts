@@ -121,9 +121,11 @@ This is the project context content
     vi.mocked(fileCounter.countFilesByLanguage).mockResolvedValue({
       total_files: 100,
       by_language: [
-        { language: 'typescript', count: 80 },
-        { language: 'javascript', count: 20 },
+        { language: 'typescript', count: 80, extensions: ['.ts', '.tsx'], directories: ['src'] },
+        { language: 'javascript', count: 20, extensions: ['.js', '.jsx'], directories: ['scripts'] },
       ],
+      scanned_directories: 2,
+      errors: [],
     });
 
     // Mock workspace detection utility
@@ -131,6 +133,7 @@ This is the project context content
       is_monorepo: false,
       total_workspaces: 0,
       workspaces: [],
+      errors: [],
     });
   });
 
