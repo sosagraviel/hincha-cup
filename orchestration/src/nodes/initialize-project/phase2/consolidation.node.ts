@@ -148,8 +148,16 @@ export async function consolidationNode(
 
       if (consolidationResult.success && consolidationResult.consolidated) {
         // Update consolidation.json with consolidated gaps
-        consolidationData.gaps =
-          consolidationResult.consolidated.consolidated_gaps;
+        const consolidatedGaps = consolidationResult.consolidated.consolidated_gaps;
+
+        // Ensure every gap has an agent field (fallback to first consolidated_from if missing)
+        consolidatedGaps.forEach((gap) => {
+          if (!gap.agent && gap.consolidated_from && gap.consolidated_from.length > 0) {
+            gap.agent = gap.consolidated_from[0];
+          }
+        });
+
+        consolidationData.gaps = consolidatedGaps;
         consolidationData.question_consolidation =
           consolidationResult.consolidated.consolidation_metadata;
         writeFileSync(
@@ -166,8 +174,15 @@ export async function consolidationNode(
       } else {
         phaseLogger.info("  ⚠ WARNING: Question consolidation failed");
         phaseLogger.info("  Proceeding with original unconsolidated gaps");
-        // Store gaps as-is for interactive questioning
-        consolidationData.gaps = gaps;
+
+        // Convert gaps to ConsolidatedGap format (each gap is its own group)
+        const consolidatedGaps: ConsolidatedGap[] = gaps.map((gap) => ({
+          ...gap,
+          consolidated_from: [gap.agent],
+          original_count: 1,
+        }));
+
+        consolidationData.gaps = consolidatedGaps;
         writeFileSync(
           consolidatedPath,
           JSON.stringify(consolidationData, null, 2),
@@ -176,7 +191,15 @@ export async function consolidationNode(
       logger.blank();
     } else if (gaps.length === 1) {
       phaseLogger.info(" Step 3: Only 1 gap found - skipping consolidation");
-      consolidationData.gaps = gaps;
+
+      // Convert single gap to ConsolidatedGap format
+      const consolidatedGap: ConsolidatedGap = {
+        ...gaps[0],
+        consolidated_from: [gaps[0].agent],
+        original_count: 1,
+      };
+
+      consolidationData.gaps = [consolidatedGap];
       writeFileSync(
         consolidatedPath,
         JSON.stringify(consolidationData, null, 2),
@@ -340,7 +363,7 @@ async function consolidateQuestions(
   gaps: Gap[],
   projectPath: string,
   frameworkPath: string,
-  tempDir: string,
+  _tempDir: string,
 ): Promise<{
   success: boolean;
   consolidated?: QuestionConsolidationOutput;
