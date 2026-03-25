@@ -1,10 +1,8 @@
 import type { InitializeProjectState } from "../../../state/schemas/initialize-project.schema.js";
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
-import {
-  generateFrameworkConfig,
-  type StackProfile,
-} from "../../../utils/config-generator.js";
+import { generateFrameworkConfig } from "../../../utils/config-generator.js";
+import type { StackProfile } from "../../../schemas/index.js";
 import { logger } from "../../../utils/logger.js";
 import {
   countFilesByLanguage,

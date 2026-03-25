@@ -26,6 +26,8 @@ import {
   addSingleSkill,
   regenerateSingleAgent,
 } from '../services/framework/sync-helpers.service.js';
+import { resolveSkills } from '../utils/skill-resolver.js';
+import { generateAgents } from '../utils/agent-generator.js';
 
 interface SyncConfig {
   projectPath: string;
@@ -183,24 +185,62 @@ async function syncSkills(config: SyncConfig): Promise<{
   const configUpdater = new ConfigUpdaterService(config.projectPath, config.frameworkPath);
   const frameworkConfig = await configUpdater.readConfig();
 
+  // Ensure stack profile has required fields
+  if (!frameworkConfig.stack_profile.languages) {
+    frameworkConfig.stack_profile.languages = [];
+  }
+  if (!frameworkConfig.stack_profile.frameworks.frontend) {
+    frameworkConfig.stack_profile.frameworks.frontend = [];
+  }
+  if (!frameworkConfig.stack_profile.frameworks.backend) {
+    frameworkConfig.stack_profile.frameworks.backend = [];
+  }
+
+  // Resolve which skills should exist based on stack profile
+  const resolvedSkills = resolveSkills(frameworkConfig.stack_profile as any, config.frameworkPath);
+
   const result = { updated: 0, added: 0, skipped: 0 };
 
-  for (const [skillName, skillInfo] of Object.entries(frameworkConfig.resource_state.skills)) {
-    if (!skillInfo.managed_by_framework) {
+  // Process each skill that should exist for this project
+  for (const resolvedSkill of resolvedSkills) {
+    const skillName = resolvedSkill.name;
+    const existingSkillInfo = frameworkConfig.resource_state.skills[skillName];
+
+    // Skip if skill is user-managed
+    if (existingSkillInfo && !existingSkillInfo.managed_by_framework) {
       result.skipped++;
       continue;
     }
 
-    const sourcePath = join(config.frameworkPath, skillInfo.source_path || `skills/${skillName}`);
+    const sourcePath = join(config.frameworkPath, 'skills', resolvedSkill.relative_path);
     if (!existsSync(sourcePath)) {
-      logger.warn(`  Warning: Source skill not found: ${skillName}`);
+      logger.warn(`  Warning: Source skill not found: ${skillName} at ${sourcePath}`);
       continue;
     }
 
-    // Check if source has changed
     const currentSourceHash = configUpdater.hashDirectory(sourcePath);
 
-    if (currentSourceHash !== skillInfo.source_hash) {
+    // If skill doesn't exist in project yet, add it
+    if (!existingSkillInfo) {
+      try {
+        const syncResult = await addSingleSkill(skillName, config.projectPath, config.frameworkPath);
+        if (syncResult.added) {
+          result.added++;
+
+          // Add to resource state
+          await configUpdater.updateResourceState('skills', skillName, {
+            managed_by_framework: true,
+            source_path: `skills/${resolvedSkill.relative_path}`,
+            source_hash: currentSourceHash,
+            file_hash: currentSourceHash,
+          });
+        }
+      } catch (error) {
+        logger.error(`  Failed to add skill ${skillName}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    // If skill exists and source has changed, update it
+    else if (currentSourceHash !== existingSkillInfo.source_hash) {
       try {
         const syncResult = await updateSingleSkill(skillName, config.projectPath, config.frameworkPath);
         if (syncResult.updated) {
@@ -227,8 +267,9 @@ async function syncSkills(config: SyncConfig): Promise<{
 
 /**
  * Sync agents from framework
+ * @param skillsChanged - Whether skills were added or updated in this sync
  */
-async function syncAgents(config: SyncConfig): Promise<{
+async function syncAgents(config: SyncConfig, skillsChanged: boolean = false): Promise<{
   updated: number;
   added: number;
   regenerated: number;
@@ -239,24 +280,76 @@ async function syncAgents(config: SyncConfig): Promise<{
   const configUpdater = new ConfigUpdaterService(config.projectPath, config.frameworkPath);
   const frameworkConfig = await configUpdater.readConfig();
 
+  // Ensure stack profile has required fields
+  if (!frameworkConfig.stack_profile.languages) {
+    frameworkConfig.stack_profile.languages = [];
+  }
+  if (!frameworkConfig.stack_profile.frameworks.frontend) {
+    frameworkConfig.stack_profile.frameworks.frontend = [];
+  }
+  if (!frameworkConfig.stack_profile.frameworks.backend) {
+    frameworkConfig.stack_profile.frameworks.backend = [];
+  }
+
+  // Resolve skills and generate all agents that should exist
+  const resolvedSkills = resolveSkills(frameworkConfig.stack_profile as any, config.frameworkPath);
+  const templatesPath = join(config.frameworkPath, 'agents', 'templates');
+  const allAgents = generateAgents(
+    frameworkConfig.stack_profile as any,
+    resolvedSkills,
+    config.projectPath,
+    templatesPath,
+    config.frameworkPath
+  );
+
   const result = { updated: 0, added: 0, regenerated: 0, skipped: 0 };
 
-  for (const [agentName, agentInfo] of Object.entries(frameworkConfig.resource_state.agents)) {
-    if (!agentInfo.managed_by_framework) {
+  // Process each agent that should exist for this project
+  for (const agent of allAgents) {
+    const agentName = agent.name;
+    const existingAgentInfo = frameworkConfig.resource_state.agents[agentName];
+
+    // Skip if agent is user-managed
+    if (existingAgentInfo && !existingAgentInfo.managed_by_framework) {
       result.skipped++;
       continue;
     }
 
-    const templatePath = join(config.frameworkPath, agentInfo.template_path || `agents/templates/${agentName}.md`);
+    // Determine template path based on agent name
+    const templateFilename = agentName.startsWith('implementer-')
+      ? 'implementer.template.md'
+      : `${agentName}.template.md`;
+    const templatePath = join(config.frameworkPath, 'agents', 'templates', templateFilename);
+
     if (!existsSync(templatePath)) {
-      logger.warn(`  Warning: Template not found: ${agentName}`);
+      logger.warn(`  Warning: Template not found: ${agentName} at ${templatePath}`);
       continue;
     }
 
-    // Check if template has changed
     const currentTemplateHash = configUpdater.hashFile(templatePath);
+    const relativeTemplatePath = `agents/templates/${templateFilename}`;
 
-    if (currentTemplateHash !== agentInfo.template_hash) {
+    // If agent doesn't exist in project yet, add it
+    if (!existingAgentInfo) {
+      try {
+        const regenerateResult = await regenerateSingleAgent(agentName, config.projectPath, config.frameworkPath);
+        if (regenerateResult.success) {
+          result.added++;
+
+          // Add to resource state
+          await configUpdater.updateResourceState('agents', agentName, {
+            managed_by_framework: true,
+            template_path: relativeTemplatePath,
+            template_hash: currentTemplateHash,
+            file_hash: configUpdater.hashFile(join(config.projectPath, '.claude/agents', `${agentName}.md`)),
+          });
+        }
+      } catch (error) {
+        logger.error(`  Failed to add agent ${agentName}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    // If agent exists and (template changed OR skills changed), update it
+    else if (currentTemplateHash !== existingAgentInfo.template_hash || skillsChanged) {
       try {
         const regenerateResult = await regenerateSingleAgent(agentName, config.projectPath, config.frameworkPath);
         if (regenerateResult.success) {
@@ -312,8 +405,8 @@ async function main() {
     // Sync skills
     const skillsResult = await syncSkills(config);
 
-    // Sync agents
-    const agentsResult = await syncAgents(config);
+    // Sync agents (pass skills result to know if skills changed)
+    const agentsResult = await syncAgents(config, skillsResult.added > 0 || skillsResult.updated > 0);
 
     // Summary
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

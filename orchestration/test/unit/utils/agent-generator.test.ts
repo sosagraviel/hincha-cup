@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { generateAgents, writeAgents, type GeneratedAgent } from '../../../src/utils/agent-generator.js';
-import type { StackProfile } from '../../../src/utils/config-generator.js';
+import type { StackProfile } from '../../../src/schemas/index.js';
 import type { ResolvedSkill } from '../../../src/utils/skill-resolver.js';
 import * as fs from 'fs';
 import * as path from 'path';

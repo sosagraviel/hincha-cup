@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateFrameworkConfig, type StackProfile, type Phase1AnalysisData } from '../../../src/utils/config-generator.js';
+import { generateFrameworkConfig, type Phase1AnalysisData } from '../../../src/utils/config-generator.js';
+import type { StackProfile } from '../../../src/schemas/index.js';
 import * as fs from 'fs';
 
 // Mock fs module
@@ -169,8 +170,8 @@ describe('config-generator', () => {
       );
 
       expect(config.stack_profile.detected_workspaces).toHaveLength(2);
-      expect(config.stack_profile.detected_workspaces[0].path).toBe('packages/web');
-      expect(config.stack_profile.detected_workspaces[1].path).toBe('packages/api');
+      expect(config.stack_profile.detected_workspaces![0].path).toBe('packages/web');
+      expect(config.stack_profile.detected_workspaces![1].path).toBe('packages/api');
     });
 
     it('should handle phase1_analysis data', () => {
@@ -424,7 +425,7 @@ describe('config-generator', () => {
       );
 
       expect(config.stack_profile.detected_workspaces).toHaveLength(1);
-      expect(config.stack_profile.detected_workspaces[0].path).toBe('packages/lib');
+      expect(config.stack_profile.detected_workspaces![0].path).toBe('packages/lib');
     });
 
     it('should include phase4_context data', () => {

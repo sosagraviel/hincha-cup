@@ -1,6 +1,10 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
+import {
+  type FrameworkConfig,
+  type StackProfile,
+} from '../../schemas/index.js';
 
 /**
  * Project Config Reader Service
@@ -14,75 +18,6 @@ import { z } from 'zod';
  * - We trust the outputs from initialize-project completely
  * - If files are missing, we fail fast and tell user to run initialize-project first
  */
-
-/**
- * Stack Profile Type (matches config-generator.ts)
- */
-export interface StackProfile {
-  languages?: string[];
-  primary_language?: string;
-  frameworks?: {
-    frontend: string[];
-    backend: string[];
-    mobile?: string[];
-  };
-  testing_frameworks?: Record<string, string[]>;
-  infrastructure?: string[];
-  detected_workspaces?: Array<{
-    path: string;
-    language: string;
-    type: string;
-    frameworks: string[];
-  }>;
-  file_counts?: Record<string, number>;
-  workspaces?: any[];
-  package_manager?: string;
-  workspace_type?: string;
-}
-
-/**
- * Framework Config Type (matches config-generator.ts)
- */
-export interface FrameworkConfig {
-  version: string;
-  schema_version: string;
-  framework_version: string;
-  project_metadata: {
-    project_path: string;
-    last_analysis: string;
-    initialization_hash: string;
-  };
-  analysis_results: {
-    phase1_analysis: Record<string, any>;
-    phase2_consolidation: any;
-    phase3_synthesis: any;
-    phase4_context: any;
-  };
-  stack_profile: {
-    languages: string[];
-    primary_language?: string;
-    frameworks: {
-      frontend: string[];
-      backend: string[];
-      mobile?: string[];
-    };
-    testing_frameworks: Record<string, string[]>;
-    infrastructure?: string[];
-    detected_workspaces: Array<{
-      path: string;
-      language: string;
-      type: string;
-      frameworks: string[];
-    }>;
-    file_counts: Record<string, number>;
-  };
-  resource_state: {
-    skills: Record<string, any>;
-    agents: Record<string, any>;
-    commands: Record<string, any>;
-    last_sync: string;
-  };
-}
 
 /**
  * Test Commands Interface
