@@ -1,5 +1,5 @@
 import { readdir, readFile } from "fs/promises";
-import { join, basename, dirname } from "path";
+import { join, basename, relative } from "path";
 import { logger } from "./logger.js";
 
 /**
@@ -108,25 +108,32 @@ const IGNORE_DIRS = new Set([
   ".claude",
   ".claude-temp",
   ".claude-backups",
-  "qubika-agentic-framework",
 ]);
+
 
 /**
  * Detect workspaces in a project by finding manifest files
  *
  * @param projectPath - Absolute path to the project root
  * @param maxDepth - Maximum directory depth to scan (default: 5)
+ * @param frameworkPath - Absolute path to the framework directory
  * @returns Workspace detection results
  */
 export async function detectWorkspaces(
   projectPath: string,
   maxDepth: number = 5,
+  frameworkPath?: string,
 ): Promise<WorkspaceDetectionResult> {
   const workspaces: Workspace[] = [];
   const errors: string[] = [];
 
+  // Derive the framework directory name (same logic as agent-factory.ts)
+  const frameworkDirName = frameworkPath
+    ? basename(relative(projectPath, frameworkPath).split('/')[0])
+    : "qubika-agentic-framework";
+
   // Find all manifest files
-  await findManifestFiles(projectPath, 0, maxDepth, workspaces, errors);
+  await findManifestFiles(projectPath, 0, maxDepth, workspaces, errors, frameworkDirName);
 
   // Filter to primary manifests only (remove lock files if primary exists in same dir)
   const primaryWorkspaces = filterToPrimaryWorkspaces(workspaces);
@@ -154,6 +161,7 @@ async function findManifestFiles(
   maxDepth: number,
   found: Workspace[],
   errors: string[],
+  frameworkDirName: string,
 ): Promise<void> {
   if (currentDepth > maxDepth) {
     return;
@@ -167,8 +175,8 @@ async function findManifestFiles(
 
       try {
         if (entry.isDirectory()) {
-          // Skip ignored directories
-          if (IGNORE_DIRS.has(entry.name)) {
+          // Skip ignored directories and framework directory
+          if (IGNORE_DIRS.has(entry.name) || entry.name === frameworkDirName) {
             continue;
           }
 
@@ -179,6 +187,7 @@ async function findManifestFiles(
             maxDepth,
             found,
             errors,
+            frameworkDirName,
           );
         } else if (entry.isFile()) {
           // Check if this is a known manifest file
