@@ -73,6 +73,12 @@ const IGNORE_DIRS = new Set([
   ".maven",
   "bin",
   "obj",
+  // Claude framework directories - these are generated/copied by the framework
+  ".claude",
+  ".claude-temp",
+  ".claude-backups",
+  "ai-agentic-framework",
+  "qubika-agentic-framework",
 ]);
 
 /**

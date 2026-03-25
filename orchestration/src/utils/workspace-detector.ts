@@ -31,7 +31,7 @@ const MANIFEST_FILES: Record<string, { language: string; type: string }> = {
   "yarn.lock": { language: "javascript", type: "yarn" },
   "pnpm-lock.yaml": { language: "javascript", type: "pnpm" },
   "requirements.txt": { language: "python", type: "pip" },
-  "Pipfile": { language: "python", type: "pipenv" },
+  Pipfile: { language: "python", type: "pipenv" },
   "pyproject.toml": { language: "python", type: "poetry" },
   "setup.py": { language: "python", type: "setuptools" },
   "go.mod": { language: "go", type: "gomod" },
@@ -39,7 +39,7 @@ const MANIFEST_FILES: Record<string, { language: string; type: string }> = {
   "pom.xml": { language: "java", type: "maven" },
   "build.gradle": { language: "java", type: "gradle" },
   "build.gradle.kts": { language: "kotlin", type: "gradle" },
-  "Gemfile": { language: "ruby", type: "bundler" },
+  Gemfile: { language: "ruby", type: "bundler" },
   "composer.json": { language: "php", type: "composer" },
   "Package.swift": { language: "swift", type: "spm" },
   "Cargo.lock": { language: "rust", type: "cargo" },
@@ -104,6 +104,11 @@ const IGNORE_DIRS = new Set([
   ".terraform",
   "site-packages",
   "pkg",
+  // Claude framework directories - these are generated/copied by the framework
+  ".claude",
+  ".claude-temp",
+  ".claude-backups",
+  "qubika-agentic-framework",
 ]);
 
 /**
