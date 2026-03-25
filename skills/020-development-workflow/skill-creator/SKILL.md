@@ -11,7 +11,8 @@ allowed-tools:
   - Glob
   - Grep
   - Skill
-last_updated: 2026-03-24
+user-invocable: true
+last_updated: 2026-03-25
 ---
 
 # Skill Creator
