@@ -10,46 +10,15 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { createHash } from 'crypto';
 import { execSync } from 'child_process';
-// Dynamic imports for CommonJS compatibility
-const AjvConstructor = require('ajv');
-const Ajv = AjvConstructor.default || AjvConstructor;
-const addFormatsFunc = require('ajv-formats');
-const addFormats = addFormatsFunc.default || addFormatsFunc;
+import { z } from 'zod';
+import {
+  FrameworkConfigSchema,
+  type FrameworkConfig,
+  type ResourceInfo
+} from '../../schemas/index.js';
 
-export interface FrameworkConfig {
-  framework_version: string;
-  project_metadata: {
-    initialization_hash?: string;
-    last_analysis?: string;
-    [key: string]: any;
-  };
-  stack_profile: {
-    languages?: string[];
-    frameworks: {
-      frontend?: string[];
-      backend?: string[];
-      mobile?: string[];
-    };
-    testing_frameworks: Record<string, string[]>;
-    [key: string]: any;
-  };
-  resource_state: {
-    skills: Record<string, ResourceInfo>;
-    agents: Record<string, ResourceInfo>;
-    last_sync?: string;
-  };
-}
-
-export interface ResourceInfo {
-  managed_by_framework: boolean;
-  user_modified?: boolean;
-  file_hash?: string;
-  source_hash?: string;
-  template_hash?: string;
-  source_path?: string;
-  template_path?: string;
-  last_sync?: string;
-}
+// Re-export types for backward compatibility
+export type { FrameworkConfig, ResourceInfo };
 
 export interface UserModification {
   name: string;
@@ -105,25 +74,21 @@ export class ConfigUpdaterService {
 
   async validateConfig(config: FrameworkConfig): Promise<ValidationResult> {
     try {
-      // Note: Schema file should exist at framework root
-      const schemaPath = join(this.frameworkPath, 'schemas', 'framework-config.schema.json');
-      const schema = JSON.parse(readFileSync(schemaPath, 'utf-8'));
-
-      const ajv = new Ajv({ allErrors: true, strict: false });
-      addFormats(ajv);
-
-      const validate = ajv.compile(schema);
-      const valid = validate(config);
-
-      if (!valid) {
+      // Validate using zod schema
+      FrameworkConfigSchema.parse(config);
+      return { valid: true };
+    } catch (error) {
+      if (error instanceof z.ZodError) {
         return {
           valid: false,
-          errors: validate.errors || [],
+          errors: error.issues.map((err: z.ZodIssue) => ({
+            path: err.path.join('.'),
+            message: err.message,
+            code: err.code,
+          })),
         };
       }
 
-      return { valid: true };
-    } catch (error) {
       return {
         valid: false,
         errors: [{ message: error instanceof Error ? error.message : String(error) }],
@@ -174,13 +139,18 @@ export class ConfigUpdaterService {
     }
 
     if (newStackInfo.testing_frameworks) {
+      // Initialize testing_frameworks if it doesn't exist
+      if (!config.stack_profile.testing_frameworks) {
+        config.stack_profile.testing_frameworks = {};
+      }
+
       Object.keys(newStackInfo.testing_frameworks).forEach((language) => {
-        const existing = new Set(config.stack_profile.testing_frameworks[language] || []);
+        const existing = new Set(config.stack_profile.testing_frameworks![language] || []);
         const newFrameworks = newStackInfo.testing_frameworks![language].filter((fw) => !existing.has(fw));
 
         if (newFrameworks.length > 0) {
-          config.stack_profile.testing_frameworks[language] = [
-            ...(config.stack_profile.testing_frameworks[language] || []),
+          config.stack_profile.testing_frameworks![language] = [
+            ...(config.stack_profile.testing_frameworks![language] || []),
             ...newFrameworks,
           ];
           updated = true;

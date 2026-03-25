@@ -32,10 +32,21 @@ describe('ConfigUpdaterService', () => {
   const configPath = '/test/project/.claude/framework-config.json';
 
   const createMockConfig = (overrides: Partial<FrameworkConfig> = {}): FrameworkConfig => ({
+    version: '2.0.0',
+    schema_version: '1.0.0',
     framework_version: '2.0.0',
     project_metadata: {
+      project_path: '/test/project',
       initialization_hash: 'abc123',
       last_analysis: '2024-01-01T00:00:00Z',
+    },
+    analysis_results: {
+      phase1_analysis: {},
+      phase2_consolidation: {},
+      phase3_synthesis: {
+        synthesis_timestamp: '2024-01-01T00:00:00Z',
+      },
+      phase4_context: {},
     },
     stack_profile: {
       languages: ['typescript'],
@@ -51,6 +62,7 @@ describe('ConfigUpdaterService', () => {
     resource_state: {
       skills: {},
       agents: {},
+      commands: {},
       last_sync: '2024-01-01T00:00:00Z',
     },
     ...overrides,
@@ -143,16 +155,18 @@ describe('ConfigUpdaterService', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should handle schema read errors', async () => {
-      const mockConfig = createMockConfig();
-      vi.mocked(fs.readFileSync).mockImplementation(() => {
-        throw new Error('Schema not found');
-      });
+    it('should detect invalid config structure', async () => {
+      // Create an invalid config with missing required fields
+      const invalidConfig = {
+        version: '2.0.0',
+        // Missing schema_version, framework_version, project_metadata, etc.
+      } as any;
 
-      const result = await service.validateConfig(mockConfig);
+      const result = await service.validateConfig(invalidConfig);
 
       expect(result.valid).toBe(false);
       expect(result.errors).toBeDefined();
+      expect(result.errors!.length).toBeGreaterThan(0);
     });
   });
 
@@ -203,8 +217,8 @@ describe('ConfigUpdaterService', () => {
       });
 
       expect(result.updated).toBe(true);
-      expect(result.config?.stack_profile.testing_frameworks.typescript).toContain('jest');
-      expect(result.config?.stack_profile.testing_frameworks.python).toContain('pytest');
+      expect(result.config?.stack_profile.testing_frameworks?.typescript).toContain('jest');
+      expect(result.config?.stack_profile.testing_frameworks?.python).toContain('pytest');
     });
 
     it('should not update if nothing new', async () => {
@@ -269,6 +283,8 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
+          commands: {},
+          last_sync: '2024-01-01T00:00:00Z',
         },
       });
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -294,6 +310,8 @@ describe('ConfigUpdaterService', () => {
             'skill-to-remove': { managed_by_framework: true },
           },
           agents: {},
+          commands: {},
+          last_sync: '2024-01-01T00:00:00Z',
         },
       });
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -399,6 +417,8 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
+          commands: {},
+          last_sync: '2024-01-01T00:00:00Z',
         },
       });
 
@@ -425,6 +445,8 @@ describe('ConfigUpdaterService', () => {
               file_hash: 'original-hash',
             },
           },
+          commands: {},
+          last_sync: '2024-01-01T00:00:00Z',
         },
       });
 
@@ -448,6 +470,8 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
+          commands: {},
+          last_sync: '2024-01-01T00:00:00Z',
         },
       });
 
@@ -468,6 +492,8 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
+          commands: {},
+          last_sync: '2024-01-01T00:00:00Z',
         },
       });
 
@@ -490,6 +516,8 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
+          commands: {},
+          last_sync: '2024-01-01T00:00:00Z',
         },
       });
 
@@ -628,7 +656,9 @@ describe('ConfigUpdaterService', () => {
     it('should detect project changes', async () => {
       const mockConfig = createMockConfig({
         project_metadata: {
+          project_path: '/test/project',
           initialization_hash: 'old-hash',
+          last_analysis: '2024-01-01T00:00:00Z',
         },
       });
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -645,7 +675,9 @@ describe('ConfigUpdaterService', () => {
     it('should detect no changes', async () => {
       const mockConfig = createMockConfig({
         project_metadata: {
+          project_path: '/test/project',
           initialization_hash: 'same-hash',
+          last_analysis: '2024-01-01T00:00:00Z',
         },
       });
       vi.mocked(fs.existsSync).mockReturnValue(true);

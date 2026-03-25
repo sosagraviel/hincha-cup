@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, readdirSync, statSync, copyFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
-import type { StackProfile } from './config-generator.js';
+import type { StackProfile } from '../schemas/index.js';
 
 /**
  * Skill Config Schema

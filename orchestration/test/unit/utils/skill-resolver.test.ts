@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveSkills, copyResolvedSkills, type ResolvedSkill, type SkillConfig } from '../../../src/utils/skill-resolver.js';
-import type { StackProfile } from '../../../src/utils/config-generator.js';
+import type { StackProfile } from '../../../src/schemas/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
 

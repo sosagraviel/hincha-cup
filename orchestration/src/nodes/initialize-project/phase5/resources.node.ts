@@ -12,7 +12,7 @@ import {
   copyResolvedSkills,
 } from "../../../utils/skill-resolver.js";
 import { generateAgents, writeAgents } from "../../../utils/agent-generator.js";
-import type { StackProfile } from "../../../utils/config-generator.js";
+import type { StackProfile } from "../../../schemas/index.js";
 import { logger } from "../../../utils/logger.js";
 
 /**

@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
-import type { FrameworkConfig, StackProfile, TestCommands, BuildCommands } from './project-config-reader.service.js';
+import type { FrameworkConfig, StackProfile } from '../../schemas/index.js';
+import type { TestCommands, BuildCommands } from './project-config-reader.service.js';
 
 /**
  * Command Execution Result
@@ -48,7 +49,8 @@ export class CommandResolverService {
 
     // Build commands from detected frameworks
     for (const [lang, frameworks] of Object.entries(testingFrameworks)) {
-      for (const framework of frameworks) {
+      const frameworkList = frameworks as string[];
+      for (const framework of frameworkList) {
         const frameworkLower = framework.toLowerCase();
 
         if (type === 'unit') {

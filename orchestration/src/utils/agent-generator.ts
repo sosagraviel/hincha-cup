@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, writeFileSync, readdirSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import Handlebars from 'handlebars';
-import type { StackProfile } from './config-generator.js';
+import type { StackProfile } from '../schemas/index.js';
 import type { ResolvedSkill } from './skill-resolver.js';
 
 // Register Handlebars helpers (matching bash implementation)

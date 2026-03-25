@@ -7,8 +7,8 @@
 
 import { resolveSkills, type ResolvedSkill } from '../../utils/skill-resolver.js';
 import { generateAgents, writeAgents, type GeneratedAgent } from '../../utils/agent-generator.js';
-import type { StackProfile } from '../../utils/config-generator.js';
-import { copyFileSync, mkdirSync, readdirSync, statSync, existsSync } from 'fs';
+import type { StackProfile } from '../../schemas/index.js';
+import { copyFileSync, mkdirSync, readdirSync, statSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 /**
@@ -110,7 +110,7 @@ export async function regenerateSingleAgent(
     }
 
     const frameworkConfig = JSON.parse(
-      require('fs').readFileSync(configPath, 'utf-8')
+      readFileSync(configPath, 'utf-8')
     );
     const stackProfile: StackProfile = frameworkConfig.stack_profile;
 
