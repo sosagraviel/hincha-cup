@@ -62,6 +62,7 @@ describe('dataFlowsIntegrationsAnalyzerNode', () => {
       frameworkPath: '/test/framework',
       additionalContext: '',
       timeout: 600000,
+      useUltrathink: true,
     });
   });
 

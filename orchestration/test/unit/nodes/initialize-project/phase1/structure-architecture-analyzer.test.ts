@@ -81,6 +81,7 @@ describe('structureArchitectureAnalyzerNode', () => {
       frameworkPath: '/test/framework',
       additionalContext: '',
       timeout: 600000,
+      useUltrathink: true,
     });
   });
 

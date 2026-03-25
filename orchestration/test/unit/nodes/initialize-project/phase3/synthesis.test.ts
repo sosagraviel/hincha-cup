@@ -107,6 +107,7 @@ describe('synthesisNode', () => {
       frameworkPath: '/test/framework',
       additionalContext: expect.stringContaining('CONSOLIDATED ANALYSIS FROM PHASE 2'),
       timeout: 600000,
+      useUltrathink: true,
     });
   });
 
