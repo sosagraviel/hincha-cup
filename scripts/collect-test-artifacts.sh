@@ -257,18 +257,22 @@ collect_coverage_reports() {
 collect_architecture_diagrams() {
     echo "Collecting architecture diagrams..."
 
-    # Generate architecture diagrams using the utility
+    # Generate architecture diagrams using orchestration
     if command -v node &>/dev/null; then
         echo "  → Generating architecture diagrams from git diff..."
 
         # Get base commit (previous commit or main branch)
         base_commit=$(git rev-parse HEAD~1 2>/dev/null || git rev-parse main 2>/dev/null || echo "HEAD~1")
 
-        # Run diagram generator
-        if node utils/documentation/generate-architecture-diagram.js \
+        # Determine project root
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+        # Run diagram generator via orchestration
+        if (cd "$PROJECT_ROOT/orchestration" && npm run generate-architecture-diagram -- \
             --base "$base_commit" \
             --head HEAD \
-            --ticket "$JIRA_KEY" 2>/dev/null; then
+            --ticket "$JIRA_KEY") 2>/dev/null; then
 
             # Copy diagrams to artifacts
             if [[ -d ".claude/diagrams" ]]; then
@@ -306,13 +310,18 @@ collect_architecture_diagrams() {
 collect_accuracy_report() {
     echo "Collecting accuracy report..."
 
-    # Generate accuracy percentage
+    # Generate accuracy percentage via orchestration
     if command -v node &>/dev/null; then
         echo "  → Calculating implementation accuracy..."
 
-        if node utils/artifacts/calculate-accuracy.js \
+        # Determine project root
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+        # Run accuracy calculator via orchestration
+        if (cd "$PROJECT_ROOT/orchestration" && npm run calculate-accuracy -- \
             --ticket "$JIRA_KEY" \
-            --output "$ARTIFACTS_DIR/reports/accuracy-report.md" 2>/dev/null; then
+            --output "$ARTIFACTS_DIR/reports/accuracy-report.md") 2>/dev/null; then
 
             accuracy_pct=$(jq -r '.accuracyPercentage' "$ARTIFACTS_DIR/reports/accuracy-report.json" 2>/dev/null || echo "N/A")
             echo "    ✓ Accuracy calculated: ${accuracy_pct}%"

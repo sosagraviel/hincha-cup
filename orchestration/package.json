@@ -14,6 +14,10 @@
     "dev": "tsx",
     "initialize": "tsx src/cli/initialize.ts",
     "implement": "tsx src/cli/implement.ts",
+    "save-checkpoint": "tsx src/scripts/save-checkpoint.ts",
+    "generate-architecture-diagram": "tsx src/scripts/generate-architecture-diagram.ts",
+    "calculate-accuracy": "tsx src/scripts/calculate-accuracy.ts",
+    "sync-framework-resources": "tsx src/scripts/sync-framework-resources.ts",
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration"
