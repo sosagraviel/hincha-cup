@@ -228,56 +228,92 @@ Use Grep to search for:
 
 ### 6. Testing Strategy
 
-**Search for test files using Glob:**
+**APPROACH: Two-step detection (frameworks first, then classification by content)**
 
-**JavaScript/TypeScript:**
-- `**/*.test.{js,jsx,ts,tsx}`
-- `**/*.spec.{js,jsx,ts,tsx}`
-- `**/__tests__/**/*.{js,jsx,ts,tsx}`
+**STEP 1: Detect testing frameworks from dependency manifests**
 
-**Python:**
-- `**/test_*.py`
-- `**/*_test.py`
-- `**/tests/**/*.py`
+Use Glob to find and Read dependency files to identify installed testing frameworks:
 
-**Go:**
-- `**/*_test.go`
+- **JavaScript/TypeScript**: Search `**/package.json` devDependencies
+- **Python**: Search `requirements.txt`, `pyproject.toml`, `Pipfile`
+- **Go**: Search `go.mod`, `go.sum`
+- **Rust**: Search `Cargo.toml`
+- **.NET**: Search `*.csproj`, `packages.config`
+- **Ruby**: Search `Gemfile`
+- **Java**: Search `pom.xml`, `build.gradle`
 
-**Rust:**
-- `**/tests/**/*.rs`
-- Check for `#[test]` attributes in `**/*.rs`
+**Common framework indicators:**
+- Unit/Integration: `jest`, `vitest`, `pytest`, `go test`, `xunit`, `junit`, `rspec`
+- E2E/Browser: `@playwright/test`, `cypress`, `selenium`, `puppeteer`, `capybara`
+- HTTP/API Testing: `supertest`, `requests`, `rest-assured`, `httptest`
+- Mocking: `jest`, `sinon`, `unittest.mock`, `mockito`, `moq`
 
-**Java:**
-- `**/src/test/java/**/*.java`
+**Also check test scripts in package.json (or Makefile, etc.):**
+- Scripts like `"test:e2e": "playwright test"` confirm E2E testing
+- Scripts like `"test:integration": "jest --config jest.e2e.config.js"` confirm integration tests
+- Scripts like `"test:unit": "vitest"` confirm unit tests
+- This helps validate what type of tests the project actually runs
 
-**Ruby:**
-- `**/spec/**/*_spec.rb`
+**STEP 2: Search for test files (flexible patterns per language)**
 
-**For EACH test file found, identify:**
+- **JS/TS**: `**/*.{test,spec}.{js,ts,tsx}`, `**/__tests__/**/*`
+- **Python**: `**/test_*.py`, `**/*_test.py`
+- **Go**: `**/*_test.go`
+- **Rust**: `**/tests/**/*.rs`
+- **Java**: `**/src/test/**/*.java`
+- **C#**: `**/*.Tests/*.cs`, `**/*.Test.cs`
+- **Ruby**: `**/spec/**/*_spec.rb`
 
-**Test framework:**
-- JavaScript: Jest, Vitest, Mocha, Jasmine, AVA
-- Python: Pytest, unittest, nose
-- Go: testing package, testify
-- Rust: built-in test, quickcheck
-- Java: JUnit, TestNG
-- Ruby: RSpec, Minitest
+**STEP 3: Classify test types by CONTENT (not location or naming)**
 
-**Test type classification:**
-- **Unit tests**: Test individual functions/classes in isolation
-- **Integration tests**: Test multiple components together
-- **E2E tests**: Test full application flows
-- **Component tests**: Test UI components in isolation
+Read a representative sample of test files (5-10 files) and classify based on what they import and test:
 
-**Count tests by type:**
-- Unit test count
-- Integration test count
-- E2E test count
+**E2E tests** - Identifies browser automation:
+- Look for imports: `@playwright/test`, `cypress`, `selenium`, `puppeteer`, `capybara`
+- Look for usage: `page.goto()`, `cy.visit()`, `browser.get()`, `driver.findElement()`
+- Tests user flows in a real browser
 
-**Test organization:**
-- One test file per source file
-- Grouped by feature
-- Separate test directories by type
+**Integration tests** - Identifies HTTP/API testing or multi-component tests:
+- Look for imports: `supertest`, `axios`, `fetch`, `requests`, `net/http/httptest`, `rest-assured`
+- Look for usage: `request(app).get()`, `http.get()`, `requests.post()`, database connections
+- Tests multiple services/modules working together
+- May test API endpoints, database integration, external services
+
+**Unit tests** - Identifies isolated testing with mocks:
+- Look for imports: `jest`, `vitest`, `pytest`, `go test`, mocking libraries
+- Look for usage: `jest.fn()`, `mock.Mock()`, `when(mockService)`, test doubles
+- Tests single functions/classes in isolation
+- Dependencies are mocked/stubbed
+
+**Be flexible:**
+- Projects organize tests differently - use content as source of truth, not folder names
+- A test in an "e2e" folder might actually be integration if it only tests HTTP APIs
+- A test with no specific folder might be E2E if it uses Playwright
+- Focus on WHAT the test does, not WHERE it lives
+
+**Output format (report presence, not exact counts):**
+
+```json
+{
+  "frameworks": {
+    "unit": "Jest" | "Pytest" | "go test" | null,
+    "integration": "Jest + Supertest" | "Pytest" | null,
+    "e2e": "Playwright" | "Cypress" | null
+  },
+  "test_counts": {
+    "unit": <number or "present" if hard to count>,
+    "integration": <number or "present" if hard to count>,
+    "e2e": <number or "present" if hard to count>,
+    "total": <total test files found>
+  },
+  "test_organization": "<describe actual organization>",
+  "test_file_examples": ["<paths to representative test files>"]
+}
+```
+
+**If frameworks exist but no tests found:**
+- Report: "Testing framework configured but not yet implemented"
+- Do NOT mark as needs_verification - this is a clear finding
 
 ### 7. Test Patterns and Practices
 
