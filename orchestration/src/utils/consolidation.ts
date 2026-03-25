@@ -49,7 +49,6 @@ export function consolidateAnalyses(analyzers: AnalyzerOutput[]): Phase2Consolid
     throw new Error(`Expected 4 analyzer outputs, got ${analyzers.length}`);
   }
 
-  // Merge all findings
   const consolidated_findings: Record<string, any> = {};
 
   analyzers.forEach(analyzer => {
@@ -62,19 +61,16 @@ export function consolidateAnalyses(analyzers: AnalyzerOutput[]): Phase2Consolid
     };
   });
 
-  // Find overlaps (multiple agents reporting same findings)
   const overlaps = findOverlaps(analyzers);
   if (overlaps.length > 0) {
     consolidated_findings.overlaps = overlaps;
   }
 
-  // Identify gaps
   const gaps = identifyGaps(analyzers);
   const identified_gaps = gaps.length > 0
     ? gaps.map(g => `${g.agent}: ${g.item}${g.question ? ` (${g.question})` : ''}`)
     : undefined;
 
-  // Detect conflicts
   const conflicts = detectConflicts(analyzers);
   const conflicting_findings = conflicts.length > 0
     ? conflicts.map(c => `${c.type} between ${c.agents.join(', ')}`)
@@ -116,7 +112,6 @@ function normalizeAgentName(agentName: string): string {
 function findOverlaps(analyzers: AnalyzerOutput[]): Overlap[] {
   const overlaps: Overlap[] = [];
 
-  // Collect all findings by category
   const allFindings = analyzers.flatMap(analyzer => {
     return Object.entries(analyzer.findings || {}).map(([category, items]) => ({
       agent: analyzer.agent_name,
@@ -125,7 +120,6 @@ function findOverlaps(analyzers: AnalyzerOutput[]): Overlap[] {
     }));
   });
 
-  // Group by category
   const byCategory: Record<string, typeof allFindings> = {};
   allFindings.forEach(finding => {
     if (!byCategory[finding.category]) {
@@ -134,7 +128,6 @@ function findOverlaps(analyzers: AnalyzerOutput[]): Overlap[] {
     byCategory[finding.category].push(finding);
   });
 
-  // Find categories mentioned by multiple agents (high confidence)
   Object.entries(byCategory).forEach(([category, findings]) => {
     if (findings.length > 1) {
       overlaps.push({
@@ -155,7 +148,6 @@ function findOverlaps(analyzers: AnalyzerOutput[]): Overlap[] {
 function identifyGaps(analyzers: AnalyzerOutput[]): Gap[] {
   const gaps: Gap[] = [];
 
-  // Check for needs_verification markers from agents
   analyzers.forEach(analyzer => {
     if (analyzer.needs_verification && analyzer.needs_verification.length > 0) {
       analyzer.needs_verification.forEach(item => {
@@ -179,7 +171,6 @@ function identifyGaps(analyzers: AnalyzerOutput[]): Gap[] {
     }
   });
 
-  // Check for sparse findings (< 3 categories)
   analyzers.forEach(analyzer => {
     const findingsCount = Object.keys(analyzer.findings || {}).length;
     if (findingsCount < 3) {
@@ -220,7 +211,6 @@ function removeExactDuplicates(gaps: Gap[]): Gap[] {
 function detectConflicts(analyzers: AnalyzerOutput[]): Conflict[] {
   const conflicts: Conflict[] = [];
 
-  // Extract tech stacks from all analyzers
   const techStacks = analyzers
     .filter(a =>
       (a.findings as any)?.tech_stack ||
@@ -234,7 +224,6 @@ function detectConflicts(analyzers: AnalyzerOutput[]): Conflict[] {
     }));
 
   if (techStacks.length > 1) {
-    // Check for language conflicts
     const allLanguages = new Set<string>();
     const languagesByAgent: Record<string, string[]> = {};
 
@@ -244,7 +233,6 @@ function detectConflicts(analyzers: AnalyzerOutput[]): Conflict[] {
       languagesByAgent[stack.agent] = langs.map(String);
     });
 
-    // If agents report different languages, it's a conflict
     const uniqueAgents = Object.keys(languagesByAgent);
     if (uniqueAgents.length > 1) {
       const firstLangs = new Set(languagesByAgent[uniqueAgents[0]]);

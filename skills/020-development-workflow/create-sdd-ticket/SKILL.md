@@ -26,6 +26,39 @@ last_updated: 2026-03-08
 
 ---
 
+## ⚠️ Migration Notice
+
+> **This functionality has been migrated to the TypeScript orchestration module.**
+>
+> ### New Approach (Orchestration CLI)
+>
+> ```bash
+> # From project root
+> cd orchestration
+> npm run create-sdd-ticket -- --source jira PROJ-123
+> ```
+>
+> ### Orchestration Implementation
+>
+> The utilities referenced in this skill have been migrated to:
+> - **Ticket Parsing**: `orchestration/src/nodes/implement-ticket/phase1-context.node.ts`
+> - **Gap Detection**: `orchestration/src/services/gap-questions.service.ts`
+> - **Validation**: `orchestration/src/utils/validator.ts`
+> - **Formatting**: `orchestration/src/nodes/implement-ticket/phase8-pr.node.ts`
+>
+> ### Direct API Usage (TypeScript)
+>
+> ```typescript
+> import { validateTicket } from './orchestration/src/utils/validator.js';
+> import { GapQuestionsService } from './orchestration/src/services/gap-questions.service.js';
+>
+> // Use orchestration services directly in TypeScript
+> ```
+>
+> **The examples below reference the deprecated `utils/` folder for historical context.**
+
+---
+
 ## Overview
 
 This skill produces gap-free, implementation-ready tickets by:
@@ -505,7 +538,7 @@ All tickets follow this schema (see `schemas/sdd-ticket.schema.json`):
 
 ## Markdown Template Structure
 
-Output follows `templates/sdd-ticket-template.md`:
+Output follows `./templates/sdd-ticket-template.md`:
 
 ```markdown
 # PROJ-123: [Title]
@@ -876,7 +909,7 @@ Before finalizing, validate:
 ## References
 
 - `schemas/sdd-ticket.schema.json` - Canonical ticket schema
-- `templates/sdd-ticket-template.md` - Markdown template
+- `./templates/sdd-ticket-template.md` - Markdown template
 - `utils/ticket-io/` - All parsers, formatters, validators
 - SPECIFICATION_DRIVEN_DEVELOPMENT_GUIDE.md
 - INVEST criteria: https://en.wikipedia.org/wiki/INVEST_(mnemonic)

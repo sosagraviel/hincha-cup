@@ -110,6 +110,7 @@ When merging `reason` fields:
 **Output:**
 ```json
 {
+  "agent": "02-tech-stack-dependencies",
   "item": "Environment variables",
   "question": "What environment variables are required for production deployment and external API integrations?",
   "reason": "Multiple agents identified environment configuration needs: production deployment (found .env.example but production config unclear); external API integrations (multiple API clients found without clear configuration)",
@@ -148,6 +149,7 @@ When merging `reason` fields:
 ```json
 [
   {
+    "agent": "03-code-patterns-testing",
     "item": "Test coverage thresholds",
     "question": "What test coverage thresholds should be enforced?",
     "reason": "Testing framework found but no coverage configuration",
@@ -157,6 +159,7 @@ When merging `reason` fields:
     "original_count": 1
   },
   {
+    "agent": "01-structure-architecture",
     "item": "Database connection",
     "question": "How is database authentication configured?",
     "reason": "Database ORM found but connection details unclear",
@@ -204,6 +207,7 @@ When merging `reason` fields:
 ```json
 [
   {
+    "agent": "02-tech-stack-dependencies",
     "item": "Environment variables and API keys",
     "question": "What environment variables and API keys are required for the application?",
     "reason": "Multiple agents identified configuration requirements: environment variables (found .env.example); external service integrations (multiple external service integrations found requiring API keys)",
@@ -213,6 +217,7 @@ When merging `reason` fields:
     "original_count": 2
   },
   {
+    "agent": "01-structure-architecture",
     "item": "Database schema",
     "question": "How are database migrations managed?",
     "reason": "No migration files found",
@@ -234,6 +239,7 @@ Return JSON matching this structure:
 {
   "consolidated_gaps": [
     {
+      "agent": "agent-name-from-consolidated_from-array-first-element",
       "item": "Short descriptive name",
       "question": "Clear, actionable question ending with ?",
       "reason": "Combined context from all relevant agents",
@@ -267,7 +273,12 @@ Return JSON matching this structure:
 3. **Preserve Specificity**: Don't make consolidated questions too generic or vague
 4. **Maintain Actionability**: Consolidated questions must remain clear and answerable
 5. **Document Reasoning**: Show which gaps were consolidated together in metadata
-6. **Question Format - CRITICAL**:
+6. **Agent Field Population - CRITICAL**:
+   - ALWAYS include the `agent` field in every consolidated gap
+   - Use the FIRST agent name from the `consolidated_from` array as the value for `agent`
+   - This represents the primary source agent for the question
+   - Even for single-agent gaps, populate both `agent` and `consolidated_from` fields
+7. **Question Format - CRITICAL**:
    - Every question MUST end with a question mark (?)
    - DO NOT add follow-up instructions after the question mark
    - DO NOT end questions with periods, parentheses, or other punctuation

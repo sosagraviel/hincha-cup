@@ -40,3 +40,5 @@ orchestration/dist
 orchestration/.claude-temp
 orchestration/orchestration-checkpoints.db
 dist
+coverage
+.coverage-test.json

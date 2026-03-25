@@ -1,115 +1,375 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { LLMFactory } from '../../src/llm/llm-factory.js';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { LLMFactory, getLLMFactory } from '../../../src/llm/llm-factory.js';
+import { writeFileSync, mkdirSync, rmSync } from 'fs';
+import { join } from 'path';
 
 describe('LLMFactory', () => {
+  const originalEnv = process.env;
+  const testConfigPath = join(process.cwd(), 'test', 'fixtures', 'test-model-config.json');
+
   beforeEach(() => {
-    // Clear environment variables
-    delete process.env.MODEL_PLANNER;
-    delete process.env.MODEL_IMPLEMENTER;
-    process.env.NODE_ENV = 'development';
+    process.env = { ...originalEnv };
+    delete process.env.MODEL_TIER;
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.GOOGLE_API_KEY;
+
+    mkdirSync(join(process.cwd(), 'test', 'fixtures'), { recursive: true });
+
+    const testConfig = {
+      version: '1.0.0',
+      modelAliases: {
+        'test-sonnet': {
+          provider: 'anthropic',
+          modelId: 'claude-sonnet-4-6',
+          description: 'Test Sonnet',
+          capabilities: ['code'],
+          contextWindow: 200000
+        },
+        'test-gpt': {
+          provider: 'openai',
+          modelId: 'gpt-5.4-2026-03-05',
+          description: 'Test GPT',
+          capabilities: ['code'],
+          contextWindow: 128000
+        },
+        'test-gemini': {
+          provider: 'google',
+          modelId: 'gemini-3.1-pro-preview',
+          description: 'Test Gemini',
+          capabilities: ['code'],
+          contextWindow: 1000000
+        }
+      },
+      tiers: {
+        standard: {
+          description: 'Standard tier',
+          provider: 'anthropic',
+          agents: {
+            planner: 'test-sonnet',
+            implementer: 'test-sonnet'
+          }
+        },
+        openai: {
+          description: 'OpenAI tier',
+          provider: 'openai',
+          agents: {
+            planner: 'test-gpt',
+            implementer: 'test-gpt'
+          }
+        },
+        gemini: {
+          description: 'Gemini tier',
+          provider: 'google',
+          agents: {
+            planner: 'test-gemini',
+            implementer: 'test-gemini'
+          }
+        }
+      },
+      providerConfig: {
+        anthropic: {
+          apiKeyEnv: 'ANTHROPIC_API_KEY',
+          defaultTemperature: 0,
+          defaultMaxTokens: 4096,
+          headers: {
+            'anthropic-beta': 'test-header'
+          }
+        },
+        openai: {
+          apiKeyEnv: 'OPENAI_API_KEY',
+          defaultTemperature: 0,
+          defaultMaxTokens: 4096,
+          baseURL: 'https://api.openai.com/v1'
+        },
+        google: {
+          apiKeyEnv: 'GOOGLE_API_KEY',
+          defaultTemperature: 0,
+          defaultMaxTokens: 8192
+        }
+      }
+    };
+
+    writeFileSync(testConfigPath, JSON.stringify(testConfig, null, 2));
   });
 
-  describe('Model Alias Resolution', () => {
-    it('should resolve simple alias', () => {
-      const factory = new LLMFactory();
-      const info = factory.getModelInfo('sonnet-latest');
-      
-      expect(info.resolvedAlias).toBe('sonnet-latest');
-      expect(info.provider).toBe('anthropic');
-      expect(info.modelId).toBe('claude-sonnet-4-5-20250929');
+  afterEach(() => {
+    process.env = originalEnv;
+    try {
+      rmSync(join(process.cwd(), 'test', 'fixtures'), { recursive: true, force: true });
+    } catch {}
+  });
+
+  describe('Constructor', () => {
+    it('should create factory with custom config path', () => {
+      const factory = new LLMFactory(testConfigPath);
+      expect(factory).toBeDefined();
     });
 
-    it('should resolve alias with agent context', () => {
-      const factory = new LLMFactory();
-      const info = factory.getModelInfo('sonnet-latest', { agent: 'planner' });
-      
-      expect(info.resolvedAlias).toBe('sonnet-latest');
-      expect(info.provider).toBe('anthropic');
+    it('should use standard tier by default', () => {
+      const factory = new LLMFactory(testConfigPath);
+      expect(factory.getCurrentTier()).toBe('standard');
     });
 
-    it('should apply CLI override', () => {
-      process.env.MODEL_PLANNER = 'opus-latest';
-      
-      const factory = new LLMFactory();
-      const info = factory.getModelInfo('sonnet-latest', { agent: 'planner' });
-      
-      expect(info.resolvedAlias).toBe('opus-latest');
-      expect(info.modelId).toBe('claude-opus-4-5-20251101');
+    it('should use tier from MODEL_TIER env var', () => {
+      process.env.MODEL_TIER = 'openai';
+      const factory = new LLMFactory(testConfigPath);
+      expect(factory.getCurrentTier()).toBe('openai');
     });
 
-    it('should apply environment overrides', () => {
-      process.env.NODE_ENV = 'development';
-      
-      const factory = new LLMFactory();
-      const info = factory.getModelInfo('sonnet-latest', { agent: 'planner' });
-      
-      // Development env uses haiku-latest for planner
-      expect(info.resolvedAlias).toBe('haiku-latest');
-      expect(info.modelId).toBe('claude-haiku-4-20250514');
-    });
-
-    it('should list all available aliases', () => {
-      const factory = new LLMFactory();
-      const aliases = factory.listAliases();
-      
-      expect(aliases).toContain('sonnet-latest');
-      expect(aliases).toContain('haiku-latest');
-      expect(aliases).toContain('opus-latest');
-      expect(aliases).toContain('gpt4-latest');
-      expect(aliases).toContain('gemini-latest');
+    it('should throw error for unknown tier', () => {
+      process.env.MODEL_TIER = 'unknown-tier';
+      expect(() => new LLMFactory(testConfigPath)).toThrow(
+        /Unknown tier: unknown-tier/
+      );
     });
   });
 
-  describe('Model Creation', () => {
-    it('should create Anthropic model instance', async () => {
+  describe('createModel', () => {
+    it('should create Anthropic model', async () => {
       process.env.ANTHROPIC_API_KEY = 'test-key';
-      
-      const factory = new LLMFactory();
-      const model = await factory.createModel('sonnet-latest');
-      
+      const factory = new LLMFactory(testConfigPath);
+
+      const model = await factory.createModel('planner');
+
       expect(model).toBeDefined();
       expect(model.constructor.name).toContain('ChatAnthropic');
     });
 
-    it('should throw error when API key missing', async () => {
-      delete process.env.ANTHROPIC_API_KEY;
-      
-      const factory = new LLMFactory();
-      
-      await expect(factory.createModel('sonnet-latest')).rejects.toThrow(
-        'API key not found'
+    it('should create OpenAI model', async () => {
+      process.env.MODEL_TIER = 'openai';
+      process.env.OPENAI_API_KEY = 'test-key';
+      const factory = new LLMFactory(testConfigPath);
+
+      const model = await factory.createModel('planner');
+
+      expect(model).toBeDefined();
+      expect(model.constructor.name).toContain('ChatOpenAI');
+    });
+
+    it('should create Google model', async () => {
+      process.env.MODEL_TIER = 'gemini';
+      process.env.GOOGLE_API_KEY = 'test-key';
+      const factory = new LLMFactory(testConfigPath);
+
+      const model = await factory.createModel('planner');
+
+      expect(model).toBeDefined();
+      expect(model.constructor.name).toContain('ChatGoogleGenerativeAI');
+    });
+
+    it('should cache models', async () => {
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      const factory = new LLMFactory(testConfigPath);
+
+      const model1 = await factory.createModel('planner');
+      const model2 = await factory.createModel('planner');
+
+      expect(model1).toBe(model2);
+    });
+
+    it('should create different instances for different overrides', async () => {
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      const factory = new LLMFactory(testConfigPath);
+
+      const model1 = await factory.createModel('planner');
+      const model2 = await factory.createModel('planner', { temperature: 0.5 });
+
+      expect(model1).not.toBe(model2);
+    });
+
+    it('should apply temperature override', async () => {
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      const factory = new LLMFactory(testConfigPath);
+
+      const model = await factory.createModel('planner', { temperature: 0.7 });
+
+      expect(model).toBeDefined();
+    });
+
+    it('should apply maxTokens override', async () => {
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      const factory = new LLMFactory(testConfigPath);
+
+      const model = await factory.createModel('planner', { maxTokens: 8192 });
+
+      expect(model).toBeDefined();
+    });
+
+    it('should throw error for unknown agent', async () => {
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      const factory = new LLMFactory(testConfigPath);
+
+      await expect(factory.createModel('unknown-agent')).rejects.toThrow(
+        /No model configured for agent 'unknown-agent'/
       );
     });
 
     it('should throw error for unknown alias', async () => {
-      const factory = new LLMFactory();
-      
-      await expect(factory.createModel('unknown-alias')).rejects.toThrow(
-        'Unknown model alias: unknown-alias'
+      const testConfig = JSON.parse(readFileSync(testConfigPath, 'utf-8'));
+      testConfig.tiers.standard.agents.planner = 'unknown-alias';
+      writeFileSync(testConfigPath, JSON.stringify(testConfig));
+
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      const factory = new LLMFactory(testConfigPath);
+
+      await expect(factory.createModel('planner')).rejects.toThrow(
+        /Unknown model alias: unknown-alias/
+      );
+    });
+
+    it('should throw error when API key is missing', async () => {
+      const factory = new LLMFactory(testConfigPath);
+
+      await expect(factory.createModel('planner')).rejects.toThrow(
+        /API key not found in environment variable: ANTHROPIC_API_KEY/
       );
     });
   });
 
-  describe('Provider Support', () => {
-    it('should support Anthropic provider', () => {
-      const factory = new LLMFactory();
-      const info = factory.getModelInfo('sonnet-latest');
-      
+  describe('getModelInfo', () => {
+    it('should return model information', () => {
+      const factory = new LLMFactory(testConfigPath);
+
+      const info = factory.getModelInfo('planner');
+
+      expect(info.tier).toBe('standard');
+      expect(info.alias).toBe('test-sonnet');
       expect(info.provider).toBe('anthropic');
+      expect(info.modelId).toBe('claude-sonnet-4-6');
+      expect(info.contextWindow).toBe(200000);
     });
 
-    it('should support OpenAI provider', () => {
-      const factory = new LLMFactory();
-      const info = factory.getModelInfo('gpt4-latest');
-      
-      expect(info.provider).toBe('openai');
+    it('should return info for different agents', () => {
+      const factory = new LLMFactory(testConfigPath);
+
+      const info = factory.getModelInfo('implementer');
+
+      expect(info.alias).toBe('test-sonnet');
     });
 
-    it('should support Google provider', () => {
-      const factory = new LLMFactory();
-      const info = factory.getModelInfo('gemini-latest');
-      
-      expect(info.provider).toBe('google');
+    it('should throw error for unknown agent', () => {
+      const factory = new LLMFactory(testConfigPath);
+
+      expect(() => factory.getModelInfo('unknown-agent')).toThrow(
+        /No model configured for agent 'unknown-agent'/
+      );
+    });
+
+    it('should throw error for unknown alias', () => {
+      const testConfig = JSON.parse(readFileSync(testConfigPath, 'utf-8'));
+      testConfig.tiers.standard.agents.planner = 'unknown-alias';
+      writeFileSync(testConfigPath, JSON.stringify(testConfig));
+
+      const factory = new LLMFactory(testConfigPath);
+
+      expect(() => factory.getModelInfo('planner')).toThrow(
+        /Unknown model alias: unknown-alias/
+      );
+    });
+  });
+
+  describe('listAliases', () => {
+    it('should list all available aliases', () => {
+      const factory = new LLMFactory(testConfigPath);
+
+      const aliases = factory.listAliases();
+
+      expect(aliases).toContain('test-sonnet');
+      expect(aliases).toContain('test-gpt');
+      expect(aliases).toContain('test-gemini');
+      expect(aliases.length).toBe(3);
+    });
+  });
+
+  describe('getEffectiveProvider', () => {
+    it('should return effective provider for current tier', () => {
+      const factory = new LLMFactory(testConfigPath);
+
+      const provider = factory.getEffectiveProvider();
+
+      expect(provider).toBe('anthropic');
+    });
+
+    it('should return correct provider for different tiers', () => {
+      process.env.MODEL_TIER = 'openai';
+      const factory = new LLMFactory(testConfigPath);
+
+      const provider = factory.getEffectiveProvider();
+
+      expect(provider).toBe('openai');
+    });
+  });
+
+  describe('listTiers', () => {
+    it('should list all available tiers', () => {
+      const factory = new LLMFactory(testConfigPath);
+
+      const tiers = factory.listTiers();
+
+      expect(tiers).toContain('standard');
+      expect(tiers).toContain('openai');
+      expect(tiers).toContain('gemini');
+      expect(tiers.length).toBe(3);
+    });
+  });
+
+  describe('getCurrentTier', () => {
+    it('should return current tier', () => {
+      const factory = new LLMFactory(testConfigPath);
+
+      const tier = factory.getCurrentTier();
+
+      expect(tier).toBe('standard');
+    });
+
+    it('should return tier from env var', () => {
+      process.env.MODEL_TIER = 'openai';
+      const factory = new LLMFactory(testConfigPath);
+
+      const tier = factory.getCurrentTier();
+
+      expect(tier).toBe('openai');
+    });
+  });
+
+  describe('getTierMapping', () => {
+    it('should return agent-to-alias mapping for current tier', () => {
+      const factory = new LLMFactory(testConfigPath);
+
+      const mapping = factory.getTierMapping();
+
+      expect(mapping.planner).toBe('test-sonnet');
+      expect(mapping.implementer).toBe('test-sonnet');
+    });
+
+    it('should return mapping for different tier', () => {
+      process.env.MODEL_TIER = 'openai';
+      const factory = new LLMFactory(testConfigPath);
+
+      const mapping = factory.getTierMapping();
+
+      expect(mapping.planner).toBe('test-gpt');
+    });
+  });
+
+  describe('getLLMFactory singleton', () => {
+    it('should return singleton instance', () => {
+      const factory1 = getLLMFactory(testConfigPath);
+      const factory2 = getLLMFactory(testConfigPath);
+
+      expect(factory1).toBe(factory2);
+    });
+
+    it('should create new instance on first call', () => {
+      const factory = getLLMFactory(testConfigPath);
+
+      expect(factory).toBeDefined();
+      expect(factory.getCurrentTier()).toBe('standard');
     });
   });
 });
+
+function readFileSync(path: string, encoding: string) {
+  return require('fs').readFileSync(path, encoding);
+}

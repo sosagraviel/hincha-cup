@@ -8,7 +8,6 @@ set -e
 # Read the agent's output
 OUTPUT=$(cat)
 
-# Validation function
 validate_synthesis() {
   local content="$1"
   local issues=()
@@ -116,7 +115,6 @@ validate_synthesis() {
   return 0
 }
 
-# Validate the output
 if validate_synthesis "$OUTPUT"; then
   # Validation passed - allow the output
   echo "$OUTPUT"

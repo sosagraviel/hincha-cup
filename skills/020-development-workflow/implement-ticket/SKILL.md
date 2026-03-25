@@ -9,6 +9,32 @@ context: inline
 
 # Implement Ticket V2 - Production Autonomous Workflow
 
+## ⚠️ Migration Notice
+
+> **This skill now uses the TypeScript orchestration module.**
+>
+> ### New Approach (Orchestration CLI)
+>
+> ```bash
+> # From project root
+> cd orchestration
+> npm run implement -- --from-jira PROJ-123
+> ```
+>
+> ### Orchestration Implementation
+>
+> The utilities referenced below have been migrated to `orchestration/src/`:
+> - **Stack Detection**: `services/implement-ticket/project-config-reader.service.ts`
+> - **Test Framework Detection**: `services/implement-ticket/test-orchestrator.service.ts`
+> - **Environment Management**: `services/implement-ticket/environment-manager.service.ts`
+> - **Screenshot Capture**: `services/implement-ticket/screenshot.service.ts`
+> - **Test Orchestration**: `services/implement-ticket/test-orchestrator.service.ts`
+> - **Artifact Collection**: `services/implement-ticket/artifact-collector.service.ts`
+>
+> **The utility paths in the tables below reference deprecated locations for historical context.**
+
+---
+
 Complete SDLC workflow with:
 - ✅ Stack-agnostic testing (TypeScript, Python, Go, Java, Rust, Ruby)
 - ✅ Automated E2E framework initialization (Playwright)

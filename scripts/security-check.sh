@@ -122,9 +122,9 @@ check_secrets() {
   fi
 
   # Check environment variables are validated
-  if grep -r "process\.env\." utils/ 2>/dev/null | grep -q .; then
+  if grep -r "process\.env\." orchestration/src/ 2>/dev/null | grep -q .; then
     local has_validation=false
-    if grep -r "throw.*Error.*environment" utils/ 2>/dev/null | grep -q .; then
+    if grep -r "throw.*Error.*environment" orchestration/src/ 2>/dev/null | grep -q .; then
       has_validation=true
     fi
 
@@ -155,9 +155,9 @@ check_input_validation() {
 
   local found_unsafe=false
   for pattern in "${unsafe_patterns[@]}"; do
-    if grep -r -E "$pattern" utils/ 2>/dev/null | grep -q .; then
+    if grep -r -E "$pattern" orchestration/src/ 2>/dev/null | grep -q .; then
       fail "Potential command injection: $pattern"
-      grep -r -E "$pattern" utils/ 2>/dev/null | head -2
+      grep -r -E "$pattern" orchestration/src/ 2>/dev/null | head -2
       found_unsafe=true
     fi
   done
@@ -169,16 +169,16 @@ check_input_validation() {
   # Check for path traversal
   info "Checking for path traversal risks..."
 
-  if grep -r "path\.join.*\.\." utils/ 2>/dev/null | grep -q .; then
+  if grep -r "path\.join.*\.\." orchestration/src/ 2>/dev/null | grep -q .; then
     warn "Potential path traversal with '..' found"
-    grep -r "path\.join.*\.\." utils/ 2>/dev/null | head -2
+    grep -r "path\.join.*\.\." orchestration/src/ 2>/dev/null | head -2
   else
     pass "No path traversal patterns found"
   fi
 
   # Check ticket key validation
-  if grep -r "ticketKey" utils/ 2>/dev/null | grep -q .; then
-    if grep -r "PROJ-[0-9]" utils/ 2>/dev/null | grep -q .; then
+  if grep -r "ticketKey" orchestration/src/ 2>/dev/null | grep -q .; then
+    if grep -r "PROJ-[0-9]" orchestration/src/ 2>/dev/null | grep -q .; then
       pass "Ticket key format validation present"
     else
       warn "Ticket keys used but format validation not found"
@@ -341,17 +341,17 @@ check_code_injection() {
   section "6. Code Injection Prevention"
 
   # Check for eval usage
-  if grep -r "eval(" utils/ 2>/dev/null | grep -v "security-check.sh" | grep -q .; then
+  if grep -r "eval(" orchestration/src/ 2>/dev/null | grep -v "security-check.sh" | grep -q .; then
     critical "eval() usage found (code injection risk)"
-    grep -r "eval(" utils/ 2>/dev/null | grep -v "security-check.sh" | head -3
+    grep -r "eval(" orchestration/src/ 2>/dev/null | grep -v "security-check.sh" | head -3
   else
     pass "No eval() usage found"
   fi
 
   # Check for Function constructor
-  if grep -r "new Function(" utils/ 2>/dev/null | grep -q .; then
+  if grep -r "new Function(" orchestration/src/ 2>/dev/null | grep -q .; then
     fail "Function constructor found (code injection risk)"
-    grep -r "new Function(" utils/ 2>/dev/null | head -2
+    grep -r "new Function(" orchestration/src/ 2>/dev/null | head -2
   else
     pass "No Function constructor usage found"
   fi
@@ -383,9 +383,9 @@ check_logging() {
 
   local found_sensitive_log=false
   for pattern in "${sensitive_log_patterns[@]}"; do
-    if grep -r -i -E "$pattern" utils/ 2>/dev/null | grep -v "security-check.sh" | grep -q .; then
+    if grep -r -i -E "$pattern" orchestration/src/ 2>/dev/null | grep -v "security-check.sh" | grep -q .; then
       warn "Potential sensitive data logging: $pattern"
-      grep -r -i -E "$pattern" utils/ 2>/dev/null | grep -v "security-check.sh" | head -2
+      grep -r -i -E "$pattern" orchestration/src/ 2>/dev/null | grep -v "security-check.sh" | head -2
       found_sensitive_log=true
     fi
   done
@@ -417,7 +417,7 @@ check_access_control() {
   section "8. Access Control"
 
   # Check if utilities validate user permissions
-  if grep -r "process\.getuid" utils/ 2>/dev/null | grep -q .; then
+  if grep -r "process\.getuid" orchestration/src/ 2>/dev/null | grep -q .; then
     pass "User ID checks present"
   else
     info "No explicit user permission checks (may be intentional)"
@@ -475,10 +475,10 @@ show_summary() {
 main() {
   echo -e "${BLUE}"
   echo "╔═══════════════════════════════════════════════════════╗"
-  echo "║         AI Store Security Check Utility               ║"
+  echo "║         Agentic Framework Security Check Utility      ║"
   echo "║                                                       ║"
-  echo "║  Validates security best practices for autonomous    ║"
-  echo "║  workflows and prevents common vulnerabilities       ║"
+  echo "║  Validates security best practices for autonomous     ║"
+  echo "║  workflows and prevents common vulnerabilities        ║"
   echo "╚═══════════════════════════════════════════════════════╝"
   echo -e "${NC}"
 

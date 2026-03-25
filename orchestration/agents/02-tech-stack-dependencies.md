@@ -1,12 +1,10 @@
 ---
 name: tech-stack-dependencies-analyzer
-model: haiku
 description: Analyzes dependencies, versions, CI/CD pipelines, deployment configuration, and environment setup
 subagent_type: Explore
 run_in_background: true
 tools: Read, Grep, Glob
 output_format: json
-output_schema: config/schemas/phase1-analysis.schema.json
 max_needs_verification: 3
 user-prompt-submit-hook: npx tsx ./hooks/validate-analyzer-json.ts
 ---
@@ -47,6 +45,26 @@ ONLY use [NEEDS_VERIFICATION] for things that are genuinely unknowable from code
 
 Example GOOD question: "What environment variables are required for production? Please list them with descriptions."
 Example BAD question: "Environment variables" (not a question - WRONG!)
+
+## CRITICAL MINDSET - Search systematically before reporting "none"
+
+**Most projects have dependencies, build tools, and configurations. Verify thoroughly before reporting "none".**
+
+Before finalizing your analysis, verify:
+
+- ❌ **Dependencies: "none" or empty?** → IMPOSSIBLE. All working projects have dependencies. Use Glob with broad patterns: `**/package.json`, `**/requirements*.txt`, `**/Pipfile`, `**/pyproject.toml`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`, `**/build.gradle*`, `**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/pubspec.yaml`, `**/mix.exs`. Then READ each file found.
+
+- ⚠️ **Build tools: "none"?** → Verify thoroughly. Check: package.json scripts section, Makefile, build.gradle, Cargo.toml build profiles, pyproject.toml build-system, docker-compose.yml, justfile, task files. Some simple projects may not have formal build tools.
+
+- ⚠️ **CI/CD: "none"?** → Search before concluding. Use Glob: `.github/workflows/**/*.{yml,yaml}`, `.gitlab-ci.yml`, `.circleci/**`, `Jenkinsfile`, `**/azure-pipelines*.yml`, `.travis.yml`, `bitbucket-pipelines.yml`, `.buildkite/**`. Not all projects use CI/CD (especially internal/personal projects).
+
+- ⚠️ **Infrastructure: empty array?** → Check common patterns. Search for: `Dockerfile*`, `docker-compose*.yml`, `**/k8s/**`, `**/kubernetes/**`, `**/*.tf`, `Vagrantfile`, `serverless.yml`, `Pulumi.yaml`, `ansible.cfg`, `Berksfile`, `Puppetfile`. Simple apps may not have infrastructure-as-code.
+
+- ⚠️ **Databases: "none"?** → Verify in dependencies. Database clients appear as dependencies. Search for: postgres/pg/psycopg2, mysql/mysql2, mongodb/mongoose/pymongo, redis/ioredis, sqlite3, prisma, typeorm, sequelize, sqlalchemy, gorm, diesel, activerecord. Some projects are database-free (static sites, CLIs).
+
+- ⚠️ **External services: "none"?** → Read dependencies thoroughly. Look for: AWS SDK, Google Cloud, Azure SDK, Stripe, Twilio, SendGrid, Auth0, Firebase, Sentry, DataDog. Not all projects use external services.
+
+**Your job is to be THOROUGH. Use Glob with multiple patterns, then READ files to extract details. Search systematically before reporting "none".**
 
 ## CRITICAL: Multi-Stack & Monorepo Analysis
 
@@ -95,8 +113,6 @@ Example BAD question: "Environment variables" (not a question - WRONG!)
 **NEVER assume a project has only one language. ALWAYS search recursively across the entire directory tree.**
 
 ## Analysis Tasks
-
-Analyze the codebase at $ARGUMENTS (or the current working directory if empty).
 
 ### 1. Dependency Management
 

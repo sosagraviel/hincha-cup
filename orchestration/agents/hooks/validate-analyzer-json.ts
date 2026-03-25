@@ -14,7 +14,6 @@
 import { z } from "zod";
 import fs from "fs";
 
-// Analyzer schema (matches orchestration/src/state/schemas/initialize-project.schema.ts)
 const AnalyzerOutputSchema = z.object({
   agent_name: z.enum([
     "structure-architecture-analyzer",
@@ -45,7 +44,6 @@ function extractJSON(text: string): string | null {
   cleaned = cleaned.replace(/^```\s*/, "");
   cleaned = cleaned.replace(/\s*```$/, "");
 
-  // Find JSON object bounds
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
 
@@ -78,22 +76,17 @@ function allow(): void {
 
 async function main() {
   try {
-    // Read hook input from stdin
     const stdinBuffer = fs.readFileSync(0, "utf-8");
     const input: HookInput = JSON.parse(stdinBuffer);
 
-    // Prevent infinite loops - allow if stop hook already ran
     if (input.stop_hook_active === true) {
       return allow();
     }
 
-    // Validate we have transcript path
     if (!input.transcript_path || !fs.existsSync(input.transcript_path)) {
-      // Can't validate without transcript, allow
       return allow();
     }
 
-    // Read transcript (JSONL format: one JSON object per line)
     const transcriptContent = fs.readFileSync(input.transcript_path, "utf-8");
     const lines = transcriptContent.split("\n").filter((line) => line.trim());
 
@@ -107,13 +100,12 @@ async function main() {
       })
       .filter(Boolean);
 
-    // Find last assistant message
     const assistantMessages = transcript
       .filter((msg: any) => msg.type === "assistant")
       .reverse();
 
     if (assistantMessages.length === 0) {
-      return allow(); // No assistant messages yet
+      return allow();
     }
 
     const lastMessage = assistantMessages[0];
@@ -122,7 +114,6 @@ async function main() {
       return allow();
     }
 
-    // Extract text content from last message
     const textBlocks = lastMessage.content.filter(
       (c: any) => c.type === "text",
     );
@@ -132,7 +123,6 @@ async function main() {
 
     const text = textBlocks.map((t: any) => t.text).join("\n");
 
-    // Try to extract JSON
     const jsonString = extractJSON(text);
 
     if (!jsonString) {
@@ -146,7 +136,6 @@ async function main() {
       );
     }
 
-    // Parse JSON
     let data: unknown;
     try {
       data = JSON.parse(jsonString);
@@ -162,12 +151,10 @@ async function main() {
       );
     }
 
-    // Validate against Zod schema
     const result = AnalyzerOutputSchema.safeParse(data);
 
     if (!result.success) {
-      // Format Zod errors for user-friendly feedback
-      const errors = result.error.errors
+      const errors = result.error.issues
         .map((err) => {
           const pathStr =
             err.path.length > 0 ? `${err.path.join(".")}` : "root";
@@ -187,11 +174,8 @@ async function main() {
           "Please correct these issues and output the fixed JSON.",
       );
     }
-
-    // Validation passed! Allow Claude to finish
     return allow();
   } catch (error) {
-    // Don't block on hook errors - allow Claude to finish
     console.error(
       `Hook error: ${error instanceof Error ? error.message : "Unknown error"}`,
     );

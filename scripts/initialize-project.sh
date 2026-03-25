@@ -207,14 +207,6 @@ echo -e "${BLUE}ℹ Framework location: $FRAMEWORK_PATH${NC}"
 echo -e "${BLUE}ℹ Project location:   $PROJECT_PATH${NC}"
 echo ""
 
-# Validate orchestrate script exists
-ORCHESTRATE_SCRIPT="$FRAMEWORK_PATH/skills/010-foundation/initialize-project/scripts/orchestrate-initialization.sh"
-if [ ! -f "$ORCHESTRATE_SCRIPT" ]; then
-    echo -e "${RED}Error: Orchestration script not found${NC}"
-    echo "Expected: $ORCHESTRATE_SCRIPT"
-    exit 1
-fi
-
 # ============================================================================
 # PREREQUISITE CHECKS
 # ============================================================================
@@ -441,7 +433,8 @@ if true; then
     fi
 
     # Run TypeScript orchestration with --start-phase support
-    trap '' SIGINT
+    # NOTE: tsx must run in foreground to preserve stdin access for interactive prompts
+    # The gap questions feature requires stdin to be connected to the terminal
 
     # Build tsx command with optional start-phase parameter
     if [ "$START_PHASE" -gt 1 ]; then
@@ -450,19 +443,14 @@ if true; then
         "$TSX_BIN" "$ORCHESTRATION_CLI" \
           --project-path "$PROJECT_PATH" \
           --framework-path "$FRAMEWORK_PATH" \
-          --start-phase "$START_PHASE" &
+          --start-phase "$START_PHASE"
+        TSX_EXIT_CODE=$?
     else
         "$TSX_BIN" "$ORCHESTRATION_CLI" \
           --project-path "$PROJECT_PATH" \
-          --framework-path "$FRAMEWORK_PATH" &
+          --framework-path "$FRAMEWORK_PATH"
+        TSX_EXIT_CODE=$?
     fi
-
-    TSX_PID=$!
-
-    # Wait for tsx to complete (even if SIGINT received)
-    # wait returns tsx's exit code
-    wait $TSX_PID
-    TSX_EXIT_CODE=$?
 
     # Calculate duration
     END_TIME=$(date +%s)

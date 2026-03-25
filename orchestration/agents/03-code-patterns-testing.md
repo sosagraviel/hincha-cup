@@ -1,12 +1,10 @@
 ---
 name: code-patterns-testing-analyzer
-model: haiku
 description: Analyzes code patterns, conventions, testing strategies, and code quality tools
 subagent_type: Explore
 run_in_background: true
 tools: Read, Grep, Glob
 output_format: json
-output_schema: config/schemas/phase1-analysis.schema.json
 max_needs_verification: 3
 user-prompt-submit-hook: npx tsx ./hooks/validate-analyzer-json.ts
 ---
@@ -19,17 +17,42 @@ Software engineer and QA specialist analyzing code patterns, conventions, testin
 
 ## Core Instructions
 
-You are a software engineer analyzing code patterns and testing. Report ONLY what you find. NEVER assume. Be concise and specific.
+You are analyzing a REAL, working codebase. **Many projects have tests, linters, and quality tools, but not all.** Use critical thinking and verify through dependencies.
 
-**CRITICAL**: Do NOT use [NEEDS_VERIFICATION] unless you have exhausted ALL search options. Before marking anything as needing verification:
+**CRITICAL MINDSET - Let dependencies guide you**:
 
-1. Use Glob to find ALL test files, config files, and quality tool configurations
-2. Use Read to examine ALL files completely
-3. Search for patterns in actual code (naming conventions, error handling, async patterns)
-4. Check for testing frameworks in dependencies (from Agent 02's output if available)
-5. Look for linter/formatter configs (.eslintrc, .prettierrc, .pylintrc, etc.)
+- ⚠️ Testing frameworks: "none"? → **Check dependencies first.** If test frameworks appear in dependencies (`jest`, `vitest`, `pytest`, `junit`, `rspec`, etc.), then tests exist somewhere. Search using multiple patterns. If no test deps exist, reporting "none" is valid (MVP, new project, separate test repo).
+- ⚠️ Test files: 0 found but frameworks in deps? → **Expand search patterns.** Try: `**/*test*`, `**/*spec*`, `**/test_*`, `**/__tests__/**/*`, `**/tests/**/*`, `**/e2e/**/*`. If still nothing, tests may be in separate repo.
+- ⚠️ Linters: "none"? → **Verify in dependencies.** If `eslint`, `pylint`, `clippy`, `rubocop` etc. exist in deps, find config files. If not in deps, "none" is valid.
+- ⚠️ Formatters: "none"? → **Check deps for** `prettier`, `black`, `rustfmt`, `gofmt`. If present, find configs. Not all projects use formatters.
+- ⚠️ Pre-commit hooks: "not-found"? → **Look for:** `.husky/**/*`, `.git/hooks/*`, `.pre-commit-config.yaml`, `lefthook.yml`, or `husky`/`lint-staged` in package.json. If absent, that's acceptable.
 
-ONLY use [NEEDS_VERIFICATION] for things that are genuinely unknowable from code (e.g., team conventions not in code, oral traditions). If the answer exists in the codebase, you MUST find it.
+**MANDATORY SYSTEMATIC SEARCH**:
+
+1. **Search package root AND all workspaces** (if monorepo):
+   - Config files might be in root OR per-workspace
+   - Run Glob from project root with `**/pattern` to search everywhere
+
+2. **Read dependency manifests to confirm frameworks**:
+   - Found test files but unsure of framework? READ package.json/requirements.txt to see what's installed
+   - Cross-reference: if files exist, framework MUST be in dependencies
+
+3. **Check test scripts** to understand test commands:
+   - Read `package.json` scripts section for `test`, `test:unit`, `test:e2e`, `test:integration`
+   - Read `Makefile`, `justfile`, or CI config for test commands
+   - This tells you how tests actually run
+
+**SELF-VERIFICATION BEFORE OUTPUT**:
+
+✓ Did I read dependency manifests completely? Dependencies reveal what tools should exist
+✓ If test frameworks in deps but no test files → Did I try multiple search patterns?
+✓ If linter in deps but no config → Did I check root AND each workspace? Config might be in package.json/pyproject.toml
+✓ If formatter in deps but no config → Some formatters don't need config (gofmt, rustfmt default settings)
+✓ Did I search for pre-commit hooks? Not all projects use them
+
+**Let dependencies be your source of truth. If deps say a tool exists, search until you find it. If not in deps, "none" is valid.**
+
+ONLY use [NEEDS_VERIFICATION] for unknowable info, NOT for things discoverable through better searching.
 
 **When you DO need verification**, format it properly:
 ```json
@@ -86,8 +109,6 @@ Example BAD question: "Pre-commit hooks" (not a question - WRONG!)
 **NEVER assume a project has only one language. ALWAYS search for code patterns across ALL languages.**
 
 ## Analysis Tasks
-
-Analyze the codebase at $ARGUMENTS (or the current working directory if empty).
 
 ### 1. Naming Conventions
 
@@ -228,56 +249,92 @@ Use Grep to search for:
 
 ### 6. Testing Strategy
 
-**Search for test files using Glob:**
+**APPROACH: Two-step detection (frameworks first, then classification by content)**
 
-**JavaScript/TypeScript:**
-- `**/*.test.{js,jsx,ts,tsx}`
-- `**/*.spec.{js,jsx,ts,tsx}`
-- `**/__tests__/**/*.{js,jsx,ts,tsx}`
+**STEP 1: Detect testing frameworks from dependency manifests**
 
-**Python:**
-- `**/test_*.py`
-- `**/*_test.py`
-- `**/tests/**/*.py`
+Use Glob to find and Read dependency files to identify installed testing frameworks:
 
-**Go:**
-- `**/*_test.go`
+- **JavaScript/TypeScript**: Search `**/package.json` devDependencies
+- **Python**: Search `requirements.txt`, `pyproject.toml`, `Pipfile`
+- **Go**: Search `go.mod`, `go.sum`
+- **Rust**: Search `Cargo.toml`
+- **.NET**: Search `*.csproj`, `packages.config`
+- **Ruby**: Search `Gemfile`
+- **Java**: Search `pom.xml`, `build.gradle`
 
-**Rust:**
-- `**/tests/**/*.rs`
-- Check for `#[test]` attributes in `**/*.rs`
+**Common framework indicators:**
+- Unit/Integration: `jest`, `vitest`, `pytest`, `go test`, `xunit`, `junit`, `rspec`
+- E2E/Browser: `@playwright/test`, `cypress`, `selenium`, `puppeteer`, `capybara`
+- HTTP/API Testing: `supertest`, `requests`, `rest-assured`, `httptest`
+- Mocking: `jest`, `sinon`, `unittest.mock`, `mockito`, `moq`
 
-**Java:**
-- `**/src/test/java/**/*.java`
+**Also check test scripts in package.json (or Makefile, etc.):**
+- Scripts like `"test:e2e": "playwright test"` confirm E2E testing
+- Scripts like `"test:integration": "jest --config jest.e2e.config.js"` confirm integration tests
+- Scripts like `"test:unit": "vitest"` confirm unit tests
+- This helps validate what type of tests the project actually runs
 
-**Ruby:**
-- `**/spec/**/*_spec.rb`
+**STEP 2: Search for test files (flexible patterns per language)**
 
-**For EACH test file found, identify:**
+- **JS/TS**: `**/*.{test,spec}.{js,ts,tsx}`, `**/__tests__/**/*`
+- **Python**: `**/test_*.py`, `**/*_test.py`
+- **Go**: `**/*_test.go`
+- **Rust**: `**/tests/**/*.rs`
+- **Java**: `**/src/test/**/*.java`
+- **C#**: `**/*.Tests/*.cs`, `**/*.Test.cs`
+- **Ruby**: `**/spec/**/*_spec.rb`
 
-**Test framework:**
-- JavaScript: Jest, Vitest, Mocha, Jasmine, AVA
-- Python: Pytest, unittest, nose
-- Go: testing package, testify
-- Rust: built-in test, quickcheck
-- Java: JUnit, TestNG
-- Ruby: RSpec, Minitest
+**STEP 3: Classify test types by CONTENT (not location or naming)**
 
-**Test type classification:**
-- **Unit tests**: Test individual functions/classes in isolation
-- **Integration tests**: Test multiple components together
-- **E2E tests**: Test full application flows
-- **Component tests**: Test UI components in isolation
+Read a representative sample of test files (5-10 files) and classify based on what they import and test:
 
-**Count tests by type:**
-- Unit test count
-- Integration test count
-- E2E test count
+**E2E tests** - Identifies browser automation:
+- Look for imports: `@playwright/test`, `cypress`, `selenium`, `puppeteer`, `capybara`
+- Look for usage: `page.goto()`, `cy.visit()`, `browser.get()`, `driver.findElement()`
+- Tests user flows in a real browser
 
-**Test organization:**
-- One test file per source file
-- Grouped by feature
-- Separate test directories by type
+**Integration tests** - Identifies HTTP/API testing or multi-component tests:
+- Look for imports: `supertest`, `axios`, `fetch`, `requests`, `net/http/httptest`, `rest-assured`
+- Look for usage: `request(app).get()`, `http.get()`, `requests.post()`, database connections
+- Tests multiple services/modules working together
+- May test API endpoints, database integration, external services
+
+**Unit tests** - Identifies isolated testing with mocks:
+- Look for imports: `jest`, `vitest`, `pytest`, `go test`, mocking libraries
+- Look for usage: `jest.fn()`, `mock.Mock()`, `when(mockService)`, test doubles
+- Tests single functions/classes in isolation
+- Dependencies are mocked/stubbed
+
+**Be flexible:**
+- Projects organize tests differently - use content as source of truth, not folder names
+- A test in an "e2e" folder might actually be integration if it only tests HTTP APIs
+- A test with no specific folder might be E2E if it uses Playwright
+- Focus on WHAT the test does, not WHERE it lives
+
+**Output format (report presence, not exact counts):**
+
+```json
+{
+  "frameworks": {
+    "unit": "Jest" | "Pytest" | "go test" | null,
+    "integration": "Jest + Supertest" | "Pytest" | null,
+    "e2e": "Playwright" | "Cypress" | null
+  },
+  "test_counts": {
+    "unit": <number or "present" if hard to count>,
+    "integration": <number or "present" if hard to count>,
+    "e2e": <number or "present" if hard to count>,
+    "total": <total test files found>
+  },
+  "test_organization": "<describe actual organization>",
+  "test_file_examples": ["<paths to representative test files>"]
+}
+```
+
+**If frameworks exist but no tests found:**
+- Report: "Testing framework configured but not yet implemented"
+- Do NOT mark as needs_verification - this is a clear finding
 
 ### 7. Test Patterns and Practices
 

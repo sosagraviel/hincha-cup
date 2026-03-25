@@ -36,7 +36,6 @@ export function validateAnalyzerOutput(
     }
 
 
-    // Parse JSON if string
     let data: unknown;
     if (typeof output === 'string') {
       try {
@@ -52,11 +51,9 @@ export function validateAnalyzerOutput(
       data = output;
     }
 
-    // Validate against Zod schema
     const result = AnalyzerOutputSchema.safeParse(data);
 
     if (!result.success) {
-      // Extract user-friendly error messages from Zod (with defensive handling for v4 beta)
       const zodError = result.error as any;
 
       logger.error('==================== VALIDATION FAILED ====================');
@@ -117,7 +114,6 @@ export function validateAnalyzerOutput(
     logger.error(`[validator] Error message: ${err.message}`);
 
     if (error instanceof z.ZodError) {
-      // Extract user-friendly error messages from Zod (with defensive handling for v4 beta)
       const zodError = error as any;
       const errors = zodError?.errors?.map?.((err: any) => {
         const path = err?.path?.join?.('.') || 'unknown';
@@ -253,10 +249,8 @@ export function validateAndParseAgentOutput(
 ): ValidationResult {
   try {
 
-    // Extract JSON from potentially messy output
     const jsonString = extractJSON(rawOutput);
 
-    // Validate against schema
     const result = validateAnalyzerOutput(jsonString, agentName);
     if (!result.valid) {
     }

@@ -28,8 +28,7 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
     if (existsSync(checkpointDbPath)) {
       rmSync(checkpointDbPath);
     }
-    checkpointer = new SqliteSaver(checkpointDbPath);
-    await checkpointer.setup();
+    checkpointer = SqliteSaver.fromConnString(checkpointDbPath);
 
     // Ensure test project directory exists
     if (!existsSync(testProjectPath)) {
@@ -61,7 +60,8 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
         current_phase: 'init',
         errors: [],
         warnings: [],
-        started_at: new Date().toISOString()
+        started_at: new Date().toISOString(),
+        phase1_retry_tracking: {}
       };
 
       const config = {
@@ -129,7 +129,8 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
         current_phase: 'init',
         errors: [],
         warnings: [],
-        started_at: new Date().toISOString()
+        started_at: new Date().toISOString(),
+        phase1_retry_tracking: {}
       };
 
       const config = {
@@ -143,7 +144,7 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
       const events: string[] = [];
 
       // Stream execution to observe parallel execution
-      for await (const event of graph.stream(initialState, {
+      for await (const event of await graph.stream(initialState, {
         ...config,
         streamMode: 'updates'
       })) {
@@ -182,7 +183,8 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
         current_phase: 'init',
         errors: [],
         warnings: [],
-        started_at: new Date().toISOString()
+        started_at: new Date().toISOString(),
+        phase1_retry_tracking: {}
       };
 
       const config = {
@@ -200,7 +202,7 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
       const checkpointTuple = await checkpointer.getTuple(config);
 
       expect(checkpointTuple).toBeDefined();
-      expect(checkpointTuple?.config.configurable.thread_id).toBe(threadId);
+      expect(checkpointTuple?.config.configurable?.thread_id).toBe(threadId);
 
       console.log('✓ Checkpointing verified');
     }, 1200000);
