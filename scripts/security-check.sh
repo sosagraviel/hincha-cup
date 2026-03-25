@@ -475,10 +475,10 @@ show_summary() {
 main() {
   echo -e "${BLUE}"
   echo "╔═══════════════════════════════════════════════════════╗"
-  echo "║         AI Store Security Check Utility               ║"
+  echo "║         Agentic Framework Security Check Utility      ║"
   echo "║                                                       ║"
-  echo "║  Validates security best practices for autonomous    ║"
-  echo "║  workflows and prevents common vulnerabilities       ║"
+  echo "║  Validates security best practices for autonomous     ║"
+  echo "║  workflows and prevents common vulnerabilities        ║"
   echo "╚═══════════════════════════════════════════════════════╝"
   echo -e "${NC}"
 

@@ -538,7 +538,7 @@ All tickets follow this schema (see `schemas/sdd-ticket.schema.json`):
 
 ## Markdown Template Structure
 
-Output follows `templates/sdd-ticket-template.md`:
+Output follows `./templates/sdd-ticket-template.md`:
 
 ```markdown
 # PROJ-123: [Title]
@@ -909,7 +909,7 @@ Before finalizing, validate:
 ## References
 
 - `schemas/sdd-ticket.schema.json` - Canonical ticket schema
-- `templates/sdd-ticket-template.md` - Markdown template
+- `./templates/sdd-ticket-template.md` - Markdown template
 - `utils/ticket-io/` - All parsers, formatters, validators
 - SPECIFICATION_DRIVEN_DEVELOPMENT_GUIDE.md
 - INVEST criteria: https://en.wikipedia.org/wiki/INVEST_(mnemonic)
