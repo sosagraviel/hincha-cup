@@ -149,7 +149,7 @@ export async function contextGenerationNode(
     phaseLogger.info(" Counting files by language for validation...");
     let fileCountResult: FileCountResult | undefined;
     try {
-      fileCountResult = await countFilesByLanguage(state.project_path, 10);
+      fileCountResult = await countFilesByLanguage(state.project_path, 10, state.framework_path);
       phaseLogger.success(
         ` ✓ Found ${fileCountResult.total_files} files across ${fileCountResult.by_language.length} languages`,
       );
@@ -186,7 +186,7 @@ export async function contextGenerationNode(
     phaseLogger.info(" Detecting workspaces...");
     let workspaceResult: WorkspaceDetectionResult | undefined;
     try {
-      workspaceResult = await detectWorkspaces(state.project_path, 5);
+      workspaceResult = await detectWorkspaces(state.project_path, 5, state.framework_path);
 
       if (workspaceResult.is_monorepo) {
         phaseLogger.success(

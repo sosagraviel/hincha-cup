@@ -102,6 +102,38 @@ describe("file-counter", () => {
       expect(result.total_files).toBe(0);
     });
 
+    it("should ignore framework directories with -agentic-framework suffix", async () => {
+      // Create framework directory with specific name
+      const frameworkDir = join(testDir, "ai-agentic-framework");
+      await mkdir(frameworkDir, { recursive: true });
+      await writeFile(join(frameworkDir, "test.ts"), "// Framework file");
+      await writeFile(join(frameworkDir, "test.py"), "# Framework file");
+      await writeFile(join(frameworkDir, "test.go"), "// Framework file");
+
+      // Pass frameworkPath so it derives "ai-agentic-framework" as the directory name
+      const result = await countFilesByLanguage(testDir, 10, frameworkDir);
+
+      expect(result.total_files).toBe(0);
+    });
+
+    it("should ignore .claude directories", async () => {
+      const claudeDir = join(testDir, ".claude");
+      const claudeTempDir = join(testDir, ".claude-temp");
+      const claudeBackupsDir = join(testDir, ".claude-backups");
+
+      await mkdir(claudeDir, { recursive: true });
+      await mkdir(claudeTempDir, { recursive: true });
+      await mkdir(claudeBackupsDir, { recursive: true });
+
+      await writeFile(join(claudeDir, "skill.py"), "# Skill file");
+      await writeFile(join(claudeTempDir, "temp.ts"), "// Temp file");
+      await writeFile(join(claudeBackupsDir, "backup.js"), "// Backup file");
+
+      const result = await countFilesByLanguage(testDir);
+
+      expect(result.total_files).toBe(0);
+    });
+
     it("should handle multiple languages in monorepo", async () => {
       await writeFile(join(testDir, "app.ts"), "// TypeScript");
       await writeFile(join(testDir, "server.py"), "# Python");

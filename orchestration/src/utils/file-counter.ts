@@ -1,5 +1,5 @@
 import { readdir, stat } from "fs/promises";
-import { join, extname } from "path";
+import { join, extname, relative, basename } from "path";
 import { logger } from "./logger.js";
 
 /**
@@ -73,19 +73,30 @@ const IGNORE_DIRS = new Set([
   ".maven",
   "bin",
   "obj",
+  // Claude framework directories - these are generated/copied by the framework
+  ".claude",
+  ".claude-temp",
+  ".claude-backups",
 ]);
+
 
 /**
  * Count files by programming language in a project directory
  *
  * @param projectPath - Absolute path to the project root
  * @param maxDepth - Maximum directory depth to scan (default: 10)
+ * @param frameworkPath - Absolute path to the framework directory
  * @returns File count results by language
  */
 export async function countFilesByLanguage(
   projectPath: string,
   maxDepth: number = 10,
+  frameworkPath?: string,
 ): Promise<FileCountResult> {
+  // Derive the framework directory name (same logic as agent-factory.ts)
+  const frameworkDirName = frameworkPath
+    ? basename(relative(projectPath, frameworkPath).split('/')[0])
+    : "qubika-agentic-framework";
   // Map: language -> Set of file paths
   const languageFiles = new Map<string, Set<string>>();
   const errors: string[] = [];
@@ -97,7 +108,7 @@ export async function countFilesByLanguage(
   }
 
   // Recursive scan
-  await scanDirectory(projectPath, 0, maxDepth, languageFiles, errors);
+  await scanDirectory(projectPath, 0, maxDepth, languageFiles, errors, frameworkDirName);
 
   // Convert to result format
   const byLanguage: FileCount[] = [];
@@ -149,6 +160,7 @@ export async function countFilesByLanguage(
     maxDepth: number,
     stats: Map<string, Set<string>>,
     errors: string[],
+    frameworkDirName: string,
   ): Promise<void> {
     if (currentDepth > maxDepth) {
       return;
@@ -164,8 +176,8 @@ export async function countFilesByLanguage(
 
         try {
           if (entry.isDirectory()) {
-            // Skip ignored directories
-            if (IGNORE_DIRS.has(entry.name)) {
+            // Skip ignored directories and framework directory
+            if (IGNORE_DIRS.has(entry.name) || entry.name === frameworkDirName) {
               continue;
             }
 
@@ -176,6 +188,7 @@ export async function countFilesByLanguage(
               maxDepth,
               stats,
               errors,
+              frameworkDirName,
             );
           } else if (entry.isFile()) {
             // Check file extension against language map
