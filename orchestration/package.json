@@ -45,6 +45,9 @@
     "handlebars": "^4.7.8",
     "log-update": "^7.2.0",
     "ora": "^9.3.0",
+    "pixelmatch": "^7.1.0",
+    "playwright": "^1.58.2",
+    "pngjs": "^7.0.0",
     "spinnies": "^0.5.1",
     "zod": "^4.3.6"
   },
