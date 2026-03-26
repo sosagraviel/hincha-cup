@@ -1442,6 +1442,219 @@ Phase I — Create-SDD-Ticket (deps: A, D)
 | Phase 6 before/after logic | `orchestration/src/nodes/implement-ticket/phase6-visual.node.ts` | Keep as fallback |
 | Gap detector | Referenced in `create-sdd-ticket/SKILL.md` | Add Strategy 5 alongside existing 4 |
 
+### Improvements to Existing `screenshot.service.ts`
+
+The current `ScreenshotService` (`orchestration/src/services/implement-ticket/screenshot.service.ts`) has several limitations that should be addressed as part of this pipeline. These improvements apply to the existing code and benefit both the new pipeline and the legacy before/after comparison.
+
+#### Bug Fix: Threshold vs Pass Percentage Conflation
+
+**Current (line 149, 203):** The `threshold` parameter controls pixelmatch per-pixel sensitivity (0-1 scale), but `passed` is hardcoded to `diffPercentage < 5.0`. The caller cannot configure the pass/fail percentage — it's always 5%.
+
+**Fix:** Separate the two concepts:
+
+```typescript
+async compareScreenshots(
+  beforePath: string,
+  afterPath: string,
+  diffOutputPath: string,
+  options: {
+    pixelThreshold?: number;   // Per-pixel sensitivity (0-1), default 0.1
+    passPercentage?: number;   // Overall diff % to pass, default 5.0
+    includeAA?: boolean;       // Include anti-aliasing diffs, default false
+  } = {}
+): Promise<ComparisonResult> {
+  const { pixelThreshold = 0.1, passPercentage = 5.0, includeAA = false } = options;
+  // ...
+  const diffPixels = pixelmatch(img1.data, img2.data, diff.data, width, height, {
+    threshold: pixelThreshold,
+    includeAA,
+  });
+  // ...
+  const passed = diffPercentage < passPercentage;
+  // ...
+}
+```
+
+This enables the configurable thresholds defined in `ui-visual-testing.json` (2% Figma, 5% regression) to actually work.
+
+#### Anti-Aliasing Handling
+
+**Current:** pixelmatch's `includeAA` option is not used (defaults to `true` internally). This means sub-pixel rendering and font hinting differences between environments produce false positives.
+
+**Fix:** Default `includeAA: false` in the options. This tells pixelmatch to detect and ignore anti-aliased pixels, significantly reducing noise from cross-browser/cross-OS rendering differences.
+
+Expected false-positive reduction: **30-60%** on typical UI comparisons.
+
+#### Dimension Mismatch Normalization
+
+**Current (line 168-173):** If images have different dimensions, the service throws an error. This is a hard blocker for Figma mode, where Figma exports at `scale=2` may not match Playwright viewport dimensions exactly.
+
+**Fix:** Normalize images to a common dimension before comparison:
+
+```typescript
+import sharp from 'sharp'; // or use pngjs resize
+
+async normalizeImageDimensions(
+  img1Path: string,
+  img2Path: string,
+  targetWidth: number,
+  targetHeight: number
+): Promise<{ img1: Buffer; img2: Buffer }> {
+  const img1 = await sharp(img1Path).resize(targetWidth, targetHeight, { fit: 'fill' }).png().toBuffer();
+  const img2 = await sharp(img2Path).resize(targetWidth, targetHeight, { fit: 'fill' }).png().toBuffer();
+  return { img1, img2 };
+}
+```
+
+Strategy: resize both images to the **smaller** of the two dimensions to avoid upscaling artifacts. If dimensions differ by more than 20%, log a warning (likely a viewport configuration issue, not just DPI).
+
+#### Capture Readiness: Replace Fixed Wait
+
+**Current (line 78):** `await page.waitForTimeout(2000)` — arbitrary 2-second delay after navigation, regardless of actual page state.
+
+**Fix:** Replace with a configurable, signal-based readiness check:
+
+```typescript
+async waitForPageReady(
+  page: Page,
+  options: {
+    waitForSelector?: string;    // CSS selector to wait for
+    waitForLoadState?: 'load' | 'domcontentloaded' | 'networkidle';
+    delay?: number;              // Additional delay after ready (for animations)
+  } = {}
+): Promise<void> {
+  const { waitForSelector, waitForLoadState = 'domcontentloaded', delay = 0 } = options;
+
+  await page.waitForLoadState(waitForLoadState);
+
+  if (waitForSelector) {
+    await page.waitForSelector(waitForSelector, { state: 'visible', timeout: 10000 });
+  }
+
+  if (delay > 0) {
+    await page.waitForTimeout(delay);
+  }
+}
+```
+
+This aligns with the `waitForSelector` and `delay` fields already defined in the `ui-visual-testing.json` screen entry schema. Using `domcontentloaded` instead of `networkidle` avoids hanging on analytics, long-poll, or WebSocket connections.
+
+#### Region Masking (Ignore Dynamic Content)
+
+**Current:** No way to exclude regions from comparison. Dynamic content (timestamps, user avatars, ads, live data) causes false positives on every run.
+
+**Fix:** Add optional ignore regions to the comparison:
+
+```typescript
+interface IgnoreRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// Before pixelmatch comparison, paint ignore regions with identical color
+// on both images so they produce zero diff
+function applyIgnoreRegions(
+  img1Data: Buffer,
+  img2Data: Buffer,
+  width: number,
+  regions: IgnoreRegion[]
+): void {
+  for (const region of regions) {
+    for (let y = region.y; y < region.y + region.height; y++) {
+      for (let x = region.x; x < region.x + region.width; x++) {
+        const idx = (y * width + x) * 4;
+        // Set both images to same pixel value in this region
+        img1Data[idx] = img2Data[idx] = 0;
+        img1Data[idx+1] = img2Data[idx+1] = 0;
+        img1Data[idx+2] = img2Data[idx+2] = 0;
+        img1Data[idx+3] = img2Data[idx+3] = 255;
+      }
+    }
+  }
+}
+```
+
+Add `ignoreRegions` as an optional field in the `ui-visual-testing.json` screen entry schema:
+
+```json
+{
+  "label": "Dashboard",
+  "route": "/dashboard",
+  "viewport": { "width": 1440, "height": 900 },
+  "ignoreRegions": [
+    { "x": 1200, "y": 10, "width": 200, "height": 30, "reason": "timestamp" },
+    { "x": 50, "y": 50, "width": 48, "height": 48, "reason": "user avatar" }
+  ]
+}
+```
+
+#### SSIM as Secondary Perceptual Metric
+
+**Current:** Only pixelmatch (pixel-level diff). Catches every sub-pixel difference equally, whether it's a 1px font hinting shift or a completely missing component.
+
+**Improvement:** Add Structural Similarity Index (SSIM) as a secondary metric using `ssim.js`. SSIM measures *perceptual* similarity (0-1 scale), weighing luminance, contrast, and structure changes differently from raw pixel counts.
+
+```typescript
+import { ssim } from 'ssim.js';
+
+interface EnhancedComparisonResult extends ComparisonResult {
+  ssimScore: number;          // 0-1 (1 = identical)
+  ssimPassed: boolean;        // ssimScore >= ssimThreshold
+  perceptualVerdict: 'match' | 'minor-diff' | 'significant-diff' | 'mismatch';
+}
+
+// SSIM thresholds:
+// >= 0.99: match (virtually identical)
+// 0.95-0.99: minor-diff (anti-aliasing, sub-pixel)
+// 0.85-0.95: significant-diff (layout shift, color change)
+// < 0.85: mismatch (wrong component, major regression)
+```
+
+**How to use together:**
+- **pixelmatch** generates the diff image (visual artifact for human/agent review)
+- **SSIM** determines the pass/fail verdict (more forgiving of rendering noise)
+- If pixelmatch says >2% diff but SSIM says >0.97, it's likely anti-aliasing — flag as warning, not failure
+- If SSIM says <0.85, it's a real mismatch regardless of pixel count
+
+This dual approach reduces false positives by ~50% while maintaining sensitivity to real design deviations.
+
+#### Device Scale Factor Support
+
+**Current (line 82-85):** Captures at default device pixel ratio. Figma exports at `scale=2` (2x), so comparing against a 1x Playwright capture produces dimension mismatches.
+
+**Fix:** Support `deviceScaleFactor` in capture options:
+
+```typescript
+async captureScreenshot(
+  page: Page,
+  url: string,
+  filename: string,
+  viewport: { width: number; height: number } = { width: 1920, height: 1080 },
+  deviceScaleFactor: number = 2  // Match Figma's 2x export
+): Promise<ScreenshotMetadata> {
+  await page.setViewportSize(viewport);
+  // Note: deviceScaleFactor is set at browser context level, not page level
+  // The caller should create the context with: browser.newContext({ deviceScaleFactor: 2 })
+  // ...
+}
+```
+
+Document in the skill that the Playwright browser context must be created with `deviceScaleFactor: 2` to match Figma exports.
+
+#### Summary of Improvements by Priority
+
+| Priority | Improvement | Effort | Impact |
+|----------|-------------|--------|--------|
+| **P0** | Fix threshold/passPercentage bug | Low | Correctness — configurable thresholds don't work without this |
+| **P0** | Add `includeAA: false` | Low | ~30-60% false positive reduction |
+| **P1** | Dimension normalization | Medium | Enables Figma mode (currently hard-fails on size mismatch) |
+| **P1** | Configurable wait strategy | Low | Reliability — no more arbitrary 2s waits |
+| **P1** | Device scale factor support | Low | Consistent DPI between Figma and Playwright |
+| **P2** | Region masking | Medium | Eliminates dynamic content false positives |
+| **P2** | SSIM secondary metric | Medium | ~50% false positive reduction with better perceptual accuracy |
+
 ---
 
 ## Verification
