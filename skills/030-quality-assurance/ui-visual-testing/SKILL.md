@@ -1,17 +1,18 @@
 ---
 name: ui-visual-testing
 description: >
-  Dual-mode visual testing: Figma design fidelity and screenshot regression.
-  Compares implementation against Figma designs or baseline screenshots with
-  iterative fix loop. Supports configurable thresholds and region masking.
-version: 1.0.0
+  Stack-agnostic dual-mode visual testing: Figma design fidelity and screenshot
+  regression. Compares implementation against Figma designs or baseline
+  screenshots with iterative fix loop. Loads framework-specific renderer
+  timing via specializations. Supports configurable thresholds and region masking.
+version: 2.0.0
 category: quality-assurance
 keywords: [visual-testing, figma, screenshot, regression, pixelmatch, playwright]
 user-invocable: true
 argument-hint: "[--ticket KEY] [--base-url URL] [--max-iterations N] [--mapping PATH] [--mode figma|screenshot|both]"
-triggers: [react, next, nextjs, vue, angular, nuxt, svelte]
+triggers: [react, next, nextjs, vue, angular, nuxt, svelte, sveltekit]
 compatible_languages: [typescript, javascript]
-last_updated: 2026-03-25
+last_updated: 2026-03-26
 allowed-tools:
   - Read
   - Write
@@ -25,6 +26,8 @@ allowed-tools:
 # UI Visual Testing
 
 Dual-mode visual testing pipeline that compares UI implementation against Figma design references and/or baseline screenshots. Supports iterative fix loops with configurable thresholds and region masking.
+
+This skill is **stack-agnostic**. The visual testing pipeline (configuration, capture, comparison, iteration) is framework-independent. Framework-specific renderer timing (hydration, transitions, async rendering) lives in `references/*-specialization.md` files loaded dynamically based on project detection. See [`references/renderer-adapters.md`](references/renderer-adapters.md) for the universal capture sequence and common concerns.
 
 ## Modes
 
@@ -82,6 +85,16 @@ Validate required fields:
 - Each screen must have `label`, `route`, and `viewport`.
 - Figma mode requires `figmaNodeId` and `figma.fileKey`.
 - Override `maxIterations` with `--max-iterations` argument if provided.
+
+### Step 1b — Load Framework Specialization
+
+Detect the project's UI framework and load the corresponding specialization for renderer timing:
+
+1. **Detect framework** using config files and `package.json` dependencies (same heuristics as the `ui-testing` skill).
+2. **Load the specialization** from `references/<framework>-specialization.md`:
+   - React / Next.js → [`references/react-specialization.md`](references/react-specialization.md)
+   - Future specializations follow the same `<framework>-specialization.md` convention.
+3. The specialization provides the `frameworkWait()` logic used in Step 5 for deterministic screenshot capture. If no specialization exists, the universal capture sequence from [`references/renderer-adapters.md`](references/renderer-adapters.md) is used as-is.
 
 ### Step 2 — Determine Active Modes
 

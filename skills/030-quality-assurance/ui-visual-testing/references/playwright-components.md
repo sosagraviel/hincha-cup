@@ -1,6 +1,6 @@
 # Playwright Component Testing Reference
 
-This document covers the setup, configuration, and usage patterns for Playwright Component Testing (CT) across supported frameworks.
+This document covers the **stack-agnostic** setup, configuration, and usage patterns for Playwright Component Testing (CT). Framework-specific mounting syntax, install commands, and config variants live in `*-specialization.md` files.
 
 ## Overview
 
@@ -19,39 +19,23 @@ Playwright Component Testing allows mounting individual components in a real bro
 
 ## Installation
 
-### React
+Install the framework-appropriate Playwright CT package. See the loaded `*-specialization.md` for the exact package name:
 
 ```bash
-pnpm add -D @playwright/experimental-ct-react
+pnpm add -D @playwright/experimental-ct-{framework}
 pnpm exec playwright install chromium
 ```
 
-### Vue
-
-```bash
-pnpm add -D @playwright/experimental-ct-vue
-pnpm exec playwright install chromium
-```
-
-### Svelte
-
-```bash
-pnpm add -D @playwright/experimental-ct-svelte
-pnpm exec playwright install chromium
-```
-
-### Angular
-
-Playwright CT does not have an official Angular adapter. For Angular projects, use full-page capture with isolated routes or Storybook integration instead.
+Replace `{framework}` with the appropriate variant (e.g. `react`, `vue`, `svelte`). Note: not all frameworks have Playwright CT support (e.g. Angular does not — use full-page capture with isolated routes or Storybook integration instead).
 
 ## Config Template
 
 ### `playwright-ct.config.ts`
 
 ```typescript
-import { defineConfig, devices } from '@playwright/experimental-ct-react';
-// For Vue: import from '@playwright/experimental-ct-vue'
-// For Svelte: import from '@playwright/experimental-ct-svelte'
+// Import from the framework-appropriate CT package
+// e.g. '@playwright/experimental-ct-react', '@playwright/experimental-ct-vue', etc.
+import { defineConfig, devices } from '@playwright/experimental-ct-{framework}';
 import path from 'path';
 
 export default defineConfig({
@@ -113,75 +97,35 @@ export default defineConfig({
 
 ## Mounting Components with Props
 
+The mounting API varies by framework. See the loaded `*-specialization.md` for exact syntax. The patterns below illustrate **generic concepts** using pseudocode-style examples.
+
 ### Basic mounting
 
 ```typescript
-import { test, expect } from '@playwright/experimental-ct-react';
-import { KpiCard } from '@/entities/kpi/ui/KpiCard';
+// Import from framework-appropriate CT package
+import { test, expect } from '@playwright/experimental-ct-{framework}';
 
-test('renders KPI card with data', async ({ mount }) => {
-  const component = await mount(
-    <KpiCard
-      label="Revenue"
-      value={1250000}
-      currency="USD"
-      trend={{ direction: 'up', percentage: 12.5 }}
-    />
-  );
+test('renders component with data', async ({ mount }) => {
+  // Mounting syntax is framework-specific:
+  // - React: mount(<Component prop="value" />)
+  // - Vue/Svelte: mount(Component, { props: { prop: 'value' } })
+  const component = await mount(/* framework-specific mounting */);
 
-  await expect(component).toContainText('Revenue');
-  await expect(component).toContainText('$1,250,000');
-  await expect(component).toContainText('+12.5%');
+  await expect(component).toContainText('Expected text');
 });
 ```
 
 ### Mounting with context providers
 
-Many components require React context (theme, auth, router). Use a wrapper:
-
-```typescript
-// src/__tests__/component/test-utils.tsx
-import { ThemeProvider } from '@/shared/ui/ThemeProvider';
-
-export function TestWrapper({ children }: { children: React.ReactNode }) {
-  return (
-    <ThemeProvider defaultTheme="light">
-      {children}
-    </ThemeProvider>
-  );
-}
-```
-
-```typescript
-import { test, expect } from '@playwright/experimental-ct-react';
-import { KpiCard } from '@/entities/kpi/ui/KpiCard';
-import { TestWrapper } from './test-utils';
-
-test('renders with theme context', async ({ mount }) => {
-  const component = await mount(
-    <TestWrapper>
-      <KpiCard label="Revenue" value={1250000} currency="USD" />
-    </TestWrapper>
-  );
-
-  await expect(component).toBeVisible();
-});
-```
+Many frameworks require context or providers (theme, auth, routing). Create a `TestWrapper` that wraps the component under test. The wrapper implementation is framework-specific — see the specialization reference.
 
 ### Testing event handlers
 
 ```typescript
-test('calls onClick when card is clicked', async ({ mount }) => {
+test('calls handler on interaction', async ({ mount }) => {
   let clicked = false;
 
-  const component = await mount(
-    <KpiCard
-      label="Revenue"
-      value={1250000}
-      currency="USD"
-      onClick={() => { clicked = true; }}
-    />
-  );
+  const component = await mount(/* component with onClick={() => { clicked = true; }} */);
 
   await component.click();
   expect(clicked).toBe(true);
@@ -196,30 +140,12 @@ test.describe('Badge component', () => {
 
   for (const variant of variants) {
     test(`renders ${variant} variant`, async ({ mount }) => {
-      const component = await mount(
-        <Badge variant={variant} label={`${variant} badge`} />
-      );
+      const component = await mount(/* Badge with variant */);
 
       await expect(component).toBeVisible();
       await expect(component).toHaveScreenshot(`badge-${variant}.png`);
     });
   }
-
-  test('renders disabled state', async ({ mount }) => {
-    const component = await mount(
-      <Badge variant="success" label="Disabled" disabled />
-    );
-
-    await expect(component).toHaveCSS('opacity', '0.5');
-  });
-
-  test('renders loading state', async ({ mount }) => {
-    const component = await mount(
-      <Badge variant="success" label="Loading" loading />
-    );
-
-    await expect(component.locator('[data-testid="spinner"]')).toBeVisible();
-  });
 });
 ```
 
@@ -229,9 +155,7 @@ test.describe('Badge component', () => {
 
 ```typescript
 test('matches visual snapshot', async ({ mount }) => {
-  const component = await mount(
-    <KpiCard label="Revenue" value={1250000} currency="USD" />
-  );
+  const component = await mount(/* component under test */);
 
   // Disable animations before capture
   await component.evaluate(el => {
@@ -240,7 +164,7 @@ test('matches visual snapshot', async ({ mount }) => {
     document.head.appendChild(style);
   });
 
-  await expect(component).toHaveScreenshot('kpi-card-default.png', {
+  await expect(component).toHaveScreenshot('component-default.png', {
     maxDiffPixelRatio: 0.02,
   });
 });
@@ -250,20 +174,18 @@ test('matches visual snapshot', async ({ mount }) => {
 
 ```typescript
 test('hover state matches snapshot', async ({ mount }) => {
-  const component = await mount(
-    <KpiCard label="Revenue" value={1250000} currency="USD" interactive />
-  );
+  const component = await mount(/* interactive component */);
 
   // Capture default state
-  await expect(component).toHaveScreenshot('kpi-card-idle.png');
+  await expect(component).toHaveScreenshot('component-idle.png');
 
   // Hover and capture
   await component.hover();
-  await expect(component).toHaveScreenshot('kpi-card-hover.png');
+  await expect(component).toHaveScreenshot('component-hover.png');
 
   // Focus and capture
   await component.focus();
-  await expect(component).toHaveScreenshot('kpi-card-focus.png');
+  await expect(component).toHaveScreenshot('component-focus.png');
 });
 ```
 
@@ -271,11 +193,9 @@ test('hover state matches snapshot', async ({ mount }) => {
 
 ```typescript
 test('matches design with custom threshold', async ({ mount }) => {
-  const component = await mount(
-    <KpiCard label="Revenue" value={1250000} currency="USD" />
-  );
+  const component = await mount(/* component under test */);
 
-  await expect(component).toHaveScreenshot('kpi-card.png', {
+  await expect(component).toHaveScreenshot('component.png', {
     maxDiffPixelRatio: 0.01,  // Stricter than default
     threshold: 0.1,            // pixelmatch sensitivity
     animations: 'disabled',    // Built-in animation disabling
@@ -295,9 +215,7 @@ For cases where you need to test specific viewport transitions:
 
 ```typescript
 test('responsive layout changes', async ({ mount, page }) => {
-  const component = await mount(
-    <KpiDashboard kpis={mockKpis} />
-  );
+  const component = await mount(/* dashboard component with mock data */);
 
   // Desktop: 4-column grid
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -319,9 +237,7 @@ test('responsive layout changes', async ({ mount, page }) => {
 test('collapses sidebar on mobile viewport', async ({ mount, page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
 
-  const component = await mount(
-    <NavigationSidebar items={mockNavItems} />
-  );
+  const component = await mount(/* sidebar component with mock nav items */);
 
   // Sidebar should be collapsed on mobile
   await expect(component.locator('[data-testid="sidebar-expanded"]')).not.toBeVisible();
@@ -335,43 +251,14 @@ test('collapses sidebar on mobile viewport', async ({ mount, page }) => {
 
 ## Framework-Specific Mounting
 
-### Vue mounting
+Each framework has its own mounting syntax, import paths, and context provider patterns. Consult the loaded specialization reference:
 
-```typescript
-import { test, expect } from '@playwright/experimental-ct-vue';
-import KpiCard from '@/entities/kpi/ui/KpiCard.vue';
-
-test('renders KPI card', async ({ mount }) => {
-  const component = await mount(KpiCard, {
-    props: {
-      label: 'Revenue',
-      value: 1250000,
-      currency: 'USD',
-    },
-  });
-
-  await expect(component).toContainText('Revenue');
-});
-```
-
-### Svelte mounting
-
-```typescript
-import { test, expect } from '@playwright/experimental-ct-svelte';
-import KpiCard from '@/entities/kpi/ui/KpiCard.svelte';
-
-test('renders KPI card', async ({ mount }) => {
-  const component = await mount(KpiCard, {
-    props: {
-      label: 'Revenue',
-      value: 1250000,
-      currency: 'USD',
-    },
-  });
-
-  await expect(component).toContainText('Revenue');
-});
-```
+| Framework | Specialization | Mounting style |
+|-----------|---------------|----------------|
+| React | [`react-specialization.md`](react-specialization.md) | JSX: `mount(<Component prop="value" />)` |
+| Vue | `vue-specialization.md` (future) | Object props: `mount(Component, { props: { ... } })` |
+| Svelte | `svelte-specialization.md` (future) | Object props: `mount(Component, { props: { ... } })` |
+| Angular | N/A | No Playwright CT adapter — use full-page capture |
 
 ## Accessibility Testing with CT
 
@@ -382,17 +269,14 @@ pnpm add -D @axe-core/playwright
 ```
 
 ```typescript
-import { test, expect } from '@playwright/experimental-ct-react';
+import { test, expect } from '@playwright/experimental-ct-{framework}';
 import AxeBuilder from '@axe-core/playwright';
-import { KpiCard } from '@/entities/kpi/ui/KpiCard';
 
 test('has no accessibility violations', async ({ mount, page }) => {
-  await mount(
-    <KpiCard label="Revenue" value={1250000} currency="USD" />
-  );
+  await mount(/* component under test */);
 
   const accessibilityScanResults = await new AxeBuilder({ page })
-    .include('[data-testid="kpi-card"]')
+    .include('[data-testid="component-root"]')
     .analyze();
 
   expect(accessibilityScanResults.violations).toEqual([]);

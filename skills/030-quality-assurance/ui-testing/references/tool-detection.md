@@ -85,33 +85,24 @@ Also check for companion packages:
 
 ### Install commands (when nothing detected)
 
-**Vitest + React Testing Library (recommended default):**
+Install commands are framework-specific. Consult the loaded `*-specialization.md` reference for exact packages. Generic pattern:
+
+**Vitest (recommended):**
 
 ```bash
-pnpm add -D vitest @vitest/ui @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom
+pnpm add -D vitest @vitest/ui @testing-library/{framework} @testing-library/jest-dom @testing-library/user-event jsdom
 ```
 
-**Vitest + Vue Testing Library:**
+Replace `{framework}` with the appropriate Testing Library package name (e.g. `react`, `vue`, `svelte`, `angular`).
 
-```bash
-pnpm add -D vitest @vitest/ui @testing-library/vue @testing-library/jest-dom @testing-library/user-event jsdom
-```
-
-**Jest + React Testing Library:**
-
-```bash
-pnpm add -D jest @types/jest ts-jest @testing-library/react @testing-library/jest-dom @testing-library/user-event jest-environment-jsdom
-```
-
-**Starter Vitest config (`vitest.config.ts`):**
+**Starter Vitest config** and framework-specific Vite plugins are defined in the specialization reference. The generic config shape is:
 
 ```typescript
 import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
 import path from 'path'
 
 export default defineConfig({
-  plugins: [react()],
+  // plugins: [frameworkPlugin()],  // From specialization
   test: {
     environment: 'jsdom',
     globals: true,
@@ -159,26 +150,14 @@ export default defineConfig({
 
 ### Install commands
 
-**React:**
+Install the framework-appropriate CT package. Consult the loaded `*-specialization.md` for the exact package name:
 
 ```bash
-pnpm add -D @playwright/experimental-ct-react
+pnpm add -D @playwright/experimental-ct-{framework}
 pnpm exec playwright install
 ```
 
-**Vue:**
-
-```bash
-pnpm add -D @playwright/experimental-ct-vue
-pnpm exec playwright install
-```
-
-**Svelte:**
-
-```bash
-pnpm add -D @playwright/experimental-ct-svelte
-pnpm exec playwright install
-```
+Replace `{framework}` with the appropriate variant (e.g. `react`, `vue`, `svelte`). Note: not all frameworks have Playwright CT support (e.g. Angular does not).
 
 After installation, generate a starter config. See [`references/playwright-components.md`](../ui-visual-testing/references/playwright-components.md) in the `ui-visual-testing` skill for the config template.
 
@@ -316,48 +295,24 @@ Check for existing baseline screenshots in these locations:
 
 ## Framework-Specific Variants
 
-### React / Next.js
+Framework-specific tool variants, install commands, starter configs, and detection hints are defined in specialization references. Load the appropriate file based on the detected framework:
 
-- **Unit:** Vitest preferred (fast, native ESM support). Jest works but requires `ts-jest` or `@swc/jest` for TypeScript.
-- **Component:** `@playwright/experimental-ct-react`. For Next.js, ensure `next.config.js` settings are compatible with CT bundling.
-- **E2E:** Standard Playwright config. Use `webServer` option to start the Next.js dev server.
-- **Visual:** No special considerations beyond hydration waiting (see `renderer-adapters.md`).
+| Framework | Specialization |
+|-----------|---------------|
+| React / Next.js | [`react-specialization.md`](react-specialization.md) |
+| Vue / Nuxt | `vue-specialization.md` (future) |
+| Angular | `angular-specialization.md` (future) |
+| Svelte / SvelteKit | `svelte-specialization.md` (future) |
 
-**Additional Next.js packages:**
+If no specialization exists for the detected framework, the generic detection algorithm above is still fully functional — it just won't suggest framework-specific tool variants or starter configs.
 
-- `@testing-library/react` requires `react-dom` (typically already installed)
-- For RSC testing, use Vitest with `server` environment for server components and `jsdom` for client components
+### Adding a new specialization
 
-### Vue / Nuxt
+To support a new framework (including non-web platforms like mobile):
 
-- **Unit:** Vitest is the official recommendation for Vue 3. Use `@vue/test-utils` alongside `@testing-library/vue`.
-- **Component:** `@playwright/experimental-ct-vue`. Supports Vue 3 SFCs with `<script setup>`.
-- **E2E:** Standard Playwright. For Nuxt, use `webServer` to start the Nuxt dev server (`nuxi dev`).
-- **Visual:** Handle Vue transitions by disabling animations or waiting for `transitionend` events.
-
-**Additional Vue packages:**
-
-```bash
-pnpm add -D @vue/test-utils @testing-library/vue
-```
-
-### Angular
-
-- **Unit:** Angular CLI ships with Karma/Jasmine by default. For modern setups, detect `jest` or `vitest` (via `@analogjs/vite-plugin-angular`). Suggest migration to Jest/Vitest if still on Karma.
-- **Component:** `@playwright/experimental-ct-react` is not available for Angular. Use Playwright full-page testing with isolated routes instead.
-- **E2E:** Playwright is the recommended replacement for Protractor. Check for `@angular-devkit/architect` Playwright builder.
-- **Visual:** Zone.js timing requires explicit `waitForAngular()` or `page.waitForLoadState('networkidle')`.
-
-**Detection hint:** Look for `angular.json` as the framework indicator.
-
-### Svelte / SvelteKit
-
-- **Unit:** Vitest with `@testing-library/svelte`. Svelte 5 runes may require specific Vitest plugin configuration.
-- **Component:** `@playwright/experimental-ct-svelte`. Limited community adoption; full-page testing may be more practical.
-- **E2E:** Standard Playwright. For SvelteKit, use `webServer` with `vite dev` or `vite preview`.
-- **Visual:** Use `tick()` from `svelte` to ensure DOM updates are flushed before capturing screenshots.
-
-**Detection hint:** Look for `svelte.config.js` or `svelte.config.ts` as the framework indicator.
+1. Create `references/<framework>-specialization.md` following the structure of existing specializations.
+2. Document: detection heuristics, tool variants per level, install commands, and starter configs.
+3. The core skill and this detection reference require no changes.
 
 ---
 

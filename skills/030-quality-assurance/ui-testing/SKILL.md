@@ -1,18 +1,19 @@
 ---
 name: ui-testing
 description: >
-  UI testing orchestration across 4 levels: unit, component, E2E, and visual.
-  Detects project testing tools, suggests setup when missing, and coordinates
-  test generation for UI tasks. Use when implementing UI components, pages,
+  Stack-agnostic UI testing orchestration across 4 levels: unit, component,
+  E2E, and visual. Detects project testing tools, loads framework-specific
+  specializations, suggests setup when missing, and coordinates test
+  generation for UI tasks. Use when implementing UI components, pages,
   or features that need testing.
-version: 1.0.0
+version: 2.0.0
 category: quality-assurance
 keywords: [ui-testing, unit-test, component-test, e2e, visual-testing, playwright, vitest]
 user-invocable: true
 argument-hint: "[--ticket KEY] [--levels unit,component,e2e,visual]"
-triggers: [react, next, nextjs, vue, angular, nuxt, svelte]
+triggers: [react, next, nextjs, vue, angular, nuxt, svelte, sveltekit]
 compatible_languages: [typescript, javascript]
-last_updated: 2026-03-25
+last_updated: 2026-03-26
 allowed-tools:
   - Read
   - Write
@@ -25,7 +26,9 @@ allowed-tools:
 
 # UI Testing Orchestration
 
-Coordinates test generation across four testing levels for UI tasks. Detects the project's existing testing infrastructure, suggests setup when tools are missing, and delegates test generation to specialised mastery skills.
+Coordinates test generation across four testing levels for UI tasks. Detects the project's existing testing infrastructure, loads framework-specific specializations, suggests setup when tools are missing, and delegates test generation to specialised mastery skills.
+
+This skill is **stack-agnostic**. Core orchestration logic (test level selection, tool detection algorithm, report format) is framework-independent. Framework-specific knowledge (tool variants, install commands, starter configs) lives in `references/*-specialization.md` files that are loaded dynamically based on project detection.
 
 ## Workflow
 
@@ -40,7 +43,29 @@ If neither `--ticket` nor `--levels` is provided, prompt the user:
 
 > Which test levels should I generate? Options: `unit`, `component`, `e2e`, `visual` (comma-separated), or provide a `--ticket` key so I can determine them automatically.
 
-### Step 2 — UI Task Detection
+### Step 2 — Load Framework Specialization
+
+Detect the project's UI framework and load the corresponding specialization reference:
+
+1. **Detect framework** by checking (in order):
+   - Config files in the project root: `next.config.*` (Next.js/React), `nuxt.config.*` (Nuxt/Vue), `angular.json` (Angular), `svelte.config.*` (Svelte/SvelteKit)
+   - Framework-specific dependencies in `package.json`: `next`, `react`, `vue`, `@angular/core`, `svelte`
+   - Existing test file imports (fallback heuristic)
+
+2. **Load the specialization** from `references/<framework>-specialization.md`:
+   - React / Next.js → [`references/react-specialization.md`](references/react-specialization.md)
+   - Future specializations follow the same `<framework>-specialization.md` convention.
+
+3. If no specialization file exists for the detected framework, proceed with **generic defaults only** (the core skill remains fully functional without a specialization — it just won't suggest framework-specific tool variants or starter configs).
+
+Log the result:
+
+```
+Framework detected: React (Next.js)
+Specialization loaded: references/react-specialization.md
+```
+
+### Step 3 — UI Task Detection
 
 Classify the current task by running `classifyUITask()` logic against the available context:
 
@@ -57,13 +82,13 @@ Classify the current task by running `classifyUITask()` logic against the availa
 
 Output the classification and proceed.
 
-### Step 3 — Determine Test Levels
+### Step 4 — Determine Test Levels
 
 Resolve which of the four levels apply using this priority order:
 
 1. **Explicit `--levels` argument** — use as-is, no further logic needed.
 2. **Ticket DoD** — if the ticket specifies test requirements (e.g. "unit tests required", "E2E coverage for happy path"), map those to levels.
-3. **Decision matrix** — look up the task type from Step 2 in [`references/test-level-matrix.md`](references/test-level-matrix.md) to determine Required / Recommended / Optional levels.
+3. **Decision matrix** — look up the task type from Step 3 in [`references/test-level-matrix.md`](references/test-level-matrix.md) to determine Required / Recommended / Optional levels.
 
 If the matrix yields only "Recommended" levels (none Required), confirm with the user before proceeding.
 
@@ -78,25 +103,25 @@ Test levels:
   - Visual:    If Figma exists → checking...
 ```
 
-### Step 4 — Detect Tools
+### Step 5 — Detect Tools
 
-For each active level, detect whether the necessary tooling is installed. Follow the detection order specified in [`references/tool-detection.md`](references/tool-detection.md).
+For each active level, detect whether the necessary tooling is installed. Follow the detection order specified in [`references/tool-detection.md`](references/tool-detection.md). Use the loaded specialization (Step 2) for framework-specific tool variants and install commands.
 
 #### Level 1 — Unit Testing
 
 1. Check for `vitest.config.ts` or `vitest.config.js` in the project root.
 2. If not found, check for `jest.config.*` (js, ts, json, cjs, mjs).
-3. Check for `@testing-library/react` (or framework-appropriate variant) in `package.json`.
-4. If nothing found, suggest installation:
+3. Check for the framework-appropriate Testing Library package in `package.json` (e.g. `@testing-library/react`, `@testing-library/vue`, `@testing-library/svelte`).
+4. If nothing found, suggest installation using the specialization's recommended install command. Generic fallback:
    ```
-   pnpm add -D vitest @testing-library/react @testing-library/jest-dom
+   pnpm add -D vitest @testing-library/{framework} @testing-library/jest-dom
    ```
 
 #### Level 2 — Component Testing
 
-1. Check for `@playwright/experimental-ct-react` (or framework variant) in `package.json`.
+1. Check for the framework-appropriate Playwright CT package in `package.json` (e.g. `@playwright/experimental-ct-react`, `@playwright/experimental-ct-vue`).
 2. Check for `playwright-ct.config.ts` in the project root.
-3. If not found, suggest installation and provide a starter config.
+3. If not found, suggest installation using the specialization's recommended install command and provide a starter config.
 
 #### Level 3 — E2E Testing
 
@@ -118,7 +143,7 @@ For each active level, detect whether the necessary tooling is installed. Follow
 
 If any required tool is missing, ask the user whether to install it or skip that level.
 
-### Step 5 — Generate Tests
+### Step 6 — Generate Tests
 
 For each active level, delegate to the appropriate mastery skill:
 
@@ -167,7 +192,7 @@ Invoke the visual testing skill:
 /ui-visual-testing --ticket <KEY> --mode figma|screenshot|both
 ```
 
-### Step 6 — Run Tests and Report
+### Step 7 — Run Tests and Report
 
 Execute all generated tests and produce a summary report:
 
