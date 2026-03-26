@@ -76,6 +76,7 @@ ${feedbackPrompt}
         additionalContext: consolidatedContext,
         timeout: 600000, // 10 minutes (longer for Opus)
         useUltrathink: true, // Enable maximum thinking for thorough synthesis
+        requireJsonOutput: false, // Synthesis agent outputs markdown, not JSON
       });
 
       const result = await agent.invoke({
@@ -86,12 +87,70 @@ ${feedbackPrompt}
     };
 
     const validator = (output: string): ValidationResult => {
+      const errors: string[] = [];
+
       // Basic validation: should contain markdown content
       if (!output || output.length < 500) {
         return {
           valid: false,
           errors: [
             "Synthesis output too short or empty (minimum 500 characters)",
+          ],
+          data: null,
+        };
+      }
+
+      // Check for required sections
+      const hasCLAUDESection = output.includes("# CLAUDE.md Content");
+      const hasProjectContextSection = output.includes(
+        "# project-context/SKILL.md Content",
+      );
+      const hasSeparator = output.includes("---");
+
+      if (!hasCLAUDESection) {
+        errors.push(
+          'Missing required section: "# CLAUDE.md Content" - this must be the first section header',
+        );
+      }
+
+      if (!hasProjectContextSection) {
+        errors.push(
+          'Missing required section: "# project-context/SKILL.md Content" - this must come after the separator',
+        );
+      }
+
+      if (!hasSeparator) {
+        errors.push(
+          'Missing separator "---" between CLAUDE.md and project-context sections',
+        );
+      }
+
+      // Check that output doesn't look like JSON
+      const trimmedOutput = output.trim();
+      if (trimmedOutput.startsWith("{") && trimmedOutput.includes('"agent_name"')) {
+        errors.push(
+          "Output appears to be JSON format instead of markdown. Please output markdown content with the two required sections, not JSON.",
+        );
+      }
+
+      if (errors.length > 0) {
+        return {
+          valid: false,
+          errors: [
+            "Synthesis output validation failed:",
+            "",
+            ...errors,
+            "",
+            "Expected format:",
+            "# CLAUDE.md Content",
+            "",
+            "[markdown content for CLAUDE.md]",
+            "",
+            "---",
+            "",
+            "# project-context/SKILL.md Content",
+            "",
+            "[markdown content for project-context/SKILL.md with YAML frontmatter]",
           ],
           data: null,
         };

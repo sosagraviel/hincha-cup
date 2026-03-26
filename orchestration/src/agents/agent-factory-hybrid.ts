@@ -51,6 +51,7 @@ export interface AgentConfig {
   additionalContext?: string;
   timeout?: number;
   useUltrathink?: boolean;
+  requireJsonOutput?: boolean;
 }
 
 export interface AgentInvokeResult {
@@ -167,10 +168,12 @@ export class HybridAgentFactory {
 
     const model = await llmFactory.createModel(config.agentName);
 
+    // Agent files are at <frameworkPath>/orchestration/agents/
+    // This works whether frameworkPath points to the framework root
+    // or is nested inside a project (e.g., <project>/qubika-agentic-framework/)
     const agentPath = path.join(
       config.frameworkPath,
-      ".claude",
-      "agents",
+      "orchestration/agents",
       config.agentFile,
     );
 
@@ -284,6 +287,8 @@ export class HybridAgentFactory {
             config.agentName,
             fullPrompt,
             config.projectPath,
+            config.agentFile,
+            config.frameworkPath,
             config.timeout,
             config.useUltrathink,
           );
@@ -328,6 +333,8 @@ export class HybridAgentFactory {
     agentName: string,
     prompt: string,
     projectPath: string,
+    agentFile: string,
+    frameworkPath: string,
     timeout: number = 300000,
     useUltrathink: boolean = false,
   ): Promise<string> {
@@ -384,11 +391,22 @@ export class HybridAgentFactory {
         });
       });
 
+      // Construct path to agent file
+      const agentPath = path.join(frameworkPath, "orchestration/agents", agentFile);
+
+      // Set cwd to agents directory so hook paths (./hooks/...) resolve correctly
+      const agentsDir = path.join(frameworkPath, "orchestration/agents");
+
       claudeProcess = spawn(
         "claude",
-        ["--model", "sonnet", "--dangerously-skip-permissions"],
+        [
+          "--agent", agentPath,
+          "--model", "sonnet",
+          "--dangerously-skip-permissions",
+          "--add-dir", projectPath,  // Grant access to project directory
+        ],
         {
-          cwd: projectPath,
+          cwd: agentsDir, // Changed from projectPath to agentsDir so hooks resolve
           env: {
             ...process.env,
             CLAUDE_SKIP_CONFIRMATIONS: "1",

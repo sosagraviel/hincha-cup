@@ -10,6 +10,7 @@ import {
 import { getLLMFactory } from "../llm/llm-factory.js";
 import { logger } from "../utils/logger.js";
 import { HybridAgentFactory } from "../agents/agent-factory-hybrid.js";
+import { runPreflightChecks } from "../utils/preflight-checks.js";
 
 const program = new Command();
 
@@ -143,20 +144,57 @@ program
           .replace(/-/g, "_"); // Replace hyphens with underscores
       };
 
+      // Import fs for phase data loading (when using --start-phase)
       const fs = await import("fs");
-      if (!fs.existsSync(projectPath)) {
-        logger.error(`Project path does not exist: ${projectPath}`);
+
+      // ========================================================================
+      // PREFLIGHT CHECKS - SINGLE SOURCE OF TRUTH
+      // ========================================================================
+      logger.section("Preflight Checks");
+
+      const preflightResult = await runPreflightChecks(projectPath, frameworkPath);
+
+      // Display warnings (non-blocking)
+      if (preflightResult.warnings.length > 0) {
+        logger.blank();
+        preflightResult.warnings.forEach((warning) => {
+          logger.warn(warning);
+        });
+        logger.blank();
+      }
+
+      // Display errors and exit if any
+      if (!preflightResult.success) {
+        logger.blank();
+        logger.error("Preflight checks failed:");
+        logger.blank();
+        preflightResult.errors.forEach((error) => {
+          logger.error(error);
+          logger.blank();
+        });
         process.exit(1);
       }
-      if (!fs.existsSync(frameworkPath)) {
-        logger.error(`Framework path does not exist: ${frameworkPath}`);
-        logger.increaseIndent();
-        logger.info(
-          "Set FRAMEWORK_PATH environment variable or use --framework-path flag",
-        );
-        logger.decreaseIndent();
-        process.exit(1);
+
+      // Display success
+      logger.success(`✓ Node.js ${preflightResult.nodeVersion}`);
+      logger.success(`✓ npm ${preflightResult.npmVersion}`);
+      if (preflightResult.claudeVersion) {
+        logger.success(`✓ Claude CLI ${preflightResult.claudeVersion}`);
       }
+
+      // Show auth mode
+      if (preflightResult.authMode === "api_key") {
+        logger.success("✓ Authentication: API Keys detected");
+      } else if (preflightResult.authMode === "claude_cli") {
+        logger.success("✓ Authentication: Claude CLI (subscription)");
+      }
+
+      if (preflightResult.gitignoreUpdated) {
+        logger.success("✓ .gitignore updated with framework entries");
+      } else {
+        logger.success("✓ .gitignore contains required entries");
+      }
+      logger.blank();
 
       logger.spinner("Initializing workflow...", "init");
       await initializeDevCheckpointer();
