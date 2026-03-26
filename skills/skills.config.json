@@ -98,6 +98,24 @@
       "compatible_languages": ["python"]
     },
     {
+      "name": "ui-testing",
+      "path": "030-quality-assurance/ui-testing",
+      "description": "UI testing orchestration: unit, component, E2E, and visual test levels",
+      "trigger_mode": "triggered",
+      "triggers": ["react", "next", "nextjs", "vue", "angular", "nuxt", "svelte"],
+      "compatible_languages": ["typescript", "javascript"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "ui-visual-testing",
+      "path": "030-quality-assurance/ui-visual-testing",
+      "description": "Dual-mode visual testing: Figma design fidelity and screenshot regression comparison",
+      "trigger_mode": "triggered",
+      "triggers": ["react", "next", "nextjs", "vue", "angular", "nuxt", "svelte"],
+      "compatible_languages": ["typescript", "javascript"],
+      "is_linkable_to_agents": true
+    },
+    {
       "name": "fetch-ticket-context",
       "path": "040-integrations/fetch-ticket-context",
       "description": "Fetch ticket context from external systems",
@@ -141,6 +159,15 @@
       "triggers": ["notion"],
       "compatible_languages": [],
       "is_linkable_to_agents": false
+    },
+    {
+      "name": "figma-design-fetcher",
+      "path": "040-integrations/figma-design-fetcher",
+      "description": "Fetches Figma designs, exports frame images, and extracts structured design constraints",
+      "trigger_mode": "triggered",
+      "triggers": ["react", "next", "nextjs", "vue", "angular", "nuxt", "svelte"],
+      "compatible_languages": ["typescript", "javascript"],
+      "is_linkable_to_agents": true
     },
     {
       "name": "mastering-typescript",
@@ -212,6 +239,14 @@
       "description": "Next.js framework patterns and best practices",
       "trigger_mode": "triggered",
       "triggers": ["next", "nextjs"],
+      "compatible_languages": ["typescript", "javascript"]
+    },
+    {
+      "name": "mastering-vitest",
+      "path": "050-language-frameworks/mastering-vitest",
+      "description": "Vitest testing patterns and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["vitest"],
       "compatible_languages": ["typescript", "javascript"]
     },
     {

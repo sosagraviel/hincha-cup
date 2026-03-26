@@ -207,7 +207,7 @@ const canonical = parseMarkdownTicket(filePath);
    - Check for placeholder text
    - Identify all gaps
 
-2. **Intelligent Gap Detection** (4-strategy approach):
+2. **Intelligent Gap Detection** (5-strategy approach):
 
    **Strategy 1: Search Project Context**
    - Read `.claude/CLAUDE.md` for project standards
@@ -228,6 +228,24 @@ const canonical = parseMarkdownTicket(filePath);
    - Search `.claude/tickets/` for similar tickets
    - Extract common patterns for stakeholders, DoD, testing
    - Learn from precedents
+
+   **Strategy 5: UI Task Detection**
+   - Run `classifyUITask()` (from `orchestration/src/utils/ui-task-detector.ts`) against canonical ticket content
+   - IF `isUI == false` → skip (no UI work detected)
+   - IF `isUI == true`:
+     a. Check if project already has ui_testing configuration:
+        - Search `.claude/CLAUDE.md` for "ui_testing", "visual testing", "ui-visual-testing"
+        - Check for `ui-visual-testing.json` in project root
+     b. IF config NOT found → add batch question:
+        "UI Testing: This ticket involves UI components ({detected keywords}).
+         Should visual UI testing against Figma designs be required as part of
+         the Definition of Done? (yes / no / not applicable)"
+     c. IF config found OR engineer answers "yes":
+        - Inject UI Testing DoD items based on Test Level Decision Matrix (see `skills/030-quality-assurance/ui-testing/references/test-level-matrix.md`)
+        - Inject UI testing acceptance criteria (BDD scenarios for visual fidelity)
+        - Inject technical tasks (write tests, create ui-visual-testing.json mapping)
+        - IF Figma URLs detected: extract fileKey + nodeIds, pre-populate config mapping
+     d. IF engineer answers "no" or "not applicable" → no changes
 
 3. **Apply inferred values** to canonical ticket
 

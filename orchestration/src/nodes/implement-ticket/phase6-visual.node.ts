@@ -1,10 +1,13 @@
-import { existsSync, readFileSync, mkdirSync, writeFileSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
+import { join, dirname } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { EnvironmentManagerService } from '../../services/implement-ticket/environment-manager.service.js';
 import { ScreenshotService, type ComparisonResult } from '../../services/implement-ticket/screenshot.service.js';
 import { AgentInvokerService } from '../../services/implement-ticket/agent-invoker.service.js';
 import { TestOrchestratorService } from '../../services/implement-ticket/test-orchestrator.service.js';
+import { FigmaExportService } from '../../services/implement-ticket/figma-export.service.js';
+import { UIVisualTestingConfigSchema, type UIVisualTestingConfig } from '../../schemas/ui-visual-testing.schema.js';
+import { classifyUITask } from '../../utils/ui-task-detector.js';
 
 /**
  * Phase 6: Visual Verification Node
@@ -15,6 +18,11 @@ import { TestOrchestratorService } from '../../services/implement-ticket/test-or
  * - If diff > 5%: Invokes visual-verifier agent, applies fixes, iterates
  * - Max 5 iterations to converge visual changes
  * - Non-blocking: Continues even if max iterations reached
+ *
+ * NEW: Config-driven dual-mode pipeline (Figma + Screenshot)
+ * - Detects ui-visual-testing.json config file
+ * - If found: runs config-driven pipeline with mode-specific thresholds
+ * - If not found: falls through to legacy before/after comparison
  *
  * Key Design Principles:
  * - Idempotent: Can be re-run safely by checking completion marker file
@@ -59,6 +67,42 @@ export async function phase6VisualNode(
     }
     console.log('[Phase 6: Visual Verification] ✓ Phase 5 verified');
 
+    // -----------------------------------------------------------------------
+    // NEW: Config-driven dual-mode pipeline detection
+    // -----------------------------------------------------------------------
+    const phase4Dir = join(tempDir, 'phase4');
+    const changedFiles = readChangedFiles(phase4Dir);
+    const configPath = findVisualTestingConfig(projectPath, changedFiles);
+
+    if (configPath) {
+      console.log(`[Phase 6: Visual Verification] Found ui-visual-testing.json: ${configPath}`);
+      return await runConfigDrivenPipeline(
+        state, configPath, phase6Dir, completionMarkerPath, tempDir
+      );
+    }
+
+    // Check if this is a UI task (for logging recommendation)
+    const phase1Dir = join(tempDir, 'phase1');
+    const fullContextPath = join(phase1Dir, 'full-context.md');
+    if (existsSync(fullContextPath)) {
+      const phase0Dir = join(tempDir, 'phase0');
+      const stackProfilePath = join(phase0Dir, 'stack-profile.json');
+      const stackProfile = existsSync(stackProfilePath)
+        ? JSON.parse(readFileSync(stackProfilePath, 'utf-8'))
+        : undefined;
+
+      const ticketContent = readFileSync(fullContextPath, 'utf-8');
+      const classification = classifyUITask(ticketContent, stackProfile, changedFiles);
+
+      if (classification.isUI) {
+        console.log('[Phase 6: Visual Verification] UI task detected but no ui-visual-testing.json found');
+        console.log(`[Phase 6: Visual Verification] Recommendation: create config for improved visual testing (score: ${classification.confidence}, ${classification.recommendation})`);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // LEGACY PATH: before/after comparison (unchanged)
+    // -----------------------------------------------------------------------
     const phase3Dir = join(tempDir, 'phase3');
     const envConfigPath = join(phase3Dir, 'environment-config.json');
 
@@ -162,7 +206,7 @@ export async function phase6VisualNode(
             beforePath,
             afterPath,
             diffPath,
-            0.1 // threshold
+            { pixelThreshold: 0.1, passPercentage: diffThreshold, includeAA: false }
           );
 
           diffResults.push(comparison);
@@ -335,6 +379,7 @@ export async function phase6VisualNode(
         : 0,
       verdict: converged ? 'passed' as const : (iteration >= maxIterations ? 'failed' as const : 'skipped' as const),
       iteration_count: iteration,
+      visual_mode: 'legacy' as const,
       timestamp: new Date().toISOString()
     };
 
@@ -372,6 +417,402 @@ export async function phase6VisualNode(
 
     return skipVisualVerification(phase6Dir, completionMarkerPath, ticketId, errorMessage);
   }
+}
+
+// ===========================================================================
+// Config-driven dual-mode pipeline
+// ===========================================================================
+
+/**
+ * Find ui-visual-testing.json in changed file directories or project root.
+ */
+export function findVisualTestingConfig(
+  projectPath: string,
+  changedFiles?: string[]
+): string | null {
+  // Check changed file directories first (most specific)
+  if (changedFiles) {
+    const checkedDirs = new Set<string>();
+    for (const file of changedFiles) {
+      const dir = dirname(join(projectPath, file));
+      if (checkedDirs.has(dir)) continue;
+      checkedDirs.add(dir);
+
+      const configPath = join(dir, 'ui-visual-testing.json');
+      if (existsSync(configPath)) {
+        try {
+          const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
+          UIVisualTestingConfigSchema.parse(raw);
+          return configPath;
+        } catch {
+          // Invalid config, skip
+        }
+      }
+    }
+  }
+
+  // Check project root
+  const rootConfigPath = join(projectPath, 'ui-visual-testing.json');
+  if (existsSync(rootConfigPath)) {
+    try {
+      const raw = JSON.parse(readFileSync(rootConfigPath, 'utf-8'));
+      UIVisualTestingConfigSchema.parse(raw);
+      return rootConfigPath;
+    } catch {
+      // Invalid config, skip
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Run the config-driven dual-mode visual testing pipeline.
+ */
+async function runConfigDrivenPipeline(
+  state: ImplementTicketState,
+  configPath: string,
+  phase6Dir: string,
+  completionMarkerPath: string,
+  tempDir: string,
+): Promise<Partial<ImplementTicketState>> {
+  const ticketId = state.ticket_id;
+  const projectPath = state.project_path;
+  const frameworkPath = state.framework_path;
+
+  mkdirSync(phase6Dir, { recursive: true });
+
+  const config: UIVisualTestingConfig = UIVisualTestingConfigSchema.parse(
+    JSON.parse(readFileSync(configPath, 'utf-8'))
+  );
+
+  console.log(`[Phase 6: Config Pipeline] ${config.screens.length} screen(s), max ${config.maxIterations} iterations`);
+  console.log(`[Phase 6: Config Pipeline] Thresholds: Figma=${config.thresholds.figma}%, Regression=${config.thresholds.regression}%`);
+
+  // Determine active modes
+  const hasFigmaScreens = config.screens.some(s => s.modes.includes('figma') && s.figmaNodeId);
+  const hasScreenshotScreens = config.screens.some(s => s.modes.includes('screenshot'));
+
+  let activeMode: 'figma' | 'screenshot' | 'both';
+  if (hasFigmaScreens && hasScreenshotScreens) activeMode = 'both';
+  else if (hasFigmaScreens) activeMode = 'figma';
+  else activeMode = 'screenshot';
+
+  console.log(`[Phase 6: Config Pipeline] Active mode: ${activeMode}`);
+
+  // Fetch Figma designs if needed
+  let figmaResult;
+  if (hasFigmaScreens && config.figma?.fileKey) {
+    const figmaDir = join(phase6Dir, 'figma');
+    const figmaService = new FigmaExportService(projectPath, figmaDir);
+
+    const figmaNodeIds = config.screens
+      .filter(s => s.figmaNodeId && s.modes.includes('figma'))
+      .map(s => s.figmaNodeId!);
+    const labels = config.screens
+      .filter(s => s.figmaNodeId && s.modes.includes('figma'))
+      .map(s => s.label);
+
+    figmaResult = await figmaService.fetchDesignContext(config.figma.fileKey, figmaNodeIds, labels);
+
+    if (figmaResult.success) {
+      console.log(`[Phase 6: Config Pipeline] ✓ Fetched ${figmaResult.images.length} Figma frames`);
+    } else {
+      console.log(`[Phase 6: Config Pipeline] ⚠ Figma fetch failed: ${figmaResult.error}`);
+      console.log('[Phase 6: Config Pipeline] Falling back to screenshot-only mode');
+      activeMode = 'screenshot';
+    }
+  }
+
+  // Set up environment
+  const phase3Dir = join(tempDir, 'phase3');
+  const envConfigPath = join(phase3Dir, 'environment-config.json');
+
+  if (!existsSync(envConfigPath)) {
+    console.log('[Phase 6: Config Pipeline] ⚠ No environment config, skipping');
+    return skipVisualVerification(phase6Dir, completionMarkerPath, ticketId, 'No environment config');
+  }
+
+  const envConfig = JSON.parse(readFileSync(envConfigPath, 'utf-8'));
+  const envManager = new EnvironmentManagerService(projectPath);
+  const page = envManager.getPlaywrightPage();
+
+  if (!page) {
+    return skipVisualVerification(phase6Dir, completionMarkerPath, ticketId, 'No Playwright page');
+  }
+
+  const baseUrl = `http://localhost:${envConfig.port}`;
+  const iterationLog: string[] = [];
+
+  // Iteration loop
+  let iteration = 0;
+  let converged = false;
+  const allComparisons: Array<{
+    label: string;
+    mode: 'figma' | 'screenshot';
+    viewport: string;
+    diffPercent: number;
+    diffPixels: number;
+    totalPixels: number;
+    passed: boolean;
+    diffImage: string;
+  }> = [];
+
+  while (iteration < config.maxIterations && !converged) {
+    iteration++;
+    console.log(`\n[Phase 6: Config Pipeline] === Iteration ${iteration}/${config.maxIterations} ===\n`);
+    iterationLog.push(`\n## Iteration ${iteration}\n`);
+    allComparisons.length = 0;
+
+    const iterDir = join(phase6Dir, `iter-${iteration}`);
+    const afterDir = join(iterDir, 'after');
+    const diffDir = join(iterDir, 'diffs');
+    mkdirSync(afterDir, { recursive: true });
+    mkdirSync(diffDir, { recursive: true });
+
+    const screenshotService = new ScreenshotService(afterDir);
+
+    // Capture actual screenshots for each screen entry
+    for (const screen of config.screens) {
+      try {
+        const actual = await screenshotService.captureWithConfig(page, baseUrl, screen, 'actual');
+        const viewportLabel = `${screen.viewport.width}x${screen.viewport.height}`;
+        const label = screen.label.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase();
+
+        // Figma comparison
+        if (screen.modes.includes('figma') && screen.figmaNodeId && figmaResult?.success) {
+          const figmaImage = figmaResult.images.find(img => img.nodeId === screen.figmaNodeId);
+          if (figmaImage) {
+            const diffPath = join(diffDir, `${label}-figma-diff.png`);
+            try {
+              const result = await screenshotService.compareScreenshots(
+                figmaImage.imagePath,
+                actual.path,
+                diffPath,
+                {
+                  pixelThreshold: 0.1,
+                  passPercentage: config.thresholds.figma,
+                  includeAA: false,
+                  ignoreRegions: screen.ignoreRegions,
+                }
+              );
+              allComparisons.push({
+                label: screen.label,
+                mode: 'figma',
+                viewport: viewportLabel,
+                diffPercent: result.diffPercentage,
+                diffPixels: result.diffPixels,
+                totalPixels: result.totalPixels,
+                passed: result.passed,
+                diffImage: diffPath,
+              });
+            } catch (err: any) {
+              console.log(`[Phase 6: Config Pipeline] Figma comparison failed for ${screen.label}: ${err.message}`);
+              iterationLog.push(`⚠ Figma comparison failed: ${err.message}\n`);
+            }
+          }
+        }
+
+        // Screenshot regression comparison
+        if (screen.modes.includes('screenshot')) {
+          const beforeScreenshotsPath = join(phase6Dir, 'before');
+          const beforePath = join(beforeScreenshotsPath, `before-${label}-${viewportLabel}.png`);
+
+          // Capture "before" on first iteration if not already captured
+          if (iteration === 1 && !existsSync(beforePath)) {
+            // Before screenshots should already exist from Phase 3
+            // If not, we skip regression for this screen
+            const phase3BeforePath = join(phase3Dir, 'screenshots-before.json');
+            if (existsSync(phase3BeforePath)) {
+              const phase3Screenshots = JSON.parse(readFileSync(phase3BeforePath, 'utf-8'));
+              const matching = phase3Screenshots.find((s: any) => {
+                try { return new URL(s.url).pathname === screen.route; } catch { return false; }
+              });
+              if (matching && existsSync(matching.path)) {
+                mkdirSync(dirname(beforePath), { recursive: true });
+                writeFileSync(beforePath, readFileSync(matching.path));
+              }
+            }
+          }
+
+          if (existsSync(beforePath)) {
+            const diffPath = join(diffDir, `${label}-regression-diff.png`);
+            try {
+              const result = await screenshotService.compareScreenshots(
+                beforePath,
+                actual.path,
+                diffPath,
+                {
+                  pixelThreshold: 0.1,
+                  passPercentage: config.thresholds.regression,
+                  includeAA: false,
+                  ignoreRegions: screen.ignoreRegions,
+                }
+              );
+              allComparisons.push({
+                label: screen.label,
+                mode: 'screenshot',
+                viewport: viewportLabel,
+                diffPercent: result.diffPercentage,
+                diffPixels: result.diffPixels,
+                totalPixels: result.totalPixels,
+                passed: result.passed,
+                diffImage: diffPath,
+              });
+            } catch (err: any) {
+              console.log(`[Phase 6: Config Pipeline] Regression comparison failed for ${screen.label}: ${err.message}`);
+              iterationLog.push(`⚠ Regression comparison failed: ${err.message}\n`);
+            }
+          }
+        }
+      } catch (err: any) {
+        console.log(`[Phase 6: Config Pipeline] Capture failed for ${screen.label}: ${err.message}`);
+        iterationLog.push(`⚠ Capture failed for ${screen.label}: ${err.message}\n`);
+      }
+    }
+
+    // Check convergence
+    const allPassed = allComparisons.length > 0 && allComparisons.every(c => c.passed);
+    const failedComparisons = allComparisons.filter(c => !c.passed);
+
+    for (const c of allComparisons) {
+      console.log(`  • ${c.label} [${c.mode}] ${c.viewport}: ${c.diffPercent.toFixed(2)}% — ${c.passed ? 'PASS' : 'FAIL'}`);
+    }
+
+    if (allPassed) {
+      console.log('[Phase 6: Config Pipeline] ✓ All comparisons pass');
+      iterationLog.push('✓ All comparisons pass\n');
+      converged = true;
+    } else if (iteration < config.maxIterations && failedComparisons.length > 0) {
+      console.log(`[Phase 6: Config Pipeline] ${failedComparisons.length} comparison(s) failed, invoking visual-verifier...`);
+      iterationLog.push(`${failedComparisons.length} comparison(s) failed\n`);
+
+      try {
+        const agentInvoker = new AgentInvokerService(projectPath, frameworkPath);
+
+        // Build constraints context for Figma mode
+        let constraintsJson: string | undefined;
+        if (figmaResult?.success && figmaResult.constraints.length > 0) {
+          const allConstraints = figmaResult.constraints.map(c =>
+            JSON.parse(readFileSync(c.constraintsPath, 'utf-8'))
+          );
+          constraintsJson = JSON.stringify(allConstraints, null, 2);
+        }
+
+        await agentInvoker.invokeVisualVerifier(
+          [], // before paths handled internally
+          [], // after paths handled internally
+          allComparisons,
+          {
+            mode: activeMode,
+            figmaImagesPath: figmaResult?.success ? join(phase6Dir, 'figma') : undefined,
+            figmaConstraints: constraintsJson,
+            diffThreshold: activeMode === 'figma'
+              ? config.thresholds.figma
+              : config.thresholds.regression,
+          }
+        );
+
+        iterationLog.push('Visual-verifier invoked for fix suggestions\n');
+      } catch (err: any) {
+        console.log(`[Phase 6: Config Pipeline] ⚠ Visual-verifier failed: ${err.message}`);
+        iterationLog.push(`⚠ Visual-verifier failed: ${err.message}\n`);
+        break;
+      }
+    }
+  }
+
+  // Write visual-diff-report.json
+  const figmaComparisons = allComparisons.filter(c => c.mode === 'figma');
+  const regressionComparisons = allComparisons.filter(c => c.mode === 'screenshot');
+
+  const report = {
+    ticketKey: ticketId,
+    timestamp: new Date().toISOString(),
+    modes: {
+      figma: {
+        active: hasFigmaScreens,
+        threshold: config.thresholds.figma,
+        comparisons: figmaComparisons,
+        overallPassed: figmaComparisons.every(c => c.passed),
+      },
+      screenshot: {
+        active: hasScreenshotScreens,
+        threshold: config.thresholds.regression,
+        comparisons: regressionComparisons,
+        overallPassed: regressionComparisons.every(c => c.passed),
+      },
+    },
+    overallVerdict: converged ? 'PASS' : 'FAIL',
+    iterationsUsed: iteration,
+  };
+
+  writeFileSync(
+    join(phase6Dir, 'visual-diff-report.json'),
+    JSON.stringify(report, null, 2)
+  );
+
+  writeFileSync(
+    join(phase6Dir, 'iteration-log.md'),
+    `# Visual Verification Iteration Log (Config-Driven)\n\n${iterationLog.join('\n')}`
+  );
+
+  const visualData = {
+    screenshots_after: [] as string[],
+    diff_report: report,
+    diff_percentage: allComparisons.length > 0
+      ? Math.max(...allComparisons.map(c => c.diffPercent), 0)
+      : 0,
+    verdict: converged ? 'passed' as const : 'failed' as const,
+    iteration_count: iteration,
+    visual_mode: activeMode,
+    config_used: configPath,
+    figma_comparisons: figmaComparisons.length > 0 ? figmaComparisons : undefined,
+    regression_comparisons: regressionComparisons.length > 0 ? regressionComparisons : undefined,
+    timestamp: new Date().toISOString(),
+  };
+
+  writeFileSync(
+    join(phase6Dir, 'visual-data.json'),
+    JSON.stringify(visualData, null, 2)
+  );
+
+  writeFileSync(
+    completionMarkerPath,
+    JSON.stringify({
+      completed_at: new Date().toISOString(),
+      ticket_id: ticketId,
+      visual_data: visualData,
+    }, null, 2)
+  );
+
+  console.log(`[Phase 6: Config Pipeline] ✓ Complete (${converged ? 'PASS' : 'FAIL'})`);
+
+  return {
+    current_phase: 'phase7_documentation',
+    phase6_complete: true,
+    phase6_visual: visualData,
+  };
+}
+
+// ===========================================================================
+// Helpers
+// ===========================================================================
+
+/**
+ * Read changed files from Phase 4 output.
+ */
+function readChangedFiles(phase4Dir: string): string[] {
+  const logPath = join(phase4Dir, 'implementation-complete.json');
+  if (existsSync(logPath)) {
+    try {
+      const data = JSON.parse(readFileSync(logPath, 'utf-8'));
+      return data.files_modified ?? data.implementation_data?.files_modified ?? [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 /**
@@ -429,39 +870,3 @@ function skipVisualVerification(
   };
 }
 
-/**
- * Build context for visual verifier agent
- */
-function buildVisualContext(
-  diffResults: ComparisonResult[],
-  beforeScreenshots: any[],
-  afterScreenshots: any[],
-  iteration: number
-): string {
-  const lines: string[] = [];
-
-  lines.push(`# Visual Verification Context (Iteration ${iteration})\n`);
-  lines.push('## Screenshot Comparison Results\n');
-
-  for (let i = 0; i < diffResults.length; i++) {
-    const diff = diffResults[i];
-    const before = beforeScreenshots[i];
-    const after = afterScreenshots[i];
-
-    lines.push(`### Route ${i + 1}: ${before.url}\n`);
-    lines.push(`- **Diff Percentage**: ${diff.diffPercentage.toFixed(2)}%`);
-    lines.push(`- **Diff Pixels**: ${diff.diffPixels} out of ${diff.totalPixels}`);
-    lines.push(`- **Passed Threshold (5%)**: ${diff.passed ? 'Yes' : 'No'}`);
-    lines.push(`- **Before Screenshot**: ${before.path}`);
-    lines.push(`- **After Screenshot**: ${after.path}`);
-    lines.push(`- **Diff Image**: ${diff.diffImagePath}\n`);
-  }
-
-  lines.push('## Task\n');
-  lines.push('Analyze the screenshot comparisons and determine:');
-  lines.push('1. Are the visual changes intentional and acceptable?');
-  lines.push('2. Are there any visual regressions or unintended changes?');
-  lines.push('3. If there are issues, provide specific feedback for fixes.\n');
-
-  return lines.join('\n');
-}

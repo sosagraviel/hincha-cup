@@ -1,0 +1,227 @@
+---
+name: ui-testing
+description: >
+  UI testing orchestration across 4 levels: unit, component, E2E, and visual.
+  Detects project testing tools, suggests setup when missing, and coordinates
+  test generation for UI tasks. Use when implementing UI components, pages,
+  or features that need testing.
+version: 1.0.0
+category: quality-assurance
+keywords: [ui-testing, unit-test, component-test, e2e, visual-testing, playwright, vitest]
+user-invocable: true
+argument-hint: "[--ticket KEY] [--levels unit,component,e2e,visual]"
+triggers: [react, next, nextjs, vue, angular, nuxt, svelte]
+compatible_languages: [typescript, javascript]
+last_updated: 2026-03-25
+allowed-tools:
+  - Read
+  - Write
+  - Bash
+  - Glob
+  - Grep
+  - Edit
+  - Skill
+---
+
+# UI Testing Orchestration
+
+Coordinates test generation across four testing levels for UI tasks. Detects the project's existing testing infrastructure, suggests setup when tools are missing, and delegates test generation to specialised mastery skills.
+
+## Workflow
+
+### Step 1 — Parse Arguments
+
+Extract from the invocation:
+
+- `--ticket KEY` — ticket identifier (e.g. `DOP-194`). When provided, the skill reads ticket content to classify the UI task and derive test requirements from the Definition of Done.
+- `--levels unit,component,e2e,visual` — explicit comma-separated list of levels to run. When omitted, levels are derived from the ticket DoD or the decision matrix.
+
+If neither `--ticket` nor `--levels` is provided, prompt the user:
+
+> Which test levels should I generate? Options: `unit`, `component`, `e2e`, `visual` (comma-separated), or provide a `--ticket` key so I can determine them automatically.
+
+### Step 2 — UI Task Detection
+
+Classify the current task by running `classifyUITask()` logic against the available context:
+
+1. If a ticket key was provided, read the ticket content (title, description, acceptance criteria, DoD).
+2. Scan the current working branch diff (`git diff main...HEAD --name-only`) to identify changed/new UI files.
+3. Classify into one of these task types:
+   - **New atom/molecule component** — new file in `shared/ui/` or `entities/*/ui/`
+   - **New organism/widget** — new file in `widgets/`
+   - **New page/feature** — new file in `app/` pages or `features/`
+   - **Redesign existing screen** — modifications to existing page/widget with visual changes
+   - **Bug fix on existing UI** — fix-type commit touching UI files
+   - **Design token/theme change** — changes to `globals.css`, theme files, or token definitions
+   - **Accessibility improvement** — a11y-related changes (aria attributes, keyboard navigation, focus management)
+
+Output the classification and proceed.
+
+### Step 3 — Determine Test Levels
+
+Resolve which of the four levels apply using this priority order:
+
+1. **Explicit `--levels` argument** — use as-is, no further logic needed.
+2. **Ticket DoD** — if the ticket specifies test requirements (e.g. "unit tests required", "E2E coverage for happy path"), map those to levels.
+3. **Decision matrix** — look up the task type from Step 2 in [`references/test-level-matrix.md`](references/test-level-matrix.md) to determine Required / Recommended / Optional levels.
+
+If the matrix yields only "Recommended" levels (none Required), confirm with the user before proceeding.
+
+Present the resolved levels to the user:
+
+```
+UI Task Type: New organism/widget
+Test levels:
+  - Unit:      Required
+  - Component: Required
+  - E2E:       Recommended
+  - Visual:    If Figma exists → checking...
+```
+
+### Step 4 — Detect Tools
+
+For each active level, detect whether the necessary tooling is installed. Follow the detection order specified in [`references/tool-detection.md`](references/tool-detection.md).
+
+#### Level 1 — Unit Testing
+
+1. Check for `vitest.config.ts` or `vitest.config.js` in the project root.
+2. If not found, check for `jest.config.*` (js, ts, json, cjs, mjs).
+3. Check for `@testing-library/react` (or framework-appropriate variant) in `package.json`.
+4. If nothing found, suggest installation:
+   ```
+   pnpm add -D vitest @testing-library/react @testing-library/jest-dom
+   ```
+
+#### Level 2 — Component Testing
+
+1. Check for `@playwright/experimental-ct-react` (or framework variant) in `package.json`.
+2. Check for `playwright-ct.config.ts` in the project root.
+3. If not found, suggest installation and provide a starter config.
+
+#### Level 3 — E2E Testing
+
+1. Check for `@playwright/test` in `package.json`.
+2. Check for `playwright.config.ts` in the project root.
+3. If not found, suggest installation:
+   ```
+   pnpm add -D @playwright/test && pnpm exec playwright install
+   ```
+
+#### Level 4 — Visual Testing
+
+1. Visual testing always uses Playwright + `pixelmatch`.
+2. Check for `pixelmatch` and `pngjs` in `package.json`.
+3. If not found, suggest installation:
+   ```
+   pnpm add -D pixelmatch pngjs
+   ```
+
+If any required tool is missing, ask the user whether to install it or skip that level.
+
+### Step 5 — Generate Tests
+
+For each active level, delegate to the appropriate mastery skill:
+
+| Level | Skill | Notes |
+|-------|-------|-------|
+| Unit | `mastering-vitest` or `jest-coverage-automation` | Based on detected tool from Step 4 |
+| Component | (inline generation) | Generate Playwright CT test files directly |
+| E2E | `playwright-e2e-automation` | Pass route paths and user flows |
+| Visual | `ui-visual-testing` | Pass Figma mapping and screenshot config |
+
+#### Unit test generation
+
+Invoke the detected unit testing skill with the target files:
+
+```
+/mastering-vitest --files <changed-ui-files> --coverage-target 80
+```
+
+or
+
+```
+/jest-coverage-automation --files <changed-ui-files>
+```
+
+#### Component test generation
+
+Generate Playwright Component Test files that:
+- Mount the component in isolation with representative props
+- Test interactive states (hover, focus, disabled, loading, error)
+- Capture screenshots at each viewport breakpoint
+- Verify accessibility (axe-core integration if available)
+
+#### E2E test generation
+
+Invoke Playwright E2E automation:
+
+```
+/playwright-e2e-automation --routes <affected-routes> --flows <user-flows>
+```
+
+#### Visual test generation
+
+Invoke the visual testing skill:
+
+```
+/ui-visual-testing --ticket <KEY> --mode figma|screenshot|both
+```
+
+### Step 6 — Run Tests and Report
+
+Execute all generated tests and produce a summary report:
+
+1. **Run unit tests:**
+   ```bash
+   pnpm vitest run --reporter=verbose <test-files>
+   ```
+
+2. **Run component tests:**
+   ```bash
+   pnpm playwright test --config=playwright-ct.config.ts <test-files>
+   ```
+
+3. **Run E2E tests:**
+   ```bash
+   pnpm playwright test <test-files>
+   ```
+
+4. **Run visual tests:**
+   Handled by the `ui-visual-testing` skill's own execution pipeline.
+
+5. **Aggregate results:**
+
+```
+=== UI Testing Report ===
+Task:       New organism/widget — KpiDashboard
+Ticket:     DOP-194
+
+Level 1 — Unit:       8/8 passed  (coverage: 87%)
+Level 2 — Component:  4/4 passed  (3 viewports)
+Level 3 — E2E:        3/3 passed  (happy path, error state, empty state)
+Level 4 — Visual:     2/2 passed  (diff < 2% threshold)
+
+Overall: PASS
+```
+
+If any level fails, provide actionable diagnostics:
+- For unit failures: show the failing assertion and the component code in question.
+- For component failures: include the screenshot diff if available.
+- For E2E failures: include the trace file path and the step that failed.
+- For visual failures: include the diff image path and the mismatch percentage.
+
+## Error Handling
+
+- If a mastery skill is not available, fall back to inline test generation using best practices for the detected tool.
+- If the dev server is not running (needed for E2E/visual), attempt to start it and wait for readiness before proceeding.
+- If test generation fails for a specific level, log the error and continue with remaining levels.
+- Always produce a partial report even if some levels fail.
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | All requested levels passed |
+| 1 | One or more test failures |
+| 2 | Tool detection failed and user declined setup |
+| 3 | Configuration error (invalid arguments, missing ticket) |

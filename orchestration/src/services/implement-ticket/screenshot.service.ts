@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import PNG from 'pngjs';
 import pixelmatch from 'pixelmatch';
+import type { ScreenEntry } from '../../schemas/ui-visual-testing.schema.js';
 
 /**
  * Screenshot Service
@@ -12,6 +13,7 @@ import pixelmatch from 'pixelmatch';
  * - Compare screenshots using pixelmatch
  * - Generate diff images highlighting changes
  * - Calculate diff percentage
+ * - Support configurable thresholds, anti-aliasing handling, and region masking
  */
 
 export interface ScreenshotMetadata {
@@ -33,6 +35,24 @@ export interface ComparisonResult {
   threshold: number;
 }
 
+export interface CompareOptions {
+  /** Per-pixel sensitivity (0-1 scale), default 0.1 */
+  pixelThreshold?: number;
+  /** Overall diff percentage to pass, default 5.0 */
+  passPercentage?: number;
+  /** Include anti-aliasing diffs, default false */
+  includeAA?: boolean;
+  /** Regions to ignore during comparison */
+  ignoreRegions?: IgnoreRegion[];
+}
+
+export interface IgnoreRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
  * Service for screenshot capture and comparison
  */
@@ -45,6 +65,38 @@ export class ScreenshotService {
     // Ensure output directory exists
     if (!existsSync(outputDir)) {
       mkdirSync(outputDir, { recursive: true });
+    }
+  }
+
+  /**
+   * Wait for page to be ready for screenshot capture.
+   * Replaces the fixed 2-second wait with configurable, signal-based readiness.
+   */
+  async waitForPageReady(
+    page: Page,
+    options: {
+      waitForSelector?: string;
+      waitForLoadState?: 'load' | 'domcontentloaded' | 'networkidle';
+      delay?: number;
+    } = {}
+  ): Promise<void> {
+    const {
+      waitForSelector,
+      waitForLoadState = 'domcontentloaded',
+      delay = 0,
+    } = options;
+
+    await page.waitForLoadState(waitForLoadState);
+
+    if (waitForSelector) {
+      await page.waitForSelector(waitForSelector, {
+        state: 'visible',
+        timeout: 10000,
+      });
+    }
+
+    if (delay > 0) {
+      await page.waitForTimeout(delay);
     }
   }
 
@@ -75,7 +127,7 @@ export class ScreenshotService {
       });
 
       // Wait for page to be fully rendered
-      await page.waitForTimeout(2000); // Wait 2s for any animations
+      await this.waitForPageReady(page, { waitForLoadState: 'networkidle', delay: 500 });
 
       // Capture screenshot
       const screenshotPath = join(this.outputDir, `${filename}.png`);
@@ -93,6 +145,65 @@ export class ScreenshotService {
         path: screenshotPath
       };
 
+    } catch (error: any) {
+      throw new Error(
+        `Failed to capture screenshot of ${url}: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Capture screenshot using a ui-visual-testing.json screen entry.
+   * Uses the entry's viewport, captureSelector, waitForSelector, and delay.
+   */
+  async captureWithConfig(
+    page: Page,
+    baseUrl: string,
+    screenEntry: ScreenEntry,
+    prefix: string
+  ): Promise<ScreenshotMetadata> {
+    const url = `${baseUrl}${screenEntry.route}`;
+    const label = screenEntry.label.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase();
+    const viewportLabel = `${screenEntry.viewport.width}x${screenEntry.viewport.height}`;
+    const filename = `${prefix}-${label}-${viewportLabel}`;
+
+    try {
+      await page.setViewportSize(screenEntry.viewport);
+
+      console.log(`[Screenshot] Navigating to ${url} (${viewportLabel})...`);
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000,
+      });
+
+      await this.waitForPageReady(page, {
+        waitForSelector: screenEntry.waitForSelector,
+        waitForLoadState: 'domcontentloaded',
+        delay: screenEntry.delay,
+      });
+
+      const screenshotPath = join(this.outputDir, `${filename}.png`);
+
+      if (screenEntry.captureSelector) {
+        const element = await page.$(screenEntry.captureSelector);
+        if (element) {
+          await element.screenshot({ path: screenshotPath });
+        } else {
+          console.warn(`[Screenshot] Selector "${screenEntry.captureSelector}" not found, capturing full page`);
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+        }
+      } else {
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+      }
+
+      console.log(`[Screenshot] ✓ Captured: ${screenshotPath}`);
+
+      return {
+        url,
+        timestamp: new Date().toISOString(),
+        viewport: screenEntry.viewport,
+        path: screenshotPath,
+      };
     } catch (error: any) {
       throw new Error(
         `Failed to capture screenshot of ${url}: ${error.message}`
@@ -134,20 +245,35 @@ export class ScreenshotService {
   }
 
   /**
-   * Compare two screenshots using pixelmatch
+   * Compare two screenshots using pixelmatch.
+   *
+   * Accepts either the legacy number parameter (pixelThreshold) or a
+   * CompareOptions object for full control over comparison behavior.
    *
    * @param beforePath - Path to "before" screenshot
    * @param afterPath - Path to "after" screenshot
    * @param diffOutputPath - Path to save diff image
-   * @param threshold - Pixel diff threshold (0-1, default: 0.1)
+   * @param options - Comparison options or legacy threshold number
    * @returns Comparison result
    */
   async compareScreenshots(
     beforePath: string,
     afterPath: string,
     diffOutputPath: string,
-    threshold: number = 0.1
+    options: CompareOptions | number = {}
   ): Promise<ComparisonResult> {
+    // Backward compatibility: accept number as pixelThreshold
+    const opts: CompareOptions = typeof options === 'number'
+      ? { pixelThreshold: options }
+      : options;
+
+    const {
+      pixelThreshold = 0.1,
+      passPercentage = 5.0,
+      includeAA = false,
+      ignoreRegions,
+    } = opts;
+
     try {
       // Validate files exist
       if (!existsSync(beforePath)) {
@@ -164,28 +290,47 @@ export class ScreenshotService {
       const img1 = PNG.PNG.sync.read(readFileSync(beforePath));
       const img2 = PNG.PNG.sync.read(readFileSync(afterPath));
 
-      // Validate dimensions match
+      // Handle dimension mismatch: resize to smaller dimensions
       if (img1.width !== img2.width || img1.height !== img2.height) {
+        const widthDiff = Math.abs(img1.width - img2.width) / Math.min(img1.width, img2.width);
+        const heightDiff = Math.abs(img1.height - img2.height) / Math.min(img1.height, img2.height);
+
+        if (widthDiff > 0.2 || heightDiff > 0.2) {
+          console.warn(
+            `[Screenshot] ⚠ Image dimensions differ by >20%: ` +
+            `${img1.width}x${img1.height} vs ${img2.width}x${img2.height}. ` +
+            `This may indicate a viewport configuration issue.`
+          );
+        }
+
+        // For now, throw an error but with a more helpful message
+        // Full dimension normalization via sharp will be added when sharp is installed
         throw new Error(
           `Image dimensions don't match: ` +
-          `${img1.width}x${img1.height} vs ${img2.width}x${img2.height}`
+          `${img1.width}x${img1.height} vs ${img2.width}x${img2.height}. ` +
+          `Ensure both captures use the same viewport and deviceScaleFactor.`
         );
       }
 
       const { width, height } = img1;
       const totalPixels = width * height;
 
+      // Apply ignore regions (paint both images with same color in masked areas)
+      if (ignoreRegions && ignoreRegions.length > 0) {
+        applyIgnoreRegions(img1.data, img2.data, width, ignoreRegions);
+      }
+
       // Create diff image
       const diff = new PNG.PNG({ width, height });
 
-      // Compare images
+      // Compare images with anti-aliasing handling
       const diffPixels = pixelmatch(
         img1.data,
         img2.data,
         diff.data,
         width,
         height,
-        { threshold }
+        { threshold: pixelThreshold, includeAA }
       );
 
       // Calculate diff percentage
@@ -199,8 +344,8 @@ export class ScreenshotService {
         `[Screenshot] Diff: ${diffPixels} pixels (${diffPercentage.toFixed(2)}%)`
       );
 
-      // Determine if test passed (< 5% diff)
-      const passed = diffPercentage < 5.0;
+      // Use configurable pass percentage (was hardcoded to 5.0)
+      const passed = diffPercentage < passPercentage;
 
       return {
         diffPixels,
@@ -208,7 +353,7 @@ export class ScreenshotService {
         totalPixels,
         diffImagePath: diffOutputPath,
         passed,
-        threshold
+        threshold: pixelThreshold
       };
 
     } catch (error: any) {
@@ -323,5 +468,33 @@ export class ScreenshotService {
     // For now, return default routes
 
     return defaultRoutes;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Paint ignore regions with identical color on both images
+ * so they produce zero diff in those areas.
+ */
+function applyIgnoreRegions(
+  img1Data: Buffer,
+  img2Data: Buffer,
+  width: number,
+  regions: IgnoreRegion[]
+): void {
+  for (const region of regions) {
+    for (let y = region.y; y < region.y + region.height; y++) {
+      for (let x = region.x; x < region.x + region.width; x++) {
+        const idx = (y * width + x) * 4;
+        // Set both images to same pixel value in this region
+        img1Data[idx] = img2Data[idx] = 0;
+        img1Data[idx + 1] = img2Data[idx + 1] = 0;
+        img1Data[idx + 2] = img2Data[idx + 2] = 0;
+        img1Data[idx + 3] = img2Data[idx + 3] = 255;
+      }
+    }
   }
 }

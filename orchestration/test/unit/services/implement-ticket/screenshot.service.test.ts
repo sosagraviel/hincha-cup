@@ -65,6 +65,9 @@ describe('ScreenshotService', () => {
       screenshot: vi.fn().mockResolvedValue(Buffer.from('fake-image')),
       setViewportSize: vi.fn().mockResolvedValue(null),
       waitForTimeout: vi.fn().mockResolvedValue(null),
+      waitForLoadState: vi.fn().mockResolvedValue(null),
+      waitForSelector: vi.fn().mockResolvedValue(null),
+      $: vi.fn().mockResolvedValue(null),
     };
   });
 
