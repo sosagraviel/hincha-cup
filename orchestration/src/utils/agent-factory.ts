@@ -3,6 +3,7 @@ import { join, relative } from "path";
 import { createDeepAgent } from "deepagents";
 import { getLLMFactory } from "../llm/llm-factory.js";
 import { HybridAgentFactory } from "../agents/agent-factory-hybrid.js";
+import { AuthMode } from "../auth/auth-detector.js";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 /**
@@ -16,6 +17,12 @@ export interface AgentConfig {
   additionalContext?: string;
   timeout?: number;
   useUltrathink?: boolean;
+  /**
+   * Whether to enforce JSON output format
+   * Default: true (for Phase 1 analyzers)
+   * Set to false for agents that output other formats (e.g., synthesis agent outputs markdown)
+   */
+  requireJsonOutput?: boolean;
 }
 
 /**
@@ -57,28 +64,48 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
     additionalContext = "",
     timeout = 300000, // 5 minutes default
     useUltrathink = false,
+    requireJsonOutput = true, // Default to true for backward compatibility
   } = config;
 
   const agentPath = join(frameworkPath, "orchestration/agents", agentFile);
   const agentInstructions = readFileSync(agentPath, "utf-8");
 
-  const fullInstructions = buildAgentPrompt(
-    agentInstructions,
-    projectPath,
-    additionalContext,
-    frameworkPath,
-  );
-
   const factory = await HybridAgentFactory.create();
+  const authConfig = factory.getAuthConfig();
+
+  // Build different prompts based on auth mode:
+  // - CLI mode with --agent flag: Only dynamic context (agent instructions loaded from file)
+  // - DeepAgents mode: Full prompt with agent instructions
+  let promptToPass: string;
+
+  if (authConfig.mode === AuthMode.CLAUDE_CLI) {
+    // For CLI mode: Only pass dynamic context (agent loaded via --agent flag)
+    promptToPass = buildDynamicContext(
+      projectPath,
+      additionalContext,
+      frameworkPath,
+      requireJsonOutput,
+    );
+  } else {
+    // For DeepAgents mode: Pass full prompt with agent instructions
+    promptToPass = buildAgentPrompt(
+      agentInstructions,
+      projectPath,
+      additionalContext,
+      frameworkPath,
+      requireJsonOutput,
+    );
+  }
 
   const hybridAgent = await factory.createAgent({
     agentName,
     agentFile,
     projectPath,
     frameworkPath,
-    additionalContext: fullInstructions,
+    additionalContext: promptToPass,
     timeout,
     useUltrathink,
+    requireJsonOutput,
   });
 
   return {
@@ -138,18 +165,92 @@ function removeFrontmatter(content: string): string {
 }
 
 /**
+ * Build dynamic context (without agent instructions)
+ *
+ * This is used when the agent file is loaded separately (e.g., via Claude CLI --agent flag).
+ * Contains only the dynamic parts that change per invocation:
+ * - Project path
+ * - Excluded directories
+ * - JSON format instructions (optional)
+ * - Additional context (feedback, consolidation data, etc.)
+ *
+ * @param projectPath - Path to the project being analyzed
+ * @param additionalContext - Optional additional context (e.g., error feedback)
+ * @param frameworkPath - Path to the framework directory
+ * @param requireJsonOutput - Whether to enforce JSON output format (default: true)
+ * @returns Dynamic context prompt (without agent instructions)
+ */
+export function buildDynamicContext(
+  projectPath: string,
+  additionalContext: string,
+  frameworkPath?: string,
+  requireJsonOutput: boolean = true,
+): string {
+  // Derive the framework directory name relative to the project root
+  const frameworkDirName = frameworkPath
+    ? relative(projectPath, frameworkPath)
+    : "qubika-agentic-framework";
+
+  const lines = [
+    `Analyze the codebase at: ${projectPath}`,
+    ``,
+    `CRITICAL: EXCLUDED DIRECTORIES`,
+    `The following directories are NOT part of the project codebase and MUST be completely ignored during analysis:`,
+    `- ${frameworkDirName}/ (this is the AI Agentic Framework tooling, not the project itself)`,
+    `- .claude-temp/ (temporary analysis files)`,
+    `- .claude-backups/ (backup files)`,
+    `Do NOT include files, dependencies, patterns, or any findings from these directories in your analysis.`,
+    `Only analyze the actual project code.`,
+    ``,
+  ];
+
+  // Only add JSON format instructions if this agent requires JSON output
+  if (requireJsonOutput) {
+    lines.push(
+      `CRITICAL OUTPUT FORMAT:`,
+      `- Output ONLY raw JSON starting with { and ending with }`,
+      `- Do NOT wrap in markdown code blocks (\`\`\`json)`,
+      `- Do NOT add ANY text before or after the JSON`,
+      `- Do NOT add explanatory sentences like "Here is the output:" or "Based on my analysis:"`,
+      `- The FIRST character must be { and the LAST character must be }`,
+      ``,
+      `Required JSON structure:`,
+      `{`,
+      `  "agent_name": "string",`,
+      `  "timestamp": "ISO 8601 timestamp",`,
+      `  "findings": {},`,
+      `  "needs_verification": []`,
+      `}`,
+      ``
+    );
+  }
+
+  if (additionalContext) {
+    lines.push("");
+    lines.push(additionalContext);
+  }
+
+  return lines.join("\n");
+}
+
+/**
  * Build the full prompt for an agent
  *
  * Replicates the exact prompt format used by bash scripts for consistency.
  * Combines:
  * - Agent markdown instructions (without YAML frontmatter)
  * - Project path context
- * - Explicit JSON format instructions (critical for correct output)
+ * - Explicit JSON format instructions (critical for correct output) - only if requireJsonOutput is true
  * - Additional context (e.g., error feedback from previous attempts)
+ *
+ * This is used for DeepAgents mode where the entire prompt is passed as system prompt.
+ * For Claude CLI mode with --agent flag, use buildDynamicContext instead.
  *
  * @param agentInstructions - Markdown instructions from agent file
  * @param projectPath - Path to the project being analyzed
  * @param additionalContext - Optional additional context (e.g., error feedback)
+ * @param frameworkPath - Path to the framework directory
+ * @param requireJsonOutput - Whether to enforce JSON output format (default: true)
  * @returns Full prompt string matching bash script format
  */
 function buildAgentPrompt(
@@ -157,6 +258,7 @@ function buildAgentPrompt(
   projectPath: string,
   additionalContext: string,
   frameworkPath?: string,
+  requireJsonOutput: boolean = true,
 ): string {
   const cleanInstructions = removeFrontmatter(agentInstructions);
 
@@ -186,21 +288,28 @@ function buildAgentPrompt(
     `Do NOT include files, dependencies, patterns, or any findings from these directories in your analysis.`,
     `Only analyze the actual project code.`,
     ``,
-    `CRITICAL OUTPUT FORMAT:`,
-    `- Output ONLY raw JSON starting with { and ending with }`,
-    `- Do NOT wrap in markdown code blocks (\`\`\`json)`,
-    `- Do NOT add ANY text before or after the JSON`,
-    `- Do NOT add explanatory sentences like "Here is the output:" or "Based on my analysis:"`,
-    `- The FIRST character must be { and the LAST character must be }`,
-    ``,
-    `Required JSON structure:`,
-    `{`,
-    `  "agent_name": "string",`,
-    `  "timestamp": "ISO 8601 timestamp",`,
-    `  "findings": {},`,
-    `  "needs_verification": []`,
-    `}`,
   ];
+
+  // Only add JSON format instructions if this agent requires JSON output
+  if (requireJsonOutput) {
+    lines.push(
+      `CRITICAL OUTPUT FORMAT:`,
+      `- Output ONLY raw JSON starting with { and ending with }`,
+      `- Do NOT wrap in markdown code blocks (\`\`\`json)`,
+      `- Do NOT add ANY text before or after the JSON`,
+      `- Do NOT add explanatory sentences like "Here is the output:" or "Based on my analysis:"`,
+      `- The FIRST character must be { and the LAST character must be }`,
+      ``,
+      `Required JSON structure:`,
+      `{`,
+      `  "agent_name": "string",`,
+      `  "timestamp": "ISO 8601 timestamp",`,
+      `  "findings": {},`,
+      `  "needs_verification": []`,
+      `}`,
+      ``
+    );
+  }
 
   if (additionalContext) {
     lines.push("");
@@ -262,6 +371,7 @@ export async function createDeepAgentDirect(config: AgentConfig): Promise<any> {
     frameworkPath,
     additionalContext = "",
     timeout = 300000,
+    requireJsonOutput = true,
   } = config;
 
   const agentPath = join(frameworkPath, "orchestration/agents", agentFile);
@@ -280,6 +390,7 @@ export async function createDeepAgentDirect(config: AgentConfig): Promise<any> {
     projectPath,
     additionalContext,
     frameworkPath,
+    requireJsonOutput,
   );
 
   const agent = await createDeepAgent({
