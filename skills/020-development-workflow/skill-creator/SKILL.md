@@ -80,52 +80,119 @@ Based on the user interview, fill in these components:
 - **compatibility**: Required tools, dependencies (optional, rarely needed)
 - **the rest of the skill :)**
 
-### Framework Integration
+### Framework Registration & Sync
 
-When creating or improving skills within this framework, you MUST follow the framework's skill specification and conventions. Read and apply these documents during skill authoring:
+Skills created through this framework follow a **framework-first** approach: the skill lives in the framework source tree, gets registered in the config, and is synced to the project's `.claude/skills/`. This makes the skill PR-able and shareable across all projects using the framework.
 
-#### Required References
+After writing the SKILL.md draft, execute these steps before moving on to testing.
 
-1. **Skill Specification** — `docs/SKILLS_SPEC.md`
-   The canonical contract for authoring `SKILL.md` files. Defines:
-   - YAML frontmatter schema (official Claude Code fields + framework extensions)
-   - Two skill archetypes: **Workflow/Orchestration** and **Reference/Mastery**
-   - Markdown body guidelines, validation rules, and anti-patterns
-   - Tool declaration patterns (`allowed-tools`)
-   - Invocation control (`user-invocable`, `disable-model-invocation`)
+#### Step 1: Create the skill directory in the framework
 
-2. **Adding Skills Guide** — `docs/ADDING_SKILLS.md`
-   Step-by-step procedure for registering skills in `skills/skills.config.json`.
+Choose the appropriate Johnny Decimal category:
 
-3. **Starter Templates** — Copy and fill in:
-   - `docs/templates/SKILL_TEMPLATE_WORKFLOW.md` — For workflow/orchestration skills
-   - `docs/templates/SKILL_TEMPLATE_REFERENCE.md` — For reference/mastery skills
+| Prefix | Category |
+|--------|----------|
+| `010-foundation` | Core workflow skills (always copied) |
+| `020-development-workflow` | Development process skills |
+| `030-quality-assurance` | Testing, quality, and review |
+| `040-integrations` | External tools (Jira, GitHub, Notion) |
+| `050-language-frameworks` | Language and framework patterns |
+| `060-documentation` | Documentation and diagrams |
+| `070-infrastructure` | DevOps and containers |
+| `080-cloud-platforms` | Cloud services (AWS, GCP, Firebase) |
 
-#### Framework Conventions Checklist
+Create the directory and write the SKILL.md there — never directly in `.claude/`:
 
-When writing a new skill's `SKILL.md`, ensure:
+```bash
+mkdir -p skills/{NNN-category}/{skill-name}
+# Write SKILL.md to skills/{NNN-category}/{skill-name}/SKILL.md
+```
 
-- [ ] **Directory placement**: `skills/{NNN-category}/{skill-name}/` using the Johnny Decimal system:
-  - `010-foundation`, `020-development-workflow`, `030-quality-assurance`, `040-integrations`, `050-language-frameworks`, `060-documentation`, `070-infrastructure`, `080-cloud-platforms`
-- [ ] **Frontmatter** includes all required/recommended fields:
-  ```yaml
-  ---
-  name: skill-name              # kebab-case, must match directory name
-  description: >                # 20-500 chars, include "Use when..." phrases
-    What the skill does. Use when [specific contexts].
-  version: 1.0.0
-  category: category-name       # kebab-case
-  keywords: [keyword1, keyword2]
-  allowed-tools:                # only tools actually used
-    - Read
-    - Write
-  last_updated: YYYY-MM-DD
-  ---
-  ```
-- [ ] **Archetype chosen**: Either Workflow (numbered phases with Actions/Tools/Output) or Reference (Quick Start + Core Concepts). Do not mix.
-- [ ] **Registered** in `skills/skills.config.json` with `name`, `path`, `description`, and either `trigger_mode: "always"` or appropriate `triggers` array
-- [ ] **Single H1 heading**, all code blocks have language tags, file under 500 lines
-- [ ] **No anti-patterns**: no name/directory mismatch, no `metadata` wrapper, no weak descriptions, no hardcoded credentials
+If the skill needs bundled resources, create subdirectories as needed (`scripts/`, `references/`, `assets/`).
+
+#### Step 2: Validate frontmatter compliance
+
+Before registering, verify the SKILL.md against the framework spec. Read these documents and apply them:
+
+- **`docs/SKILLS_SPEC.md`** — Canonical frontmatter schema, archetypes, validation rules
+- **`docs/ADDING_SKILLS.md`** — Registration procedure
+- **`docs/templates/SKILL_TEMPLATE_WORKFLOW.md`** — Starter template for workflow/orchestration skills
+- **`docs/templates/SKILL_TEMPLATE_REFERENCE.md`** — Starter template for reference/mastery skills
+
+Ensure the frontmatter includes all required fields:
+
+```yaml
+---
+name: skill-name              # kebab-case, must match directory name
+description: >                # 20-500 chars, include "Use when..." phrases
+  What the skill does. Use when [specific contexts].
+version: 1.0.0
+category: category-name       # kebab-case
+keywords: [keyword1, keyword2]
+allowed-tools:                # only tools actually used
+  - Read
+  - Write
+last_updated: YYYY-MM-DD
+---
+```
+
+Verify: archetype is consistent (Workflow or Reference, not mixed), single H1 heading, code blocks have language tags, no name/directory mismatch, no hardcoded credentials.
+
+#### Step 3: Register in `skills/skills.config.json`
+
+Read the current `skills/skills.config.json` and add a new entry to the `skills` array. Ask the user whether the skill should use `trigger_mode: "always"` (copied to every project) or `"triggered"` (copied only when specific technologies are detected). If triggered, ask what the triggers should be.
+
+```json
+{
+  "name": "skill-name",
+  "path": "NNN-category/skill-name",
+  "description": "Concise description of what the skill provides",
+  "trigger_mode": "always"
+}
+```
+
+For triggered skills, also include `triggers` and optionally `compatible_languages` and `is_linkable_to_agents`:
+
+```json
+{
+  "name": "skill-name",
+  "path": "050-language-frameworks/skill-name",
+  "description": "Concise description",
+  "trigger_mode": "triggered",
+  "triggers": ["technology-name"],
+  "compatible_languages": ["typescript", "javascript"],
+  "is_linkable_to_agents": true
+}
+```
+
+After writing, validate the JSON:
+
+```bash
+jq empty skills/skills.config.json && echo "✓ Valid JSON" || echo "✗ Invalid JSON"
+```
+
+#### Step 4: Run the sync
+
+Sync the skill from the framework to the project's `.claude/skills/`:
+
+```bash
+./scripts/sync-framework-resources.sh
+```
+
+For `"always"` skills, this copies the skill to every initialized project. For `"triggered"` skills, the sync only copies when the project's stack profile matches one of the skill's triggers — this is correct behavior, not an error.
+
+#### Step 5: Validate the sync
+
+Run the validation script to confirm everything landed correctly:
+
+```bash
+bash skills/020-development-workflow/skill-creator/scripts/validate-skill-sync.sh \
+  "<skill-name>" "<framework-path>" "<project-path>"
+```
+
+The script checks that the framework source exists, the skill is registered, `skills.config.json` is valid JSON, the skill was synced to `.claude/skills/`, and the content matches. If any check fails, it provides troubleshooting guidance.
+
+If the skill uses `trigger_mode: "triggered"` and the current project's stack doesn't match, a warning (not failure) is expected — the skill will sync to projects that do match.
 
 #### Real-World Examples
 
@@ -540,6 +607,7 @@ Repeating one more time the core loop here for emphasis:
 
 - Figure out what the skill is about
 - Draft or edit the skill
+- Register in framework and sync (create directory, update skills.config.json, run sync, validate)
 - Run claude-with-access-to-the-skill on test prompts
 - With the user, evaluate the outputs:
   - Create benchmark.json and run `eval-viewer/generate_review.py` to help the user review them
