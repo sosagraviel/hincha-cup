@@ -122,12 +122,18 @@ async function main() {
 
     if (!jsonString) {
       return blockWithFeedback(
-        "No JSON object found in your response.\n\n" +
-          "Remember: Output ONLY raw JSON starting with { and ending with }.\n" +
-          "- Do NOT wrap in markdown code blocks (```json)\n" +
-          "- Do NOT add explanatory text before or after the JSON\n" +
-          "- The FIRST character must be { and the LAST must be }\n\n" +
-          "Please correct this and output the JSON again.",
+        "❌ No JSON object found in your response.\n\n" +
+          "REQUIRED FORMAT:\n" +
+          "  1. Output ONLY raw JSON (no explanatory text)\n" +
+          "  2. First character must be { and last character must be }\n" +
+          "  3. Do NOT wrap in markdown code blocks (no ```json)\n" +
+          "  4. Do NOT add any text before or after the JSON\n\n" +
+          "Expected structure:\n" +
+          "{\n" +
+          '  "claude_md": "... CLAUDE.md content (min 100 chars) ...",\n' +
+          '  "project_context_md": "... project-context/SKILL.md content (min 100 chars) ..."\n' +
+          "}\n\n" +
+          "Please output the corrected JSON now.",
       );
     }
 
@@ -135,14 +141,17 @@ async function main() {
     try {
       data = JSON.parse(jsonString);
     } catch (parseError) {
+      const errorMsg = parseError instanceof Error ? parseError.message : "Unknown error";
       return blockWithFeedback(
-        `JSON parsing failed: ${parseError instanceof Error ? parseError.message : "Unknown error"}\n\n` +
-          "Your JSON has syntax errors. Check for:\n" +
-          "- Missing or extra commas\n" +
-          "- Unclosed braces { } or brackets [ ]\n" +
-          "- Unquoted strings (all keys and string values must use double quotes)\n" +
-          "- Trailing commas in objects or arrays\n\n" +
-          "Please fix these errors and output valid JSON.",
+        `❌ JSON parsing failed: ${errorMsg}\n\n` +
+          "COMMON JSON SYNTAX ERRORS:\n" +
+          "  1. Missing or extra commas between fields\n" +
+          "  2. Unclosed braces { } or brackets [ ]\n" +
+          "  3. Unquoted strings (all keys and values must use double quotes \"\")\n" +
+          "  4. Trailing commas in objects or arrays (not allowed in JSON)\n" +
+          "  5. Single quotes instead of double quotes\n\n" +
+          "TIP: Copy your JSON to a validator (jsonlint.com) or check the exact error above.\n\n" +
+          "Please fix these syntax errors and output valid JSON.",
       );
     }
 
@@ -150,21 +159,26 @@ async function main() {
 
     if (!result.success) {
       const errors = (result.error as any).errors
-        .map((err: any) => {
+        .map((err: any, index: number) => {
           const pathStr =
             err.path.length > 0 ? `${err.path.join(".")}` : "root";
-          return `  - ${pathStr}: ${err.message}`;
+          return `  ${index + 1}. Field "${pathStr}": ${err.message}`;
         })
         .join("\n");
 
       return blockWithFeedback(
-        `Schema validation failed. Your JSON is missing required fields or has incorrect types:\n\n${errors}\n\n` +
-          "Required structure:\n" +
+        `❌ Schema validation failed. Fix these issues:\n\n${errors}\n\n` +
+          "REQUIRED JSON STRUCTURE:\n" +
           "{\n" +
-          '  "claude_md": "... content for CLAUDE.md (min 100 chars) ...",\n' +
-          '  "project_context_md": "... content for project-context/SKILL.md (min 100 chars) ..."\n' +
+          '  "claude_md": "... CLAUDE.md content here ...",\n' +
+          '  "project_context_md": "... project-context/SKILL.md content here ..."\n' +
           "}\n\n" +
-          "Please correct these issues and output the fixed JSON.",
+          "IMPORTANT:\n" +
+          "  - Both fields are REQUIRED\n" +
+          "  - claude_md must be at least 100 characters\n" +
+          "  - project_context_md must be at least 100 characters\n" +
+          "  - Content should be valid markdown text\n\n" +
+          "Please output the corrected JSON with both required fields populated.",
       );
     }
 

@@ -11,21 +11,9 @@
  * This file is synced to target project's .claude/hooks/ during initialization.
  */
 
-import { z } from "zod";
 import fs from "fs";
-
-const AnalyzerOutputSchema = z.object({
-  agent_name: z.enum([
-    "structure-architecture-analyzer",
-    "tech-stack-dependencies-analyzer",
-    "code-patterns-testing-analyzer",
-    "data-flows-integrations-analyzer",
-  ]),
-  timestamp: z.string(),
-  findings: z.any(), // Flexible structure (Zod v4.3.6 compatible)
-  needs_verification: z.array(z.string()).max(20).optional(),
-  confidence_level: z.enum(["high", "medium", "low"]).optional(),
-});
+// Import schema from single source of truth (orchestration/src/state/schemas/)
+import { AnalyzerOutputSchema } from "../../src/state/schemas/initialize-project.schema.js";
 
 interface HookInput {
   stop_hook_active: boolean;
@@ -127,12 +115,20 @@ async function main() {
 
     if (!jsonString) {
       return blockWithFeedback(
-        "No JSON object found in your response.\n\n" +
-          "Remember: Output ONLY raw JSON starting with { and ending with }.\n" +
-          "- Do NOT wrap in markdown code blocks (```json)\n" +
-          "- Do NOT add explanatory text before or after the JSON\n" +
-          "- The FIRST character must be { and the LAST must be }\n\n" +
-          "Please correct this and output the JSON again.",
+        "❌ No JSON object found in your response.\n\n" +
+          "REQUIRED FORMAT:\n" +
+          "  1. Output ONLY raw JSON (no explanatory text)\n" +
+          "  2. First character must be { and last character must be }\n" +
+          "  3. Do NOT wrap in markdown code blocks (no ```json)\n" +
+          "  4. Do NOT add any text before or after the JSON\n\n" +
+          "Expected structure:\n" +
+          "{\n" +
+          '  "agent_name": "structure-architecture-analyzer",\n' +
+          '  "timestamp": "2026-03-26T10:30:00.000Z",\n' +
+          '  "findings": { "architecture": "...", ... },\n' +
+          '  "needs_verification": ["question 1", ...] // optional, max 5\n' +
+          "}\n\n" +
+          "Please output the corrected JSON now.",
       );
     }
 
@@ -140,14 +136,17 @@ async function main() {
     try {
       data = JSON.parse(jsonString);
     } catch (parseError) {
+      const errorMsg = parseError instanceof Error ? parseError.message : "Unknown error";
       return blockWithFeedback(
-        `JSON parsing failed: ${parseError instanceof Error ? parseError.message : "Unknown error"}\n\n` +
-          "Your JSON has syntax errors. Check for:\n" +
-          "- Missing or extra commas\n" +
-          "- Unclosed braces { } or brackets [ ]\n" +
-          "- Unquoted strings (all keys and string values must use double quotes)\n" +
-          "- Trailing commas in objects or arrays\n\n" +
-          "Please fix these errors and output valid JSON.",
+        `❌ JSON parsing failed: ${errorMsg}\n\n` +
+          "COMMON JSON SYNTAX ERRORS:\n" +
+          "  1. Missing or extra commas between fields\n" +
+          "  2. Unclosed braces { } or brackets [ ]\n" +
+          "  3. Unquoted strings (all keys and values must use double quotes \"\")\n" +
+          "  4. Trailing commas in objects or arrays (not allowed in JSON)\n" +
+          "  5. Single quotes instead of double quotes\n\n" +
+          "TIP: Copy your JSON to a validator (jsonlint.com) or check the exact error above.\n\n" +
+          "Please fix these syntax errors and output valid JSON.",
       );
     }
 
@@ -155,23 +154,29 @@ async function main() {
 
     if (!result.success) {
       const errors = result.error.issues
-        .map((err) => {
+        .map((err, index) => {
           const pathStr =
             err.path.length > 0 ? `${err.path.join(".")}` : "root";
-          return `  - ${pathStr}: ${err.message}`;
+          return `  ${index + 1}. Field "${pathStr}": ${err.message}`;
         })
         .join("\n");
 
       return blockWithFeedback(
-        `Schema validation failed. Your JSON is missing required fields or has incorrect types:\n\n${errors}\n\n` +
-          "Required structure:\n" +
+        `❌ Schema validation failed. Fix these issues:\n\n${errors}\n\n` +
+          "REQUIRED JSON STRUCTURE:\n" +
           "{\n" +
-          '  "agent_name": "your-analyzer-name",\n' +
-          '  "timestamp": "ISO 8601 timestamp (e.g., 2026-03-19T00:00:00.000Z)",\n' +
-          '  "findings": { ... your analysis ... },\n' +
-          '  "needs_verification": [] // optional, max 3 items\n' +
+          '  "agent_name": "structure-architecture-analyzer" | "tech-stack-dependencies-analyzer" | "code-patterns-testing-analyzer" | "data-flows-integrations-analyzer",\n' +
+          '  "timestamp": "2026-03-26T10:30:00.000Z", // ISO 8601 format\n' +
+          '  "findings": { /* your analysis findings here */ },\n' +
+          '  "needs_verification": ["question 1", "question 2"], // OPTIONAL, max 5 items\n' +
+          '  "confidence_level": "high" | "medium" | "low" // OPTIONAL\n' +
           "}\n\n" +
-          "Please correct these issues and output the fixed JSON.",
+          "IMPORTANT:\n" +
+          "  - agent_name must exactly match one of the 4 analyzer names above\n" +
+          "  - timestamp must be valid ISO 8601 format\n" +
+          "  - findings can contain any structure (flexible)\n" +
+          "  - needs_verification is optional but limited to 5 items max\n\n" +
+          "Please output the corrected JSON with all required fields.",
       );
     }
     return allow();
