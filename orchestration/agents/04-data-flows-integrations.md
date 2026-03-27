@@ -5,7 +5,8 @@ subagent_type: Explore
 run_in_background: true
 tools: Read, Grep, Glob
 output_format: json
-max_needs_verification: 3
+# Stop hook: Validates output before agent finishes, enables internal retry within same session
+# When validation fails, Claude CLI automatically retries with feedback (context preserved)
 user-prompt-submit-hook: npx tsx ./hooks/validate-analyzer-json.ts
 ---
 

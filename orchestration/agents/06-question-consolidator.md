@@ -1,14 +1,13 @@
 ---
 name: question-consolidator
-model: sonnet
 description: Consolidates similar questions from multiple analysis agents
 subagent_type: general-purpose
 run_in_background: false
 tools: Read
 output_format: json
-output_schema: config/schemas/question-consolidation.schema.json
-max_retries: 3
-timeout: 120
+
+# Stop hook: Validates output before agent finishes, enables internal retry within same session
+# When validation fails, Claude CLI automatically retries with feedback (context preserved)
 user-prompt-submit-hook: npx tsx ./hooks/validate-extraction-json.ts
 ---
 

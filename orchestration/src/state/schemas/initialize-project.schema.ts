@@ -27,7 +27,7 @@ export const AnalyzerOutputSchema = z.object({
   ]),
   timestamp: z.string(),
   findings: z.any(), // Flexible structure - accepts anything (avoids Zod v4 beta bugs)
-  needs_verification: z.array(z.any()).max(3).optional(), // Accept any structure for needs_verification
+  needs_verification: z.array(z.any()).max(5).optional(), // Accept any structure for needs_verification (max 5 items)
   confidence_level: z.enum(['high', 'medium', 'low']).optional()
 });
 

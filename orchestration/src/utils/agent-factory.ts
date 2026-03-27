@@ -85,6 +85,7 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
       additionalContext,
       frameworkPath,
       requireJsonOutput,
+      agentName,
     );
   } else {
     // For DeepAgents mode: Pass full prompt with agent instructions
@@ -94,6 +95,7 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
       additionalContext,
       frameworkPath,
       requireJsonOutput,
+      agentName,
     );
   }
 
@@ -185,6 +187,7 @@ export function buildDynamicContext(
   additionalContext: string,
   frameworkPath?: string,
   requireJsonOutput: boolean = true,
+  agentName?: string,
 ): string {
   // Derive the framework directory name relative to the project root
   const frameworkDirName = frameworkPath
@@ -206,6 +209,7 @@ export function buildDynamicContext(
 
   // Only add JSON format instructions if this agent requires JSON output
   if (requireJsonOutput) {
+    const agentNameValue = agentName ? `"${agentName}"` : `"string"`;
     lines.push(
       `CRITICAL OUTPUT FORMAT:`,
       `- Output ONLY raw JSON starting with { and ending with }`,
@@ -216,7 +220,7 @@ export function buildDynamicContext(
       ``,
       `Required JSON structure:`,
       `{`,
-      `  "agent_name": "string",`,
+      `  "agent_name": ${agentNameValue},`,
       `  "timestamp": "ISO 8601 timestamp",`,
       `  "findings": {},`,
       `  "needs_verification": []`,
@@ -259,6 +263,7 @@ function buildAgentPrompt(
   additionalContext: string,
   frameworkPath?: string,
   requireJsonOutput: boolean = true,
+  agentName?: string,
 ): string {
   const cleanInstructions = removeFrontmatter(agentInstructions);
 
@@ -292,6 +297,7 @@ function buildAgentPrompt(
 
   // Only add JSON format instructions if this agent requires JSON output
   if (requireJsonOutput) {
+    const agentNameValue = agentName ? `"${agentName}"` : `"string"`;
     lines.push(
       `CRITICAL OUTPUT FORMAT:`,
       `- Output ONLY raw JSON starting with { and ending with }`,
@@ -302,7 +308,7 @@ function buildAgentPrompt(
       ``,
       `Required JSON structure:`,
       `{`,
-      `  "agent_name": "string",`,
+      `  "agent_name": ${agentNameValue},`,
       `  "timestamp": "ISO 8601 timestamp",`,
       `  "findings": {},`,
       `  "needs_verification": []`,
@@ -391,6 +397,7 @@ export async function createDeepAgentDirect(config: AgentConfig): Promise<any> {
     additionalContext,
     frameworkPath,
     requireJsonOutput,
+    agentName,
   );
 
   const agent = await createDeepAgent({
