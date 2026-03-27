@@ -483,6 +483,71 @@ fi
 
 echo "$TEST_PLAN" > "$ARTIFACTS_DIR/plans/test-plan.json"
 
+# ── UI Task Detection & DoD Enrichment ──────────────────────────────
+# Classify the ticket as a UI task using the shared UI task detector.
+# When a UI task is detected, inject UI-specific DoD items, acceptance
+# criteria, and required test levels into the plan.
+# See: docs/ui-validation/03-pillar-2-ticket-creation.md
+
+echo "  - Running UI task detection..."
+
+UI_CLASSIFICATION=$(node -e "
+const { classifyUITask } = require('orchestration/src/utils/ui-task-detector');
+const context = require('fs').readFileSync('$ARTIFACTS_DIR/context/full-context.md', 'utf8');
+const result = classifyUITask(context);
+console.log(JSON.stringify(result));
+")
+
+echo "$UI_CLASSIFICATION" > "$ARTIFACTS_DIR/plans/ui-classification.json"
+
+IS_UI=$(echo "$UI_CLASSIFICATION" | jq -r '.isUI')
+UI_SCORE=$(echo "$UI_CLASSIFICATION" | jq -r '.score')
+UI_TASK_TYPE=$(echo "$UI_CLASSIFICATION" | jq -r '.taskType // "unknown"')
+
+echo "   - UI classification: isUI=$IS_UI, score=$UI_SCORE, taskType=$UI_TASK_TYPE"
+
+if [[ "$IS_UI" == "true" ]]; then
+    echo "  - Enriching plan with UI-specific DoD and acceptance criteria..."
+
+    # Determine required test levels based on score and task type
+    # Score >= 50: Strong UI → all 4 levels (unit, component, e2e, visual with Figma + screenshot)
+    # Score 25-49: Likely UI → 3 levels (unit, component, e2e + screenshot-only visual)
+    # See: docs/ui-validation/04-pillar-3-ui-testing-strategy.md (Test Level Decision Matrix)
+    if [[ "$UI_SCORE" -ge 50 ]]; then
+        VISUAL_MODE="both"
+    else
+        VISUAL_MODE="screenshot"
+    fi
+
+    # Update test plan with visual verification requirement
+    TEST_PLAN=$(echo "$TEST_PLAN" | jq --arg mode "$VISUAL_MODE" '.visualVerification = { "required": true, "mode": $mode }')
+    echo "$TEST_PLAN" > "$ARTIFACTS_DIR/plans/test-plan.json"
+
+    # Append UI-specific DoD to the implementation plan
+    cat >> "$ARTIFACTS_DIR/plans/implementation-plan.md" <<'UI_DOD'
+
+### UI Testing Requirements (Auto-Injected)
+
+> Injected by UI task detection (score: $UI_SCORE). See `/ui-testing` and `/ui-visual-testing` skills.
+
+#### Required Test Levels
+- [ ] Unit: Vitest/Jest + RTL (render, props, variants, accessibility, design tokens)
+- [ ] Component: Playwright CT (visual render, interactions, responsive) — if applicable
+- [ ] E2E: Playwright (user flows, navigation, form submission) — if applicable
+- [ ] Visual: Figma comparison + screenshot regression (within configured threshold)
+
+#### Acceptance Criteria (UI-Specific)
+- [ ] All component variants render correctly
+- [ ] Accessibility attributes present (aria-*, roles, keyboard navigation)
+- [ ] Design token classes match spec (colors, spacing, typography)
+- [ ] Visual UI test passes for all affected screens (`/ui-visual-testing`)
+- [ ] No visual regressions introduced on existing screens
+- [ ] `ui-visual-testing.json` mapping created for affected screens (if visual level required)
+UI_DOD
+
+    echo "   ✅ UI DoD and AC injected into implementation plan"
+fi
+
 # Extract environment requirements
 echo "  - Extracting environment requirements..."
 
@@ -893,6 +958,59 @@ orchestrator.runAll().then(results => {
 echo "✅ All tests passed"
 echo ""
 
+# ── UI Test Level Orchestration ─────────────────────────────────────
+# If the ticket was classified as a UI task (Phase 2), run UI-specific
+# test level validation via the /ui-testing skill.
+# See: docs/ui-validation/04-pillar-3-ui-testing-strategy.md
+# See: skills/030-quality-assurance/ui-testing/SKILL.md
+
+if [[ -f "$ARTIFACTS_DIR/plans/ui-classification.json" ]]; then
+    IS_UI=$(jq -r '.isUI' "$ARTIFACTS_DIR/plans/ui-classification.json")
+
+    if [[ "$IS_UI" == "true" ]]; then
+        echo "🎨 UI Test Level Orchestration"
+        echo "=============================="
+        echo "  - UI task detected. Checking required test levels from DoD..."
+
+        # Read required levels from test plan
+        TEST_PLAN=$(cat "$ARTIFACTS_DIR/plans/test-plan.json")
+        VISUAL_REQUIRED=$(echo "$TEST_PLAN" | jq -r '.visualVerification.required')
+
+        # Determine which levels to run based on DoD
+        # The /ui-testing skill reads the ticket DoD and decides which levels
+        # are required vs recommended, then verifies tests exist and pass.
+        LEVELS="unit"
+
+        # Add component/e2e levels based on task type
+        UI_TASK_TYPE=$(jq -r '.taskType // "unknown"' "$ARTIFACTS_DIR/plans/ui-classification.json")
+        case "$UI_TASK_TYPE" in
+            "new-organism"|"new-widget"|"new-page"|"new-feature"|"redesign")
+                LEVELS="unit,component,e2e"
+                ;;
+            "new-atom"|"new-molecule"|"accessibility")
+                LEVELS="unit,component"
+                ;;
+            *)
+                LEVELS="unit"
+                ;;
+        esac
+
+        echo "  - Required test levels: $LEVELS"
+        echo "  - Invoking /ui-testing skill..."
+
+        # The /ui-testing skill:
+        #   - Detects project testing tools and framework
+        #   - Loads framework-specific specializations
+        #   - Verifies tests exist for each required level
+        #   - Flags missing tests for the implementer to generate
+        #   - Validates coverage >= 80% for unit tests
+        Skill("ui-testing", "--ticket $TICKET_ID --levels $LEVELS")
+
+        echo "  ✅ UI test level orchestration complete"
+        echo ""
+    fi
+fi
+
 # TodoWrite: Mark phase as completed
 TodoWrite({
   todos: [{
@@ -905,9 +1023,75 @@ TodoWrite({
 
 ---
 
-# Phase 6: Visual Verification (NEW)
+# Phase 6: Visual Verification
 
-**Goal**: Capture "after" screenshots, compare with "before", and iterate until pixel-perfect (max 5 iterations).
+**Goal**: Run dual-mode visual testing (Figma design fidelity + screenshot regression) via the `ui-visual-testing` skill, with iterative fix loops powered by the `visual-verifier` agent.
+
+> **Orchestration service**: `orchestration/src/nodes/implement-ticket/phase6-visual.node.ts`
+>
+> **Skills used**:
+> - `/ui-visual-testing` — dual-mode visual comparison pipeline (see `skills/030-quality-assurance/ui-visual-testing/SKILL.md`)
+> - `/figma-design-fetcher` — Figma design export (invoked by `ui-visual-testing` when Figma mode is active)
+>
+> **Agent used**: `visual-verifier` — analyzes screenshot diffs and suggests actionable code fixes (see `agents/templates/visual-verifier.template.md`)
+>
+> **Configuration**: `ui-visual-testing.json` — per-screen mapping of routes, viewports, Figma nodes, modes, and thresholds (see `skills/030-quality-assurance/ui-visual-testing/templates/ui-visual-testing.json`)
+
+### Decision Flow
+
+```
+Phase 5 (Testing) complete
+    │
+    ▼
+1. Locate ui-visual-testing.json
+   ├─> Search changed file directories (from Phase 4 output)
+   └─> Search project root
+    │
+    ├─> NOT FOUND
+    │   ├─> Run UI Task Detector (classifyUITask) against ticket content
+    │   │   ├─> isUI == true (score >= 25)
+    │   │   │   └─> ASK USER: "UI task detected. Create visual testing config?"
+    │   │   │       ├─> Yes → auto-generate ui-visual-testing.json from ticket context → proceed
+    │   │   │       └─> No  → skip visual verification
+    │   │   └─> isUI == false (score < 25) → skip visual verification
+    │   └─> Continue to Phase 7
+    │
+    └─> FOUND → proceed to mode detection
+         │
+         ▼
+2. Determine active modes per screen:
+
+   FIGMA MODE — activated by ANY of:
+   a. Config screen entries have figmaNodeId
+   b. Ticket body contains Figma URLs (figma.com/design/...)
+   c. Ticket markdown frontmatter has figma: field
+   d. Acceptance criteria reference Figma designs
+   e. Ticket metadata from Jira contains Figma links
+   → Default threshold: 2% mismatch
+
+   SCREENSHOT MODE — activated by ANY of:
+   a. Before snapshots exist (captured in Phase 3)
+   b. Config entry has modes: ["screenshot"]
+   c. Route already exists and is navigable (existing screen modification)
+   → Default threshold: 5% mismatch
+         │
+         ▼
+3. Invoke /figma-design-fetcher (if Figma mode active)
+   └─> Cascading access: MCP → Token → Setup → Manual → Skip
+         │
+         ▼
+4. Delegate to /ui-visual-testing skill
+   └─> Passes: config, mode, ticket context, design constraints, --max-iterations
+         │
+         ▼
+5. Process verdict
+   ├─> PASS → continue to Phase 7
+   ├─> FAIL (interactive) → pause, show diff report, ask engineer whether to proceed
+   ├─> FAIL (autonomous) → include failure + diff artifacts in PR description, continue
+   └─> SKIP → log reason, continue to Phase 7
+```
+
+### Implementation
 
 ```bash
 #!/bin/bash
@@ -916,9 +1100,9 @@ set -e
 # TodoWrite: Mark phase as in_progress
 TodoWrite({
   todos: [{
-    content: "Capture and compare screenshots with iteration loop",
+    content: "Run visual verification via ui-visual-testing skill",
     status: "in_progress",
-    activeForm: "Capturing and comparing screenshots with iteration loop"
+    activeForm: "Running visual verification via ui-visual-testing skill"
   }]
 })
 
@@ -927,22 +1111,65 @@ echo "================================"
 
 TICKET_ID="$1"
 ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
-UTILS_DIR="$HOME/.claude/utils"
 
-# Check if visual verification is required
-TEST_PLAN=$(cat "$ARTIFACTS_DIR/plans/test-plan.json")
-VISUAL_REQUIRED=$(echo "$TEST_PLAN" | jq -r '.visualVerification.required')
+# ── Step 1: Locate ui-visual-testing.json ──────────────────────────────
 
-if [[ "$VISUAL_REQUIRED" != "true" ]]; then
-    echo "  - Visual verification not required for this ticket. Skipping."
-    echo ""
-    exit 0
+VISUAL_CONFIG=""
+
+# Search in changed file directories first
+if [[ -f "$ARTIFACTS_DIR/implementations/changed-files.json" ]]; then
+    CHANGED_DIRS=$(jq -r '.[].directory' "$ARTIFACTS_DIR/implementations/changed-files.json" | sort -u)
+    for dir in $CHANGED_DIRS; do
+        if [[ -f "$dir/ui-visual-testing.json" ]]; then
+            VISUAL_CONFIG="$dir/ui-visual-testing.json"
+            break
+        fi
+    done
 fi
 
-# Capture "after" screenshots
-echo "  - Capturing 'after' screenshots..."
+# Fallback: project root
+if [[ -z "$VISUAL_CONFIG" ]] && [[ -f "ui-visual-testing.json" ]]; then
+    VISUAL_CONFIG="ui-visual-testing.json"
+fi
 
-# Read environment config to get base URL
+# ── Step 2: If no config, run UI Task Detector ─────────────────────────
+
+if [[ -z "$VISUAL_CONFIG" ]]; then
+    echo "  - No ui-visual-testing.json found. Running UI task detection..."
+
+    # Use the shared UI task detector utility
+    UI_SCORE=$(node -e "
+    const { classifyUITask } = require('orchestration/src/utils/ui-task-detector');
+    const context = require('fs').readFileSync('$ARTIFACTS_DIR/context/full-context.md', 'utf8');
+    const result = classifyUITask(context);
+    console.log(JSON.stringify(result));
+    ")
+
+    IS_UI=$(echo "$UI_SCORE" | jq -r '.isUI')
+    SCORE=$(echo "$UI_SCORE" | jq -r '.score')
+
+    if [[ "$IS_UI" == "true" ]]; then
+        echo "  - UI task detected (score: $SCORE). Visual testing recommended."
+
+        if [[ "${CLAUDE_AUTO_MODE:-false}" == "true" ]] || [[ "$*" == *"--no-stop"* ]]; then
+            echo "  - Autonomous mode: Auto-generating ui-visual-testing.json from ticket context."
+            # The /ui-visual-testing skill will generate a minimal config from ticket context
+        else
+            read -p "  Create visual testing config? (y/n): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                echo "  - Skipping visual verification per user request."
+                exit 0
+            fi
+        fi
+    else
+        echo "  - Not a UI task (score: $SCORE). Skipping visual verification."
+        exit 0
+    fi
+fi
+
+# ── Step 3: Read environment config for base URL ──────────────────────
+
 if [[ -f "$ARTIFACTS_DIR/environment-config.json" ]]; then
     ENV_CONFIG=$(cat "$ARTIFACTS_DIR/environment-config.json")
     BASE_PORT=$(echo "$ENV_CONFIG" | jq -r '.ports.frontend[0].host // 3000')
@@ -951,192 +1178,83 @@ else
     BASE_URL="http://localhost:3000"
 fi
 
-PAGES_TO_CAPTURE=$(echo "$TEST_PLAN" | jq -c '.e2e.pages[]')
+# ── Step 4: Determine mode from ticket context ────────────────────────
 
-node -e "
-const { ScreenshotCapture } = require('$UTILS_DIR/screenshot-capture.js');
+# Auto-detect mode based on score and Figma references
+TICKET_CONTEXT=$(cat "$ARTIFACTS_DIR/context/full-context.md")
+HAS_FIGMA=$(echo "$TICKET_CONTEXT" | grep -c 'figma.com' || true)
 
-const testPlan = $TEST_PLAN;
-const pages = testPlan.e2e.pages || [];
+if [[ "$HAS_FIGMA" -gt 0 ]] && [[ "${SCORE:-0}" -ge 50 ]]; then
+    VISUAL_MODE="both"
+elif [[ "$HAS_FIGMA" -gt 0 ]]; then
+    VISUAL_MODE="figma"
+elif [[ -d "$ARTIFACTS_DIR/screenshots/before" ]] && [[ "$(ls -A "$ARTIFACTS_DIR/screenshots/before" 2>/dev/null)" ]]; then
+    VISUAL_MODE="screenshot"
+else
+    VISUAL_MODE="screenshot"
+fi
 
-const capture = new ScreenshotCapture('$TICKET_ID', process.cwd(), {
-    baseUrl: '$BASE_URL',
-    outputDir: '$ARTIFACTS_DIR/screenshots/after',
-    authRequired: false
-});
+echo "  - Visual testing mode: $VISUAL_MODE"
 
-capture.captureAllPages(pages, 'after').then(() => {
-    console.log('  ✅ After screenshots captured');
-}).catch(err => {
-    console.error('Screenshot capture failed:', err.message);
-    process.exit(1);
-});
-"
+# ── Step 5: Delegate to /ui-visual-testing skill ──────────────────────
 
-# Compare screenshots
-echo "  - Comparing screenshots..."
+echo "  - Invoking /ui-visual-testing skill..."
 
-node -e "
-const { ScreenshotComparator } = require('$UTILS_DIR/screenshot-comparator.js');
+VISUAL_ARGS="--ticket $TICKET_ID --base-url $BASE_URL --mode $VISUAL_MODE"
 
-const comparator = new ScreenshotComparator('$TICKET_ID', process.cwd(), {
-    threshold: 0.1,
-    maxDiffPercent: 5.0,
-    includeAntiAliasing: false
-});
+if [[ -n "$VISUAL_CONFIG" ]]; then
+    VISUAL_ARGS="$VISUAL_ARGS --mapping $VISUAL_CONFIG"
+fi
 
-const beforeDir = '$ARTIFACTS_DIR/screenshots/before';
-const afterDir = '$ARTIFACTS_DIR/screenshots/after';
-const expectedDir = '$ARTIFACTS_DIR/screenshots/expected';  // Optional: from Figma/design
+# The /ui-visual-testing skill handles:
+#   - Figma export via /figma-design-fetcher (if Figma mode)
+#   - Before/after screenshot capture
+#   - Pixel-level comparison (pixelmatch)
+#   - Iterative fix loop via visual-verifier agent (max 3 iterations by default)
+#   - Final verdict and artifact generation
+Skill("ui-visual-testing", "$VISUAL_ARGS")
 
-comparator.compareScreenshots(beforeDir, afterDir, expectedDir).then(report => {
-    // Write report to artifact
-    require('fs').writeFileSync('$ARTIFACTS_DIR/screenshots/diffs/visual-diff-report.json', JSON.stringify(report, null, 2));
+# ── Step 6: Process verdict ───────────────────────────────────────────
 
-    console.log('');
-    console.log('📊 Visual Diff Report:');
-    console.log('======================');
-    console.log('');
-    console.log('Overall Score: ' + report.overallScore.toFixed(2) + '%');
-    console.log('Status: ' + report.overallStatus);
-    console.log('');
-    console.log('Comparisons:');
-    report.comparisons.forEach(comp => {
-        console.log('  - ' + comp.fileName + ': ' + comp.status + ' (' + comp.diffPercent.toFixed(2) + '% diff)');
-    });
-    console.log('');
+# Read the visual testing report produced by /ui-visual-testing
+REPORT_PATH=".visual-testing/report.json"
+if [[ ! -f "$REPORT_PATH" ]]; then
+    REPORT_PATH="$ARTIFACTS_DIR/screenshots/diffs/visual-diff-report.json"
+fi
 
-}).catch(err => {
-    console.error('Screenshot comparison failed:', err.message);
-    process.exit(1);
-});
-"
+if [[ -f "$REPORT_PATH" ]]; then
+    VISUAL_STATUS=$(jq -r '.verdict' "$REPORT_PATH" 2>/dev/null || jq -r '.overallStatus' "$REPORT_PATH")
+    SCREENS_TESTED=$(jq -r '.screensCount // .comparisons | length' "$REPORT_PATH")
 
-# Read comparison report
-VISUAL_REPORT=$(cat "$ARTIFACTS_DIR/screenshots/diffs/visual-diff-report.json")
-VISUAL_STATUS=$(echo "$VISUAL_REPORT" | jq -r '.overallStatus')
+    echo ""
+    echo "📊 Visual Verification Result:"
+    echo "  - Status: $VISUAL_STATUS"
+    echo "  - Screens tested: $SCREENS_TESTED"
+    echo "  - Report: $REPORT_PATH"
 
-echo "  - Visual verification status: $VISUAL_STATUS"
-echo ""
+    # Copy report to artifacts
+    cp "$REPORT_PATH" "$ARTIFACTS_DIR/screenshots/visual-testing-report.json"
 
-# Iteration loop (max 5 iterations)
-MAX_ITERATIONS=5
-ITERATION=1
+    if [[ "$VISUAL_STATUS" == "PASS" ]]; then
+        echo "  ✅ Visual verification passed"
+    else
+        echo "  ⚠️  Visual verification did not pass"
 
-while [[ "$VISUAL_STATUS" != "PASS" ]] && [[ $ITERATION -le $MAX_ITERATIONS ]]; do
-    echo "🔄 Visual Verification Iteration $ITERATION/$MAX_ITERATIONS"
-    echo "=============================================="
-
-    echo "  - Spawning visual-verifier agent to analyze differences..."
-
-    # Spawn visual-verifier agent
-    claude-agent spawn visual-verifier-$TICKET_ID \
-        --template agents/templates/visual-verifier.template.md \
-        --vars "JIRA_KEY=$TICKET_ID,DIFF_REPORT=$VISUAL_REPORT" \
-        --output "$ARTIFACTS_DIR/screenshots/diffs/visual-verification-analysis-iter-$ITERATION.json"
-
-    # Read analysis
-    ANALYSIS=$(cat "$ARTIFACTS_DIR/screenshots/diffs/visual-verification-analysis-iter-$ITERATION.json")
-
-    echo "  - Analysis complete. Found $(echo "$ANALYSIS" | jq -r '.overallAssessment.totalDifferences') differences."
-
-    # Check if design review is required
-    REQUIRES_DESIGN_REVIEW=$(echo "$ANALYSIS" | jq -r '.overallAssessment.requiresDesignReview')
-
-    if [[ "$REQUIRES_DESIGN_REVIEW" == "true" ]]; then
-        echo "⚠️  Large visual differences detected (>20%). Manual design review recommended."
-        echo "   - Review analysis: $ARTIFACTS_DIR/screenshots/diffs/visual-verification-analysis-iter-$ITERATION.json"
-
-        # In autonomous mode, log decision and continue
         if [[ "${CLAUDE_AUTO_MODE:-false}" == "true" ]] || [[ "$*" == *"--no-stop"* ]]; then
-            echo "   - Autonomous mode: Continuing with automated fixes (may not be pixel-perfect)."
-            echo "Decision: Large visual diff (>20%), continuing with automated fixes" >> "$ARTIFACTS_DIR/decisions/$TICKET_ID.md"
+            echo "  - Autonomous mode: Continuing to PR (visual diffs will be included for manual review)."
+            echo "Decision: Visual verification did not pass, continuing to PR" >> "$ARTIFACTS_DIR/decisions/$TICKET_ID.md"
         else
-            read -p "Continue with automated fixes? (y/n): " -n 1 -r
+            echo "  - Review diff images in .visual-testing/diffs/"
+            read -p "  Continue to PR creation? (y/n): " -n 1 -r
             echo
             if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-                echo "❌ Visual verification stopped by user."
+                echo "❌ Workflow stopped by user."
                 exit 1
             fi
         fi
     fi
-
-    # Apply fixes from analysis
-    echo "  - Applying fixes from visual-verifier analysis..."
-
-    IMPLEMENTATION_PLAN=$(echo "$ANALYSIS" | jq -r '.implementationPlan[]' | tr '\n' ';')
-
-    # Spawn implementer to apply fixes
-    claude-agent spawn implementer-visual-fixes-$ITERATION \
-        --template agents/templates/implementer.template.md \
-        --vars "JIRA_KEY=$TICKET_ID,PLAN=$IMPLEMENTATION_PLAN" \
-        --output "$ARTIFACTS_DIR/implementations/visual-fixes-iter-$ITERATION.md"
-
-    # Re-capture "after" screenshots
-    echo "  - Re-capturing 'after' screenshots..."
-
-    node -e "
-    const { ScreenshotCapture } = require('$UTILS_DIR/screenshot-capture.js');
-
-    const testPlan = $TEST_PLAN;
-    const pages = testPlan.e2e.pages || [];
-
-    const capture = new ScreenshotCapture('$TICKET_ID', process.cwd(), {
-        baseUrl: '$BASE_URL',
-        outputDir: '$ARTIFACTS_DIR/screenshots/after',
-        authRequired: false
-    });
-
-    capture.captureAllPages(pages, 'after').then(() => {
-        console.log('  ✅ After screenshots re-captured');
-    });
-    "
-
-    # Re-compare screenshots
-    echo "  - Re-comparing screenshots..."
-
-    node -e "
-    const { ScreenshotComparator } = require('$UTILS_DIR/screenshot-comparator.js');
-
-    const comparator = new ScreenshotComparator('$TICKET_ID', process.cwd(), {
-        threshold: 0.1,
-        maxDiffPercent: 5.0
-    });
-
-    comparator.compareScreenshots('$ARTIFACTS_DIR/screenshots/before', '$ARTIFACTS_DIR/screenshots/after').then(report => {
-        require('fs').writeFileSync('$ARTIFACTS_DIR/screenshots/diffs/visual-diff-report-iter-$ITERATION.json', JSON.stringify(report, null, 2));
-
-        console.log('  - New visual status: ' + report.overallStatus);
-    });
-    "
-
-    # Read new report
-    VISUAL_REPORT=$(cat "$ARTIFACTS_DIR/screenshots/diffs/visual-diff-report-iter-$ITERATION.json")
-    VISUAL_STATUS=$(echo "$VISUAL_REPORT" | jq -r '.overallStatus')
-
-    ITERATION=$((ITERATION + 1))
-    echo ""
-done
-
-if [[ "$VISUAL_STATUS" == "PASS" ]]; then
-    echo "✅ Visual verification passed after $((ITERATION - 1)) iteration(s)"
 else
-    echo "⚠️  Visual verification did not pass after $MAX_ITERATIONS iterations"
-    echo "   - Final diff score: $(echo "$VISUAL_REPORT" | jq -r '.overallScore')%"
-    echo "   - Review diffs: $ARTIFACTS_DIR/screenshots/diffs/"
-
-    # In autonomous mode, log decision and continue (non-blocking)
-    if [[ "${CLAUDE_AUTO_MODE:-false}" == "true" ]] || [[ "$*" == *"--no-stop"* ]]; then
-        echo "   - Autonomous mode: Continuing to PR creation (visual diffs will be included in PR for manual review)."
-        echo "Decision: Visual verification did not pass after 5 iterations, continuing to PR" >> "$ARTIFACTS_DIR/decisions/$TICKET_ID.md"
-    else
-        read -p "Continue to PR creation? (y/n): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "❌ Workflow stopped by user."
-            exit 1
-        fi
-    fi
+    echo "  - No visual testing report found. Visual verification may have been skipped."
 fi
 
 echo ""
@@ -1144,9 +1262,9 @@ echo ""
 # TodoWrite: Mark phase as completed
 TodoWrite({
   todos: [{
-    content: "Capture and compare screenshots with iteration loop",
+    content: "Run visual verification via ui-visual-testing skill",
     status: "completed",
-    activeForm: "Capturing and comparing screenshots with iteration loop"
+    activeForm: "Running visual verification via ui-visual-testing skill"
   }]
 })
 ```
