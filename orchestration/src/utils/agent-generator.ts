@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, writeFileSync, readdirSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import Handlebars from 'handlebars';
 import type { StackProfile } from '../schemas/index.js';
@@ -69,8 +69,59 @@ const COMMAND_DEFAULTS: Record<string, Record<string, string>> = {
     typecheck: 'go vet ./...',
     test: 'go test ./...',
     build: 'go build ./...'
+  },
+  csharp: {
+    lint: 'dotnet format --verify-no-changes',
+    format: 'dotnet format',
+    typecheck: 'dotnet build --no-incremental',
+    test: 'dotnet test',
+    build: 'dotnet build'
+  },
+  rust: {
+    lint: 'cargo clippy',
+    format: 'cargo fmt',
+    typecheck: 'cargo check',
+    test: 'cargo test',
+    build: 'cargo build'
+  },
+  java: {
+    lint: 'mvn checkstyle:check',
+    format: 'mvn spotless:apply',
+    typecheck: 'mvn compile',
+    test: 'mvn test',
+    build: 'mvn package'
+  },
+  php: {
+    lint: 'composer run-script phpcs',
+    format: 'composer run-script phpcbf',
+    typecheck: 'composer run-script phpstan',
+    test: 'composer run-script test',
+    build: 'composer install'
+  },
+  ruby: {
+    lint: 'rubocop',
+    format: 'rubocop -a',
+    typecheck: 'bundle exec steep check',
+    test: 'bundle exec rspec',
+    build: 'bundle install'
   }
 };
+
+/**
+ * Languages supported by the framework for dedicated implementer agents
+ * Languages not in this list will be handled by implementer-generic
+ */
+const SUPPORTED_IMPLEMENTER_LANGUAGES = [
+  'typescript',
+  'javascript',
+  'python',
+  'go',
+  'rust',
+  'java',
+  'csharp',
+  'php',
+  'ruby'
+];
 
 /**
  * Extract package.json commands (for TypeScript/JavaScript projects)
@@ -354,6 +405,14 @@ export function generateAgents(
 
   if (stackProfile.languages) {
     for (const language of stackProfile.languages) {
+      const langLower = language.toLowerCase();
+
+      // Only generate dedicated implementer for framework-supported languages
+      if (!SUPPORTED_IMPLEMENTER_LANGUAGES.includes(langLower)) {
+        // Unsupported language (e.g., SQL) - will be handled by implementer-generic
+        continue;
+      }
+
       const agentName = `implementer-${language}`;
       const agentSkills = assignments[agentName];
 

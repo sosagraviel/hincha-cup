@@ -82,11 +82,19 @@ export async function contextGenerationNode(
     const projectContextDir = join(
       state.project_path,
       ".claude",
+      "skills",
       "project-context",
     );
     mkdirSync(projectContextDir, { recursive: true });
     const projectContextPath = join(projectContextDir, "SKILL.md");
-    writeFileSync(projectContextPath, projectContextContent);
+
+    // Ensure the skill name is always "project-context" (not project-specific name)
+    const normalizedProjectContext = projectContextContent.replace(
+      /^---\n([\s\S]*?)name:\s*[^\n]+\n([\s\S]*?)---/m,
+      (match, before, after) => `---\n${before}name: project-context\n${after}---`
+    );
+
+    writeFileSync(projectContextPath, normalizedProjectContext);
     phaseLogger.success(`✓ Written: ${projectContextPath}`);
 
     // Read Phase 1 analysis files from disk (not from state)
