@@ -14,6 +14,7 @@
 import fs from "fs";
 // Import schema from single source of truth (orchestration/src/state/schemas/)
 import { AnalyzerOutputSchema } from "../../src/state/schemas/initialize-project.schema.js";
+import { extractJSON } from "../../src/utils/validator.js";
 
 interface HookInput {
   stop_hook_active: boolean;
@@ -23,36 +24,12 @@ interface HookInput {
 }
 
 /**
- * Extract JSON from agent output (handle markdown wrapping)
- */
-function extractJSON(text: string): string | null {
-  // Remove markdown code blocks
-  let cleaned = text.trim();
-  cleaned = cleaned.replace(/^```json\s*/i, "");
-  cleaned = cleaned.replace(/^```\s*/, "");
-  cleaned = cleaned.replace(/\s*```$/, "");
-
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-
-  if (start === -1 || end === -1) {
-    return null;
-  }
-
-  return cleaned.substring(start, end + 1);
-}
-
-/**
  * Block Claude from finishing with feedback
+ * Exit code 1 signals validation failure to Claude CLI
  */
 function blockWithFeedback(reason: string): void {
-  console.log(
-    JSON.stringify({
-      decision: "block",
-      reason: reason,
-    }),
-  );
-  process.exit(0);
+  console.error(reason); // Print feedback to stderr for Claude CLI to show
+  process.exit(1); // Exit code 1 = validation failed
 }
 
 /**
@@ -153,11 +130,23 @@ async function main() {
     const result = AnalyzerOutputSchema.safeParse(data);
 
     if (!result.success) {
+      // Enhanced error messages with specific guidance
       const errors = result.error.issues
         .map((err, index) => {
           const pathStr =
             err.path.length > 0 ? `${err.path.join(".")}` : "root";
-          return `  ${index + 1}. Field "${pathStr}": ${err.message}`;
+          let errorMsg = `  ${index + 1}. Field "${pathStr}": ${err.message}`;
+
+          // Add specific guidance for common errors
+          if (err.code === "too_big" && pathStr === "needs_verification") {
+            const actual = (err as any).actual || "unknown";
+            const max = (err as any).maximum || 5;
+            errorMsg += `\n     → You provided ${actual} items, but the maximum is ${max}`;
+            errorMsg += `\n     → Remove ${actual - max} item(s) from needs_verification array`;
+            errorMsg += `\n     → Keep only the MOST IMPORTANT questions that cannot be determined from code`;
+          }
+
+          return errorMsg;
         })
         .join("\n");
 
@@ -168,14 +157,14 @@ async function main() {
           '  "agent_name": "structure-architecture-analyzer" | "tech-stack-dependencies-analyzer" | "code-patterns-testing-analyzer" | "data-flows-integrations-analyzer",\n' +
           '  "timestamp": "2026-03-26T10:30:00.000Z", // ISO 8601 format\n' +
           '  "findings": { /* your analysis findings here */ },\n' +
-          '  "needs_verification": ["question 1", "question 2"], // OPTIONAL, max 5 items\n' +
+          '  "needs_verification": ["question 1", "question 2"], // OPTIONAL, MAXIMUM 5 ITEMS\n' +
           '  "confidence_level": "high" | "medium" | "low" // OPTIONAL\n' +
           "}\n\n" +
           "IMPORTANT:\n" +
           "  - agent_name must exactly match one of the 4 analyzer names above\n" +
           "  - timestamp must be valid ISO 8601 format\n" +
           "  - findings can contain any structure (flexible)\n" +
-          "  - needs_verification is optional but limited to 5 items max\n\n" +
+          "  - ⚠️  needs_verification MAXIMUM 5 ITEMS - prioritize the most critical unknowns\n\n" +
           "Please output the corrected JSON with all required fields.",
       );
     }

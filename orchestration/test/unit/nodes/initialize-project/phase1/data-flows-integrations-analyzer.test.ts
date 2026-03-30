@@ -39,11 +39,12 @@ describe('dataFlowsIntegrationsAnalyzerNode', () => {
           timestamp: '2024-01-01T00:00:00Z',
           findings: {},
         }),
+        sessionId: 'test-session-123',
       }),
     };
     vi.mocked(agentFactory.createAgentFromMarkdown).mockResolvedValue(mockAgent);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(async (agentInvoke: any) => {
-      const output = await agentInvoke('');
+      const { output } = await agentInvoke('');
       return JSON.parse(output);
     });
   });

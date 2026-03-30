@@ -3,9 +3,9 @@ import { createAgentFromMarkdown } from "../../../utils/agent-factory.js";
 import {
   retryWithEnhancedFeedback,
   DEFAULT_RETRY_CONFIG,
-  type RetryConfig,
 } from "../../../utils/enhanced-retry.js";
 import type { ValidationResult } from "../../../utils/validator.js";
+import { validateSynthesisOutput } from "../../../utils/synthesis-validator.js";
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { logger } from "../../../utils/logger.js";
@@ -59,7 +59,7 @@ export async function synthesisNode(
 
   try {
     // Define agent invocation function with feedback support
-    const agentInvoke = async (feedbackPrompt: string): Promise<string> => {
+    const agentInvoke = async (feedbackPrompt: string, resumeSessionId?: string): Promise<{ output: string; sessionId: string }> => {
       const consolidatedContext = `
 === CONSOLIDATED ANALYSIS FROM PHASE 2 ===
 
@@ -76,100 +76,40 @@ ${feedbackPrompt}
         additionalContext: consolidatedContext,
         timeout: 600000, // 10 minutes (longer for Opus)
         useUltrathink: true, // Enable maximum thinking for thorough synthesis
-        requireJsonOutput: false, // Synthesis agent outputs markdown, not JSON
+        requireJsonOutput: false, // CRITICAL: Synthesis outputs markdown format, NOT JSON
+        resumeSessionId, // Pass session ID for context-preserving retry with --resume
       });
 
       const result = await agent.invoke({
         input: `Synthesize comprehensive results for: ${state.project_path}`,
       });
 
-      return result.output || result.content || String(result);
+      return {
+        output: result.output || result.content || String(result),
+        sessionId: result.sessionId,
+      };
     };
 
     const validator = (output: string): ValidationResult => {
-      const errors: string[] = [];
-
-      // Basic validation: should contain markdown content
-      if (!output || output.length < 500) {
-        return {
-          valid: false,
-          errors: [
-            "Synthesis output too short or empty (minimum 500 characters)",
-          ],
-          data: null,
-        };
-      }
-
-      // Check for required sections
-      const hasCLAUDESection = output.includes("# CLAUDE.md Content");
-      const hasProjectContextSection = output.includes(
-        "# project-context/SKILL.md Content",
-      );
-      const hasSeparator = output.includes("---");
-
-      if (!hasCLAUDESection) {
-        errors.push(
-          'Missing required section: "# CLAUDE.md Content" - this must be the first section header',
-        );
-      }
-
-      if (!hasProjectContextSection) {
-        errors.push(
-          'Missing required section: "# project-context/SKILL.md Content" - this must come after the separator',
-        );
-      }
-
-      if (!hasSeparator) {
-        errors.push(
-          'Missing separator "---" between CLAUDE.md and project-context sections',
-        );
-      }
-
-      // Check that output doesn't look like JSON
-      const trimmedOutput = output.trim();
-      if (trimmedOutput.startsWith("{") && trimmedOutput.includes('"agent_name"')) {
-        errors.push(
-          "Output appears to be JSON format instead of markdown. Please output markdown content with the two required sections, not JSON.",
-        );
-      }
-
-      if (errors.length > 0) {
-        return {
-          valid: false,
-          errors: [
-            "Synthesis output validation failed:",
-            "",
-            ...errors,
-            "",
-            "Expected format:",
-            "# CLAUDE.md Content",
-            "",
-            "[markdown content for CLAUDE.md]",
-            "",
-            "---",
-            "",
-            "# project-context/SKILL.md Content",
-            "",
-            "[markdown content for project-context/SKILL.md with YAML frontmatter]",
-          ],
-          data: null,
-        };
-      }
+      // CRITICAL: This validator MUST be IDENTICAL to the stop hook validation
+      // Uses the shared comprehensive validator from synthesis-validator.ts
+      const result = validateSynthesisOutput(output);
 
       return {
-        valid: true,
-        errors: [],
-        data: output,
+        valid: result.valid,
+        errors: result.errors,
+        data: result.valid ? output : null,
       };
     };
+
+    const synthesisPath = join(tempDir, "synthesis-raw.md");
 
     const synthesisContent = await retryWithEnhancedFeedback<string>(
       agentInvoke,
       validator,
       { ...DEFAULT_RETRY_CONFIG, maxAttempts: 10 },
+      synthesisPath, // Save failed attempts as synthesis-raw.attempt-N.md
     );
-
-    const synthesisPath = join(tempDir, "synthesis-raw.md");
     writeFileSync(synthesisPath, synthesisContent);
 
     phaseLogger.success(" ✓ Synthesis complete");

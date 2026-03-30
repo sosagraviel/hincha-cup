@@ -162,7 +162,7 @@ This is the project context content
 
     const result = await contextGenerationNode(mockState);
 
-    expect(result.errors?.some(e => e.includes('Could not find CLAUDE.md Content section'))).toBe(true);
+    expect(result.errors?.some(e => e.includes('Could not find required sections'))).toBe(true);
     expect(result.current_phase).toBe('failed');
   });
 
@@ -185,7 +185,7 @@ Wrong content
 
     const result = await contextGenerationNode(mockState);
 
-    expect(result.errors?.some(e => e.includes('Could not find project-context/SKILL.md Content section'))).toBe(true);
+    expect(result.errors?.some(e => e.includes('Could not find required sections'))).toBe(true);
     expect(result.current_phase).toBe('failed');
   });
 

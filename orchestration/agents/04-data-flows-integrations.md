@@ -4,7 +4,6 @@ description: Analyzes data flows, authentication, authorization, external integr
 subagent_type: Explore
 run_in_background: true
 tools: Read, Grep, Glob
-output_format: json
 # Stop hook: Validates output before agent finishes, enables internal retry within same session
 # When validation fails, Claude CLI automatically retries with feedback (context preserved)
 user-prompt-submit-hook: npx tsx ./hooks/validate-analyzer-json.ts
@@ -823,5 +822,5 @@ Return valid JSON matching this structure:
 - Document EXACT file paths and line numbers
 - Extract real code examples (3-5 lines each)
 - Document external service configurations
-- `needs_verification` array must have ≤ 3 items
+- **CRITICAL: `needs_verification` array MUST have ≤ 5 items (maximum 5, not more!)**
 - Focus on actionable information for AI developers

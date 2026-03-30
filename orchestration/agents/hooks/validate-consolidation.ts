@@ -1,0 +1,273 @@
+#!/usr/bin/env node
+/**
+ * Claude Code Stop Hook: Validate Question Consolidation JSON Output
+ *
+ * This hook validates Phase 2 question consolidator agent output.
+ * If validation fails, it blocks Claude from finishing and provides feedback
+ * for the agent to retry internally.
+ *
+ * Works ONLY in Claude CLI mode. DeepAgents mode uses TypeScript validation.
+ *
+ * This file is synced to target project's .claude/hooks/ during initialization.
+ */
+
+import fs from "fs";
+import { z } from "zod";
+import { extractJSON } from "../../src/utils/validator.js";
+
+// Question Consolidation schema
+const ConsolidatedGapSchema = z.object({
+  agent: z.string().min(1, "Agent name is required"),
+  item: z.string().min(1, "Item name is required"),
+  question: z.string().refine((q) => q.endsWith("?"), {
+    message: "Question must end with ?",
+  }),
+  reason: z.string().min(1, "Reason is required"),
+  priority: z.enum(["high", "medium", "low"]),
+  type: z.enum([
+    "needs_verification",
+    "sparse_findings",
+    "missing_language_coverage",
+  ]),
+  consolidated_from: z.array(z.string()).min(1, "Must have at least one source agent"),
+  original_count: z.number().int().min(1, "Original count must be at least 1"),
+});
+
+const ConsolidationMetadataSchema = z.object({
+  original_gap_count: z.number().int().nonnegative(),
+  consolidated_gap_count: z.number().int().nonnegative(),
+  reduction_percentage: z.number().int().min(0).max(100),
+  consolidation_groups: z.array(z.any()).optional(), // Flexible for groups structure
+});
+
+const ConsolidationOutputSchema = z.object({
+  consolidated_gaps: z.array(ConsolidatedGapSchema).min(0, "consolidated_gaps must be an array"),
+  consolidation_metadata: ConsolidationMetadataSchema,
+});
+
+interface HookInput {
+  stop_hook_active: boolean;
+  transcript_path?: string;
+  session_id?: string;
+  cwd?: string;
+}
+
+/**
+ * Block Claude from finishing with feedback
+ * Exit code 1 signals validation failure to Claude CLI
+ */
+function blockWithFeedback(reason: string): void {
+  console.error(reason); // Print feedback to stderr for Claude CLI to show
+  process.exit(1); // Exit code 1 = validation failed
+}
+
+/**
+ * Allow Claude to finish
+ */
+function allow(): void {
+  process.exit(0);
+}
+
+async function main() {
+  try {
+    const stdinBuffer = fs.readFileSync(0, "utf-8");
+    const input: HookInput = JSON.parse(stdinBuffer);
+
+    if (input.stop_hook_active === true) {
+      return allow();
+    }
+
+    if (!input.transcript_path || !fs.existsSync(input.transcript_path)) {
+      return allow();
+    }
+
+    const transcriptContent = fs.readFileSync(input.transcript_path, "utf-8");
+    const lines = transcriptContent.split("\n").filter((line) => line.trim());
+
+    const transcript = lines
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch (e) {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    const assistantMessages = transcript
+      .filter((msg: any) => msg.type === "assistant")
+      .reverse();
+
+    if (assistantMessages.length === 0) {
+      return allow();
+    }
+
+    const lastMessage = assistantMessages[0];
+
+    if (!lastMessage.content || !Array.isArray(lastMessage.content)) {
+      return allow();
+    }
+
+    const textBlocks = lastMessage.content.filter(
+      (c: any) => c.type === "text",
+    );
+    if (textBlocks.length === 0) {
+      return allow();
+    }
+
+    const text = textBlocks.map((t: any) => t.text).join("\n");
+
+    const jsonString = extractJSON(text);
+
+    if (!jsonString) {
+      return blockWithFeedback(
+        "❌ No JSON object found in your response.\n\n" +
+          "REQUIRED FORMAT:\n" +
+          "  1. Output ONLY raw JSON (no explanatory text)\n" +
+          "  2. First character must be { and last character must be }\n" +
+          "  3. Do NOT wrap in markdown code blocks (no ```json)\n" +
+          "  4. Do NOT add any text before or after the JSON\n\n" +
+          "Expected structure:\n" +
+          "{\n" +
+          '  "consolidated_gaps": [\n' +
+          "    {\n" +
+          '      "agent": "agent-name",\n' +
+          '      "item": "Topic name",\n' +
+          '      "question": "Question ending with ?",\n' +
+          '      "reason": "Context",\n' +
+          '      "priority": "high|medium|low",\n' +
+          '      "type": "needs_verification|sparse_findings|missing_language_coverage",\n' +
+          '      "consolidated_from": ["agent1", "agent2"],\n' +
+          '      "original_count": 2\n' +
+          "    }\n" +
+          "  ],\n" +
+          '  "consolidation_metadata": {\n' +
+          '    "original_gap_count": 5,\n' +
+          '    "consolidated_gap_count": 3,\n' +
+          '    "reduction_percentage": 40,\n' +
+          '    "consolidation_groups": []\n' +
+          "  }\n" +
+          "}\n\n" +
+          "Please output the corrected JSON now.",
+      );
+    }
+
+    let data: unknown;
+    try {
+      data = JSON.parse(jsonString);
+    } catch (parseError) {
+      const errorMsg =
+        parseError instanceof Error ? parseError.message : "Unknown error";
+      return blockWithFeedback(
+        `❌ JSON parsing failed: ${errorMsg}\n\n` +
+          "COMMON JSON SYNTAX ERRORS:\n" +
+          "  1. Missing or extra commas between fields\n" +
+          "  2. Unclosed braces { } or brackets [ ]\n" +
+          "  3. Unquoted strings (all keys and values must use double quotes \"\")\n" +
+          "  4. Trailing commas in objects or arrays (not allowed in JSON)\n" +
+          "  5. Single quotes instead of double quotes\n\n" +
+          "TIP: Copy your JSON to a validator (jsonlint.com) or check the exact error above.\n\n" +
+          "Please fix these syntax errors and output valid JSON.",
+      );
+    }
+
+    // Auto-unwrap if wrapped in analyzer schema
+    let parsed = data as any;
+    if (parsed.findings && typeof parsed.findings === "object") {
+      parsed = parsed.findings;
+    }
+
+    // Auto-wrap if bare array
+    if (Array.isArray(parsed)) {
+      parsed = {
+        consolidated_gaps: parsed,
+        consolidation_metadata: {
+          original_gap_count: 0, // Will be filled by orchestrator
+          consolidated_gap_count: parsed.length,
+          reduction_percentage: 0,
+          consolidation_groups: [],
+        },
+      };
+    }
+
+    // Auto-remap if wrong key name
+    if (!parsed.consolidated_gaps && !Array.isArray(parsed)) {
+      const arrayKey = Object.keys(parsed).find(
+        (k) => Array.isArray(parsed[k]) && k !== "consolidation_groups",
+      );
+      if (arrayKey) {
+        parsed.consolidated_gaps = parsed[arrayKey];
+      }
+    }
+
+    const result = ConsolidationOutputSchema.safeParse(parsed);
+
+    if (!result.success) {
+      const errors = result.error.issues
+        .map((err, index) => {
+          const pathStr =
+            err.path.length > 0 ? `${err.path.join(".")}` : "root";
+          let errorMsg = `  ${index + 1}. Field "${pathStr}": ${err.message}`;
+
+          // Add specific guidance for common errors
+          if (pathStr === "consolidated_gaps" && err.code === "invalid_type") {
+            errorMsg += `\n     → The "consolidated_gaps" field MUST be an array of gap objects`;
+            errorMsg += `\n     → Check that you have: "consolidated_gaps": [...]`;
+          }
+
+          if (pathStr.includes("question") && err.message.includes("?")) {
+            errorMsg += `\n     → Questions MUST end with a question mark (?)`;
+          }
+
+          if (pathStr === "consolidation_metadata") {
+            errorMsg += `\n     → Missing required metadata object`;
+            errorMsg += `\n     → Include: "consolidation_metadata": { original_gap_count: X, consolidated_gap_count: Y, reduction_percentage: Z, consolidation_groups: [] }`;
+          }
+
+          return errorMsg;
+        })
+        .join("\n");
+
+      return blockWithFeedback(
+        `❌ Schema validation failed. Fix these issues:\n\n${errors}\n\n` +
+          "REQUIRED JSON STRUCTURE:\n" +
+          "{\n" +
+          '  "consolidated_gaps": [\n' +
+          "    {\n" +
+          '      "agent": "agent-name",                    // REQUIRED: Source agent name\n' +
+          '      "item": "Short topic name",               // REQUIRED: Brief identifier\n' +
+          '      "question": "Question ending with ?",     // REQUIRED: Must end with ?\n' +
+          '      "reason": "Context explanation",          // REQUIRED: Why verification needed\n' +
+          '      "priority": "high|medium|low",            // REQUIRED: One of these values\n' +
+          '      "type": "needs_verification|sparse_findings|missing_language_coverage", // REQUIRED\n' +
+          '      "consolidated_from": ["agent1", ...],     // REQUIRED: Array of source agents\n' +
+          '      "original_count": 2                       // REQUIRED: Number of gaps merged\n' +
+          "    }\n" +
+          "  ],\n" +
+          '  "consolidation_metadata": {                   // REQUIRED: Top-level metadata\n' +
+          '    "original_gap_count": 5,                    // REQUIRED: Original number\n' +
+          '    "consolidated_gap_count": 3,                // REQUIRED: Final number\n' +
+          '    "reduction_percentage": 40,                 // REQUIRED: 0-100\n' +
+          '    "consolidation_groups": []                  // REQUIRED: Can be empty array\n' +
+          "  }\n" +
+          "}\n\n" +
+          "CRITICAL REMINDERS:\n" +
+          "  1. ALL questions must end with ?\n" +
+          "  2. consolidated_gaps is an ARRAY at the TOP LEVEL\n" +
+          "  3. consolidation_metadata is an OBJECT at the TOP LEVEL\n" +
+          "  4. Do NOT nest these under 'findings' or any other key\n" +
+          "  5. Every gap must have ALL 8 required fields\n\n" +
+          "Please output the corrected JSON with the exact structure shown above.",
+      );
+    }
+
+    return allow();
+  } catch (error) {
+    console.error(
+      `Hook error: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+    return allow();
+  }
+}
+
+main();

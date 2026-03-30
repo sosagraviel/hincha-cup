@@ -1,6 +1,8 @@
 import type { RetryState } from "../state/schemas/initialize-project.schema.js";
 import type { ValidationResult } from "./validator.js";
 import { logger } from "./logger.js";
+import { writeFileSync } from "fs";
+import { dirname, basename, extname } from "path";
 import {
   RetryConfig,
   DEFAULT_RETRY_CONFIG,
@@ -143,7 +145,65 @@ function generateContextualGuidance(
     );
   }
 
+  // Check for array size limit violations (e.g., needs_verification too large)
+  const tooBigError = validation.errors.find((e) =>
+    e.toLowerCase().includes("too big") && e.includes("needs_verification"),
+  );
+  if (tooBigError) {
+    // Extract the limit from error message like "<=5 items"
+    const limitMatch = tooBigError.match(/<=(\d+)/);
+    const limit = limitMatch ? limitMatch[1] : "5";
+
+    guidance.push(
+      `❌ ARRAY SIZE LIMIT EXCEEDED: needs_verification has TOO MANY items`,
+    );
+    guidance.push(
+      `  - Maximum allowed: ${limit} items`,
+    );
+    guidance.push(
+      `  - You must REDUCE the array to ${limit} items or fewer`,
+    );
+    guidance.push(
+      `  - Keep ONLY the most critical questions that CANNOT be determined from code`,
+    );
+    guidance.push(
+      `  - Remove less important or redundant questions`,
+    );
+  }
+
   return guidance;
+}
+
+/**
+ * Save failed attempt output to disk for troubleshooting
+ *
+ * Saves failed output to a file with .attempt-N extension.
+ * Example: synthesis-raw.md -> synthesis-raw.attempt-1.md
+ *
+ * @param outputFilePath - Path to the expected output file
+ * @param attemptNumber - Current attempt number (1-based)
+ * @param failedOutput - The output that failed validation
+ */
+function saveFailedAttempt(
+  outputFilePath: string,
+  attemptNumber: number,
+  failedOutput: string,
+): void {
+  try {
+    const dir = dirname(outputFilePath);
+    const base = basename(outputFilePath);
+    const ext = extname(base);
+    const nameWithoutExt = base.slice(0, -ext.length);
+
+    const attemptFilePath = `${dir}/${nameWithoutExt}.attempt-${attemptNumber}${ext}`;
+
+    writeFileSync(attemptFilePath, failedOutput, 'utf-8');
+
+    logger.info(`💾 Failed attempt saved to: ${attemptFilePath}`);
+  } catch (error) {
+    // Don't fail the retry just because we couldn't save the attempt
+    logger.warn(`Failed to save attempt file: ${(error as Error).message}`);
+  }
 }
 
 /**
@@ -268,28 +328,33 @@ export function buildEnhancedFeedback(
  * Layer 2 (External Retry - Context Lost, Fallback Only):
  *   - THIS function (external retry) spawns NEW agent sessions
  *   - Triggers only when Layer 1 exhausts (Claude gives up)
- *   - Each retry loses context (new session, fresh start)
+ *   - Each retry is a FRESH session with error feedback in prompt
+ *   - No session ID reuse - Claude CLI doesn't support cross-process session reuse
  *   - Provides safety net for hook failures or DeepAgents mode (no hooks)
  *   - Typically handles <10% of failures
  *   - VERBOSE logging: Each attempt logged with validation errors
+ *   - SAVES FAILED ATTEMPTS: Writes .attempt-N files for troubleshooting
  *
  * When external retry triggers:
  *   1. Stop hook blocked until Claude gave up (rare - Claude is persistent)
  *   2. Hook script crashed or timed out (emergency failsafe)
  *   3. DeepAgents mode (API key auth - no hooks available)
  *
- * @param agentInvoke - Function that invokes the agent with a prompt
+ * @param agentInvoke - Function that invokes the agent with a prompt (no session ID - each retry is fresh)
  * @param validator - Function that validates agent output
  * @param config - Retry configuration (default: maxAttempts=5)
+ * @param outputFilePath - Optional path to output file (for saving failed attempts with .attempt-N extension)
  * @returns Validated result or throws after max attempts
  */
 export async function retryWithEnhancedFeedback<T>(
-  agentInvoke: (feedbackPrompt: string) => Promise<string>,
+  agentInvoke: (feedbackPrompt: string, resumeSessionId?: string) => Promise<{ output: string; sessionId: string }>,
   validator: (output: string) => ValidationResult,
   config: RetryConfig = DEFAULT_RETRY_CONFIG,
+  outputFilePath?: string,
 ): Promise<T> {
   let retryState = initRetryState(config.maxAttempts);
   let validation: ValidationResult | null = null;
+  let lastSessionId: string | undefined; // Track session ID for context-preserving retry
 
   while (shouldRetry(retryState)) {
     // Build enhanced feedback from previous attempt
@@ -304,13 +369,19 @@ export async function retryWithEnhancedFeedback<T>(
         logger.warn(
           `🔄 External retry attempt ${retryState.attempt}/${config.maxAttempts} starting...`,
         );
+        logger.info(`Resuming session: ${lastSessionId} (FULL CONTEXT PRESERVED)`);
         if (retryState.last_error) {
           logger.warn(`Previous error: ${retryState.last_error}`);
         }
       }
 
-      // Invoke agent with feedback
-      const output = await agentInvoke(feedbackPrompt);
+      // Invoke agent with feedback and session ID for context preservation
+      // On retry (attempt > 0), pass lastSessionId to --resume the conversation
+      const { output, sessionId } = await agentInvoke(
+        feedbackPrompt,
+        retryState.attempt > 0 ? lastSessionId : undefined
+      );
+      lastSessionId = sessionId; // Store for next retry
 
       // Validate output
       validation = validator(output);
@@ -331,7 +402,12 @@ export async function retryWithEnhancedFeedback<T>(
 
       // Validation failed - prepare for retry
       const errorMessage = validation.errors.join("; ");
-      retryState = updateRetryState(retryState, errorMessage, config);
+      retryState = updateRetryState(retryState, errorMessage, config, output); // Store failed output
+
+      // Save failed attempt to disk for troubleshooting
+      if (outputFilePath) {
+        saveFailedAttempt(outputFilePath, retryState.attempt, output);
+      }
 
       // Log validation failure details
       logger.error(`❌ Validation failed: ${errorMessage}`);

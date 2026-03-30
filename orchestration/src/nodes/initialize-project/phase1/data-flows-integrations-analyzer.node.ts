@@ -33,7 +33,7 @@ export async function dataFlowsIntegrationsAnalyzerNode(
   mkdirSync(join(tempDir, "phase1-outputs"), { recursive: true });
 
   try {
-    const agentInvoke = async (feedbackPrompt: string): Promise<string> => {
+    const agentInvoke = async (feedbackPrompt: string, resumeSessionId?: string): Promise<{ output: string; sessionId: string }> => {
       const agent = await createAgentFromMarkdown({
         agentName,
         agentFile,
@@ -42,30 +42,37 @@ export async function dataFlowsIntegrationsAnalyzerNode(
         additionalContext: feedbackPrompt,
         timeout: 600000, // 10 minutes
         useUltrathink: true, // Enable maximum thinking for thorough analysis
+        resumeSessionId, // Pass session ID for context-preserving retry with --resume
       });
 
       const result = await agent.invoke({
         input: `Analyze the data flows and integrations at: ${state.project_path}`,
       });
 
-      return result.output || result.content || JSON.stringify(result);
+      return {
+        output: result.output || result.content || JSON.stringify(result),
+        sessionId: result.sessionId,
+      };
     };
 
     const validator = (output: string): ValidationResult => {
       return validateAndParseAgentOutput(output, agentName);
     };
 
-    const validatedData = await retryWithEnhancedFeedback(
-      agentInvoke,
-      validator,
-      DEFAULT_RETRY_CONFIG,
-    );
-
+    // Define output path for saving both successful and failed attempts
     const outputPath = join(
       tempDir,
       "phase1-outputs",
       "04-data-flows-integrations.json",
     );
+
+    const validatedData = await retryWithEnhancedFeedback(
+      agentInvoke,
+      validator,
+      DEFAULT_RETRY_CONFIG,
+      outputPath, // Pass output path for attempt logging
+    );
+
     writeFileSync(outputPath, JSON.stringify(validatedData, null, 2));
 
     return {

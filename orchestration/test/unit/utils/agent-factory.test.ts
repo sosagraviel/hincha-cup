@@ -119,7 +119,8 @@ Analyze the project.`;
       };
 
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockAgentInstructions);
@@ -145,7 +146,8 @@ Analyze the project.`;
         getInfo: vi.fn()
       };
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockAgentInstructions);
@@ -174,7 +176,8 @@ Instructions here.`;
         getInfo: vi.fn()
       };
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockAgentInstructions);
@@ -201,7 +204,8 @@ Instructions here.`;
         getInfo: vi.fn()
       };
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockAgentInstructions);
@@ -225,7 +229,8 @@ Instructions here.`;
         getInfo: vi.fn()
       };
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockAgentInstructions);
@@ -246,7 +251,8 @@ Instructions here.`;
         getInfo: vi.fn()
       };
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockAgentInstructions);
@@ -272,7 +278,8 @@ Instructions here.`;
         getInfo: vi.fn()
       };
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue('# Test Agent');
@@ -297,7 +304,8 @@ Instructions here.`;
         getInfo: vi.fn().mockReturnValue(mockInfo)
       };
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue('# Test Agent');
@@ -319,7 +327,8 @@ Instructions here.`;
         getInfo: vi.fn()
       };
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue('# Test Agent');
@@ -342,7 +351,8 @@ No frontmatter here.`;
         getInfo: vi.fn()
       };
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockAgentInstructions);
@@ -366,7 +376,8 @@ Instructions here.`;
         getInfo: vi.fn()
       };
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockAgentInstructions);
@@ -388,7 +399,8 @@ Instructions here.`;
         getInfo: vi.fn()
       };
       const mockFactory = {
-        createAgent: vi.fn().mockResolvedValue(mockHybridAgent)
+        createAgent: vi.fn().mockResolvedValue(mockHybridAgent),
+        getAuthConfig: vi.fn().mockReturnValue({ mode: 'claude-cli', provider: 'anthropic' })
       };
 
       vi.mocked(fs.readFileSync).mockReturnValue(mockAgentInstructions);

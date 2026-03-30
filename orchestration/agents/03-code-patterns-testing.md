@@ -4,7 +4,6 @@ description: Analyzes code patterns, conventions, testing strategies, and code q
 subagent_type: Explore
 run_in_background: true
 tools: Read, Grep, Glob
-output_format: json
 # Stop hook: Validates output before agent finishes, enables internal retry within same session
 # When validation fails, Claude CLI automatically retries with feedback (context preserved)
 user-prompt-submit-hook: npx tsx ./hooks/validate-analyzer-json.ts
@@ -53,7 +52,13 @@ You are analyzing a REAL, working codebase. **Many projects have tests, linters,
 
 **Let dependencies be your source of truth. If deps say a tool exists, search until you find it. If not in deps, "none" is valid.**
 
-ONLY use [NEEDS_VERIFICATION] for unknowable info, NOT for things discoverable through better searching.
+**CRITICAL**: Do NOT use [NEEDS_VERIFICATION] unless you have exhausted ALL search options. Before marking anything as needing verification:
+
+1. Use Glob to find ALL dependency files (package.json, requirements.txt, go.mod, Cargo.toml, pom.xml, Gemfile, etc.)
+2. Use Read to examine ALL configuration files completely
+3. Search for CI/CD config files (.github/workflows, .gitlab-ci.yml, .circleci, Jenkinsfile, etc.)
+4. Check for deployment configs (Dockerfile, docker-compose.yml, k8s manifests, terraform, etc.)
+5. Search for environment files (.env.example, config/, etc.)
 
 **When you DO need verification**, format it properly:
 ```json
@@ -683,5 +688,5 @@ Return valid JSON matching this structure:
 - Document EXACT file paths as examples
 - Count actual tests (not estimates)
 - Extract real code snippets (3-5 lines each)
-- `needs_verification` array must have ≤ 3 items
+- **CRITICAL: `needs_verification` array MUST have ≤ 5 items (maximum 5, not more!)**
 - Focus on actionable information for AI developers
