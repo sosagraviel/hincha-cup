@@ -62,13 +62,14 @@ describe('techStackDependenciesAnalyzerNode', () => {
             dependencies: ['react', 'express'],
           },
         }),
+        sessionId: 'test-session-123',
       }),
     };
 
     vi.mocked(agentFactory.createAgentFromMarkdown).mockResolvedValue(mockAgent);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
-        const output = await agentInvoke('');
+        const { output } = await agentInvoke('');
         return JSON.parse(output);
       }
     );
@@ -160,7 +161,8 @@ describe('techStackDependenciesAnalyzerNode', () => {
     expect(enhancedRetry.retryWithEnhancedFeedback).toHaveBeenCalledWith(
       expect.any(Function),
       expect.any(Function),
-      enhancedRetry.DEFAULT_RETRY_CONFIG
+      enhancedRetry.DEFAULT_RETRY_CONFIG,
+      expect.stringContaining('02-tech-stack-dependencies.json') // outputFilePath parameter
     );
   });
 

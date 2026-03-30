@@ -205,7 +205,7 @@ export async function validationNode(
     // Check for validation errors
     if (validationErrors.length > 0) {
       phaseLogger.error(" ✗ Validation failed:");
-      validationErrors.forEach((err) => console.error(`  - ${err}`));
+      validationErrors.forEach((err) => phaseLogger.error(`  - ${err}`));
 
       return {
         errors: [...state.errors, ...validationErrors],
@@ -222,8 +222,8 @@ export async function validationNode(
 
     phaseLogger.success(" ✓ All validations passed");
     if (validationWarnings.length > 0) {
-      phaseLogger.success(" Warnings:");
-      validationWarnings.forEach((warn) => console.log(`  - ${warn}`));
+      phaseLogger.warn(" Warnings:");
+      validationWarnings.forEach((warn) => phaseLogger.warn(`  - ${warn}`));
     }
 
     phaseLogger.blank();
@@ -243,7 +243,7 @@ export async function validationNode(
     };
   } catch (error) {
     const errorMessage = `Validation failed: ${(error as Error).message}`;
-    console.error(`[Phase 6: Validation] ✗ ${errorMessage}`);
+    phaseLogger.error(` ✗ ${errorMessage}`);
 
     return {
       errors: [...state.errors, errorMessage],

@@ -88,9 +88,12 @@ export const RetryStateSchema = z.object({
   max_attempts: z.number().default(5),
   last_error: z.string().optional(),
   error_history: z.array(z.string()).default([]),
+  last_output: z.string().optional(), // Store previous failed output for context preservation
+  output_history: z.array(z.string()).default([]), // History of failed outputs (last 2)
   next_delay_ms: z.number().optional(), // Exponential backoff delay
   started_at: z.string().optional(),
-  completed_at: z.string().optional()
+  completed_at: z.string().optional(),
+  session_id: z.string().optional() // UUID for tracking (not for Claude CLI session reuse)
 });
 
 // Retry tracking for all Phase 1 agents

@@ -23,6 +23,11 @@ export interface AgentConfig {
    * Set to false for agents that output other formats (e.g., synthesis agent outputs markdown)
    */
   requireJsonOutput?: boolean;
+  /**
+   * Optional session ID to resume for context-preserving retry (Claude CLI only)
+   * When provided, uses --resume flag to continue the conversation with full context
+   */
+  resumeSessionId?: string;
 }
 
 /**
@@ -65,6 +70,7 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
     timeout = 300000, // 5 minutes default
     useUltrathink = false,
     requireJsonOutput = true, // Default to true for backward compatibility
+    resumeSessionId,
   } = config;
 
   const agentPath = join(frameworkPath, "orchestration/agents", agentFile);
@@ -108,6 +114,7 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
     timeout,
     useUltrathink,
     requireJsonOutput,
+    resumeSessionId,
   });
 
   return {
@@ -117,6 +124,7 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
       return {
         output: result.output,
         content: result.output,
+        sessionId: result.sessionId, // Pass through session ID for retry
         mode: result.mode,
         executionTimeMs: result.executionTimeMs,
       };
@@ -223,8 +231,10 @@ export function buildDynamicContext(
       `  "agent_name": ${agentNameValue},`,
       `  "timestamp": "ISO 8601 timestamp",`,
       `  "findings": {},`,
-      `  "needs_verification": []`,
+      `  "needs_verification": [] // CRITICAL: Maximum 5 items - keep ONLY the most critical unknowns`,
       `}`,
+      ``,
+      `IMPORTANT: needs_verification array MUST have ≤ 5 items (maximum 5, not more!)`,
       ``
     );
   }
@@ -311,8 +321,10 @@ function buildAgentPrompt(
       `  "agent_name": ${agentNameValue},`,
       `  "timestamp": "ISO 8601 timestamp",`,
       `  "findings": {},`,
-      `  "needs_verification": []`,
+      `  "needs_verification": [] // CRITICAL: Maximum 5 items - keep ONLY the most critical unknowns`,
       `}`,
+      ``,
+      `IMPORTANT: needs_verification array MUST have ≤ 5 items (maximum 5, not more!)`,
       ``
     );
   }

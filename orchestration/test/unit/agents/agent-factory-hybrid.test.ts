@@ -3,12 +3,25 @@ import { HybridAgentFactory } from '../../../src/agents/agent-factory-hybrid.js'
 import * as authDetector from '../../../src/auth/auth-detector.js';
 import fs from 'fs';
 
-vi.mock('fs', () => ({
-  default: {
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    default: {
+      ...actual.default,
+      existsSync: vi.fn(),
+      readFileSync: vi.fn(),
+    },
     existsSync: vi.fn(),
     readFileSync: vi.fn(),
-  },
-}));
+    open: vi.fn((file, mode, callback) => {
+      callback(null, 123); // Mock file descriptor
+    }),
+    close: vi.fn((fd, callback) => {
+      callback();
+    }),
+  };
+});
 
 vi.mock('../../../src/auth/auth-detector.js', () => ({
   detectAuthMode: vi.fn(),
@@ -50,8 +63,19 @@ vi.mock('../../../src/utils/logger.js', () => ({
   },
 }));
 
+vi.mock('../../../src/agents/agent-validator.js', () => ({
+  assertAgentFileValid: vi.fn(), // Mock validation - tests use mock agent files
+  validateAgentFile: vi.fn().mockReturnValue({
+    valid: true,
+    errors: [],
+    warnings: [],
+    frontmatter: { name: 'test-agent', description: 'Test agent' },
+  }),
+}));
+
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
+  execSync: vi.fn().mockReturnValue('2.1.87 (Claude Code)'), // Mock Claude CLI version check
 }));
 
 vi.mock('fs/promises', () => ({
@@ -71,21 +95,6 @@ vi.mock('path', async (importOriginal) => {
     join: vi.fn((...args) => args.join('/')),
   };
 });
-
-vi.mock('fs', () => ({
-  default: {
-    existsSync: vi.fn(),
-    readFileSync: vi.fn(),
-  },
-  existsSync: vi.fn(),
-  readFileSync: vi.fn(),
-  open: vi.fn((file, mode, callback) => {
-    callback(null, 123); // Mock file descriptor
-  }),
-  close: vi.fn((fd, callback) => {
-    callback();
-  }),
-}));
 
 describe('HybridAgentFactory', () => {
   let factory: HybridAgentFactory;

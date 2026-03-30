@@ -152,7 +152,10 @@ program
       // ========================================================================
       logger.section("Preflight Checks");
 
-      const preflightResult = await runPreflightChecks(projectPath, frameworkPath);
+      const preflightResult = await runPreflightChecks(
+        projectPath,
+        frameworkPath,
+      );
 
       // Display warnings (non-blocking)
       if (preflightResult.warnings.length > 0) {
@@ -195,6 +198,27 @@ program
         logger.success("✓ .gitignore contains required entries");
       }
       logger.blank();
+
+      // // Copy initialization agent files and hooks to target project BEFORE Phase 1
+      // // Store in .claude/agents/initialization/ subdirectory to separate from implementer/planner agents
+      // // This ensures Claude CLI can find them by name when invoked with --agent flag
+      // const targetInitAgentsDir = path.join(projectPath, ".claude", "agents", "initialization");
+      // const sourceAgentsDir = path.join(frameworkPath, "orchestration", "agents");
+
+      // // Create target .claude/agents/initialization directory
+      // fs.mkdirSync(targetInitAgentsDir, { recursive: true });
+
+      // // Copy all initialization agent markdown files and hooks directory
+      // // This includes: 01-04 (analyzers), 05 (synthesizer), 06 (consolidator), hooks/
+      // if (fs.existsSync(sourceAgentsDir)) {
+      //   fs.cpSync(sourceAgentsDir, targetInitAgentsDir, {
+      //     recursive: true,
+      //     filter: (src) => {
+      //       // Copy all .md files and the hooks directory
+      //       return src.endsWith(".md") || src.includes("hooks") || src === sourceAgentsDir;
+      //     },
+      //   });
+      // }
 
       logger.spinner("Initializing workflow...", "init");
       await initializeDevCheckpointer();

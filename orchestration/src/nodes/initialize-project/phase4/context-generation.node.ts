@@ -12,6 +12,7 @@ import {
   detectWorkspaces,
   type WorkspaceDetectionResult,
 } from "../../../utils/workspace-detector.js";
+import { extractSynthesisMarkdown } from "../../../utils/validator.js";
 
 /**
  * Phase 4: Context Generation Node
@@ -54,25 +55,20 @@ export async function contextGenerationNode(
   try {
     phaseLogger.info(" Extracting from markdown format...");
 
-    const claudeMatch = synthesisContent.match(
-      /# CLAUDE\.md Content\s*\n+([\s\S]*?)(?=\n+---\s*\n+# project-context)/,
-    );
-    if (!claudeMatch) {
-      throw new Error("Could not find CLAUDE.md Content section in synthesis");
+    // Use resilient extraction (handles preamble text like "Let me output...")
+    const extracted = extractSynthesisMarkdown(synthesisContent);
+    if (!extracted) {
+      throw new Error(
+        "Could not find required sections in synthesis output. " +
+        "Expected '# CLAUDE.md Content', '---', and '# project-context/SKILL.md Content'"
+      );
     }
-    const claudeMdContent = claudeMatch[1].trim();
+
+    const claudeMdContent = extracted.claudemd;
     const claudeMdLines = claudeMdContent.split("\n").length;
     phaseLogger.success(`✓ Extracted CLAUDE.md (${claudeMdLines} lines)`);
 
-    const contextMatch = synthesisContent.match(
-      /# project-context\/SKILL\.md Content\s*\n+([\s\S]*$)/,
-    );
-    if (!contextMatch) {
-      throw new Error(
-        "Could not find project-context/SKILL.md Content section in synthesis",
-      );
-    }
-    const projectContextContent = contextMatch[1].trim();
+    const projectContextContent = extracted.projectContext;
     const projectContextLines = projectContextContent.split("\n").length;
     phaseLogger.success(
       `✓ Extracted project-context/SKILL.md (${projectContextLines} lines)`,

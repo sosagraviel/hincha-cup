@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, execSync } from "child_process";
 import path from "path";
 import fs from "fs";
 import {
@@ -10,10 +10,126 @@ import {
 import { createDeepAgent } from "deepagents";
 import { getLLMFactory } from "../llm/llm-factory.js";
 import { logger } from "../utils/logger.js";
+import { assertAgentFileValid } from "./agent-validator.js";
+
+/**
+ * Get path to local Claude CLI binary (bundled with framework)
+ *
+ * Searches for node_modules/.bin/claude in the framework directory.
+ * Falls back to global 'claude' command with version verification.
+ *
+ * @param frameworkPath - Path to the framework root directory
+ * @returns Object with path and version of Claude CLI binary
+ * @throws Error if Claude CLI not found or version < 2.0
+ */
+function getClaudeCLIPath(frameworkPath: string): {
+  path: string;
+  version: string;
+} {
+  // Use frameworkPath to locate the bundled Claude CLI
+  // frameworkPath points to framework root (e.g., /path/to/qubika-agentic-framework)
+  const localClaudePath = path.join(
+    frameworkPath,
+    "orchestration/node_modules/.bin/claude",
+  );
+
+  // Prefer local bundled Claude CLI (guaranteed v2.1+)
+  if (fs.existsSync(localClaudePath)) {
+    try {
+      // Verify version
+      const version = execSync(`"${localClaudePath}" --version`, {
+        encoding: "utf-8",
+      }).trim();
+
+      // Extract version number (e.g., "2.1.87 (Claude Code)" -> "2.1.87")
+      const versionMatch = version.match(/^(\d+\.\d+\.\d+)/);
+      if (versionMatch) {
+        const [major, minor] = versionMatch[1].split(".").map(Number);
+        if (major >= 2 && minor >= 0) {
+          return { path: localClaudePath, version: versionMatch[1] };
+        }
+      }
+    } catch (error) {
+      logger.warn(`Local Claude CLI found but version check failed: ${error}`);
+      // Fall through to global check
+    }
+  }
+
+  // Fallback: Try global Claude CLI with version check
+  try {
+    const globalVersion = execSync("claude --version", {
+      encoding: "utf-8",
+    }).trim();
+    const versionMatch = globalVersion.match(/^(\d+\.\d+\.\d+)/);
+
+    if (versionMatch) {
+      const [major, minor] = versionMatch[1].split(".").map(Number);
+      if (major >= 2 && minor >= 0) {
+        logger.warn(
+          `Using global Claude CLI v${versionMatch[1]} - consider using framework's bundled version for consistency`,
+        );
+        return { path: "claude", version: versionMatch[1] };
+      } else {
+        throw new Error(
+          `Global Claude CLI version ${versionMatch[1]} is too old (requires v2.0+). ` +
+            `The framework should bundle Claude CLI v2.1+ automatically. ` +
+            `Try running: cd orchestration && npm install`,
+        );
+      }
+    }
+
+    throw new Error(
+      `Could not determine Claude CLI version from: ${globalVersion}`,
+    );
+  } catch (error) {
+    throw new Error(
+      `Claude CLI not found or version check failed.\n` +
+        `  Local path checked: ${localClaudePath}\n` +
+        `  Global 'claude' command: Not found or too old\n` +
+        `\n` +
+        `This framework bundles Claude CLI v2.1+ automatically.\n` +
+        `Please run: cd orchestration && npm install\n` +
+        `\n` +
+        `Error details: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
 
 /**
  * Get the action verb for an agent based on its name
  */
+/**
+ * Parse tools restriction from agent frontmatter
+ * Returns comma-separated list of allowed tools or null if no restriction
+ */
+function parseToolsFromFrontmatter(agentContent: string): string | null {
+  // Match YAML frontmatter
+  const frontmatterMatch = agentContent.match(/^---\n([\s\S]*?)\n---/);
+  if (!frontmatterMatch) {
+    return null;
+  }
+
+  const frontmatter = frontmatterMatch[1];
+
+  // Match tools: field (can be on one line or multiple lines)
+  const toolsMatch = frontmatter.match(/^tools:\s*(.+)$/m);
+  if (!toolsMatch) {
+    return null;
+  }
+
+  // Parse tools list (comma-separated or space-separated)
+  const toolsLine = toolsMatch[1].trim();
+
+  // Handle comma-separated: "Read, Grep, Glob"
+  // Handle space-separated: "Read Grep Glob"
+  const tools = toolsLine
+    .split(/[,\s]+/)
+    .map(t => t.trim())
+    .filter(t => t.length > 0);
+
+  return tools.join(',');
+}
+
 function getAgentAction(agentName: string): string {
   const lowerName = agentName.toLowerCase();
 
@@ -52,12 +168,14 @@ export interface AgentConfig {
   timeout?: number;
   useUltrathink?: boolean;
   requireJsonOutput?: boolean;
+  resumeSessionId?: string; // Session ID to resume (for context-preserving retry)
 }
 
 export interface AgentInvokeResult {
   output: string;
   mode: AuthMode;
   executionTimeMs: number;
+  sessionId: string; // Session ID for context-preserving retry with --resume
 }
 
 export interface HybridAgent {
@@ -234,8 +352,12 @@ export class HybridAgentFactory {
             `Completed in ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
           );
 
+          // Generate session ID for tracking (DeepAgents doesn't use --resume like CLI)
+          const sessionId = config.resumeSessionId || `deepagent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
           return {
             output,
+            sessionId,
             mode: AuthMode.API_KEY,
             executionTimeMs,
           };
@@ -267,10 +389,19 @@ export class HybridAgentFactory {
     const llmFactory = getLLMFactory();
     const modelInfo = llmFactory.getModelInfo(config.agentName);
 
+    // Get Claude CLI info once (to avoid repeated checks)
+    const claudeCLI = getClaudeCLIPath(config.frameworkPath);
+
     return {
       invoke: async (input: { input: string }): Promise<AgentInvokeResult> => {
+        // Generate session ID upfront (either new UUID or use existing for retry)
+        const { randomUUID } = await import("crypto");
+        const sessionId = config.resumeSessionId || randomUUID();
+        const isRetry = !!config.resumeSessionId;
+
         const action = getAgentAction(config.agentName);
-        const authInfo = `Auth: Subscription, Provider: anthropic, Model: ${modelInfo.alias}`;
+        const sessionInfo = isRetry ? `resume:${sessionId.slice(0, 8)}` : sessionId.slice(0, 8);
+        const authInfo = `Auth: Subscription, Provider: anthropic, Model: ${modelInfo.alias}, Cli: claude, CliVersion: v${claudeCLI.version}, Session: ${sessionInfo}`;
 
         logger.trackConcurrentAgentStart(
           config.agentName,
@@ -283,7 +414,7 @@ export class HybridAgentFactory {
         try {
           const fullPrompt = config.additionalContext || input.input;
 
-          const output = await this.invokeCLI(
+          const { output, sessionId: returnedSessionId } = await this.invokeCLI(
             config.agentName,
             fullPrompt,
             config.projectPath,
@@ -291,6 +422,8 @@ export class HybridAgentFactory {
             config.frameworkPath,
             config.timeout,
             config.useUltrathink,
+            sessionId, // Pass our generated/existing session ID
+            isRetry, // Tell CLI whether to use --session-id or --resume
           );
 
           const executionTimeMs = Date.now() - startTime;
@@ -298,11 +431,12 @@ export class HybridAgentFactory {
           // Update tracker to success
           logger.trackConcurrentAgentSucceed(
             config.agentName,
-            `Completed in ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
+            `Completed in ${(executionTimeMs / 1000).toFixed(1)}s`,
           );
 
           return {
             output,
+            sessionId: returnedSessionId, // Return sessionId for potential retry
             mode: AuthMode.CLAUDE_CLI,
             executionTimeMs,
           };
@@ -313,7 +447,7 @@ export class HybridAgentFactory {
 
           logger.trackConcurrentAgentFail(
             config.agentName,
-            `Failed after ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
+            `Failed after ${(executionTimeMs / 1000).toFixed(1)}s`,
           );
 
           throw new Error(
@@ -337,7 +471,9 @@ export class HybridAgentFactory {
     frameworkPath: string,
     timeout: number = 300000,
     useUltrathink: boolean = false,
-  ): Promise<string> {
+    sessionId: string, // Session ID - either new (first attempt) or existing (retry)
+    isRetry: boolean = false, // Whether this is a retry (use --resume instead of --session-id)
+  ): Promise<{ output: string; sessionId: string }> {
     if (HybridAgentFactory.isAborting) {
       throw new Error("SIGINT: Workflow interrupted by user (CTRL+C)");
     }
@@ -392,19 +528,48 @@ export class HybridAgentFactory {
       });
 
       // Construct path to agent file
-      const agentPath = path.join(frameworkPath, "orchestration/agents", agentFile);
+      const agentPath = path.join(
+        frameworkPath,
+        "orchestration/agents",
+        agentFile,
+      );
 
       // Set cwd to agents directory so hook paths (./hooks/...) resolve correctly
       const agentsDir = path.join(frameworkPath, "orchestration/agents");
 
+      // Validate agent file before spawning (Goal 1: Pre-invocation validation)
+      assertAgentFileValid(agentPath);
+
+      // Parse agent frontmatter to extract allowed tools
+      const agentContent = fs.readFileSync(agentPath, "utf-8");
+      const toolsRestriction = parseToolsFromFrontmatter(agentContent);
+
+      // Get Claude CLI path (local bundled version preferred)
+      const claudeCLI = getClaudeCLIPath(frameworkPath);
+
+      const cliArgs = [
+        "--agent",
+        agentPath,
+        "--model",
+        "sonnet",
+        "--dangerously-skip-permissions",
+      ];
+
+      // If agent specifies tools restriction, pass it to CLI to enforce even with skip-permissions
+      if (toolsRestriction) {
+        cliArgs.push("--tools", toolsRestriction);
+      }
+
+      cliArgs.push(
+        "--add-dir",
+        projectPath, // Grant access to project directory
+        // First attempt: set our generated session ID. Retry: resume existing session
+        ...(isRetry ? ["--resume", sessionId] : ["--session-id", sessionId]),
+      );
+
       claudeProcess = spawn(
-        "claude",
-        [
-          "--agent", agentPath,
-          "--model", "sonnet",
-          "--dangerously-skip-permissions",
-          "--add-dir", projectPath,  // Grant access to project directory
-        ],
+        claudeCLI.path,
+        cliArgs,
         {
           cwd: agentsDir, // Changed from projectPath to agentsDir so hooks resolve
           env: {
@@ -444,7 +609,9 @@ export class HybridAgentFactory {
         close(promptFd, () => {});
 
         if (code === 0) {
-          resolve(stdout);
+          // Return raw output and the session ID we control
+          // No JSON parsing needed - we generated the session ID upfront
+          resolve({ output: stdout, sessionId });
         } else {
           const isRateLimit =
             stdout.includes("Limit reached") ||

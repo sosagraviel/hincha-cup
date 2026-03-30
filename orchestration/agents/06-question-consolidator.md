@@ -4,11 +4,9 @@ description: Consolidates similar questions from multiple analysis agents
 subagent_type: general-purpose
 run_in_background: false
 tools: Read
-output_format: json
-
 # Stop hook: Validates output before agent finishes, enables internal retry within same session
 # When validation fails, Claude CLI automatically retries with feedback (context preserved)
-user-prompt-submit-hook: npx tsx ./hooks/validate-extraction-json.ts
+user-prompt-submit-hook: npx tsx ./hooks/validate-consolidation.ts
 ---
 
 # Question Consolidation Agent
@@ -230,9 +228,32 @@ When merging `reason` fields:
 
 ## Output Format
 
-**CRITICAL**: You MUST output ONLY valid JSON. No markdown code blocks, no explanatory text before or after. The first character must be `{` and the last must be `}`.
+**CRITICAL OUTPUT REQUIREMENTS**:
 
-Return JSON matching this structure:
+1. Output ONLY raw JSON starting with `{` and ending with `}`
+2. Do NOT wrap in markdown code blocks (no ```json)
+3. Do NOT add ANY text before or after the JSON
+4. The JSON MUST have EXACTLY TWO top-level keys:
+   - `consolidated_gaps` (ARRAY of gap objects)
+   - `consolidation_metadata` (OBJECT with counts and metadata)
+
+**WRONG** (missing top-level structure):
+```json
+[
+  { "agent": "...", "question": "...?" }
+]
+```
+
+**WRONG** (wrapped in findings):
+```json
+{
+  "findings": {
+    "consolidated_gaps": [...]
+  }
+}
+```
+
+**CORRECT** (exact required structure):
 
 ```json
 {
@@ -264,6 +285,14 @@ Return JSON matching this structure:
   }
 }
 ```
+
+**VALIDATION CHECKLIST** - Your output WILL BE REJECTED if it's missing:
+- ✓ Top-level key `consolidated_gaps` (ARRAY)
+- ✓ Top-level key `consolidation_metadata` (OBJECT)
+- ✓ Every gap has ALL 8 fields: agent, item, question, reason, priority, type, consolidated_from, original_count
+- ✓ All questions end with `?`
+- ✓ No markdown code blocks wrapping the JSON
+- ✓ No text before/after the JSON
 
 ## Important Guidelines
 

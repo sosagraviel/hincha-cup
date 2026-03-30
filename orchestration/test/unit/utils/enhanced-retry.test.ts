@@ -13,6 +13,8 @@ vi.mock('../../../src/utils/logger.js', () => ({
     error: vi.fn(),
     warn: vi.fn(),
     info: vi.fn(),
+    success: vi.fn(),
+    blank: vi.fn(),
   },
 }));
 
@@ -277,7 +279,7 @@ describe('enhanced-retry', () => {
         findings: { test: 'data' },
       });
 
-      const agentInvoke = vi.fn().mockResolvedValue(validOutput);
+      const agentInvoke = vi.fn().mockResolvedValue({ output: validOutput, sessionId: 'test-session-123' });
       const validator = vi.fn().mockReturnValue({
         valid: true,
         errors: [],
@@ -291,7 +293,7 @@ describe('enhanced-retry', () => {
 
       expect(result).toBeDefined();
       expect(agentInvoke).toHaveBeenCalledTimes(1);
-      expect(agentInvoke).toHaveBeenCalledWith(''); // No feedback on first attempt
+      expect(agentInvoke).toHaveBeenCalledWith('', undefined); // No feedback on first attempt, no session ID
     });
 
     it('should retry with feedback on validation failure', async () => {
@@ -304,8 +306,8 @@ describe('enhanced-retry', () => {
 
       const agentInvoke = vi
         .fn()
-        .mockResolvedValueOnce(invalidOutput)
-        .mockResolvedValueOnce(validOutput);
+        .mockResolvedValueOnce({ output: invalidOutput, sessionId: 'session-1' })
+        .mockResolvedValueOnce({ output: validOutput, sessionId: 'session-1' });
 
       const validator = vi
         .fn()

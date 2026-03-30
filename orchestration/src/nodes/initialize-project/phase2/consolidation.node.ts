@@ -144,6 +144,7 @@ export async function consolidationNode(
         state.project_path,
         state.framework_path,
         tempDir,
+        consolidatedPath,
       );
 
       if (consolidationResult.success && consolidationResult.consolidated) {
@@ -364,6 +365,7 @@ async function consolidateQuestions(
   projectPath: string,
   frameworkPath: string,
   _tempDir: string,
+  consolidatedPath: string,
 ): Promise<{
   success: boolean;
   consolidated?: QuestionConsolidationOutput;
@@ -375,12 +377,21 @@ async function consolidateQuestions(
     // Build prompt with gaps
     const gapsJson = JSON.stringify(gaps, null, 2);
 
-    // Define agent invocation function with feedback support
-    const agentInvoke = async (feedbackPrompt: string): Promise<string> => {
+    // Define agent invocation function with feedback support and session resumption
+    const agentInvoke = async (feedbackPrompt: string, resumeSessionId?: string): Promise<{ output: string; sessionId: string }> => {
       const additionalContext = `
 CRITICAL: Follow ALL instructions in the agent file below.
-Output ONLY valid JSON starting with { and ending with }
-Do NOT wrap in markdown code blocks or add ANY text before/after the JSON
+
+CRITICAL OUTPUT STRUCTURE - Your JSON MUST have EXACTLY these TWO top-level keys:
+{
+  "consolidated_gaps": [...],      // REQUIRED: Array of gap objects
+  "consolidation_metadata": {...}  // REQUIRED: Metadata object
+}
+
+DO NOT wrap in "findings" or any other key. DO NOT output a bare array.
+The FIRST character must be { and the LAST character must be }
+Do NOT wrap in markdown code blocks (no \`\`\`json)
+Do NOT add ANY text before or after the JSON
 
 CRITICAL VALIDATION REQUIREMENTS:
 1. Every 'question' field MUST end with a question mark (?)
@@ -402,6 +413,16 @@ CRITICAL VALIDATION REQUIREMENTS:
    Do NOT use descriptive names like 'tech-stack-dependencies-analyzer'.
    Use the file name format shown above (with numeric prefixes, no -analyzer suffix).
 
+4. Every gap object MUST have ALL 8 fields:
+   - agent (string)
+   - item (string)
+   - question (string ending with ?)
+   - reason (string)
+   - priority (high|medium|low)
+   - type (needs_verification|sparse_findings|missing_language_coverage)
+   - consolidated_from (array of strings)
+   - original_count (number)
+
 === INPUT DATA ===
 Current gaps that need consolidation:
 ${gapsJson}
@@ -417,13 +438,17 @@ ${feedbackPrompt}
         additionalContext,
         timeout: 120000, // 2 minutes
         useUltrathink: true, // Enable maximum thinking for thorough consolidation
+        resumeSessionId, // Pass session ID for context-preserving retry with --resume
       });
 
       const result = await agent.invoke({
         input: "Consolidate the questions provided in the context above.",
       });
 
-      return result.output || result.content || JSON.stringify(result);
+      return {
+        output: result.output || result.content || JSON.stringify(result),
+        sessionId: result.sessionId,
+      };
     };
 
     // Define validator function
@@ -471,11 +496,11 @@ ${feedbackPrompt}
           !parsed.consolidated_gaps ||
           !Array.isArray(parsed.consolidated_gaps)
         ) {
+          const topLevelKeys = Object.keys(parsed).join(", ");
           return {
             valid: false,
             errors: [
-              "Invalid output: missing consolidated_gaps array.",
-              `Top-level keys found: ${Object.keys(parsed).join(", ")}`,
+              `Invalid output: missing consolidated_gaps array. Top-level keys found: ${topLevelKeys || "(none)"}. Expected structure: { "consolidated_gaps": [...], "consolidation_metadata": {...} }`,
             ],
             data: null,
           };
@@ -526,10 +551,14 @@ ${feedbackPrompt}
     };
 
     // Use enhanced retry with progressive feedback
+    // Save failed attempts with .attempt-N-question-consolidation suffix
+    const outputPath = consolidatedPath.replace('.json', '-question-consolidation.json');
+
     const parsed = await retryWithEnhancedFeedback<QuestionConsolidationOutput>(
       agentInvoke,
       validator,
       DEFAULT_RETRY_CONFIG,
+      outputPath, // Pass output path for attempt logging
     );
 
     consolidationLogger.info("  ✓ Consolidation successful and validated");

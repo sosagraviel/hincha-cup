@@ -13,6 +13,7 @@
 
 import { z } from "zod";
 import fs from "fs";
+import { extractJSON } from "../../src/utils/validator.js";
 
 // Extraction schema (matches orchestration/src/nodes/phase4/context-generation.node.ts)
 const ExtractionSchema = z.object({
@@ -30,36 +31,12 @@ interface HookInput {
 }
 
 /**
- * Extract JSON from agent output (handle markdown wrapping)
- */
-function extractJSON(text: string): string | null {
-  // Remove markdown code blocks
-  let cleaned = text.trim();
-  cleaned = cleaned.replace(/^```json\s*/i, "");
-  cleaned = cleaned.replace(/^```\s*/, "");
-  cleaned = cleaned.replace(/\s*```$/, "");
-
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-
-  if (start === -1 || end === -1) {
-    return null;
-  }
-
-  return cleaned.substring(start, end + 1);
-}
-
-/**
  * Block Claude from finishing with feedback
+ * Exit code 1 signals validation failure to Claude CLI
  */
 function blockWithFeedback(reason: string): void {
-  console.log(
-    JSON.stringify({
-      decision: "block",
-      reason: reason,
-    }),
-  );
-  process.exit(0);
+  console.error(reason); // Print feedback to stderr for Claude CLI to show
+  process.exit(1); // Exit code 1 = validation failed
 }
 
 /**

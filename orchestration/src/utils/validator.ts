@@ -189,14 +189,66 @@ export function extractJSON(output: string): string {
 }
 
 /**
+ * Extract synthesis markdown sections from agent output
+ *
+ * Handles preamble text (like "Let me output..." or explanations) by finding
+ * the actual section markers anywhere in the text. Similar to extractJSON resilience.
+ *
+ * Agents sometimes add conversational text before the actual output:
+ * - "The validation hook requires my response to follow a specific format. Let me output..."
+ * - "I see I need to follow the format. Here it is:"
+ * - Tool use blocks before the actual content
+ *
+ * This function finds the section headers regardless of preamble.
+ *
+ * @param output - Raw output from synthesis agent
+ * @returns Object with claudemd and projectContext content, or null if not found
+ */
+export function extractSynthesisMarkdown(output: string): {
+  claudemd: string;
+  projectContext: string;
+} | null {
+  // Find "# CLAUDE.md Content" anywhere in the output (skip preamble)
+  const claudeHeaderIndex = output.indexOf('# CLAUDE.md Content');
+  if (claudeHeaderIndex === -1) {
+    return null;
+  }
+
+  // Find "---" separator after CLAUDE.md content
+  const separatorMatch = output.slice(claudeHeaderIndex).match(/\n---\s*\n/);
+  if (!separatorMatch || separatorMatch.index === undefined) {
+    return null;
+  }
+
+  // Find "# project-context/SKILL.md Content" after separator
+  const contextHeaderIndex = output.indexOf('# project-context/SKILL.md Content', claudeHeaderIndex);
+  if (contextHeaderIndex === -1) {
+    return null;
+  }
+
+  // Extract CLAUDE.md content (from header to separator)
+  const claudeStartIndex = claudeHeaderIndex + '# CLAUDE.md Content'.length;
+  const claudeEndIndex = claudeHeaderIndex + separatorMatch.index!;
+  const claudemd = output.slice(claudeStartIndex, claudeEndIndex).trim();
+
+  // Extract project-context content (from header to end)
+  const contextStartIndex = contextHeaderIndex + '# project-context/SKILL.md Content'.length;
+  const projectContext = output.slice(contextStartIndex).trim();
+
+  return { claudemd, projectContext };
+}
+
+/**
  * Extract a balanced JSON object from a string starting at a given position.
  * Tracks brace depth while respecting strings so trailing text is excluded.
+ *
+ * This is exported for use by hook validation scripts.
  *
  * @param text - The full text to extract from
  * @param startIndex - Index of the opening '{'
  * @returns The balanced JSON substring, or null if braces never balance
  */
-function extractBalancedJSON(text: string, startIndex: number): string | null {
+export function extractBalancedJSON(text: string, startIndex: number): string | null {
   let depth = 0;
   let inString = false;
   let escape = false;

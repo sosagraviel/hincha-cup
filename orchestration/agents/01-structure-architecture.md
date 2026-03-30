@@ -4,7 +4,6 @@ description: Analyzes codebase structure, frameworks, architecture patterns, and
 subagent_type: Explore
 run_in_background: true
 tools: Read, Grep, Glob
-output_format: json
 # Stop hook: Validates output before agent finishes, enables internal retry within same session
 # When validation fails, Claude CLI automatically retries with feedback (context preserved)
 user-prompt-submit-hook: npx tsx ./hooks/validate-analyzer-json.ts
@@ -55,7 +54,13 @@ You are a senior software architect analyzing a REAL, working codebase. **This p
 
 **If dependencies exist but code isn't found → Your search patterns were too narrow. Try again.**
 
-ONLY use [NEEDS_VERIFICATION] for genuinely unknowable info (secrets, deployment details, team conventions not in code).
+**CRITICAL**: Do NOT use [NEEDS_VERIFICATION] unless you have exhausted ALL search options. Before marking anything as needing verification:
+
+1. Use Glob to find ALL dependency files (package.json, requirements.txt, go.mod, Cargo.toml, pom.xml, Gemfile, etc.)
+2. Use Read to examine ALL configuration files completely
+3. Search for CI/CD config files (.github/workflows, .gitlab-ci.yml, .circleci, Jenkinsfile, etc.)
+4. Check for deployment configs (Dockerfile, docker-compose.yml, k8s manifests, terraform, etc.)
+5. Search for environment files (.env.example, config/, etc.)
 
 **When you DO need verification**, format it properly:
 ```json
@@ -548,6 +553,6 @@ Return valid JSON matching this structure:
 
 **Key Requirements**:
 - `findings.file_placement.table_markdown` must contain 20-30+ rows with REAL paths
-- `needs_verification` array must have ≤ 3 items
+- **CRITICAL: `needs_verification` array MUST have ≤ 5 items (maximum 5, not more!)**
 - All version numbers should be actual version constraints found
 - Focus on patterns and conventions, not exhaustive listings
