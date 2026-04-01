@@ -73,12 +73,26 @@ async function main() {
     const stdinBuffer = fs.readFileSync(0, "utf-8");
     const input: HookInput = JSON.parse(stdinBuffer);
 
+    // Allow if stop hook is explicitly active (legacy/testing mode)
     if (input.stop_hook_active === true) {
       return allow();
     }
 
-    if (!input.transcript_path || !fs.existsSync(input.transcript_path)) {
-      return allow();
+    // Require transcript for validation
+    if (!input.transcript_path) {
+      return blockWithFeedback(
+        "❌ HOOK ERROR: No transcript path provided\n\n" +
+        "The validation hook requires a transcript to validate output.\n" +
+        "This is a framework error, not an agent error."
+      );
+    }
+
+    if (!fs.existsSync(input.transcript_path)) {
+      return blockWithFeedback(
+        "❌ HOOK ERROR: Transcript file not found\n\n" +
+        `Expected transcript at: ${input.transcript_path}\n` +
+        "This is a framework error, not an agent error."
+      );
     }
 
     const transcriptContent = fs.readFileSync(input.transcript_path, "utf-8");
@@ -99,20 +113,33 @@ async function main() {
       .reverse();
 
     if (assistantMessages.length === 0) {
-      return allow();
+      return blockWithFeedback(
+        "❌ HOOK ERROR: No assistant messages found in transcript\n\n" +
+        "The agent hasn't produced any output yet.\n" +
+        "This is unexpected - the hook should only run after agent output."
+      );
     }
 
     const lastMessage = assistantMessages[0];
 
     if (!lastMessage.content || !Array.isArray(lastMessage.content)) {
-      return allow();
+      return blockWithFeedback(
+        "❌ HOOK ERROR: Last message has invalid content structure\n\n" +
+        "Expected an array of content blocks.\n" +
+        "This is a framework error, not an agent error."
+      );
     }
 
     const textBlocks = lastMessage.content.filter(
       (c: any) => c.type === "text",
     );
+
     if (textBlocks.length === 0) {
-      return allow();
+      return blockWithFeedback(
+        "❌ OUTPUT ERROR: No text content in response\n\n" +
+        "Your response doesn't contain any text output.\n" +
+        "You must output JSON in the required format."
+      );
     }
 
     const text = textBlocks.map((t: any) => t.text).join("\n");
@@ -263,10 +290,14 @@ async function main() {
 
     return allow();
   } catch (error) {
-    console.error(
-      `Hook error: ${error instanceof Error ? error.message : "Unknown error"}`,
+    // CRITICAL: On hook error, BLOCK (fail-safe) - don't allow potentially bad output
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+    return blockWithFeedback(
+      `❌ HOOK CRASHED: ${errorMsg}\n\n` +
+      "The validation hook encountered an unexpected error.\n" +
+      "This is a framework error. The output cannot be validated.\n\n" +
+      "Please report this issue if it persists."
     );
-    return allow();
   }
 }
 

@@ -28,6 +28,11 @@ export interface AgentConfig {
    * When provided, uses --resume flag to continue the conversation with full context
    */
   resumeSessionId?: string;
+  /**
+   * Optional path to settings.json file
+   * Passed via --settings flag to Claude CLI
+   */
+  settingsPath?: string;
 }
 
 /**
@@ -71,6 +76,7 @@ export async function createAgentFromMarkdown(config: AgentConfig) {
     useUltrathink = false,
     requireJsonOutput = true, // Default to true for backward compatibility
     resumeSessionId,
+    settingsPath,
   } = config;
 
   const agentPath = join(frameworkPath, "orchestration/agents", agentFile);

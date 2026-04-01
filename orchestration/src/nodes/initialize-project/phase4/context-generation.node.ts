@@ -141,9 +141,83 @@ export async function contextGenerationNode(
     const codePatternsFindings = codePatternsData?.findings as any;
 
     // Extract languages from structure analyzer
-    const languagesFromPhase1 = Array.isArray(structureFindings?.languages)
-      ? structureFindings.languages.map((l: string) => l.toLowerCase())
-      : [];
+    // Handle both array format ["typescript", "python"] and object format {"backend": "TypeScript 5.8.x", "frontend": "..."}
+    let languagesFromPhase1: string[] = [];
+
+    if (Array.isArray(structureFindings?.tech_stack?.languages)) {
+      // Array format: ["typescript", "python"]
+      languagesFromPhase1 = structureFindings.tech_stack.languages.map((l: string) => l.toLowerCase());
+    } else if (typeof structureFindings?.tech_stack?.languages === 'object' && structureFindings.tech_stack.languages !== null) {
+      // Object format: {"backend": "TypeScript 5.8.x", "frontend": "JavaScript"}
+      // Extract unique language names from values (e.g., "TypeScript 5.8.x" -> "typescript")
+      const languageValues = Object.values(structureFindings.tech_stack.languages) as string[];
+      const uniqueLanguages = new Set<string>();
+
+      for (const langStr of languageValues) {
+        // Extract base language name (e.g., "TypeScript 5.8.x" -> "typescript")
+        const match = langStr.match(/^([a-zA-Z]+)/);
+        if (match) {
+          uniqueLanguages.add(match[1].toLowerCase());
+        }
+      }
+
+      languagesFromPhase1 = Array.from(uniqueLanguages);
+    } else if (Array.isArray(structureFindings?.languages)) {
+      // Fallback: check top-level languages field
+      languagesFromPhase1 = structureFindings.languages.map((l: string) => l.toLowerCase());
+    } else if (typeof structureFindings?.languages === 'object' && structureFindings.languages !== null) {
+      // Fallback: object format at top level
+      const languageValues = Object.values(structureFindings.languages) as string[];
+      const uniqueLanguages = new Set<string>();
+
+      for (const langStr of languageValues) {
+        const match = langStr.match(/^([a-zA-Z]+)/);
+        if (match) {
+          uniqueLanguages.add(match[1].toLowerCase());
+        }
+      }
+
+      languagesFromPhase1 = Array.from(uniqueLanguages);
+    }
+
+    // Additional extraction: Check nested backend/frontend language fields
+    // Common in structure and tech-stack analyzer outputs
+    const languageSet = new Set<string>(languagesFromPhase1);
+
+    // Check structure analyzer's backend.language field
+    if (structureFindings?.backend?.language) {
+      const match = structureFindings.backend.language.match(/^([a-zA-Z]+)/);
+      if (match) {
+        languageSet.add(match[1].toLowerCase());
+      }
+    }
+
+    // Check structure analyzer's frontend.language field
+    if (structureFindings?.frontend?.language) {
+      const match = structureFindings.frontend.language.match(/^([a-zA-Z]+)/);
+      if (match) {
+        languageSet.add(match[1].toLowerCase());
+      }
+    }
+
+    // Check tech-stack analyzer's backend.language field
+    if (techStackFindings?.backend?.language) {
+      const match = techStackFindings.backend.language.match(/^([a-zA-Z]+)/);
+      if (match) {
+        languageSet.add(match[1].toLowerCase());
+      }
+    }
+
+    // Check tech-stack analyzer's frontend.language field
+    if (techStackFindings?.frontend?.language) {
+      const match = techStackFindings.frontend.language.match(/^([a-zA-Z]+)/);
+      if (match) {
+        languageSet.add(match[1].toLowerCase());
+      }
+    }
+
+    // Update the final languages array
+    languagesFromPhase1 = Array.from(languageSet);
 
     phaseLogger.info(
       `  Languages from Phase 1: ${languagesFromPhase1.join(", ") || "none"}`,

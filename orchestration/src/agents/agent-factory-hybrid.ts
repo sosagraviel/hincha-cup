@@ -169,6 +169,7 @@ export interface AgentConfig {
   useUltrathink?: boolean;
   requireJsonOutput?: boolean;
   resumeSessionId?: string; // Session ID to resume (for context-preserving retry)
+  settingsPath?: string; // Optional path to settings.json file passed via --settings flag
 }
 
 export interface AgentInvokeResult {
@@ -424,6 +425,7 @@ export class HybridAgentFactory {
             config.useUltrathink,
             sessionId, // Pass our generated/existing session ID
             isRetry, // Tell CLI whether to use --session-id or --resume
+            config.settingsPath, // Path to settings.json with hooks
           );
 
           const executionTimeMs = Date.now() - startTime;
@@ -473,6 +475,7 @@ export class HybridAgentFactory {
     useUltrathink: boolean = false,
     sessionId: string, // Session ID - either new (first attempt) or existing (retry)
     isRetry: boolean = false, // Whether this is a retry (use --resume instead of --session-id)
+    settingsPath?: string, // Optional path to settings.json file
   ): Promise<{ output: string; sessionId: string }> {
     if (HybridAgentFactory.isAborting) {
       throw new Error("SIGINT: Workflow interrupted by user (CTRL+C)");
@@ -552,12 +555,18 @@ export class HybridAgentFactory {
         agentPath,
         "--model",
         "sonnet",
-        "--dangerously-skip-permissions",
       ];
 
-      // If agent specifies tools restriction, pass it to CLI to enforce even with skip-permissions
+      // CRITICAL PERMISSION LOGIC:
+      // If agent has tools restriction in frontmatter → use strict permissions (no --dangerously-skip-permissions)
+      // If no tools restriction → use unrestricted mode (for implement-ticket, etc.)
       if (toolsRestriction) {
+        // Strict mode: Only allow specified tools (e.g., "Read,Grep,Glob")
+        // This prevents browser launches, clipboard access, and other non-tool capabilities
         cliArgs.push("--tools", toolsRestriction);
+      } else {
+        // Unrestricted mode: Allow everything (for agents that need Write, Bash, etc.)
+        cliArgs.push("--dangerously-skip-permissions");
       }
 
       cliArgs.push(
@@ -567,6 +576,11 @@ export class HybridAgentFactory {
         ...(isRetry ? ["--resume", sessionId] : ["--session-id", sessionId]),
       );
 
+      // Add settings file if provided
+      if (settingsPath) {
+        cliArgs.push("--settings", settingsPath);
+      }
+
       claudeProcess = spawn(
         claudeCLI.path,
         cliArgs,
@@ -575,6 +589,7 @@ export class HybridAgentFactory {
           env: {
             ...process.env,
             CLAUDE_SKIP_CONFIRMATIONS: "1",
+            FRAMEWORK_PATH: frameworkPath, // Framework root path for hook resolution
           },
           stdio: [promptFd, "pipe", "pipe"],
           detached: false,

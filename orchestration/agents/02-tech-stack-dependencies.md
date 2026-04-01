@@ -2,11 +2,8 @@
 name: tech-stack-dependencies-analyzer
 description: Analyzes dependencies, versions, CI/CD pipelines, deployment configuration, and environment setup
 subagent_type: Explore
-run_in_background: true
+background: true
 tools: Read, Grep, Glob
-# Stop hook: Validates output before agent finishes, enables internal retry within same session
-# When validation fails, Claude CLI automatically retries with feedback (context preserved)
-user-prompt-submit-hook: npx tsx ./hooks/validate-analyzer-json.ts
 ---
 
 # Tech Stack & Dependencies Analyzer

@@ -68,6 +68,11 @@ ${JSON.stringify(phase2Consolidation, null, 2)}
 ${feedbackPrompt}
 `;
 
+      const settingsPath = join(
+        state.framework_path,
+        "orchestration/config/initialize-project-agents-settings.json"
+      );
+
       const agent = await createAgentFromMarkdown({
         agentName,
         agentFile,
@@ -78,6 +83,7 @@ ${feedbackPrompt}
         useUltrathink: true, // Enable maximum thinking for thorough synthesis
         requireJsonOutput: false, // CRITICAL: Synthesis outputs markdown format, NOT JSON
         resumeSessionId, // Pass session ID for context-preserving retry with --resume
+        settingsPath,
       });
 
       const result = await agent.invoke({
