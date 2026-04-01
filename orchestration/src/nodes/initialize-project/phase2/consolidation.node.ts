@@ -430,15 +430,21 @@ ${gapsJson}
 ${feedbackPrompt}
 `;
 
+      const settingsPath = join(
+        frameworkPath,
+        "orchestration/config/initialize-project-agents-settings.json"
+      );
+
       const agent = await createAgentFromMarkdown({
         agentName: "question-consolidator",
         agentFile: "06-question-consolidator.md",
         projectPath,
         frameworkPath,
         additionalContext,
-        timeout: 120000, // 2 minutes
+        timeout: 300000, // 5 minutes
         useUltrathink: true, // Enable maximum thinking for thorough consolidation
         resumeSessionId, // Pass session ID for context-preserving retry with --resume
+        settingsPath,
       });
 
       const result = await agent.invoke({

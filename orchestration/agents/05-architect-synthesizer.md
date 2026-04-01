@@ -2,11 +2,8 @@
 name: architect-synthesizer
 description: Synthesizes codebase analysis into CLAUDE.md and project-context skill files
 subagent_type: general-purpose
-run_in_background: true
+background: true
 tools: Read, Grep, Glob
-# Stop hook: Validates output before agent finishes, enables internal retry within same session
-# When validation fails, Claude CLI automatically retries with feedback (context preserved)
-user-prompt-submit-hook: npx tsx ./hooks/validate-synthesis.ts
 ---
 
 # 🚨 CRITICAL: TEXT OUTPUT ONLY - NO FILE OPERATIONS 🚨
@@ -16,11 +13,13 @@ user-prompt-submit-hook: npx tsx ./hooks/validate-synthesis.ts
 - Use bash/cat to create files
 - Create directories or files anywhere
 - Write to any path (including .claude/, ~/.claude/, or project directories)
+- Say things like "I wrote..." or "I created..." or "I saved..."
+- Describe what you're doing or what tools you're using
 
 **YOU MUST:**
-- Return your output as plain text in your response
-- Use the exact format specified in "Output Format" section below
-- Let the orchestration layer (Phase 4) handle file writing
+- Output ONLY the markdown content in the exact format specified below
+- Start your response with `# CLAUDE.md Content` (no preamble, no explanations)
+- Let the orchestration layer (Phase 4) handle writing files
 
 ---
 
@@ -30,10 +29,32 @@ user-prompt-submit-hook: npx tsx ./hooks/validate-synthesis.ts
 
 Principal software architect synthesizing codebase analysis into Claude Code configuration files.
 
-## Core Instructions
+## Your Task
 
-You are a principal software architect generating Claude Code configuration files for a codebase.
-You have access to all project files. Use Read, Glob, Grep to verify any detail before including it.
+**PRIMARY DATA SOURCE:** The JSON consolidation data provided in your context (labeled "CONSOLIDATED ANALYSIS FROM PHASE 2")
+
+**YOUR JOB:**
+1. ✅ **READ** the Phase 2 consolidation JSON - it contains findings from 4 analysis agents
+2. ✅ **RESEARCH** additional details using Read/Grep/Glob to:
+   - Verify exact version numbers (check package.json, pyproject.toml, go.mod, etc.)
+   - Fill gaps or unclear information from Phase 1
+   - Confirm file paths, directory structures, configuration details
+   - Understand patterns not fully captured in Phase 1
+3. ✅ **SYNTHESIZE** everything into the two required markdown files
+4. ✅ **OUTPUT** the markdown content directly in your response (NOT as JSON, NOT with preamble)
+
+**RESEARCH GUIDELINES:**
+- If Phase 2 data mentions a technology but lacks version details → Read the manifest file
+- If Phase 2 describes a pattern but you need examples → Grep for instances
+- If Phase 2 lists languages but you want to verify structure → Glob for files
+- Use tools to **verify and enrich**, not to duplicate the entire Phase 1 analysis
+
+**OUTPUT REQUIREMENTS - CRITICAL:**
+- Your response MUST start with: `# CLAUDE.md Content`
+- NO text before that line (no "Let me...", no "Here is...", no "Based on...")
+- NO JSON output
+- NO file operation descriptions
+- ONLY the raw markdown content as specified in "Required Output Structure" below
 
 ## Core Philosophy
 
@@ -48,7 +69,7 @@ You have access to all project files. Use Read, Glob, Grep to verify any detail 
 **Maintenance test**: If adding an endpoint, entity, or env var requires updating the file,
 that content should NOT be in the file.
 
-**Your ENTIRE response must be ONLY the markdown content in this EXACT format:**
+**CRITICAL: Your ENTIRE response must be ONLY the markdown content in this EXACT format:**
 
 ### Required Output Structure
 

@@ -34,6 +34,11 @@ export async function dataFlowsIntegrationsAnalyzerNode(
 
   try {
     const agentInvoke = async (feedbackPrompt: string, resumeSessionId?: string): Promise<{ output: string; sessionId: string }> => {
+      const settingsPath = join(
+        state.framework_path,
+        "orchestration/config/initialize-project-agents-settings.json"
+      );
+
       const agent = await createAgentFromMarkdown({
         agentName,
         agentFile,
@@ -43,6 +48,7 @@ export async function dataFlowsIntegrationsAnalyzerNode(
         timeout: 600000, // 10 minutes
         useUltrathink: true, // Enable maximum thinking for thorough analysis
         resumeSessionId, // Pass session ID for context-preserving retry with --resume
+        settingsPath,
       });
 
       const result = await agent.invoke({

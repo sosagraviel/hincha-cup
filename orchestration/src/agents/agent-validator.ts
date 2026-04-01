@@ -86,16 +86,17 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
 
   // Layer 4: Validate field names
   // Valid Claude CLI frontmatter fields per official documentation
+  // Source: https://code.claude.com/docs/en/sub-agents.md#supported-frontmatter-fields
   const VALID_CLI_FIELDS = [
     'name', 'description', 'model', 'tools', 'disallowedTools',
     'permissionMode', 'maxTurns', 'skills', 'mcpServers',
-    'user-prompt-submit-hook', 'memory', 'background', 'effort',
+    'hooks', 'memory', 'background', 'effort',
     'isolation', 'initialPrompt'
   ];
 
   // Framework-specific fields (not Claude CLI, but we use them internally)
   const FRAMEWORK_FIELDS = [
-    'subagent_type', 'run_in_background', 'output_format'
+    'subagent_type', 'output_format'
   ];
 
   const allFields = [...VALID_CLI_FIELDS, ...FRAMEWORK_FIELDS];
