@@ -491,13 +491,16 @@ echo "$TEST_PLAN" > "$ARTIFACTS_DIR/plans/test-plan.json"
 
 echo "  - Running UI task detection..."
 
-UI_CLASSIFICATION=$(node -e "
-const { classifyUITask } = require('orchestration/src/utils/ui-task-detector');
-const context = require('fs').readFileSync('$ARTIFACTS_DIR/context/full-context.md', 'utf8');
-const stackProfile = JSON.parse(require('fs').readFileSync('$ARTIFACTS_DIR/stack-profile.json', 'utf8'));
-const result = classifyUITask(context, stackProfile);
-console.log(JSON.stringify(result));
-")
+_UI_DETECT_SCRIPT=$(mktemp /tmp/ui-detect-XXXX.ts)
+cat > "$_UI_DETECT_SCRIPT" << TSEOF
+import { classifyUITask } from '$(pwd)/orchestration/src/utils/ui-task-detector.js';
+import { readFileSync } from 'node:fs';
+const context = readFileSync('$ARTIFACTS_DIR/context/full-context.md', 'utf8');
+const stackProfile = JSON.parse(readFileSync('$ARTIFACTS_DIR/stack-profile.json', 'utf8'));
+console.log(JSON.stringify(classifyUITask(context, stackProfile)));
+TSEOF
+UI_CLASSIFICATION=$(cd orchestration && npx tsx "$_UI_DETECT_SCRIPT")
+rm "$_UI_DETECT_SCRIPT"
 
 echo "$UI_CLASSIFICATION" > "$ARTIFACTS_DIR/plans/ui-classification.json"
 
@@ -533,11 +536,11 @@ if [[ "$IS_UI" == "true" ]]; then
     echo "$TEST_PLAN" > "$ARTIFACTS_DIR/plans/test-plan.json"
 
     # Append UI-specific DoD to the implementation plan
-    cat >> "$ARTIFACTS_DIR/plans/implementation-plan.md" <<'UI_DOD'
+    cat >> "$ARTIFACTS_DIR/plans/implementation-plan.md" <<UI_DOD
 
 ### UI Testing Requirements (Auto-Injected)
 
-> Injected by UI task detection (score: $UI_SCORE). See `/ui-testing` and `/ui-visual-testing` skills.
+> Injected by UI task detection (score: $UI_SCORE). See \`/ui-testing\` and \`/ui-visual-testing\` skills.
 
 #### Required Test Levels
 - [ ] Unit: Vitest/Jest + RTL (render, props, variants, accessibility, design tokens)

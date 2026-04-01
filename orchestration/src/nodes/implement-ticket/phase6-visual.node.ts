@@ -556,6 +556,8 @@ async function runConfigDrivenPipeline(
     totalPixels: number;
     passed: boolean;
     diffImage: string;
+    expectedPath: string;
+    actualPath: string;
   }> = [];
 
   while (iteration < config.maxIterations && !converged) {
@@ -605,6 +607,8 @@ async function runConfigDrivenPipeline(
                 totalPixels: result.totalPixels,
                 passed: result.passed,
                 diffImage: diffPath,
+                expectedPath: figmaImage.imagePath,
+                actualPath: actual.path,
               });
             } catch (err: any) {
               console.log(`[Phase 6: Config Pipeline] Figma comparison failed for ${screen.label}: ${err.message}`);
@@ -658,6 +662,8 @@ async function runConfigDrivenPipeline(
                 totalPixels: result.totalPixels,
                 passed: result.passed,
                 diffImage: diffPath,
+                expectedPath: beforePath,
+                actualPath: actual.path,
               });
             } catch (err: any) {
               console.log(`[Phase 6: Config Pipeline] Regression comparison failed for ${screen.label}: ${err.message}`);
@@ -700,8 +706,8 @@ async function runConfigDrivenPipeline(
         }
 
         await agentInvoker.invokeVisualVerifier(
-          [], // before paths handled internally
-          [], // after paths handled internally
+          allComparisons.map(c => c.expectedPath),
+          allComparisons.map(c => c.actualPath),
           allComparisons,
           {
             mode: activeMode,
@@ -710,6 +716,8 @@ async function runConfigDrivenPipeline(
             diffThreshold: activeMode === 'figma'
               ? config.thresholds.figma
               : config.thresholds.regression,
+            expectedImages: allComparisons.map(c => c.expectedPath),
+            actualImages: allComparisons.map(c => c.actualPath),
           }
         );
 

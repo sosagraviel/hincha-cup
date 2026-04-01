@@ -141,6 +141,20 @@ export class FigmaExportService {
       };
     }
 
+    // MCP-based fetching is handled at the skill layer via Claude tool calls,
+    // not via the REST API. Surface this so the caller can delegate to the skill.
+    if (accessStatus === 'mcp') {
+      return {
+        success: false,
+        accessMethod: 'mcp',
+        images: [],
+        constraints: [],
+        error:
+          'Figma MCP detected. Use the figma-design-fetcher skill to fetch ' +
+          'designs via MCP tool calls — this service only handles REST API access.',
+      };
+    }
+
     const images: FigmaFetchResult['images'] = [];
     const constraints: FigmaFetchResult['constraints'] = [];
 

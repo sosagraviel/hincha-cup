@@ -90,7 +90,6 @@ function scoreKeywords(text: string): { score: number; matched: string[] } {
     if (lower.includes(kw)) {
       matched.push(kw);
       primaryScore += 5;
-      if (primaryScore >= 20) break;
     }
   }
   primaryScore = Math.min(primaryScore, 20);
@@ -100,7 +99,6 @@ function scoreKeywords(text: string): { score: number; matched: string[] } {
     if (lower.includes(kw)) {
       matched.push(kw);
       secondaryScore += 3;
-      if (secondaryScore >= 10) break;
     }
   }
   secondaryScore = Math.min(secondaryScore, 10);
@@ -192,7 +190,6 @@ function scoreAcceptanceCriteria(text: string): number {
   for (const term of VISUAL_AC_TERMS) {
     if (lower.includes(term)) {
       score += 2;
-      if (score >= 10) break;
     }
   }
 
