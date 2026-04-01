@@ -82,6 +82,19 @@ describe('FigmaExportService', () => {
       expect(result.error).toContain('No Figma access available');
     });
 
+    it('returns mcp error when Figma MCP is configured', async () => {
+      mockedExistsSync.mockReturnValue(true);
+      mockedReadFileSync.mockReturnValue(JSON.stringify({
+        mcpServers: { 'figma-mcp': { command: 'npx figma-mcp' } },
+      }));
+      const result = await service.fetchDesignContext('fileKey', ['1-2']);
+      expect(result.success).toBe(false);
+      expect(result.accessMethod).toBe('mcp');
+      expect(result.images).toHaveLength(0);
+      expect(result.constraints).toHaveLength(0);
+      expect(result.error).toContain('figma-design-fetcher skill');
+    });
+
     it('fetches images and constraints via token', async () => {
       mockedExistsSync.mockReturnValue(false);
       process.env.FIGMA_ACCESS_TOKEN = 'figd_test';

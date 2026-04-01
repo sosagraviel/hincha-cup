@@ -44,6 +44,18 @@ describe('UI Task Detector — Keywords', () => {
     expect(result.signals.keywordScore).toBe(30);
   });
 
+  it('collects all matched keywords even when score cap is reached', () => {
+    // 5 primary keywords → score capped at 20, but all 5 should appear in detectedKeywords
+    const text = 'Build a dashboard page with a modal dialog and form inputs';
+    const result = classifyUITask(text);
+    expect(result.detectedKeywords).toContain('dashboard');
+    expect(result.detectedKeywords).toContain('page');
+    expect(result.detectedKeywords).toContain('modal');
+    expect(result.detectedKeywords).toContain('dialog');
+    expect(result.detectedKeywords).toContain('form');
+    expect(result.signals.keywordScore).toBe(20); // capped, but all 5 keywords present
+  });
+
   it('detects keywords case-insensitively', () => {
     const result = classifyUITask('Build a new DASHBOARD Component with UI Design');
     expect(result.detectedKeywords).toContain('dashboard');
