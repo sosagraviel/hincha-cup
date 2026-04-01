@@ -494,17 +494,26 @@ echo "  - Running UI task detection..."
 UI_CLASSIFICATION=$(node -e "
 const { classifyUITask } = require('orchestration/src/utils/ui-task-detector');
 const context = require('fs').readFileSync('$ARTIFACTS_DIR/context/full-context.md', 'utf8');
-const result = classifyUITask(context);
+const stackProfile = JSON.parse(require('fs').readFileSync('$ARTIFACTS_DIR/stack-profile.json', 'utf8'));
+const result = classifyUITask(context, stackProfile);
 console.log(JSON.stringify(result));
 ")
 
 echo "$UI_CLASSIFICATION" > "$ARTIFACTS_DIR/plans/ui-classification.json"
 
 IS_UI=$(echo "$UI_CLASSIFICATION" | jq -r '.isUI')
-UI_SCORE=$(echo "$UI_CLASSIFICATION" | jq -r '.score')
-UI_TASK_TYPE=$(echo "$UI_CLASSIFICATION" | jq -r '.taskType // "unknown"')
+UI_SCORE=$(echo "$UI_CLASSIFICATION" | jq -r '.confidence')
+UI_RECOMMENDATION=$(echo "$UI_CLASSIFICATION" | jq -r '.recommendation')
 
-echo "   - UI classification: isUI=$IS_UI, score=$UI_SCORE, taskType=$UI_TASK_TYPE"
+echo "   - UI classification: isUI=$IS_UI, confidence=$UI_SCORE, recommendation=$UI_RECOMMENDATION"
+echo "   - Signal breakdown:"
+echo "     keywords:  $(echo "$UI_CLASSIFICATION" | jq -r '.signals.keywordScore')/30"
+echo "     figma:     $(echo "$UI_CLASSIFICATION" | jq -r '.signals.figmaScore')/25"
+echo "     filePaths: $(echo "$UI_CLASSIFICATION" | jq -r '.signals.filePathScore')/20"
+echo "     stack:     $(echo "$UI_CLASSIFICATION" | jq -r '.signals.stackScore')/15"
+echo "     ac:        $(echo "$UI_CLASSIFICATION" | jq -r '.signals.acceptanceCriteriaScore')/10"
+echo "   - Detected keywords: $(echo "$UI_CLASSIFICATION" | jq -r '.detectedKeywords | join(", ")')"
+echo "   - Figma refs found:  $(echo "$UI_CLASSIFICATION" | jq -r '.figmaReferences | length')"
 
 if [[ "$IS_UI" == "true" ]]; then
     echo "  - Enriching plan with UI-specific DoD and acceptance criteria..."
@@ -981,13 +990,18 @@ if [[ -f "$ARTIFACTS_DIR/plans/ui-classification.json" ]]; then
         # are required vs recommended, then verifies tests exist and pass.
         LEVELS="unit"
 
-        # Add component/e2e levels based on task type
-        UI_TASK_TYPE=$(jq -r '.taskType // "unknown"' "$ARTIFACTS_DIR/plans/ui-classification.json")
-        case "$UI_TASK_TYPE" in
-            "new-organism"|"new-widget"|"new-page"|"new-feature"|"redesign")
+        # Add component/e2e levels based on recommendation from UI classifier
+        UI_RECOMMENDATION=$(jq -r '.recommendation' "$ARTIFACTS_DIR/plans/ui-classification.json")
+        UI_CONFIDENCE=$(jq -r '.confidence' "$ARTIFACTS_DIR/plans/ui-classification.json")
+        echo "  - UI recommendation: $UI_RECOMMENDATION (confidence: $UI_CONFIDENCE)"
+
+        case "$UI_RECOMMENDATION" in
+            "ui-visual-testing")
+                # High confidence (>=50): full test suite
                 LEVELS="unit,component,e2e"
                 ;;
-            "new-atom"|"new-molecule"|"accessibility")
+            "regression-only")
+                # Medium confidence (25-49): unit + component
                 LEVELS="unit,component"
                 ;;
             *)
@@ -1137,16 +1151,18 @@ fi
 if [[ -z "$VISUAL_CONFIG" ]]; then
     echo "  - No ui-visual-testing.json found. Running UI task detection..."
 
-    # Use the shared UI task detector utility
-    UI_SCORE=$(node -e "
+    # Use the shared UI task detector utility (with stack profile for accurate scoring)
+    UI_DETECTION=$(node -e "
     const { classifyUITask } = require('orchestration/src/utils/ui-task-detector');
     const context = require('fs').readFileSync('$ARTIFACTS_DIR/context/full-context.md', 'utf8');
-    const result = classifyUITask(context);
+    const stackProfile = JSON.parse(require('fs').readFileSync('$ARTIFACTS_DIR/stack-profile.json', 'utf8'));
+    const result = classifyUITask(context, stackProfile);
     console.log(JSON.stringify(result));
     ")
 
-    IS_UI=$(echo "$UI_SCORE" | jq -r '.isUI')
-    SCORE=$(echo "$UI_SCORE" | jq -r '.score')
+    IS_UI=$(echo "$UI_DETECTION" | jq -r '.isUI')
+    SCORE=$(echo "$UI_DETECTION" | jq -r '.confidence')
+    echo "  - Signal breakdown: kw=$(echo "$UI_DETECTION" | jq -r '.signals.keywordScore') figma=$(echo "$UI_DETECTION" | jq -r '.signals.figmaScore') files=$(echo "$UI_DETECTION" | jq -r '.signals.filePathScore') stack=$(echo "$UI_DETECTION" | jq -r '.signals.stackScore') ac=$(echo "$UI_DETECTION" | jq -r '.signals.acceptanceCriteriaScore')"
 
     if [[ "$IS_UI" == "true" ]]; then
         echo "  - UI task detected (score: $SCORE). Visual testing recommended."
