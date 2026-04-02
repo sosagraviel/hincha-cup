@@ -32,6 +32,12 @@
       "trigger_mode": "always"
     },
     {
+      "name": "skill-creator",
+      "path": "020-development-workflow/skill-creator",
+      "description": "Create, improve, and evaluate skills with structured benchmarks",
+      "trigger_mode": "always"
+    },
+    {
       "name": "implement-ticket",
       "path": "020-development-workflow/implement-ticket",
       "description": "Ticket implementation workflow",
