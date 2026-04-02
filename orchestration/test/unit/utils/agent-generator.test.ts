@@ -24,13 +24,18 @@ describe('agent-generator', () => {
   });
 
   const createMockStackProfile = (overrides: Partial<StackProfile> = {}): StackProfile => ({
-    languages: ['typescript'],
-    primary_language: 'typescript',
-    frameworks: {
-      frontend: ['react'],
-      backend: ['express'],
-      mobile: []
-    },
+    services: [
+      {
+        id: 'backend',
+        path: 'src/backend',
+        type: 'backend',
+        language: 'typescript',
+        frameworks: {
+          main: 'express',
+        },
+      },
+    ],
+    is_monorepo: false,
     ...overrides
   });
 
@@ -90,7 +95,27 @@ Frontend: {{frameworks.frontend}}`;
 
     it('should generate implementer agents for each language', () => {
       const stackProfile = createMockStackProfile({
-        languages: ['typescript', 'python']
+        services: [
+          {
+            id: 'backend-ts',
+            path: 'src/backend-ts',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: {
+              main: 'express',
+            },
+          },
+          {
+            id: 'backend-py',
+            path: 'src/backend-py',
+            type: 'backend',
+            language: 'python',
+            frameworks: {
+              main: 'django',
+            },
+          },
+        ],
+        is_monorepo: true,
       });
       const skills = [
         createMockSkill({ name: 'ts-skill', compatible_languages: ['typescript'] }),
@@ -149,11 +174,19 @@ Frontend: {{frameworks.frontend}}`;
 
     it('should generate visual verifier agent', () => {
       const stackProfile = createMockStackProfile({
-        frameworks: {
-          frontend: ['react', 'nextjs'],
-          backend: [],
-          mobile: []
-        }
+        services: [
+          {
+            id: 'frontend',
+            path: 'src/frontend',
+            type: 'frontend',
+            language: 'typescript',
+            frameworks: {
+              main: 'react',
+              additional: ['nextjs'],
+            },
+          },
+        ],
+        is_monorepo: false,
       });
       const skills: ResolvedSkill[] = [];
 
@@ -277,7 +310,36 @@ Frontend: {{frameworks.frontend}}`;
 
     it('should handle multiple languages', () => {
       const stackProfile = createMockStackProfile({
-        languages: ['typescript', 'python', 'go']
+        services: [
+          {
+            id: 'backend-ts',
+            path: 'src/backend-ts',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: {
+              main: 'express',
+            },
+          },
+          {
+            id: 'backend-py',
+            path: 'src/backend-py',
+            type: 'backend',
+            language: 'python',
+            frameworks: {
+              main: 'django',
+            },
+          },
+          {
+            id: 'backend-go',
+            path: 'src/backend-go',
+            type: 'backend',
+            language: 'go',
+            frameworks: {
+              main: 'gin',
+            },
+          },
+        ],
+        is_monorepo: true,
       });
       const skills = [
         createMockSkill({ name: 'multi-lang-skill', compatible_languages: ['typescript', 'python', 'go'] })
@@ -421,7 +483,20 @@ Frontend: {{frameworks.frontend}}`;
     });
 
     it('should handle empty skills array in formatSkills helper', () => {
-      const stackProfile = createMockStackProfile({ languages: [] });
+      const stackProfile = createMockStackProfile({
+        services: [
+          {
+            id: 'backend',
+            path: 'src/backend',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: {
+              main: 'express',
+            },
+          },
+        ],
+        is_monorepo: false,
+      });
       const skills: ResolvedSkill[] = [];
 
       const template = 'Skills: {{formatSkills skills}}';

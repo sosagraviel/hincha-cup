@@ -49,15 +49,47 @@ describe('ConfigUpdaterService', () => {
       phase4_context: {},
     },
     stack_profile: {
-      languages: ['typescript'],
-      frameworks: {
-        frontend: ['react'],
-        backend: ['express'],
-        mobile: [],
-      },
-      testing_frameworks: {
-        typescript: ['vitest'],
-      },
+      services: [
+        {
+          id: 'backend',
+          name: 'Backend API',
+          path: 'src/backend',
+          type: 'backend',
+          language: 'typescript',
+          language_version: '5.3',
+          frameworks: {
+            main: 'Express',
+          },
+          testing: {
+            unit: {
+              framework: 'vitest',
+            },
+          },
+          package_manager: 'npm',
+          manifest_file: 'src/backend/package.json',
+        },
+        {
+          id: 'frontend',
+          name: 'Frontend Web',
+          path: 'src/frontend',
+          type: 'frontend',
+          language: 'typescript',
+          language_version: '5.3',
+          frameworks: {
+            main: 'React 19',
+            ui: 'Tailwind CSS',
+          },
+          testing: {
+            unit: {
+              framework: 'vitest',
+            },
+          },
+          package_manager: 'npm',
+          manifest_file: 'src/frontend/package.json',
+        },
+      ],
+      is_monorepo: false,
+      package_manager: 'npm',
     },
     resource_state: {
       skills: {},
@@ -170,68 +202,124 @@ describe('ConfigUpdaterService', () => {
     });
   });
 
-  describe('updateStackProfile', () => {
-    it('should add new languages', async () => {
+  describe('updateService', () => {
+    it('should add a new service to stack profile', async () => {
       const mockConfig = createMockConfig();
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
       vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
 
-      const result = await service.updateStackProfile({
-        languages: ['python', 'typescript'], // typescript already exists
-      });
-
-      expect(result.updated).toBe(true);
-      expect(result.config?.stack_profile.languages).toContain('python');
-      expect(result.config?.stack_profile.languages).toContain('typescript');
-    });
-
-    it('should add new frontend frameworks', async () => {
-      const mockConfig = createMockConfig();
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
-      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
-
-      const result = await service.updateStackProfile({
+      const newService = {
+        id: 'mobile',
+        name: 'Mobile App',
+        path: 'src/mobile',
+        type: 'mobile' as const,
+        language: 'typescript',
+        language_version: '5.3',
         frameworks: {
-          frontend: ['vue', 'react'], // react already exists
+          main: 'React Native',
         },
-      });
+        package_manager: 'npm',
+        manifest_file: 'src/mobile/package.json',
+      };
+
+      const result = await service.updateService(newService);
 
       expect(result.updated).toBe(true);
-      expect(result.config?.stack_profile.frameworks.frontend).toContain('vue');
-      expect(result.config?.stack_profile.frameworks.frontend).toContain('react');
+      expect(result.config?.stack_profile.services).toContainEqual(newService);
+      expect(result.config?.stack_profile.services?.length).toBe(3);
     });
 
-    it('should add new testing frameworks', async () => {
+    it('should update an existing service', async () => {
       const mockConfig = createMockConfig();
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
       vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
 
-      const result = await service.updateStackProfile({
-        testing_frameworks: {
-          typescript: ['jest', 'vitest'], // vitest already exists
-          python: ['pytest'],
+      const updatedBackendService = {
+        id: 'backend',
+        name: 'Updated Backend',
+        path: 'src/backend',
+        type: 'backend' as const,
+        language: 'typescript',
+        language_version: '5.4',
+        frameworks: {
+          main: 'NestJS',
         },
-      });
+        package_manager: 'npm',
+        manifest_file: 'src/backend/package.json',
+      };
+
+      const result = await service.updateService(updatedBackendService);
 
       expect(result.updated).toBe(true);
-      expect(result.config?.stack_profile.testing_frameworks?.typescript).toContain('jest');
-      expect(result.config?.stack_profile.testing_frameworks?.python).toContain('pytest');
+      expect(result.config?.stack_profile.services?.length).toBe(2);
+      const updatedService = result.config?.stack_profile.services?.find(s => s.id === 'backend');
+      expect(updatedService?.name).toBe('Updated Backend');
+      expect(updatedService?.language_version).toBe('5.4');
+    });
+  });
+
+  describe('removeService', () => {
+    it('should remove a service from stack profile', async () => {
+      const mockConfig = createMockConfig();
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
+      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
+
+      const result = await service.removeService('frontend');
+
+      expect(result).toBe(true);
+      expect(fsPromises.writeFile).toHaveBeenCalled();
     });
 
-    it('should not update if nothing new', async () => {
+    it('should return false if service does not exist', async () => {
       const mockConfig = createMockConfig();
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
 
-      const result = await service.updateStackProfile({
-        languages: ['typescript'], // already exists
-      });
+      const result = await service.removeService('non-existent');
 
-      expect(result.updated).toBe(false);
+      expect(result).toBe(false);
       expect(fsPromises.writeFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getService', () => {
+    it('should retrieve a service by ID', async () => {
+      const mockConfig = createMockConfig();
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
+
+      const result = await service.getService('backend');
+
+      expect(result).toBeDefined();
+      expect(result?.id).toBe('backend');
+      expect(result?.language).toBe('typescript');
+    });
+
+    it('should return undefined if service does not exist', async () => {
+      const mockConfig = createMockConfig();
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
+
+      const result = await service.getService('non-existent');
+
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('getServices', () => {
+    it('should retrieve all services', async () => {
+      const mockConfig = createMockConfig();
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
+
+      const result = await service.getServices();
+
+      expect(result.length).toBe(2);
+      expect(result[0].id).toBe('backend');
+      expect(result[1].id).toBe('frontend');
     });
   });
 

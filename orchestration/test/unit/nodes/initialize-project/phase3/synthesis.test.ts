@@ -173,6 +173,7 @@ describe('synthesisNode', () => {
       useUltrathink: true,
       requireJsonOutput: false,
       resumeSessionId: undefined,
+      settingsPath: '/test/framework/orchestration/config/initialize-project-agents-settings.json',
     });
   });
 

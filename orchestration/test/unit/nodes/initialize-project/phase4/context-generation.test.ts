@@ -79,21 +79,38 @@ This is the project context content
         return JSON.stringify({
           agent_name: 'structure-architecture-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: { languages: ['typescript'] },
+          findings: {
+            services: [{
+              id: 'backend',
+              path: 'src',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: { main: 'NestJS 11' }
+            }]
+          },
         });
       }
       if (path.includes('02-tech-stack-dependencies.json')) {
         return JSON.stringify({
           agent_name: 'tech-stack-dependencies-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: { dependencies: ['react'] },
+          findings: {
+            services: [{
+              id: 'backend',
+              package_manager: 'npm'
+            }]
+          },
         });
       }
       if (path.includes('03-code-patterns-testing.json')) {
         return JSON.stringify({
           agent_name: 'code-patterns-testing-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: {},
+          findings: {
+            services: [{
+              id: 'backend'
+            }]
+          },
         });
       }
       if (path.includes('04-data-flows-integrations.json')) {
@@ -350,12 +367,13 @@ Wrong content
           agent_name: 'structure-architecture-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
           findings: {
-            languages: ['typescript'],
-            multi_stack: {
-              workspaces: [
-                { path: 'unknown-workspace', language: 'typescript', dependencies: [] }
-              ]
-            }
+            services: [{
+              id: 'unknown-workspace',
+              path: 'unknown-workspace',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: {}
+            }]
           },
         });
       }
@@ -363,7 +381,22 @@ Wrong content
         return JSON.stringify({
           agent_name: 'tech-stack-dependencies-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: {},
+          findings: {
+            services: [{
+              id: 'unknown-workspace'
+            }]
+          },
+        });
+      }
+      if (path.includes('03-code-patterns-testing.json')) {
+        return JSON.stringify({
+          agent_name: 'code-patterns-testing-analyzer',
+          timestamp: '2024-01-01T00:00:00Z',
+          findings: {
+            services: [{
+              id: 'unknown-workspace'
+            }]
+          },
         });
       }
       return JSON.stringify({ findings: {} });
@@ -371,7 +404,7 @@ Wrong content
 
     const result = await contextGenerationNode(mockState);
 
-    expect(result.phase4_context?.stack_profile.workspaces?.[0].type).toBe('service');
+    expect(result.phase4_context?.stack_profile.services?.[0].type).toBe('backend');
   });
 
   it('should detect primary language from workspace counts', async () => {
@@ -382,14 +415,11 @@ Wrong content
           agent_name: 'structure-architecture-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
           findings: {
-            languages: ['typescript', 'python'],
-            multi_stack: {
-              workspaces: [
-                { path: 'ws1', language: 'typescript', dependencies: [] },
-                { path: 'ws2', language: 'typescript', dependencies: [] },
-                { path: 'ws3', language: 'python', dependencies: [] }
-              ]
-            }
+            services: [
+              { id: 'ws1', path: 'ws1', type: 'backend', language: 'typescript', frameworks: {} },
+              { id: 'ws2', path: 'ws2', type: 'frontend', language: 'typescript', frameworks: {} },
+              { id: 'ws3', path: 'ws3', type: 'backend', language: 'python', frameworks: {} }
+            ]
           },
         });
       }
@@ -397,7 +427,26 @@ Wrong content
         return JSON.stringify({
           agent_name: 'tech-stack-dependencies-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: {},
+          findings: {
+            services: [
+              { id: 'ws1' },
+              { id: 'ws2' },
+              { id: 'ws3' }
+            ]
+          },
+        });
+      }
+      if (path.includes('03-code-patterns-testing.json')) {
+        return JSON.stringify({
+          agent_name: 'code-patterns-testing-analyzer',
+          timestamp: '2024-01-01T00:00:00Z',
+          findings: {
+            services: [
+              { id: 'ws1' },
+              { id: 'ws2' },
+              { id: 'ws3' }
+            ]
+          },
         });
       }
       return JSON.stringify({ findings: {} });
@@ -405,7 +454,12 @@ Wrong content
 
     const result = await contextGenerationNode(mockState);
 
-    expect(result.phase4_context?.stack_profile.primary_language).toBe('typescript');
+    // With the service-centric model, there's no primary_language at top level
+    // Each service has its own language
+    expect(result.phase4_context?.stack_profile.services?.length).toBe(3);
+    expect(result.phase4_context?.stack_profile.services?.[0].language).toBe('typescript');
+    expect(result.phase4_context?.stack_profile.services?.[1].language).toBe('typescript');
+    expect(result.phase4_context?.stack_profile.services?.[2].language).toBe('python');
   });
 
   it('should detect frontend frameworks from workspace dependencies', async () => {
@@ -416,12 +470,15 @@ Wrong content
           agent_name: 'structure-architecture-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
           findings: {
-            languages: ['typescript'],
-            multi_stack: {
-              workspaces: [
-                { path: 'frontend', language: 'typescript', dependencies: ['react 18.0.0', 'vue 3.0.0'] }
-              ]
-            }
+            services: [{
+              id: 'frontend',
+              path: 'frontend',
+              type: 'frontend',
+              language: 'typescript',
+              frameworks: {
+                main: 'React 18.0.0'
+              }
+            }]
           },
         });
       }
@@ -429,7 +486,22 @@ Wrong content
         return JSON.stringify({
           agent_name: 'tech-stack-dependencies-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: {},
+          findings: {
+            services: [{
+              id: 'frontend'
+            }]
+          },
+        });
+      }
+      if (path.includes('03-code-patterns-testing.json')) {
+        return JSON.stringify({
+          agent_name: 'code-patterns-testing-analyzer',
+          timestamp: '2024-01-01T00:00:00Z',
+          findings: {
+            services: [{
+              id: 'frontend'
+            }]
+          },
         });
       }
       return JSON.stringify({ findings: {} });
@@ -437,8 +509,8 @@ Wrong content
 
     const result = await contextGenerationNode(mockState);
 
-    expect(result.phase4_context?.stack_profile.frameworks.frontend).toContain('react');
-    expect(result.phase4_context?.stack_profile.frameworks.frontend).toContain('vue');
+    // With service-centric model, frameworks are per-service
+    expect(result.phase4_context?.stack_profile.services?.[0].frameworks.main).toBe('React 18.0.0');
   });
 
   it('should detect backend frameworks from workspace dependencies', async () => {
@@ -449,12 +521,15 @@ Wrong content
           agent_name: 'structure-architecture-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
           findings: {
-            languages: ['javascript'],
-            multi_stack: {
-              workspaces: [
-                { path: 'backend', language: 'javascript', dependencies: ['express 4.0.0', 'fastapi 0.100.0'] }
-              ]
-            }
+            services: [{
+              id: 'backend',
+              path: 'backend',
+              type: 'backend',
+              language: 'javascript',
+              frameworks: {
+                main: 'Express 4.0.0'
+              }
+            }]
           },
         });
       }
@@ -462,7 +537,22 @@ Wrong content
         return JSON.stringify({
           agent_name: 'tech-stack-dependencies-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: {},
+          findings: {
+            services: [{
+              id: 'backend'
+            }]
+          },
+        });
+      }
+      if (path.includes('03-code-patterns-testing.json')) {
+        return JSON.stringify({
+          agent_name: 'code-patterns-testing-analyzer',
+          timestamp: '2024-01-01T00:00:00Z',
+          findings: {
+            services: [{
+              id: 'backend'
+            }]
+          },
         });
       }
       return JSON.stringify({ findings: {} });
@@ -470,8 +560,8 @@ Wrong content
 
     const result = await contextGenerationNode(mockState);
 
-    expect(result.phase4_context?.stack_profile.frameworks.backend).toContain('express');
-    expect(result.phase4_context?.stack_profile.frameworks.backend).toContain('fastapi');
+    // With service-centric model, frameworks are per-service
+    expect(result.phase4_context?.stack_profile.services?.[0].frameworks.main).toBe('Express 4.0.0');
   });
 
   it('should infer workspace types from names', async () => {
@@ -482,16 +572,13 @@ Wrong content
           agent_name: 'structure-architecture-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
           findings: {
-            languages: ['typescript'],
-            multi_stack: {
-              workspaces: [
-                { path: 'frontend-web', language: 'typescript', dependencies: [] },
-                { path: 'backend-api', language: 'typescript', dependencies: [] },
-                { path: 'mobile-ios', language: 'swift', dependencies: [] },
-                { path: 'lambda-function', language: 'typescript', dependencies: [] },
-                { path: 'lib-utils', language: 'typescript', dependencies: [] }
-              ]
-            }
+            services: [
+              { id: 'frontend-web', path: 'frontend-web', type: 'frontend', language: 'typescript', frameworks: {} },
+              { id: 'backend-api', path: 'backend-api', type: 'backend', language: 'typescript', frameworks: {} },
+              { id: 'mobile-ios', path: 'mobile-ios', type: 'mobile', language: 'swift', frameworks: {} },
+              { id: 'lambda-function', path: 'lambda-function', type: 'serverless', language: 'typescript', frameworks: {} },
+              { id: 'lib-utils', path: 'lib-utils', type: 'library', language: 'typescript', frameworks: {} }
+            ]
           },
         });
       }
@@ -499,7 +586,30 @@ Wrong content
         return JSON.stringify({
           agent_name: 'tech-stack-dependencies-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: {},
+          findings: {
+            services: [
+              { id: 'frontend-web' },
+              { id: 'backend-api' },
+              { id: 'mobile-ios' },
+              { id: 'lambda-function' },
+              { id: 'lib-utils' }
+            ]
+          },
+        });
+      }
+      if (path.includes('03-code-patterns-testing.json')) {
+        return JSON.stringify({
+          agent_name: 'code-patterns-testing-analyzer',
+          timestamp: '2024-01-01T00:00:00Z',
+          findings: {
+            services: [
+              { id: 'frontend-web' },
+              { id: 'backend-api' },
+              { id: 'mobile-ios' },
+              { id: 'lambda-function' },
+              { id: 'lib-utils' }
+            ]
+          },
         });
       }
       return JSON.stringify({ findings: {} });
@@ -507,11 +617,11 @@ Wrong content
 
     const result = await contextGenerationNode(mockState);
 
-    expect(result.phase4_context?.stack_profile.workspaces?.[0].type).toBe('frontend');
-    expect(result.phase4_context?.stack_profile.workspaces?.[1].type).toBe('backend');
-    expect(result.phase4_context?.stack_profile.workspaces?.[2].type).toBe('mobile');
-    expect(result.phase4_context?.stack_profile.workspaces?.[3].type).toBe('service');
-    expect(result.phase4_context?.stack_profile.workspaces?.[4].type).toBe('library');
+    expect(result.phase4_context?.stack_profile.services?.[0].type).toBe('frontend');
+    expect(result.phase4_context?.stack_profile.services?.[1].type).toBe('backend');
+    expect(result.phase4_context?.stack_profile.services?.[2].type).toBe('mobile');
+    expect(result.phase4_context?.stack_profile.services?.[3].type).toBe('serverless');
+    expect(result.phase4_context?.stack_profile.services?.[4].type).toBe('library');
   });
 
   it('should extract testing frameworks from code-patterns', async () => {
@@ -521,14 +631,24 @@ Wrong content
         return JSON.stringify({
           agent_name: 'structure-architecture-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: { languages: ['typescript'] },
+          findings: {
+            services: [
+              { id: 'ts-service', path: 'ts-service', type: 'backend', language: 'typescript', frameworks: {} },
+              { id: 'py-service', path: 'py-service', type: 'backend', language: 'python', frameworks: {} }
+            ]
+          },
         });
       }
       if (path.includes('02-tech-stack-dependencies.json')) {
         return JSON.stringify({
           agent_name: 'tech-stack-dependencies-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: {},
+          findings: {
+            services: [
+              { id: 'ts-service' },
+              { id: 'py-service' }
+            ]
+          },
         });
       }
       if (path.includes('03-code-patterns-testing.json')) {
@@ -536,12 +656,10 @@ Wrong content
           agent_name: 'code-patterns-testing-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
           findings: {
-            multi_stack: {
-              workspaces: [
-                { language: 'typescript', testing_framework: 'vitest' },
-                { language: 'python', testing_framework: 'pytest' }
-              ]
-            }
+            services: [
+              { id: 'ts-service', frameworks: { testing: 'vitest' } },
+              { id: 'py-service', frameworks: { testing: 'pytest' } }
+            ]
           },
         });
       }
@@ -551,10 +669,9 @@ Wrong content
 
     const result = await contextGenerationNode(mockState);
 
-    expect(result.phase4_context?.stack_profile.testing_frameworks).toEqual({
-      typescript: ['vitest'],
-      python: ['pytest']
-    });
+    // With service-centric model, testing frameworks are per-service
+    expect(result.phase4_context?.stack_profile.services?.[0].frameworks.testing).toBe('vitest');
+    expect(result.phase4_context?.stack_profile.services?.[1].frameworks.testing).toBe('pytest');
   });
 
   it('should extract testing frameworks from dependencies', async () => {
@@ -564,7 +681,15 @@ Wrong content
         return JSON.stringify({
           agent_name: 'structure-architecture-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: { languages: ['typescript'] },
+          findings: {
+            services: [{
+              id: 'frontend',
+              path: 'frontend',
+              type: 'frontend',
+              language: 'typescript',
+              frameworks: {}
+            }]
+          },
         });
       }
       if (path.includes('02-tech-stack-dependencies.json')) {
@@ -572,18 +697,9 @@ Wrong content
           agent_name: 'tech-stack-dependencies-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
           findings: {
-            dependencies: {
-              by_package: {
-                'frontend': {
-                  dev: { 'vitest': '4.0.0', 'jest': '29.0.0' }
-                }
-              }
-            },
-            multi_stack: {
-              workspaces: [
-                { path: 'frontend', language: 'typescript' }
-              ]
-            }
+            services: [{
+              id: 'frontend'
+            }]
           },
         });
       }
@@ -591,7 +707,12 @@ Wrong content
         return JSON.stringify({
           agent_name: 'code-patterns-testing-analyzer',
           timestamp: '2024-01-01T00:00:00Z',
-          findings: {},
+          findings: {
+            services: [{
+              id: 'frontend',
+              frameworks: { testing: 'vitest' }
+            }]
+          },
         });
       }
       // Default: return empty JSON object
@@ -600,8 +721,8 @@ Wrong content
 
     const result = await contextGenerationNode(mockState);
 
-    expect(result.phase4_context?.stack_profile.testing_frameworks?.typescript).toContain('vitest');
-    expect(result.phase4_context?.stack_profile.testing_frameworks?.typescript).toContain('jest');
+    // With service-centric model, testing framework is per-service
+    expect(result.phase4_context?.stack_profile.services?.[0].frameworks.testing).toBe('vitest');
   });
 
   it('should handle JSON parse errors', async () => {

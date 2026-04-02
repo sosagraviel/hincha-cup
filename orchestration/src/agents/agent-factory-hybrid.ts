@@ -577,8 +577,32 @@ export class HybridAgentFactory {
       );
 
       // Add settings file if provided
+      // CRITICAL FIX: Claude CLI doesn't expand ${VAR} in settings.json
+      // We need to resolve placeholders at runtime and write a temp settings file
       if (settingsPath) {
-        cliArgs.push("--settings", settingsPath);
+        try {
+          // Read original settings file
+          const originalSettings = fs.readFileSync(settingsPath, "utf-8");
+
+          // Replace ${FRAMEWORK_PATH} with actual framework path
+          // Use regex to handle variations like ${FRAMEWORK_PATH} or $FRAMEWORK_PATH
+          const resolvedSettings = originalSettings.replace(
+            /\$\{FRAMEWORK_PATH\}|\$FRAMEWORK_PATH/g,
+            frameworkPath
+          );
+
+          // Write temporary settings file with resolved paths
+          // File will be auto-cleaned when tempDir is removed by cleanup()
+          const tempSettingsFile = path.join(tempDir, "settings-resolved.json");
+          fs.writeFileSync(tempSettingsFile, resolvedSettings, "utf-8");
+
+          cliArgs.push("--settings", tempSettingsFile);
+        } catch (error) {
+          // If settings file processing fails, log and continue without settings
+          console.warn(
+            `Warning: Failed to process settings file ${settingsPath}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
       }
 
       claudeProcess = spawn(

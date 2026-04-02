@@ -32,11 +32,11 @@ interface HookInput {
 
 /**
  * Block Claude from finishing with feedback
- * Exit code 1 signals validation failure to Claude CLI
+ * Exit code 2 signals blocking to Claude CLI (exit 1 is just an error, not a block!)
  */
 function blockWithFeedback(reason: string): void {
   console.error(reason); // Print feedback to stderr for Claude CLI to show
-  process.exit(1); // Exit code 1 = validation failed
+  process.exit(2); // Exit code 2 = BLOCK agent from completing
 }
 
 /**
@@ -73,7 +73,10 @@ async function main() {
       .filter(Boolean);
 
     const assistantMessages = transcript
-      .filter((msg: any) => msg.type === "assistant")
+      .filter((msg: any) => {
+        // Support both formats: direct (msg.type === "assistant") and wrapped (msg.message.role === "assistant")
+        return msg.type === "assistant" || (msg.message && msg.message.role === "assistant");
+      })
       .reverse();
 
     if (assistantMessages.length === 0) {
@@ -82,11 +85,14 @@ async function main() {
 
     const lastMessage = assistantMessages[0];
 
-    if (!lastMessage.content || !Array.isArray(lastMessage.content)) {
+    // Get content from either direct format or wrapped format
+    const messageContent = lastMessage.message ? lastMessage.message.content : lastMessage.content;
+
+    if (!messageContent || !Array.isArray(messageContent)) {
       return allow();
     }
 
-    const textBlocks = lastMessage.content.filter(
+    const textBlocks = messageContent.filter(
       (c: any) => c.type === "text",
     );
     if (textBlocks.length === 0) {

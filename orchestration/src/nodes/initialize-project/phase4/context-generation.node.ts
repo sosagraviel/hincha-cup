@@ -2,7 +2,18 @@ import type { InitializeProjectState } from "../../../state/schemas/initialize-p
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { generateFrameworkConfig } from "../../../utils/config-generator.js";
-import type { StackProfile } from "../../../schemas/index.js";
+import type {
+  StackProfile,
+  Service,
+  ServiceTesting,
+  ServiceDatabase,
+  ServiceEnvironment
+} from "../../../schemas/stack-profile.schema.js";
+import type {
+  StructureAnalyzerOutput,
+  TechStackAnalyzerOutput,
+  CodePatternsAnalyzerOutput,
+} from "../../../schemas/phase1-agent-outputs.schema.js";
 import { logger } from "../../../utils/logger.js";
 import {
   countFilesByLanguage,
@@ -327,40 +338,8 @@ export async function contextGenerationNode(
       frontendFrameworks.push(...uiFrameworks);
     }
 
-    // Also extract from workspace dependencies
-    const workspaces = structureFindings?.multi_stack?.workspaces || [];
-    workspaces.forEach((ws: any) => {
-      if (Array.isArray(ws.dependencies)) {
-        ws.dependencies.forEach((dep: string) => {
-          const depLower = dep.toLowerCase();
-          // Frontend frameworks
-          if (
-            depLower.includes("react") ||
-            depLower.includes("next") ||
-            depLower.includes("vue") ||
-            depLower.includes("angular") ||
-            depLower.includes("grommet")
-          ) {
-            const frameworkName = dep.split(" ")[0].toLowerCase();
-            if (!frontendFrameworks.includes(frameworkName)) {
-              frontendFrameworks.push(frameworkName);
-            }
-          }
-          // Backend frameworks
-          if (
-            depLower.includes("express") ||
-            depLower.includes("flask") ||
-            depLower.includes("django") ||
-            depLower.includes("fastapi")
-          ) {
-            const frameworkName = dep.split(" ")[0].toLowerCase();
-            if (!backendFrameworks.includes(frameworkName)) {
-              backendFrameworks.push(frameworkName);
-            }
-          }
-        });
-      }
-    });
+    // NOTE: Framework extraction from services array now handled by extractServicesFromPhase1Analyzers()
+    // This legacy code that extracted from multi_stack.workspaces has been removed
 
     phaseLogger.info(
       `  Frontend frameworks: ${frontendFrameworks.join(", ") || "none"}`,
@@ -380,154 +359,155 @@ export async function contextGenerationNode(
       `  Infrastructure from Phase 1: ${infrastructureFromPhase1.join(", ") || "none"}`,
     );
 
-    // Extract testing frameworks from file 03 (code-patterns-testing) and file 02 (tech-stack-dependencies)
-    const testingFrameworks: Record<string, string[]> = {};
+    // NOTE: Testing framework extraction now handled by extractServicesFromPhase1Analyzers()
+    // Testing data comes from codePatternsFindings.services[].testing field
+    // This legacy code that extracted from multi_stack.workspaces has been removed
 
-    // Source 1: Extract from code-patterns-testing (file 03) - has testing_framework field
-    if (codePatternsFindings?.multi_stack?.workspaces) {
-      for (const ws of codePatternsFindings.multi_stack.workspaces) {
-        if (
-          ws.language &&
-          ws.testing_framework &&
-          ws.testing_framework !== "none"
-        ) {
-          const lang = ws.language.toLowerCase();
-          if (!testingFrameworks[lang]) testingFrameworks[lang] = [];
-          if (!testingFrameworks[lang].includes(ws.testing_framework)) {
-            testingFrameworks[lang].push(ws.testing_framework);
-          }
-        }
-      }
+    // ========== SERVICE EXTRACTION FUNCTIONS ==========
+
+    /**
+     * Extract testing configuration for a specific service
+     */
+    function extractTestingForService(serviceId: string, codePatternsFindings: any): ServiceTesting | undefined {
+      const serviceTests = codePatternsFindings?.services?.find((s: any) => s.id === serviceId)?.testing;
+      if (!serviceTests) return undefined;
+
+      return {
+        unit: serviceTests.unit,
+        integration: serviceTests.integration,
+        e2e: serviceTests.e2e,
+      };
     }
 
-    // Source 2: Extract from tech-stack-dependencies (file 02) - check dependencies
-    const knownTestingFrameworks = new Set([
-      "pytest",
-      "unittest",
-      "nose",
-      "coverage",
-      "jest",
-      "mocha",
-      "jasmine",
-      "vitest",
-      "@playwright/test",
-      "playwright",
-      "junit",
-      "testng",
-      "rspec",
-      "minitest",
-      "cargo test",
-      "testing",
-      "testify",
-    ]);
+    /**
+     * Extract testing framework name for a specific service
+     */
+    function extractTestingFrameworkForService(serviceId: string, codePatternsFindings: any): string | undefined {
+      const serviceTests = codePatternsFindings?.services?.find((s: any) => s.id === serviceId);
+      return serviceTests?.frameworks?.testing;
+    }
 
-    if (techStackFindings?.dependencies?.by_package) {
-      for (const [pkgName, deps] of Object.entries(
-        techStackFindings.dependencies.by_package,
-      )) {
-        if (!deps || typeof deps !== "object") continue;
-        const allDeps = {
-          ...((deps as any).production || {}),
-          ...((deps as any).dev || {}),
+    /**
+     * Extract databases for a specific service
+     */
+    function extractDatabasesForService(
+      serviceId: string,
+      techStackFindings: any,
+      dataFlowsFindings?: any
+    ): ServiceDatabase[] | undefined {
+      const serviceDbs = techStackFindings?.services?.find((s: any) => s.id === serviceId)?.databases;
+      if (!serviceDbs || serviceDbs.length === 0) return undefined;
+
+      return serviceDbs.map((db: any) => ({
+        type: db.type,
+        client_library: db.client_library,
+        orm: db.orm,
+        orm_version: db.orm_version,
+        migration_tool: db.migration_tool,
+      }));
+    }
+
+    /**
+     * Extract ORM for a specific service (from first database that has one)
+     */
+    function extractORMForService(serviceId: string, techStackFindings: any): string | undefined {
+      const serviceDbs = techStackFindings?.services?.find((s: any) => s.id === serviceId)?.databases;
+      if (!serviceDbs || serviceDbs.length === 0) return undefined;
+
+      // Return ORM from first database that has one
+      for (const db of serviceDbs) {
+        if (db.orm) return db.orm;
+      }
+
+      return undefined;
+    }
+
+    /**
+     * Extract environment configuration for a specific service
+     */
+    function extractEnvironmentForService(serviceId: string, structureFindings: any): ServiceEnvironment | undefined {
+      const svcEnv = structureFindings?.services?.find((s: any) => s.id === serviceId)?.environment;
+      if (!svcEnv) return undefined;
+
+      return {
+        port: svcEnv.port,
+        env_file: svcEnv.env_file,
+        deployment_target: svcEnv.deployment_target,
+        docker_image: svcEnv.docker_image,
+      };
+    }
+
+    /**
+     * Extract package manager for a specific service
+     */
+    function extractPackageManagerForService(serviceId: string, techStackFindings: any): string | undefined {
+      return techStackFindings?.services?.find((s: any) => s.id === serviceId)?.package_manager;
+    }
+
+    /**
+     * Extract manifest file path for a specific service
+     */
+    function extractManifestFileForService(serviceId: string, techStackFindings: any): string | undefined {
+      return techStackFindings?.services?.find((s: any) => s.id === serviceId)?.manifest_file;
+    }
+
+    /**
+     * Extract services from Phase 1 analyzer outputs
+     *
+     * This is the main service extraction function that merges data from all Phase 1 analyzers
+     * into a complete Service[] array for the service-centric stack profile.
+     */
+    function extractServicesFromPhase1Analyzers(
+      structureFindings: any,
+      techStackFindings: any,
+      codePatternsFindings: any,
+      dataFlowsFindings?: any
+    ): Service[] {
+      const services: Service[] = [];
+
+      // Use explicit services[] from Agent 01 (structure-architecture)
+      if (!structureFindings?.services || !Array.isArray(structureFindings.services)) {
+        throw new Error(
+          "Phase 1 structure analyzer did not output services[] array. " +
+          "Cannot generate service-centric framework config. " +
+          "This indicates the analyzer is using an outdated output format."
+        );
+      }
+
+      for (const svc of structureFindings.services) {
+        const service: Service = {
+          id: svc.id,
+          name: svc.name,
+          path: svc.path, // DYNAMIC path from agent discovery
+          type: svc.type,
+          language: svc.language.toLowerCase(),
+          language_version: svc.language_version,
+          frameworks: {
+            main: svc.frameworks?.main,
+            orm: svc.frameworks?.orm || extractORMForService(svc.id, techStackFindings),
+            ui: svc.frameworks?.ui,
+            testing: svc.frameworks?.testing || extractTestingFrameworkForService(svc.id, codePatternsFindings),
+            additional: svc.frameworks?.additional,
+          },
+          testing: extractTestingForService(svc.id, codePatternsFindings),
+          databases: extractDatabasesForService(svc.id, techStackFindings, dataFlowsFindings),
+          environment: svc.environment || extractEnvironmentForService(svc.id, structureFindings),
+          file_count: svc.file_count,
+          package_manager: svc.package_manager || extractPackageManagerForService(svc.id, techStackFindings),
+          manifest_file: svc.manifest_file || extractManifestFileForService(svc.id, techStackFindings), // DYNAMIC path
         };
 
-        // Find workspace language for this package
-        const workspace = techStackFindings?.multi_stack?.workspaces?.find(
-          (w: any) =>
-            w.path &&
-            pkgName
-              .toLowerCase()
-              .includes(w.path.toLowerCase().split("/").pop()),
-        );
-        const lang = workspace?.language?.toLowerCase();
-        if (!lang) continue;
-
-        // Check dependencies for testing frameworks
-        for (const depName of Object.keys(allDeps)) {
-          if (
-            knownTestingFrameworks.has(depName.toLowerCase()) ||
-            knownTestingFrameworks.has(depName)
-          ) {
-            const framework = depName;
-            if (!testingFrameworks[lang]) testingFrameworks[lang] = [];
-            if (!testingFrameworks[lang].includes(framework)) {
-              testingFrameworks[lang].push(framework);
-            }
-          }
-        }
+        services.push(service);
       }
+
+      return services;
     }
 
-    phaseLogger.info(
-      `  Testing frameworks detected: ${JSON.stringify(testingFrameworks)}`,
-    );
+    // END SERVICE EXTRACTION FUNCTIONS
 
-    function inferWorkspaceType(workspace: any): string {
-      const name = (workspace.name || workspace.path || "").toLowerCase();
-
-      if (
-        name.includes("web") ||
-        name.includes("frontend") ||
-        name.includes("ui")
-      ) {
-        return "frontend";
-      }
-      if (
-        name.includes("backend") ||
-        name.includes("api") ||
-        name.includes("server")
-      ) {
-        return "backend";
-      }
-      if (
-        name.includes("mobile") ||
-        name.includes("ios") ||
-        name.includes("android")
-      ) {
-        return "mobile";
-      }
-      if (
-        name.includes("function") ||
-        name.includes("lambda") ||
-        name.includes("service")
-      ) {
-        return "service";
-      }
-      if (
-        name.includes("lib") ||
-        name.includes("package") ||
-        name.includes("shared")
-      ) {
-        return "library";
-      }
-
-      return "service";
-    }
-
-    const rawWorkspaces = Array.isArray(
-      structureFindings?.multi_stack?.workspaces,
-    )
-      ? structureFindings.multi_stack.workspaces
-      : [];
-
-    const detectedWorkspaces = rawWorkspaces.map((ws: any) => ({
-      path: ws.path || "",
-      language: ws.language || "javascript",
-      type: inferWorkspaceType(ws),
-      frameworks: ws.dependencies || [],
-    }));
-
-    const languageCounts: Record<string, number> = {};
-    rawWorkspaces.forEach((ws: any) => {
-      if (ws.language) {
-        const lang = ws.language.toLowerCase();
-        languageCounts[lang] = (languageCounts[lang] || 0) + 1;
-      }
-    });
-    const primaryLanguage =
-      Object.keys(languageCounts).sort(
-        (a, b) => languageCounts[b] - languageCounts[a],
-      )[0] || undefined;
+    // NOTE: Workspace extraction from multi_stack.workspaces removed
+    // Service data is now extracted directly from Phase 1 services[] array
+    // via extractServicesFromPhase1Analyzers()
 
     // STEP 5: Validate stack profile completeness
     phaseLogger.info(" Validating stack profile completeness...");
@@ -566,49 +546,52 @@ export async function contextGenerationNode(
     phaseLogger.success(" ✓ Stack profile validation passed");
     phaseLogger.info(`  Final languages: ${finalLanguages.join(", ")}`);
 
+    // ========== EXTRACT SERVICES FROM PHASE 1 ANALYZERS ==========
+    phaseLogger.info("📦 Extracting service configurations...");
+
+    let services: Service[];
+    try {
+      services = extractServicesFromPhase1Analyzers(
+        structureFindings,
+        techStackFindings,
+        codePatternsFindings,
+        dataFlowsData?.findings
+      );
+      phaseLogger.success(` ✓ Extracted ${services.length} service(s)`);
+
+      for (const service of services) {
+        phaseLogger.info(
+          `   ${service.id} (${service.type}) at ${service.path}: ${service.language} ${service.language_version || ''} - ${service.frameworks.main || 'no framework'}`
+        );
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      phaseLogger.error(` Failed to extract services: ${errorMsg}`);
+      throw error;
+    }
+
+    // ========== BUILD SERVICE-CENTRIC STACK PROFILE ==========
     const stackProfile: StackProfile = {
-      languages: finalLanguages,
-      primary_language: primaryLanguage,
-      frameworks: {
-        frontend: frontendFrameworks.length > 0 ? frontendFrameworks : [],
-        backend: backendFrameworks.length > 0 ? backendFrameworks : [],
-        mobile: [],
-      },
-      testing_frameworks:
-        Object.keys(testingFrameworks).length > 0
-          ? testingFrameworks
-          : undefined,
+      // CORE: Service-centric data (source of truth)
+      services,
+
+      // METADATA: Repository-level information
+      is_monorepo: workspaceResult?.is_monorepo || false,
+      workspace_tool: techStackFindings?.monorepo?.workspace_manager,
+      package_manager: techStackFindings?.monorepo?.package_manager,
       infrastructure:
         infrastructureFromPhase1.length > 0
           ? infrastructureFromPhase1
           : undefined,
-      detected_workspaces:
-        detectedWorkspaces.length > 0 ? detectedWorkspaces : undefined,
       file_counts: fileCountResult
         ? {
             total: fileCountResult.total_files,
-            by_language: fileCountResult.by_language.map((lc) => ({
-              language: lc.language,
-              count: lc.count,
-            })),
+            by_language: fileCountResult.by_language.reduce((acc, lc) => {
+              acc[lc.language] = lc.count;
+              return acc;
+            }, {} as Record<string, number>),
           }
         : undefined,
-      workspaces:
-        detectedWorkspaces.length > 0 ? detectedWorkspaces : undefined,
-      multi_stack: workspaceResult?.is_monorepo
-        ? {
-            is_monorepo: true,
-            workspaces: workspaceResult.workspaces.map((ws) => ({
-              path: ws.path,
-              language: ws.language,
-              manifest: ws.manifest_file,
-            })),
-          }
-        : undefined,
-      package_manager: techStackFindings?.monorepo?.workspace_manager as
-        | string
-        | undefined,
-      workspace_type: structureFindings?.repository_type as string | undefined,
     };
 
     const stackProfilePath = join(state.temp_dir!, "stack-profile.json");

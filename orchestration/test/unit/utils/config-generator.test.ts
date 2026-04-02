@@ -38,20 +38,22 @@ describe('config-generator', () => {
   });
 
   const createMockStackProfile = (overrides: Partial<StackProfile> = {}): StackProfile => ({
-    languages: ['typescript'],
-    primary_language: 'typescript',
-    frameworks: {
-      frontend: ['react'],
-      backend: ['express'],
-      mobile: []
-    },
-    testing_frameworks: {
-      typescript: ['vitest']
-    },
-    detected_workspaces: [],
+    services: [
+      {
+        id: 'main',
+        path: 'src',
+        type: 'backend',
+        language: 'typescript',
+        frameworks: {
+          main: 'express',
+          testing: 'vitest',
+        },
+      }
+    ],
+    is_monorepo: false,
     file_counts: {
       total: 0,
-      by_language: [],
+      by_language: {},
     },
     ...overrides
   });
@@ -123,38 +125,27 @@ describe('config-generator', () => {
     it('should include stack profile data', () => {
       const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
-        languages: ['typescript', 'python'],
-        primary_language: 'typescript',
-        frameworks: {
-          frontend: ['react', 'nextjs'],
-          backend: ['express', 'fastapi'],
-          mobile: []
-        }
-      });
-
-      vi.mocked(fs.existsSync).mockReturnValue(false);
-
-      const config = generateFrameworkConfig(
-        '/test/project',
-        '/test/temp',
-        phase1Data,
-        '# Synthesis',
-        stackProfile,
-        '/test/framework'
-      );
-
-      expect(config.stack_profile.languages).toEqual(['typescript', 'python']);
-      expect(config.stack_profile.primary_language).toBe('typescript');
-      expect(config.stack_profile.frameworks.frontend).toEqual(['react', 'nextjs']);
-      expect(config.stack_profile.frameworks.backend).toEqual(['express', 'fastapi']);
-    });
-
-    it('should include detected workspaces', () => {
-      const phase1Data = createMockPhase1Data();
-      const stackProfile = createMockStackProfile({
-        detected_workspaces: [
-          { path: 'packages/web', language: 'typescript', type: 'frontend', frameworks: ['react'] },
-          { path: 'packages/api', language: 'typescript', type: 'backend', frameworks: ['express'] }
+        services: [
+          {
+            id: 'frontend',
+            path: 'src/frontend',
+            type: 'frontend',
+            language: 'typescript',
+            frameworks: {
+              main: 'react',
+              additional: ['nextjs'],
+            },
+          },
+          {
+            id: 'backend',
+            path: 'src/backend',
+            type: 'backend',
+            language: 'python',
+            frameworks: {
+              main: 'fastapi',
+              additional: ['express'],
+            },
+          }
         ]
       });
 
@@ -169,9 +160,48 @@ describe('config-generator', () => {
         '/test/framework'
       );
 
-      expect(config.stack_profile.detected_workspaces).toHaveLength(2);
-      expect(config.stack_profile.detected_workspaces![0].path).toBe('packages/web');
-      expect(config.stack_profile.detected_workspaces![1].path).toBe('packages/api');
+      expect(config.stack_profile.services).toHaveLength(2);
+      expect(config.stack_profile.services[0].language).toBe('typescript');
+      expect(config.stack_profile.services[1].language).toBe('python');
+      expect(config.stack_profile.services[0].frameworks.main).toBe('react');
+      expect(config.stack_profile.services[1].frameworks.main).toBe('fastapi');
+    });
+
+    it('should include detected workspaces', () => {
+      const phase1Data = createMockPhase1Data();
+      const stackProfile = createMockStackProfile({
+        services: [
+          {
+            id: 'web',
+            path: 'packages/web',
+            language: 'typescript',
+            type: 'frontend',
+            frameworks: { main: 'react' }
+          },
+          {
+            id: 'api',
+            path: 'packages/api',
+            language: 'typescript',
+            type: 'backend',
+            frameworks: { main: 'express' }
+          }
+        ]
+      });
+
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
+
+      expect(config.stack_profile.services).toHaveLength(2);
+      expect(config.stack_profile.services[0].path).toBe('packages/web');
+      expect(config.stack_profile.services[1].path).toBe('packages/api');
     });
 
     it('should handle phase1_analysis data', () => {
@@ -252,10 +282,29 @@ describe('config-generator', () => {
     it('should handle testing frameworks', () => {
       const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
-        testing_frameworks: {
-          typescript: ['vitest', 'playwright'],
-          python: ['pytest']
-        }
+        services: [
+          {
+            id: 'typescript-service',
+            path: 'src/ts',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: { main: 'express' },
+            testing: {
+              unit: { framework: 'vitest' },
+              e2e: { framework: 'playwright' }
+            }
+          },
+          {
+            id: 'python-service',
+            path: 'src/py',
+            type: 'backend',
+            language: 'python',
+            frameworks: { main: 'fastapi' },
+            testing: {
+              unit: { framework: 'pytest' }
+            }
+          }
+        ]
       });
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -269,10 +318,9 @@ describe('config-generator', () => {
         '/test/framework'
       );
 
-      expect(config.stack_profile.testing_frameworks).toEqual({
-        typescript: ['vitest', 'playwright'],
-        python: ['pytest']
-      });
+      expect(config.stack_profile.services[0].testing?.unit?.framework).toBe('vitest');
+      expect(config.stack_profile.services[0].testing?.e2e?.framework).toBe('playwright');
+      expect(config.stack_profile.services[1].testing?.unit?.framework).toBe('pytest');
     });
 
     it('should handle infrastructure data', () => {
@@ -300,10 +348,10 @@ describe('config-generator', () => {
       const stackProfile = createMockStackProfile({
         file_counts: {
           total: 220,
-          by_language: [
-            { language: 'typescript', count: 200 },
-            { language: 'python', count: 20 },
-          ],
+          by_language: {
+            typescript: 200,
+            python: 20,
+          },
         }
       });
 
@@ -320,10 +368,10 @@ describe('config-generator', () => {
 
       expect(config.stack_profile.file_counts).toEqual({
         total: 220,
-        by_language: [
-          { language: 'typescript', count: 200 },
-          { language: 'python', count: 20 },
-        ],
+        by_language: {
+          typescript: 200,
+          python: 20,
+        },
       });
     });
 
@@ -381,11 +429,19 @@ describe('config-generator', () => {
     it('should handle empty stack profile', () => {
       const phase1Data = createMockPhase1Data();
       const stackProfile: StackProfile = {
-        languages: [],
-        frameworks: {
-          frontend: [],
-          backend: [],
-          mobile: []
+        services: [
+          {
+            id: 'minimal',
+            path: 'src',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: {}
+          }
+        ],
+        is_monorepo: false,
+        file_counts: {
+          total: 0,
+          by_language: {}
         }
       };
 
@@ -400,17 +456,22 @@ describe('config-generator', () => {
         '/test/framework'
       );
 
-      expect(config.stack_profile.languages).toEqual([]);
-      expect(config.stack_profile.frameworks.frontend).toEqual([]);
+      expect(config.stack_profile.services).toHaveLength(1);
+      expect(config.stack_profile.services[0].frameworks).toEqual({});
     });
 
     it('should handle workspaces fallback to detected_workspaces', () => {
       const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
-        detected_workspaces: undefined,
-        workspaces: [
-          { path: 'packages/lib', language: 'typescript', type: 'library', frameworks: [] }
-        ] as any
+        services: [
+          {
+            id: 'lib',
+            path: 'packages/lib',
+            language: 'typescript',
+            type: 'library',
+            frameworks: {}
+          }
+        ]
       });
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -424,8 +485,8 @@ describe('config-generator', () => {
         '/test/framework'
       );
 
-      expect(config.stack_profile.detected_workspaces).toHaveLength(1);
-      expect(config.stack_profile.detected_workspaces![0].path).toBe('packages/lib');
+      expect(config.stack_profile.services).toHaveLength(1);
+      expect(config.stack_profile.services[0].path).toBe('packages/lib');
     });
 
     it('should include phase4_context data', () => {
@@ -469,11 +530,16 @@ describe('config-generator', () => {
     it('should handle missing optional fields gracefully', () => {
       const phase1Data = createMockPhase1Data();
       const stackProfile: StackProfile = {
-        languages: ['typescript'],
-        frameworks: {
-          frontend: [],
-          backend: []
-        }
+        services: [
+          {
+            id: 'main',
+            path: 'src',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: {}
+          }
+        ],
+        is_monorepo: false
       };
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -487,22 +553,103 @@ describe('config-generator', () => {
         '/test/framework'
       );
 
-      expect(config.stack_profile.primary_language).toBeUndefined();
       expect(config.stack_profile.infrastructure).toBeUndefined();
-      expect(config.stack_profile.testing_frameworks).toEqual({});
+      expect(config.stack_profile.workspace_tool).toBeUndefined();
+      expect(config.stack_profile.services[0].testing).toBeUndefined();
     });
 
     it('should handle complex multi-workspace monorepo', () => {
       const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
-        languages: ['typescript', 'python', 'go'],
-        primary_language: 'typescript',
-        detected_workspaces: [
-          { path: 'packages/web', language: 'typescript', type: 'frontend', frameworks: ['react', 'nextjs'] },
-          { path: 'packages/mobile', language: 'typescript', type: 'mobile', frameworks: ['react-native'] },
-          { path: 'services/api', language: 'typescript', type: 'backend', frameworks: ['express'] },
-          { path: 'services/worker', language: 'python', type: 'service', frameworks: ['celery'] },
-          { path: 'services/gateway', language: 'go', type: 'service', frameworks: ['gin'] }
+        services: [
+          {
+            id: 'web',
+            path: 'packages/web',
+            language: 'typescript',
+            type: 'frontend',
+            frameworks: { main: 'react', additional: ['nextjs'] }
+          },
+          {
+            id: 'mobile',
+            path: 'packages/mobile',
+            language: 'typescript',
+            type: 'mobile',
+            frameworks: { main: 'react-native' }
+          },
+          {
+            id: 'api',
+            path: 'services/api',
+            language: 'typescript',
+            type: 'backend',
+            frameworks: { main: 'express' }
+          },
+          {
+            id: 'worker',
+            path: 'services/worker',
+            language: 'python',
+            type: 'worker',
+            frameworks: { main: 'celery' }
+          },
+          {
+            id: 'gateway',
+            path: 'services/gateway',
+            language: 'go',
+            type: 'backend',
+            frameworks: { main: 'gin' }
+          }
+        ],
+        is_monorepo: true
+      });
+
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      const config = generateFrameworkConfig(
+        '/test/project',
+        '/test/temp',
+        phase1Data,
+        '# Synthesis',
+        stackProfile,
+        '/test/framework'
+      );
+
+      const languages = new Set(config.stack_profile.services.map(s => s.language));
+      expect(Array.from(languages).sort()).toEqual(['go', 'python', 'typescript']);
+      expect(config.stack_profile.services).toHaveLength(5);
+      expect(config.stack_profile.is_monorepo).toBe(true);
+    });
+
+    it('should handle mobile frameworks', () => {
+      const phase1Data = createMockPhase1Data();
+      const stackProfile = createMockStackProfile({
+        services: [
+          {
+            id: 'web',
+            path: 'src/web',
+            type: 'frontend',
+            language: 'typescript',
+            frameworks: { main: 'react' }
+          },
+          {
+            id: 'api',
+            path: 'src/api',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: { main: 'express' }
+          },
+          {
+            id: 'mobile-rn',
+            path: 'src/mobile',
+            type: 'mobile',
+            language: 'typescript',
+            frameworks: { main: 'react-native' }
+          },
+          {
+            id: 'mobile-flutter',
+            path: 'src/flutter',
+            type: 'mobile',
+            language: 'dart',
+            frameworks: { main: 'flutter' }
+          }
         ]
       });
 
@@ -517,33 +664,9 @@ describe('config-generator', () => {
         '/test/framework'
       );
 
-      expect(config.stack_profile.languages).toEqual(['typescript', 'python', 'go']);
-      expect(config.stack_profile.detected_workspaces).toHaveLength(5);
-      expect(config.stack_profile.primary_language).toBe('typescript');
-    });
-
-    it('should handle mobile frameworks', () => {
-      const phase1Data = createMockPhase1Data();
-      const stackProfile = createMockStackProfile({
-        frameworks: {
-          frontend: ['react'],
-          backend: ['express'],
-          mobile: ['react-native', 'flutter']
-        }
-      });
-
-      vi.mocked(fs.existsSync).mockReturnValue(false);
-
-      const config = generateFrameworkConfig(
-        '/test/project',
-        '/test/temp',
-        phase1Data,
-        '# Synthesis',
-        stackProfile,
-        '/test/framework'
-      );
-
-      expect(config.stack_profile.frameworks.mobile).toEqual(['react-native', 'flutter']);
+      const mobileServices = config.stack_profile.services.filter(s => s.type === 'mobile');
+      expect(mobileServices).toHaveLength(2);
+      expect(mobileServices.map(s => s.frameworks.main)).toEqual(['react-native', 'flutter']);
     });
 
     it('should generate ISO timestamp for last_analysis', () => {
@@ -590,7 +713,8 @@ describe('config-generator', () => {
       const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
         package_manager: 'pnpm',
-        workspace_type: 'monorepo'
+        is_monorepo: true,
+        workspace_tool: 'pnpm workspaces'
       });
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -606,6 +730,8 @@ describe('config-generator', () => {
 
       expect(config).toBeDefined();
       expect(config.stack_profile).toBeDefined();
+      expect(config.stack_profile.package_manager).toBe('pnpm');
+      expect(config.stack_profile.is_monorepo).toBe(true);
     });
 
     it('should use provided phase data timestamps', () => {
@@ -642,8 +768,15 @@ describe('config-generator', () => {
     it('should handle fallback to empty workspaces array', () => {
       const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile({
-        detected_workspaces: undefined,
-        workspaces: undefined
+        services: [
+          {
+            id: 'default',
+            path: '.',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: {}
+          }
+        ]
       });
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -657,7 +790,8 @@ describe('config-generator', () => {
         '/test/framework'
       );
 
-      expect(config.stack_profile.detected_workspaces).toEqual([]);
+      expect(config.stack_profile.services).toHaveLength(1);
+      expect(config.stack_profile.services[0].id).toBe('default');
     });
 
     it('should include phase4_context with standard files', () => {
