@@ -27,6 +27,112 @@ Execute the complete Software Development Lifecycle (SDLC) workflow to implement
 - `--skip-pr` - Skip PR creation (commit only)
 - `--branch <NAME>` - Custom branch name (default: auto-generated)
 
+---
+
+## CRITICAL: Task Tracking Setup
+
+**BEFORE starting any phase work, you MUST create the full task list using TaskCreate.** This gives the user real-time progress visibility via Ctrl+T. Do NOT skip this step. Create all 11 tasks first, then set up dependencies, then begin Phase 0.
+
+Create each task using TaskCreate with these exact values:
+
+1. Phase 0: Preflight Validation
+   subject: "Phase 0: Preflight Validation"
+   activeForm: "Validating environment"
+   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack
+   Expected outputs: git is clean, tests pass, build succeeds
+   Constraint: If any check fails, STOP and report. Do not proceed to Phase 1.
+
+2. Phase 1: Context Gathering
+   subject: "Phase 1: Context Gathering"
+   activeForm: "Gathering ticket context"
+   Steps: Fetch from source (Jira/Markdown/Input), extract requirements and acceptance criteria, save context to artifacts directory
+   Expected outputs: context and requirements extracted and available for Phase 2
+   Constraint: Do not proceed if requirements could not be extracted.
+
+3. Phase 2: Planning
+   subject: "Phase 2: Planning"
+   activeForm: "Creating implementation plan"
+   Steps: MUST invoke /analyze-requirements skill, MUST spawn planner agent, generate implementation strategy, identify files to create/modify, create test strategy
+   Expected outputs: planner agent was spawned, implementation plan exists, test strategy defined, files to modify identified
+   Constraint: Do not proceed if planner agent was not spawned or plan does not exist.
+
+4. Phase 3: Environment Setup
+   subject: "Phase 3: Environment Setup"
+   activeForm: "Setting up environment"
+   Steps: Create feature branch, allocate ports (if needed), create docker-compose override (if needed), set up environment variables, capture BEFORE screenshots (if frontend)
+   Expected outputs: feature branch created and checked out
+   Constraint: None.
+
+5. Phase 4: Implementation
+   subject: "Phase 4: Implementation"
+   activeForm: "Implementing code changes"
+   Steps: MUST spawn implementer-{lang} agent with the plan from Phase 2, implement code following plan, follow project conventions from CLAUDE.md, create/modify files as needed
+   Expected outputs: implementer agent was spawned, code changes exist, new files created as planned
+   Constraint: Do not proceed if implementer agent was not spawned or no code changes exist.
+
+6. Phase 5: Testing
+   subject: "Phase 5: Testing"
+   activeForm: "Running tests"
+   Steps: Auto-detect testing framework, run unit tests with coverage, run integration tests, run E2E tests (if applicable), collect coverage reports, if tests fail spawn implementer to fix (max 3 iterations)
+   Expected outputs: all tests pass, coverage reports collected
+   Constraint: If tests fail after 3 fix iterations, STOP and report failure. Do not proceed.
+
+7. Phase 6: Visual Verification
+   subject: "Phase 6: Visual Verification"
+   activeForm: "Verifying visual changes"
+   Steps: If no frontend changes or --skip-visual flag mark completed as "Skipped" and proceed, otherwise take screenshots, compare with pixelmatch, if diff > 5% MUST spawn visual-verifier agent
+   Expected outputs: screenshots compared OR phase correctly skipped
+   Constraint: None.
+
+8. Phase 7: Documentation Update
+   subject: "Phase 7: Documentation Update"
+   activeForm: "Updating documentation"
+   Steps: MUST invoke /doc-updater skill, analyze changed files for doc impact, apply maintenance test, update CLAUDE.md and project-context if needed
+   Expected outputs: doc-updater skill was invoked and analysis completed
+   Constraint: Do not proceed if doc-updater was not invoked.
+
+9. Phase 8: PR Creation
+   subject: "Phase 8: PR Creation"
+   activeForm: "Creating pull request"
+   Steps: Commit all changes, push feature branch, create pull request with title/summary/test plan/ticket link, return PR URL
+   Expected outputs: commit exists, branch pushed, PR created with URL
+   Constraint: Do not proceed if PR was not created.
+
+10. Phase 9: Review Loop
+    subject: "Phase 9: Review Loop"
+    activeForm: "Running review loop"
+    Steps: Run PR review via /pr-reviewer skill, run security review via /security-review skill, if blocking issues spawn implementer for fixes and re-run tests, max 3 iterations
+    Expected outputs: PR review ran, security review ran, either no blocking issues or fixes applied
+    Constraint: If max iterations reached with unresolved issues, report and proceed to cleanup.
+
+11. Phase 10: Cleanup
+    subject: "Phase 10: Cleanup"
+    activeForm: "Cleaning up environment"
+    Steps: Remove docker-compose override (if created), archive artifacts, print final summary report
+    Expected outputs: cleanup done, summary printed
+    Constraint: None — this is the final phase.
+
+**After creating all 11 tasks**, use TaskUpdate to chain dependencies:
+- Task 2 addBlockedBy [Task 1]
+- Task 3 addBlockedBy [Task 2]
+- Task 4 addBlockedBy [Task 3]
+- Task 5 addBlockedBy [Task 4]
+- Task 6 addBlockedBy [Task 5]
+- Task 7 addBlockedBy [Task 6]
+- Task 8 addBlockedBy [Task 7]
+- Task 9 addBlockedBy [Task 8]
+- Task 10 addBlockedBy [Task 9]
+- Task 11 addBlockedBy [Task 10]
+
+### Task Status Rules
+
+- Use TaskUpdate to mark a task `in_progress` BEFORE starting any work on that phase
+- Use TaskUpdate to mark a task `completed` ONLY after verifying the Expected outputs listed above
+- NEVER mark a task completed if expected outputs are missing, required agents were not spawned, or errors occurred
+- If a phase is skipped via flag (e.g., `--skip-visual`): mark it completed with description "Skipped via flag"
+
+---
+
 ## Examples
 
 ### Example 1: Implement from Jira
