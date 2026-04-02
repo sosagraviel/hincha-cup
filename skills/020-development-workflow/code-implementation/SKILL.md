@@ -1,22 +1,7 @@
 ---
 name: code-implementation
 description: Language-aware code implementation orchestrator. Use when asked to "implement this feature", "write the code", or "implement the plan". Detects project stack, spawns appropriate implementer agent, and coordinates the implementation workflow.
-user-invocable: true
-argument-hint: [JIRA-KEY or path/to/plan.md]
-category: workflow
-stacks: [all]
-always_copy: true
-detection:
-  files: []
-  patterns: []
-metadata:
-  version: 2.0.0
-  triggers:
-    - implement code
-    - write code
-    - implement feature
-    - code this
-    - implement plan
+argument-hint: '[JIRA-KEY or path/to/plan.md]'
 ---
 
 # Code Implementation Orchestrator
@@ -39,6 +24,7 @@ This skill orchestrates code implementation by:
 ## When to Use
 
 Activate this skill when:
+
 - After creating an implementation plan with `/analyze-requirements`
 - User requests "implement the feature" or "write the code"
 - Ready to start coding based on requirements
@@ -56,12 +42,14 @@ First, ensure an implementation plan exists:
 3. **Read plan contents**: Load the complete plan into context
 
 **If plan is missing:**
+
 ```
 User must run /analyze-requirements first. Prompt them:
 "Implementation plan not found. Running /analyze-requirements {JIRA_KEY} first..."
 ```
 
 **Plan structure should include:**
+
 - Summary of changes
 - Files to create (with descriptions)
 - Files to modify (with changes needed)
@@ -78,22 +66,26 @@ Detect the primary language and framework to spawn the correct implementer agent
 **Detection logic:**
 
 **Python projects:**
+
 - Indicators: `pyproject.toml`, `setup.py`, `requirements.txt`, `*.py` files
 - Frameworks: FastAPI (`"fastapi"` in dependencies), Django (`"django"`), Flask (`"flask"`)
 - Stack name: `python`
 
 **TypeScript/JavaScript projects:**
+
 - Indicators: `package.json`, `tsconfig.json`, `*.ts` or `*.tsx` files
 - Frameworks: Next.js (`"next"`), React (`"react"`), NestJS (`"nestjs"`), Express (`"express"`)
 - Stack name: `typescript` or `javascript`
 
 **Other languages (future):**
+
 - Java: `pom.xml`, `build.gradle` → `java`
 - Go: `go.mod` → `go`
 - Ruby: `Gemfile` → `ruby`
 - PHP: `composer.json` → `php`
 
 **If stack detection fails:**
+
 - Prompt user: "Cannot detect project language. Supported: TypeScript, Python. Please specify: --stack typescript|python"
 - Exit and ask for manual stack specification
 
@@ -102,24 +94,28 @@ Detect the primary language and framework to spawn the correct implementer agent
 Based on detected stack, spawn the appropriate implementer agent:
 
 **For TypeScript projects:**
+
 ```bash
 # Spawn implementer-typescript agent
 claude-code agents run implementer-typescript
 ```
 
 **For Python projects:**
+
 ```bash
 # Spawn implementer-python agent
 claude-code agents run implementer-python
 ```
 
 **Pass context to agent:**
+
 - Implementation plan file path
 - Jira key (if applicable)
 - Detected framework
 - Any specific requirements from original user request
 
 **Agent responsibilities** (defined in implementer templates):
+
 - Follow the implementation plan exactly
 - Write quality code with proper types/hints
 - Match existing project conventions
@@ -138,6 +134,7 @@ While the implementer agent is running:
 4. **Handle blockers**: If agent gets stuck, provide guidance or escalate
 
 **Common issues to watch for:**
+
 - Circular import dependencies
 - Missing dependencies (need to install packages)
 - Type errors that require design decisions
@@ -145,6 +142,7 @@ While the implementer agent is running:
 - Files not found (wrong paths)
 
 **Error handling:**
+
 - Max 3 retry attempts for compilation errors
 - If agent makes reasonable design decision due to ambiguity, accept it
 - Document all decisions in code comments
@@ -155,6 +153,7 @@ While the implementer agent is running:
 After implementer agent finishes:
 
 **Check all planned files were handled:**
+
 ```
 For each file in "Files to Create" section:
   - Verify file exists
@@ -171,16 +170,19 @@ For each file in "Files to Delete" section:
 **Language-specific verification:**
 
 **Python:**
+
 - Run: `python -m py_compile {file}` for each new .py file
 - Verify no syntax errors
 - Check type hints are present (if project uses them)
 
 **TypeScript:**
+
 - Run: `npx tsc --noEmit` to verify compilation
 - Check no type errors
 - Verify imports resolve correctly
 
 **If verification fails:**
+
 - Identify missing files or errors
 - Ask implementer agent to fix issues
 - Re-run verification
@@ -196,6 +198,7 @@ Once implementation is verified complete:
 4. **Import validation**: Check no circular imports, all imports resolve
 
 **For TypeScript/JavaScript:**
+
 ```bash
 pnpm run lint:check     # or npm run lint
 pnpm run type:check     # or npx tsc --noEmit
@@ -203,6 +206,7 @@ pnpm run format:check   # or npx prettier --check
 ```
 
 **For Python:**
+
 ```bash
 ruff check .            # or flake8
 mypy .                  # type checking
@@ -210,6 +214,7 @@ black --check .         # formatting
 ```
 
 **If quality checks fail:**
+
 - Fix automatically if possible (run formatters, auto-fix linters)
 - Ask implementer agent to fix remaining issues
 - Document any intentional deviations from style guide
@@ -225,36 +230,45 @@ After successful implementation and quality checks:
 4. **Save implementation log**: Store summary in `/tmp/implementation_{JIRA_KEY}.log`
 
 **Output summary format:**
+
 ```markdown
 # Implementation Complete: {JIRA_KEY}
 
 ## Stack Detected
+
 - Language: {typescript|python}
 - Framework: {nestjs|fastapi|react|etc}
 
 ## Files Changed
+
 ### Created
+
 - path/to/file1.ts - Description
 - path/to/file2.ts - Description
 
 ### Modified
+
 - path/to/existing.ts - Changes made
 
 ### Deleted
+
 - path/to/old.ts - Reason for deletion
 
 ## Design Decisions
+
 1. Decision: Choice made when plan was ambiguous
    - Rationale: Why this choice
    - Documented in: file.ts:123
 
 ## Quality Checks
+
 - ✓ Linting: Passed
 - ✓ Type checking: Passed
 - ✓ Formatting: Passed
 - ✓ Imports: All resolve correctly
 
 ## Next Steps
+
 1. Run unit tests: /tester-unit {JIRA_KEY}
 2. Run integration tests: /tester-integration {JIRA_KEY}
 3. Security review: /security-review
@@ -266,6 +280,7 @@ After successful implementation and quality checks:
 ### TypeScript Projects
 
 **Conventions to follow:**
+
 - Use explicit return types on exported functions
 - Prefer `interface` over `type` for object shapes (unless union types needed)
 - Use `import type` for type-only imports
@@ -273,6 +288,7 @@ After successful implementation and quality checks:
 - Match existing file naming (PascalCase vs kebab-case)
 
 **Quality tools:**
+
 - ESLint with `--max-warnings=0`
 - TypeScript compiler in strict mode
 - Prettier for formatting
@@ -280,6 +296,7 @@ After successful implementation and quality checks:
 ### Python Projects
 
 **Conventions to follow:**
+
 - Use type hints on all function parameters and returns
 - Use `from __future__ import annotations` for forward references
 - Follow existing docstring style (Google vs Sphinx)
@@ -287,6 +304,7 @@ After successful implementation and quality checks:
 - Use Pydantic for validation if project uses it
 
 **Quality tools:**
+
 - Ruff for linting
 - Mypy for type checking
 - Black for formatting
@@ -294,6 +312,7 @@ After successful implementation and quality checks:
 ## Error Handling
 
 ### Missing Plan File
+
 ```
 Error: Implementation plan not found
 
@@ -304,6 +323,7 @@ Resolution:
 ```
 
 ### Stack Detection Failed
+
 ```
 Error: Cannot detect project language
 
@@ -315,6 +335,7 @@ Resolution:
 ```
 
 ### Implementer Agent Not Found
+
 ```
 Error: Implementer agent 'implementer-{stack}' not found
 
@@ -326,6 +347,7 @@ Resolution:
 ```
 
 ### Compilation Errors After Implementation
+
 ```
 Error: TypeScript compilation failed after implementation
 
@@ -338,6 +360,7 @@ Resolution:
 ```
 
 ### Verification Failed
+
 ```
 Error: Not all planned files were created
 
@@ -351,45 +374,57 @@ Resolution:
 ## Best Practices
 
 ### 1. Always Load Plan First
+
 **Good:**
+
 - Check for plan file existence
 - Load complete plan into context
 - Pass plan to implementer agent
 
 **Bad:**
+
 - Start coding without a plan
 - Make up requirements as you go
 - Skip planning phase
 
 ### 2. Let Specialized Agents Handle Details
+
 **Good:**
+
 - Detect stack, spawn correct implementer agent
 - Let agent make framework-specific decisions
 - Trust agent to follow best practices
 
 **Bad:**
+
 - Try to implement code in this orchestrator skill
 - Override implementer agent's decisions
 - Mix generic and specialized logic
 
 ### 3. Verify Before Progressing
+
 **Good:**
+
 - Check all files created/modified
 - Run compilation and linting
 - Confirm implementation matches plan
 
 **Bad:**
+
 - Skip verification step
 - Assume implementation is complete
 - Move to next phase without checking
 
 ### 4. Document Design Decisions
+
 **Good:**
+
 - Note any ambiguities encountered
 - Document resolution in code comments
 - Report decisions in implementation summary
 
 **Bad:**
+
 - Make silent assumptions
 - Skip documentation
 - Leave decisions unexplained
@@ -421,11 +456,13 @@ This skill is part of the complete SDLC workflow:
 ### Example 1: TypeScript Feature Implementation
 
 **Input:**
+
 ```bash
 /code-implementation PROJ-123
 ```
 
 **Execution:**
+
 ```
 Loading implementation plan: /tmp/plan_PROJ-123.md
 Detected stack: typescript (nestjs)
@@ -450,11 +487,13 @@ Next: /tester-unit PROJ-123
 ### Example 2: Python Feature Implementation
 
 **Input:**
+
 ```bash
 /code-implementation API-456
 ```
 
 **Execution:**
+
 ```
 Loading implementation plan: /tmp/plan_API-456.md
 Detected stack: python (fastapi)
@@ -479,19 +518,23 @@ Next: /tester-unit API-456
 ## Troubleshooting
 
 **Issue: "Implementer agent gets stuck on compilation error"**
+
 - Solution: Review error message, provide guidance to agent
 - Max 3 retries, then escalate to user if still failing
 
 **Issue: "Files created but don't match plan"**
+
 - Solution: Re-read plan, ask agent to correct implementation
 - Verify agent understood requirements correctly
 
 **Issue: "Quality checks fail after implementation"**
+
 - Solution: Auto-fix what's possible (formatting, auto-fix lint rules)
 - Ask agent to fix remaining issues manually
 - Max 2 fix attempts
 
 **Issue: "Cannot detect stack in multi-language project"**
+
 - Solution: User must specify dominant stack: --stack typescript|python
 - Or implement feature in each language separately
 

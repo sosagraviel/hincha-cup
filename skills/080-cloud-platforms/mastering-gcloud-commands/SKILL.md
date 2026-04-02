@@ -1,41 +1,6 @@
 ---
 name: mastering-gcloud-commands
-description: |
-  Expert-level Google Cloud CLI (gcloud) skill for managing GCP resources. Use when working
-  with "gcloud commands", "cloud run deploy", "alloydb", "cloud sql", "workload identity
-  federation", "iam permissions", "vpc networking", "secret manager", or "artifact registry".
-  Covers installation, authentication, IAM, Cloud Run, Cloud Storage, VPC, AlloyDB, Firebase,
-  and CI/CD integration with GitHub Actions and Cloud Build.
-triggers:
-  - gcloud
-  - gcp
-  - google cloud
-  - google cloud cli
-  - cloud run
-  - cloud run deploy
-  - cloud scheduler
-  - alloydb
-  - cloud sql
-  - cloud storage
-  - gcs
-  - firebase deploy
-  - github actions gcp
-  - workload identity federation
-  - wif
-  - iam gcp
-  - service account
-  - secret manager
-  - vpc connector
-  - vpc networking
-  - artifact registry
-  - cloud build
-  - gcloud auth
-  - gcloud config
-metadata:
-  version: 1.0.0
-  category: cloud-infrastructure
-  author: Richard Hightower
-  license: MIT
+description: Expert-level Google Cloud CLI (gcloud) skill for managing GCP resources. Use when working with "gcloud commands", "cloud run deploy", "alloydb", "cloud sql", "workload identity federation", "iam permissions", "vpc networking", "secret manager", or "artifact registry". Covers installation, authentication, IAM, Cloud Run, Cloud Storage, VPC, AlloyDB, Firebase, and CI/CD integration with GitHub Actions and Cloud Build.
 ---
 
 # Google Cloud CLI Expert Skill
@@ -86,6 +51,7 @@ gcloud config list
 ## Decision Trees
 
 ### Compute & Containers
+
 ```
 Need compute?
 ├── Serverless containers ──────────► Cloud Run (references/cloud-run-deployment.md)
@@ -95,6 +61,7 @@ Need compute?
 ```
 
 ### Data & Databases
+
 ```
 Need database?
 ├── PostgreSQL (managed) ───────────► AlloyDB (references/alloydb-management.md)
@@ -104,6 +71,7 @@ Need database?
 ```
 
 ### Networking
+
 ```
 Need networking?
 ├── Custom VPC/subnets ─────────────► VPC (references/vpc-networking.md)
@@ -113,6 +81,7 @@ Need networking?
 ```
 
 ### Security & Identity
+
 ```
 Need security/access?
 ├── Users, roles, policies ─────────► IAM (references/iam-permissions.md)
@@ -122,6 +91,7 @@ Need security/access?
 ```
 
 ### Build & Deploy
+
 ```
 Need CI/CD?
 ├── GitHub Actions ─────────────────► WIF + deploy (references/cicd-integration.md)
@@ -132,33 +102,34 @@ Need CI/CD?
 
 ## Global Flags
 
-| Flag | Description |
-|:-----|:------------|
-| `--project=PROJECT_ID` | Override default project |
-| `--region=REGION` | Specify region (e.g., `us-central1`) |
-| `--zone=ZONE` | Specify zone (e.g., `us-central1-a`) |
-| `--format=FORMAT` | Output: `json`, `yaml`, `table`, `value(FIELD)` |
-| `--filter=EXPRESSION` | Filter results (e.g., `status=RUNNING`) |
-| `--quiet` | Disable prompts (critical for CI/CD) |
-| `--verbosity=debug` | Enable debug output |
-| `--log-http` | Show HTTP request/response |
+| Flag                   | Description                                     |
+| :--------------------- | :---------------------------------------------- |
+| `--project=PROJECT_ID` | Override default project                        |
+| `--region=REGION`      | Specify region (e.g., `us-central1`)            |
+| `--zone=ZONE`          | Specify zone (e.g., `us-central1-a`)            |
+| `--format=FORMAT`      | Output: `json`, `yaml`, `table`, `value(FIELD)` |
+| `--filter=EXPRESSION`  | Filter results (e.g., `status=RUNNING`)         |
+| `--quiet`              | Disable prompts (critical for CI/CD)            |
+| `--verbosity=debug`    | Enable debug output                             |
+| `--log-http`           | Show HTTP request/response                      |
 
 ## Environment Variables
 
-| Variable | Purpose | Example |
-|:---------|:--------|:--------|
-| `CLOUDSDK_CORE_PROJECT` | Default project | `my-project` |
-| `CLOUDSDK_COMPUTE_REGION` | Default region | `us-central1` |
-| `CLOUDSDK_COMPUTE_ZONE` | Default zone | `us-central1-a` |
-| `CLOUDSDK_CORE_DISABLE_PROMPTS` | Non-interactive mode | `1` |
-| `GOOGLE_APPLICATION_CREDENTIALS` | SA key file path | `/path/to/key.json` |
-| `CLOUDSDK_CORE_VERBOSITY` | Log level | `debug` |
+| Variable                         | Purpose              | Example             |
+| :------------------------------- | :------------------- | :------------------ |
+| `CLOUDSDK_CORE_PROJECT`          | Default project      | `my-project`        |
+| `CLOUDSDK_COMPUTE_REGION`        | Default region       | `us-central1`       |
+| `CLOUDSDK_COMPUTE_ZONE`          | Default zone         | `us-central1-a`     |
+| `CLOUDSDK_CORE_DISABLE_PROMPTS`  | Non-interactive mode | `1`                 |
+| `GOOGLE_APPLICATION_CREDENTIALS` | SA key file path     | `/path/to/key.json` |
+| `CLOUDSDK_CORE_VERBOSITY`        | Log level            | `debug`             |
 
 ## Workflows
 
 ### Installation
 
 **macOS (recommended):**
+
 ```bash
 brew install --cask google-cloud-sdk
 gcloud init
@@ -204,6 +175,7 @@ For complete multi-account patterns, see `references/multi-account-management.md
 ### Cloud Run Deployment
 
 **Phase 1: Prepare**
+
 ```bash
 # Verify project and region
 gcloud config get-value project
@@ -211,12 +183,14 @@ gcloud config get-value compute/region
 ```
 
 **Phase 2: Build & Push (container deployments)**
+
 ```bash
 # Build and push to Artifact Registry
 gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT/REPO/IMAGE:TAG
 ```
 
 **Phase 3: Deploy (zero-traffic)**
+
 ```bash
 # Deploy from source (builds automatically)
 gcloud run deploy SERVICE --source . --region us-central1 --no-traffic --quiet
@@ -226,6 +200,7 @@ gcloud run deploy SERVICE --image IMAGE --region us-central1 --no-traffic --quie
 ```
 
 **Phase 4: Validate & Shift Traffic**
+
 ```bash
 # Verify revision is ready
 gcloud run revisions list --service=SERVICE --region=us-central1
@@ -303,6 +278,7 @@ For backups and connections, see `references/alloydb-management.md`.
 ### CI/CD Integration
 
 **GitHub Actions with WIF (recommended):**
+
 ```yaml
 permissions:
   id-token: write
@@ -333,38 +309,38 @@ For complete API list, see `references/api-enablement.md`.
 
 ## Reference Files
 
-| Reference | Description | Key Triggers |
-|:----------|:------------|:-------------|
-| [Installation (macOS)](references/installation-macos.md) | Homebrew, Apple Silicon setup | `install gcloud`, `macos` |
-| [Installation (Linux)](references/installation-linux.md) | apt, dnf/yum, Docker | `install gcloud`, `linux` |
-| [Installation (Windows)](references/installation-windows.md) | Installer, PowerShell | `install gcloud`, `windows` |
-| [Authentication](references/authentication.md) | OAuth, SA, WIF, impersonation | `gcloud auth`, `wif`, `service account` |
-| [Multi-Account](references/multi-account-management.md) | Configurations, switching | `config`, `switch project` |
-| [IAM Permissions](references/iam-permissions.md) | Roles, policies, governance | `iam`, `role`, `permission` |
-| [Cloud Run](references/cloud-run-deployment.md) | Deploy, traffic, secrets | `cloud run`, `deploy` |
-| [Cloud Scheduler](references/cloud-scheduler.md) | Cron jobs, triggers | `scheduler`, `cron` |
-| [Cloud Storage](references/cloud-storage.md) | Buckets, objects, IAM | `storage`, `gcs`, `bucket` |
-| [AlloyDB](references/alloydb-management.md) | Clusters, instances | `alloydb`, `postgresql` |
-| [VPC Networking](references/vpc-networking.md) | VPCs, subnets, firewall, connectors | `vpc`, `subnet`, `firewall` |
-| [Secret Manager](references/secret-manager.md) | Secrets, versions, IAM | `secret`, `secrets manager` |
-| [CI/CD Integration](references/cicd-integration.md) | GitHub Actions, Cloud Build | `github actions`, `cloud build` |
-| [Scripting Patterns](references/scripting-patterns.md) | Error handling, batch ops | `script`, `automation` |
-| [Firebase](references/firebase-management.md) | Functions, Hosting, Firestore | `firebase`, `firestore` |
-| [API Enablement](references/api-enablement.md) | Required APIs by service | `enable api` |
-| [Verification](references/verification-patterns.md) | Setup verification | `verify`, `check` |
-| [Auth Reset](references/authentication-reset.md) | Credential cleanup | `reset auth`, `revoke` |
-| [Troubleshooting](references/troubleshooting.md) | Debug, logs, common errors | `debug`, `error`, `logs` |
+| Reference                                                    | Description                         | Key Triggers                            |
+| :----------------------------------------------------------- | :---------------------------------- | :-------------------------------------- |
+| [Installation (macOS)](references/installation-macos.md)     | Homebrew, Apple Silicon setup       | `install gcloud`, `macos`               |
+| [Installation (Linux)](references/installation-linux.md)     | apt, dnf/yum, Docker                | `install gcloud`, `linux`               |
+| [Installation (Windows)](references/installation-windows.md) | Installer, PowerShell               | `install gcloud`, `windows`             |
+| [Authentication](references/authentication.md)               | OAuth, SA, WIF, impersonation       | `gcloud auth`, `wif`, `service account` |
+| [Multi-Account](references/multi-account-management.md)      | Configurations, switching           | `config`, `switch project`              |
+| [IAM Permissions](references/iam-permissions.md)             | Roles, policies, governance         | `iam`, `role`, `permission`             |
+| [Cloud Run](references/cloud-run-deployment.md)              | Deploy, traffic, secrets            | `cloud run`, `deploy`                   |
+| [Cloud Scheduler](references/cloud-scheduler.md)             | Cron jobs, triggers                 | `scheduler`, `cron`                     |
+| [Cloud Storage](references/cloud-storage.md)                 | Buckets, objects, IAM               | `storage`, `gcs`, `bucket`              |
+| [AlloyDB](references/alloydb-management.md)                  | Clusters, instances                 | `alloydb`, `postgresql`                 |
+| [VPC Networking](references/vpc-networking.md)               | VPCs, subnets, firewall, connectors | `vpc`, `subnet`, `firewall`             |
+| [Secret Manager](references/secret-manager.md)               | Secrets, versions, IAM              | `secret`, `secrets manager`             |
+| [CI/CD Integration](references/cicd-integration.md)          | GitHub Actions, Cloud Build         | `github actions`, `cloud build`         |
+| [Scripting Patterns](references/scripting-patterns.md)       | Error handling, batch ops           | `script`, `automation`                  |
+| [Firebase](references/firebase-management.md)                | Functions, Hosting, Firestore       | `firebase`, `firestore`                 |
+| [API Enablement](references/api-enablement.md)               | Required APIs by service            | `enable api`                            |
+| [Verification](references/verification-patterns.md)          | Setup verification                  | `verify`, `check`                       |
+| [Auth Reset](references/authentication-reset.md)             | Credential cleanup                  | `reset auth`, `revoke`                  |
+| [Troubleshooting](references/troubleshooting.md)             | Debug, logs, common errors          | `debug`, `error`, `logs`                |
 
 ## Scripts
 
-| Script | Description |
-|:-------|:------------|
-| `scripts/verify-gcp-setup.sh` | Comprehensive GCP setup verification |
-| `scripts/setup-gcloud-configs.sh` | Initialize multi-environment configs |
-| `scripts/switch-gcloud-project.sh` | Switch between projects |
-| `scripts/reset-gcloud-auth.sh` | Complete auth reset |
-| `scripts/deploy-cloud-run.sh` | Cloud Run deployment helper |
-| `scripts/setup-wif-github.sh` | WIF setup for GitHub Actions |
+| Script                             | Description                          |
+| :--------------------------------- | :----------------------------------- |
+| `scripts/verify-gcp-setup.sh`      | Comprehensive GCP setup verification |
+| `scripts/setup-gcloud-configs.sh`  | Initialize multi-environment configs |
+| `scripts/switch-gcloud-project.sh` | Switch between projects              |
+| `scripts/reset-gcloud-auth.sh`     | Complete auth reset                  |
+| `scripts/deploy-cloud-run.sh`      | Cloud Run deployment helper          |
+| `scripts/setup-wif-github.sh`      | WIF setup for GitHub Actions         |
 
 ## Troubleshooting
 
@@ -384,39 +360,39 @@ gcloud logging read 'resource.type="cloud_run_revision"' --limit=50
 
 ### Common Errors
 
-| Error | Solution |
-|:------|:---------|
-| `PERMISSION_DENIED` | Check IAM roles: `gcloud projects get-iam-policy PROJECT_ID` |
-| `API not enabled` | Enable API: `gcloud services enable API_NAME` |
-| `VPC connector failed` | Check connector status, may need recreation |
-| `Container failed to start` | Check Cloud Run logs, test locally first |
+| Error                       | Solution                                                     |
+| :-------------------------- | :----------------------------------------------------------- |
+| `PERMISSION_DENIED`         | Check IAM roles: `gcloud projects get-iam-policy PROJECT_ID` |
+| `API not enabled`           | Enable API: `gcloud services enable API_NAME`                |
+| `VPC connector failed`      | Check connector status, may need recreation                  |
+| `Container failed to start` | Check Cloud Run logs, test locally first                     |
 
 For complete troubleshooting guide, see `references/troubleshooting.md`.
 
 ## Best Practices
 
-| Category | Recommendation |
-|:---------|:---------------|
-| **Security** | Use Workload Identity Federation over service account keys |
-| **Security** | Use Secret Manager for sensitive configuration |
-| **Scripting** | Always use `--quiet` flag in automation |
-| **Scripting** | Use `--format=json` or `--format=value()` for parsing |
-| **Safety** | Use `gcloud ... --verbosity=debug` to troubleshoot |
-| **Performance** | Use `--filter` to reduce API response size |
-| **Regions** | Explicitly set region in scripts to avoid surprises |
+| Category        | Recommendation                                             |
+| :-------------- | :--------------------------------------------------------- |
+| **Security**    | Use Workload Identity Federation over service account keys |
+| **Security**    | Use Secret Manager for sensitive configuration             |
+| **Scripting**   | Always use `--quiet` flag in automation                    |
+| **Scripting**   | Use `--format=json` or `--format=value()` for parsing      |
+| **Safety**      | Use `gcloud ... --verbosity=debug` to troubleshoot         |
+| **Performance** | Use `--filter` to reduce API response size                 |
+| **Regions**     | Explicitly set region in scripts to avoid surprises        |
 
 ## Common Mistakes
 
 Avoid these anti-patterns:
 
-| Mistake | Problem | Correct Approach |
-|:--------|:--------|:-----------------|
-| `gcloud auth activate-service-account --key-file=key.json` | Keys can leak, hard to rotate | Use WIF or impersonation |
-| `gcloud run deploy SERVICE --source .` (no region) | Deploys to random default region | Always specify `--region` |
-| `echo $SECRET` in logs | Exposes secrets in CI logs | Use `--format=value()` quietly |
-| Hardcoding project ID in scripts | Breaks portability | Use `gcloud config get-value project` |
-| Missing `--quiet` in CI/CD | Scripts hang on prompts | Always add `--quiet` for automation |
-| Using `roles/editor` or `roles/owner` | Over-privileged, security risk | Use specific roles like `roles/run.admin` |
+| Mistake                                                    | Problem                          | Correct Approach                          |
+| :--------------------------------------------------------- | :------------------------------- | :---------------------------------------- |
+| `gcloud auth activate-service-account --key-file=key.json` | Keys can leak, hard to rotate    | Use WIF or impersonation                  |
+| `gcloud run deploy SERVICE --source .` (no region)         | Deploys to random default region | Always specify `--region`                 |
+| `echo $SECRET` in logs                                     | Exposes secrets in CI logs       | Use `--format=value()` quietly            |
+| Hardcoding project ID in scripts                           | Breaks portability               | Use `gcloud config get-value project`     |
+| Missing `--quiet` in CI/CD                                 | Scripts hang on prompts          | Always add `--quiet` for automation       |
+| Using `roles/editor` or `roles/owner`                      | Over-privileged, security risk   | Use specific roles like `roles/run.admin` |
 
 **Bad vs Good Examples:**
 

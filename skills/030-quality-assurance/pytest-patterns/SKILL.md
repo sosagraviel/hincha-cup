@@ -1,8 +1,6 @@
 ---
 name: pytest-patterns
 description: Comprehensive pytest expertise covering fixtures, parametrization, mocking, coverage reporting, plugins, and advanced testing patterns
-user-invokable: true
-disable-model-invocation: false
 ---
 
 # Pytest Patterns & Best Practices
@@ -12,6 +10,7 @@ Expert guidance for writing comprehensive, maintainable tests using pytest.
 ## Pytest Fundamentals
 
 ### Test Discovery and Naming
+
 ```python
 # Test files: test_*.py or *_test.py
 # Test functions: test_*()
@@ -34,6 +33,7 @@ class TestCalculator:
 ```
 
 ### Running Tests
+
 ```bash
 # Run all tests
 pytest
@@ -70,6 +70,7 @@ pytest --ff
 ```
 
 ### Assertions
+
 ```python
 # Basic assertions
 assert value == expected
@@ -104,6 +105,7 @@ def test_deprecation_warning():
 ## Fixtures
 
 ### Basic Fixtures
+
 ```python
 import pytest
 
@@ -124,6 +126,7 @@ def test_user_email(sample_user):
 ```
 
 ### Fixture Scopes
+
 ```python
 # Function scope (default): New instance for each test
 @pytest.fixture(scope='function')
@@ -152,6 +155,7 @@ def config():
 ```
 
 ### Fixture Factories
+
 ```python
 @pytest.fixture
 def make_user():
@@ -176,6 +180,7 @@ def test_multiple_users(make_user):
 ```
 
 ### conftest.py (Shared Fixtures)
+
 ```python
 # tests/conftest.py - Fixtures available to all tests in directory and subdirectories
 import pytest
@@ -203,6 +208,7 @@ def client(app):
 ```
 
 ### Built-in Fixtures
+
 ```python
 def test_with_tmp_path(tmp_path):
     """tmp_path provides a temporary directory unique to the test."""
@@ -234,6 +240,7 @@ def test_monkeypatch(monkeypatch):
 ## Parametrization
 
 ### Basic Parametrization
+
 ```python
 @pytest.mark.parametrize('input,expected', [
     (2, 4),
@@ -254,6 +261,7 @@ def test_addition(a, b, expected):
 ```
 
 ### Parametrize with IDs
+
 ```python
 @pytest.mark.parametrize('input,expected', [
     (2, 4),
@@ -273,6 +281,7 @@ def test_user(user):
 ```
 
 ### Parametrize Multiple Decorators
+
 ```python
 @pytest.mark.parametrize('x', [1, 2])
 @pytest.mark.parametrize('y', [3, 4])
@@ -282,6 +291,7 @@ def test_combinations(x, y):
 ```
 
 ### Parametrize Fixtures
+
 ```python
 @pytest.fixture(params=['sqlite', 'postgresql', 'mysql'])
 def database(request):
@@ -299,6 +309,7 @@ def test_query(database):
 ## Mocking
 
 ### unittest.mock
+
 ```python
 from unittest.mock import Mock, MagicMock, patch
 
@@ -336,6 +347,7 @@ def test_side_effect():
 ```
 
 ### Patching
+
 ```python
 # Patch function
 @patch('myapp.api.requests.get')
@@ -367,6 +379,7 @@ def test_patch_attribute():
 ```
 
 ### pytest-mock Plugin
+
 ```python
 def test_with_mocker(mocker):
     # Cleaner syntax with mocker fixture
@@ -388,6 +401,7 @@ def test_spy(mocker):
 ## Coverage
 
 ### pytest-cov Plugin
+
 ```bash
 # Basic coverage
 pytest --cov=myapp
@@ -412,6 +426,7 @@ pytest --cov=myapp --cov-branch
 ```
 
 ### .coveragerc Configuration
+
 ```ini
 # .coveragerc
 [run]
@@ -437,6 +452,7 @@ directory = htmlcov
 ## Markers
 
 ### Built-in Markers
+
 ```python
 @pytest.mark.skip(reason="Not implemented yet")
 def test_future_feature():
@@ -461,6 +477,7 @@ def test_with_xfail_param(input, expected):
 ```
 
 ### Custom Markers
+
 ```python
 # pytest.ini or pyproject.toml
 # [tool.pytest.ini_options]
@@ -486,6 +503,7 @@ def test_database_integration():
 ## Plugins
 
 ### pytest-django
+
 ```python
 import pytest
 
@@ -508,6 +526,7 @@ def test_with_transaction():
 ```
 
 ### pytest-asyncio
+
 ```python
 import pytest
 
@@ -528,6 +547,7 @@ async def test_with_async_fixture(async_client):
 ```
 
 ### pytest-xdist (Parallel Testing)
+
 ```bash
 # Run with 4 processes
 pytest -n 4
@@ -540,6 +560,7 @@ pytest -n auto --dist loadscope
 ```
 
 ### pytest-benchmark
+
 ```python
 def test_performance(benchmark):
     result = benchmark(expensive_function, arg1, arg2)
@@ -554,6 +575,7 @@ def test_with_setup(benchmark):
 ```
 
 ### pytest-timeout
+
 ```python
 @pytest.mark.timeout(5)
 def test_with_timeout():
@@ -565,6 +587,7 @@ def test_with_timeout():
 ## Advanced Patterns
 
 ### Fixtures with Teardown
+
 ```python
 @pytest.fixture
 def database():
@@ -584,6 +607,7 @@ def file_handle():
 ```
 
 ### Fixture Dependencies
+
 ```python
 @pytest.fixture
 def database():
@@ -605,6 +629,7 @@ def test_user(user):
 ```
 
 ### Snapshot Testing
+
 ```python
 def test_snapshot(snapshot):
     """Snapshot testing with pytest-snapshot."""
@@ -613,6 +638,7 @@ def test_snapshot(snapshot):
 ```
 
 ### Property-based Testing (Hypothesis)
+
 ```python
 from hypothesis import given, strategies as st
 

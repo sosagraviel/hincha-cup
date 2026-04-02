@@ -1,13 +1,6 @@
 ---
 name: design-doc-mermaid
 description: Create architectural diagrams, flowcharts, sequence diagrams, and entity-relationship diagrams using Mermaid syntax for technical documentation
-category: documentation
-stacks: []
-detection:
-  files: []
-  patterns: []
-always_copy: false
-version: 1.0.0
 ---
 
 # Design Doc Mermaid Skill
@@ -43,6 +36,7 @@ flowchart TD
 ```
 
 **Syntax**:
+
 ```
 flowchart TD
     A[Node] --> B{Decision}
@@ -75,6 +69,7 @@ sequenceDiagram
 ```
 
 **Syntax**:
+
 ```
 sequenceDiagram
     participant A
@@ -127,6 +122,7 @@ classDiagram
 ```
 
 **Syntax**:
+
 ```
 classDiagram
     class Entity {
@@ -154,6 +150,7 @@ stateDiagram-v2
 ```
 
 **Syntax**:
+
 ```
 stateDiagram-v2
     [*] --> State1
@@ -214,6 +211,7 @@ erDiagram
 ```
 
 **Syntax**:
+
 ```
 erDiagram
     TABLE1 ||--o{ TABLE2 : "relationship"
@@ -263,27 +261,32 @@ gantt
 ## Best Practices
 
 ### 1. Keep It Simple
+
 - Maximum 10-15 nodes per diagram
 - Use subgraphs for grouping (flowcharts)
 - Break complex flows into multiple diagrams
 
 ### 2. Use Consistent Naming
+
 - `camelCase` for internal entities
 - `PascalCase` for classes/types
 - `snake_case` for database columns
 
 ### 3. Add Context
+
 - Include a title/heading above diagram
 - Explain what the diagram shows
 - Link to related documentation
 
 ### 4. Color Coding (Optional)
+
 ```
 style NodeA fill:#f9f,stroke:#333,stroke-width:2px
 style NodeB fill:#bbf,stroke:#333,stroke-width:2px
 ```
 
 ### 5. Notes and Annotations
+
 ```
 Note over User,API: Authentication flow
 Note right of API: Validates JWT
@@ -301,7 +304,8 @@ When creating a PR with architectural changes:
    - Service interaction → Component diagram
 3. **Generate Diagram**: Use Mermaid syntax
 4. **Add to PR Description**:
-   ```markdown
+
+   ````markdown
    ## Architecture
 
    ### Data Flow
@@ -311,15 +315,21 @@ When creating a PR with architectural changes:
        A[Client] --> B[API]
        B --> C[Database]
    ```
+   ````
+
    ```
+
+   ```
+
 5. **Explain Context**: Add 2-3 sentences describing the diagram
 
 ## Example: PR with Mermaid
 
-```markdown
+````markdown
 # Add Real-Time Ticket Updates
 
 ## Changes
+
 - Implemented Socket.IO for ticket updates
 - Added BullMQ queue for event distribution
 - Updated frontend to subscribe to ticket events
@@ -346,6 +356,7 @@ sequenceDiagram
     Socket.IO->>Frontend2: Emit ticket.updated
     Frontend2->>User2: Show Notification
 ```
+````
 
 This diagram shows how ticket updates are propagated in real-time using BullMQ and Socket.IO.
 
@@ -367,6 +378,7 @@ erDiagram
 ```
 
 Added `ticket_events` table to store audit log of all ticket changes.
+
 ```
 
 ## Mermaid Live Editor
@@ -391,3 +403,4 @@ If Mermaid doesn't support your use case, consider PlantUML for:
 - Mermaid Docs: https://mermaid.js.org/
 - Syntax Cheat Sheet: https://mermaid.js.org/syntax/
 - Live Editor: https://mermaid.live
+```

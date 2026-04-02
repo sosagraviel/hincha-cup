@@ -1,14 +1,7 @@
 ---
 name: mastering-github-cli
-description: |
-  GitHub CLI (gh) command reference for repository search, code discovery, CI/CD monitoring, workflow authoring, and automation. Triggers on "gh" commands, "github cli", searching repos for files/directories (.skilz, .cursor, .codex, Dockerfile), monitoring GitHub Actions workflows, checking PR CI status, downloading artifacts, creating PRs/issues/repos from command line, triggering workflows, forking repos, batch operations, "write a workflow", "github actions", "CI/CD pipeline", "workflow yaml", and "matrix builds". Use for gh search, gh run, gh pr, gh issue, gh repo, gh workflow, gh api, workflow authoring, and automating GitHub operations.
-license: MIT
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Glob
-  - Grep
+description: GitHub CLI (gh) command reference for repository search, code discovery, CI/CD monitoring, workflow authoring, and automation. Triggers on "gh" commands, "github cli", searching repos for files/directories (.skilz, .cursor, .codex, Dockerfile), monitoring GitHub Actions workflows, checking PR CI status, downloading artifacts, creating PRs/issues/repos from command line, triggering workflows, forking repos, batch operations, "write a workflow", "github actions", "CI/CD pipeline", "workflow yaml", and "matrix builds". Use for gh search, gh run, gh pr, gh issue, gh repo, gh workflow, gh api, workflow authoring, and automating GitHub operations.
+allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
 # Mastering GitHub CLI
@@ -66,18 +59,18 @@ gh run watch "$RUN_ID" --exit-status
 
 ## Command Reference
 
-| Task | Command | Reference |
-|------|---------|-----------|
-| Find repos with file | `gh search code --filename FILE` | [search.md](references/search.md) |
-| Find repos with directory | `gh search code "path:DIR"` | [search.md](references/search.md) |
-| List failed runs | `gh run list --status=failure` | [monitoring.md](references/monitoring.md) |
-| Watch run | `gh run watch ID --exit-status` | [monitoring.md](references/monitoring.md) |
-| Download artifacts | `gh run download ID -n NAME` | [monitoring.md](references/monitoring.md) |
-| Create PR | `gh pr create --fill` | [resources.md](references/resources.md) |
-| Check PR CI | `gh pr checks --watch` | [monitoring.md](references/monitoring.md) |
-| Trigger workflow | `gh workflow run NAME.yml` | [automation.md](references/automation.md) |
-| Fork repo | `gh repo fork REPO --clone` | [resources.md](references/resources.md) |
-| REST/GraphQL API | `gh api repos/{owner}/{repo}` | [api.md](references/api.md) |
+| Task                      | Command                          | Reference                                 |
+| ------------------------- | -------------------------------- | ----------------------------------------- |
+| Find repos with file      | `gh search code --filename FILE` | [search.md](references/search.md)         |
+| Find repos with directory | `gh search code "path:DIR"`      | [search.md](references/search.md)         |
+| List failed runs          | `gh run list --status=failure`   | [monitoring.md](references/monitoring.md) |
+| Watch run                 | `gh run watch ID --exit-status`  | [monitoring.md](references/monitoring.md) |
+| Download artifacts        | `gh run download ID -n NAME`     | [monitoring.md](references/monitoring.md) |
+| Create PR                 | `gh pr create --fill`            | [resources.md](references/resources.md)   |
+| Check PR CI               | `gh pr checks --watch`           | [monitoring.md](references/monitoring.md) |
+| Trigger workflow          | `gh workflow run NAME.yml`       | [automation.md](references/automation.md) |
+| Fork repo                 | `gh repo fork REPO --clone`      | [resources.md](references/resources.md)   |
+| REST/GraphQL API          | `gh api repos/{owner}/{repo}`    | [api.md](references/api.md)               |
 
 ### JSON Output
 
@@ -89,21 +82,21 @@ gh run list --json status --jq '.[] | select(.status=="completed")'
 
 ### Environment & Auth
 
-| Variable | Purpose |
-|----------|---------|
-| `GH_TOKEN` | Authentication token |
-| `GH_REPO` | Default owner/repo |
-| `GH_HOST` | GitHub Enterprise host |
-| `GH_PROMPT_DISABLED=1` | Disable prompts (CI) |
+| Variable               | Purpose                |
+| ---------------------- | ---------------------- |
+| `GH_TOKEN`             | Authentication token   |
+| `GH_REPO`              | Default owner/repo     |
+| `GH_HOST`              | GitHub Enterprise host |
+| `GH_PROMPT_DISABLED=1` | Disable prompts (CI)   |
 
 ### Rate Limits
 
-| Endpoint | Limit | Notes |
-|----------|-------|-------|
-| REST API | 5,000/hour | Per authenticated user |
-| Search API | 30/minute | All search endpoints |
-| Code Search | 10/minute | More restrictive |
-| Search results | 1,000 max | Use date partitioning for more |
+| Endpoint       | Limit      | Notes                          |
+| -------------- | ---------- | ------------------------------ |
+| REST API       | 5,000/hour | Per authenticated user         |
+| Search API     | 30/minute  | All search endpoints           |
+| Code Search    | 10/minute  | More restrictive               |
+| Search results | 1,000 max  | Use date partitioning for more |
 
 ---
 
@@ -188,6 +181,7 @@ For enterprise CI/CD pipelines:
 - **Multi-Stack Ordering** - Foundation → Schemas → Application
 
 **Additional References:**
+
 - **Workflow Summaries** - Rich markdown output with $GITHUB_STEP_SUMMARY
 - **Container Security** - Multi-stage builds, Trivy scanning, image tagging
 - **Security Scanning** - CodeQL, Dependabot, IaC scanning (Checkov, tfsec)
@@ -200,19 +194,19 @@ For enterprise CI/CD pipelines:
 
 Pre-built automation scripts with error handling and rate limit awareness.
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `find-repos-with-path.sh` | Find repos containing specific paths | `./scripts/find-repos-with-path.sh .skilz [owner]` |
-| `wait-for-run.sh` | Block until workflow completes | `./scripts/wait-for-run.sh RUN_ID [timeout]` |
-| `batch-search.sh` | Search >1000 results via date partitioning | `./scripts/batch-search.sh "query" START END` |
+| Script                    | Purpose                                    | Usage                                              |
+| ------------------------- | ------------------------------------------ | -------------------------------------------------- |
+| `find-repos-with-path.sh` | Find repos containing specific paths       | `./scripts/find-repos-with-path.sh .skilz [owner]` |
+| `wait-for-run.sh`         | Block until workflow completes             | `./scripts/wait-for-run.sh RUN_ID [timeout]`       |
+| `batch-search.sh`         | Search >1000 results via date partitioning | `./scripts/batch-search.sh "query" START END`      |
 
 ### Exit Codes
 
-| Script | 0 | 1 | 2 | 3 |
-|--------|---|---|---|---|
-| `wait-for-run.sh` | success | failure | cancelled | timeout |
-| `find-repos-with-path.sh` | success | error | - | - |
-| `batch-search.sh` | success | error | - | - |
+| Script                    | 0       | 1       | 2         | 3       |
+| ------------------------- | ------- | ------- | --------- | ------- |
+| `wait-for-run.sh`         | success | failure | cancelled | timeout |
+| `find-repos-with-path.sh` | success | error   | -         | -       |
+| `batch-search.sh`         | success | error   | -         | -       |
 
 ---
 

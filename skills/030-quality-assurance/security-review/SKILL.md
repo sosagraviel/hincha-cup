@@ -1,30 +1,15 @@
 ---
 name: security-review
 description: Automated security scanning and OWASP Top 10 verification. Use when asked to "security review", "security scan", "check for vulnerabilities", "OWASP check", or before creating a PR. Runs language-specific security scanners (bandit/pip-audit for Python, npm audit/eslint security for TypeScript), checks for secrets, SQL injection, XSS, and produces detailed security report with structured JSON for Phase 9 review loop integration.
-user-invocable: true
-argument-hint: [optional: path/to/code]
-disable-model-invocation: false
-allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
-metadata:
-  category: sdlc-workflow
-  triggers:
-    - security review
-    - security scan
-    - vulnerability scan
-    - owasp check
-    - security audit
+argument-hint: '[optional: path/to/code]'
+allowed-tools: Read, Write, Bash, Glob, Grep
 ---
 
 # Security Review Skill V2
 
 Automated security scanning with language-specific tools and OWASP Top 10 verification. Integrates with implement-ticket Phase 9 review loop for automated security remediation.
 
-## Table of Contents
+## Contents
 
 - [What's New in V2](#whats-new-in-v2)
 - [Integration with implement-ticket V2](#integration-with-implement-ticket-v2)
@@ -54,6 +39,7 @@ Automated security scanning with language-specific tools and OWASP Top 10 verifi
 ### Backward Compatibility
 
 V2 maintains full backward compatibility with V1:
+
 - All existing security scanners still supported
 - Can be run standalone or as part of implement-ticket workflow
 - Human-readable markdown report still generated
@@ -117,6 +103,7 @@ This skill performs security reviews by:
 
 **Input:** Codebase path (defaults to current directory)
 **Output:**
+
 - `security-results.json` - Structured findings for orchestrator
 - `security-report.md` - Human-readable report
 - Exit code 0 (pass) or 1 (blocking issues)
@@ -124,6 +111,7 @@ This skill performs security reviews by:
 ## When to Use
 
 Activate this skill when:
+
 - Before creating a pull request
 - After code implementation is complete
 - Asked to "run security scan" or "check for vulnerabilities"
@@ -786,7 +774,7 @@ EOF
 
 ### Phase 7: Generate Human-Readable Report
 
-```bash
+````bash
 generate_security_report() {
     local jira_key="$1"
     local artifacts_dir=".claude/artifacts/$jira_key/security"
@@ -921,19 +909,20 @@ list_major_findings() {
 list_minor_findings() {
     jq -r '.findings.minor[] | "#### \(.id): \(.issue)\n\n**File:** `\(.file):\(.line)`\n\n**Details:** \(.details)\n\n**Fix:**\n```\n\(.fixInstructions.newCode)\n```\n\n**Explanation:** \(.fixInstructions.explanation)\n\n---\n"' "$artifacts_dir/security-results.json" 2>/dev/null || echo "_No minor findings_"
 }
-```
+````
 
 ## Security Scanners
 
 ### Python Scanners
 
-| Tool | Purpose | Installation |
-|------|---------|--------------|
-| **bandit** | Static code analysis for security issues | `pip install bandit` |
+| Tool          | Purpose                                      | Installation            |
+| ------------- | -------------------------------------------- | ----------------------- |
+| **bandit**    | Static code analysis for security issues     | `pip install bandit`    |
 | **pip-audit** | Audit dependencies for known vulnerabilities | `pip install pip-audit` |
-| **safety** | Check dependencies against safety database | `pip install safety` |
+| **safety**    | Check dependencies against safety database   | `pip install safety`    |
 
 **Usage:**
+
 ```bash
 # Bandit
 bandit -r . -f json
@@ -947,13 +936,14 @@ safety check --json
 
 ### TypeScript/JavaScript Scanners
 
-| Tool | Purpose | Installation |
-|------|---------|--------------|
-| **npm audit** | Built-in dependency vulnerability scanner | Built-in with npm |
-| **eslint-plugin-security** | ESLint rules for security | `npm install --save-dev eslint-plugin-security` |
-| **snyk** | Comprehensive vulnerability scanner | `npm install -g snyk` |
+| Tool                       | Purpose                                   | Installation                                    |
+| -------------------------- | ----------------------------------------- | ----------------------------------------------- |
+| **npm audit**              | Built-in dependency vulnerability scanner | Built-in with npm                               |
+| **eslint-plugin-security** | ESLint rules for security                 | `npm install --save-dev eslint-plugin-security` |
+| **snyk**                   | Comprehensive vulnerability scanner       | `npm install -g snyk`                           |
 
 **Usage:**
+
 ```bash
 # npm audit
 npm audit --json
@@ -968,6 +958,7 @@ snyk test
 ## OWASP Top 10 Checks
 
 ### A01: Broken Access Control
+
 ```bash
 # Check for missing authorization
 grep -rn "@router" . --include="*.py" | grep -v "Depends"
@@ -975,6 +966,7 @@ grep -rn "app.get\|app.post" . --include="*.ts" | grep -v "auth\|guard"
 ```
 
 ### A03: Injection
+
 ```bash
 # SQL Injection
 grep -rn "execute.*+" . --include="*.py"
@@ -989,12 +981,14 @@ grep -rn "dangerouslySetInnerHTML\|innerHTML" . --include="*.tsx"
 ```
 
 ### A02: Cryptographic Failures
+
 ```bash
 # Weak algorithms
 grep -rn "md5\|sha1\|DES\|RC4" .
 ```
 
 ### A06: Vulnerable Components
+
 ```bash
 # Python
 pip-audit
@@ -1004,6 +998,7 @@ npm audit
 ```
 
 ### A07: Authentication Failures
+
 ```bash
 # Hardcoded credentials
 grep -rn "password\s*=\s*['\"]" . --exclude-dir={node_modules,venv}
@@ -1022,9 +1017,9 @@ interface SecurityResults {
   summary: string;
 
   findings: {
-    blocking: SecurityFinding[];  // Must fix
-    major: SecurityFinding[];     // Should fix
-    minor: SecurityFinding[];     // Nice to have
+    blocking: SecurityFinding[]; // Must fix
+    major: SecurityFinding[]; // Should fix
+    minor: SecurityFinding[]; // Nice to have
   };
 
   metrics: {
@@ -1081,11 +1076,11 @@ interface FixInstruction {
 
 ### Severity Levels
 
-| Severity | Description | Examples |
-|----------|-------------|----------|
-| **BLOCKING** | Critical security risk, must fix | Exposed secrets, SQL injection, RCE |
-| **MAJOR** | Significant risk, should fix soon | Weak crypto, missing auth, XSS |
-| **MINOR** | Moderate risk, plan to fix | Vulnerable deps (low severity), missing logging |
+| Severity     | Description                       | Examples                                        |
+| ------------ | --------------------------------- | ----------------------------------------------- |
+| **BLOCKING** | Critical security risk, must fix  | Exposed secrets, SQL injection, RCE             |
+| **MAJOR**    | Significant risk, should fix soon | Weak crypto, missing auth, XSS                  |
+| **MINOR**    | Moderate risk, plan to fix        | Vulnerable deps (low severity), missing logging |
 
 ## Phase 9 Integration
 
@@ -1132,6 +1127,7 @@ fi
 ## Error Handling
 
 ### Scanner Not Installed
+
 ```bash
 if ! command -v bandit &>/dev/null; then
     echo "Warning: bandit not installed"
@@ -1141,6 +1137,7 @@ fi
 ```
 
 ### Scanner Execution Failure
+
 ```bash
 bandit -r . -f json || {
     echo "Error: bandit scan failed"
@@ -1150,6 +1147,7 @@ bandit -r . -f json || {
 ```
 
 ### Invalid Project Structure
+
 ```bash
 if [[ ! -f "pyproject.toml" ]] && [[ ! -f "package.json" ]]; then
     echo "Warning: Cannot detect project type"
@@ -1161,6 +1159,7 @@ fi
 ## Best Practices
 
 ### 1. Run Before Every PR
+
 ```bash
 # Add to pre-commit hook or CI
 /security-review || {
@@ -1171,14 +1170,17 @@ fi
 ```
 
 ### 2. Focus on Blocking First
+
 ```markdown
 Priority order:
+
 1. BLOCKING: Fix immediately
 2. MAJOR: Fix before merge
 3. MINOR: Create follow-up ticket
 ```
 
 ### 3. Don't Commit Secrets
+
 ```bash
 # Use environment variables
 export DATABASE_URL="..."
@@ -1191,6 +1193,7 @@ password = "hardcoded123"  # BAD
 ```
 
 ### 4. Keep Dependencies Updated
+
 ```bash
 # Python
 pip-audit --fix
@@ -1204,12 +1207,14 @@ npm audit fix
 ### Example 1: Python Project Security Review (Integrated Mode)
 
 **Input:**
+
 ```bash
 $ claude-code /security-review --jira-key PROJ-123 --mode integrated
 ```
 
 **Output:**
-```markdown
+
+````markdown
 # Security Review Report
 
 Language: Python (FastAPI)
@@ -1217,28 +1222,34 @@ Language: Python (FastAPI)
 ## Automated Scans
 
 ### Bandit: 3 issues
+
 - [B201] Flask debug mode (HIGH)
 - [B105] Hardcoded password (CRITICAL)
 - [B608] SQL injection (CRITICAL)
 
 ### pip-audit: 2 vulnerable dependencies
+
 - urllib3==1.26.0 (CVE-2021-33503)
 - requests==2.25.0 (CVE-2021-33503)
 
 ## Secrets Detection
 
 CRITICAL: Found 1 potential secret:
+
 - src/config.py:15 - AWS Access Key
 
 ## OWASP Top 10
 
 A01 Broken Access Control: WARN
+
 - Found 5 unprotected routes
 
 A03 Injection: CRITICAL
+
 - 2 SQL injection points in src/db/queries.py
 
 A06 Vulnerable Components: HIGH
+
 - 2 vulnerable dependencies
 
 ## Security Score: 45/100
@@ -1252,9 +1263,11 @@ A06 Vulnerable Components: HIGH
 **Details:** AWS access key AKIA... exposed in source code
 
 **Fix:**
+
 ```python
 AWS_KEY = os.environ.get('AWS_ACCESS_KEY_ID')
 ```
+````
 
 **Explanation:** Move secret to environment variable
 
@@ -1263,17 +1276,19 @@ AWS_KEY = os.environ.get('AWS_ACCESS_KEY_ID')
 ## Next Steps
 
 TRIGGER_REVIEW_LOOP: 2 blocking security issues must be fixed
-```
+
+````
 
 ### Example 2: TypeScript Project Security Review (Standalone Mode)
 
 **Input:**
 ```bash
 $ /security-review
-```
+````
 
 **Output:**
-```markdown
+
+````markdown
 # Security Review Report
 
 Language: TypeScript (Next.js)
@@ -1281,11 +1296,13 @@ Language: TypeScript (Next.js)
 ## Automated Scans
 
 ### npm audit: 8 vulnerabilities
+
 - 2 critical
 - 4 high
 - 2 moderate
 
 ### ESLint Security: 5 issues
+
 - detect-non-literal-regexp (MEDIUM)
 - detect-object-injection (LOW)
 
@@ -1296,9 +1313,11 @@ No secrets detected
 ## OWASP Top 10
 
 A03 Injection: WARN
+
 - 1 XSS point: dangerouslySetInnerHTML usage
 
 A06 Vulnerable Components: CRITICAL
+
 - next@12.0.0 has known vulnerabilities
 
 ## Security Score: 70/100
@@ -1310,9 +1329,11 @@ A06 Vulnerable Components: CRITICAL
 **File:** `package.json:12`
 
 **Fix:**
+
 ```bash
 npm install next@latest
 ```
+````
 
 ---
 
@@ -1321,7 +1342,8 @@ npm install next@latest
 1. Update Next.js to latest version
 2. Run `npm audit fix`
 3. Sanitize HTML before rendering
-```
+
+````
 
 ## Integration with Workflow
 
@@ -1336,24 +1358,28 @@ npm install next@latest
 # Phase 9: Review Loop
 /pr-reviewer PROJ-123
 /security-review --jira-key PROJ-123  # Re-run after fixes
-```
+````
 
 ## Troubleshooting
 
 **Issue: "Bandit not found"**
+
 - Install: `pip install bandit`
 - Or skip: `--skip-bandit` flag
 
 **Issue: "npm audit fails"**
+
 - Update npm: `npm install -g npm@latest`
 - Clear cache: `npm cache clean --force`
 
 **Issue: "Too many false positives"**
+
 - Configure bandit: `.bandit` file
 - Configure eslint: `.eslintrc.json`
 - Use `--exclude` flags
 
 **Issue: "Scan takes too long"**
+
 - Limit scope: `/security-review src/`
 - Skip tests: `--exclude tests/`
 - Use faster tools only

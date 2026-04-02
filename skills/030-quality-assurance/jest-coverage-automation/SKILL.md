@@ -7,7 +7,7 @@ description: Automated Jest test coverage improvement using AI-powered test gene
 
 AI-powered automated test generation and coverage improvement for JavaScript/TypeScript projects using Jest, with specialized support for unit and integration tests.
 
-## Table of Contents
+## Contents
 
 - [Overview](#overview)
 - [Architecture](#architecture)
@@ -103,7 +103,7 @@ module.exports = {
     'src/**/*.ts',
     '!src/**/*.spec.ts',
     '!src/**/*.test.ts',
-    '!src/**/index.ts'
+    '!src/**/index.ts',
   ],
 
   // Coverage thresholds
@@ -112,8 +112,8 @@ module.exports = {
       branches: 80,
       functions: 80,
       lines: 80,
-      statements: 80
-    }
+      statements: 80,
+    },
   },
 
   // Coverage reporters
@@ -122,8 +122,8 @@ module.exports = {
   // Module path mapping (if using path aliases)
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    '^@modules/(.*)$': '<rootDir>/src/modules/$1'
-  }
+    '^@modules/(.*)$': '<rootDir>/src/modules/$1',
+  },
 };
 ```
 
@@ -352,7 +352,7 @@ it('should return user by id', async () => {
 it('should throw error when user not found', async () => {
   mockRepository.findById.mockResolvedValue(null);
   await expect(userService.getUserById('123')).rejects.toThrow(
-    'User not found'
+    'User not found',
   );
 });
 

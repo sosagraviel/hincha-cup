@@ -1,9 +1,7 @@
 ---
 name: notion-document-manager
 description: Manage Notion documents with smart chunking for large pages, efficient search, and batch operations. Use when reading/writing Notion docs, searching Notion, or syncing documentation.
-user-invocable: true
-disable-model-invocation: false
-allowed-tools: Read, Write, Bash(python3 *)
+allowed-tools: Read, Write, Bash
 ---
 
 # Notion Document Manager
@@ -21,6 +19,7 @@ Comprehensive skill for working with Notion documents through the Notion MCP ser
 ### 1. Read Notion Pages (Any Size)
 
 **For standard pages (< 50KB):**
+
 ```bash
 # Direct fetch
 mcp__notion__fetch_page --url "https://notion.so/page-id"
@@ -28,12 +27,14 @@ mcp__notion__fetch_page --url "https://notion.so/page-id"
 
 **For large pages (> 50KB):**
 Uses pagination with automatic chunking:
+
 1. Fetch page with cursor
 2. Store chunks in temporary file
 3. Continue until cursor is null
 4. Compose full document locally
 
 **Implementation:**
+
 ```python
 # Automatic chunking handled by skill
 # Temp file: /tmp/notion_${SESSION_ID}_${page_id}.md
@@ -44,11 +45,13 @@ Uses pagination with automatic chunking:
 **Rate Limit:** 30 searches per minute
 
 **Best Practices:**
+
 - Use specific search terms (not broad queries)
 - Cache results locally for repeated searches
 - Batch searches when possible
 
 **Search Pattern:**
+
 ```bash
 # Search with caching
 search_query="API authentication design"
@@ -61,6 +64,7 @@ mcp__notion__search_notion --query "$search_query"
 ### 3. Create and Update Pages
 
 **Create new page:**
+
 ```bash
 mcp__notion__create_page \
   --parent_page_id "parent-id" \
@@ -70,6 +74,7 @@ mcp__notion__create_page \
 ```
 
 **Update existing page:**
+
 ```bash
 mcp__notion__update_page \
   --page_id "page-id" \
@@ -82,10 +87,12 @@ mcp__notion__update_page \
 When reading pages > 50KB, the skill automatically:
 
 **Step 1: Detect size**
+
 - First chunk reveals total size
 - If > 50KB, switch to chunking mode
 
 **Step 2: Fetch with pagination**
+
 ```python
 cursor = None
 chunks = []
@@ -100,6 +107,7 @@ while True:
 ```
 
 **Step 3: Compose locally**
+
 ```bash
 temp_file="/tmp/notion_${CLAUDE_SESSION_ID}_${page_id}.md"
 for chunk in chunks:
@@ -109,6 +117,7 @@ done
 ```
 
 **Step 4: Process full document**
+
 - Read from temp file
 - Analyze without re-fetching
 - Clean up when done
@@ -210,6 +219,7 @@ mcp__notion__create_comment \
 ## Error Handling
 
 ### Rate Limit (429)
+
 ```bash
 if [[ "$response" == *"429"* ]]; then
     echo "⚠️  Rate limit hit. Waiting 60 seconds..."
@@ -219,6 +229,7 @@ fi
 ```
 
 ### Permission Error (403)
+
 ```bash
 if [[ "$response" == *"403"* ]]; then
     echo "❌ Permission denied"
@@ -229,6 +240,7 @@ fi
 ```
 
 ### Page Not Found (404)
+
 ```bash
 if [[ "$response" == *"404"* ]]; then
     echo "❌ Page not found"
@@ -239,6 +251,7 @@ fi
 ```
 
 ### Network Timeout
+
 ```bash
 retries=3
 for i in $(seq 1 $retries); do
@@ -258,6 +271,7 @@ done
 ## Best Practices
 
 ### 1. Cache Search Results
+
 ```bash
 # Cache file per query
 cache_dir="$HOME/.cache/notion_searches"
@@ -277,6 +291,7 @@ fi
 ```
 
 ### 2. Batch Operations
+
 ```bash
 # Instead of: Create 10 pages separately (slow)
 # Do: Batch create (if supported by MCP)
@@ -294,6 +309,7 @@ done
 ```
 
 ### 3. Clean Up Temp Files
+
 ```bash
 # At end of workflow
 cleanup_notion_temp_files() {
@@ -305,6 +321,7 @@ trap cleanup_notion_temp_files EXIT
 ```
 
 ### 4. Token-Aware Reading
+
 ```bash
 # For large docs, estimate tokens before processing
 estimate_tokens() {
@@ -326,6 +343,7 @@ fi
 ## Integration with Other Skills
 
 ### With Jira Skill
+
 ```bash
 # Read Notion docs linked in Jira ticket
 ticket_links=$(mcp__atlassian__getJiraIssue --issue_key "PROJ-123" | jq -r '.fields.description' | grep 'notion.so')
@@ -337,6 +355,7 @@ done
 ```
 
 ### With Confluence Skill
+
 ```bash
 # Sync Notion to Confluence
 notion_content=$(mcp__notion__fetch_page --page_id "$notion_page")
@@ -347,6 +366,7 @@ mcp__atlassian__createConfluencePage \
 ```
 
 ### With PR Creation
+
 ```bash
 # Include Notion docs in PR description
 notion_spec=$(mcp__notion__fetch_page --page_id "$spec_id")
@@ -365,6 +385,7 @@ gh pr create --body "$pr_body"
 ## Troubleshooting
 
 **Issue: "Notion MCP not configured"**
+
 ```bash
 # Verify MCP connection
 echo "Checking Notion MCP..."
@@ -376,6 +397,7 @@ fi
 ```
 
 **Issue: "Search returning no results"**
+
 ```bash
 # Verify search query syntax
 # Notion search is case-insensitive but requires exact terms
@@ -383,6 +405,7 @@ fi
 ```
 
 **Issue: "Page content truncated"**
+
 ```bash
 # Large page may need pagination
 # This skill auto-handles pagination
@@ -398,6 +421,7 @@ fi
 ## Examples
 
 See `examples/` directory:
+
 - `read-large-page.md` - Reading 100KB+ Notion pages
 - `search-and-extract.md` - Searching and extracting key info
 - `create-from-template.md` - Creating pages from templates

@@ -1,31 +1,15 @@
 ---
 name: code-quality-check
 description: Automated code quality verification with linters, type checkers, and test coverage. Use when asked to "check code quality", "run linters", "check tests", "verify coverage", or before creating a PR. Runs language-specific tools (ruff/black/mypy for Python, eslint/prettier/tsc for TypeScript), verifies test coverage meets 80% threshold, and produces detailed quality report.
-user-invocable: true
-argument-hint: [optional: path/to/code]
-disable-model-invocation: false
-allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
-metadata:
-  version: 1.0.0
-  category: sdlc-workflow
-  triggers:
-    - code quality
-    - run linters
-    - check tests
-    - test coverage
-    - quality check
+argument-hint: '[optional: path/to/code]'
+allowed-tools: Read, Write, Bash, Glob, Grep
 ---
 
 # Code Quality Check Skill
 
 Automated code quality verification using linters, type checkers, and test coverage analysis with configurable thresholds.
 
-## Table of Contents
+## Contents
 
 - [Purpose](#purpose)
 - [When to Use](#when-to-use)
@@ -54,6 +38,7 @@ This skill verifies code quality by:
 ## When to Use
 
 Activate this skill when:
+
 - After implementing code changes
 - Before running security review
 - Before creating a pull request
@@ -713,24 +698,24 @@ EOF
 
 ### Python Tools
 
-| Tool | Purpose | Command |
-|------|---------|---------|
-| **ruff** | Fast linter (replaces flake8, pylint) | `ruff check .` |
-| **ruff format** | Fast formatter (replaces black) | `ruff format .` |
-| **black** | Code formatter | `black .` |
-| **mypy** | Static type checker | `mypy .` |
-| **pytest** | Test runner | `pytest -v` |
-| **pytest-cov** | Coverage plugin | `pytest --cov=.` |
+| Tool            | Purpose                               | Command          |
+| --------------- | ------------------------------------- | ---------------- |
+| **ruff**        | Fast linter (replaces flake8, pylint) | `ruff check .`   |
+| **ruff format** | Fast formatter (replaces black)       | `ruff format .`  |
+| **black**       | Code formatter                        | `black .`        |
+| **mypy**        | Static type checker                   | `mypy .`         |
+| **pytest**      | Test runner                           | `pytest -v`      |
+| **pytest-cov**  | Coverage plugin                       | `pytest --cov=.` |
 
 ### TypeScript/JavaScript Tools
 
-| Tool | Purpose | Command |
-|------|---------|---------|
-| **eslint** | Linter | `npx eslint .` |
-| **prettier** | Formatter | `npx prettier --check .` |
-| **tsc** | TypeScript compiler/checker | `npx tsc --noEmit` |
-| **vitest** | Test runner (Vite) | `npx vitest run` |
-| **jest** | Test runner | `npx jest` |
+| Tool         | Purpose                     | Command                  |
+| ------------ | --------------------------- | ------------------------ |
+| **eslint**   | Linter                      | `npx eslint .`           |
+| **prettier** | Formatter                   | `npx prettier --check .` |
+| **tsc**      | TypeScript compiler/checker | `npx tsc --noEmit`       |
+| **vitest**   | Test runner (Vite)          | `npx vitest run`         |
+| **jest**     | Test runner                 | `npx jest`               |
 
 ## Coverage Requirements
 
@@ -745,12 +730,12 @@ COVERAGE_THRESHOLD=80
 
 ### Coverage Metrics
 
-| Metric | Description |
-|--------|-------------|
-| **Lines** | Percentage of code lines executed |
-| **Statements** | Percentage of statements executed |
-| **Branches** | Percentage of conditional branches tested |
-| **Functions** | Percentage of functions called |
+| Metric         | Description                               |
+| -------------- | ----------------------------------------- |
+| **Lines**      | Percentage of code lines executed         |
+| **Statements** | Percentage of statements executed         |
+| **Branches**   | Percentage of conditional branches tested |
+| **Functions**  | Percentage of functions called            |
 
 ### Coverage Exemptions
 
@@ -813,6 +798,7 @@ calculate_quality_score() {
 ## Error Handling
 
 ### Tool Not Installed
+
 ```bash
 if ! command -v ruff &>/dev/null; then
     echo "Warning: ruff not installed"
@@ -826,6 +812,7 @@ fi
 ```
 
 ### Tests Not Found
+
 ```bash
 if [[ ! -d "tests" ]] && [[ ! -d "test" ]]; then
     echo "Warning: No test directory found"
@@ -836,6 +823,7 @@ fi
 ```
 
 ### Coverage Threshold Not Met
+
 ```bash
 if [[ $coverage_int -lt $coverage_threshold ]]; then
     echo "FAILED: Coverage ${coverage}% < ${coverage_threshold}%"
@@ -849,6 +837,7 @@ fi
 ## Best Practices
 
 ### 1. Fix Auto-fixable Issues First
+
 ```bash
 # Python
 ruff check --fix .
@@ -863,6 +852,7 @@ npx prettier --write .
 ```
 
 ### 2. Run Incrementally
+
 ```bash
 # Check just linting
 /code-quality-check --lint-only
@@ -875,6 +865,7 @@ npx prettier --write .
 ```
 
 ### 3. Use Pre-commit Hooks
+
 ```yaml
 # .pre-commit-config.yaml
 repos:
@@ -892,6 +883,7 @@ repos:
 ```
 
 ### 4. Configure Coverage
+
 ```toml
 # pyproject.toml
 [tool.coverage.run]
@@ -911,11 +903,13 @@ show_missing = true
 ### Example 1: Python Project (All Pass)
 
 **Input:**
+
 ```bash
 $ /code-quality-check
 ```
 
 **Output:**
+
 ```markdown
 # Code Quality Report
 
@@ -923,12 +917,13 @@ Language: Python (FastAPI)
 Status: PASSED
 
 ## Summary
-| Check | Status |
-|-------|--------|
-| Linting | PASS |
-| Type Check | PASS |
-| Tests | PASS |
-| Coverage | PASS (85%) |
+
+| Check      | Status     |
+| ---------- | ---------- |
+| Linting    | PASS       |
+| Type Check | PASS       |
+| Tests      | PASS       |
+| Coverage   | PASS (85%) |
 
 ## Quality Score: 100/100
 
@@ -939,11 +934,13 @@ Ready for security review.
 ### Example 2: TypeScript Project (Coverage Fail)
 
 **Input:**
+
 ```bash
 $ /code-quality-check
 ```
 
 **Output:**
+
 ```markdown
 # Code Quality Report
 
@@ -951,21 +948,25 @@ Language: TypeScript (Next.js)
 Status: FAILED
 
 ## Summary
-| Check | Status |
-|-------|--------|
-| Linting | PASS |
-| Type Check | PASS |
-| Tests | PASS |
-| Coverage | FAIL (72%) |
+
+| Check      | Status     |
+| ---------- | ---------- |
+| Linting    | PASS       |
+| Type Check | PASS       |
+| Tests      | PASS       |
+| Coverage   | FAIL (72%) |
 
 ## Coverage Report
+
 Overall: 72% (80% required)
 
 Files Below Threshold:
+
 - src/features/oauth/provider.ts (45%)
 - src/utils/validation.ts (60%)
 
 ## Recommendations
+
 1. Add tests for OAuth provider edge cases
 2. Add validation utility tests
 3. Target 85% coverage overall
@@ -1001,22 +1002,26 @@ Files Below Threshold:
 ## Troubleshooting
 
 **Issue: "Linter not found"**
+
 - Install: `pip install ruff` or `npm install --save-dev eslint`
 - Check PATH
 - Use project-local tools
 
 **Issue: "Tests fail in CI but pass locally"**
+
 - Check environment variables
 - Verify dependencies
 - Check for race conditions
 - Review CI logs
 
 **Issue: "Coverage below threshold"**
+
 - Identify uncovered lines: `pytest --cov-report=html`
 - Add tests for uncovered code
 - Consider lowering threshold temporarily
 
 **Issue: "Type errors in generated code"**
+
 - Add type annotations
 - Use `# type: ignore` sparingly
 - Update type stubs

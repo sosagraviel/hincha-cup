@@ -1,10 +1,17 @@
+---
+name: start-task
+description: Enable parallel development by creating isolated git worktrees per task. Use when starting a new ticket while other work is in progress. Auto-detects ports, copies .claude config, and sets up environment isolation.
+argument-hint: '[task-id] [branch-name]'
+---
+
 # Start Task (Multi-Task Parallel Development)
 
-**Trigger**: `/start-task <task-id> [branch-name]`
+**Trigger**: `/start-task <task-id> <branch-name>`
 
 **Purpose**: Enable working on multiple tasks simultaneously using git worktrees with automatic environment isolation.
 
 **Success Criteria**:
+
 - Creates isolated git worktree for the task
 - Auto-detects and handles port conflicts (Docker/dev servers)
 - Preserves project configuration from `/initialize-project`
@@ -16,6 +23,7 @@
 ## What This Skill Does
 
 This skill enables engineers to work on multiple tickets in parallel without:
+
 - Stashing changes or committing WIP
 - Stopping/restarting containers
 - Port conflicts
@@ -23,12 +31,14 @@ This skill enables engineers to work on multiple tickets in parallel without:
 - Rebuilding dependencies
 
 **Use Cases**:
+
 - Work on PROJ-123 while PROJ-122 builds/tests
 - Review teammate's PR without stashing current work
 - Handle urgent hotfix while feature work continues
 - Parallel AI implementations: `/implement-ticket` in multiple worktrees
 
 **How It Works**:
+
 1. Reads `.claude/CLAUDE.md` to understand project structure
 2. Creates git worktree in `../<project-name>-tasks/<task-id>/`
 3. Auto-detects ports from project config (docker-compose, package.json, etc.)
@@ -41,10 +51,12 @@ This skill enables engineers to work on multiple tickets in parallel without:
 ## Prerequisites
 
 **Required**:
+
 - Project must have run `/initialize-project` (needs `.claude/CLAUDE.md`)
 - Git repository
 
 **Optional** (auto-detected):
+
 - Docker Compose (will handle port isolation)
 - Package.json scripts (will detect dev server ports)
 - Environment files (will copy and update)
@@ -185,10 +197,7 @@ Create `.worktree-registry.json` to track active tasks:
         "frontend": 2713,
         "keycloak": 7081
       },
-      "urls": [
-        "http://localhost:3051",
-        "http://localhost:2713"
-      ]
+      "urls": ["http://localhost:3051", "http://localhost:2713"]
     }
   }
 }
@@ -598,11 +607,13 @@ fi
 ## Platform Support
 
 **Supported**:
+
 - ✅ macOS (primary development platform)
 - ✅ Linux (Ubuntu, Debian, RHEL)
 - ✅ Windows (WSL2 required)
 
 **Requirements**:
+
 - Git 2.25+ (worktree improvements)
 - jq (JSON processing)
 - Docker (optional, auto-detected)

@@ -1,8 +1,6 @@
 ---
 name: mastering-ruby-skill
 description: Comprehensive Ruby expertise covering Rails, idioms, metaprogramming, testing with RSpec, and ecosystem gems
-user-invokable: true
-disable-model-invocation: false
 ---
 
 # Mastering Ruby
@@ -12,6 +10,7 @@ Expert guidance for Ruby development with emphasis on Rails framework and Ruby i
 ## Language Fundamentals
 
 ### Ruby Idioms and Style
+
 ```ruby
 # Use symbols for hash keys
 user = { name: 'Alice', email: 'alice@example.com' }
@@ -38,6 +37,7 @@ config.fetch(:timeout, 30)  # Returns 30 if missing
 ```
 
 ### Blocks, Procs, and Lambdas
+
 ```ruby
 # Blocks
 [1, 2, 3].each do |num|
@@ -69,6 +69,7 @@ greet { |name| puts "Hello, #{name}!" }
 ```
 
 ### Modules and Mixins
+
 ```ruby
 # Module as namespace
 module MyApp
@@ -96,6 +97,7 @@ User.log('Class method')  # Class method from extend
 ```
 
 ### Metaprogramming
+
 ```ruby
 # define_method
 class Person
@@ -141,6 +143,7 @@ end
 ## Ruby on Rails
 
 ### MVC Architecture
+
 ```ruby
 # Model (app/models/user.rb)
 class User < ApplicationRecord
@@ -227,6 +230,7 @@ end
 ```
 
 ### ActiveRecord (ORM)
+
 ```ruby
 # Associations
 class Author < ApplicationRecord
@@ -294,6 +298,7 @@ end
 ```
 
 ### Migrations
+
 ```ruby
 # Create migration: rails generate migration CreateUsers
 class CreateUsers < ActiveRecord::Migration[7.0]
@@ -337,6 +342,7 @@ rails db:migrate:status
 ```
 
 ### Routes
+
 ```ruby
 # config/routes.rb
 Rails.application.routes.draw do
@@ -377,6 +383,7 @@ edit_user_path(@user)  # => /users/1/edit
 ```
 
 ### Concerns
+
 ```ruby
 # app/models/concerns/taggable.rb
 module Taggable
@@ -407,6 +414,7 @@ end
 ## Testing with RSpec
 
 ### Model Specs
+
 ```ruby
 # spec/models/user_spec.rb
 require 'rails_helper'
@@ -445,6 +453,7 @@ end
 ```
 
 ### Controller Specs
+
 ```ruby
 # spec/controllers/users_controller_spec.rb
 require 'rails_helper'
@@ -494,6 +503,7 @@ end
 ```
 
 ### Request Specs (Integration Tests)
+
 ```ruby
 # spec/requests/users_spec.rb
 require 'rails_helper'
@@ -522,6 +532,7 @@ end
 ```
 
 ### FactoryBot
+
 ```ruby
 # spec/factories/users.rb
 FactoryBot.define do
@@ -553,6 +564,7 @@ admin = create(:admin_user)  # Using factory with trait
 ## Common Gems
 
 ### Devise (Authentication)
+
 ```ruby
 # Gemfile
 gem 'devise'
@@ -579,6 +591,7 @@ end
 ```
 
 ### Pundit (Authorization)
+
 ```ruby
 # app/policies/post_policy.rb
 class PostPolicy < ApplicationPolicy
@@ -612,6 +625,7 @@ end
 ```
 
 ### Sidekiq (Background Jobs)
+
 ```ruby
 # app/jobs/send_email_job.rb
 class SendEmailJob < ApplicationJob
@@ -631,6 +645,7 @@ SendEmailJob.set(wait: 1.hour).perform_later(user.id)
 ## Build & Deployment
 
 ### Bundler
+
 ```bash
 # Install dependencies
 bundle install
@@ -657,6 +672,7 @@ end
 ```
 
 ### Rake Tasks
+
 ```bash
 # Database
 rake db:create

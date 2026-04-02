@@ -1,8 +1,6 @@
 ---
 name: mastering-go-skill
 description: Comprehensive Go language expertise covering idioms, concurrency, testing, and standard library patterns
-user-invokable: true
-disable-model-invocation: false
 ---
 
 # Mastering Go
@@ -12,6 +10,7 @@ Expert guidance for Go development following idiomatic patterns and best practic
 ## Language Fundamentals
 
 ### Go Idioms and Conventions
+
 - Follow effective Go principles
 - Use `gofmt` for code formatting (enforced)
 - Use `goimports` for import management
@@ -23,6 +22,7 @@ Expert guidance for Go development following idiomatic patterns and best practic
 - Keep package main and func main minimal
 
 ### Error Handling Patterns
+
 ```go
 // Standard error handling
 if err != nil {
@@ -45,6 +45,7 @@ func (e *ValidationError) Error() string {
 ```
 
 ### Interfaces and Composition
+
 - Interfaces are satisfied implicitly
 - Define interfaces where they're used, not where they're implemented
 - Prefer small interfaces (1-2 methods)
@@ -68,6 +69,7 @@ type ReadWriter interface {
 ```
 
 ### Struct Embedding and Composition
+
 ```go
 // Embed types to compose behavior
 type Engine struct {
@@ -87,6 +89,7 @@ type Car struct {
 ## Concurrency Patterns
 
 ### Goroutines and Channels
+
 ```go
 // Starting goroutines
 go processData(data)
@@ -109,6 +112,7 @@ for value := range ch {
 ```
 
 ### Worker Pool Pattern
+
 ```go
 func worker(id int, jobs <-chan Job, results chan<- Result) {
     for job := range jobs {
@@ -137,6 +141,7 @@ for range allJobs {
 ```
 
 ### Context Package for Cancellation
+
 ```go
 // Create context with timeout
 ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -155,6 +160,7 @@ case result := <-ch:
 ```
 
 ### Select Statement
+
 ```go
 // Multiplex channel operations
 select {
@@ -170,6 +176,7 @@ default:
 ```
 
 ### Sync Package Primitives
+
 ```go
 // Mutex for protecting shared state
 var mu sync.Mutex
@@ -203,6 +210,7 @@ once.Do(func() {
 ## Testing & Quality
 
 ### Table-Driven Tests
+
 ```go
 func TestAdd(t *testing.T) {
     tests := []struct {
@@ -228,6 +236,7 @@ func TestAdd(t *testing.T) {
 ```
 
 ### Test Helpers and Fixtures
+
 ```go
 // Test helper
 func setupDB(t *testing.T) *sql.DB {
@@ -250,6 +259,7 @@ func TestQuery(t *testing.T) {
 ```
 
 ### Benchmarking
+
 ```go
 func BenchmarkAdd(b *testing.B) {
     for i := 0; i < b.N; i++ {
@@ -261,6 +271,7 @@ func BenchmarkAdd(b *testing.B) {
 ```
 
 ### Race Detector
+
 ```bash
 # Detect data races
 go test -race ./...
@@ -269,6 +280,7 @@ go run -race main.go
 ```
 
 ### Code Quality Tools
+
 ```bash
 # golangci-lint (comprehensive linter aggregator)
 golangci-lint run
@@ -283,6 +295,7 @@ staticcheck ./...
 ## Standard Library Mastery
 
 ### HTTP Server
+
 ```go
 // Basic server
 http.HandleFunc("/", handler)
@@ -307,6 +320,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 ```
 
 ### HTTP Client
+
 ```go
 // Custom client with timeout
 client := &http.Client{
@@ -323,6 +337,7 @@ body, err := io.ReadAll(resp.Body)
 ```
 
 ### Database/SQL
+
 ```go
 // Open connection
 db, err := sql.Open("postgres", connStr)
@@ -356,6 +371,7 @@ for rows.Next() {
 ```
 
 ### JSON Encoding/Decoding
+
 ```go
 // Struct tags for JSON mapping
 type User struct {
@@ -378,6 +394,7 @@ decoder := json.NewDecoder(r.Body)
 ```
 
 ### Time Package
+
 ```go
 // Parse and format
 layout := "2006-01-02 15:04:05"
@@ -399,6 +416,7 @@ defer ticker.Stop()
 ## Build & Deployment
 
 ### Go Modules
+
 ```bash
 # Initialize module
 go mod init github.com/user/project
@@ -417,6 +435,7 @@ go mod vendor
 ```
 
 ### Build Commands
+
 ```bash
 # Build binary
 go build -o myapp
@@ -431,6 +450,7 @@ GOOS=darwin GOARCH=arm64 go build -o myapp-mac
 ```
 
 ### Build Tags
+
 ```go
 // +build integration
 
@@ -442,6 +462,7 @@ package mypackage
 ## Common Frameworks and Libraries
 
 ### Gin (Web Framework)
+
 ```go
 router := gin.Default()
 
@@ -463,6 +484,7 @@ router.Run(":8080")
 ```
 
 ### GORM (ORM)
+
 ```go
 // Define model
 type User struct {
@@ -486,6 +508,7 @@ db.Delete(&user)
 ```
 
 ### sqlx (SQL Extensions)
+
 ```go
 db, err := sqlx.Connect("postgres", connStr)
 

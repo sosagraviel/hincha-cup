@@ -1,9 +1,6 @@
 ---
 name: developing-with-docker
 description: Debugging-first guidance for professional Docker development across CLI, Compose, Docker Desktop, and Rancher Desktop. Use when asked to "debug Docker", "troubleshoot containers", "fix Docker networking", "resolve volume permissions", or "Docker Compose issues", and when explaining cross-platform runtime behavior (Linux, macOS, Windows/WSL2) or Docker runtime architecture.
-license: MIT
-metadata:
-  version: 1.0.0
 ---
 
 # Developing With Docker
@@ -65,6 +62,7 @@ Provide deterministic, debugging-first guidance for Docker CLI and Compose, focu
 - Recommended next command:
 
 Example Output:
+
 - Platform/runtime: macOS, Docker Desktop 4.27
 - Active context: default
 - Container state (exit code, PID): exit 137, PID 4021
