@@ -66,8 +66,23 @@ describe("resourcesNode", () => {
     vi.mocked(fs.readFileSync).mockReturnValue(
       JSON.stringify({
         stack_profile: {
-          languages: ["typescript", "javascript"],
-          frameworks: { frontend: ["react"], backend: ["express"], mobile: [] },
+          services: [
+            {
+              id: "main",
+              path: "src",
+              type: "backend",
+              language: "typescript",
+              frameworks: { main: "express" },
+            },
+            {
+              id: "frontend",
+              path: "client",
+              type: "frontend",
+              language: "javascript",
+              frameworks: { main: "react" },
+            },
+          ],
+          is_monorepo: false,
         },
       }),
     );
@@ -131,7 +146,8 @@ describe("resourcesNode", () => {
 
     expect(skillResolver.resolveSkills).toHaveBeenCalledWith(
       expect.objectContaining({
-        languages: ["typescript", "javascript"],
+        services: expect.any(Array),
+        is_monorepo: false,
       }),
       "/test/framework",
     );
@@ -150,7 +166,10 @@ describe("resourcesNode", () => {
     await resourcesNode(mockState);
 
     expect(agentGenerator.generateAgents).toHaveBeenCalledWith(
-      expect.objectContaining({ languages: ["typescript", "javascript"] }),
+      expect.objectContaining({
+        services: expect.any(Array),
+        is_monorepo: false,
+      }),
       expect.any(Array),
       "/test/project",
       expect.stringContaining("agents/templates"),

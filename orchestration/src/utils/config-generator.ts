@@ -43,24 +43,18 @@ export function generateFrameworkConfig(
     frameworkVersion = packageJson.version || "2.0.0";
   }
 
+  // Service-centric stack profile (pass through directly)
   const stackProfileData: any = {
-    languages: stackProfile.languages || [],
-    primary_language: stackProfile.primary_language,
-    frameworks: stackProfile.frameworks || {
-      frontend: [],
-      backend: [],
-      mobile: [],
-    },
-    testing_frameworks: stackProfile.testing_frameworks || {},
-    infrastructure: stackProfile.infrastructure,
-    detected_workspaces:
-      stackProfile.detected_workspaces || stackProfile.workspaces || [],
-  };
+    // CORE: Services array (source of truth)
+    services: stackProfile.services,
 
-  // Only include file_counts if it exists
-  if (stackProfile.file_counts) {
-    stackProfileData.file_counts = stackProfile.file_counts;
-  }
+    // METADATA
+    is_monorepo: stackProfile.is_monorepo,
+    workspace_tool: stackProfile.workspace_tool,
+    package_manager: stackProfile.package_manager,
+    infrastructure: stackProfile.infrastructure,
+    file_counts: stackProfile.file_counts,
+  };
 
   // Read Phase 2 consolidation from disk if it exists
   let phase2Data: any = {

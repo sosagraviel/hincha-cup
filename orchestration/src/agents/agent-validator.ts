@@ -91,12 +91,16 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     'name', 'description', 'model', 'tools', 'disallowedTools',
     'permissionMode', 'maxTurns', 'skills', 'mcpServers',
     'hooks', 'memory', 'background', 'effort',
-    'isolation', 'initialPrompt'
+    'isolation', 'initialPrompt',
+    // Individual hook fields (alternative to hooks object)
+    // Source: https://code.claude.com/docs/en/hooks-guide
+    'user-prompt-submit-hook', 'assistant-message-hook',
+    'pre-tool-use-hook', 'post-tool-use-hook', 'stop-hook'
   ];
 
   // Framework-specific fields (not Claude CLI, but we use them internally)
   const FRAMEWORK_FIELDS = [
-    'subagent_type', 'output_format'
+    'subagent_type', 'output_format', 'run_in_background'
   ];
 
   const allFields = [...VALID_CLI_FIELDS, ...FRAMEWORK_FIELDS];

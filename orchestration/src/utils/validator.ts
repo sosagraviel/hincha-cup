@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AnalyzerOutputSchema } from '../state/schemas/initialize-project.schema.js';
+import { validateAgentOutput } from '../schemas/phase1-agent-outputs.schema.js';
 import { logger } from './logger.js';
 
 /**
@@ -14,10 +14,10 @@ export interface ValidationResult {
 /**
  * Validate analyzer output against Zod schema
  *
- * Replaces the bash implementation's AJV validation with Zod.
+ * Uses centralized schema registry with automatic schema selection based on agent_name.
  *
  * @param output - Raw output from analyzer agent (should be JSON string or object)
- * @param agentName - Name of the analyzer agent
+ * @param agentName - Name of the analyzer agent (for logging only - schema selected from agent_name field in output)
  * @returns Validation result with errors if invalid
  */
 export function validateAnalyzerOutput(
@@ -25,17 +25,6 @@ export function validateAnalyzerOutput(
   agentName: string
 ): ValidationResult {
   try {
-
-    // Defensive check: Ensure schema is loaded
-    if (!AnalyzerOutputSchema) {
-      logger.error('CRITICAL: AnalyzerOutputSchema is undefined!');
-      return {
-        valid: false,
-        errors: ['CRITICAL ERROR: Validation schema failed to load. This is a module loading issue.']
-      };
-    }
-
-
     let data: unknown;
     if (typeof output === 'string') {
       try {
@@ -51,41 +40,30 @@ export function validateAnalyzerOutput(
       data = output;
     }
 
-    const result = AnalyzerOutputSchema.safeParse(data);
+    // Use centralized validator with automatic schema selection
+    const result = validateAgentOutput(data);
 
     if (!result.success) {
-      const zodError = result.error as any;
+      const zodError = result.errors;
 
       logger.error('==================== VALIDATION FAILED ====================');
-      logger.error(`Agent: ${agentName}`);
+      logger.error(`Agent (from argument): ${agentName}`);
+      logger.error(`Agent (from output): ${result.agentName || 'unknown'}`);
       logger.error(`Data keys: ${Object.keys(data || {}).join(', ')}`);
-      logger.error(`Zod Error Type: ${zodError?.constructor?.name}`);
-      logger.error(`Error keys available: ${Object.keys(zodError || {}).join(', ')}`);
 
-      // Check for different error property names
-      const errorsList = zodError?.issues || zodError?.errors || zodError?._errors || [];
-      logger.error(`Found errors/issues array: ${Array.isArray(errorsList)}, length: ${errorsList.length}`);
-
-      if (errorsList.length > 0) {
-        logger.error(`First error structure: ${JSON.stringify(errorsList[0], null, 2)}`);
-      }
-
-      // Try to extract error messages from whatever structure exists
+      // Extract error messages from Zod error
       let errors: string[] = [];
 
-      if (Array.isArray(errorsList) && errorsList.length > 0) {
-        errors = errorsList.map((err: any) => {
+      if (zodError && zodError.issues) {
+        errors = zodError.issues.map((err: any) => {
           const path = Array.isArray(err?.path) ? err.path.join('.') : (err?.path || 'unknown');
           const message = err?.message || err?.msg || 'validation error';
           const code = err?.code ? ` (${err.code})` : '';
           return `${path}: ${message}${code}`;
         });
       } else {
-        // If no errors array found, show what we have
         errors = [
-          'Zod validation failed but error structure is unexpected.',
-          `Error object type: ${zodError?.constructor?.name || 'unknown'}`,
-          `Available properties: ${Object.keys(zodError || {}).join(', ')}`,
+          'Validation failed but error structure is unexpected.',
           `Full error: ${JSON.stringify(zodError, null, 2).substring(0, 500)}`
         ];
       }
@@ -353,12 +331,15 @@ export function buildValidationErrorFeedback(result: ValidationResult): string {
     '1. Ensure your output is valid JSON',
     '2. Do NOT wrap JSON in markdown code blocks',
     '3. All required fields must be present:',
-    '   - agent_name (must match your analyzer name)',
+    '   - agent_name (must exactly match your analyzer name)',
     '   - timestamp (ISO 8601 format)',
-    '   - findings (object with your analysis)',
+    '   - findings.services (REQUIRED array with at least 1 service)',
+    '   - Each service must have: id, path, type, language',
     '4. Optional fields:',
-    '   - needs_verification (array, max 3 items)',
-    '   - confidence_level ("high", "medium", or "low")',
+    '   - needs_verification (array, max 5 items)',
+    '',
+    'CRITICAL: findings.services array is REQUIRED for service-centric schema.',
+    'Each service represents a discovered project component with its own stack.',
     '',
     'Please correct these issues and output valid JSON.'
   ];

@@ -140,10 +140,10 @@ export async function validationNode(
           const config = JSON.parse(configContent);
           const stackProfile: StackProfile = config.stack_profile;
 
-          if (stackProfile && stackProfile.file_counts) {
-            const significantLanguages = stackProfile.file_counts.by_language
-              .filter((lc) => lc.count > 10)
-              .map((lc) => lc.language.toLowerCase());
+          if (stackProfile && stackProfile.file_counts?.by_language) {
+            const significantLanguages = Object.entries(stackProfile.file_counts.by_language)
+              .filter(([, count]) => count > 10)
+              .map(([lang]) => lang.toLowerCase());
 
             // Check if there's an implementer for each significant language
             const missingImplementers: string[] = [];

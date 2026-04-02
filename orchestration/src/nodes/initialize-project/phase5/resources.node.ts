@@ -50,34 +50,39 @@ export async function resourcesNode(
     const stackProfile: StackProfile = frameworkConfig.stack_profile;
 
     phaseLogger.info(" Stack profile loaded");
+
+    // Get languages from services array
+    const languages = Array.from(new Set(stackProfile.services.map(s => s.language)));
     phaseLogger.info(
-      `  Languages: ${stackProfile.languages?.join(", ") || "none"}`,
+      `  Languages: ${languages.join(", ") || "none"}`,
     );
 
     // VALIDATION: Ensure stack profile is complete before generating resources
     phaseLogger.info(" Validating stack profile before resource generation...");
 
-    if (!stackProfile || !stackProfile.languages || stackProfile.languages.length === 0) {
+    if (!stackProfile || !stackProfile.services || stackProfile.services.length === 0) {
       throw new Error(
-        "Stack profile is empty or invalid. Cannot generate agents/skills without knowing project languages.",
+        "Stack profile is empty or invalid. Cannot generate agents/skills without knowing project services.",
+      );
+    }
+
+    if (languages.length === 0) {
+      throw new Error(
+        "No languages detected in services. Cannot generate agents/skills without knowing project languages.",
       );
     }
 
     // If we have file counts, verify they match languages
-    if (stackProfile.file_counts) {
-      const languagesWithFiles = stackProfile.file_counts.by_language
-        .filter((lc) => lc.count >= 5)
-        .map((lc) => lc.language.toLowerCase());
+    if (stackProfile.file_counts?.by_language) {
+      const languagesWithFiles = Object.entries(stackProfile.file_counts.by_language)
+        .filter(([, count]) => count >= 5)
+        .map(([lang]) => lang.toLowerCase());
 
-      const profileLanguages = new Set(
-        stackProfile.languages.map((l) => l.toLowerCase()),
-      );
+      const profileLanguages = new Set(languages.map((l) => l.toLowerCase()));
 
       for (const lang of languagesWithFiles) {
         if (!profileLanguages.has(lang)) {
-          const fileCount = stackProfile.file_counts.by_language.find(
-            (lc) => lc.language.toLowerCase() === lang,
-          )?.count;
+          const fileCount = stackProfile.file_counts.by_language[lang];
           phaseLogger.error(
             ` Language ${lang} has ${fileCount} files but is not in stack profile`,
           );
@@ -90,11 +95,12 @@ export async function resourcesNode(
     }
 
     phaseLogger.success(
-      ` ✓ Stack profile validated: ${stackProfile.languages.join(", ")}`,
+      ` ✓ Stack profile validated: ${languages.join(", ")}`,
     );
-    if (stackProfile.multi_stack?.is_monorepo) {
+    if (stackProfile.is_monorepo) {
+      const serviceCount = stackProfile.services.length;
       phaseLogger.info(
-        `  Monorepo with ${stackProfile.multi_stack.workspaces.length} workspaces`,
+        `  Monorepo with ${serviceCount} service${serviceCount !== 1 ? 's' : ''}`,
       );
     }
 

@@ -25,13 +25,18 @@ describe('skill-resolver', () => {
   });
 
   const createMockStackProfile = (overrides: Partial<StackProfile> = {}): StackProfile => ({
-    languages: ['typescript'],
-    primary_language: 'typescript',
-    frameworks: {
-      frontend: ['react'],
-      backend: ['express'],
-      mobile: []
-    },
+    services: [
+      {
+        id: 'main',
+        path: '.',
+        type: 'backend',
+        language: 'typescript',
+        frameworks: {
+          main: 'express'
+        }
+      }
+    ],
+    is_monorepo: false,
     ...overrides
   });
 
@@ -120,11 +125,28 @@ describe('skill-resolver', () => {
 
     it('should match skills by framework triggers', () => {
       const stackProfile = createMockStackProfile({
-        frameworks: {
-          frontend: ['react', 'nextjs'],
-          backend: ['express'],
-          mobile: []
-        }
+        services: [
+          {
+            id: 'frontend',
+            path: 'apps/web',
+            type: 'frontend',
+            language: 'typescript',
+            frameworks: {
+              main: 'react',
+              additional: ['nextjs']
+            }
+          },
+          {
+            id: 'backend',
+            path: 'apps/api',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: {
+              main: 'express'
+            }
+          }
+        ],
+        is_monorepo: true
       });
       const skillsConfig = createSkillsConfig([
         {
@@ -150,9 +172,26 @@ describe('skill-resolver', () => {
 
     it('should match skills by testing framework triggers', () => {
       const stackProfile = createMockStackProfile({
-        testing_frameworks: {
-          typescript: ['vitest', 'playwright']
-        }
+        services: [
+          {
+            id: 'main',
+            path: '.',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: {
+              main: 'express'
+            },
+            testing: {
+              unit: {
+                framework: 'vitest'
+              },
+              e2e: {
+                framework: 'playwright'
+              }
+            }
+          }
+        ],
+        is_monorepo: false
       });
       const skillsConfig = createSkillsConfig([
         {
@@ -204,14 +243,19 @@ describe('skill-resolver', () => {
 
     it('should match skills from detected workspaces', () => {
       const stackProfile = createMockStackProfile({
-        detected_workspaces: [
+        services: [
           {
+            id: 'web',
             path: 'packages/web',
-            language: 'typescript',
             type: 'frontend',
-            frameworks: ['svelte', 'vite']
+            language: 'typescript',
+            frameworks: {
+              main: 'svelte',
+              additional: ['vite']
+            }
           }
-        ]
+        ],
+        is_monorepo: true
       });
       const skillsConfig = createSkillsConfig([
         {
@@ -231,7 +275,36 @@ describe('skill-resolver', () => {
 
     it('should handle multiple languages', () => {
       const stackProfile = createMockStackProfile({
-        languages: ['typescript', 'python', 'go']
+        services: [
+          {
+            id: 'backend-ts',
+            path: 'apps/api-ts',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: {
+              main: 'express'
+            }
+          },
+          {
+            id: 'backend-py',
+            path: 'apps/api-py',
+            type: 'backend',
+            language: 'python',
+            frameworks: {
+              main: 'django'
+            }
+          },
+          {
+            id: 'backend-go',
+            path: 'apps/api-go',
+            type: 'backend',
+            language: 'go',
+            frameworks: {
+              main: 'gin'
+            }
+          }
+        ],
+        is_monorepo: true
       });
       const skillsConfig = createSkillsConfig([
         {
@@ -312,11 +385,19 @@ describe('skill-resolver', () => {
 
     it('should normalize framework names for matching', () => {
       const stackProfile = createMockStackProfile({
-        frameworks: {
-          frontend: ['Next.js', '@angular/core'],
-          backend: [],
-          mobile: []
-        }
+        services: [
+          {
+            id: 'frontend',
+            path: 'apps/web',
+            type: 'frontend',
+            language: 'typescript',
+            frameworks: {
+              main: 'Next.js',
+              ui: '@angular/core'
+            }
+          }
+        ],
+        is_monorepo: false
       });
       const skillsConfig = createSkillsConfig([
         {
@@ -388,11 +469,19 @@ describe('skill-resolver', () => {
 
     it('should handle mobile frameworks', () => {
       const stackProfile = createMockStackProfile({
-        frameworks: {
-          frontend: [],
-          backend: [],
-          mobile: ['react-native', 'flutter']
-        }
+        services: [
+          {
+            id: 'mobile',
+            path: 'apps/mobile',
+            type: 'mobile',
+            language: 'typescript',
+            frameworks: {
+              main: 'react-native',
+              additional: ['flutter']
+            }
+          }
+        ],
+        is_monorepo: false
       });
       const skillsConfig = createSkillsConfig([
         {

@@ -43,16 +43,22 @@ describe('phase0PreflightNode', () => {
         project_name: 'test-project',
       }),
       readStackProfile: vi.fn().mockReturnValue({
-        primary_language: 'typescript',
-        languages: ['typescript'],
-        frameworks: { frontend: [], backend: [] },
-        testing_frameworks: {},
+        services: [{
+          id: 'main',
+          path: 'src',
+          type: 'backend',
+          language: 'typescript',
+          frameworks: { main: 'NestJS' },
+          file_count: 100
+        }],
+        is_monorepo: false
       }),
       getTestCommands: vi.fn().mockReturnValue({
         unit: 'npm test',
         integration: null,
       }),
       hasDocker: vi.fn().mockReturnValue(false),
+      getPrimaryLanguage: vi.fn().mockReturnValue('typescript'),
     };
 
     (ProjectConfigReaderService as any).isProjectInitialized = vi.fn().mockReturnValue(true);
@@ -89,7 +95,19 @@ describe('phase0PreflightNode', () => {
 
     it('should read preflight data from disk', async () => {
       const completionData = {
-        preflight_data: { stack_profile: { primary_language: 'python' } },
+        preflight_data: {
+          stack_profile: {
+            services: [{
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'python',
+              frameworks: { main: 'Flask' },
+              file_count: 50
+            }],
+            is_monorepo: false
+          }
+        },
       };
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -97,7 +115,19 @@ describe('phase0PreflightNode', () => {
 
       const result = await phase0PreflightNode(mockState);
 
-      expect(result.phase0_preflight).toEqual({ stack_profile: { primary_language: 'python' } });
+      expect(result.phase0_preflight).toEqual({
+        stack_profile: {
+          services: [{
+            id: 'main',
+            path: 'src',
+            type: 'backend',
+            language: 'python',
+            frameworks: { main: 'Flask' },
+            file_count: 50
+          }],
+          is_monorepo: false
+        }
+      });
     });
   });
 
@@ -344,7 +374,17 @@ describe('phase0PreflightNode', () => {
     });
 
     it('should write stack profile to disk', async () => {
-      const stackProfile = { primary_language: 'typescript' };
+      const stackProfile = {
+        services: [{
+          id: 'main',
+          path: 'src',
+          type: 'backend',
+          language: 'typescript',
+          frameworks: { main: 'NestJS' },
+          file_count: 100
+        }],
+        is_monorepo: false
+      };
       mockConfigReader.readStackProfile.mockReturnValue(stackProfile);
 
       await phase0PreflightNode(mockState);

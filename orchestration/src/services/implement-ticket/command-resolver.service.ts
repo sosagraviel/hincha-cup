@@ -36,6 +36,46 @@ export class CommandResolverService {
   }
 
   /**
+   * Get testing frameworks from services
+   */
+  private getTestingFrameworks(): Record<string, string[]> {
+    const testingFw: Record<string, string[]> = {};
+
+    for (const service of this.stackProfile.services) {
+      const lang = service.language;
+      if (!testingFw[lang]) testingFw[lang] = [];
+
+      if (service.testing?.unit?.framework) testingFw[lang].push(service.testing.unit.framework);
+      if (service.testing?.integration?.framework) testingFw[lang].push(service.testing.integration.framework);
+      if (service.testing?.e2e?.framework) testingFw[lang].push(service.testing.e2e.framework);
+    }
+
+    // Deduplicate
+    for (const lang in testingFw) {
+      testingFw[lang] = [...new Set(testingFw[lang])];
+    }
+
+    return testingFw;
+  }
+
+  /**
+   * Get primary language (language with most files)
+   */
+  private getPrimaryLanguage(): string | undefined {
+    const services = this.stackProfile.services;
+    if (!services || services.length === 0) return undefined;
+
+    const languageCounts: Record<string, number> = {};
+    for (const service of services) {
+      const lang = service.language;
+      languageCounts[lang] = (languageCounts[lang] || 0) + (service.file_count || 1);
+    }
+
+    return Object.entries(languageCounts)
+      .sort(([, a], [, b]) => b - a)[0]?.[0];
+  }
+
+  /**
    * Get test command for a specific type with fallbacks
    * @param type - Test type: 'unit', 'integration', or 'e2e'
    * @returns Array of commands to try (ordered by preference)
@@ -44,8 +84,8 @@ export class CommandResolverService {
     const commands: string[] = [];
 
     // Extract from testing frameworks in stack profile
-    const testingFrameworks = this.stackProfile.testing_frameworks || {};
-    const primaryLang = this.stackProfile.primary_language?.toLowerCase();
+    const testingFrameworks = this.getTestingFrameworks();
+    const primaryLang = this.getPrimaryLanguage()?.toLowerCase();
 
     // Build commands from detected frameworks
     for (const [lang, frameworks] of Object.entries(testingFrameworks)) {
@@ -136,7 +176,7 @@ export class CommandResolverService {
    */
   getBuildCommand(): string[] {
     const commands: string[] = [];
-    const primaryLang = this.stackProfile.primary_language?.toLowerCase();
+    const primaryLang = this.getPrimaryLanguage()?.toLowerCase();
 
     // Language-specific build commands
     if (primaryLang === 'typescript' || primaryLang === 'javascript') {
@@ -159,7 +199,7 @@ export class CommandResolverService {
    */
   getLintCommand(): string[] {
     const commands: string[] = [];
-    const primaryLang = this.stackProfile.primary_language?.toLowerCase();
+    const primaryLang = this.getPrimaryLanguage()?.toLowerCase();
 
     if (primaryLang === 'typescript' || primaryLang === 'javascript') {
       commands.push('npm run lint', 'npx eslint .', 'yarn lint');
@@ -179,7 +219,7 @@ export class CommandResolverService {
    */
   getFormatCommand(): string[] {
     const commands: string[] = [];
-    const primaryLang = this.stackProfile.primary_language?.toLowerCase();
+    const primaryLang = this.getPrimaryLanguage()?.toLowerCase();
 
     if (primaryLang === 'typescript' || primaryLang === 'javascript') {
       commands.push('npm run format', 'npx prettier --write .', 'yarn format');
@@ -337,7 +377,7 @@ export class CommandResolverService {
     }
 
     // Fallback detection
-    const primaryLang = this.stackProfile.primary_language?.toLowerCase();
+    const primaryLang = this.getPrimaryLanguage()?.toLowerCase();
 
     if (primaryLang === 'typescript' || primaryLang === 'javascript') {
       // Try to detect from lock files

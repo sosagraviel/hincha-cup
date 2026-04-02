@@ -22,6 +22,20 @@ Handlebars.registerHelper('skillsDoc', (skills: string[] | undefined) => {
 });
 
 /**
+ * Helper to get unique languages from services
+ */
+function getLanguagesFromStackProfile(stackProfile: StackProfile): string[] {
+  return Array.from(new Set(stackProfile.services.map(s => s.language)));
+}
+
+/**
+ * Helper to check if stack profile has frontend services
+ */
+function hasFrontendService(stackProfile: StackProfile): boolean {
+  return stackProfile.services.some(s => s.type === 'frontend');
+}
+
+/**
  * Agent metadata
  */
 export interface AgentMetadata {
@@ -179,7 +193,8 @@ function assignSkillsToAgents(
     'implementer-generic': []
   };
 
-  for (const lang of stackProfile.languages) {
+  const languages = getLanguagesFromStackProfile(stackProfile);
+  for (const lang of languages) {
     assignments[`implementer-${lang}`] = [];
   }
 
@@ -230,7 +245,7 @@ function assignSkillsToAgents(
 
   assignments.planner.push(projectContextSkill);
   assignments['implementer-generic'].push(projectContextSkill);
-  for (const lang of stackProfile.languages) {
+  for (const lang of languages) {
     assignments[`implementer-${lang}`].push(projectContextSkill);
   }
 
@@ -359,7 +374,7 @@ function generateVisualVerifierAgent(
   templatesPath: string,
   stackProfile: StackProfile
 ): GeneratedAgent | null {
-  const hasFrontend = stackProfile.frameworks?.frontend && stackProfile.frameworks.frontend.length > 0;
+  const hasFrontend = hasFrontendService(stackProfile);
 
   if (!hasFrontend) {
     return null;
@@ -403,8 +418,9 @@ export function generateAgents(
     agents.push(planner);
   }
 
-  if (stackProfile.languages) {
-    for (const language of stackProfile.languages) {
+  const languages = getLanguagesFromStackProfile(stackProfile);
+  if (languages.length > 0) {
+    for (const language of languages) {
       const langLower = language.toLowerCase();
 
       // Only generate dedicated implementer for framework-supported languages

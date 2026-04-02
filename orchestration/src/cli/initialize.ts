@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 import path from "path";
+import { fileURLToPath } from "url";
 import { createInitializeProjectGraph } from "../graphs/initialize-project.graph.js";
 import {
   devCheckpointer,
@@ -11,6 +12,13 @@ import { getLLMFactory } from "../llm/llm-factory.js";
 import { logger } from "../utils/logger.js";
 import { HybridAgentFactory } from "../agents/agent-factory-hybrid.js";
 import { runPreflightChecks } from "../utils/preflight-checks.js";
+
+// Get the directory where this CLI script is located
+// This file is at: <framework>/orchestration/dist/cli/initialize.js
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// Framework root is 3 levels up from dist/cli/initialize.js
+const DEFAULT_FRAMEWORK_PATH = path.resolve(__dirname, "../../..");
 
 const program = new Command();
 
@@ -28,7 +36,7 @@ program
   .option(
     "-f, --framework-path <path>",
     "Framework path",
-    process.env.FRAMEWORK_PATH || path.join(process.cwd(), "../.."),
+    process.env.FRAMEWORK_PATH || DEFAULT_FRAMEWORK_PATH,
   )
   .option(
     "--model-tier <tier>",

@@ -65,6 +65,8 @@ describe('codePatternsTestingAnalyzerNode', () => {
       additionalContext: '',
       timeout: 600000,
       useUltrathink: true,
+      resumeSessionId: undefined,
+      settingsPath: '/test/framework/orchestration/config/initialize-project-agents-settings.json',
     });
   });
 
