@@ -1,36 +1,6 @@
 ---
 name: mastering-nextjs
-description: >
-  Next.js 13+ App Router engineering skill covering RSC vs client component decisions,
-  data fetching patterns (fetch cache, Server Actions), Route Handlers as BFF, FSD
-  layer mapping to App Router conventions, Tailwind CSS v4 theming, streaming with
-  Suspense, and performance optimization. Use when building or reviewing any Next.js
-  App Router project. Focuses exclusively on Next.js-specific patterns.
-version: 1.0.0
-category: frontend-engineering
-triggers:
-  - next.js
-  - nextjs
-  - app router
-  - server component
-  - client component
-  - route handler
-  - server action
-  - layout
-  - page
-  - middleware
-  - next/image
-  - metadata api
-tags:
-  - nextjs
-  - react
-  - typescript
-  - app-router
-  - rsc
-  - server-actions
-  - bff
-author: facundoCambra
-license: MIT
+description: Next.js 13+ App Router engineering skill covering RSC vs client component decisions, data fetching patterns (fetch cache, Server Actions), Route Handlers as BFF, FSD layer mapping to App Router conventions, Tailwind CSS v4 theming, streaming with Suspense, and performance optimization. Use when building or reviewing any Next.js App Router project. Focuses exclusively on Next.js-specific patterns.
 ---
 
 # Next.js App Router Engineering
@@ -113,18 +83,18 @@ async function KpiDashboard() {
 }
 
 // ✅ Client component — only where interactivity is needed
-("use client");
+('use client');
 function FilterPanel({
   onFilterChange,
 }: {
   onFilterChange: (f: Filter) => void;
 }) {
-  const [filter, setFilter] = useState<Filter>({ period: "30d" });
+  const [filter, setFilter] = useState<Filter>({ period: '30d' });
   // ...
 }
 
 // ❌ Wrong — fetching in a client component when RSC would work
-("use client");
+('use client');
 function KpiDashboard() {
   const [kpis, setKpis] = useState([]);
   useEffect(() => {
@@ -142,19 +112,19 @@ function KpiDashboard() {
 
 ```tsx
 // Static — cached indefinitely (default for fetch in RSC)
-const data = await fetch("/api/kpis", { cache: "force-cache" });
+const data = await fetch('/api/kpis', { cache: 'force-cache' });
 
 // ISR — revalidate every N seconds
-const data = await fetch("/api/kpis", { next: { revalidate: 60 } });
+const data = await fetch('/api/kpis', { next: { revalidate: 60 } });
 
 // Dynamic — never cached, always fresh
-const data = await fetch("/api/kpis", { cache: "no-store" });
+const data = await fetch('/api/kpis', { cache: 'no-store' });
 
 // Tag-based revalidation — invalidate on demand
-const data = await fetch("/api/kpis", { next: { tags: ["kpis"] } });
+const data = await fetch('/api/kpis', { next: { tags: ['kpis'] } });
 // In a Server Action or Route Handler:
-import { revalidateTag } from "next/cache";
-revalidateTag("kpis");
+import { revalidateTag } from 'next/cache';
+revalidateTag('kpis');
 ```
 
 ### Parallel Data Fetching
@@ -179,19 +149,19 @@ async function DashboardPage() {
 ```tsx
 // Defined with "use server" directive
 async function approveInsight(insightId: string) {
-  "use server";
+  'use server';
   await db.insights.update({
     where: { id: insightId },
-    data: { status: "approved" },
+    data: { status: 'approved' },
   });
-  revalidateTag("insights");
+  revalidateTag('insights');
 }
 
 // Used directly in RSC
 function InsightCard({ insight }: { insight: Insight }) {
   return (
     <form action={approveInsight.bind(null, insight.id)}>
-      <button type="submit">Approve</button>
+      <button type='submit'>Approve</button>
     </form>
   );
 }
@@ -220,21 +190,21 @@ src/app/api/
 
 ```ts
 // src/app/api/kpis/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { KpiResponse } from "@/entities/kpi/model/types";
+import { NextRequest, NextResponse } from 'next/server';
+import { KpiResponse } from '@/entities/kpi/model/types';
 
 export async function GET(
   request: NextRequest,
 ): Promise<NextResponse<KpiResponse>> {
   const { searchParams } = request.nextUrl;
-  const period = searchParams.get("period") ?? "30d";
+  const period = searchParams.get('period') ?? '30d';
 
   try {
     const data = await externalKpiService.fetch({ period });
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json(
-      { error: "Failed to fetch KPIs" },
+      { error: 'Failed to fetch KPIs' },
       { status: 500 },
     );
   }
@@ -304,7 +274,7 @@ export default function DashboardPage() {
 export default async function DashboardPage() {
   const kpis = await fetchKpis();
   const insights = await fetchInsights();
-  const filtered = kpis.filter((k) => k.trend === "up");
+  const filtered = kpis.filter((k) => k.trend === 'up');
   return (
     <div>
       {filtered.map((k) => (
@@ -324,7 +294,7 @@ Define **all** design tokens as CSS custom properties using `@theme` in `globals
 
 ```css
 /* src/app/globals.css */
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
   --color-brand-primary: oklch(55% 0.2 250);
@@ -337,7 +307,7 @@ Define **all** design tokens as CSS custom properties using `@theme` in `globals
 }
 
 /* Dark mode via data attribute — no dark: variants */
-[data-theme="dark"] {
+[data-theme='dark'] {
   --color-surface: oklch(12% 0 0);
   --color-surface-raised: oklch(18% 0 0);
   --color-text-primary: oklch(95% 0 0);
@@ -368,9 +338,9 @@ Define **all** design tokens as CSS custom properties using `@theme` in `globals
 
 ```tsx
 // app/dashboard/page.tsx
-import { Suspense } from "react";
-import { KpiDashboard } from "@/widgets/kpi-dashboard";
-import { KpiDashboardSkeleton } from "@/widgets/kpi-dashboard";
+import { Suspense } from 'react';
+import { KpiDashboard } from '@/widgets/kpi-dashboard';
+import { KpiDashboardSkeleton } from '@/widgets/kpi-dashboard';
 
 export default function DashboardPage() {
   return (
@@ -395,7 +365,7 @@ export default function DashboardPage() {
 
 ```tsx
 // Force dynamic rendering for authenticated pages
-import { cookies } from "next/headers";
+import { cookies } from 'next/headers';
 
 export default async function ProtectedPage() {
   const session = await getSession(cookies()); // Makes route dynamic automatically
@@ -406,14 +376,14 @@ export default async function ProtectedPage() {
 ### Images and Fonts
 
 ```tsx
-import Image from "next/image";
-import { Inter } from "next/font/google";
+import Image from 'next/image';
+import { Inter } from 'next/font/google';
 
 // Always use next/image — automatic optimization, lazy loading, prevents CLS
-<Image src={chart} alt="KPI trend chart" width={800} height={400} priority />;
+<Image src={chart} alt='KPI trend chart' width={800} height={400} priority />;
 
 // next/font eliminates layout shift from web fonts
-const inter = Inter({ subsets: ["latin"], display: "swap" });
+const inter = Inter({ subsets: ['latin'], display: 'swap' });
 ```
 
 ### `generateStaticParams` for Dynamic Routes

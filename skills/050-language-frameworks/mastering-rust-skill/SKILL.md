@@ -1,8 +1,6 @@
 ---
 name: mastering-rust-skill
 description: Comprehensive Rust expertise covering ownership, lifetimes, traits, async programming, and the Rust ecosystem
-user-invokable: true
-disable-model-invocation: false
 ---
 
 # Mastering Rust
@@ -12,6 +10,7 @@ Expert guidance for Rust development following idiomatic patterns and leveraging
 ## Ownership & Borrowing
 
 ### Ownership Rules
+
 1. Each value has a single owner
 2. When the owner goes out of scope, the value is dropped
 3. Values can be moved or borrowed
@@ -27,6 +26,7 @@ let y = x;  // x is still valid (Copy trait)
 ```
 
 ### Borrowing and References
+
 ```rust
 // Immutable borrow (&T)
 fn calculate_length(s: &String) -> usize {
@@ -50,6 +50,7 @@ append_world(&mut s);
 ```
 
 ### Lifetimes
+
 ```rust
 // Explicit lifetime annotations
 fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
@@ -68,6 +69,7 @@ fn first_word(s: &str) -> &str {
 ```
 
 ### Slice Types
+
 ```rust
 let s = String::from("hello world");
 let hello = &s[0..5];
@@ -88,6 +90,7 @@ fn first_word(s: &str) -> &str {
 ## Type System
 
 ### Enums and Pattern Matching
+
 ```rust
 // Enums can hold data
 enum Message {
@@ -114,6 +117,7 @@ if let Message::Write(text) = msg {
 ```
 
 ### Traits and Trait Bounds
+
 ```rust
 // Define trait
 trait Summary {
@@ -149,6 +153,7 @@ where
 ```
 
 ### Generic Types
+
 ```rust
 // Generic struct
 struct Point<T> {
@@ -171,6 +176,7 @@ impl Point<f32> {
 ```
 
 ### Associated Types
+
 ```rust
 trait Iterator {
     type Item;  // Associated type
@@ -190,6 +196,7 @@ impl Iterator for Counter {
 ## Error Handling
 
 ### Result<T, E> Type
+
 ```rust
 use std::fs::File;
 use std::io::{self, Read};
@@ -210,6 +217,7 @@ match read_file("file.txt") {
 ```
 
 ### Option<T> Type
+
 ```rust
 fn find_user(id: u32) -> Option<User> {
     // Return Some(user) or None
@@ -228,6 +236,7 @@ let name = find_user(123)
 ```
 
 ### Custom Error Types with thiserror
+
 ```rust
 use thiserror::Error;
 
@@ -250,6 +259,7 @@ fn load_user(id: u32) -> Result<User, AppError> {
 ```
 
 ### Error Handling with anyhow
+
 ```rust
 use anyhow::{Context, Result};
 
@@ -267,6 +277,7 @@ fn process_file(path: &str) -> Result<()> {
 ## Async Programming
 
 ### Async/Await Syntax
+
 ```rust
 // Async function
 async fn fetch_data(url: &str) -> Result<String, reqwest::Error> {
@@ -286,6 +297,7 @@ async fn main() {
 ```
 
 ### Tokio Runtime
+
 ```rust
 // Multi-threaded runtime
 #[tokio::main]
@@ -312,6 +324,7 @@ let (result1, result2) = tokio::join!(
 ```
 
 ### Stream Trait
+
 ```rust
 use tokio_stream::StreamExt;
 
@@ -327,6 +340,7 @@ async fn process_stream() {
 ## Testing & Quality
 
 ### Unit Tests
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -355,6 +369,7 @@ mod tests {
 ```
 
 ### Integration Tests
+
 ```rust
 // tests/integration_test.rs
 use my_crate;
@@ -366,7 +381,8 @@ fn test_integration() {
 ```
 
 ### Doc Tests
-```rust
+
+````rust
 /// Adds two numbers together
 ///
 /// # Examples
@@ -378,9 +394,10 @@ fn test_integration() {
 pub fn add(a: i32, b: i32) -> i32 {
     a + b
 }
-```
+````
 
 ### Cargo Test Patterns
+
 ```bash
 # Run all tests
 cargo test
@@ -402,6 +419,7 @@ cargo bench
 ```
 
 ### Clippy Lints
+
 ```bash
 # Run clippy
 cargo clippy
@@ -417,6 +435,7 @@ nursery = "warn"
 ```
 
 ### Rustfmt Configuration
+
 ```toml
 # rustfmt.toml
 edition = "2021"
@@ -428,6 +447,7 @@ tab_spaces = 4
 ## Common Frameworks
 
 ### Axum (Web Framework)
+
 ```rust
 use axum::{
     routing::{get, post},
@@ -464,6 +484,7 @@ async fn create_user(Json(payload): Json<CreateUser>) -> Json<User> {
 ```
 
 ### Actix-web (Web Framework)
+
 ```rust
 use actix_web::{web, App, HttpServer, Responder};
 
@@ -489,6 +510,7 @@ async fn main() -> std::io::Result<()> {
 ```
 
 ### Diesel (ORM)
+
 ```rust
 // Define schema
 table! {
@@ -531,6 +553,7 @@ diesel::delete(users::table.find(id))
 ```
 
 ### SQLx (Async SQL)
+
 ```rust
 use sqlx::postgres::PgPoolOptions;
 
@@ -556,6 +579,7 @@ let users = sqlx::query_as::<_, User>(
 ```
 
 ### Serde (Serialization)
+
 ```rust
 use serde::{Serialize, Deserialize};
 
@@ -577,6 +601,7 @@ let user: User = serde_json::from_str(&json)?;
 ## Build & Deployment
 
 ### Cargo Workspace
+
 ```toml
 # Root Cargo.toml
 [workspace]
@@ -595,6 +620,7 @@ tokio = { version = "1.0", features = ["full"] }
 ```
 
 ### Feature Flags
+
 ```toml
 # Cargo.toml
 [features]
@@ -616,6 +642,7 @@ pub fn serialize_xml() { }
 ```
 
 ### Cross-compilation
+
 ```bash
 # Install target
 rustup target add x86_64-unknown-linux-musl

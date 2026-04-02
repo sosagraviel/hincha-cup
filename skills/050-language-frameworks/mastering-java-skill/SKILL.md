@@ -1,8 +1,6 @@
 ---
 name: mastering-java-skill
 description: Comprehensive Java expertise covering Spring Boot, JPA/Hibernate, testing, Maven/Gradle, and enterprise patterns
-user-invokable: true
-disable-model-invocation: false
 ---
 
 # Mastering Java
@@ -12,6 +10,7 @@ Expert guidance for Java development with focus on Spring Boot ecosystem and mod
 ## Language Fundamentals
 
 ### Modern Java Features (Java 8+)
+
 ```java
 // Lambda expressions
 List<String> names = Arrays.asList("Alice", "Bob", "Charlie");
@@ -53,6 +52,7 @@ String result = switch (day) {
 ```
 
 ### Collections Framework
+
 ```java
 // List
 List<String> list = new ArrayList<>();
@@ -76,6 +76,7 @@ Map<String, Integer> immutableMap = Map.of("key1", 1, "key2", 2);
 ## Spring Boot Framework
 
 ### Application Structure
+
 ```java
 @SpringBootApplication
 public class Application {
@@ -86,6 +87,7 @@ public class Application {
 ```
 
 ### Dependency Injection
+
 ```java
 // Component declaration
 @Component
@@ -115,6 +117,7 @@ public class UserService {
 ```
 
 ### REST Controllers
+
 ```java
 @RestController
 @RequestMapping("/api/users")
@@ -164,6 +167,7 @@ public class UserController {
 ```
 
 ### Configuration
+
 ```java
 // Configuration class
 @Configuration
@@ -189,6 +193,7 @@ public FeatureService featureService() {
 ```
 
 ### Application Properties
+
 ```yaml
 # application.yml
 spring:
@@ -233,6 +238,7 @@ private String jwtSecret;
 ```
 
 ### Profiles
+
 ```java
 // Profile-specific configuration
 @Configuration
@@ -263,6 +269,7 @@ spring:
 ## Data Access (JPA/Hibernate)
 
 ### Entity Definition
+
 ```java
 @Entity
 @Table(name = "users")
@@ -290,6 +297,7 @@ public class User {
 ```
 
 ### Entity Relationships
+
 ```java
 // One-to-Many
 @Entity
@@ -332,6 +340,7 @@ public class Student {
 ```
 
 ### Spring Data JPA Repositories
+
 ```java
 public interface UserRepository extends JpaRepository<User, Long> {
     // Query methods (auto-generated)
@@ -354,6 +363,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 ```
 
 ### Transactions
+
 ```java
 @Service
 public class UserService {
@@ -382,6 +392,7 @@ public class UserService {
 ## Testing
 
 ### JUnit 5
+
 ```java
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -420,6 +431,7 @@ class UserServiceTest {
 ```
 
 ### Spring Boot Test
+
 ```java
 @SpringBootTest
 @ActiveProfiles("test")
@@ -448,6 +460,7 @@ class UserIntegrationTest {
 ```
 
 ### Web Layer Testing
+
 ```java
 @WebMvcTest(UserController.class)
 class UserControllerTest {
@@ -485,6 +498,7 @@ class UserControllerTest {
 ```
 
 ### Repository Testing
+
 ```java
 @DataJpaTest
 class UserRepositoryTest {
@@ -510,6 +524,7 @@ class UserRepositoryTest {
 ```
 
 ### TestContainers
+
 ```java
 @SpringBootTest
 @Testcontainers
@@ -537,6 +552,7 @@ class DatabaseIntegrationTest {
 ## Exception Handling
 
 ### Global Exception Handler
+
 ```java
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -573,6 +589,7 @@ public class GlobalExceptionHandler {
 ```
 
 ### Validation
+
 ```java
 // DTO with validation
 public class CreateUserDto {
@@ -599,6 +616,7 @@ public ResponseEntity<User> create(@Valid @RequestBody CreateUserDto dto) {
 ## Build Tools
 
 ### Maven
+
 ```xml
 <!-- pom.xml -->
 <project>
@@ -644,6 +662,7 @@ mvn package           # Create JAR/WAR
 ```
 
 ### Gradle
+
 ```groovy
 // build.gradle
 plugins {
@@ -682,6 +701,7 @@ test {
 ## Common Patterns
 
 ### DTO Pattern
+
 ```java
 // Separate DTOs from entities
 public record CreateUserDto(String name, String email) {}
@@ -705,6 +725,7 @@ public class UserMapper {
 ```
 
 ### Service Layer
+
 ```java
 @Service
 @Transactional

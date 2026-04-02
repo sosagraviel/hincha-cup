@@ -1,28 +1,6 @@
 ---
 name: pr-reviewer
-description: >
-  Comprehensive GitHub Pull Request code review skill. Use when asked to
-  "review this PR", "code review", "review pull request", "check this PR",
-  or when a GitHub PR URL is provided. Fetches PR metadata, diff, comments,
-  commits, and related issues using gh CLI. Creates organized review workspace,
-  analyzes code against industry-standard criteria, and outputs structured
-  JSON for automated fix iteration (Phase 9 of implement-ticket workflow).
-category: code-review
-triggers:
-  - review pr
-  - code review
-  - review pull request
-  - check pr
-  - pr review
-  - github.com/*/pull/*
-author: Claude Code
-license: MIT
-tags:
-  - github
-  - code-review
-  - pull-request
-  - quality-assurance
-  - automated-fixes
+description: Comprehensive GitHub Pull Request code review skill. Use when asked to "review this PR", "code review", "review pull request", "check this PR", or when a GitHub PR URL is provided. Fetches PR metadata, diff, comments, commits, and related issues using gh CLI. Creates organized review workspace, analyzes code against industry-standard criteria, and outputs structured JSON for automated fix iteration (Phase 9 of implement-ticket workflow).
 ---
 
 # PR Reviewer Skill V2
@@ -49,7 +27,7 @@ tags:
 
 Conduct comprehensive, professional code reviews for GitHub Pull Requests using industry-standard criteria and automated tooling. Integrates with implement-ticket Phase 9 review loop for automated fix iteration.
 
-## Table of Contents
+## Contents
 
 - [What's New in V2](#whats-new-in-v2)
 - [Integration with implement-ticket V2](#integration-with-implement-ticket-v2)
@@ -78,6 +56,7 @@ Conduct comprehensive, professional code reviews for GitHub Pull Requests using 
 ### Backward Compatibility
 
 V2 maintains full backward compatibility with V1:
+
 - All existing scripts (`fetch_pr_data.py`, `generate_review_files.py`) work unchanged
 - Slash commands (`/send`, `/send-decline`, `/show`) still available
 - Can be used standalone or as part of implement-ticket Phase 9
@@ -425,9 +404,9 @@ interface ReviewResults {
   summary: string;
 
   findings: {
-    blocking: Finding[];  // Must fix before merge
-    major: Finding[];     // Should fix
-    minor: Finding[];     // Nice to have
+    blocking: Finding[]; // Must fix before merge
+    major: Finding[]; // Should fix
+    minor: Finding[]; // Nice to have
   };
 
   metrics: {
@@ -450,17 +429,17 @@ interface ReviewResults {
 }
 
 interface Finding {
-  id: string;              // Unique identifier (e.g., "SEC-001")
-  category: string;        // "Security" | "Testing" | "Performance" | "Code Style" | etc.
+  id: string; // Unique identifier (e.g., "SEC-001")
+  category: string; // "Security" | "Testing" | "Performance" | "Code Style" | etc.
   severity: 'blocking' | 'major' | 'minor';
-  issue: string;           // Brief description
-  file: string;            // Absolute or relative path
-  line: number | null;     // Line number (null if file-level)
-  details: string;         // Detailed explanation
-  codeSnippet: string | null;  // Current code
+  issue: string; // Brief description
+  file: string; // Absolute or relative path
+  line: number | null; // Line number (null if file-level)
+  details: string; // Detailed explanation
+  codeSnippet: string | null; // Current code
   fixInstructions: FixInstruction;
   testSuggestion: string | null;
-  references: string[];    // URLs to documentation
+  references: string[]; // URLs to documentation
 }
 
 interface FixInstruction {
@@ -518,15 +497,15 @@ Review `pr/inline.md` and run the provided commands for specific code comments.
 
 Reference `references/review_criteria.md` for comprehensive checklist. Review against these categories:
 
-| Category      | Key Questions                                    | Severity Guide                                              |
-| ------------- | ------------------------------------------------ | ----------------------------------------------------------- |
-| Functionality | Does code solve the problem? Bugs? Edge cases?   | Blocking: Logic errors, Bugs; Major: Missing edge cases     |
-| Readability   | Clear code? Meaningful names? DRY?               | Minor: Unclear naming; Major: Code duplication              |
-| Style         | Follows linter rules? Consistent with codebase?  | Minor: Style inconsistencies                                |
-| Performance   | Efficient algorithms? Scalable?                  | Major: O(n²) when O(n) possible; Blocking: Memory leaks     |
-| Security      | Vulnerabilities addressed? Secrets protected?    | Blocking: SQL injection, XSS, hardcoded secrets             |
-| Testing       | Tests exist? Cover happy paths and edge cases?   | Major: Missing tests; Blocking: Tests fail                  |
-| PR Quality    | Focused scope? Clean commits? Clear description? | Minor: Commit message formatting; Major: Unfocused scope    |
+| Category      | Key Questions                                    | Severity Guide                                           |
+| ------------- | ------------------------------------------------ | -------------------------------------------------------- |
+| Functionality | Does code solve the problem? Bugs? Edge cases?   | Blocking: Logic errors, Bugs; Major: Missing edge cases  |
+| Readability   | Clear code? Meaningful names? DRY?               | Minor: Unclear naming; Major: Code duplication           |
+| Style         | Follows linter rules? Consistent with codebase?  | Minor: Style inconsistencies                             |
+| Performance   | Efficient algorithms? Scalable?                  | Major: O(n²) when O(n) possible; Blocking: Memory leaks  |
+| Security      | Vulnerabilities addressed? Secrets protected?    | Blocking: SQL injection, XSS, hardcoded secrets          |
+| Testing       | Tests exist? Cover happy paths and edge cases?   | Major: Missing tests; Blocking: Tests fail               |
+| PR Quality    | Focused scope? Clean commits? Clear description? | Minor: Commit message formatting; Major: Unfocused scope |
 
 **Priority markers for findings:**
 
@@ -624,7 +603,9 @@ const MAX_ITERATIONS = 3;
 
 function shouldContinueLoop(reviewResults, iteration) {
   if (iteration >= MAX_ITERATIONS) {
-    console.log(`⚠️  Max iterations (${MAX_ITERATIONS}) reached. Stopping review loop.`);
+    console.log(
+      `⚠️  Max iterations (${MAX_ITERATIONS}) reached. Stopping review loop.`,
+    );
     return false;
   }
 
@@ -633,7 +614,9 @@ function shouldContinueLoop(reviewResults, iteration) {
     return false;
   }
 
-  console.log(`🔄 Iteration ${iteration}: ${reviewResults.findings.blocking.length} blocking issues remain. Continuing...`);
+  console.log(
+    `🔄 Iteration ${iteration}: ${reviewResults.findings.blocking.length} blocking issues remain. Continuing...`,
+  );
   return true;
 }
 ```

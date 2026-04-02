@@ -1,15 +1,6 @@
 ---
 name: atomic-design-react
 description: Enforces atomic design patterns (atoms, molecules, organisms, templates) for React frontends with TypeScript, Tailwind v4, and shadcn/ui
-category: language-framework
-stacks: [react, typescript]
-detection:
-  files: [package.json, src/components]
-  patterns:
-    - "react" in package.json dependencies
-    - component directory structure exists
-always_copy: false
-version: 1.0.0
 ---
 
 # Atomic Design React Skill
@@ -19,24 +10,33 @@ Enforces atomic design patterns for the React frontend. All components must foll
 ## Component Hierarchy
 
 ### Atoms (`src/components/atoms/`)
+
 Smallest UI building blocks. No business logic, pure presentational.
+
 - Accept props for variants, sizes, states
 - Examples: `Button`, `Input`, `Badge`, `Avatar`, `Checkbox`, `Tooltip`, `Select`
 - Each in own directory: `ComponentName/index.tsx`
 
 ### Molecules (`src/components/molecules/`)
+
 Compositions of atoms that form functional UI units. May have minimal local state.
+
 - Examples: `SearchInput` (Input + Icon), `UserAvatar` (Avatar + Name), `FormField` (Label + Input + Error), `StatusBadge`, `PriorityBadge`
 
 ### Organisms (`src/components/organisms/`)
+
 Complex UI sections composed of molecules and atoms. May connect to context/hooks.
+
 - Examples: `Header`, `Sidebar`, `BoardColumn`, `TicketCard`, `TicketDetailPanel`, `CommentSection`
 
 ### Templates (`src/components/templates/`)
+
 Page-level layout structures. Define the skeleton/grid of a page.
+
 - Examples: `DashboardTemplate`, `SettingsTemplate`, `AuthTemplate`
 
 ### Pages (`src/routes/` via TanStack Router)
+
 Route components that compose templates with data. Connect to React Query hooks.
 
 ## Conventions

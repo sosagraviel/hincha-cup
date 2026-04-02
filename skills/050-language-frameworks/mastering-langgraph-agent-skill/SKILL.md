@@ -1,11 +1,6 @@
 ---
-name: mastering-langgraph
+name: mastering-langgraph-agent-skill
 description: Build stateful AI agents and agentic workflows with LangGraph in Python. Covers tool-using agents with LLM-tool loops, branching workflows, conversation memory, human-in-the-loop oversight, and production monitoring. Use when - (1) building agents that use tools and loop until task complete, (2) creating multi-step workflows with conditional branches, (3) adding persistence/memory across turns with checkpointers, (4) implementing human approval with interrupt(), (5) debugging via time-travel or LangSmith. Covers StateGraph, nodes, edges, add_conditional_edges, MessagesState, thread_id, Command objects, and ToolMessage handling. Examples include chatbots, calculator agents, and structured workflows.
-license: MIT
-metadata:
-  version: 1.0.0
-  framework: LangGraph
-  python: ">=3.9"
 ---
 
 # LangGraph Development Guide
@@ -65,6 +60,7 @@ print(result["messages"][-1].content)
 ```
 
 Key patterns:
+
 - `Annotated[list, operator.add]` — append to list instead of replace
 - `InMemorySaver()` — enables memory across invocations
 - `thread_id` — identifies conversation for persistence
@@ -72,43 +68,53 @@ Key patterns:
 ## Common Build Scenarios
 
 ### Simple Chatbot / Q&A
+
 The Quick Start above covers this. Add more nodes for preprocessing or postprocessing as needed.
 
 ### Tool-Using Agent
+
 Agent that calls external tools (APIs, calculators, search) in a loop until task complete.
 → See [references/tool-agent-pattern.md](references/tool-agent-pattern.md)
 
 ### Structured Workflow
+
 Multi-step pipeline with conditional branches, parallel execution, or prompt chaining.
 → See [references/workflow-patterns.md](references/workflow-patterns.md)
 
 ### Agent with Long-Term Memory
+
 Persist conversation across sessions, enable time-travel debugging, survive crashes.
 → See [references/persistence-memory.md](references/persistence-memory.md)
 
 ### Human-in-the-Loop
+
 Pause for human approval, correction, or additional input mid-workflow.
 → See [references/hitl-patterns.md](references/hitl-patterns.md)
 
 ### Debugging / Production Monitoring
+
 Unit test nodes, visualize graphs, trace with LangSmith.
 → See [references/debugging-monitoring.md](references/debugging-monitoring.md)
 
 ### Multi-Agent Systems
+
 Build supervisor or swarm-based multi-agent workflows with handoff tools.
 → See [references/multi-agent-patterns.md](references/multi-agent-patterns.md)
 
 ### Production Deployment
+
 Deploy to LangGraph Platform (cloud/self-hosted) or custom infrastructure.
 → See [references/production-deployment.md](references/production-deployment.md)
 
 ### New to LangGraph?
+
 Learn core concepts: State, Nodes, Edges, Graph APIs.
 → See [references/core-api.md](references/core-api.md)
 
 ## Core Principles
 
 ### 1. Keep State Raw
+
 Store facts, not formatted prompts. Each node can format data as needed.
 
 ```python
@@ -124,6 +130,7 @@ class State(TypedDict):
 ```
 
 ### 2. Single-Purpose Nodes
+
 Each node does one thing. Name it descriptively.
 
 ```python
@@ -134,6 +141,7 @@ graph.add_node("generate_response", generate_response)
 ```
 
 ### 3. Explicit Routing
+
 Use conditional edges for decisions. Don't hide routing logic inside nodes.
 
 ```python
@@ -142,11 +150,12 @@ def route_by_intent(state) -> str:
         return "billing_handler"
     return "general_handler"
 
-graph.add_conditional_edges("classify", route_by_intent, 
+graph.add_conditional_edges("classify", route_by_intent,
     ["billing_handler", "general_handler"])
 ```
 
 ### 4. Use Aggregators for Lists
+
 Any list field that accumulates values needs `operator.add`:
 
 ```python
@@ -157,12 +166,12 @@ class State(TypedDict):
 
 ### 5. Handle Errors Deliberately
 
-| Error Type | Strategy |
-|------------|----------|
-| Transient (network) | Use `RetryPolicy` on node |
+| Error Type                   | Strategy                               |
+| ---------------------------- | -------------------------------------- |
+| Transient (network)          | Use `RetryPolicy` on node              |
 | LLM-recoverable (parse fail) | Feed error to LLM via state, loop back |
-| User-fixable (missing info) | Use `interrupt()` to pause and ask |
-| Unexpected (bugs) | Let bubble up for debugging |
+| User-fixable (missing info)  | Use `interrupt()` to pause and ask     |
+| Unexpected (bugs)            | Let bubble up for debugging            |
 
 ## Development Workflow
 
@@ -176,28 +185,36 @@ class State(TypedDict):
 ## Common Pitfalls
 
 ### 1. Forgetting `operator.add` on Lists
+
 **Symptom:** Messages disappear, only last message retained.
+
 ```python
 # ✗ Wrong: messages: list[AnyMessage]
 # ✓ Fix: messages: Annotated[list[AnyMessage], operator.add]
 ```
 
 ### 2. Missing `thread_id` for Memory
+
 **Symptom:** Agent forgets previous turns.
+
 ```python
 # ✓ Fix: Always pass config with thread_id
 chain.invoke(input, config={"configurable": {"thread_id": "unique-id"}})
 ```
 
 ### 3. Not Compiling Before Invoke
+
 **Symptom:** AttributeError on graph object.
+
 ```python
 # ✗ Wrong: graph.invoke(input)
 # ✓ Fix: chain = graph.compile(); chain.invoke(input)
 ```
 
 ### 4. Non-Deterministic Nodes Without @task
+
 **Symptom:** Different results on resume from checkpoint.
+
 ```python
 from langgraph.func import task
 
@@ -207,7 +224,9 @@ def fetch_data(state):
 ```
 
 ### 5. Circular Imports with Type Hints
+
 **Symptom:** ImportError when defining state classes.
+
 ```python
 # ✓ Fix: Use string annotations
 from __future__ import annotations
@@ -231,6 +250,7 @@ pip install langsmith
 ```
 
 Environment variables:
+
 ```bash
 export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
@@ -241,11 +261,13 @@ export LANGSMITH_TRACING=true
 ## Quick Verification
 
 ### Before Building
+
 - [ ] `python -c "import langgraph; print(langgraph.__version__)"` works
 - [ ] LLM API key set (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`)
 - [ ] Optional: `LANGSMITH_API_KEY` for tracing
 
 ### After Building
+
 - [ ] Graph compiles without error: `chain = graph.compile()`
 - [ ] Visualization renders: `print(chain.get_graph().draw_mermaid())`
 - [ ] Invoke succeeds with sample input: `chain.invoke({...})`

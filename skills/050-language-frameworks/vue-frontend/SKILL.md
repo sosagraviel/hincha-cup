@@ -1,8 +1,6 @@
 ---
 name: vue-frontend
 description: Comprehensive Vue.js 3 expertise covering Composition API, Pinia state management, Vue Router, and modern component patterns
-user-invokable: true
-disable-model-invocation: false
 ---
 
 # Vue Frontend Development
@@ -12,26 +10,27 @@ Expert guidance for building modern web applications with Vue 3, focusing on Com
 ## Vue 3 Fundamentals
 
 ### Composition API with `<script setup>`
+
 ```vue
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue';
 
 // Reactive state
-const count = ref(0)
-const name = ref('Alice')
+const count = ref(0);
+const name = ref('Alice');
 
 // Computed property
-const doubleCount = computed(() => count.value * 2)
+const doubleCount = computed(() => count.value * 2);
 
 // Methods
 function increment() {
-  count.value++
+  count.value++;
 }
 
 // Lifecycle hook
 onMounted(() => {
-  console.log('Component mounted')
-})
+  console.log('Component mounted');
+});
 </script>
 
 <template>
@@ -44,27 +43,28 @@ onMounted(() => {
 ```
 
 ### Reactive State (ref vs reactive)
+
 ```vue
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive } from 'vue';
 
 // ref - for primitives and single values
-const count = ref(0)
-const name = ref('Alice')
-count.value++  // Need .value in script
+const count = ref(0);
+const name = ref('Alice');
+count.value++; // Need .value in script
 
 // reactive - for objects
 const state = reactive({
   count: 0,
-  name: 'Alice'
-})
-state.count++  // No .value needed
+  name: 'Alice',
+});
+state.count++; // No .value needed
 
 // Common pattern: reactive object with multiple refs
 const user = reactive({
   name: ref('Alice'),
-  age: ref(30)
-})
+  age: ref(30),
+});
 </script>
 
 <template>
@@ -75,31 +75,33 @@ const user = reactive({
 ```
 
 ### Computed Properties
+
 ```vue
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed } from 'vue';
 
-const firstName = ref('John')
-const lastName = ref('Doe')
+const firstName = ref('John');
+const lastName = ref('Doe');
 
 // Read-only computed
-const fullName = computed(() => `${firstName.value} ${lastName.value}`)
+const fullName = computed(() => `${firstName.value} ${lastName.value}`);
 
 // Writable computed
 const fullNameWritable = computed({
   get() {
-    return `${firstName.value} ${lastName.value}`
+    return `${firstName.value} ${lastName.value}`;
   },
   set(newValue) {
-    const parts = newValue.split(' ')
-    firstName.value = parts[0]
-    lastName.value = parts[1]
-  }
-})
+    const parts = newValue.split(' ');
+    firstName.value = parts[0];
+    lastName.value = parts[1];
+  },
+});
 </script>
 ```
 
 ### Lifecycle Hooks
+
 ```vue
 <script setup>
 import {
@@ -108,34 +110,35 @@ import {
   onUnmounted,
   onBeforeMount,
   onBeforeUpdate,
-  onBeforeUnmount
-} from 'vue'
+  onBeforeUnmount,
+} from 'vue';
 
 onBeforeMount(() => {
-  console.log('Before component mounts')
-})
+  console.log('Before component mounts');
+});
 
 onMounted(() => {
-  console.log('Component mounted')
+  console.log('Component mounted');
   // Setup side effects, fetch data, etc.
-})
+});
 
 onUpdated(() => {
-  console.log('Component updated')
-})
+  console.log('Component updated');
+});
 
 onBeforeUnmount(() => {
-  console.log('Before component unmounts')
+  console.log('Before component unmounts');
   // Cleanup event listeners, timers, etc.
-})
+});
 
 onUnmounted(() => {
-  console.log('Component unmounted')
-})
+  console.log('Component unmounted');
+});
 </script>
 ```
 
 ### Template Syntax and Directives
+
 ```vue
 <template>
   <!-- Text interpolation -->
@@ -181,36 +184,37 @@ onUnmounted(() => {
 ```
 
 ### Props and Emits
+
 ```vue
 <!-- Child Component -->
 <script setup>
-import { computed } from 'vue'
+import { computed } from 'vue';
 
 // Define props with types and defaults
 const props = defineProps({
   title: {
     type: String,
-    required: true
+    required: true,
   },
   count: {
     type: Number,
-    default: 0
+    default: 0,
   },
   user: {
     type: Object,
-    required: true
-  }
-})
+    required: true,
+  },
+});
 
 // Define emits
-const emit = defineEmits(['update:count', 'delete'])
+const emit = defineEmits(['update:count', 'delete']);
 
 function increment() {
-  emit('update:count', props.count + 1)
+  emit('update:count', props.count + 1);
 }
 
 function remove() {
-  emit('delete', props.user.id)
+  emit('delete', props.user.id);
 }
 </script>
 
@@ -234,59 +238,61 @@ function remove() {
 ## State Management (Pinia)
 
 ### Store Setup
+
 ```typescript
 // stores/user.ts
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
 
 export const useUserStore = defineStore('user', () => {
   // State
-  const user = ref(null)
-  const token = ref(localStorage.getItem('token'))
+  const user = ref(null);
+  const token = ref(localStorage.getItem('token'));
 
   // Getters
-  const isAuthenticated = computed(() => !!token.value)
-  const userName = computed(() => user.value?.name ?? 'Guest')
+  const isAuthenticated = computed(() => !!token.value);
+  const userName = computed(() => user.value?.name ?? 'Guest');
 
   // Actions
   async function login(credentials) {
     try {
-      const response = await api.post('/login', credentials)
-      user.value = response.data.user
-      token.value = response.data.token
-      localStorage.setItem('token', token.value)
+      const response = await api.post('/login', credentials);
+      user.value = response.data.user;
+      token.value = response.data.token;
+      localStorage.setItem('token', token.value);
     } catch (error) {
-      console.error('Login failed:', error)
-      throw error
+      console.error('Login failed:', error);
+      throw error;
     }
   }
 
   function logout() {
-    user.value = null
-    token.value = null
-    localStorage.removeItem('token')
+    user.value = null;
+    token.value = null;
+    localStorage.removeItem('token');
   }
 
-  return { user, token, isAuthenticated, userName, login, logout }
-})
+  return { user, token, isAuthenticated, userName, login, logout };
+});
 ```
 
 ### Using Stores in Components
+
 ```vue
 <script setup>
-import { useUserStore } from '@/stores/user'
-import { storeToRefs } from 'pinia'
+import { useUserStore } from '@/stores/user';
+import { storeToRefs } from 'pinia';
 
-const userStore = useUserStore()
+const userStore = useUserStore();
 
 // Extract reactive state (preserves reactivity)
-const { user, isAuthenticated } = storeToRefs(userStore)
+const { user, isAuthenticated } = storeToRefs(userStore);
 
 // Actions can be destructured directly
-const { login, logout } = userStore
+const { login, logout } = userStore;
 
 async function handleLogin() {
-  await login({ email: 'user@example.com', password: 'secret' })
+  await login({ email: 'user@example.com', password: 'secret' });
 }
 </script>
 
@@ -302,38 +308,40 @@ async function handleLogin() {
 ```
 
 ### Store Composition
+
 ```typescript
 // stores/cart.ts
-import { defineStore } from 'pinia'
-import { useUserStore } from './user'
+import { defineStore } from 'pinia';
+import { useUserStore } from './user';
 
 export const useCartStore = defineStore('cart', () => {
-  const userStore = useUserStore()
+  const userStore = useUserStore();
 
-  const items = ref([])
+  const items = ref([]);
 
   const total = computed(() =>
-    items.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  )
+    items.value.reduce((sum, item) => sum + item.price * item.quantity, 0),
+  );
 
   async function checkout() {
     if (!userStore.isAuthenticated) {
-      throw new Error('Must be logged in')
+      throw new Error('Must be logged in');
     }
     // Checkout logic
   }
 
-  return { items, total, checkout }
-})
+  return { items, total, checkout };
+});
 ```
 
 ## Routing (Vue Router 4)
 
 ### Route Configuration
+
 ```typescript
 // router/index.ts
-import { createRouter, createWebHistory } from 'vue-router'
-import Home from '@/views/Home.vue'
+import { createRouter, createWebHistory } from 'vue-router';
+import Home from '@/views/Home.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -341,19 +349,19 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: Home
+      component: Home,
     },
     {
       path: '/about',
       name: 'about',
       // Lazy-loaded route
-      component: () => import('@/views/About.vue')
+      component: () => import('@/views/About.vue'),
     },
     {
       path: '/users/:id',
       name: 'user-detail',
       component: () => import('@/views/UserDetail.vue'),
-      props: true  // Pass route params as props
+      props: true, // Pass route params as props
     },
     {
       path: '/dashboard',
@@ -362,28 +370,29 @@ const router = createRouter({
         {
           path: '',
           name: 'dashboard-home',
-          component: () => import('@/views/Dashboard/Home.vue')
+          component: () => import('@/views/Dashboard/Home.vue'),
         },
         {
           path: 'settings',
           name: 'dashboard-settings',
-          component: () => import('@/views/Dashboard/Settings.vue')
-        }
-      ]
+          component: () => import('@/views/Dashboard/Settings.vue'),
+        },
+      ],
     },
     {
       // 404 catch-all
       path: '/:pathMatch(.*)*',
       name: 'not-found',
-      component: () => import('@/views/NotFound.vue')
-    }
-  ]
-})
+      component: () => import('@/views/NotFound.vue'),
+    },
+  ],
+});
 
-export default router
+export default router;
 ```
 
 ### Navigation Guards
+
 ```typescript
 // Global guards
 router.beforeEach((to, from) => {
@@ -413,26 +422,27 @@ router.beforeEach((to, from) => {
 ```
 
 ### Using Router in Components
+
 ```vue
 <script setup>
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router';
 
-const router = useRouter()
-const route = useRoute()
+const router = useRouter();
+const route = useRoute();
 
 // Access route params
-const userId = computed(() => route.params.id)
+const userId = computed(() => route.params.id);
 
 // Access query params
-const page = computed(() => route.query.page)
+const page = computed(() => route.query.page);
 
 // Programmatic navigation
 function goToUser(id) {
-  router.push({ name: 'user-detail', params: { id } })
+  router.push({ name: 'user-detail', params: { id } });
 }
 
 function goBack() {
-  router.back()
+  router.back();
 }
 </script>
 
@@ -449,6 +459,7 @@ function goBack() {
 ## Component Patterns
 
 ### Composables (Reusable Logic)
+
 ```typescript
 // composables/useFetch.ts
 import { ref } from 'vue'
@@ -486,32 +497,34 @@ onMounted(() => {
 ```
 
 ### Provide/Inject (Dependency Injection)
+
 ```vue
 <!-- Parent Component -->
 <script setup>
-import { provide, ref } from 'vue'
+import { provide, ref } from 'vue';
 
-const theme = ref('dark')
+const theme = ref('dark');
 
 function toggleTheme() {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark'
+  theme.value = theme.value === 'dark' ? 'light' : 'dark';
 }
 
 // Provide to all descendants
-provide('theme', theme)
-provide('toggleTheme', toggleTheme)
+provide('theme', theme);
+provide('toggleTheme', toggleTheme);
 </script>
 
 <!-- Descendant Component (any level deep) -->
 <script setup>
-import { inject } from 'vue'
+import { inject } from 'vue';
 
-const theme = inject('theme')
-const toggleTheme = inject('toggleTheme')
+const theme = inject('theme');
+const toggleTheme = inject('toggleTheme');
 </script>
 ```
 
 ### Slots and Scoped Slots
+
 ```vue
 <!-- Parent Component -->
 <template>
@@ -544,7 +557,8 @@ const toggleTheme = inject('toggleTheme')
       <slot name="header"></slot>
     </div>
     <div class="card-body">
-      <slot></slot>  <!-- Default slot -->
+      <slot></slot>
+      <!-- Default slot -->
     </div>
     <div class="card-footer">
       <slot name="footer"></slot>
@@ -554,7 +568,7 @@ const toggleTheme = inject('toggleTheme')
 
 <!-- DataList Component with scoped slot -->
 <script setup>
-defineProps(['items'])
+defineProps(['items']);
 </script>
 
 <template>
@@ -565,11 +579,12 @@ defineProps(['items'])
 ```
 
 ### Teleport
+
 ```vue
 <script setup>
-import { ref } from 'vue'
+import { ref } from 'vue';
 
-const showModal = ref(false)
+const showModal = ref(false);
 </script>
 
 <template>
@@ -589,6 +604,7 @@ const showModal = ref(false)
 ```
 
 ### KeepAlive (Cache Component State)
+
 ```vue
 <template>
   <router-view v-slot="{ Component }">
@@ -602,27 +618,28 @@ const showModal = ref(false)
 ## Build Tools (Vite)
 
 ### Vite Configuration
+
 ```typescript
 // vite.config.ts
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import { fileURLToPath, URL } from 'node:url'
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
   },
   server: {
     port: 3000,
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
-        changeOrigin: true
-      }
-    }
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     outDir: 'dist',
@@ -630,15 +647,16 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor': ['vue', 'vue-router', 'pinia']
-        }
-      }
-    }
-  }
-})
+          vendor: ['vue', 'vue-router', 'pinia'],
+        },
+      },
+    },
+  },
+});
 ```
 
 ### Environment Variables
+
 ```bash
 # .env
 VITE_API_URL=http://localhost:8080/api
@@ -650,58 +668,60 @@ VITE_API_URL=https://api.production.com
 
 ```typescript
 // Access in code
-const apiUrl = import.meta.env.VITE_API_URL
+const apiUrl = import.meta.env.VITE_API_URL;
 ```
 
 ## Testing
 
 ### Unit Testing with Vitest
+
 ```typescript
 // UserCard.spec.ts
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
-import UserCard from './UserCard.vue'
+import { describe, it, expect } from 'vitest';
+import { mount } from '@vue/test-utils';
+import UserCard from './UserCard.vue';
 
 describe('UserCard', () => {
   it('renders user name', () => {
     const wrapper = mount(UserCard, {
       props: {
-        user: { id: 1, name: 'Alice' }
-      }
-    })
+        user: { id: 1, name: 'Alice' },
+      },
+    });
 
-    expect(wrapper.text()).toContain('Alice')
-  })
+    expect(wrapper.text()).toContain('Alice');
+  });
 
   it('emits delete event when button clicked', async () => {
     const wrapper = mount(UserCard, {
       props: {
-        user: { id: 1, name: 'Alice' }
-      }
-    })
+        user: { id: 1, name: 'Alice' },
+      },
+    });
 
-    await wrapper.find('button.delete').trigger('click')
+    await wrapper.find('button.delete').trigger('click');
 
-    expect(wrapper.emitted('delete')).toBeTruthy()
-    expect(wrapper.emitted('delete')[0]).toEqual([1])
-  })
-})
+    expect(wrapper.emitted('delete')).toBeTruthy();
+    expect(wrapper.emitted('delete')[0]).toEqual([1]);
+  });
+});
 ```
 
 ### Component Testing with Playwright
+
 ```typescript
-import { test, expect } from '@playwright/test'
+import { test, expect } from '@playwright/test';
 
 test('user can login', async ({ page }) => {
-  await page.goto('http://localhost:3000/login')
+  await page.goto('http://localhost:3000/login');
 
-  await page.fill('input[name="email"]', 'user@example.com')
-  await page.fill('input[name="password"]', 'password')
-  await page.click('button[type="submit"]')
+  await page.fill('input[name="email"]', 'user@example.com');
+  await page.fill('input[name="password"]', 'password');
+  await page.click('button[type="submit"]');
 
-  await expect(page).toHaveURL(/\/dashboard/)
-  await expect(page.locator('h1')).toContainText('Dashboard')
-})
+  await expect(page).toHaveURL(/\/dashboard/);
+  await expect(page.locator('h1')).toContainText('Dashboard');
+});
 ```
 
 ## Best Practices

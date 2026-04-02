@@ -1,10 +1,7 @@
 ---
 name: implement-ticket
 description: End-to-end ticket implementation with stack-agnostic testing, visual verification, and automated documentation updates. Supports 1000+ parallel tickets with isolated environments.
-user-invocable: true
-argument-hint: [--from-jira JIRA-URL-OR-KEY | --from-markdown PATH]
-disable-model-invocation: false
-context: inline
+argument-hint: '[--from-jira JIRA-URL-OR-KEY | --from-markdown PATH]'
 ---
 
 # Implement Ticket V2 - Production Autonomous Workflow
@@ -24,6 +21,7 @@ context: inline
 > ### Orchestration Implementation
 >
 > The utilities referenced below have been migrated to `orchestration/src/`:
+>
 > - **Stack Detection**: `services/implement-ticket/project-config-reader.service.ts`
 > - **Test Framework Detection**: `services/implement-ticket/test-orchestrator.service.ts`
 > - **Environment Management**: `services/implement-ticket/environment-manager.service.ts`
@@ -36,6 +34,7 @@ context: inline
 ---
 
 Complete SDLC workflow with:
+
 - ✅ Stack-agnostic testing (TypeScript, Python, Go, Java, Rust, Ruby)
 - ✅ Automated E2E framework initialization (Playwright)
 - ✅ Visual verification with pixel-perfect iteration
@@ -68,12 +67,14 @@ Complete SDLC workflow with:
 ### Interactive Mode (Default)
 
 Prompts user for confirmation at key decision points:
+
 - After context gathering (Phase 1)
 - After planning (Phase 2)
 - After visual verification (Phase 6)
 - Before PR creation (Phase 8)
 
 **Usage**:
+
 ```bash
 /implement-ticket PROJ-123
 # OR
@@ -87,12 +88,14 @@ Prompts user for confirmation at key decision points:
 ### Autonomous Mode (--no-stop)
 
 Runs end-to-end without user prompts. Only stops on hard errors:
+
 - Coverage gate failures (<80% coverage after 3 attempts)
 - Visual verification failures (>5% diff after 5 iterations)
 - Merge conflicts that cannot be auto-resolved
 - Critical build/test failures
 
 **Usage**:
+
 ```bash
 # Option 1: Flag
 /implement-ticket PROJ-123 --no-stop
@@ -142,14 +145,14 @@ Phase 10: Cleanup (Teardown isolated environment)
 
 ## Stack Support Matrix
 
-| Stack | Unit Tests | Integration Tests | E2E Tests | Auto-Init E2E |
-|-------|-----------|------------------|-----------|---------------|
-| TypeScript/JavaScript | Jest, Vitest, Mocha, Ava | Jest, Supertest | Playwright, Cypress, TestCafe | ✅ Playwright |
-| Python | Pytest, unittest | Pytest, Flask-Testing | Playwright | ✅ Playwright |
-| Go | go test | go test | Playwright | ✅ Playwright |
-| Java | JUnit (Maven/Gradle) | JUnit + TestContainers | Playwright | ✅ Playwright |
-| Rust | cargo test | cargo test | Playwright | ✅ Playwright |
-| Ruby | RSpec, Minitest | RSpec | Playwright | ✅ Playwright |
+| Stack                 | Unit Tests               | Integration Tests      | E2E Tests                     | Auto-Init E2E |
+| --------------------- | ------------------------ | ---------------------- | ----------------------------- | ------------- |
+| TypeScript/JavaScript | Jest, Vitest, Mocha, Ava | Jest, Supertest        | Playwright, Cypress, TestCafe | ✅ Playwright |
+| Python                | Pytest, unittest         | Pytest, Flask-Testing  | Playwright                    | ✅ Playwright |
+| Go                    | go test                  | go test                | Playwright                    | ✅ Playwright |
+| Java                  | JUnit (Maven/Gradle)     | JUnit + TestContainers | Playwright                    | ✅ Playwright |
+| Rust                  | cargo test               | cargo test             | Playwright                    | ✅ Playwright |
+| Ruby                  | RSpec, Minitest          | RSpec                  | Playwright                    | ✅ Playwright |
 
 **Note**: If no E2E framework is detected, Playwright will be automatically installed and configured.
 
@@ -169,6 +172,7 @@ Supports **1000+ parallel tickets** with isolated environments:
 ```
 
 **How It Works**:
+
 - Each ticket gets a unique port range via hash-based allocation
 - Docker Compose override files for isolation (`docker-compose.PROJ-123.yml`)
 - Separate artifact directories (`.claude/artifacts/PROJ-123/`)
@@ -176,6 +180,7 @@ Supports **1000+ parallel tickets** with isolated environments:
 - Supports 500 concurrent tickets: 10000-59999
 
 **Example Port Allocation**:
+
 ```
 PROJ-123 (hash=42)  → Ports 14200-14299
 PROJ-456 (hash=137) → Ports 23700-23799
@@ -429,7 +434,7 @@ TodoWrite({
 
 **Agent Used**: `planner` (Opus model)
 
-```bash
+````bash
 #!/bin/bash
 set -e
 
@@ -530,7 +535,7 @@ TodoWrite({
     activeForm: "Creating implementation plan with test strategy"
   }]
 })
-```
+````
 
 ---
 
@@ -1569,6 +1574,7 @@ TodoWrite({
 Each phase has specific error handling:
 
 ### Phase 0: Pre-Flight Validation
+
 - **Hard Errors** (stop workflow):
   - Not a git repository
   - Uncommitted changes
@@ -1576,18 +1582,21 @@ Each phase has specific error handling:
 - **Graceful Degradation**: None (must pass to continue)
 
 ### Phase 1: Context Gathering
+
 - **Hard Errors**: Context file not generated
 - **Graceful Degradation**:
   - Missing external docs: Continue with Jira/markdown context only
   - MCP server not configured: Use markdown input instead
 
 ### Phase 2: Planning
+
 - **Hard Errors**: Plan file not generated
 - **Graceful Degradation**:
   - Missing test plan: Use default test strategy
   - Missing environment requirements: Assume no special setup needed
 
 ### Phase 3: Environment Setup
+
 - **Hard Errors**: Docker Compose startup failure
 - **Graceful Degradation**:
   - No Docker Compose detected: Use existing environment
@@ -1595,10 +1604,12 @@ Each phase has specific error handling:
   - Screenshot capture failure: Continue without visual verification
 
 ### Phase 4: Implementation
+
 - **Hard Errors**: Implementation log not generated
 - **Graceful Degradation**: None (implementation must complete)
 
 ### Phase 5: Testing
+
 - **Hard Errors**:
   - Test execution failure
   - Coverage <80% (after 3 retry attempts)
@@ -1607,6 +1618,7 @@ Each phase has specific error handling:
   - Integration tests not found: Skip integration testing
 
 ### Phase 6: Visual Verification
+
 - **Hard Errors**: None (visual verification is best-effort)
 - **Graceful Degradation**:
   - Screenshot capture failure: Skip visual verification
@@ -1614,12 +1626,14 @@ Each phase has specific error handling:
   - No "before" screenshots: Skip comparison
 
 ### Phase 7: Documentation Update
+
 - **Hard Errors**: None (documentation update is best-effort)
 - **Graceful Degradation**:
   - No changes detected: Skip documentation update
   - Update failure: Log warning and continue
 
 ### Phase 8: PR Creation
+
 - **Hard Errors**:
   - Git push failure
   - PR creation failure (network/auth)
@@ -1627,12 +1641,14 @@ Each phase has specific error handling:
   - Artifact collection partial failure: Create PR with available artifacts
 
 ### Phase 9: Review Loop
+
 - **Hard Errors**: Test failure after fixes (blocks merge)
 - **Graceful Degradation**:
   - Review agent failure: Skip automated review (manual review required)
   - Max iterations reached: Continue with remaining issues (flag for manual review)
 
 ### Phase 10: Cleanup
+
 - **Hard Errors**: None (cleanup is best-effort)
 - **Graceful Degradation**:
   - Teardown failure: Log warning (resources may need manual cleanup)
@@ -1645,25 +1661,25 @@ Each phase has specific error handling:
 Each phase writes a checkpoint file: `.claude/artifacts/{JIRA_KEY}/checkpoints/phase-{N}.json`
 
 **Checkpoint Format**:
+
 ```json
 {
   "phase": 5,
   "phaseName": "Testing",
   "status": "completed",
   "timestamp": "2024-01-15T14:32:00Z",
-  "artifacts": [
-    "tests/test-results.json",
-    "coverage/index.html"
-  ]
+  "artifacts": ["tests/test-results.json", "coverage/index.html"]
 }
 ```
 
 **Resume Command**:
+
 ```bash
 /implement-ticket PROJ-123 --resume
 ```
 
 When `--resume` is provided:
+
 1. Read all checkpoint files
 2. Find the last completed phase
 3. Skip to the next phase
@@ -1676,6 +1692,7 @@ When `--resume` is provided:
 All autonomous decisions are logged to `.claude/decisions/{JIRA_KEY}.md`
 
 **Decision Format**:
+
 ```markdown
 ## Decision Log for PROJ-123
 
@@ -1703,14 +1720,15 @@ All autonomous decisions are logged to `.claude/decisions/{JIRA_KEY}.md`
 ```
 
 **Workflow**:
+
 - Phase 0: ✅ Pre-flight validation
 - Phase 1: ✅ Context from Jira
 - Phase 2: ✅ Planning (test plan: no E2E)
-- Phase 3: ⏭️  Skipped (no environment setup needed)
+- Phase 3: ⏭️ Skipped (no environment setup needed)
 - Phase 4: ✅ Implementation + unit tests
 - Phase 5: ✅ Testing (unit + integration)
-- Phase 6: ⏭️  Skipped (no visual verification required)
-- Phase 7: ⏭️  Skipped (no architectural changes)
+- Phase 6: ⏭️ Skipped (no visual verification required)
+- Phase 7: ⏭️ Skipped (no architectural changes)
 - Phase 8: ✅ PR created
 - Phase 9: ✅ Review loop (0 iterations needed)
 - Phase 10: ✅ Cleanup
@@ -1726,6 +1744,7 @@ All autonomous decisions are logged to `.claude/decisions/{JIRA_KEY}.md`
 ```
 
 **Workflow**:
+
 - Phase 0: ✅ Pre-flight validation
 - Phase 1: ✅ Context from markdown + Notion docs
 - Phase 2: ✅ Planning (test plan: unit + integration + E2E + visual)
@@ -1756,6 +1775,7 @@ All autonomous decisions are logged to `.claude/decisions/{JIRA_KEY}.md`
 ```
 
 **Each ticket runs independently**:
+
 - Unique port ranges (PROJ-123: 14200-14299, PROJ-456: 23700-23799, etc.)
 - Isolated Docker Compose environments
 - Separate artifact directories
@@ -1768,6 +1788,7 @@ All autonomous decisions are logged to `.claude/decisions/{JIRA_KEY}.md`
 ## Issue: Coverage gate failure (<80%)
 
 **Solution**:
+
 1. Check which files are missing coverage: `cat .claude/artifacts/{JIRA_KEY}/coverage/index.html`
 2. Re-run Phase 4 (implementation) to add missing tests
 3. Resume from Phase 5: `/implement-ticket {JIRA_KEY} --resume`
@@ -1777,6 +1798,7 @@ All autonomous decisions are logged to `.claude/decisions/{JIRA_KEY}.md`
 ## Issue: Visual verification stuck (diff not decreasing)
 
 **Solution**:
+
 1. Review visual-verifier analysis: `cat .claude/artifacts/{JIRA_KEY}/screenshots/diffs/visual-verification-analysis-iter-*.json`
 2. Check if issue is anti-aliasing (<2% diff): Safe to ignore
 3. Check if issue is design mismatch (>20% diff): May need manual design review
@@ -1787,6 +1809,7 @@ All autonomous decisions are logged to `.claude/decisions/{JIRA_KEY}.md`
 ## Issue: E2E tests not found
 
 **Solution**:
+
 1. Phase 3 will automatically initialize Playwright if no E2E framework is detected
 2. If initialization fails, check npm/pnpm is available
 3. Manually initialize: `npx playwright install`
@@ -1796,6 +1819,7 @@ All autonomous decisions are logged to `.claude/decisions/{JIRA_KEY}.md`
 ## Issue: Docker Compose port conflicts
 
 **Solution**:
+
 1. Check if another ticket is using the same port range (hash collision is extremely rare)
 2. Teardown other environments: `/implement-ticket {OTHER_JIRA_KEY} --cleanup`
 3. Manually change base port range in environment-manager.js (default: 10000)
@@ -1806,14 +1830,14 @@ All autonomous decisions are logged to `.claude/decisions/{JIRA_KEY}.md`
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CLAUDE_AUTO_MODE` | `false` | Enable autonomous mode globally |
-| `COVERAGE_THRESHOLD` | `80` | Minimum code coverage percentage |
-| `VISUAL_DIFF_THRESHOLD` | `5.0` | Maximum acceptable visual diff percentage |
-| `MAX_VISUAL_ITERATIONS` | `5` | Maximum visual verification iterations |
-| `MAX_REVIEW_ITERATIONS` | `3` | Maximum PR review loop iterations |
-| `BASE_PORT_RANGE` | `10000` | Starting port for parallel ticket isolation |
+| Variable                | Default | Description                                 |
+| ----------------------- | ------- | ------------------------------------------- |
+| `CLAUDE_AUTO_MODE`      | `false` | Enable autonomous mode globally             |
+| `COVERAGE_THRESHOLD`    | `80`    | Minimum code coverage percentage            |
+| `VISUAL_DIFF_THRESHOLD` | `5.0`   | Maximum acceptable visual diff percentage   |
+| `MAX_VISUAL_ITERATIONS` | `5`     | Maximum visual verification iterations      |
+| `MAX_REVIEW_ITERATIONS` | `3`     | Maximum PR review loop iterations           |
+| `BASE_PORT_RANGE`       | `10000` | Starting port for parallel ticket isolation |
 
 ## Skill Configuration
 
@@ -1837,6 +1861,7 @@ Edit `.claude/skills/020-development-workflow/implement-ticket/config.json`:
 ## 1. Use Autonomous Mode for Production
 
 Autonomous mode (`--no-stop`) is **recommended for production** to:
+
 - Maximize efficiency (no waiting for user input)
 - Enable overnight/weekend runs
 - Support CI/CD integration
@@ -1845,6 +1870,7 @@ Autonomous mode (`--no-stop`) is **recommended for production** to:
 ## 2. Create Detailed Markdown Specs
 
 For complex features, create markdown specs with:
+
 - Clear summary and acceptance criteria
 - External documentation links (Notion, Confluence, Figma)
 - API contracts and data models
@@ -1855,6 +1881,7 @@ Use `/create-sdd-ticket` to generate spec templates.
 ## 3. Monitor Parallel Tickets
 
 When running multiple tickets in parallel:
+
 - Check port allocation: `docker ps` (each ticket uses unique ports)
 - Monitor resource usage: `docker stats`
 - Review logs: `tail -f .claude/artifacts/{JIRA_KEY}/workflow.log`
@@ -1862,6 +1889,7 @@ When running multiple tickets in parallel:
 ## 4. Review Visual Diffs
 
 Even in autonomous mode, review visual diffs before merging:
+
 - Check `.claude/artifacts/{JIRA_KEY}/screenshots/diffs/`
 - View side-by-side comparisons
 - Validate design fidelity
@@ -1869,6 +1897,7 @@ Even in autonomous mode, review visual diffs before merging:
 ## 5. Keep Documentation Up-to-Date
 
 Phase 7 auto-updates documentation, but:
+
 - Review changes: `git diff .claude/CLAUDE.md`
 - Validate accuracy
 - Commit manually if needed
@@ -1924,36 +1953,37 @@ jobs:
 
 # Appendix: Agent Templates Used
 
-| Phase | Agent | Template | Model |
-|-------|-------|----------|-------|
-| 1 | context-gatherer | `agents/templates/context-gatherer.template.md` | Opus |
-| 2 | planner | `agents/templates/planner.template.md` | Opus |
-| 4 | implementer-{stack} | `agents/templates/implementer.template.md` | Sonnet |
-| 6 | visual-verifier | `agents/templates/visual-verifier.template.md` | Opus |
-| 7 | doc-updater | `agents/templates/doc-updater.template.md` | Opus |
-| 9 | pr-reviewer | `agents/templates/pr-reviewer.template.md` | Opus |
+| Phase | Agent               | Template                                        | Model  |
+| ----- | ------------------- | ----------------------------------------------- | ------ |
+| 1     | context-gatherer    | `agents/templates/context-gatherer.template.md` | Opus   |
+| 2     | planner             | `agents/templates/planner.template.md`          | Opus   |
+| 4     | implementer-{stack} | `agents/templates/implementer.template.md`      | Sonnet |
+| 6     | visual-verifier     | `agents/templates/visual-verifier.template.md`  | Opus   |
+| 7     | doc-updater         | `agents/templates/doc-updater.template.md`      | Opus   |
+| 9     | pr-reviewer         | `agents/templates/pr-reviewer.template.md`      | Opus   |
 
 ---
 
 # Appendix: Utility Functions Used
 
-| Phase | Utility | Path |
-|-------|---------|------|
-| 0 | StackDetector | `utils/stack-detection.js` |
-| 0 | TestFrameworkDetector | `utils/test-framework-detection.js` |
-| 0 | EnvironmentDetector | `utils/environment-detection.js` |
-| 3 | EnvironmentManager | `utils/environment-manager.js` |
-| 3 | ScreenshotCapture | `utils/screenshot-capture.js` |
-| 5 | TestOrchestrator | `utils/test-orchestrator.js` |
-| 6 | ScreenshotCapture | `utils/screenshot-capture.js` |
-| 6 | ScreenshotComparator | `utils/screenshot-comparator.js` |
-| 8 | ArtifactCollector | `utils/artifact-collector.js` |
+| Phase | Utility               | Path                                |
+| ----- | --------------------- | ----------------------------------- |
+| 0     | StackDetector         | `utils/stack-detection.js`          |
+| 0     | TestFrameworkDetector | `utils/test-framework-detection.js` |
+| 0     | EnvironmentDetector   | `utils/environment-detection.js`    |
+| 3     | EnvironmentManager    | `utils/environment-manager.js`      |
+| 3     | ScreenshotCapture     | `utils/screenshot-capture.js`       |
+| 5     | TestOrchestrator      | `utils/test-orchestrator.js`        |
+| 6     | ScreenshotCapture     | `utils/screenshot-capture.js`       |
+| 6     | ScreenshotComparator  | `utils/screenshot-comparator.js`    |
+| 8     | ArtifactCollector     | `utils/artifact-collector.js`       |
 
 ---
 
 # Support and Feedback
 
 For issues, feature requests, or questions:
+
 - **GitHub Issues**: https://github.com/thisisqubika/qubika-agentic-framework/issues
 - **Documentation**: https://github.com/thisisqubika/qubika-agentic-framework
 - **Slack**: #qubika-agentic-framework
