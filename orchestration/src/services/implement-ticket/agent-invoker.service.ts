@@ -270,24 +270,53 @@ Ensure all code follows the team's conventions and patterns outlined in the proj
    * @param screenshotsBefore - Paths to before screenshots
    * @param screenshotsAfter - Paths to after screenshots
    * @param diffReport - Diff report from screenshot comparison
+   * @param dualModeOptions - Optional dual-mode visual testing params
    * @returns Visual verification verdict
    */
   async invokeVisualVerifier(
     screenshotsBefore: string[],
     screenshotsAfter: string[],
-    diffReport: any
+    diffReport: any,
+    dualModeOptions?: {
+      mode?: 'figma' | 'screenshot' | 'both';
+      figmaImagesPath?: string;
+      figmaConstraints?: string;
+      diffThreshold?: number;
+      expectedImages?: string[];
+      actualImages?: string[];
+    }
   ): Promise<string> {
-    const input = `
+    const mode = dualModeOptions?.mode ?? 'screenshot';
+    const threshold = dualModeOptions?.diffThreshold ?? 5;
+
+    let input = `
 Analyze the visual changes between before and after screenshots.
 
-## Screenshots Before
-${screenshotsBefore.join('\n')}
+## Visual Mode
+${mode}
 
-## Screenshots After
-${screenshotsAfter.join('\n')}
+## Diff Threshold
+${threshold}%
+
+## Screenshots Before / Expected
+${(dualModeOptions?.expectedImages ?? screenshotsBefore).join('\n')}
+
+## Screenshots After / Actual
+${(dualModeOptions?.actualImages ?? screenshotsAfter).join('\n')}
 
 ## Diff Report
 ${JSON.stringify(diffReport, null, 2)}
+`.trim();
+
+    if (dualModeOptions?.figmaConstraints) {
+      input += `\n\n## Figma Constraints\n${dualModeOptions.figmaConstraints}`;
+    }
+
+    if (dualModeOptions?.figmaImagesPath) {
+      input += `\n\n## Figma Images Path\n${dualModeOptions.figmaImagesPath}`;
+    }
+
+    input += `
 
 ## Instructions
 
@@ -296,7 +325,8 @@ ${JSON.stringify(diffReport, null, 2)}
 3. Provide a verdict: PASS or FAIL
 4. List specific issues if FAIL
 5. Suggest fixes if needed
-    `.trim();
+${mode === 'figma' || mode === 'both' ? '6. Cross-reference diffs with Figma constraints for design fidelity issues' : ''}
+`;
 
     const agentPath = join(this.projectPath, '.claude', 'agents', 'visual-verifier.md');
 

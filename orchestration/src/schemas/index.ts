@@ -37,3 +37,19 @@ export {
   type ProjectMetadata,
   type ResourceState,
 } from './framework-config.schema.js';
+
+// UI Visual Testing schemas
+export {
+  ViewportSchema,
+  IgnoreRegionSchema,
+  ScreenEntrySchema,
+  ThresholdsSchema,
+  FigmaConfigSchema,
+  UIVisualTestingConfigSchema,
+  type Viewport,
+  type IgnoreRegion,
+  type ScreenEntry,
+  type Thresholds,
+  type FigmaConfig,
+  type UIVisualTestingConfig,
+} from './ui-visual-testing.schema.js';

@@ -155,6 +155,26 @@ The following are explicitly NOT part of this ticket:
 
 ---
 
+## 🎨 UI Testing (if applicable)
+
+### Test Levels
+| Level | Required | Tool | Status |
+|-------|----------|------|--------|
+| Unit | Yes/No | Vitest/Jest + RTL | - |
+| Component | Yes/No | Playwright CT | - |
+| E2E | Yes/No | Playwright | - |
+| Visual | Yes/No | Playwright + pixelmatch | - |
+
+### Figma Reference (if visual level)
+- [Figma URL]
+
+### Visual Testing Configuration (if visual level)
+| Screen | Route | Figma Node | Viewport | Mode |
+|--------|-------|------------|----------|------|
+| [label] | [route] | [nodeId] | [WxH] | figma / screenshot / both |
+
+---
+
 ## 📝 Implementation Notes
 
 [Any additional context, helpful resources, or gotchas for implementer]

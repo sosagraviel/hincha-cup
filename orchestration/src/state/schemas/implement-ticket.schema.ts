@@ -111,6 +111,11 @@ export const Phase6VisualSchema = z.object({
   diff_percentage: z.number().optional(),
   verdict: z.enum(['passed', 'failed', 'skipped']),
   iteration_count: z.number().default(0),
+  // Dual-mode visual testing fields (optional for backward compatibility)
+  visual_mode: z.enum(['figma', 'screenshot', 'both', 'legacy']).optional(),
+  config_used: z.string().optional(), // Path to ui-visual-testing.json if used
+  figma_comparisons: z.any().optional(), // Figma mode comparison results
+  regression_comparisons: z.any().optional(), // Screenshot mode comparison results
   timestamp: z.string()
 });
 
