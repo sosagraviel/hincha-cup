@@ -10,7 +10,7 @@ import {
 } from "../state/checkpointers/sqlite.checkpointer.js";
 import { getLLMFactory } from "../llm/llm-factory.js";
 import { logger } from "../utils/logger.js";
-import { HybridAgentFactory } from "../agents/agent-factory-hybrid.js";
+import { AgentFactory } from "../utils/shared/agent-factory/index.js";
 import { runPreflightChecks } from "../utils/preflight-checks.js";
 
 // Get the directory where this CLI script is located
@@ -58,8 +58,8 @@ program
       console.log("\n");
       logger.warn(`Received ${signal} - Shutting down gracefully...`);
 
-      HybridAgentFactory.abortAllInvocations();
-      HybridAgentFactory.killAllActiveProcesses();
+      AgentFactory.abortAllInvocations();
+      AgentFactory.killAllActiveProcesses();
 
       logger.info("Cleanup complete");
       logger.blank();
@@ -78,8 +78,8 @@ program
       } else {
         console.log("\n");
         logger.error("Force quitting...");
-        HybridAgentFactory.abortAllInvocations();
-        HybridAgentFactory.killAllActiveProcesses();
+        AgentFactory.abortAllInvocations();
+        AgentFactory.killAllActiveProcesses();
         process.exit(130);
       }
     });

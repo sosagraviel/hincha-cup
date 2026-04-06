@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/agents/hooks/validate-analyzer-json.ts"
+            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/src/nodes/initialize-project/phase1/hooks/validate-analyzer-json.hook.ts"
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/agents/hooks/validate-analyzer-json.ts"
+            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/src/nodes/initialize-project/phase1/hooks/validate-analyzer-json.hook.ts"
           }
         ]
       },
@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/agents/hooks/validate-analyzer-json.ts"
+            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/src/nodes/initialize-project/phase1/hooks/validate-analyzer-json.hook.ts"
           }
         ]
       },
@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/agents/hooks/validate-analyzer-json.ts"
+            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/src/nodes/initialize-project/phase1/hooks/validate-analyzer-json.hook.ts"
           }
         ]
       },
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/agents/hooks/validate-synthesis.ts"
+            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/src/nodes/initialize-project/phase3/hooks/validate-synthesis.hook.ts"
           }
         ]
       },
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/agents/hooks/validate-consolidation.ts"
+            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/src/nodes/initialize-project/phase2/hooks/validate-consolidation.hook.ts"
           }
         ]
       }

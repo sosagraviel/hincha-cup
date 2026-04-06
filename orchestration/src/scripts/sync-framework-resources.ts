@@ -26,8 +26,8 @@ import {
   addSingleSkill,
   regenerateSingleAgent,
 } from '../services/framework/sync-helpers.service.js';
-import { resolveSkills } from '../utils/skill-resolver.js';
-import { generateAgents } from '../utils/agent-generator.js';
+import { resolveSkills } from '../nodes/initialize-project/phase5/skill-resolver.js';
+import { generateAgents } from '../nodes/initialize-project/phase5/agent-generator.js';
 
 interface SyncConfig {
   projectPath: string;

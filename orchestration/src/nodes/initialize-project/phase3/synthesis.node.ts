@@ -1,14 +1,19 @@
 import type { InitializeProjectState } from "../../../state/schemas/initialize-project.schema.js";
-import { createAgentFromMarkdown } from "../../../utils/agent-factory.js";
+import { AgentFactory } from "../../../utils/shared/agent-factory/index.js";
 import {
   retryWithEnhancedFeedback,
   DEFAULT_RETRY_CONFIG,
 } from "../../../utils/enhanced-retry.js";
 import type { ValidationResult } from "../../../utils/validator.js";
-import { validateSynthesisOutput } from "../../../utils/synthesis-validator.js";
+import { validateSynthesisOutput } from "./synthesis-validator.js";
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { logger } from "../../../utils/logger.js";
+import {
+  buildSynthesisPrompt,
+  getFrameworkAgentPath,
+  getInitializeProjectSettingsPath,
+} from "../shared/index.js";
 
 /**
  * Phase 3: Opus Synthesis Node
@@ -60,38 +65,28 @@ export async function synthesisNode(
   try {
     // Define agent invocation function with feedback support
     const agentInvoke = async (feedbackPrompt: string, resumeSessionId?: string): Promise<{ output: string; sessionId: string }> => {
-      const consolidatedContext = `
-=== CONSOLIDATED ANALYSIS FROM PHASE 2 ===
+      // Build input prompt using shared utility
+      const contextPrompt = buildSynthesisPrompt(phase2Consolidation, feedbackPrompt);
 
-${JSON.stringify(phase2Consolidation, null, 2)}
+      // Add ultrathink and task instruction to input prompt
+      const inputPrompt = `ultrathink\n\n${contextPrompt}\n\nSynthesize comprehensive results for: ${state.project_path}`;
 
-${feedbackPrompt}
-`;
-
-      const settingsPath = join(
-        state.framework_path,
-        "orchestration/config/initialize-project-agents-settings.json"
-      );
-
-      const agent = await createAgentFromMarkdown({
+      // Create agent using new interface
+      const factory = await AgentFactory.create();
+      const agent = await factory.createAgent({
         agentName,
-        agentFile,
+        agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
-        additionalContext: consolidatedContext,
         timeout: 600000, // 10 minutes (longer for Opus)
-        useUltrathink: true, // Enable maximum thinking for thorough synthesis
-        requireJsonOutput: false, // CRITICAL: Synthesis outputs markdown format, NOT JSON
-        resumeSessionId, // Pass session ID for context-preserving retry with --resume
-        settingsPath,
+        resumeSessionId, // Pass session ID for context-preserving retry
+        settingsPath: getInitializeProjectSettingsPath(state.framework_path),
       });
 
-      const result = await agent.invoke({
-        input: `Synthesize comprehensive results for: ${state.project_path}`,
-      });
+      const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()
 
       return {
-        output: result.output || result.content || String(result),
+        output: result.output,
         sessionId: result.sessionId,
       };
     };

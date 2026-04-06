@@ -2,20 +2,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { structureArchitectureAnalyzerNode } from '../../../../../src/nodes/initialize-project/phase1/structure-architecture-analyzer.node.js';
 import type { InitializeProjectState } from '../../../../../src/state/schemas/initialize-project.schema.js';
 import * as fs from 'fs';
-import * as agentFactory from '../../../../../src/utils/agent-factory.js';
+import { AgentFactory } from '../../../../../src/utils/shared/agent-factory/index.js';
 import * as enhancedRetry from '../../../../../src/utils/enhanced-retry.js';
 
 vi.mock('fs', () => ({
   mkdirSync: vi.fn(),
   writeFileSync: vi.fn(),
+  existsSync: vi.fn(),
 }));
 
 vi.mock('../../../../../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
 
-vi.mock('../../../../../src/utils/agent-factory.js', () => ({
-  createAgentFromMarkdown: vi.fn(),
+vi.mock('../../../../../src/utils/shared/agent-factory/index.js', () => ({
+  AgentFactory: { create: vi.fn() },
 }));
 
 vi.mock('../../../../../src/utils/validator.js', () => ({
@@ -30,6 +31,7 @@ vi.mock('../../../../../src/utils/enhanced-retry.js', () => ({
 describe('structureArchitectureAnalyzerNode', () => {
   let mockState: InitializeProjectState;
   let mockAgent: any;
+  let mockFactory: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,7 +55,8 @@ describe('structureArchitectureAnalyzerNode', () => {
         sessionId: 'test-session-123',
       }),
     };
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockResolvedValue(mockAgent);
+    mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
         const { output } = await agentInvoke('');
@@ -75,16 +78,14 @@ describe('structureArchitectureAnalyzerNode', () => {
 
   it('should use correct agent configuration', async () => {
     await structureArchitectureAnalyzerNode(mockState);
-    expect(agentFactory.createAgentFromMarkdown).toHaveBeenCalledWith({
+    expect(mockFactory.createAgent).toHaveBeenCalledWith({
       agentName: 'structure-architecture-analyzer',
-      agentFile: '01-structure-architecture.md',
+      agentFilePath: expect.stringContaining('01-structure-architecture.md'),
       projectPath: '/test/project',
       frameworkPath: '/test/framework',
-      additionalContext: '',
       timeout: 600000,
-      useUltrathink: true,
       resumeSessionId: undefined,
-      settingsPath: '/test/framework/orchestration/config/initialize-project-agents-settings.json',
+      settingsPath: expect.stringContaining('initialize-project-agents-settings.json'),
     });
   });
 
@@ -97,21 +98,21 @@ describe('structureArchitectureAnalyzerNode', () => {
   });
 
   it('should handle errors gracefully', async () => {
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(new Error('Test error'));
+    vi.mocked(AgentFactory.create).mockRejectedValue(new Error('Test error'));
     const result = await structureArchitectureAnalyzerNode(mockState);
     expect(result.errors).toContain('structure-architecture-analyzer: Test error');
     expect(result.current_phase).toBe('failed');
   });
 
   it('should propagate SIGINT errors', async () => {
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(new Error('SIGINT received'));
+    vi.mocked(AgentFactory.create).mockRejectedValue(new Error('SIGINT received'));
     await expect(structureArchitectureAnalyzerNode(mockState)).rejects.toThrow('SIGINT received');
   });
 
   it('should invoke agent with correct input', async () => {
     await structureArchitectureAnalyzerNode(mockState);
     expect(mockAgent.invoke).toHaveBeenCalledWith({
-      input: 'Analyze the project structure and architecture at: /test/project',
+      inputPrompt: expect.stringContaining('Analyze the project structure and architecture at: /test/project'),
     });
   });
 });

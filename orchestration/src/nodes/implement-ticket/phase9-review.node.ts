@@ -3,7 +3,6 @@ import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { ReviewLoopService } from '../../services/implement-ticket/review-loop.service.js';
 import { TestOrchestratorService } from '../../services/implement-ticket/test-orchestrator.service.js';
-import { AgentInvokerService } from '../../services/implement-ticket/agent-invoker.service.js';
 
 /**
  * Phase 9: Review Loop Node
@@ -90,18 +89,14 @@ export async function phase9ReviewNode(
       frameworkConfig
     );
 
-    // 7. Create agent invoker
-    const agentInvoker = new AgentInvokerService(projectPath, frameworkPath);
-
-    // 8. Run review loop
+    // 7. Run review loop
     console.log('[Phase 9: Review Loop] Starting review iterations...\n');
 
     let reviewLoopResult;
     try {
       reviewLoopResult = await reviewLoopService.runReviewLoop(
         prUrl,
-        testOrchestrator,
-        agentInvoker
+        testOrchestrator
       );
 
       console.log('\n[Phase 9: Review Loop] ✓ Review loop completed');

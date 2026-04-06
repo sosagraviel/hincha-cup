@@ -1,7 +1,7 @@
 import type { InitializeProjectState } from "../../../state/schemas/initialize-project.schema.js";
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { generateFrameworkConfig } from "../../../utils/config-generator.js";
+import { generateFrameworkConfig } from "./config-generator.js";
 import type {
   StackProfile,
   Service,
@@ -18,11 +18,11 @@ import { logger } from "../../../utils/logger.js";
 import {
   countFilesByLanguage,
   type FileCountResult,
-} from "../../../utils/file-counter.js";
+} from "./file-counter.js";
 import {
   detectWorkspaces,
   type WorkspaceDetectionResult,
-} from "../../../utils/workspace-detector.js";
+} from "./workspace-detector.js";
 import { extractSynthesisMarkdown } from "../../../utils/validator.js";
 
 /**

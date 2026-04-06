@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { techStackDependenciesAnalyzerNode } from '../../../../../src/nodes/initialize-project/phase1/tech-stack-dependencies-analyzer.node.js';
 import type { InitializeProjectState } from '../../../../../src/state/schemas/initialize-project.schema.js';
 import * as fs from 'fs';
-import * as agentFactory from '../../../../../src/utils/agent-factory.js';
+import { AgentFactory } from '../../../../../src/utils/shared/agent-factory/index.js';
 import * as validator from '../../../../../src/utils/validator.js';
 import * as enhancedRetry from '../../../../../src/utils/enhanced-retry.js';
 
@@ -10,6 +10,7 @@ import * as enhancedRetry from '../../../../../src/utils/enhanced-retry.js';
 vi.mock('fs', () => ({
   mkdirSync: vi.fn(),
   writeFileSync: vi.fn(),
+  existsSync: vi.fn(),
 }));
 
 vi.mock('../../../../../src/utils/logger.js', () => ({
@@ -21,8 +22,8 @@ vi.mock('../../../../../src/utils/logger.js', () => ({
   },
 }));
 
-vi.mock('../../../../../src/utils/agent-factory.js', () => ({
-  createAgentFromMarkdown: vi.fn(),
+vi.mock('../../../../../src/utils/shared/agent-factory/index.js', () => ({
+  AgentFactory: { create: vi.fn() },
 }));
 
 vi.mock('../../../../../src/utils/validator.js', () => ({
@@ -37,6 +38,7 @@ vi.mock('../../../../../src/utils/enhanced-retry.js', () => ({
 describe('techStackDependenciesAnalyzerNode', () => {
   let mockState: InitializeProjectState;
   let mockAgent: any;
+  let mockFactory: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,7 +68,8 @@ describe('techStackDependenciesAnalyzerNode', () => {
       }),
     };
 
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockResolvedValue(mockAgent);
+    mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
         const { output } = await agentInvoke('');
@@ -109,17 +112,14 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
   it('should create agent with correct configuration', async () => {
     await techStackDependenciesAnalyzerNode(mockState);
-
-    expect(agentFactory.createAgentFromMarkdown).toHaveBeenCalledWith({
+    expect(mockFactory.createAgent).toHaveBeenCalledWith({
       agentName: 'tech-stack-dependencies-analyzer',
-      agentFile: '02-tech-stack-dependencies.md',
+      agentFilePath: expect.stringContaining('02-tech-stack-dependencies.md'),
       projectPath: '/test/project',
       frameworkPath: '/test/framework',
-      additionalContext: '',
       timeout: 600000,
-      useUltrathink: true,
       resumeSessionId: undefined,
-      settingsPath: '/test/framework/orchestration/config/initialize-project-agents-settings.json',
+      settingsPath: expect.stringContaining('initialize-project-agents-settings.json'),
     });
   });
 
@@ -127,7 +127,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     await techStackDependenciesAnalyzerNode(mockState);
 
     expect(mockAgent.invoke).toHaveBeenCalledWith({
-      input: 'Analyze the tech stack and dependencies at: /test/project',
+      inputPrompt: expect.stringContaining('Analyze the tech stack and dependencies at: /test/project'),
     });
   });
 
@@ -193,7 +193,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
   it('should handle errors and return error state', async () => {
     const testError = new Error('Analysis failed');
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(testError);
+    vi.mocked(AgentFactory.create).mockRejectedValue(testError);
 
     const result = await techStackDependenciesAnalyzerNode(mockState);
 
@@ -203,7 +203,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
   it('should propagate SIGINT errors', async () => {
     const sigintError = new Error('Process interrupted by user');
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(sigintError);
+    vi.mocked(AgentFactory.create).mockRejectedValue(sigintError);
 
     await expect(techStackDependenciesAnalyzerNode(mockState)).rejects.toThrow(
       'Process interrupted by user'
@@ -212,7 +212,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
   it('should propagate errors with SIGINT in message', async () => {
     const sigintError = new Error('Received SIGINT signal');
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(sigintError);
+    vi.mocked(AgentFactory.create).mockRejectedValue(sigintError);
 
     await expect(techStackDependenciesAnalyzerNode(mockState)).rejects.toThrow(
       'Received SIGINT signal'
@@ -225,7 +225,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
       errors: ['Previous error 1', 'Previous error 2'],
     };
 
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(
+    vi.mocked(AgentFactory.create).mockRejectedValue(
       new Error('New error')
     );
 
@@ -274,9 +274,9 @@ describe('techStackDependenciesAnalyzerNode', () => {
   it('should use correct agent file name', async () => {
     await techStackDependenciesAnalyzerNode(mockState);
 
-    expect(agentFactory.createAgentFromMarkdown).toHaveBeenCalledWith(
+    expect(mockFactory.createAgent).toHaveBeenCalledWith(
       expect.objectContaining({
-        agentFile: '02-tech-stack-dependencies.md',
+        agentFilePath: expect.stringContaining('02-tech-stack-dependencies.md'),
       })
     );
   });
@@ -284,7 +284,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
   it('should use correct agent name', async () => {
     await techStackDependenciesAnalyzerNode(mockState);
 
-    expect(agentFactory.createAgentFromMarkdown).toHaveBeenCalledWith(
+    expect(mockFactory.createAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         agentName: 'tech-stack-dependencies-analyzer',
       })
@@ -294,7 +294,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
   it('should set 10 minute timeout', async () => {
     await techStackDependenciesAnalyzerNode(mockState);
 
-    expect(agentFactory.createAgentFromMarkdown).toHaveBeenCalledWith(
+    expect(mockFactory.createAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         timeout: 600000,
       })
@@ -320,7 +320,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     // When a non-Error is thrown, the code will try to access .message which may be undefined
     // This will cause the SIGINT check to fail, but should still return error state
     const nonError = { toString: () => 'Non-standard error' };
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(nonError);
+    vi.mocked(AgentFactory.create).mockRejectedValue(nonError);
 
     await expect(techStackDependenciesAnalyzerNode(mockState)).rejects.toThrow();
   });

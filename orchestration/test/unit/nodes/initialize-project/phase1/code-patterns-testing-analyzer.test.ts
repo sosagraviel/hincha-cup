@@ -2,15 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { codePatternsTestingAnalyzerNode } from '../../../../../src/nodes/initialize-project/phase1/code-patterns-testing-analyzer.node.js';
 import type { InitializeProjectState } from '../../../../../src/state/schemas/initialize-project.schema.js';
 import * as fs from 'fs';
-import * as agentFactory from '../../../../../src/utils/agent-factory.js';
+import { AgentFactory } from '../../../../../src/utils/shared/agent-factory/index.js';
 import * as enhancedRetry from '../../../../../src/utils/enhanced-retry.js';
 import { logger } from '../../../../../src/utils/logger.js';
 
-vi.mock('fs', () => ({ mkdirSync: vi.fn(), writeFileSync: vi.fn() }));
+vi.mock('fs', () => ({ mkdirSync: vi.fn(), writeFileSync: vi.fn(), existsSync: vi.fn() }));
 vi.mock('../../../../../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), success: vi.fn(), blank: vi.fn() },
 }));
-vi.mock('../../../../../src/utils/agent-factory.js', () => ({ createAgentFromMarkdown: vi.fn() }));
+vi.mock('../../../../../src/utils/shared/agent-factory/index.js', () => ({ AgentFactory: { create: vi.fn() } }));
 vi.mock('../../../../../src/utils/validator.js', () => ({ validateAndParseAgentOutput: vi.fn() }));
 vi.mock('../../../../../src/utils/enhanced-retry.js', () => ({
   retryWithEnhancedFeedback: vi.fn(),
@@ -20,6 +20,7 @@ vi.mock('../../../../../src/utils/enhanced-retry.js', () => ({
 describe('codePatternsTestingAnalyzerNode', () => {
   let mockState: InitializeProjectState;
   let mockAgent: any;
+  let mockFactory: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -43,7 +44,8 @@ describe('codePatternsTestingAnalyzerNode', () => {
         sessionId: 'test-session-123',
       }),
     };
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockResolvedValue(mockAgent);
+    mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(async (agentInvoke: any) => {
       const { output } = await agentInvoke('');
       return JSON.parse(output);
@@ -57,16 +59,14 @@ describe('codePatternsTestingAnalyzerNode', () => {
 
   it('should use correct agent configuration', async () => {
     await codePatternsTestingAnalyzerNode(mockState);
-    expect(agentFactory.createAgentFromMarkdown).toHaveBeenCalledWith({
+    expect(mockFactory.createAgent).toHaveBeenCalledWith({
       agentName: 'code-patterns-testing-analyzer',
-      agentFile: '03-code-patterns-testing.md',
+      agentFilePath: expect.stringContaining('03-code-patterns-testing.md'),
       projectPath: '/test/project',
       frameworkPath: '/test/framework',
-      additionalContext: '',
       timeout: 600000,
-      useUltrathink: true,
       resumeSessionId: undefined,
-      settingsPath: '/test/framework/orchestration/config/initialize-project-agents-settings.json',
+      settingsPath: expect.stringContaining('initialize-project-agents-settings.json'),
     });
   });
 
@@ -79,20 +79,20 @@ describe('codePatternsTestingAnalyzerNode', () => {
   });
 
   it('should handle RATE_LIMIT errors with special logging', async () => {
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(new Error('RATE_LIMIT exceeded'));
+    vi.mocked(AgentFactory.create).mockRejectedValue(new Error('RATE_LIMIT exceeded'));
     const result = await codePatternsTestingAnalyzerNode(mockState);
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('RATE LIMIT'));
     expect(result.errors).toBeDefined();
   });
 
   it('should log errors', async () => {
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(new Error('Test error'));
+    vi.mocked(AgentFactory.create).mockRejectedValue(new Error('Test error'));
     await codePatternsTestingAnalyzerNode(mockState);
     expect(logger.error).toHaveBeenCalled();
   });
 
   it('should propagate SIGINT', async () => {
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(new Error('SIGINT'));
+    vi.mocked(AgentFactory.create).mockRejectedValue(new Error('SIGINT'));
     await expect(codePatternsTestingAnalyzerNode(mockState)).rejects.toThrow();
   });
 });
