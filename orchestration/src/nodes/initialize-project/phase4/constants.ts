@@ -1,0 +1,199 @@
+/**
+ * Phase 4: Context Generation Constants
+ *
+ * Centralized constants for Phase 4 components
+ */
+
+import type { ManifestInfo } from "./types.js";
+
+// ============================================================================
+// LANGUAGE EXTENSIONS
+// ============================================================================
+
+/**
+ * Map of language names to their file extensions
+ */
+export const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
+  typescript: [".ts", ".tsx"],
+  javascript: [".js", ".jsx", ".mjs", ".cjs"],
+  python: [".py", ".pyw", ".pyx"],
+  java: [".java"],
+  go: [".go"],
+  rust: [".rs"],
+  ruby: [".rb", ".rake"],
+  php: [".php"],
+  csharp: [".cs"],
+  cpp: [".cpp", ".cc", ".cxx", ".hpp", ".h", ".hxx"],
+  c: [".c", ".h"],
+  swift: [".swift"],
+  kotlin: [".kt", ".kts"],
+  scala: [".scala", ".sc"],
+  elixir: [".ex", ".exs"],
+  clojure: [".clj", ".cljs", ".cljc"],
+  haskell: [".hs", ".lhs"],
+} as const;
+
+// ============================================================================
+// MANIFEST FILES
+// ============================================================================
+
+/**
+ * Map of manifest files to their language and package manager type
+ */
+export const MANIFEST_FILES: Record<string, ManifestInfo> = {
+  "package.json": { language: "javascript", type: "npm" },
+  "yarn.lock": { language: "javascript", type: "yarn" },
+  "pnpm-lock.yaml": { language: "javascript", type: "pnpm" },
+  "requirements.txt": { language: "python", type: "pip" },
+  Pipfile: { language: "python", type: "pipenv" },
+  "pyproject.toml": { language: "python", type: "poetry" },
+  "setup.py": { language: "python", type: "setuptools" },
+  "go.mod": { language: "go", type: "gomod" },
+  "Cargo.toml": { language: "rust", type: "cargo" },
+  "pom.xml": { language: "java", type: "maven" },
+  "build.gradle": { language: "java", type: "gradle" },
+  "build.gradle.kts": { language: "kotlin", type: "gradle" },
+  Gemfile: { language: "ruby", type: "bundler" },
+  "composer.json": { language: "php", type: "composer" },
+  "Package.swift": { language: "swift", type: "spm" },
+  "Cargo.lock": { language: "rust", type: "cargo" },
+  "mix.exs": { language: "elixir", type: "mix" },
+  "rebar.config": { language: "erlang", type: "rebar" },
+  "project.clj": { language: "clojure", type: "leiningen" },
+  "deps.edn": { language: "clojure", type: "tools.deps" },
+} as const;
+
+/**
+ * Primary manifest files that indicate a workspace root
+ * (vs. lock files which are secondary)
+ */
+export const PRIMARY_MANIFESTS = new Set([
+  "package.json",
+  "requirements.txt",
+  "Pipfile",
+  "pyproject.toml",
+  "setup.py",
+  "go.mod",
+  "Cargo.toml",
+  "pom.xml",
+  "build.gradle",
+  "build.gradle.kts",
+  "Gemfile",
+  "composer.json",
+  "Package.swift",
+  "mix.exs",
+  "rebar.config",
+  "project.clj",
+  "deps.edn",
+]);
+
+// ============================================================================
+// IGNORE DIRECTORIES
+// ============================================================================
+
+/**
+ * Directories to ignore during workspace detection and file counting
+ */
+export const IGNORE_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  "out",
+  "__pycache__",
+  ".venv",
+  "venv",
+  "env",
+  "vendor",
+  "target",
+  ".next",
+  ".nuxt",
+  ".cache",
+  "coverage",
+  ".pytest_cache",
+  ".mypy_cache",
+  ".tox",
+  "bower_components",
+  "jspm_packages",
+  ".gradle",
+  ".maven",
+  "bin",
+  "obj",
+  ".terraform",
+  "site-packages",
+  "pkg",
+  // Claude framework directories - these are generated/copied by the framework
+  ".claude",
+  ".claude-temp",
+  ".claude-backups",
+]);
+
+// ============================================================================
+// WORKSPACE NAMES
+// ============================================================================
+
+/**
+ * Common workspace directory names
+ */
+export const WORKSPACE_NAMES = new Set([
+  "packages",
+  "apps",
+  "services",
+  "libs",
+  "modules",
+  "backend",
+  "frontend",
+  "api",
+  "web",
+  "mobile",
+  "shared",
+  "common",
+  "core",
+]);
+
+// ============================================================================
+// FRAMEWORK KEYWORDS
+// ============================================================================
+
+/**
+ * Frontend framework keywords for categorization
+ */
+export const FRONTEND_FRAMEWORK_KEYWORDS = [
+  "next",
+  "react",
+  "vue",
+  "angular",
+  "svelte",
+  "nuxt",
+] as const;
+
+/**
+ * Backend framework keywords for categorization
+ */
+export const BACKEND_FRAMEWORK_KEYWORDS = [
+  "express",
+  "fastify",
+  "nest",
+  "koa",
+  "django",
+  "flask",
+  "fastapi",
+  "spring",
+  "gin",
+] as const;
+
+// ============================================================================
+// VALIDATION THRESHOLDS
+// ============================================================================
+
+/**
+ * Minimum file count to consider a language significant
+ * Used in cross-validation between agent findings and file counts
+ */
+export const MIN_SIGNIFICANT_FILE_COUNT = 5;
+
+/**
+ * Minimum file count to require language in stack profile
+ * If file counter finds this many files, the language MUST be in the profile
+ */
+export const MIN_REQUIRED_FILE_COUNT = 10;

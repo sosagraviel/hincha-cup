@@ -1,6 +1,8 @@
 import { readdir, readFile } from "fs/promises";
 import { join, basename, relative } from "path";
 import { logger } from "../../../utils/logger.js";
+import { MANIFEST_FILES, PRIMARY_MANIFESTS, IGNORE_DIRS, WORKSPACE_NAMES } from "./constants.js";
+import type { ManifestInfo } from "./types.js";
 
 /**
  * Represents a discovered workspace in a project
@@ -22,93 +24,6 @@ export interface WorkspaceDetectionResult {
   total_workspaces: number;
   errors: string[];
 }
-
-/**
- * Map of manifest files to their language and package manager type
- */
-const MANIFEST_FILES: Record<string, { language: string; type: string }> = {
-  "package.json": { language: "javascript", type: "npm" },
-  "yarn.lock": { language: "javascript", type: "yarn" },
-  "pnpm-lock.yaml": { language: "javascript", type: "pnpm" },
-  "requirements.txt": { language: "python", type: "pip" },
-  Pipfile: { language: "python", type: "pipenv" },
-  "pyproject.toml": { language: "python", type: "poetry" },
-  "setup.py": { language: "python", type: "setuptools" },
-  "go.mod": { language: "go", type: "gomod" },
-  "Cargo.toml": { language: "rust", type: "cargo" },
-  "pom.xml": { language: "java", type: "maven" },
-  "build.gradle": { language: "java", type: "gradle" },
-  "build.gradle.kts": { language: "kotlin", type: "gradle" },
-  Gemfile: { language: "ruby", type: "bundler" },
-  "composer.json": { language: "php", type: "composer" },
-  "Package.swift": { language: "swift", type: "spm" },
-  "Cargo.lock": { language: "rust", type: "cargo" },
-  "mix.exs": { language: "elixir", type: "mix" },
-  "rebar.config": { language: "erlang", type: "rebar" },
-  "project.clj": { language: "clojure", type: "leiningen" },
-  "deps.edn": { language: "clojure", type: "tools.deps" },
-};
-
-/**
- * Primary manifest files that indicate a workspace root
- * (vs. lock files which are secondary)
- */
-const PRIMARY_MANIFESTS = new Set([
-  "package.json",
-  "requirements.txt",
-  "Pipfile",
-  "pyproject.toml",
-  "setup.py",
-  "go.mod",
-  "Cargo.toml",
-  "pom.xml",
-  "build.gradle",
-  "build.gradle.kts",
-  "Gemfile",
-  "composer.json",
-  "Package.swift",
-  "mix.exs",
-  "rebar.config",
-  "project.clj",
-  "deps.edn",
-]);
-
-/**
- * Directories to ignore during workspace detection
- */
-const IGNORE_DIRS = new Set([
-  "node_modules",
-  ".git",
-  "dist",
-  "build",
-  "out",
-  "__pycache__",
-  ".venv",
-  "venv",
-  "env",
-  "vendor",
-  "target",
-  ".next",
-  ".nuxt",
-  ".cache",
-  "coverage",
-  ".pytest_cache",
-  ".mypy_cache",
-  ".tox",
-  "bower_components",
-  "jspm_packages",
-  ".gradle",
-  ".maven",
-  "bin",
-  "obj",
-  ".terraform",
-  "site-packages",
-  "pkg",
-  // Claude framework directories - these are generated/copied by the framework
-  ".claude",
-  ".claude-temp",
-  ".claude-backups",
-]);
 
 
 /**
@@ -373,24 +288,7 @@ export function isWorkspaceDirectory(dirPath: string): boolean {
   // Here we just check if the directory name suggests it's a workspace
   const dirName = basename(dirPath);
 
-  // Common workspace directory names
-  const workspaceNames = new Set([
-    "packages",
-    "apps",
-    "services",
-    "libs",
-    "modules",
-    "backend",
-    "frontend",
-    "api",
-    "web",
-    "mobile",
-    "shared",
-    "common",
-    "core",
-  ]);
-
-  return workspaceNames.has(dirName);
+  return WORKSPACE_NAMES.has(dirName);
 }
 
 /**
@@ -405,6 +303,6 @@ export function getSupportedManifests(): string[] {
  */
 export function getManifestInfo(
   manifestFile: string,
-): { language: string; type: string } | undefined {
+): ManifestInfo | undefined {
   return MANIFEST_FILES[manifestFile];
 }

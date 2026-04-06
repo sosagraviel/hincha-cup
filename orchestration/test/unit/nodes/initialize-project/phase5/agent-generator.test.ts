@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateAgents, writeAgents, type GeneratedAgent } from '../../../../../src/nodes/initialize-project/phase5/agent-generator.js';
+import { generateAgents, writeAgents } from '../../../../../src/nodes/initialize-project/phase5/agent-generator.js';
+import type { GeneratedAgent, ResolvedSkill } from '../../../../../src/nodes/initialize-project/phase5/types.js';
 import type { StackProfile } from '../../../../../src/schemas/index.js';
-import type { ResolvedSkill } from '../../../../../src/nodes/initialize-project/phase5/skill-resolver.js';
 import * as fs from 'fs';
 import * as path from 'path';
 

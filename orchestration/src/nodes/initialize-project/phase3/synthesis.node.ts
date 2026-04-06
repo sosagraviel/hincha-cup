@@ -5,12 +5,12 @@ import {
   DEFAULT_RETRY_CONFIG,
 } from "../../../utils/enhanced-retry.js";
 import type { ValidationResult } from "../../../utils/validator.js";
-import { validateSynthesisOutput } from "./synthesis-validator.js";
+import { validateSynthesisOutput } from "./validators/index.js";
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { logger } from "../../../utils/logger.js";
+import { buildSynthesisPrompt } from "./prompt-builder.js";
 import {
-  buildSynthesisPrompt,
   getFrameworkAgentPath,
   getInitializeProjectSettingsPath,
 } from "../shared/index.js";

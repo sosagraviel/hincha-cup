@@ -12,7 +12,7 @@
  */
 
 import fs from "fs";
-import { validateSynthesisOutput } from "../synthesis-validator.js";
+import { validateSynthesisOutput } from "../validators/index.js";
 
 interface HookInput {
   stop_hook_active: boolean;
