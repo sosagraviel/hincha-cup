@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   validateSynthesisOutput,
-  extractSynthesisMarkdown,
   type SynthesisValidationResult,
-} from '../../../../../src/nodes/initialize-project/phase3/synthesis-validator.js';
+} from '../../../../../src/nodes/initialize-project/phase3/validators/index.js';
+import { extractSynthesisMarkdown } from '../../../../../src/nodes/initialize-project/phase3/validators/extract-synthesis-markdown.js';
 
 // ============================================================================
 // HELPER FUNCTIONS

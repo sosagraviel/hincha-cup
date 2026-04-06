@@ -118,16 +118,24 @@ export function loadMarkdownFile(filePath: string): {
 
 /**
  * Load execution instructions for an agent if they exist
+ * Maps agent names to new phase-specific locations
  */
 export function loadExecutionInstructions(
   agentName: string,
   frameworkPath: string,
 ): string | null {
-  const path = join(
-    frameworkPath,
-    "orchestration/agents/execution-instructions",
-    `${agentName}.md`,
-  );
+  // Map agent names to new execution-instructions locations
+  const executionInstructionsMap: Record<string, string> = {
+    'structure-architecture-analyzer': 'orchestration/src/nodes/initialize-project/phase1/structure-analyzer/prompts/execution-instructions.md',
+    'tech-stack-dependencies-analyzer': 'orchestration/src/nodes/initialize-project/phase1/tech-stack-analyzer/prompts/execution-instructions.md',
+    'code-patterns-testing-analyzer': 'orchestration/src/nodes/initialize-project/phase1/code-patterns-analyzer/prompts/execution-instructions.md',
+    'data-flows-integrations-analyzer': 'orchestration/src/nodes/initialize-project/phase1/data-flows-analyzer/prompts/execution-instructions.md',
+  };
+
+  const newPath = executionInstructionsMap[agentName];
+  const path = newPath
+    ? join(frameworkPath, newPath)
+    : join(frameworkPath, "orchestration/agents/execution-instructions", `${agentName}.md`);
 
   try {
     return readFileSync(path, "utf-8").trim();

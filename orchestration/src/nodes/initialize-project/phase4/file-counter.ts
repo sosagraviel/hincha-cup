@@ -1,6 +1,7 @@
 import { readdir, stat } from "fs/promises";
 import { join, extname, relative, basename } from "path";
 import { logger } from "../../../utils/logger.js";
+import { LANGUAGE_EXTENSIONS, IGNORE_DIRS } from "./constants.js";
 
 /**
  * File count information for a specific language
@@ -21,63 +22,6 @@ export interface FileCountResult {
   scanned_directories: number;
   errors: string[];
 }
-
-/**
- * Map of language names to their file extensions
- */
-const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
-  typescript: [".ts", ".tsx"],
-  javascript: [".js", ".jsx", ".mjs", ".cjs"],
-  python: [".py", ".pyw", ".pyx"],
-  java: [".java"],
-  go: [".go"],
-  rust: [".rs"],
-  ruby: [".rb", ".rake"],
-  php: [".php"],
-  csharp: [".cs"],
-  cpp: [".cpp", ".cc", ".cxx", ".hpp", ".h", ".hxx"],
-  c: [".c", ".h"],
-  swift: [".swift"],
-  kotlin: [".kt", ".kts"],
-  scala: [".scala", ".sc"],
-  elixir: [".ex", ".exs"],
-  clojure: [".clj", ".cljs", ".cljc"],
-  haskell: [".hs", ".lhs"],
-};
-
-/**
- * Directories to ignore during file counting
- */
-const IGNORE_DIRS = new Set([
-  "node_modules",
-  ".git",
-  "dist",
-  "build",
-  "out",
-  "__pycache__",
-  ".venv",
-  "venv",
-  "env",
-  "vendor",
-  "target",
-  ".next",
-  ".nuxt",
-  ".cache",
-  "coverage",
-  ".pytest_cache",
-  ".mypy_cache",
-  ".tox",
-  "bower_components",
-  "jspm_packages",
-  ".gradle",
-  ".maven",
-  "bin",
-  "obj",
-  // Claude framework directories - these are generated/copied by the framework
-  ".claude",
-  ".claude-temp",
-  ".claude-backups",
-]);
 
 
 /**

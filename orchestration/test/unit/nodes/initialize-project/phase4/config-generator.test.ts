@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateFrameworkConfig, type Phase1AnalysisData } from '../../../../../src/nodes/initialize-project/phase4/config-generator.js';
+import { generateFrameworkConfig } from '../../../../../src/nodes/initialize-project/phase4/config-generator.js';
+import type { Phase1AnalysisData } from '../../../../../src/nodes/initialize-project/phase4/types.js';
 import type { StackProfile } from '../../../../../src/schemas/index.js';
 import * as fs from 'fs';
 

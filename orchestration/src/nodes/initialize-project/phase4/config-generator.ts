@@ -6,22 +6,13 @@ import {
   type FrameworkConfig,
   type StackProfile,
 } from "../../../schemas/index.js";
+import type { Phase1AnalysisData } from "./types.js";
 
 /**
  * Generate project hash for tracking changes
  */
 function generateProjectHash(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
-}
-
-/**
- * Phase 1 Analysis Data (read from disk files)
- */
-export interface Phase1AnalysisData {
-  structure_architecture: any;
-  tech_stack_dependencies: any;
-  code_patterns_testing: any;
-  data_flows_integrations?: any;
 }
 
 /**

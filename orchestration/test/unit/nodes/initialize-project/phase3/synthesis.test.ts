@@ -169,7 +169,7 @@ describe('synthesisNode', () => {
 
     expect(localMockFactory.createAgent).toHaveBeenCalledWith({
       agentName: 'architect-synthesizer',
-      agentFilePath: expect.stringContaining('05-architect-synthesizer.md'),
+      agentFilePath: expect.stringContaining('phase3/prompts/agent.md'),
       projectPath: '/test/project',
       frameworkPath: '/test/framework',
       timeout: 600000,

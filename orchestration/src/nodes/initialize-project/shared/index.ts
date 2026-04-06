@@ -1,114 +1,34 @@
 /**
  * Shared utilities for initialize-project workflow nodes
- * Builds prompts for Phase 1-6 agents
+ * Contains only truly cross-phase utilities
  */
 
 import { join } from 'path';
-import {
-  getExcludedDirectories,
-  loadExecutionInstructions,
-} from '../../../utils/shared/prompt-loader.js';
-import {
-  buildExcludedDirsTag,
-  buildProjectPathTag,
-  buildJsonOutputFormat,
-  buildContentSection,
-} from '../../../utils/shared/context-tags.js';
-
-/**
- * Build input prompt for Phase 1 analyzer agents
- *
- * Used by: structure-architecture, tech-stack-dependencies,
- *          code-patterns-testing, data-flows-integrations
- */
-export function buildPhase1AnalyzerPrompt(
-  projectPath: string,
-  frameworkPath: string,
-  agentName: string,
-  feedbackPrompt?: string, // Error feedback for retry
-): string {
-  const excludedDirs = getExcludedDirectories(projectPath, frameworkPath);
-  const executionInstructions = loadExecutionInstructions(
-    agentName,
-    frameworkPath,
-  );
-
-  const parts: string[] = [
-    buildExcludedDirsTag(excludedDirs),
-    '',
-    buildProjectPathTag(projectPath),
-    '',
-    buildJsonOutputFormat(agentName),
-  ];
-
-  if (executionInstructions) {
-    parts.push('', executionInstructions);
-  }
-
-  if (feedbackPrompt) {
-    parts.push('', buildContentSection('Validation Feedback', feedbackPrompt));
-  }
-
-  return parts.join('\n');
-}
-
-/**
- * Build input prompt for Phase 2 consolidation agent
- */
-export function buildConsolidationPrompt(
-  gaps: any[],
-  feedbackPrompt?: string,
-): string {
-  const gapsJson = JSON.stringify(gaps, null, 2);
-
-  const parts: string[] = [buildContentSection('Input Gaps', gapsJson)];
-
-  // Add consolidation-specific instructions
-  parts.push(
-    '',
-    [
-      'CRITICAL: Output structure must be:',
-      '{',
-      '  "consolidated_gaps": [...],',
-      '  "consolidation_metadata": {...}',
-      '}',
-    ].join('\n'),
-  );
-
-  if (feedbackPrompt) {
-    parts.push('', buildContentSection('Validation Feedback', feedbackPrompt));
-  }
-
-  return parts.join('\n');
-}
-
-/**
- * Build input prompt for Phase 3 synthesis agent
- */
-export function buildSynthesisPrompt(
-  consolidatedData: any,
-  feedbackPrompt?: string,
-): string {
-  const consolidatedJson = JSON.stringify(consolidatedData, null, 2);
-
-  const parts: string[] = [
-    buildContentSection('Consolidated Analysis', consolidatedJson),
-  ];
-
-  if (feedbackPrompt) {
-    parts.push('', buildContentSection('Validation Feedback', feedbackPrompt));
-  }
-
-  return parts.join('\n');
-}
 
 /**
  * Get path to framework agent file
+ * Maps old agent file names to new phase-specific locations
  */
 export function getFrameworkAgentPath(
   frameworkPath: string,
   agentFile: string,
 ): string {
+  // Map old agent file names to new locations
+  const agentPathMap: Record<string, string> = {
+    '01-structure-architecture.md': 'orchestration/src/nodes/initialize-project/phase1/structure-analyzer/prompts/agent.md',
+    '02-tech-stack-dependencies.md': 'orchestration/src/nodes/initialize-project/phase1/tech-stack-analyzer/prompts/agent.md',
+    '03-code-patterns-testing.md': 'orchestration/src/nodes/initialize-project/phase1/code-patterns-analyzer/prompts/agent.md',
+    '04-data-flows-integrations.md': 'orchestration/src/nodes/initialize-project/phase1/data-flows-analyzer/prompts/agent.md',
+    '05-architect-synthesizer.md': 'orchestration/src/nodes/initialize-project/phase3/prompts/agent.md',
+    '06-question-consolidator.md': 'orchestration/src/nodes/initialize-project/phase2/question-consolidator/prompts/agent.md',
+  };
+
+  const newPath = agentPathMap[agentFile];
+  if (newPath) {
+    return join(frameworkPath, newPath);
+  }
+
+  // Fallback to old path for unmapped agents
   return join(frameworkPath, 'orchestration/agents', agentFile);
 }
 
