@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { dataFlowsIntegrationsAnalyzerNode } from '../../../../../src/nodes/initialize-project/phase1/data-flows-integrations-analyzer.node.js';
 import type { InitializeProjectState } from '../../../../../src/state/schemas/initialize-project.schema.js';
 import * as fs from 'fs';
-import * as agentFactory from '../../../../../src/utils/agent-factory.js';
+import { AgentFactory } from '../../../../../src/utils/shared/agent-factory/index.js';
 import * as enhancedRetry from '../../../../../src/utils/enhanced-retry.js';
 
-vi.mock('fs', () => ({ mkdirSync: vi.fn(), writeFileSync: vi.fn() }));
+vi.mock('fs', () => ({ mkdirSync: vi.fn(), writeFileSync: vi.fn(), existsSync: vi.fn() }));
 vi.mock('../../../../../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
-vi.mock('../../../../../src/utils/agent-factory.js', () => ({ createAgentFromMarkdown: vi.fn() }));
+vi.mock('../../../../../src/utils/shared/agent-factory/index.js', () => ({ AgentFactory: { create: vi.fn() } }));
 vi.mock('../../../../../src/utils/validator.js', () => ({ validateAndParseAgentOutput: vi.fn() }));
 vi.mock('../../../../../src/utils/enhanced-retry.js', () => ({
   retryWithEnhancedFeedback: vi.fn(),
@@ -19,6 +19,7 @@ vi.mock('../../../../../src/utils/enhanced-retry.js', () => ({
 describe('dataFlowsIntegrationsAnalyzerNode', () => {
   let mockState: InitializeProjectState;
   let mockAgent: any;
+  let mockFactory: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -42,7 +43,8 @@ describe('dataFlowsIntegrationsAnalyzerNode', () => {
         sessionId: 'test-session-123',
       }),
     };
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockResolvedValue(mockAgent);
+    mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(async (agentInvoke: any) => {
       const { output } = await agentInvoke('');
       return JSON.parse(output);
@@ -56,16 +58,14 @@ describe('dataFlowsIntegrationsAnalyzerNode', () => {
 
   it('should use correct agent configuration', async () => {
     await dataFlowsIntegrationsAnalyzerNode(mockState);
-    expect(agentFactory.createAgentFromMarkdown).toHaveBeenCalledWith({
+    expect(mockFactory.createAgent).toHaveBeenCalledWith({
       agentName: 'data-flows-integrations-analyzer',
-      agentFile: '04-data-flows-integrations.md',
+      agentFilePath: expect.stringContaining('04-data-flows-integrations.md'),
       projectPath: '/test/project',
       frameworkPath: '/test/framework',
-      additionalContext: '',
       timeout: 600000,
-      useUltrathink: true,
       resumeSessionId: undefined,
-      settingsPath: '/test/framework/orchestration/config/initialize-project-agents-settings.json',
+      settingsPath: expect.stringContaining('initialize-project-agents-settings.json'),
     });
   });
 
@@ -78,13 +78,13 @@ describe('dataFlowsIntegrationsAnalyzerNode', () => {
   });
 
   it('should handle errors', async () => {
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(new Error('Test error'));
+    vi.mocked(AgentFactory.create).mockRejectedValue(new Error('Test error'));
     const result = await dataFlowsIntegrationsAnalyzerNode(mockState);
     expect(result.errors).toContain('data-flows-integrations-analyzer: Test error');
   });
 
   it('should propagate SIGINT', async () => {
-    vi.mocked(agentFactory.createAgentFromMarkdown).mockRejectedValue(new Error('interrupted by user'));
+    vi.mocked(AgentFactory.create).mockRejectedValue(new Error('interrupted by user'));
     await expect(dataFlowsIntegrationsAnalyzerNode(mockState)).rejects.toThrow();
   });
 });

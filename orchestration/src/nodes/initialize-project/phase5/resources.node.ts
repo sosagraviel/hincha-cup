@@ -10,8 +10,8 @@ import { join } from "path";
 import {
   resolveSkills,
   copyResolvedSkills,
-} from "../../../utils/skill-resolver.js";
-import { generateAgents, writeAgents } from "../../../utils/agent-generator.js";
+} from "./skill-resolver.js";
+import { generateAgents, writeAgents } from "./agent-generator.js";
 import type { StackProfile } from "../../../schemas/index.js";
 import { logger } from "../../../utils/logger.js";
 

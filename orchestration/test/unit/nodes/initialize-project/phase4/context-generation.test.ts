@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { contextGenerationNode } from '../../../../../src/nodes/initialize-project/phase4/context-generation.node.js';
 import type { InitializeProjectState } from '../../../../../src/state/schemas/initialize-project.schema.js';
 import * as fs from 'fs';
-import * as configGenerator from '../../../../../src/utils/config-generator.js';
-import * as fileCounter from '../../../../../src/utils/file-counter.js';
-import * as workspaceDetector from '../../../../../src/utils/workspace-detector.js';
+import * as configGenerator from '../../../../../src/nodes/initialize-project/phase4/config-generator.js';
+import * as fileCounter from '../../../../../src/nodes/initialize-project/phase4/file-counter.js';
+import * as workspaceDetector from '../../../../../src/nodes/initialize-project/phase4/workspace-detector.js';
 
 vi.mock('fs', () => ({
   writeFileSync: vi.fn(),
@@ -29,15 +29,15 @@ vi.mock('../../../../../src/utils/logger.js', () => ({
   },
 }));
 
-vi.mock('../../../../../src/utils/config-generator.js', () => ({
+vi.mock('../../../../../src/nodes/initialize-project/phase4/config-generator.js', () => ({
   generateFrameworkConfig: vi.fn(),
 }));
 
-vi.mock('../../../../../src/utils/file-counter.js', () => ({
+vi.mock('../../../../../src/nodes/initialize-project/phase4/file-counter.js', () => ({
   countFilesByLanguage: vi.fn(),
 }));
 
-vi.mock('../../../../../src/utils/workspace-detector.js', () => ({
+vi.mock('../../../../../src/nodes/initialize-project/phase4/workspace-detector.js', () => ({
   detectWorkspaces: vi.fn(),
 }));
 

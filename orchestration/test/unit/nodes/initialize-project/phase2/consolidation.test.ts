@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { consolidationNode } from '../../../../../src/nodes/initialize-project/phase2/consolidation.node.js';
 import type { InitializeProjectState } from '../../../../../src/state/schemas/initialize-project.schema.js';
 import * as fs from 'fs';
-import * as consolidationUtil from '../../../../../src/utils/consolidation.js';
+import * as consolidationUtil from '../../../../../src/nodes/initialize-project/phase2/consolidation.js';
 
 vi.mock('fs', () => ({
   existsSync: vi.fn(),
@@ -31,12 +31,12 @@ vi.mock('../../../../../src/utils/logger.js', () => ({
   },
 }));
 
-vi.mock('../../../../../src/utils/consolidation.js', () => ({
+vi.mock('../../../../../src/nodes/initialize-project/phase2/consolidation.js', () => ({
   consolidateAnalyses: vi.fn(),
 }));
 
-vi.mock('../../../../../src/utils/agent-factory.js', () => ({
-  createAgentFromMarkdown: vi.fn(),
+vi.mock('../../../../../src/utils/shared/agent-factory/index.js', () => ({
+  AgentFactory: { create: vi.fn() },
 }));
 
 vi.mock('../../../../../src/utils/validator.js', () => ({

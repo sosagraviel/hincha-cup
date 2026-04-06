@@ -1,8 +1,8 @@
 import type { InitializeProjectState } from "../../../state/schemas/initialize-project.schema.js";
-import { consolidateAnalyses } from "../../../utils/consolidation.js";
+import { consolidateAnalyses } from "./consolidation.js";
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { createAgentFromMarkdown } from "../../../utils/agent-factory.js";
+import { AgentFactory } from "../../../utils/shared/agent-factory/index.js";
 import {
   extractJSON,
   type ValidationResult,
@@ -13,6 +13,11 @@ import {
 } from "../../../utils/enhanced-retry.js";
 import { logger } from "../../../utils/logger.js";
 import { GapQuestionsService } from "../../../services/gap-questions.service.js";
+import {
+  buildConsolidationPrompt,
+  getFrameworkAgentPath,
+  getInitializeProjectSettingsPath,
+} from "../shared/index.js";
 
 interface Gap {
   type: "needs_verification" | "sparse_findings" | "missing_language_coverage";
@@ -379,8 +384,13 @@ async function consolidateQuestions(
 
     // Define agent invocation function with feedback support and session resumption
     const agentInvoke = async (feedbackPrompt: string, resumeSessionId?: string): Promise<{ output: string; sessionId: string }> => {
-      const additionalContext = `
-CRITICAL: Follow ALL instructions in the agent file below.
+      // Build input prompt using shared utility
+      const contextPrompt = buildConsolidationPrompt(gaps, feedbackPrompt);
+
+      // Add ultrathink and additional instructions
+      const inputPrompt = `ultrathink
+
+${contextPrompt}
 
 CRITICAL OUTPUT STRUCTURE - Your JSON MUST have EXACTLY these TWO top-level keys:
 {
@@ -423,36 +433,24 @@ CRITICAL VALIDATION REQUIREMENTS:
    - consolidated_from (array of strings)
    - original_count (number)
 
-=== INPUT DATA ===
-Current gaps that need consolidation:
-${gapsJson}
+Consolidate the questions provided in the context above.`;
 
-${feedbackPrompt}
-`;
-
-      const settingsPath = join(
-        frameworkPath,
-        "orchestration/config/initialize-project-agents-settings.json"
-      );
-
-      const agent = await createAgentFromMarkdown({
+      // Create agent using new interface
+      const factory = await AgentFactory.create();
+      const agent = await factory.createAgent({
         agentName: "question-consolidator",
-        agentFile: "06-question-consolidator.md",
+        agentFilePath: getFrameworkAgentPath(frameworkPath, "06-question-consolidator.md"),
         projectPath,
         frameworkPath,
-        additionalContext,
         timeout: 300000, // 5 minutes
-        useUltrathink: true, // Enable maximum thinking for thorough consolidation
-        resumeSessionId, // Pass session ID for context-preserving retry with --resume
-        settingsPath,
+        resumeSessionId, // Pass session ID for context-preserving retry
+        settingsPath: getInitializeProjectSettingsPath(frameworkPath),
       });
 
-      const result = await agent.invoke({
-        input: "Consolidate the questions provided in the context above.",
-      });
+      const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()
 
       return {
-        output: result.output || result.content || JSON.stringify(result),
+        output: result.output,
         sessionId: result.sessionId,
       };
     };

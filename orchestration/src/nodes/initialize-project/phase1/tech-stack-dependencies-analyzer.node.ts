@@ -1,5 +1,5 @@
 import type { InitializeProjectState } from "../../../state/schemas/initialize-project.schema.js";
-import { createAgentFromMarkdown } from "../../../utils/agent-factory.js";
+import { AgentFactory } from "../../../utils/shared/agent-factory/index.js";
 import {
   validateAndParseAgentOutput,
   type ValidationResult,
@@ -11,6 +11,11 @@ import {
 import { logger } from "../../../utils/logger.js";
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
+import {
+  buildPhase1AnalyzerPrompt,
+  getFrameworkAgentPath,
+  getInitializeProjectSettingsPath,
+} from "../shared/index.js";
 
 /**
  * Analyzes tech stack, programming languages, dependencies, and build tools
@@ -27,30 +32,37 @@ export async function techStackDependenciesAnalyzerNode(
   mkdirSync(join(tempDir, "phase1-outputs"), { recursive: true });
 
   try {
-    const agentInvoke = async (feedbackPrompt: string, resumeSessionId?: string): Promise<{ output: string; sessionId: string }> => {
-      const settingsPath = join(
+    const agentInvoke = async (
+      feedbackPrompt: string,
+      resumeSessionId?: string,
+    ): Promise<{ output: string; sessionId: string }> => {
+      // Build input prompt using shared utility
+      const contextPrompt = buildPhase1AnalyzerPrompt(
+        state.project_path,
         state.framework_path,
-        "orchestration/config/initialize-project-agents-settings.json"
+        agentName,
+        feedbackPrompt, // Feedback for retry
       );
 
-      const agent = await createAgentFromMarkdown({
+      // Add ultrathink and task instruction to input prompt
+      const inputPrompt = `ultrathink\n\n${contextPrompt}\n\nAnalyze the tech stack and dependencies at: ${state.project_path}`;
+
+      // Create agent using new interface
+      const factory = await AgentFactory.create();
+      const agent = await factory.createAgent({
         agentName,
-        agentFile,
+        agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
-        additionalContext: feedbackPrompt,
         timeout: 600000, // 10 minutes
-        useUltrathink: true, // Enable maximum thinking for thorough analysis
-        resumeSessionId, // Pass session ID for context-preserving retry with --resume
-        settingsPath,
+        resumeSessionId, // Pass session ID for context-preserving retry
+        settingsPath: getInitializeProjectSettingsPath(state.framework_path),
       });
 
-      const result = await agent.invoke({
-        input: `Analyze the tech stack and dependencies at: ${state.project_path}`,
-      });
+      const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()
 
       return {
-        output: result.output || result.content || JSON.stringify(result),
+        output: result.output,
         sessionId: result.sessionId,
       };
     };
