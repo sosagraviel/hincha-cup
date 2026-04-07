@@ -14,6 +14,13 @@ import fs from "fs";
 import { validateAgentOutput } from "../../../../../schemas/phase1-agent-outputs.schema.js";
 import { extractJSON } from "../../../../../utils/validator.js";
 
+interface HookInput {
+  stop_hook_active: boolean;
+  transcript_path?: string;
+  session_id?: string;
+  cwd?: string;
+}
+
 /**
  * Block Claude from finishing with feedback
  * Exit code 2 signals blocking to Claude CLI (exit 1 is just an error, not a block!)
@@ -30,12 +37,106 @@ function allow(): void {
   process.exit(0);
 }
 
+/**
+ * Read stdin using async iterator (production-ready, handles non-blocking pipes)
+ * Solves EAGAIN errors that occur with fs.readFileSync(0) on non-blocking stdin
+ */
+async function readStdinAsync(): Promise<string> {
+  const chunks: string[] = [];
+
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk);
+  }
+
+  return chunks.join('');
+}
+
 async function main() {
   try {
-    // Claude CLI passes agent output directly to Stop hooks via stdin
-    const stdinBuffer = fs.readFileSync(0, "utf-8").trim();
+    // Read stdin to get hook input metadata (production-ready async method)
+    const stdinBuffer = await readStdinAsync();
+    const input: HookInput = JSON.parse(stdinBuffer);
 
-    if (!stdinBuffer) {
+    // Allow if stop hook is explicitly active (legacy/testing mode)
+    if (input.stop_hook_active === true) {
+      return allow();
+    }
+
+    // Require transcript for validation
+    if (!input.transcript_path) {
+      return blockWithFeedback(
+        "❌ HOOK ERROR: No transcript path provided\n\n" +
+        "The validation hook requires a transcript to validate output.\n" +
+        "This is a framework error, not an agent error."
+      );
+    }
+
+    if (!fs.existsSync(input.transcript_path)) {
+      return blockWithFeedback(
+        "❌ HOOK ERROR: Transcript file not found\n\n" +
+        `Expected transcript at: ${input.transcript_path}\n` +
+        "This is a framework error, not an agent error."
+      );
+    }
+
+    // Read transcript file (JSONL format - one JSON object per line)
+    const transcriptContent = fs.readFileSync(input.transcript_path, "utf-8");
+    const lines = transcriptContent.split("\n").filter((line: string) => line.trim());
+
+    const transcript = lines
+      .map((line: string) => {
+        try {
+          return JSON.parse(line);
+        } catch (e) {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    // Find last assistant message (supports both direct and wrapped formats)
+    const assistantMessages = transcript
+      .filter((msg: any) => {
+        return msg.type === "assistant" || (msg.message && msg.message.role === "assistant");
+      })
+      .reverse();
+
+    if (assistantMessages.length === 0) {
+      return blockWithFeedback(
+        "❌ HOOK ERROR: No assistant messages found in transcript\n\n" +
+        "The agent hasn't produced any output yet.\n" +
+        "This is unexpected - the hook should only run after agent output."
+      );
+    }
+
+    const lastMessage = assistantMessages[0];
+
+    // Get content from either direct format or wrapped format
+    const messageContent = lastMessage.message ? lastMessage.message.content : lastMessage.content;
+
+    if (!messageContent || !Array.isArray(messageContent)) {
+      return blockWithFeedback(
+        "❌ HOOK ERROR: Last message has invalid content structure\n\n" +
+        "Expected an array of content blocks.\n" +
+        "This is a framework error, not an agent error."
+      );
+    }
+
+    // Extract text blocks from content
+    const textBlocks = messageContent.filter(
+      (c: any) => c.type === "text",
+    );
+
+    if (textBlocks.length === 0) {
+      return blockWithFeedback(
+        "❌ OUTPUT ERROR: No text content in response\n\n" +
+        "Your response doesn't contain any text output.\n" +
+        "You must output JSON in the required format."
+      );
+    }
+
+    const text = textBlocks.map((t: any) => t.text).join("\n").trim();
+
+    if (!text) {
       return blockWithFeedback(
         "❌ OUTPUT ERROR: No output received\n\n" +
         "Your response is empty.\n" +
@@ -44,7 +145,7 @@ async function main() {
     }
 
     // Extract JSON from the output (handles markdown code blocks, explanatory text, etc.)
-    const jsonString = extractJSON(stdinBuffer);
+    const jsonString = extractJSON(text);
 
     if (!jsonString) {
       return blockWithFeedback(

@@ -12,7 +12,6 @@ import { logger } from "../../../utils/logger.js";
 import { buildSynthesisPrompt } from "./prompt-builder.js";
 import {
   getFrameworkAgentPath,
-  getInitializeProjectSettingsPath,
 } from "../shared/index.js";
 
 /**
@@ -80,7 +79,7 @@ export async function synthesisNode(
         frameworkPath: state.framework_path,
         timeout: 600000, // 10 minutes (longer for Opus)
         resumeSessionId, // Pass session ID for context-preserving retry
-        settingsPath: getInitializeProjectSettingsPath(state.framework_path),
+        settingsPath: join(state.framework_path, 'orchestration/src/nodes/initialize-project/phase3/settings.json'),
       });
 
       const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()

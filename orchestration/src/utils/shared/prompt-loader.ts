@@ -133,13 +133,17 @@ export function loadExecutionInstructions(
   };
 
   const newPath = executionInstructionsMap[agentName];
-  const path = newPath
-    ? join(frameworkPath, newPath)
-    : join(frameworkPath, "orchestration/agents/execution-instructions", `${agentName}.md`);
+  if (!newPath) {
+    // Agent not in map - return null (execution instructions are optional)
+    return null;
+  }
+
+  const path = join(frameworkPath, newPath);
 
   try {
     return readFileSync(path, "utf-8").trim();
   } catch {
+    // File doesn't exist - execution instructions are optional
     return null;
   }
 }
