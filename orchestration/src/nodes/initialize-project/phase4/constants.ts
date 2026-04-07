@@ -193,7 +193,15 @@ export const BACKEND_FRAMEWORK_KEYWORDS = [
 export const MIN_SIGNIFICANT_FILE_COUNT = 5;
 
 /**
- * Minimum file count to require language in stack profile
- * If file counter finds this many files, the language MUST be in the profile
+ * Advisory threshold for language detection (soft warning)
+ * If file counter finds 10-19 files of a language, log a warning but don't fail
+ * This handles cases like JavaScript config files in TypeScript projects
  */
-export const MIN_REQUIRED_FILE_COUNT = 10;
+export const MIN_ADVISORY_FILE_COUNT = 10;
+
+/**
+ * Required threshold for language detection (hard error)
+ * If file counter finds 20+ files of a language, the language MUST be in the profile
+ * This ensures significant languages aren't missed in the stack profile
+ */
+export const MIN_REQUIRED_FILE_COUNT = 20;

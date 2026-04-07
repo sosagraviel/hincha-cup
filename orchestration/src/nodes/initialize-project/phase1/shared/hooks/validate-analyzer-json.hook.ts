@@ -57,11 +57,6 @@ async function main() {
     const stdinBuffer = await readStdinAsync();
     const input: HookInput = JSON.parse(stdinBuffer);
 
-    // Allow if stop hook is explicitly active (legacy/testing mode)
-    if (input.stop_hook_active === true) {
-      return allow();
-    }
-
     // Require transcript for validation
     if (!input.transcript_path) {
       return blockWithFeedback(

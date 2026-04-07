@@ -47,24 +47,6 @@ export function generateFrameworkConfig(
     file_counts: stackProfile.file_counts,
   };
 
-  // Read Phase 2 consolidation from disk if it exists
-  let phase2Data: any = {
-    gaps_identified: [],
-    validation_status: "valid",
-  };
-
-  if (tempDir) {
-    const phase2Path = join(tempDir, "phase2-consolidation.json");
-    if (existsSync(phase2Path)) {
-      try {
-        const fileContent = readFileSync(phase2Path, "utf-8");
-        phase2Data = JSON.parse(fileContent);
-      } catch (err) {
-        // If file exists but can't be read/parsed, use defaults
-      }
-    }
-  }
-
   const config: FrameworkConfig = {
     version: frameworkVersion,
     schema_version: "1.0.0",
@@ -73,36 +55,6 @@ export function generateFrameworkConfig(
       project_path: projectPath,
       last_analysis: new Date().toISOString(),
       initialization_hash: generateProjectHash(),
-    },
-    analysis_results: {
-      phase1_analysis: {
-        structure_architecture: phase1Data.structure_architecture,
-        tech_stack_dependencies: phase1Data.tech_stack_dependencies,
-        code_patterns_testing: phase1Data.code_patterns_testing,
-        ...(phase1Data.data_flows_integrations && {
-          data_flows_integrations: phase1Data.data_flows_integrations,
-        }),
-        all_completed: true,
-        completion_timestamp: new Date().toISOString(),
-      },
-      phase2_consolidation: {
-        ...phase2Data,
-        timestamp: phase2Data.timestamp || new Date().toISOString(),
-      },
-      phase3_synthesis: {
-        synthesis_timestamp: new Date().toISOString(),
-        raw_content: phase3SynthesisContent,
-        project_understanding: {},
-        architectural_patterns: [],
-        key_insights: [],
-      },
-      phase4_context: {
-        context_generation_timestamp: new Date().toISOString(),
-        files_generated: [
-          ".claude/CLAUDE.md",
-          ".claude/project-context/SKILL.md",
-        ],
-      },
     },
     stack_profile: stackProfileData,
     resource_state: {

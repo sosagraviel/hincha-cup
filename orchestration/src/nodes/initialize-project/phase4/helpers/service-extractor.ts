@@ -16,12 +16,17 @@ import type {
 /**
  * Extract testing configuration for a specific service
  *
+ * Testing data is organized by service ID keys: testing[serviceId]
+ *
  * @param serviceId - Service identifier (e.g., "backend", "frontend")
  * @param codePatternsFindings - Findings from code-patterns-testing analyzer
  * @returns Testing configuration or undefined if not found
  */
-export function extractTestingForService(serviceId: string, codePatternsFindings: any): ServiceTesting | undefined {
-  const serviceTests = codePatternsFindings?.services?.find((s: any) => s.id === serviceId)?.testing;
+export function extractTestingForService(
+  serviceId: string,
+  codePatternsFindings: any,
+): ServiceTesting | undefined {
+  const serviceTests = codePatternsFindings?.testing?.[serviceId];
   if (!serviceTests) return undefined;
 
   return {
@@ -34,13 +39,26 @@ export function extractTestingForService(serviceId: string, codePatternsFindings
 /**
  * Extract testing framework name for a specific service
  *
+ * Framework info comes from testing.*.framework field
+ *
  * @param serviceId - Service identifier
  * @param codePatternsFindings - Findings from code-patterns-testing analyzer
  * @returns Testing framework name or undefined
  */
-export function extractTestingFrameworkForService(serviceId: string, codePatternsFindings: any): string | undefined {
-  const serviceTests = codePatternsFindings?.services?.find((s: any) => s.id === serviceId);
-  return serviceTests?.frameworks?.testing;
+export function extractTestingFrameworkForService(
+  serviceId: string,
+  codePatternsFindings: any,
+): string | undefined {
+  const serviceTests = codePatternsFindings?.testing?.[serviceId];
+  if (!serviceTests) return undefined;
+
+  // Extract framework from unit/integration/e2e tests
+  if (serviceTests.unit?.framework) return serviceTests.unit.framework;
+  if (serviceTests.integration?.framework)
+    return serviceTests.integration.framework;
+  if (serviceTests.e2e?.framework) return serviceTests.e2e.framework;
+
+  return undefined;
 }
 
 /**
@@ -54,9 +72,11 @@ export function extractTestingFrameworkForService(serviceId: string, codePattern
 export function extractDatabasesForService(
   serviceId: string,
   techStackFindings: any,
-  dataFlowsFindings?: any
+  dataFlowsFindings?: any,
 ): ServiceDatabase[] | undefined {
-  const serviceDbs = techStackFindings?.services?.find((s: any) => s.id === serviceId)?.databases;
+  const serviceDbs = techStackFindings?.services?.find(
+    (s: any) => s.id === serviceId,
+  )?.databases;
   if (!serviceDbs || serviceDbs.length === 0) return undefined;
 
   return serviceDbs.map((db: any) => ({
@@ -75,11 +95,15 @@ export function extractDatabasesForService(
  * @param techStackFindings - Findings from tech-stack-dependencies analyzer
  * @returns ORM name or undefined
  */
-export function extractORMForService(serviceId: string, techStackFindings: any): string | undefined {
-  const serviceDbs = techStackFindings?.services?.find((s: any) => s.id === serviceId)?.databases;
+export function extractORMForService(
+  serviceId: string,
+  techStackFindings: any,
+): string | undefined {
+  const serviceDbs = techStackFindings?.services?.find(
+    (s: any) => s.id === serviceId,
+  )?.databases;
   if (!serviceDbs || serviceDbs.length === 0) return undefined;
 
-  // Return ORM from first database that has one
   for (const db of serviceDbs) {
     if (db.orm) return db.orm;
   }
@@ -94,8 +118,13 @@ export function extractORMForService(serviceId: string, techStackFindings: any):
  * @param structureFindings - Findings from structure-architecture analyzer
  * @returns Environment configuration or undefined
  */
-export function extractEnvironmentForService(serviceId: string, structureFindings: any): ServiceEnvironment | undefined {
-  const svcEnv = structureFindings?.services?.find((s: any) => s.id === serviceId)?.environment;
+export function extractEnvironmentForService(
+  serviceId: string,
+  structureFindings: any,
+): ServiceEnvironment | undefined {
+  const svcEnv = structureFindings?.services?.find(
+    (s: any) => s.id === serviceId,
+  )?.environment;
   if (!svcEnv) return undefined;
 
   return {
@@ -113,8 +142,12 @@ export function extractEnvironmentForService(serviceId: string, structureFinding
  * @param techStackFindings - Findings from tech-stack-dependencies analyzer
  * @returns Package manager name or undefined
  */
-export function extractPackageManagerForService(serviceId: string, techStackFindings: any): string | undefined {
-  return techStackFindings?.services?.find((s: any) => s.id === serviceId)?.package_manager;
+export function extractPackageManagerForService(
+  serviceId: string,
+  techStackFindings: any,
+): string | undefined {
+  return techStackFindings?.services?.find((s: any) => s.id === serviceId)
+    ?.package_manager;
 }
 
 /**
@@ -124,8 +157,12 @@ export function extractPackageManagerForService(serviceId: string, techStackFind
  * @param techStackFindings - Findings from tech-stack-dependencies analyzer
  * @returns Manifest file path or undefined
  */
-export function extractManifestFileForService(serviceId: string, techStackFindings: any): string | undefined {
-  return techStackFindings?.services?.find((s: any) => s.id === serviceId)?.manifest_file;
+export function extractManifestFileForService(
+  serviceId: string,
+  techStackFindings: any,
+): string | undefined {
+  return techStackFindings?.services?.find((s: any) => s.id === serviceId)
+    ?.manifest_file;
 }
 
 /**
@@ -145,16 +182,19 @@ export function extractServicesFromPhase1Analyzers(
   structureFindings: any,
   techStackFindings: any,
   codePatternsFindings: any,
-  dataFlowsFindings?: any
+  dataFlowsFindings?: any,
 ): Service[] {
   const services: Service[] = [];
 
   // Use explicit services[] from Agent 01 (structure-architecture)
-  if (!structureFindings?.services || !Array.isArray(structureFindings.services)) {
+  if (
+    !structureFindings?.services ||
+    !Array.isArray(structureFindings.services)
+  ) {
     throw new Error(
       "Phase 1 structure analyzer did not output services[] array. " +
-      "Cannot generate service-centric framework config. " +
-      "This indicates the analyzer is using an outdated output format."
+        "Cannot generate service-centric framework config. " +
+        "This indicates the analyzer is using an outdated output format.",
     );
   }
 
@@ -168,17 +208,31 @@ export function extractServicesFromPhase1Analyzers(
       language_version: svc.language_version,
       frameworks: {
         main: svc.frameworks?.main,
-        orm: svc.frameworks?.orm || extractORMForService(svc.id, techStackFindings),
+        orm:
+          svc.frameworks?.orm ||
+          extractORMForService(svc.id, techStackFindings),
         ui: svc.frameworks?.ui,
-        testing: svc.frameworks?.testing || extractTestingFrameworkForService(svc.id, codePatternsFindings),
+        testing:
+          svc.frameworks?.testing ||
+          extractTestingFrameworkForService(svc.id, codePatternsFindings),
         additional: svc.frameworks?.additional,
       },
       testing: extractTestingForService(svc.id, codePatternsFindings),
-      databases: extractDatabasesForService(svc.id, techStackFindings, dataFlowsFindings),
-      environment: svc.environment || extractEnvironmentForService(svc.id, structureFindings),
+      databases: extractDatabasesForService(
+        svc.id,
+        techStackFindings,
+        dataFlowsFindings,
+      ),
+      environment:
+        svc.environment ||
+        extractEnvironmentForService(svc.id, structureFindings),
       file_count: svc.file_count,
-      package_manager: svc.package_manager || extractPackageManagerForService(svc.id, techStackFindings),
-      manifest_file: svc.manifest_file || extractManifestFileForService(svc.id, techStackFindings), // DYNAMIC path
+      package_manager:
+        svc.package_manager ||
+        extractPackageManagerForService(svc.id, techStackFindings),
+      manifest_file:
+        svc.manifest_file ||
+        extractManifestFileForService(svc.id, techStackFindings), // DYNAMIC path
     };
 
     services.push(service);
