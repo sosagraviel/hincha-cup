@@ -28,16 +28,10 @@ export function getFrameworkAgentPath(
     return join(frameworkPath, newPath);
   }
 
-  // Fallback to old path for unmapped agents
-  return join(frameworkPath, 'orchestration/agents', agentFile);
-}
-
-/**
- * Get path to settings file for hooks
- */
-export function getInitializeProjectSettingsPath(frameworkPath: string): string {
-  return join(
-    frameworkPath,
-    'orchestration/config/initialize-project-agents-settings.json',
+  // No fallback - all agent files must be explicitly mapped
+  throw new Error(
+    `Agent file '${agentFile}' not found in agent path map. ` +
+    `Available agents: ${Object.keys(agentPathMap).join(', ')}`
   );
 }
+

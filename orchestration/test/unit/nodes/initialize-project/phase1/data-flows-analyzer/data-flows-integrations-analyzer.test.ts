@@ -65,7 +65,7 @@ describe('dataFlowsIntegrationsAnalyzerNode', () => {
       frameworkPath: '/test/framework',
       timeout: 600000,
       resumeSessionId: undefined,
-      settingsPath: expect.stringContaining('initialize-project-agents-settings.json'),
+      settingsPath: expect.stringContaining('data-flows-analyzer/settings.json'),
     });
   });
 

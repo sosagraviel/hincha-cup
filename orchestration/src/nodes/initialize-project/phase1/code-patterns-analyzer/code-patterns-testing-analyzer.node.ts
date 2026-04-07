@@ -14,7 +14,6 @@ import { join } from "path";
 import { buildPhase1AnalyzerPrompt } from "../shared/prompt-builder.js";
 import {
   getFrameworkAgentPath,
-  getInitializeProjectSettingsPath,
 } from "../../shared/index.js";
 
 /**
@@ -62,7 +61,7 @@ export async function codePatternsTestingAnalyzerNode(
         frameworkPath: state.framework_path,
         timeout: 600000, // 10 minutes
         resumeSessionId, // Pass session ID for context-preserving retry
-        settingsPath: getInitializeProjectSettingsPath(state.framework_path),
+        settingsPath: join(state.framework_path, 'orchestration/src/nodes/initialize-project/phase1/code-patterns-analyzer/settings.json'),
       });
 
       const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()

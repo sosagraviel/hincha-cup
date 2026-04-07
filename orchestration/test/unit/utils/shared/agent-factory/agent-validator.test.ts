@@ -5,7 +5,10 @@ import fs from 'fs';
 import os from 'os';
 
 describe('validateAgentFile', () => {
-  const agentsDir = path.join(__dirname, '../../../../../agents');
+  // Use new phase-specific agent paths
+  const phase1AgentsDir = path.join(__dirname, '../../../../../src/nodes/initialize-project/phase1');
+  const phase2AgentsDir = path.join(__dirname, '../../../../../src/nodes/initialize-project/phase2');
+  const phase3AgentsDir = path.join(__dirname, '../../../../../src/nodes/initialize-project/phase3');
   let tempDir: string;
 
   beforeAll(() => {
@@ -21,7 +24,7 @@ describe('validateAgentFile', () => {
   describe('Valid Agent Files', () => {
     it('should validate structure-architecture-analyzer', () => {
       const result = validateAgentFile(
-        path.join(agentsDir, '01-structure-architecture.md')
+        path.join(phase1AgentsDir, 'structure-analyzer/prompts/agent.md')
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -30,7 +33,7 @@ describe('validateAgentFile', () => {
 
     it('should validate tech-stack-dependencies-analyzer', () => {
       const result = validateAgentFile(
-        path.join(agentsDir, '02-tech-stack-dependencies.md')
+        path.join(phase1AgentsDir, 'tech-stack-analyzer/prompts/agent.md')
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -38,7 +41,7 @@ describe('validateAgentFile', () => {
 
     it('should validate code-patterns-testing-analyzer', () => {
       const result = validateAgentFile(
-        path.join(agentsDir, '03-code-patterns-testing.md')
+        path.join(phase1AgentsDir, 'code-patterns-analyzer/prompts/agent.md')
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -46,7 +49,7 @@ describe('validateAgentFile', () => {
 
     it('should validate data-flows-integrations-analyzer', () => {
       const result = validateAgentFile(
-        path.join(agentsDir, '04-data-flows-integrations.md')
+        path.join(phase1AgentsDir, 'data-flows-analyzer/prompts/agent.md')
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -54,7 +57,7 @@ describe('validateAgentFile', () => {
 
     it('should validate architect-synthesizer', () => {
       const result = validateAgentFile(
-        path.join(agentsDir, '05-architect-synthesizer.md')
+        path.join(phase3AgentsDir, 'prompts/agent.md')
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -62,7 +65,7 @@ describe('validateAgentFile', () => {
 
     it('should validate question-consolidator', () => {
       const result = validateAgentFile(
-        path.join(agentsDir, '06-question-consolidator.md')
+        path.join(phase2AgentsDir, 'question-consolidator/prompts/agent.md')
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -217,7 +220,7 @@ output_format: json
 
   describe('assertAgentFileValid', () => {
     it('should not throw for valid agent file', () => {
-      const validAgent = path.join(agentsDir, '01-structure-architecture.md');
+      const validAgent = path.join(phase1AgentsDir, 'structure-analyzer/prompts/agent.md');
       expect(() => assertAgentFileValid(validAgent)).not.toThrow();
     });
 

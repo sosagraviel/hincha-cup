@@ -68,9 +68,24 @@ function allow(): void {
   process.exit(0);
 }
 
+/**
+ * Read stdin using async iterator (production-ready, handles non-blocking pipes)
+ * Solves EAGAIN errors that occur with fs.readFileSync(0) on non-blocking stdin
+ */
+async function readStdinAsync(): Promise<string> {
+  const chunks: string[] = [];
+
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk);
+  }
+
+  return chunks.join('');
+}
+
 async function main() {
   try {
-    const stdinBuffer = fs.readFileSync(0, "utf-8");
+    // Read stdin to get hook input metadata (production-ready async method)
+    const stdinBuffer = await readStdinAsync();
     const input: HookInput = JSON.parse(stdinBuffer);
 
     // Allow if stop hook is explicitly active (legacy/testing mode)

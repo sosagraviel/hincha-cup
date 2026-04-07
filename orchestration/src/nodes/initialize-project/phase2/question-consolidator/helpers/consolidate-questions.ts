@@ -18,7 +18,6 @@ import { logger } from "../../../../../utils/logger.js";
 import { buildConsolidationPrompt } from "../prompt-builder.js";
 import {
   getFrameworkAgentPath,
-  getInitializeProjectSettingsPath,
 } from "../../../shared/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -42,7 +41,7 @@ export async function consolidateQuestions(
   gaps: Gap[],
   projectPath: string,
   frameworkPath: string,
-  _tempDir: string,
+  tempDir: string,
   consolidatedPath: string,
 ): Promise<{
   success: boolean;
@@ -81,7 +80,7 @@ ${consolidationInstructions}`;
         frameworkPath,
         timeout: 300000, // 5 minutes
         resumeSessionId, // Pass session ID for context-preserving retry
-        settingsPath: getInitializeProjectSettingsPath(frameworkPath),
+        settingsPath: join(frameworkPath, 'orchestration/src/nodes/initialize-project/phase2/question-consolidator/settings.json'),
       });
 
       const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()
