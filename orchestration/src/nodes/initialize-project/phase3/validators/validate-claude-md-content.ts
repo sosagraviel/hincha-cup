@@ -9,8 +9,8 @@ export function validateClaudeMdContent(content: string): string[] {
   const errors: string[] = [];
   const lines = content.split("\n");
 
-  // Check for project name heading
-  const hasProjectHeading = lines.some((line) => /^# [A-Z]/.test(line.trim()));
+  // Check for project name heading (allows both uppercase and lowercase first letter)
+  const hasProjectHeading = lines.some((line) => /^# [a-zA-Z]/.test(line.trim()));
   if (!hasProjectHeading) {
     errors.push(
       "CLAUDE.md MISSING PROJECT NAME HEADING",
@@ -75,20 +75,29 @@ export function validateClaudeMdContent(content: string): string[] {
     );
   }
 
-  // Check for bullet lists
+  // Check for structured content (bullet lists OR tables)
   const hasBulletList = lines.some((line) => /^[-*] /.test(line.trim()));
-  if (!hasBulletList) {
+
+  // Accept either bullet lists or tables for structured content (e.g., Tech Stack)
+  // Tables are already validated above, so if we have either format, we're good
+  if (!hasBulletList && !hasTable) {
     errors.push(
-      "CLAUDE.md MISSING BULLET LISTS",
+      "CLAUDE.md MISSING STRUCTURED CONTENT",
       "",
       "🔴 WHAT WENT WRONG:",
-      "   CLAUDE.md should use bullet lists for Tech Stack.",
+      "   CLAUDE.md should use bullet lists or tables for structured data like Tech Stack.",
       "",
       "🟢 HOW TO FIX:",
-      "   Use bullet format for Tech Stack:",
+      "   Use bullet format:",
       "   - TypeScript 5.3",
       "   - Node.js 20.x",
       "   - PostgreSQL 15",
+      "",
+      "   OR use table format:",
+      "   | Technology | Version |",
+      "   |------------|---------|",
+      "   | TypeScript | 5.3 |",
+      "   | Node.js | 20.x |",
     );
   }
 

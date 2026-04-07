@@ -4,11 +4,20 @@
 Analyze testing strategies, code quality tools, and development practices for each service. Identify test frameworks, categorize tests, and document quality tooling.
 </objective>
 
+**IMPORTANT: Service Discovery Ownership**
+
+- **Structure Analyzer (Agent 01)** is the SINGLE SOURCE OF TRUTH for service discovery
+- DO NOT redeclare services in your output
+- REFERENCE services by ID from Structure Analyzer
+- Organize findings using service IDs as keys (e.g., `testing.backend.unit`)
+- The `services` array field is DEPRECATED - use maps with service ID keys instead
+- DO NOT create `frameworks.testing` field - framework info belongs in `testing.*.framework` only
+
 <discovery_process>
 
 ## Step 1: Identify Testing Frameworks from Dependencies
 
-For each service discovered in Phase 1, read its manifest file and extract testing frameworks:
+For each service discovered in Phase 1 (by Structure Analyzer), read its manifest file and extract testing frameworks:
 
 <testing_frameworks>
 
@@ -91,7 +100,57 @@ Read config files to extract:
 
 </test_configs>
 
-## Step 4: Identify Code Quality Tools
+## Step 4: Analyze API/Interface Patterns
+
+<api_patterns>
+
+**Search for API pattern indicators in source code:**
+
+### REST API Patterns
+
+Search for HTTP framework decorators/annotations:
+- **NestJS:** `@Controller`, `@Get`, `@Post`, `@Put`, `@Delete` decorators
+- **Express:** `app.get`, `app.post`, `router.get` calls
+- **Django:** `def get`, `def post` in views, `path()` in urls.py
+- **FastAPI:** `@app.get`, `@app.post` decorators
+- **Go Gin:** `router.GET`, `router.POST` methods
+- **Rust Axum:** `Router::new().route()` calls
+- **Spring Boot:** `@RestController`, `@GetMapping`, `@PostMapping` annotations
+
+### GraphQL Patterns
+
+- **Node:** `@nestjs/graphql`, `apollo-server`, `type-graphql` in dependencies
+- **Python:** `graphene`, `ariadne`, `strawberry` in dependencies
+- Look for `.graphql` or `.gql` schema files
+
+### gRPC Patterns
+
+- **Node:** `@grpc/grpc-js` in dependencies, `.proto` files
+- **Go:** `google.golang.org/grpc` in go.mod
+- **Python:** `grpcio` in dependencies
+- Look for `*.proto` files in repository
+
+### WebSocket Patterns
+
+- **Node:** `socket.io`, `ws` in dependencies
+- **Django:** `channels` in dependencies
+- **Go:** `gorilla/websocket` in go.mod
+- Look for WebSocket handler code
+
+**Report discovered API patterns:**
+
+```json
+"api_patterns": {
+  "rest": true,
+  "graphql": false,
+  "grpc": false,
+  "websockets": true
+}
+```
+
+</api_patterns>
+
+## Step 5: Identify Code Quality Tools
 
 <quality_tools>
 
@@ -123,7 +182,59 @@ Find configuration files for each tool and note their presence.
 
 </quality_tools>
 
-## Step 5: Categorize Tests by Type
+## Step 6: Detect Documentation Patterns
+
+<documentation_patterns>
+
+**Search for documentation tools and patterns:**
+
+### API Documentation
+
+- **OpenAPI/Swagger:** `swagger.json`, `swagger.yaml`, `openapi.json`, `openapi.yaml` files
+- **NestJS Swagger:** `@nestjs/swagger` in dependencies, `@ApiProperty()` decorators
+- **FastAPI:** Auto-generates OpenAPI (check dependencies)
+- **Spring Boot:** `springdoc-openapi` or `springfox` in dependencies
+
+### Code Documentation
+
+- **JavaScript/TypeScript:** JSDoc comments (`/** */`), TSDoc
+- **Python:** Docstrings (triple quotes), Sphinx (`docs/` with `conf.py`)
+- **Go:** Godoc comments (`//`)
+- **Rust:** Rustdoc comments (`///`), `cargo doc`
+- **Java:** Javadoc comments (`/***/`)
+
+### README and Guides
+
+Search for documentation files:
+- `README.md`, `README.rst`
+- `CONTRIBUTING.md`, `DEVELOPMENT.md`
+- `docs/` directory with markdown or reStructuredText
+- `*.mdx` files (MDX documentation)
+
+### Static Site Generators
+
+Check dependencies for:
+- **VitePress:** `vitepress` in devDependencies
+- **Docusaurus:** `@docusaurus/core`
+- **MkDocs:** `mkdocs` (Python)
+- **GitBook:** `gitbook` directory
+- **Sphinx:** `sphinx` (Python)
+- **Docsify:** `docsify`
+
+**Report format:**
+
+```json
+"documentation": {
+  "api_docs": ["swagger", "openapi"],
+  "static_site": "vitepress",
+  "readme": true,
+  "contributing_guide": true
+}
+```
+
+</documentation_patterns>
+
+## Step 7: Categorize Tests by Type
 
 <test_categorization>
 
@@ -159,9 +270,12 @@ Report counts for each type if distinguishable from file paths or config.
 
 1. **Testing framework in dependencies but no test files?** Try multiple search patterns (test/, tests/, __tests__/, *.test.*, *.spec.*)
 2. **No testing framework in dependencies?** Valid to report "none" (MVP projects, separate test repo)
-3. **Linter in dependencies but no config?** Check package.json, pyproject.toml for inline config
-4. **Formatter in dependencies but no config?** Some use defaults (prettier, black, gofmt)
-5. **E2E tests exist but framework unclear?** Read imports in test files (playwright, cypress, selenium)
+3. **API patterns detected?** Check for REST/GraphQL/gRPC/WebSocket indicators
+4. **Linter in dependencies but no config?** Check package.json, pyproject.toml for inline config
+5. **Formatter in dependencies but no config?** Some use defaults (prettier, black, gofmt)
+6. **E2E tests exist but framework unclear?** Read imports in test files (playwright, cypress, selenium)
+7. **Documentation tools checked?** Look for Swagger/OpenAPI, static site generators, docs/ directory
+8. **Pre-commit hooks detected?** Search for .husky/, .pre-commit-config.yaml, lefthook.yml
 
 ## Common Patterns
 
@@ -202,36 +316,56 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
   "agent_name": "code-patterns-testing-analyzer",
   "timestamp": "2026-04-02T10:30:00.000Z",
   "findings": {
+    "api_patterns": {
+      "rest": true,
+      "graphql": false,
+      "grpc": false,
+      "websockets": true
+    },
+    "quality_tools": {
+      "linter": "eslint",
+      "formatter": "prettier",
+      "type_checker": "typescript",
+      "pre_commit": "husky"
+    },
+    "documentation": {
+      "api_docs": ["swagger", "openapi"],
+      "static_site": "none",
+      "readme": true,
+      "contributing_guide": true
+    },
     "services": [
       {
-        "id": "api",
-        "frameworks": {
-          "testing": "Jest"
-        },
+        "id": "backend",
         "testing": {
           "unit": {
             "framework": "Jest 29.7",
-            "config_file": "apps/api/jest.config.js",
-            "file_pattern": "**/*.spec.ts",
-            "file_count": 45
+            "config_file": "services/backend/jest.config.mjs",
+            "file_pattern": ".*\\.(spec|test)\\.ts$",
+            "file_count": 13
           },
+          "integration": {
+            "framework": "Jest 29.7",
+            "config_file": "services/backend/jest.e2e.config.mjs",
+            "file_pattern": ".e2e-spec.ts$",
+            "file_count": 5
+          }
+        }
+      },
+      {
+        "id": "web-frontend",
+        "testing": {
           "e2e": {
-            "framework": "Playwright 1.40",
-            "config_file": "apps/api/playwright.config.ts",
+            "framework": "Playwright 1.52",
+            "config_file": "services/web-frontend/playwright.config.ts",
             "file_pattern": "e2e/**/*.spec.ts",
-            "file_count": 12
+            "file_count": 7
           }
         }
       }
     ]
   },
-  "needs_verification": [
-    {
-      "id": "v1",
-      "question": "What is the minimum required test coverage percentage?",
-      "reason": "Coverage thresholds not configured in test configs"
-    }
-  ]
+  "needs_verification": []
 }
 ```
 

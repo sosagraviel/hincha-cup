@@ -4,6 +4,15 @@
 Analyze authentication, authorization, API design patterns, external integrations, and data flow patterns. Document how the application handles requests, integrates with external services, and manages data transformations.
 </objective>
 
+**IMPORTANT: Infrastructure Services Focus**
+
+- **Structure Analyzer (Agent 01)** is the SINGLE SOURCE OF TRUTH for application service discovery
+- DO NOT list application services (backend, frontend, mobile) in your output
+- Focus ONLY on INFRASTRUCTURE services (redis, postgres, message queues, email servers, etc.)
+- Use `infrastructure_services` field (NOT `services`) to avoid confusion
+- Use `service_communication` map with service IDs as keys to document application service interactions
+- Reference application services by ID from Structure Analyzer when documenting communication patterns
+
 <discovery_process>
 
 ## Step 1: Identify Authentication Patterns
@@ -159,6 +168,153 @@ Search for these patterns in code to understand data flow architecture.
 
 </data_flows>
 
+## Step 6: Identify Background Job & Queue Patterns
+
+<background_jobs>
+
+**Job Queue Libraries:**
+
+### Node.js/TypeScript
+- **BullMQ:** `bullmq` dependency, queue definitions, worker processors
+- **Bull:** `bull` dependency (older version of BullMQ)
+- **Agenda:** `agenda` dependency, job scheduling
+- **Bee-Queue:** `bee-queue` dependency
+
+### Python
+- **Celery:** `celery` dependency, task decorators `@app.task`
+- **RQ (Redis Queue):** `rq` dependency, `@job` decorator
+- **Dramatiq:** `dramatiq` dependency
+
+### Go
+- **Asynq:** `github.com/hibiken/asynq` in go.mod
+- **Machinery:** `github.com/RichardKnop/machinery` in go.mod
+
+### Ruby
+- **Sidekiq:** `sidekiq` gem, worker classes
+- **Resque:** `resque` gem
+
+**Search for:**
+1. Queue definitions and configuration
+2. Worker/processor files (files with "worker", "job", "processor" in name)
+3. Cron/scheduled job configurations
+4. Job retry policies and error handling
+
+**Report format:**
+
+```json
+"background_jobs": {
+  "library": "BullMQ",
+  "queues": ["email-queue", "notification-queue", "data-processing"],
+  "scheduling": true,
+  "retry_policy": "exponential backoff"
+}
+```
+
+</background_jobs>
+
+## Step 7: Detect Caching Patterns
+
+<caching_patterns>
+
+**Cache Implementations:**
+
+### In-Memory Caching
+- **Node:** `node-cache`, `lru-cache`, `memory-cache`
+- **Python:** `cachetools`, `functools.lru_cache`
+- **Go:** Built-in with `sync.Map` or third-party like `go-cache`
+
+### Distributed Caching
+- **Redis:** `ioredis`, `redis`, `redis-py`, `go-redis`
+- **Memcached:** `memcached`, `pymemcache`
+
+**Cache Strategies:**
+- **Read-through:** Check cache first, load from DB on miss
+- **Write-through:** Write to cache and DB simultaneously
+- **Write-behind:** Write to cache immediately, DB asynchronously
+- **Cache-aside:** Application manually manages cache
+
+**Search for:**
+1. Cache client initialization
+2. Cache key patterns (look for `cache.get()`, `cache.set()` calls)
+3. TTL (Time-To-Live) configurations
+4. Cache invalidation strategies
+
+**Report format:**
+
+```json
+"caching": {
+  "type": "redis",
+  "client": "ioredis 5.9",
+  "strategy": "cache-aside",
+  "ttl_configured": true,
+  "use_cases": ["session storage", "API response caching", "rate limiting"]
+}
+```
+
+</caching_patterns>
+
+## Step 8: Map Inter-Service Communication (Microservices)
+
+<inter_service_communication>
+
+**For microservices architectures, identify how services communicate:**
+
+### Synchronous Communication
+- **HTTP/REST:** Direct HTTP calls between services
+- **gRPC:** High-performance RPC calls
+- **GraphQL:** Federation, schema stitching
+
+### Asynchronous Communication
+- **Message Brokers:**
+  - **RabbitMQ:** `amqplib`, `pika`, `amqp091-go`
+  - **Kafka:** `kafkajs`, `confluent-kafka`, `kafka-go`
+  - **AWS SQS:** `@aws-sdk/client-sqs`, `boto3` SQS
+  - **Google Pub/Sub:** `@google-cloud/pubsub`
+  - **NATS:** `nats`, `nats.py`, `nats.go`
+
+### Service Discovery
+- **Consul:** `consul` client libraries
+- **Eureka:** `eureka-js-client`, Spring Cloud Eureka
+- **etcd:** `etcd3`, `python-etcd`, `go.etcd.io/etcd`
+- **Kubernetes:** Service discovery via DNS/env vars
+
+### API Gateway
+- **Kong:** Configuration files, plugins
+- **AWS API Gateway:** CDK/CloudFormation definitions
+- **NGINX:** `nginx.conf` with reverse proxy configs
+- **Traefik:** `traefik.yml` configuration
+
+**Search for:**
+1. Service-to-service HTTP clients (Axios, Fetch, Requests, net/http)
+2. Message producer/consumer code
+3. Service registry client initialization
+4. Gateway configuration files
+
+**Report format:**
+
+```json
+"inter_service_communication": {
+  "pattern": "event-driven",
+  "message_broker": "RabbitMQ",
+  "sync_protocol": "REST",
+  "async_protocol": "AMQP",
+  "service_discovery": "kubernetes-dns",
+  "api_gateway": "nginx"
+}
+```
+
+If single service (not microservices):
+```json
+"inter_service_communication": {
+  "pattern": "monolithic",
+  "message_broker": "none",
+  "sync_protocol": "n/a",
+  "async_protocol": "n/a"
+}
+```
+
+</inter_service_communication>
+
 </discovery_process>
 
 <critical_thinking>
@@ -170,6 +326,10 @@ Search for these patterns in code to understand data flow architecture.
 3. **GraphQL schema but no resolvers?** Look in separate resolvers directory or files
 4. **WebSocket dependency but no handlers?** Search for `io.on`, `socket.on` event handlers
 5. **Payment integration unclear?** Check for webhook handlers, confirmation endpoints
+6. **Queue library present but no workers?** Search for files with "worker", "job", "processor" in name
+7. **Redis in dependencies but purpose unclear?** Check for caching, session storage, or pub/sub patterns
+8. **Multiple services but no message broker?** Check if it's truly microservices or modular monolith
+9. **API gateway configured?** Look for NGINX, Kong, or cloud gateway configurations
 
 ## Common Integration Patterns
 
@@ -206,34 +366,70 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
   "timestamp": "2026-04-02T10:30:00.000Z",
   "findings": {
     "authentication": {
-      "type": "JWT",
-      "library": "jsonwebtoken",
-      "middleware": "src/middleware/auth.ts"
+      "type": "JWT + OAuth2",
+      "libraries": ["passport-jwt", "passport-google-oauth20"],
+      "middleware": "src/modules/auth/guards/",
+      "providers": ["local", "google", "github"]
+    },
+    "authorization": {
+      "type": "RBAC",
+      "implementation": "NestJS Guards + Custom Decorators",
+      "roles": ["admin", "user", "moderator"]
     },
     "api_design": {
       "primary": "REST",
-      "versioning": "URL-based (/api/v1/)"
+      "secondary": ["WebSocket"],
+      "versioning": "none",
+      "patterns": {
+        "rest": true,
+        "graphql": false,
+        "grpc": false,
+        "websockets": true
+      }
     },
     "external_integrations": [
       {
-        "service": "Stripe",
-        "purpose": "Payment processing",
-        "sdk": "stripe 14.10"
+        "service": "Keycloak",
+        "purpose": "Identity and Access Management",
+        "sdk": "@keycloak/keycloak-admin-client 26.1.4"
       },
       {
-        "service": "SendGrid",
-        "purpose": "Email delivery",
-        "sdk": "@sendgrid/mail 8.1"
+        "service": "Sentry",
+        "purpose": "Error tracking and monitoring",
+        "sdk": "@sentry/nestjs 9.30.0"
+      },
+      {
+        "service": "MailHog",
+        "purpose": "Email testing (development)",
+        "sdk": "SMTP (docker-compose)"
       }
-    ]
-  },
-  "needs_verification": [
-    {
-      "id": "v1",
-      "question": "What is the Stripe webhook secret for production?",
-      "reason": "Webhook signature verification code found but secret not in codebase"
+    ],
+    "background_jobs": {
+      "library": "BullMQ",
+      "queues": ["email-notifications", "data-processing"],
+      "scheduling": true,
+      "retry_policy": "configurable per queue"
+    },
+    "caching": {
+      "type": "redis",
+      "client": "ioredis 5.9.2",
+      "strategy": "cache-aside",
+      "ttl_configured": true,
+      "use_cases": ["session storage", "rate limiting", "temporary data"]
+    },
+    "inter_service_communication": {
+      "pattern": "monolithic with internal modules",
+      "message_broker": "none",
+      "sync_protocol": "internal method calls",
+      "async_protocol": "BullMQ for background jobs"
+    },
+    "data_transformation": {
+      "dto_library": "class-validator + class-transformer",
+      "validation": "NestJS ValidationPipe",
+      "serialization": "class-transformer decorators"
     }
-  ]
+  },
+  "needs_verification": []
 }
 ```
 
