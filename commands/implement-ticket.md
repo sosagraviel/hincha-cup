@@ -1,37 +1,30 @@
 ---
 name: implement-ticket
-description: Complete SDLC workflow for implementing tickets with automated testing, PR creation, and review loops
+description: Implements a ticket end-to-end through 11 phases from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
+argument-hint: [--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]
+disable-model-invocation: true
 ---
 
 # /implement-ticket
 
-Execute the complete Software Development Lifecycle (SDLC) workflow to implement a ticket from requirements to merged PR.
+Input: $ARGUMENTS
 
-## Usage
+Implement the ticket described above through the full 11-phase SDLC workflow.
 
-```bash
-/implement-ticket [INPUT] [OPTIONS]
-```
+## Flags
 
-### Required Flags
-
-**INPUT** (mutually exclusive, one required):
-- `--from-input "description"` - Implement from plain text description
-- `--from-jira <TICKET-ID>` - Implement from Jira ticket (e.g., PROJ-123)
-- `--from-markdown <PATH>` - Implement from markdown SDD ticket
-
-### Optional Flags
-
-- `--skip-tests` - Skip automated testing phase (not recommended)
-- `--skip-visual` - Skip visual verification phase
-- `--skip-pr` - Skip PR creation (commit only)
-- `--branch <NAME>` - Custom branch name (default: auto-generated)
-
----
+Parse the input for these flags:
+- `--from-input "description"` - implement from plain text description
+- `--from-jira <TICKET-ID>` - implement from Jira ticket (e.g., PROJ-123)
+- `--from-markdown <PATH>` - implement from markdown SDD ticket
+- `--skip-tests` - skip testing phase
+- `--skip-visual` - skip visual verification phase
+- `--skip-pr` - skip PR creation (commit only)
+- `--branch <NAME>` - custom branch name (default: auto-generated)
 
 ## CRITICAL: Task Tracking Setup
 
-**BEFORE starting any phase work, you MUST create the full task list using TaskCreate.** This gives the user real-time progress visibility via Ctrl+T. Do NOT skip this step. Create all 11 tasks first, then set up dependencies, then begin Phase 0.
+BEFORE starting any phase work, you MUST create the full task list using TaskCreate. This gives the user real-time progress visibility via Ctrl+T. Do NOT skip this step. Create all 11 tasks first, then set up dependencies, then begin Phase 0.
 
 Create each task using TaskCreate with these exact values:
 
@@ -110,9 +103,9 @@ Create each task using TaskCreate with these exact values:
     activeForm: "Cleaning up environment"
     Steps: Remove docker-compose override (if created), archive artifacts, print final summary report
     Expected outputs: cleanup done, summary printed
-    Constraint: None — this is the final phase.
+    Constraint: None. This is the final phase.
 
-**After creating all 11 tasks**, use TaskUpdate to chain dependencies:
+After creating all 11 tasks, use TaskUpdate to chain dependencies:
 - Task 2 addBlockedBy [Task 1]
 - Task 3 addBlockedBy [Task 2]
 - Task 4 addBlockedBy [Task 3]
@@ -129,88 +122,103 @@ Create each task using TaskCreate with these exact values:
 - Use TaskUpdate to mark a task `in_progress` BEFORE starting any work on that phase
 - Use TaskUpdate to mark a task `completed` ONLY after verifying the Expected outputs listed above
 - NEVER mark a task completed if expected outputs are missing, required agents were not spawned, or errors occurred
-- If a phase is skipped via flag (e.g., `--skip-visual`): mark it completed with description "Skipped via flag"
+- If a phase is skipped via flag: mark it completed with description "Skipped via flag"
 
----
+## Phase Execution
 
-## Examples
+Execute each phase sequentially. Do not proceed to the next phase until the current phase is marked completed. For each phase, follow the Steps and verify Expected outputs listed above.
 
-### Example 1: Implement from Jira
-```bash
-/implement-ticket --from-jira PROJ-123
-```
+### Phase 0: Preflight Validation
 
-### Example 2: Implement from Markdown
-```bash
-/implement-ticket --from-markdown .claude/tickets/user-export.md
-```
-
-### Example 3: Implement from description
-```bash
-/implement-ticket --from-input "Add password reset endpoint with email verification"
-```
-
-### Example 4: Skip visual verification
-```bash
-/implement-ticket --from-jira PROJ-123 --skip-visual
-```
-
-## Workflow (11 Phases)
-
-### Phase 0: Pre-Flight Validation
 - Check git status (no uncommitted changes)
 - Verify tests pass in current state
 - Validate build succeeds
-- Exit early if environment not ready
+- Detect primary language and stack
+
+CRITICAL: If any check fails, STOP. Report the failure. Do not continue.
+
+CONTINUE WITH Phase 1.
 
 ### Phase 1: Context Gathering
-- If `--from-jira`: Invoke `/fetch-ticket-context` to gather Jira/Confluence context
-- If `--from-markdown`: Read SDD ticket file
-- If `--from-input`: Use description directly
+
+- If `--from-jira`: MUST invoke `/fetch-ticket-context` to gather Jira/Confluence context
+- If `--from-markdown`: read the SDD ticket file
+- If `--from-input`: use description directly
 - Extract requirements and acceptance criteria
 
+CONTINUE WITH Phase 2.
+
 ### Phase 2: Planning
-- Invoke `/analyze-requirements` skill to create implementation plan
-- Spawn `planner` agent for architecture-aware planning
-- Generate step-by-step implementation strategy
-- Identify files to create/modify
+
+CRITICAL: You MUST do both of these. Do not skip either one.
+1. Invoke `/analyze-requirements` skill to create implementation plan
+2. Spawn `planner` agent for architecture-aware planning
+
+After both complete, verify:
+- Implementation plan exists
+- Test strategy is defined
+- Files to create/modify are identified
+
+CONTINUE WITH Phase 3.
 
 ### Phase 3: Environment Setup
-- Create feature branch (e.g., `feature/PROJ-123-user-export`)
+
+- Create feature branch (e.g., `feature/PROJ-123-description`)
 - Allocate ports for services (if needed)
 - Create docker-compose override (if needed)
-- Set up environment variables
+- Capture BEFORE screenshots (if frontend)
+
+CONTINUE WITH Phase 4.
 
 ### Phase 4: Implementation
-- Spawn stack-specific `implementer-{lang}` agent
-- Implement code following plan
-- Follow project conventions from CLAUDE.md
-- Create/modify files as needed
+
+CRITICAL: You MUST spawn the stack-specific `implementer-{lang}` agent with the plan from Phase 2. Do not implement code directly without spawning the agent.
+
+After agent completes, verify:
+- Code changes exist
+- New files created as planned
+
+CONTINUE WITH Phase 5.
 
 ### Phase 5: Testing
-- Use `TestOrchestrator` utility to run all tests:
-  - Auto-detect testing framework (Jest, Pytest, Playwright)
-  - Run unit tests with coverage
-  - Run integration tests
-  - Run E2E tests (if applicable)
-- Collect coverage reports
-- If tests fail: Spawn implementer to fix issues
 
-### Phase 6: Visual Verification (Frontend Only)
+- Auto-detect testing framework (Jest, Pytest, Playwright)
+- Run unit tests with coverage
+- Run integration tests
+- Run E2E tests (if applicable)
+- Collect coverage reports
+
+If tests fail: spawn implementer to fix issues. Max 3 fix iterations.
+
+CRITICAL: If tests still fail after 3 iterations, STOP. Report failure. Do not continue.
+
+CONTINUE WITH Phase 6.
+
+### Phase 6: Visual Verification
+
+If no frontend changes or `--skip-visual` flag: mark completed as "Skipped" and continue.
+
+Otherwise:
 - Take screenshots of affected pages
-- Compare before/after screenshots
-- If diff > 5%: Spawn `visual-verifier` agent
-- Validate UI changes match requirements
+- Compare before/after with pixelmatch
+- If diff > 5%: MUST spawn `visual-verifier` agent
+
+CONTINUE WITH Phase 7.
 
 ### Phase 7: Documentation Update
-- Invoke `/doc-updater` skill
+
+CRITICAL: You MUST invoke `/doc-updater` skill. Do not skip this even if you think no docs need updating.
+
 - Analyze changed files for doc impact
 - Apply maintenance test (only update if truly needed)
-- Update CLAUDE.md and project-context surgically
+- Update CLAUDE.md and project-context surgically if needed
+
+CONTINUE WITH Phase 8.
 
 ### Phase 8: PR Creation
-- Commit all changes
-- Push feature branch
+
+- Commit all changes with structured commit message
+- Push feature branch to remote
 - Create pull request with:
   - Auto-generated title from ticket
   - Summary of changes
@@ -218,110 +226,47 @@ Create each task using TaskCreate with these exact values:
   - Link to original ticket
 - Return PR URL
 
+CRITICAL: Do not proceed if PR was not created.
+
+CONTINUE WITH Phase 9.
+
 ### Phase 9: Review Loop
-- Use `ReviewLoopOrchestrator` utility:
-  - Run PR review (via `/pr-reviewer` skill internally)
-  - Run security review (via `/security-review` skill internally)
-  - If blocking issues found:
-    - Spawn implementer agent with fixes
-    - Re-run tests via TestOrchestrator
-    - Re-review (max 3 iterations)
-- Exit when PR approved or max iterations reached
+
+- Run PR review via `/pr-reviewer` skill
+- Run security review via `/security-review` skill
+- If blocking issues found:
+  - Spawn implementer agent with fixes
+  - Re-run tests
+  - Re-review (max 3 iterations)
+- Exit when approved or max iterations reached
+
+CONTINUE WITH Phase 10.
 
 ### Phase 10: Cleanup
-- Teardown environment (ports, docker-compose override)
+
+- Remove docker-compose override (if created)
 - Clean up temporary files
-- Report final status
-
-## Key Features
-
-### ✅ Full SDLC Automation
-- End-to-end automation from ticket to merged PR
-- Handles all phases without manual intervention
-- Automatic error recovery and retries
-
-### ✅ Skill-First Architecture
-- Skills for AI-powered tasks (doc-updater, reviews)
-- Utilities for deterministic tasks (testing, orchestration)
-- Agents only for stack-specific code generation
-
-### ✅ Multi-Stack Support
-- Detects project tech stack automatically
-- Spawns appropriate implementer agents per language
-- Works with TypeScript, Python, Java, Go, Rust, etc.
-
-### ✅ Comprehensive Testing
-- Automatic framework detection
-- Full test suite execution (unit, integration, E2E)
-- Coverage reporting and validation
-
-### ✅ Review Iteration
-- Automated PR and security reviews
-- Intelligent fix generation
-- Multi-round review loop until approval
+- Report final status with summary
 
 ## Error Handling
 
-### Pre-Flight Validation Failure
-```
-❌ Pre-flight validation failed:
-  - Uncommitted changes in working directory
-  - Tests failing in current state
+If a phase fails:
+- Do NOT mark the task as completed
+- Report which phase failed and why
+- If Phase 0 fails: stop immediately
+- If Phase 5 fails after 3 fix iterations: stop and report
+- For other phases: attempt to recover once, then stop if still failing
 
-Fix: Commit or stash changes, fix failing tests
-```
+## Skills and Agents Used
 
-### Implementation Errors
-```
-⚠️ Implementation failed during Phase 4:
-  - Syntax error in generated code
-  - Attempting fix iteration 1/3...
-
-Spawning implementer with error context...
-```
-
-### Test Failures
-```
-⚠️ Tests failed:
-  - 5 unit tests failing
-  - Coverage: 72% (below 80% threshold)
-
-Spawning implementer to fix test failures...
-```
-
-### Review Loop Max Iterations
-```
-⚠️ Review loop reached max iterations (3)
-  - 2 blocking issues remain unresolved
-  - PR created but NOT approved
-
-Manual intervention required. PR: https://github.com/org/repo/pull/123
-```
-
-## Best Practices
-
-### DO ✅
-- Run on clean working directory (no uncommitted changes)
-- Use SDD tickets for best results (detailed requirements)
-- Review generated PR before merging
-- Let automated review loop run fully
-- Trust the skill-first architecture
-
-### DON'T ❌
-- Don't skip tests unless absolutely necessary
-- Don't interrupt mid-phase (let it complete)
-- Don't manually fix during automation
-- Don't merge without review approval
-- Don't use on broken codebase
-
-## Integration with Other Skills
-
-- **fetch-ticket-context**: Automatically invoked for `--from-jira`
-- **analyze-requirements**: Planning phase
-- **doc-updater**: Documentation update phase
-- **pr-reviewer**: Review loop phase
-- **security-review**: Review loop phase
-- **create-pr**: PR creation phase
+- `/fetch-ticket-context`: Phase 1 (Jira tickets only)
+- `/analyze-requirements`: Phase 2
+- `planner` agent: Phase 2
+- `implementer-{lang}` agent: Phase 4, Phase 5 (fixes), Phase 9 (fixes)
+- `visual-verifier` agent: Phase 6
+- `/doc-updater`: Phase 7
+- `/pr-reviewer`: Phase 9
+- `/security-review`: Phase 9
 
 ## Prerequisites
 
@@ -330,93 +275,3 @@ Manual intervention required. PR: https://github.com/org/repo/pull/123
 - Tests passing in current state
 - For `--from-jira`: Jira MCP configured
 - For GitHub PR: GitHub MCP or gh CLI configured
-
-## Output Format
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  PHASE 0: PRE-FLIGHT VALIDATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-✓ Git working directory clean
-✓ Tests passing (42 passed)
-✓ Build successful
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  PHASE 1: CONTEXT GATHERING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📥 Fetching ticket: PROJ-123
-✓ Context gathered from Jira + Confluence
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  PHASE 2: PLANNING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🎯 Analyzing requirements...
-✓ Implementation plan created
-   - 5 files to modify
-   - 2 files to create
-   - Estimated: 3-4 hours
-
-[... continues through all 11 phases ...]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  IMPLEMENTATION COMPLETE ✅
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-PR Created: https://github.com/org/repo/pull/456
-Status: Ready for Review
-Review Status: ✅ Approved (no blocking issues)
-
-Summary:
-  - Files changed: 7
-  - Tests: 47 passed, 0 failed
-  - Coverage: 85.3% (+3.2%)
-  - Review iterations: 1
-  - Duration: 12m 34s
-
-Next steps:
-  - Review PR in GitHub
-  - Merge when ready
-```
-
-## Troubleshooting
-
-**Q: "Pre-flight validation keeps failing"**
-A: Ensure:
-- Working directory is clean (`git status`)
-- All tests pass (`npm test` or `pytest`)
-- Build succeeds (`npm run build`)
-
-**Q: "Implementation phase errors"**
-A: The system will auto-retry up to 3 times. If still failing:
-- Check if requirements are clear enough
-- Verify CLAUDE.md has sufficient context
-- Review error logs in artifacts directory
-
-**Q: "Tests keep failing after fixes"**
-A: After 3 fix iterations, manual intervention is needed:
-- Review test failure logs
-- Check if requirements conflict with existing code
-- May need to refine ticket requirements
-
-**Q: "Review loop not approving PR"**
-A: Check review feedback:
-- Blocking issues may require manual fixes
-- Security issues may need architectural changes
-- Consider breaking ticket into smaller pieces
-
-**Q: "Where are the artifacts?"**
-A: All artifacts saved to `.claude-temp/implement-ticket-{TICKET-ID}/`:
-- Implementation plan
-- Test results
-- Coverage reports
-- Review findings
-- Screenshots (if visual verification ran)
-
----
-
-**Version**: 2.0.0 (Skill-First Architecture)
-**Last Updated**: 2026-03-13
-**Category**: development-workflow
