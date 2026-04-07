@@ -142,44 +142,110 @@ export async function runPreflightChecks(
   // CHECK 5: Claude CLI detection (determines auth mode)
   // ============================================================================
   // NOTE: This is optional - framework can work with API keys OR Claude CLI
-  try {
-    const claudeVersionOutput = execSync("claude --version", {
-      encoding: "utf-8",
-      stdio: "pipe",
-    }).trim();
-    claudeVersion = claudeVersionOutput.split("\n")[0] || "unknown";
 
-    // Check if we have API keys
-    const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
-    const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
-    const hasGoogleKey = !!process.env.GOOGLE_API_KEY;
+  // Check if we have API keys first (takes precedence)
+  const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
+  const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+  const hasGoogleKey = !!process.env.GOOGLE_API_KEY;
 
-    if (hasAnthropicKey || hasOpenAIKey || hasGoogleKey) {
-      authMode = "api_key";
-    } else {
-      authMode = "claude_cli";
+  if (hasAnthropicKey || hasOpenAIKey || hasGoogleKey) {
+    authMode = "api_key";
+    try {
+      const claudeVersionOutput = execSync("claude --version", {
+        encoding: "utf-8",
+        stdio: "pipe",
+      }).trim();
+      claudeVersion = claudeVersionOutput.split("\n")[0] || "unknown";
+    } catch {
+      // Ignore - API key mode doesn't need Claude CLI
     }
-  } catch (error) {
-    // Claude CLI not found - check for API keys
-    const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
-    const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
-    const hasGoogleKey = !!process.env.GOOGLE_API_KEY;
+  } else {
+    const localClaudePath = join(
+      frameworkPath,
+      "orchestration/node_modules/.bin/claude",
+    );
 
-    if (hasAnthropicKey || hasOpenAIKey || hasGoogleKey) {
-      authMode = "api_key";
-    } else {
-      authMode = "none";
-      errors.push(
-        `No authentication method found.\n` +
-          `\n` +
-          `Option 1: Use API Keys (recommended for production)\n` +
-          `  Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY\n` +
-          `  export ANTHROPIC_API_KEY="your-api-key-here"\n` +
-          `\n` +
-          `Option 2: Use Claude CLI (requires Claude Pro/Max subscription)\n` +
-          `  Install from: https://github.com/anthropics/claude-code\n` +
-          `  Run: npm install -g @anthropic-ai/claude-code`,
-      );
+    if (existsSync(localClaudePath)) {
+      try {
+        const claudeVersionOutput = execSync(`"${localClaudePath}" --version`, {
+          encoding: "utf-8",
+          stdio: "pipe",
+        }).trim();
+        claudeVersion = claudeVersionOutput.split("\n")[0] || "unknown";
+
+        // CHECK 5.5: Verify local Claude CLI is authenticated
+        const isAuthenticated =
+          await checkClaudeAuthentication(localClaudePath);
+
+        if (!isAuthenticated) {
+          console.log("\n⚠️  Local Claude CLI is not authenticated.");
+          console.log(`📍 CLI Location: ${localClaudePath}`);
+          console.log(
+            `Claude CLI authentication failed.\n` +
+              `\n` +
+              `The framework uses a local bundled Claude CLI at:\n` +
+              `  ${localClaudePath}\n` +
+              `\n` +
+              `Please authenticate it manually:\n` +
+              `  "${localClaudePath}" /login\n` +
+              `\n`,
+          );
+
+          errors.push(
+            `Claude CLI authentication failed.\n` +
+              `\n` +
+              `The framework uses a local bundled Claude CLI at:\n` +
+              `  ${localClaudePath}\n` +
+              `\n` +
+              `Please authenticate it manually:\n` +
+              `  "${localClaudePath}" /login\n` +
+              `\n` +
+              `Or use API key mode instead:\n` +
+              `  export ANTHROPIC_API_KEY="your-api-key-here"`,
+          );
+        } else {
+          authMode = "claude_cli";
+        }
+      } catch (error) {
+        // Local Claude CLI exists but failed to execute
+        warnings.push(
+          `Local Claude CLI found but failed to execute: ${(error as Error).message}\n` +
+            `Path: ${localClaudePath}\n` +
+            `Trying global Claude CLI...`,
+        );
+      }
+    }
+
+    // Fallback to global Claude CLI if local not found or failed
+    if (authMode === "none") {
+      try {
+        const claudeVersionOutput = execSync("claude --version", {
+          encoding: "utf-8",
+          stdio: "pipe",
+        }).trim();
+        claudeVersion = claudeVersionOutput.split("\n")[0] || "unknown";
+        authMode = "claude_cli";
+
+        warnings.push(
+          `Using global Claude CLI instead of framework's bundled version.\n` +
+            `For consistency, ensure framework dependencies are installed:\n` +
+            `  cd orchestration && npm install`,
+        );
+      } catch (error) {
+        // No Claude CLI at all
+        authMode = "none";
+        errors.push(
+          `No authentication method found.\n` +
+            `\n` +
+            `Option 1: Use API Keys (recommended for production)\n` +
+            `  Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY\n` +
+            `  export ANTHROPIC_API_KEY="your-api-key-here"\n` +
+            `\n` +
+            `Option 2: Use Claude CLI (requires Claude Pro/Max subscription)\n` +
+            `  Install framework dependencies: cd orchestration && npm install\n` +
+            `  Or install globally: npm install -g @anthropic-ai/claude-code`,
+        );
+      }
     }
   }
 
@@ -273,4 +339,35 @@ export async function runPreflightChecks(
     gitignoreUpdated,
     authMode,
   };
+}
+
+/**
+ * Check if Claude CLI is authenticated by attempting a simple command
+ * Returns true if authenticated, false otherwise
+ */
+async function checkClaudeAuthentication(claudePath: string): Promise<boolean> {
+  try {
+    // Try a command that requires authentication
+    // Capture both stdout and stderr since auth errors may appear in either
+    const testResult = execSync(
+      `echo "test" | "${claudePath}" --model sonnet --dangerously-skip-permissions`,
+      {
+        encoding: "utf-8",
+        timeout: 10000, // 10 second timeout
+      },
+    );
+
+    // Check if output contains authentication error messages
+    if (
+      testResult.includes("Not logged in") ||
+      testResult.includes("Please run /login") ||
+      testResult.includes("Please log in")
+    ) {
+      return false;
+    }
+
+    return true;
+  } catch (error: any) {
+    return false;
+  }
 }
