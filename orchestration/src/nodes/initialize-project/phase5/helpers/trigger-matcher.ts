@@ -40,8 +40,13 @@ export function matchesTriggers(skill: SkillConfig, detectedStack: DetectedStack
 
         // Match if:
         // 1. Trigger matches entire package name (nextChar is undefined), OR
-        // 2. Next character is a delimiter: /, -, _, or @
-        if (!nextChar || /[\/\-_@]/.test(nextChar)) {
+        // 2. Next character is a delimiter: /, -, _, @, space, period, or digit (for versions)
+        // This allows matching:
+        //   - "react" against "react 16.14.0" (space)
+        //   - "next" against "next.js 15.5.10" (period)
+        //   - "firebase" against "firebase-admin" (dash)
+        //   - "google-cloud" against "@google-cloud/firestore" (slash)
+        if (!nextChar || /[\/\-_@.\s\d]/.test(nextChar)) {
           matchedTriggers.push(trigger);
           break; // Found a match, move to next trigger
         }
