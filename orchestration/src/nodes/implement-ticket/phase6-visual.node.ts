@@ -712,32 +712,43 @@ async function runConfigDrivenPipeline(
       iterationLog.push(`${failedComparisons.length} comparison(s) failed\n`);
 
       try {
-        const agentInvoker = new AgentInvokerService(projectPath, frameworkPath);
-
         // Build constraints context for Figma mode
-        let constraintsJson: string | undefined;
+        let constraintsContext = '';
         if (figmaResult?.success && figmaResult.constraints.length > 0) {
           const allConstraints = figmaResult.constraints.map(c =>
             JSON.parse(readFileSync(c.constraintsPath, 'utf-8'))
           );
-          constraintsJson = JSON.stringify(allConstraints, null, 2);
+          constraintsContext = `\n\n## Figma Constraints\n\n${JSON.stringify(allConstraints, null, 2)}`;
         }
 
-        await agentInvoker.invokeVisualVerifier(
-          allComparisons.map(c => c.expectedPath),
-          allComparisons.map(c => c.actualPath),
-          allComparisons,
-          {
-            mode: activeMode,
-            figmaImagesPath: figmaResult?.success ? join(phase6Dir, 'figma') : undefined,
-            figmaConstraints: constraintsJson,
-            diffThreshold: activeMode === 'figma'
-              ? config.thresholds.figma
-              : config.thresholds.regression,
-            expectedImages: allComparisons.map(c => c.expectedPath),
-            actualImages: allComparisons.map(c => c.actualPath),
-          }
-        );
+        // Build visual verifier prompt
+        const expectedPaths = allComparisons.map(c => c.expectedPath);
+        const actualPaths = allComparisons.map(c => c.actualPath);
+        const diffThreshold = activeMode === 'figma' ? config.thresholds.figma : config.thresholds.regression;
+
+        const promptContext = [
+          `## Visual Verification Context`,
+          `Mode: ${activeMode}`,
+          `Diff Threshold: ${diffThreshold}%`,
+          `Failed Comparisons: ${failedComparisons.length}`,
+          constraintsContext,
+          `\n## Comparisons\n`,
+          JSON.stringify(allComparisons, null, 2),
+        ].join('\n');
+
+        const inputPrompt = buildVisualVerifierPrompt(expectedPaths, actualPaths, promptContext);
+
+        // Create and invoke visual verifier agent
+        const factory = await AgentFactory.create();
+        const agent = await factory.createAgent({
+          agentName: 'visual-verifier',
+          agentFilePath: getProjectAgentPath(projectPath, 'visual-verifier.md'),
+          projectPath,
+          frameworkPath,
+          timeout: 600000,
+        });
+
+        await agent.invoke({ inputPrompt });
 
         iterationLog.push('Visual-verifier invoked for fix suggestions\n');
       } catch (err: any) {
