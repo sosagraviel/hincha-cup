@@ -10,7 +10,9 @@ import type { ValidationResult } from "../types.js";
 /**
  * Validate framework-config.json exists and has required structure
  */
-export function validateFrameworkConfig(configPath: string | undefined): ValidationResult {
+export function validateFrameworkConfig(
+  configPath: string | undefined,
+): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -34,8 +36,8 @@ export function validateFrameworkConfig(configPath: string | undefined): Validat
     if (!config.project_metadata) {
       errors.push("framework-config.json missing project_metadata");
     }
-    if (!config.analysis_results) {
-      errors.push("framework-config.json missing analysis_results");
+    if (!config.stack_profile) {
+      errors.push("framework-config.json missing stack_profile");
     }
 
     return {
@@ -44,7 +46,9 @@ export function validateFrameworkConfig(configPath: string | undefined): Validat
       warnings,
     };
   } catch (error) {
-    errors.push(`framework-config.json invalid JSON: ${(error as Error).message}`);
+    errors.push(
+      `framework-config.json invalid JSON: ${(error as Error).message}`,
+    );
     return {
       valid: false,
       errors,

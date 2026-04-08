@@ -66,7 +66,7 @@ export const SkillsConfigFileSchema = z.object({
 export interface ResolvedSkill {
   name: string;
   path: string;
-  relative_path: string; // Relative path from skills directory (e.g., "010-foundation/start-task")
+  relative_path: string; // Original path in framework (e.g., "050-language-frameworks/mastering-javascript"), used for reference only
   reason: string;
   description: string;
   compatible_languages?: string[];

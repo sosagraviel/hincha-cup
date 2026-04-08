@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, readdirSync, statSync, copyFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import type { StackProfile } from "../../../schemas/index.js";
-import { SkillConfigSchema, SkillsConfigFileSchema } from "./types.js";
+import { SkillsConfigFileSchema } from "./types.js";
 import type { SkillConfig, ResolvedSkill } from "./types.js";
 import { extractDetectedStack } from "./helpers/stack-detector.js";
 import { matchesTriggers } from "./helpers/trigger-matcher.js";
@@ -109,7 +109,8 @@ function copySkillDirectory(srcPath: string, destPath: string): number {
 
 /**
  * Copy resolved skills to project
- * Preserves the directory structure from the source (e.g., 010-foundation/start-task)
+ * Flattens the directory structure - all skills are copied directly to .claude/skills/
+ * (e.g., skills/050-language-frameworks/mastering-javascript -> .claude/skills/mastering-javascript)
  */
 export function copyResolvedSkills(
   resolvedSkills: ResolvedSkill[],
@@ -121,8 +122,8 @@ export function copyResolvedSkills(
   let totalFiles = 0;
 
   for (const skill of resolvedSkills) {
-    // Use relative_path to preserve directory structure
-    const targetPath = join(skillsTargetDir, skill.relative_path);
+    // Flatten the structure - use skill name only (last directory in path)
+    const targetPath = join(skillsTargetDir, skill.name);
     const copiedFiles = copySkillDirectory(skill.path, targetPath);
     totalFiles += copiedFiles;
   }
