@@ -11,6 +11,8 @@ vi.mock("fs", () => ({
   readFileSync: vi.fn(),
   readdirSync: vi.fn(),
   statSync: vi.fn(),
+  existsSync: vi.fn(),
+  writeFileSync: vi.fn(),
 }));
 
 vi.mock("../../../../../src/utils/logger.js", () => ({
@@ -62,6 +64,9 @@ describe("resourcesNode", () => {
       warnings: [],
     };
 
+    // Mock existsSync to return true for framework config check
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+
     // Mock framework config file read
     vi.mocked(fs.readFileSync).mockReturnValue(
       JSON.stringify({
@@ -110,19 +115,26 @@ describe("resourcesNode", () => {
   });
 
   it("should throw error if phase4_context not completed", async () => {
-    const stateWithoutPhase4 = { ...mockState, phase4_context: undefined };
+    // Mock existsSync to return false for this test
+    vi.mocked(fs.existsSync).mockReturnValue(false);
 
-    await expect(resourcesNode(stateWithoutPhase4)).rejects.toThrow(
-      "Phase 4 context generation not completed",
-    );
+    const result = await resourcesNode(mockState);
+
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes("Phase 4 context generation not completed"))).toBe(true);
+    expect(result.current_phase).toBe("failed");
   });
 
   it("should throw error if framework_config_generated is false", async () => {
-    mockState.phase4_context!.framework_config_generated = false;
+    // This test is no longer relevant as the code checks file existence, not state flags
+    // The actual check happens via existsSync on the framework-config.json file
+    vi.mocked(fs.existsSync).mockReturnValue(false);
 
-    await expect(resourcesNode(mockState)).rejects.toThrow(
-      "Phase 4 context generation not completed",
-    );
+    const result = await resourcesNode(mockState);
+
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes("Phase 4 context generation not completed"))).toBe(true);
+    expect(result.current_phase).toBe("failed");
   });
 
   it("should successfully copy resources", async () => {

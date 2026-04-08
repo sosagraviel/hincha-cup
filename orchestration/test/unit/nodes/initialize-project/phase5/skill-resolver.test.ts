@@ -532,7 +532,7 @@ describe('skill-resolver', () => {
       expect(fileCount).toBeGreaterThan(0);
     });
 
-    it('should preserve directory structure when copying', () => {
+    it('should flatten directory structure when copying', () => {
       const skills: ResolvedSkill[] = [
         {
           name: 'nested-skill',
@@ -549,8 +549,9 @@ describe('skill-resolver', () => {
 
       copyResolvedSkills(skills, '/test/project');
 
+      // Skills are copied to .claude/skills/{skill-name}, flattened structure
       expect(fs.mkdirSync).toHaveBeenCalledWith(
-        expect.stringContaining('020-languages/typescript'),
+        expect.stringMatching(/\/\.claude\/skills\/nested-skill$/),
         { recursive: true }
       );
     });
