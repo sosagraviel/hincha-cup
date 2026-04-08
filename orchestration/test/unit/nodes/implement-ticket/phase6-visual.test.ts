@@ -4,7 +4,6 @@ import type { ImplementTicketState } from '../../../../src/state/schemas/impleme
 import * as fs from 'fs';
 import { ScreenshotService } from '../../../../src/services/implement-ticket/screenshot.service.js';
 import { EnvironmentManagerService } from '../../../../src/services/implement-ticket/environment-manager.service.js';
-import { AgentInvokerService } from '../../../../src/services/implement-ticket/agent-invoker.service.js';
 
 vi.mock('fs', () => ({
   existsSync: vi.fn(),
@@ -21,15 +20,10 @@ vi.mock('../../../../src/services/implement-ticket/environment-manager.service.j
   EnvironmentManagerService: vi.fn(),
 }));
 
-vi.mock('../../../../src/services/implement-ticket/agent-invoker.service.js', () => ({
-  AgentInvokerService: vi.fn(),
-}));
-
 describe('phase6VisualNode', () => {
   let mockState: ImplementTicketState;
   let mockScreenshotService: any;
   let mockEnvManager: any;
-  let mockAgentInvoker: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -51,20 +45,12 @@ describe('phase6VisualNode', () => {
       getPlaywrightPage: vi.fn().mockReturnValue({ screenshot: vi.fn() }),
     };
 
-    mockAgentInvoker = {
-      invokeVisualVerifier: vi.fn().mockResolvedValue('No visual issues'),
-    };
-
     vi.mocked(ScreenshotService).mockImplementation(function(this: any) {
       return mockScreenshotService;
     } as any);
 
     vi.mocked(EnvironmentManagerService).mockImplementation(function(this: any) {
       return mockEnvManager;
-    } as any);
-
-    vi.mocked(AgentInvokerService).mockImplementation(function(this: any) {
-      return mockAgentInvoker;
     } as any);
 
     vi.mocked(fs.existsSync).mockImplementation((path: any) => {

@@ -63,10 +63,10 @@ describe('validationNode', () => {
           stack_profile: {
             file_counts: {
               total: 70,
-              by_language: [
-                { language: 'typescript', count: 50 },
-                { language: 'javascript', count: 20 },
-              ],
+              by_language: {
+                typescript: 50,
+                javascript: 20,
+              },
             },
           },
         });

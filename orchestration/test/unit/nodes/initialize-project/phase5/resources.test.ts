@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { resourcesNode } from "../../../../../src/nodes/initialize-project/phase5/resources.node.js";
 import type { InitializeProjectState } from "../../../../../src/state/schemas/initialize-project.schema.js";
 import * as fs from "fs";
-import * as skillResolver from "../../../../../src/utils/skill-resolver.js";
-import * as agentGenerator from "../../../../../src/utils/agent-generator.js";
+import * as skillResolver from "../../../../../src/nodes/initialize-project/phase5/skill-resolver.js";
+import * as agentGenerator from "../../../../../src/nodes/initialize-project/phase5/agent-generator.js";
 
 vi.mock("fs", () => ({
   mkdirSync: vi.fn(),
@@ -29,12 +29,12 @@ vi.mock("../../../../../src/utils/logger.js", () => ({
   },
 }));
 
-vi.mock("../../../../../src/utils/skill-resolver.js", () => ({
+vi.mock("../../../../../src/nodes/initialize-project/phase5/skill-resolver.js", () => ({
   resolveSkills: vi.fn(),
   copyResolvedSkills: vi.fn(),
 }));
 
-vi.mock("../../../../../src/utils/agent-generator.js", () => ({
+vi.mock("../../../../../src/nodes/initialize-project/phase5/agent-generator.js", () => ({
   generateAgents: vi.fn(),
   writeAgents: vi.fn(),
 }));
@@ -66,8 +66,23 @@ describe("resourcesNode", () => {
     vi.mocked(fs.readFileSync).mockReturnValue(
       JSON.stringify({
         stack_profile: {
-          languages: ["typescript", "javascript"],
-          frameworks: { frontend: ["react"], backend: ["express"], mobile: [] },
+          services: [
+            {
+              id: "main",
+              path: "src",
+              type: "backend",
+              language: "typescript",
+              frameworks: { main: "express" },
+            },
+            {
+              id: "frontend",
+              path: "client",
+              type: "frontend",
+              language: "javascript",
+              frameworks: { main: "react" },
+            },
+          ],
+          is_monorepo: false,
         },
       }),
     );
@@ -131,7 +146,8 @@ describe("resourcesNode", () => {
 
     expect(skillResolver.resolveSkills).toHaveBeenCalledWith(
       expect.objectContaining({
-        languages: ["typescript", "javascript"],
+        services: expect.any(Array),
+        is_monorepo: false,
       }),
       "/test/framework",
     );
@@ -150,7 +166,10 @@ describe("resourcesNode", () => {
     await resourcesNode(mockState);
 
     expect(agentGenerator.generateAgents).toHaveBeenCalledWith(
-      expect.objectContaining({ languages: ["typescript", "javascript"] }),
+      expect.objectContaining({
+        services: expect.any(Array),
+        is_monorepo: false,
+      }),
       expect.any(Array),
       "/test/project",
       expect.stringContaining("agents/templates"),

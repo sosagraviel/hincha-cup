@@ -26,8 +26,8 @@ import {
   addSingleSkill,
   regenerateSingleAgent,
 } from '../services/framework/sync-helpers.service.js';
-import { resolveSkills } from '../utils/skill-resolver.js';
-import { generateAgents } from '../utils/agent-generator.js';
+import { resolveSkills } from '../nodes/initialize-project/phase5/skill-resolver.js';
+import { generateAgents } from '../nodes/initialize-project/phase5/agent-generator.js';
 
 interface SyncConfig {
   projectPath: string;
@@ -185,17 +185,6 @@ async function syncSkills(config: SyncConfig): Promise<{
   const configUpdater = new ConfigUpdaterService(config.projectPath, config.frameworkPath);
   const frameworkConfig = await configUpdater.readConfig();
 
-  // Ensure stack profile has required fields
-  if (!frameworkConfig.stack_profile.languages) {
-    frameworkConfig.stack_profile.languages = [];
-  }
-  if (!frameworkConfig.stack_profile.frameworks.frontend) {
-    frameworkConfig.stack_profile.frameworks.frontend = [];
-  }
-  if (!frameworkConfig.stack_profile.frameworks.backend) {
-    frameworkConfig.stack_profile.frameworks.backend = [];
-  }
-
   // Resolve which skills should exist based on stack profile
   const resolvedSkills = resolveSkills(frameworkConfig.stack_profile as any, config.frameworkPath);
 
@@ -279,17 +268,6 @@ async function syncAgents(config: SyncConfig, skillsChanged: boolean = false): P
 
   const configUpdater = new ConfigUpdaterService(config.projectPath, config.frameworkPath);
   const frameworkConfig = await configUpdater.readConfig();
-
-  // Ensure stack profile has required fields
-  if (!frameworkConfig.stack_profile.languages) {
-    frameworkConfig.stack_profile.languages = [];
-  }
-  if (!frameworkConfig.stack_profile.frameworks.frontend) {
-    frameworkConfig.stack_profile.frameworks.frontend = [];
-  }
-  if (!frameworkConfig.stack_profile.frameworks.backend) {
-    frameworkConfig.stack_profile.frameworks.backend = [];
-  }
 
   // Resolve skills and generate all agents that should exist
   const resolvedSkills = resolveSkills(frameworkConfig.stack_profile as any, config.frameworkPath);

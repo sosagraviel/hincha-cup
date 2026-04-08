@@ -2,11 +2,11 @@ import { StateGraph, END, START } from "@langchain/langgraph";
 import type { InitializeProjectState } from "../state/schemas/initialize-project.schema.js";
 import { InitializeProjectAnnotation } from "../state/schemas/initialize-project.schema.js";
 
-import { structureArchitectureAnalyzerNode } from "../nodes/initialize-project/phase1/structure-architecture-analyzer.node.js";
-import { techStackDependenciesAnalyzerNode } from "../nodes/initialize-project/phase1/tech-stack-dependencies-analyzer.node.js";
-import { codePatternsTestingAnalyzerNode } from "../nodes/initialize-project/phase1/code-patterns-testing-analyzer.node.js";
-import { dataFlowsIntegrationsAnalyzerNode } from "../nodes/initialize-project/phase1/data-flows-integrations-analyzer.node.js";
-import { consolidationNode } from "../nodes/initialize-project/phase2/consolidation.node.js";
+import { structureArchitectureAnalyzerNode } from "../nodes/initialize-project/phase1/structure-analyzer/structure-architecture-analyzer.node.js";
+import { techStackDependenciesAnalyzerNode } from "../nodes/initialize-project/phase1/tech-stack-analyzer/tech-stack-dependencies-analyzer.node.js";
+import { codePatternsTestingAnalyzerNode } from "../nodes/initialize-project/phase1/code-patterns-analyzer/code-patterns-testing-analyzer.node.js";
+import { dataFlowsIntegrationsAnalyzerNode } from "../nodes/initialize-project/phase1/data-flows-analyzer/data-flows-integrations-analyzer.node.js";
+import { consolidationNode } from "../nodes/initialize-project/phase2/question-consolidator/question-consolidator.node.js";
 import { synthesisNode } from "../nodes/initialize-project/phase3/synthesis.node.js";
 import { contextGenerationNode } from "../nodes/initialize-project/phase4/context-generation.node.js";
 import { resourcesNode } from "../nodes/initialize-project/phase5/resources.node.js";

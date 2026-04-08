@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 import path from "path";
+import { fileURLToPath } from "url";
 import { createInitializeProjectGraph } from "../graphs/initialize-project.graph.js";
 import {
   devCheckpointer,
@@ -9,7 +10,15 @@ import {
 } from "../state/checkpointers/sqlite.checkpointer.js";
 import { getLLMFactory } from "../llm/llm-factory.js";
 import { logger } from "../utils/logger.js";
-import { HybridAgentFactory } from "../agents/agent-factory-hybrid.js";
+import { AgentFactory } from "../utils/shared/agent-factory/index.js";
+import { runPreflightChecks } from "../utils/preflight-checks.js";
+
+// Get the directory where this CLI script is located
+// This file is at: <framework>/orchestration/dist/cli/initialize.js
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// Framework root is 3 levels up from dist/cli/initialize.js
+const DEFAULT_FRAMEWORK_PATH = path.resolve(__dirname, "../../..");
 
 const program = new Command();
 
@@ -27,7 +36,7 @@ program
   .option(
     "-f, --framework-path <path>",
     "Framework path",
-    process.env.FRAMEWORK_PATH || path.join(process.cwd(), "../.."),
+    process.env.FRAMEWORK_PATH || DEFAULT_FRAMEWORK_PATH,
   )
   .option(
     "--model-tier <tier>",
@@ -49,8 +58,8 @@ program
       console.log("\n");
       logger.warn(`Received ${signal} - Shutting down gracefully...`);
 
-      HybridAgentFactory.abortAllInvocations();
-      HybridAgentFactory.killAllActiveProcesses();
+      AgentFactory.abortAllInvocations();
+      AgentFactory.killAllActiveProcesses();
 
       logger.info("Cleanup complete");
       logger.blank();
@@ -69,8 +78,8 @@ program
       } else {
         console.log("\n");
         logger.error("Force quitting...");
-        HybridAgentFactory.abortAllInvocations();
-        HybridAgentFactory.killAllActiveProcesses();
+        AgentFactory.abortAllInvocations();
+        AgentFactory.killAllActiveProcesses();
         process.exit(130);
       }
     });
@@ -143,20 +152,81 @@ program
           .replace(/-/g, "_"); // Replace hyphens with underscores
       };
 
+      // Import fs for phase data loading (when using --start-phase)
       const fs = await import("fs");
-      if (!fs.existsSync(projectPath)) {
-        logger.error(`Project path does not exist: ${projectPath}`);
+
+      // ========================================================================
+      // PREFLIGHT CHECKS - SINGLE SOURCE OF TRUTH
+      // ========================================================================
+      logger.section("Preflight Checks");
+
+      const preflightResult = await runPreflightChecks(
+        projectPath,
+        frameworkPath,
+      );
+
+      // Display warnings (non-blocking)
+      if (preflightResult.warnings.length > 0) {
+        logger.blank();
+        preflightResult.warnings.forEach((warning) => {
+          logger.warn(warning);
+        });
+        logger.blank();
+      }
+
+      // Display errors and exit if any
+      if (!preflightResult.success) {
+        logger.blank();
+        logger.error("Preflight checks failed:");
+        logger.blank();
+        preflightResult.errors.forEach((error) => {
+          logger.error(error);
+          logger.blank();
+        });
         process.exit(1);
       }
-      if (!fs.existsSync(frameworkPath)) {
-        logger.error(`Framework path does not exist: ${frameworkPath}`);
-        logger.increaseIndent();
-        logger.info(
-          "Set FRAMEWORK_PATH environment variable or use --framework-path flag",
-        );
-        logger.decreaseIndent();
-        process.exit(1);
+
+      // Display success
+      logger.success(`✓ Node.js ${preflightResult.nodeVersion}`);
+      logger.success(`✓ npm ${preflightResult.npmVersion}`);
+      if (preflightResult.claudeVersion) {
+        logger.success(`✓ Claude CLI ${preflightResult.claudeVersion}`);
       }
+
+      // Show auth mode
+      if (preflightResult.authMode === "api_key") {
+        logger.success("✓ Authentication: API Keys detected");
+      } else if (preflightResult.authMode === "claude_cli") {
+        logger.success("✓ Authentication: Claude CLI (subscription)");
+      }
+
+      if (preflightResult.gitignoreUpdated) {
+        logger.success("✓ .gitignore updated with framework entries");
+      } else {
+        logger.success("✓ .gitignore contains required entries");
+      }
+      logger.blank();
+
+      // // Copy initialization agent files and hooks to target project BEFORE Phase 1
+      // // Store in .claude/agents/initialization/ subdirectory to separate from implementer/planner agents
+      // // This ensures Claude CLI can find them by name when invoked with --agent flag
+      // const targetInitAgentsDir = path.join(projectPath, ".claude", "agents", "initialization");
+      // const sourceAgentsDir = path.join(frameworkPath, "orchestration", "agents");
+
+      // // Create target .claude/agents/initialization directory
+      // fs.mkdirSync(targetInitAgentsDir, { recursive: true });
+
+      // // Copy all initialization agent markdown files and hooks directory
+      // // This includes: 01-04 (analyzers), 05 (synthesizer), 06 (consolidator), hooks/
+      // if (fs.existsSync(sourceAgentsDir)) {
+      //   fs.cpSync(sourceAgentsDir, targetInitAgentsDir, {
+      //     recursive: true,
+      //     filter: (src) => {
+      //       // Copy all .md files and the hooks directory
+      //       return src.endsWith(".md") || src.includes("hooks") || src === sourceAgentsDir;
+      //     },
+      //   });
+      // }
 
       logger.spinner("Initializing workflow...", "init");
       await initializeDevCheckpointer();

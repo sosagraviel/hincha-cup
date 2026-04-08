@@ -4,7 +4,7 @@ import { Command } from "commander";
 import { existsSync, readFileSync, mkdirSync } from "fs";
 import { join, resolve } from "path";
 import { getLLMFactory } from "../llm/llm-factory.js";
-import { HybridAgentFactory } from "../agents/agent-factory-hybrid.js";
+import { AgentFactory } from "../utils/shared/agent-factory/index.js";
 import { Logger } from "../utils/logger.js";
 import { compileImplementTicketGraph } from "../graphs/implement-ticket.graph.js";
 import { MemorySaver } from "@langchain/langgraph";
@@ -196,8 +196,8 @@ async function main() {
   const cleanup = (signal: string) => {
     logger.warn(`\nReceived ${signal}, cleaning up...`);
     logger.stopAllSpinners();
-    HybridAgentFactory.abortAllInvocations();
-    HybridAgentFactory.killAllActiveProcesses();
+    AgentFactory.abortAllInvocations();
+    AgentFactory.killAllActiveProcesses();
     logger.info("Cleanup complete");
     process.exit(130);
   };

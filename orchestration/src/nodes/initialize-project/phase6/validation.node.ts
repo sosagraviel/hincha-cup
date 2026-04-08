@@ -1,9 +1,15 @@
 import type { InitializeProjectState } from "../../../state/schemas/initialize-project.schema.js";
-import { existsSync, readFileSync, readdirSync } from "fs";
 import { join } from "path";
-import { z } from "zod";
-import type { StackProfile } from "../../../schemas/index.js";
 import { logger } from "../../../utils/logger.js";
+import { validateMarkdownFile } from "./helpers/file-validator.js";
+import { validateFrameworkConfig } from "./helpers/config-validator.js";
+import {
+  validateDirectoryExists,
+  validateDirectoryWithFiles,
+  getClaudeDirectories,
+} from "./helpers/directory-validator.js";
+import { validateAgentCoverage } from "./helpers/agent-coverage-validator.js";
+import { validatePhaseCompletion } from "./helpers/phase-completion-validator.js";
 
 /**
  * Phase 6: Validation Node
@@ -30,182 +36,110 @@ export async function validationNode(
   const validationWarnings: string[] = [];
 
   try {
+    const projectClaudeDir = join(state.project_path, ".claude");
+    const claudeMdPath = join(projectClaudeDir, "CLAUDE.md");
+    const projectContextPath =
+      state.project_context_path ||
+      join(
+        state.project_path,
+        ".claude",
+        "skills",
+        "project-context",
+        "SKILL.md",
+      );
+    const frameworkConfigPath =
+      state.framework_config_path ||
+      join(state.project_path, ".claude", "framework-config.json");
+
+    // Get standard directory paths
+    const directories = getClaudeDirectories(state.project_path);
+
     // 1. Validate CLAUDE.md exists and is valid
-    if (!state.claude_md_path || !existsSync(state.claude_md_path)) {
-      validationErrors.push("CLAUDE.md not found");
-    } else {
-      const claudeMdContent = readFileSync(state.claude_md_path, "utf-8");
-      if (claudeMdContent.length < 100) {
-        validationWarnings.push("CLAUDE.md content seems too short");
-      }
+    const claudeMdResult = validateMarkdownFile(claudeMdPath, "CLAUDE.md");
+    validationErrors.push(...claudeMdResult.errors);
+    validationWarnings.push(...claudeMdResult.warnings);
+    if (claudeMdResult.valid) {
       phaseLogger.success(" ✓ CLAUDE.md validated");
     }
 
     // 2. Validate project-context/SKILL.md exists and is valid
-    if (
-      !state.project_context_path ||
-      !existsSync(state.project_context_path)
-    ) {
-      validationErrors.push("project-context/SKILL.md not found");
-    } else {
-      const projectContextContent = readFileSync(
-        state.project_context_path,
-        "utf-8",
-      );
-      if (projectContextContent.length < 100) {
-        validationWarnings.push(
-          "project-context/SKILL.md content seems too short",
-        );
-      }
+    const projectContextResult = validateMarkdownFile(
+      projectContextPath,
+      "project-context/SKILL.md",
+    );
+    validationErrors.push(...projectContextResult.errors);
+    validationWarnings.push(...projectContextResult.warnings);
+    if (projectContextResult.valid) {
       phaseLogger.success(" ✓ project-context/SKILL.md validated");
     }
 
     // 3. Validate framework-config.json exists and is valid
-    if (
-      !state.framework_config_path ||
-      !existsSync(state.framework_config_path)
-    ) {
-      validationErrors.push("framework-config.json not found");
-    } else {
-      const configContent = readFileSync(state.framework_config_path, "utf-8");
-      try {
-        const config = JSON.parse(configContent);
-
-        // Validate required sections exist
-        if (!config.version) {
-          validationErrors.push("framework-config.json missing version");
-        }
-        if (!config.project_metadata) {
-          validationErrors.push(
-            "framework-config.json missing project_metadata",
-          );
-        }
-        if (!config.analysis_results) {
-          validationErrors.push(
-            "framework-config.json missing analysis_results",
-          );
-        }
-
-        phaseLogger.success(" ✓ framework-config.json validated");
-      } catch (error) {
-        validationErrors.push(
-          `framework-config.json invalid JSON: ${(error as Error).message}`,
-        );
-      }
+    const configResult = validateFrameworkConfig(frameworkConfigPath);
+    validationErrors.push(...configResult.errors);
+    validationWarnings.push(...configResult.warnings);
+    if (configResult.valid) {
+      phaseLogger.success(" ✓ framework-config.json validated");
     }
 
     // 4. Validate skills directory exists
-    const skillsDir = join(state.project_path, ".claude", "skills");
-    if (!existsSync(skillsDir)) {
-      validationErrors.push("Skills directory not found");
-    } else {
+    const skillsResult = validateDirectoryExists(directories.skills, "Skills");
+    validationErrors.push(...skillsResult.errors);
+    if (skillsResult.valid) {
       phaseLogger.success(" ✓ Skills directory exists");
     }
 
     // 5. Validate agents directory exists and has minimum agents
-    const agentsDir = join(state.project_path, ".claude", "agents");
-    if (!existsSync(agentsDir)) {
-      validationErrors.push("Agents directory not found");
-    } else {
-      const agentFiles = readdirSync(agentsDir).filter((f) =>
-        f.endsWith(".md"),
+    const agentsResult = validateDirectoryWithFiles(
+      directories.agents,
+      "Agents",
+    );
+    validationErrors.push(...agentsResult.errors);
+
+    if (agentsResult.valid && agentsResult.files) {
+      phaseLogger.success(
+        ` ✓ Agents directory exists with ${agentsResult.fileCount} agents`,
       );
-      const agentCount = agentFiles.length;
 
-      if (agentCount < 2) {
-        validationErrors.push(
-          `Insufficient agents generated: found ${agentCount}, expected at least 2 (planner + implementer)`,
-        );
-      } else {
-        phaseLogger.success(
-          ` ✓ Agents directory exists with ${agentCount} agents`,
-        );
-      }
+      // Validate agent coverage
+      const coverageResult = validateAgentCoverage(
+        agentsResult.files,
+        frameworkConfigPath,
+      );
+      validationErrors.push(...coverageResult.errors);
+      validationWarnings.push(...coverageResult.warnings);
 
-      const hasPlannerAgent = agentFiles.some((f) => f.includes("planner"));
-      if (!hasPlannerAgent) {
-        validationErrors.push("Planner agent not found");
-      }
-
-      // Validate multi-stack coverage
       if (
-        state.framework_config_path &&
-        existsSync(state.framework_config_path)
+        coverageResult.valid &&
+        coverageResult.significantLanguages.length > 0 &&
+        coverageResult.missingImplementers.length === 0
       ) {
-        try {
-          const configContent = readFileSync(
-            state.framework_config_path,
-            "utf-8",
-          );
-          const config = JSON.parse(configContent);
-          const stackProfile: StackProfile = config.stack_profile;
-
-          if (stackProfile && stackProfile.file_counts) {
-            const significantLanguages = stackProfile.file_counts.by_language
-              .filter((lc) => lc.count > 10)
-              .map((lc) => lc.language.toLowerCase());
-
-            // Check if there's an implementer for each significant language
-            const missingImplementers: string[] = [];
-            for (const lang of significantLanguages) {
-              const hasImplementer = agentFiles.some(
-                (f) =>
-                  f.includes("implementer") && f.toLowerCase().includes(lang),
-              );
-              if (!hasImplementer) {
-                missingImplementers.push(lang);
-              }
-            }
-
-            if (missingImplementers.length > 0) {
-              validationWarnings.push(
-                `Missing implementers for significant languages: ${missingImplementers.join(", ")}`,
-              );
-            } else if (significantLanguages.length > 0) {
-              phaseLogger.success(
-                ` ✓ Multi-stack coverage validated for ${significantLanguages.length} languages`,
-              );
-            }
-          }
-        } catch (error) {
-          validationWarnings.push(
-            `Could not validate multi-stack coverage: ${(error as Error).message}`,
-          );
-        }
+        phaseLogger.success(
+          ` ✓ Multi-stack coverage validated for ${coverageResult.significantLanguages.length} languages`,
+        );
       }
     }
 
     // 6. Validate commands directory exists
-    const commandsDir = join(state.project_path, ".claude", "commands");
-    if (!existsSync(commandsDir)) {
-      validationErrors.push("Commands directory not found");
-    } else {
-      const commandFiles = readdirSync(commandsDir).filter((f) =>
-        f.endsWith(".md"),
-      );
+    const commandsResult = validateDirectoryWithFiles(
+      directories.commands,
+      "Commands",
+    );
+    validationErrors.push(...commandsResult.errors);
+    if (commandsResult.valid) {
       phaseLogger.success(
-        ` ✓ Commands directory exists with ${commandFiles.length} commands`,
+        ` ✓ Commands directory exists with ${commandsResult.fileCount} commands`,
       );
     }
 
     // 7. Validate all phases completed
-    if (!state.phase1_analysis?.all_completed) {
-      validationErrors.push("Phase 1 analysis not marked as complete");
-    }
-    if (!state.phase2_consolidation) {
-      validationErrors.push("Phase 2 consolidation missing");
-    }
-    if (!state.phase3_synthesis) {
-      validationErrors.push("Phase 3 synthesis missing");
-    }
-    if (!state.phase4_context?.framework_config_generated) {
-      validationErrors.push("Phase 4 context generation not complete");
-    }
+    const phaseCompletionResult = validatePhaseCompletion(state);
+    validationErrors.push(...phaseCompletionResult.errors);
+    validationWarnings.push(...phaseCompletionResult.warnings);
 
     // Check for validation errors
     if (validationErrors.length > 0) {
       phaseLogger.error(" ✗ Validation failed:");
-      validationErrors.forEach((err) => console.error(`  - ${err}`));
+      validationErrors.forEach((err) => phaseLogger.error(`  - ${err}`));
 
       return {
         errors: [...state.errors, ...validationErrors],
@@ -222,15 +156,15 @@ export async function validationNode(
 
     phaseLogger.success(" ✓ All validations passed");
     if (validationWarnings.length > 0) {
-      phaseLogger.success(" Warnings:");
-      validationWarnings.forEach((warn) => console.log(`  - ${warn}`));
+      phaseLogger.warn(" Warnings:");
+      validationWarnings.forEach((warn) => phaseLogger.warn(`  - ${warn}`));
     }
 
     phaseLogger.blank();
     phaseLogger.success("=== INITIALIZATION COMPLETE ===");
     phaseLogger.info(`Project: ${state.project_path}`);
-    phaseLogger.info(`CLAUDE.md: ${state.claude_md_path}`);
-    phaseLogger.info(`Config: ${state.framework_config_path}`);
+    phaseLogger.info(`CLAUDE.md: ${claudeMdPath}`);
+    phaseLogger.info(`Config: ${frameworkConfigPath}`);
     if (totalDuration) {
       phaseLogger.info(`Duration: ${(totalDuration / 1000).toFixed(2)}s`);
     }
@@ -240,10 +174,14 @@ export async function validationNode(
       completed_at: completedAt,
       total_duration_ms: totalDuration,
       warnings: [...state.warnings, ...validationWarnings],
+      // Set paths in state if they weren't already set (for --start-phase 6)
+      claude_md_path: claudeMdPath,
+      project_context_path: projectContextPath,
+      framework_config_path: frameworkConfigPath,
     };
   } catch (error) {
     const errorMessage = `Validation failed: ${(error as Error).message}`;
-    console.error(`[Phase 6: Validation] ✗ ${errorMessage}`);
+    phaseLogger.error(` ✗ ${errorMessage}`);
 
     return {
       errors: [...state.errors, errorMessage],

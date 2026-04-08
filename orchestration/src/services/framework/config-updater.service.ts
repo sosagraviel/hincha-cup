@@ -14,8 +14,9 @@ import { z } from 'zod';
 import {
   FrameworkConfigSchema,
   type FrameworkConfig,
-  type ResourceInfo
+  type ResourceInfo,
 } from '../../schemas/index.js';
+import { type Service } from '../../schemas/stack-profile.schema.js';
 
 // Re-export types for backward compatibility
 export type { FrameworkConfig, ResourceInfo };
@@ -96,75 +97,79 @@ export class ConfigUpdaterService {
     }
   }
 
-  async updateStackProfile(newStackInfo: {
-    languages?: string[];
-    frameworks?: {
-      frontend?: string[];
-      backend?: string[];
-      mobile?: string[];
-    };
-    testing_frameworks?: Record<string, string[]>;
-  }): Promise<{ updated: boolean; config?: FrameworkConfig }> {
-    const config = await this.readConfig();
-    let updated = false;
-
-    if (newStackInfo.languages && newStackInfo.languages.length > 0) {
-      const existingLanguages = new Set(config.stack_profile.languages || []);
-      const newLanguages = newStackInfo.languages.filter((lang) => !existingLanguages.has(lang));
-
-      if (newLanguages.length > 0) {
-        config.stack_profile.languages = [...(config.stack_profile.languages || []), ...newLanguages];
-        updated = true;
-        console.log(`Added new languages: ${newLanguages.join(', ')}`);
-      }
-    }
-
-    if (newStackInfo.frameworks) {
-      const categories: ('frontend' | 'backend' | 'mobile')[] = ['frontend', 'backend', 'mobile'];
-      categories.forEach((category) => {
-        if (newStackInfo.frameworks![category] && newStackInfo.frameworks![category]!.length > 0) {
-          const existing = new Set(config.stack_profile.frameworks[category] || []);
-          const newFrameworks = newStackInfo.frameworks![category]!.filter((fw) => !existing.has(fw));
-
-          if (newFrameworks.length > 0) {
-            config.stack_profile.frameworks[category] = [
-              ...(config.stack_profile.frameworks[category] || []),
-              ...newFrameworks,
-            ];
-            updated = true;
-            console.log(`Added new ${category} frameworks: ${newFrameworks.join(', ')}`);
-          }
-        }
-      });
-    }
-
-    if (newStackInfo.testing_frameworks) {
-      // Initialize testing_frameworks if it doesn't exist
-      if (!config.stack_profile.testing_frameworks) {
-        config.stack_profile.testing_frameworks = {};
-      }
-
-      Object.keys(newStackInfo.testing_frameworks).forEach((language) => {
-        const existing = new Set(config.stack_profile.testing_frameworks![language] || []);
-        const newFrameworks = newStackInfo.testing_frameworks![language].filter((fw) => !existing.has(fw));
-
-        if (newFrameworks.length > 0) {
-          config.stack_profile.testing_frameworks![language] = [
-            ...(config.stack_profile.testing_frameworks![language] || []),
-            ...newFrameworks,
-          ];
-          updated = true;
-          console.log(`Added new testing frameworks for ${language}: ${newFrameworks.join(', ')}`);
-        }
-      });
-    }
-
-    if (updated) {
-      await this.writeConfig(config);
-      return { updated: true, config };
-    }
-
+  /**
+   * @deprecated Use updateService() instead for service-centric stack profile management
+   *
+   * This method is kept for backward compatibility but will be removed in a future version.
+   * The new service-centric architecture uses the updateService() method to manage
+   * individual services rather than updating languages/frameworks in bulk.
+   */
+  async updateStackProfile(): Promise<{ updated: boolean; config?: FrameworkConfig }> {
+    console.warn('updateStackProfile() is deprecated. Use updateService() instead.');
     return { updated: false };
+  }
+
+  // ========== SERVICE MANAGEMENT METHODS ==========
+
+  /**
+   * Add or update a service in stack profile
+   */
+  async updateService(serviceConfig: Service): Promise<{ updated: boolean; config?: FrameworkConfig }> {
+    const config = await this.readConfig();
+
+    if (!config.stack_profile.services) {
+      config.stack_profile.services = [];
+    }
+
+    const existingIndex = config.stack_profile.services.findIndex(
+      (s: any) => s.id === serviceConfig.id
+    );
+
+    if (existingIndex >= 0) {
+      config.stack_profile.services[existingIndex] = serviceConfig;
+    } else {
+      config.stack_profile.services.push(serviceConfig);
+    }
+
+    await this.writeConfig(config);
+    return { updated: true, config };
+  }
+
+  /**
+   * Remove service from stack profile
+   */
+  async removeService(serviceId: string): Promise<boolean> {
+    const config = await this.readConfig();
+
+    if (!config.stack_profile.services) return false;
+
+    const originalLength = config.stack_profile.services.length;
+    config.stack_profile.services = config.stack_profile.services.filter(
+      (s: any) => s.id !== serviceId
+    );
+
+    if (config.stack_profile.services.length < originalLength) {
+      await this.writeConfig(config);
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Get service by ID
+   */
+  async getService(serviceId: string): Promise<Service | undefined> {
+    const config = await this.readConfig();
+    return config.stack_profile.services?.find((s: any) => s.id === serviceId);
+  }
+
+  /**
+   * Get all services
+   */
+  async getServices(): Promise<Service[]> {
+    const config = await this.readConfig();
+    return config.stack_profile.services || [];
   }
 
   async updateResourceState(
