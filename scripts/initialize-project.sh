@@ -208,37 +208,58 @@ echo -e "${BLUE}ℹ Project location:   $PROJECT_PATH${NC}"
 echo ""
 
 # ============================================================================
-# MINIMAL PREREQUISITE CHECKS (Infrastructure Only)
-# ============================================================================
-# NOTE: All business logic validations (Node version, Claude CLI, auth mode,
-# paths, .gitignore) are now handled by TypeScript preflight checks.
-# Bash script only ensures the minimum to launch TypeScript.
+# PREREQUISITE CHECKS
 # ============================================================================
 
-echo -e "${BLUE}Checking infrastructure prerequisites...${NC}"
+echo -e "${BLUE}Checking prerequisites...${NC}"
 echo ""
 
-# Check node (basic check - version validated by TypeScript)
+# Check claude CLI
+if ! command -v claude &> /dev/null; then
+    echo -e "${RED}✗ claude CLI not found${NC}"
+    echo ""
+    echo "The claude CLI is required to run this script."
+    echo "Install it from: https://github.com/anthropics/claude-code"
+    exit 1
+else
+    CLAUDE_VERSION=$(claude --version 2>&1 | head -n1 || echo "unknown")
+    echo -e "${GREEN}✓ claude CLI found${NC} (${CLAUDE_VERSION})"
+fi
+
+# Check node
 if ! command -v node &> /dev/null; then
     echo -e "${RED}✗ node not found${NC}"
     echo ""
-    echo "Node.js is required to launch the TypeScript orchestration."
+    echo "Node.js is required to run this script."
     echo "Install it from: https://nodejs.org/"
-    echo ""
     exit 1
+else
+    NODE_VERSION=$(node --version)
+    echo -e "${GREEN}✓ node found${NC} (${NODE_VERSION})"
 fi
 
-# Check npm (basic check - version validated by TypeScript)
+# Check npm
 if ! command -v npm &> /dev/null; then
     echo -e "${RED}✗ npm not found${NC}"
     echo ""
-    echo "npm is required to install dependencies."
+    echo "npm is required to run this script."
     echo "It typically comes with Node.js."
-    echo ""
     exit 1
+else
+    NPM_VERSION=$(npm --version)
+    echo -e "${GREEN}✓ npm found${NC} (v${NPM_VERSION})"
 fi
 
-echo -e "${GREEN}✓ Node.js and npm found${NC}"
+# Check timeout command
+if ! command -v timeout &> /dev/null; then
+    echo -e "${YELLOW}⚠ timeout command not found${NC}"
+    echo "  Script will run without timeout protection"
+    USE_TIMEOUT="false"
+else
+    echo -e "${GREEN}✓ timeout command found${NC}"
+    USE_TIMEOUT="true"
+fi
+
 echo ""
 
 # ============================================================================
@@ -294,7 +315,17 @@ if true; then
     echo -e "${BLUE}🚀 Running TypeScript orchestration...${NC}"
     echo ""
 
-    # Check if CLI file exists (infrastructure check only)
+    # Check if Node.js is available
+    if ! command -v node &> /dev/null; then
+        echo -e "${RED}❌ Error: Node.js is not installed${NC}"
+        echo ""
+        echo "Node.js is required for the AI Agentic Framework."
+        echo "Install it from: https://nodejs.org/"
+        echo ""
+        exit 1
+    fi
+
+    # Check if CLI file exists
     ORCHESTRATION_CLI="$FRAMEWORK_PATH/orchestration/src/cli/initialize.ts"
     if [ ! -f "$ORCHESTRATION_CLI" ]; then
         echo -e "${RED}❌ Error: TypeScript CLI not found${NC}"

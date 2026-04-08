@@ -19,48 +19,17 @@ describe('ProjectConfigReaderService', () => {
         return JSON.stringify({
           version: '1.0.0',
           stack_profile: {
-            services: [
-              {
-                id: 'frontend',
-                path: 'src/web',
-                type: 'frontend',
-                language: 'typescript',
-                frameworks: { main: 'React', testing: 'Vitest' },
-                testing: {
-                  unit: { framework: 'Vitest' }
-                },
-                file_count: 50
-              },
-              {
-                id: 'backend',
-                path: 'src/api',
-                type: 'backend',
-                language: 'typescript',
-                frameworks: { main: 'Express', testing: 'Vitest' },
-                testing: {
-                  unit: { framework: 'Vitest' }
-                },
-                file_count: 50
-              }
-            ],
-            is_monorepo: false
+            languages: ['typescript'],
+            primary_language: 'typescript',
+            frameworks: { frontend: ['react'], backend: ['express'] },
+            testing_frameworks: { typescript: ['vitest'] },
           },
         });
       }
       if (path.includes('stack-profile.json')) {
         return JSON.stringify({
-          services: [
-            {
-              id: 'main',
-              path: 'src',
-              type: 'backend',
-              language: 'typescript',
-              frameworks: {},
-              testing: {},
-              file_count: 100
-            }
-          ],
-          is_monorepo: false
+          languages: ['typescript'],
+          primary_language: 'typescript',
         });
       }
       return '{}';
@@ -96,24 +65,8 @@ describe('ProjectConfigReaderService', () => {
 
   describe('readStackProfile', () => {
     it('should read stack profile from framework config', () => {
-      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
-        if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            version: '1.0.0',
-            stack_profile: {
-              services: [
-                { id: 'web', type: 'frontend', language: 'typescript', file_count: 10, frameworks: {}, testing: {} }
-              ]
-            }
-          });
-        }
-        return '{}';
-      });
-
-      service = new ProjectConfigReaderService('/test/project');
       const profile = service.readStackProfile();
-      expect(profile.services).toBeDefined();
-      expect(profile.services?.[0].language).toBe('typescript');
+      expect(profile.primary_language).toBe('typescript');
     });
   });
 
@@ -130,18 +83,6 @@ describe('ProjectConfigReaderService', () => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'typescript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false,
               infrastructure: ['docker'],
             },
           });
@@ -174,22 +115,7 @@ describe('ProjectConfigReaderService', () => {
 `;
         }
         if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'typescript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
-            }
-          });
+          return JSON.stringify({ stack_profile: {} });
         }
         return '{}';
       });
@@ -215,22 +141,7 @@ describe('ProjectConfigReaderService', () => {
           return '# Project Context';
         }
         if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'typescript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
-            }
-          });
+          return JSON.stringify({ stack_profile: {} });
         }
         return '{}';
       });
@@ -258,22 +169,7 @@ describe('ProjectConfigReaderService', () => {
           });
         }
         if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'typescript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
-            }
-          });
+          return JSON.stringify({ stack_profile: { primary_language: 'typescript' } });
         }
         return '{}';
       });
@@ -293,22 +189,7 @@ describe('ProjectConfigReaderService', () => {
       });
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
         if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'typescript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
-            }
-          });
+          return JSON.stringify({ stack_profile: { primary_language: 'typescript' } });
         }
         return '{}';
       });
@@ -326,22 +207,7 @@ describe('ProjectConfigReaderService', () => {
       });
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
         if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'python',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
-            }
-          });
+          return JSON.stringify({ stack_profile: { primary_language: 'python' } });
         }
         return '{}';
       });
@@ -358,22 +224,7 @@ describe('ProjectConfigReaderService', () => {
       });
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
         if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'go',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
-            }
-          });
+          return JSON.stringify({ stack_profile: { primary_language: 'go' } });
         }
         return '{}';
       });
@@ -390,22 +241,7 @@ describe('ProjectConfigReaderService', () => {
       });
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
         if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'rust',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
-            }
-          });
+          return JSON.stringify({ stack_profile: { primary_language: 'rust' } });
         }
         return '{}';
       });
@@ -422,22 +258,7 @@ describe('ProjectConfigReaderService', () => {
           return 'invalid json';
         }
         if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'typescript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
-            }
-          });
+          return JSON.stringify({ stack_profile: { primary_language: 'typescript' } });
         }
         return '{}';
       });
@@ -453,20 +274,7 @@ describe('ProjectConfigReaderService', () => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'javascript',
-                  frameworks: { testing: 'Jest' },
-                  testing: {
-                    unit: { framework: 'Jest' }
-                  },
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
+              testing_frameworks: { javascript: ['jest'] }
             }
           });
         }
@@ -484,20 +292,7 @@ describe('ProjectConfigReaderService', () => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'python',
-                  frameworks: { testing: 'Pytest' },
-                  testing: {
-                    unit: { framework: 'Pytest' }
-                  },
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
+              testing_frameworks: { python: ['pytest'] }
             }
           });
         }
@@ -515,20 +310,7 @@ describe('ProjectConfigReaderService', () => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'javascript',
-                  frameworks: { testing: 'Mocha' },
-                  testing: {
-                    unit: { framework: 'Mocha' }
-                  },
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
+              testing_frameworks: { javascript: ['mocha'] }
             }
           });
         }
@@ -545,20 +327,7 @@ describe('ProjectConfigReaderService', () => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'go',
-                  frameworks: { testing: 'Go test' },
-                  testing: {
-                    unit: { framework: 'Go test' }
-                  },
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
+              testing_frameworks: { go: ['testing'] }
             }
           });
         }
@@ -575,20 +344,7 @@ describe('ProjectConfigReaderService', () => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'rust',
-                  frameworks: { testing: 'Cargo' },
-                  testing: {
-                    unit: { framework: 'Cargo' }
-                  },
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
+              testing_frameworks: { rust: ['cargo'] }
             }
           });
         }
@@ -605,20 +361,7 @@ describe('ProjectConfigReaderService', () => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'typescript',
-                  frameworks: { testing: 'Playwright' },
-                  testing: {
-                    e2e: { framework: 'Playwright' }
-                  },
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
+              testing_frameworks: { typescript: ['playwright'] }
             }
           });
         }
@@ -635,20 +378,7 @@ describe('ProjectConfigReaderService', () => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'frontend',
-                  language: 'javascript',
-                  frameworks: { testing: 'Cypress' },
-                  testing: {
-                    e2e: { framework: 'Cypress' }
-                  },
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
+              testing_frameworks: { javascript: ['cypress'] }
             }
           });
         }
@@ -665,31 +395,10 @@ describe('ProjectConfigReaderService', () => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'frontend',
-                  path: 'src/web',
-                  type: 'frontend',
-                  language: 'typescript',
-                  frameworks: { testing: 'Vitest' },
-                  testing: {
-                    unit: { framework: 'Vitest' }
-                  },
-                  file_count: 50
-                },
-                {
-                  id: 'backend',
-                  path: 'src/api',
-                  type: 'backend',
-                  language: 'javascript',
-                  frameworks: { testing: 'Vitest' },
-                  testing: {
-                    unit: { framework: 'Vitest' }
-                  },
-                  file_count: 50
-                }
-              ],
-              is_monorepo: false
+              testing_frameworks: {
+                typescript: ['vitest'],
+                javascript: ['vitest']
+              }
             }
           });
         }
@@ -716,36 +425,7 @@ describe('ProjectConfigReaderService', () => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'frontend',
-                  path: 'src/web',
-                  type: 'frontend',
-                  language: 'typescript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 50
-                },
-                {
-                  id: 'backend',
-                  path: 'src/api',
-                  type: 'backend',
-                  language: 'javascript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 30
-                },
-                {
-                  id: 'worker',
-                  path: 'src/worker',
-                  type: 'worker',
-                  language: 'python',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 20
-                }
-              ],
-              is_monorepo: false
+              languages: ['typescript', 'javascript', 'python']
             }
           });
         }
@@ -755,19 +435,13 @@ describe('ProjectConfigReaderService', () => {
       service = new ProjectConfigReaderService('/test/project');
       const result = service.getLanguages();
       expect(result).toContain('typescript');
-      expect(result).toContain('javascript');
       expect(result).toContain('python');
     });
 
-    it('should return empty array if no services', () => {
+    it('should return empty array if no languages', () => {
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
         if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            stack_profile: {
-              services: [],
-              is_monorepo: false
-            }
-          });
+          return JSON.stringify({ stack_profile: {} });
         }
         return '{}';
       });
@@ -781,28 +455,13 @@ describe('ProjectConfigReaderService', () => {
   describe('getFrontendFrameworks', () => {
     it('should return frontend frameworks', () => {
       const result = service.getFrontendFrameworks();
-      expect(result).toContain('React');
+      expect(result).toContain('react');
     });
 
     it('should return empty array if no frontend frameworks', () => {
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
         if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            stack_profile: {
-              services: [
-                {
-                  id: 'backend',
-                  path: 'src/api',
-                  type: 'backend',
-                  language: 'typescript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
-            }
-          });
+          return JSON.stringify({ stack_profile: {} });
         }
         return '{}';
       });
@@ -816,28 +475,13 @@ describe('ProjectConfigReaderService', () => {
   describe('getBackendFrameworks', () => {
     it('should return backend frameworks', () => {
       const result = service.getBackendFrameworks();
-      expect(result).toContain('Express');
+      expect(result).toContain('express');
     });
 
     it('should return empty array if no backend frameworks', () => {
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
         if (path.includes('framework-config.json')) {
-          return JSON.stringify({
-            stack_profile: {
-              services: [
-                {
-                  id: 'frontend',
-                  path: 'src/web',
-                  type: 'frontend',
-                  language: 'typescript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false
-            }
-          });
+          return JSON.stringify({ stack_profile: {} });
         }
         return '{}';
       });
@@ -854,18 +498,6 @@ describe('ProjectConfigReaderService', () => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'typescript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false,
               infrastructure: ['docker', 'kubernetes']
             }
           });
@@ -880,24 +512,53 @@ describe('ProjectConfigReaderService', () => {
     });
   });
 
+  describe('getWorkspaces', () => {
+    it('should return detected workspaces', () => {
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              detected_workspaces: [
+                { path: '/app', language: 'typescript', type: 'frontend', frameworks: ['react'] }
+              ]
+            }
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const result = service.getWorkspaces();
+      expect(result.length).toBe(1);
+      expect(result[0].language).toBe('typescript');
+    });
+
+    it('should fallback to workspaces property', () => {
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              workspaces: [
+                { path: '/api', language: 'python' }
+              ]
+            }
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const result = service.getWorkspaces();
+      expect(result.length).toBe(1);
+    });
+  });
+
   describe('getPackageManager', () => {
     it('should return package manager', () => {
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
         if (path.includes('framework-config.json')) {
           return JSON.stringify({
             stack_profile: {
-              services: [
-                {
-                  id: 'main',
-                  path: 'src',
-                  type: 'backend',
-                  language: 'typescript',
-                  frameworks: {},
-                  testing: {},
-                  file_count: 100
-                }
-              ],
-              is_monorepo: false,
               package_manager: 'pnpm'
             }
           });

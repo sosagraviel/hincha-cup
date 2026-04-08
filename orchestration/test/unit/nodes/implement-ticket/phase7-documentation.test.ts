@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { phase7DocumentationNode } from '../../../../src/nodes/implement-ticket/phase7-documentation.node.js';
 import type { ImplementTicketState } from '../../../../src/state/schemas/implement-ticket.schema.js';
 import * as fs from 'fs';
+import { AgentInvokerService } from '../../../../src/services/implement-ticket/agent-invoker.service.js';
 
 vi.mock('fs', () => ({
   existsSync: vi.fn(),
@@ -10,8 +11,13 @@ vi.mock('fs', () => ({
   writeFileSync: vi.fn(),
 }));
 
+vi.mock('../../../../src/services/implement-ticket/agent-invoker.service.js', () => ({
+  AgentInvokerService: vi.fn(),
+}));
+
 describe('phase7DocumentationNode', () => {
   let mockState: ImplementTicketState;
+  let mockAgentInvoker: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -24,6 +30,14 @@ describe('phase7DocumentationNode', () => {
       current_phase: 'phase7_documentation',
       errors: [],
     } as unknown as ImplementTicketState;
+
+    mockAgentInvoker = {
+      invokeAgent: vi.fn().mockResolvedValue('PR Title\n\nPR Body'),
+    };
+
+    vi.mocked(AgentInvokerService).mockImplementation(function(this: any) {
+      return mockAgentInvoker;
+    } as any);
 
     vi.mocked(fs.existsSync).mockImplementation((path: any) => {
       if (path.includes('documentation-complete.json')) return false;
@@ -89,6 +103,8 @@ describe('phase7DocumentationNode', () => {
     });
 
     it('should continue to phase8 on agent errors (non-blocking)', async () => {
+      mockAgentInvoker.invokeAgent.mockRejectedValue(new Error('Agent failed'));
+
       const result = await phase7DocumentationNode(mockState);
 
       expect(result.current_phase).toBe('phase8_pr');

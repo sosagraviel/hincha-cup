@@ -1,3 +1,4 @@
+import { AgentInvokerService } from './agent-invoker.service.js';
 import { TestOrchestratorService } from './test-orchestrator.service.js';
 
 /**
@@ -75,11 +76,13 @@ export class ReviewLoopService {
    *
    * @param prUrl - Pull request URL
    * @param testOrchestrator - Test orchestrator instance
+   * @param agentInvoker - Agent invoker instance
    * @returns Review loop result
    */
   async runReviewLoop(
     prUrl: string,
-    testOrchestrator: TestOrchestratorService
+    testOrchestrator: TestOrchestratorService,
+    agentInvoker: AgentInvokerService
   ): Promise<ReviewLoopResult> {
     console.log('\n[ReviewLoop] Starting review loop...');
     console.log(`[ReviewLoop] Max iterations: ${this.maxIterations}`);
@@ -135,7 +138,7 @@ export class ReviewLoopService {
 
       // 6. Apply fixes via implementer agent
       console.log('[ReviewLoop] Applying fixes...');
-      const fixesApplied = await this.applyFixes(blockingIssues);
+      const fixesApplied = await this.applyFixes(blockingIssues, agentInvoker);
 
       // 7. Re-run tests to verify fixes
       console.log('[ReviewLoop] Re-running tests...');
@@ -287,7 +290,8 @@ export class ReviewLoopService {
    * Apply fixes for issues via implementer agent
    */
   private async applyFixes(
-    issues: ReviewIssue[]
+    issues: ReviewIssue[],
+    agentInvoker: AgentInvokerService
   ): Promise<string[]> {
     const fixes: string[] = [];
 

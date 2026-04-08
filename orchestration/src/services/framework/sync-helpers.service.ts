@@ -5,9 +5,8 @@
  * Uses the core logic from skill-resolver.ts and agent-generator.ts.
  */
 
-import { resolveSkills } from '../../nodes/initialize-project/phase5/skill-resolver.js';
-import { generateAgents, writeAgents } from '../../nodes/initialize-project/phase5/agent-generator.js';
-import type { ResolvedSkill, GeneratedAgent } from '../../nodes/initialize-project/phase5/types.js';
+import { resolveSkills, type ResolvedSkill } from '../../utils/skill-resolver.js';
+import { generateAgents, writeAgents, type GeneratedAgent } from '../../utils/agent-generator.js';
 import type { StackProfile } from '../../schemas/index.js';
 import { copyFileSync, mkdirSync, readdirSync, statSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';

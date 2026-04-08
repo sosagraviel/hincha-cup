@@ -27,7 +27,7 @@ export const AnalyzerOutputSchema = z.object({
   ]),
   timestamp: z.string(),
   findings: z.any(), // Flexible structure - accepts anything (avoids Zod v4 beta bugs)
-  needs_verification: z.array(z.any()).max(5).optional(), // Accept any structure for needs_verification (max 5 items)
+  needs_verification: z.array(z.any()).max(3).optional(), // Accept any structure for needs_verification
   confidence_level: z.enum(['high', 'medium', 'low']).optional()
 });
 
@@ -88,12 +88,9 @@ export const RetryStateSchema = z.object({
   max_attempts: z.number().default(5),
   last_error: z.string().optional(),
   error_history: z.array(z.string()).default([]),
-  last_output: z.string().optional(), // Store previous failed output for context preservation
-  output_history: z.array(z.string()).default([]), // History of failed outputs (last 2)
   next_delay_ms: z.number().optional(), // Exponential backoff delay
   started_at: z.string().optional(),
-  completed_at: z.string().optional(),
-  session_id: z.string().optional() // UUID for tracking (not for Claude CLI session reuse)
+  completed_at: z.string().optional()
 });
 
 // Retry tracking for all Phase 1 agents

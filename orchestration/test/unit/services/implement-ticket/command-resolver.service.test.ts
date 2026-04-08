@@ -10,18 +10,10 @@ describe('CommandResolverService', () => {
       project_name: 'test-project',
       stack_profile: {
         package_manager: 'npm',
-        services: [{
-          id: 'main',
-          path: 'src',
-          type: 'backend',
-          language: 'typescript',
-          frameworks: { testing: 'vitest' },
-          file_count: 100,
-          testing: {
-            unit: { framework: 'vitest' },
-          },
-        }],
-        is_monorepo: false,
+        testing_frameworks: {
+          typescript: ['vitest'],
+        },
+        primary_language: 'typescript',
       },
       test_commands: {
         unit: ['npm', 'test'],
@@ -58,18 +50,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'npm',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'javascript',
-            frameworks: { testing: 'jest' },
-            file_count: 100,
-            testing: {
-              unit: { framework: 'jest' },
-            },
-          }],
-          is_monorepo: false,
+          testing_frameworks: { javascript: ['jest'] },
+          primary_language: 'javascript',
         },
       };
       const jestService = new CommandResolverService(jestConfig as any);
@@ -82,18 +64,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'pip',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'python',
-            frameworks: { testing: 'pytest' },
-            file_count: 100,
-            testing: {
-              unit: { framework: 'pytest' },
-            },
-          }],
-          is_monorepo: false,
+          testing_frameworks: { python: ['pytest'] },
+          primary_language: 'python',
         },
       };
       const pytestService = new CommandResolverService(pytestConfig as any);
@@ -106,18 +78,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'npm',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'javascript',
-            frameworks: { testing: 'mocha' },
-            file_count: 100,
-            testing: {
-              unit: { framework: 'mocha' },
-            },
-          }],
-          is_monorepo: false,
+          testing_frameworks: { javascript: ['mocha'] },
+          primary_language: 'javascript',
         },
       };
       const mochaService = new CommandResolverService(mochaConfig as any);
@@ -130,18 +92,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'npm',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { testing: 'ava' },
-            file_count: 100,
-            testing: {
-              unit: { framework: 'ava' },
-            },
-          }],
-          is_monorepo: false,
+          testing_frameworks: { typescript: ['ava'] },
+          primary_language: 'typescript',
         },
       };
       const avaService = new CommandResolverService(avaConfig as any);
@@ -154,18 +106,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'go',
-          services: [{
-            id: 'main',
-            path: 'cmd',
-            type: 'backend',
-            language: 'go',
-            frameworks: { testing: 'testing' },
-            file_count: 100,
-            testing: {
-              unit: { framework: 'testing' },
-            },
-          }],
-          is_monorepo: false,
+          testing_frameworks: { go: ['testing'] },
+          primary_language: 'go',
         },
       };
       const goService = new CommandResolverService(goConfig as any);
@@ -178,18 +120,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'cargo',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'rust',
-            frameworks: { testing: 'cargo' },
-            file_count: 100,
-            testing: {
-              unit: { framework: 'cargo' },
-            },
-          }],
-          is_monorepo: false,
+          testing_frameworks: { rust: ['cargo'] },
+          primary_language: 'rust',
         },
       };
       const rustService = new CommandResolverService(rustConfig as any);
@@ -202,18 +134,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'maven',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'java',
-            frameworks: { testing: 'junit' },
-            file_count: 100,
-            testing: {
-              unit: { framework: 'junit' },
-            },
-          }],
-          is_monorepo: false,
+          testing_frameworks: { java: ['junit'] },
+          primary_language: 'java',
         },
       };
       const junitService = new CommandResolverService(junitConfig as any);
@@ -226,18 +148,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'npm',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'frontend',
-            language: 'typescript',
-            frameworks: { testing: 'playwright' },
-            file_count: 100,
-            testing: {
-              e2e: { framework: 'playwright' },
-            },
-          }],
-          is_monorepo: false,
+          testing_frameworks: { typescript: ['playwright'] },
+          primary_language: 'typescript',
         },
       };
       const playwrightService = new CommandResolverService(playwrightConfig as any);
@@ -250,18 +162,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'npm',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'frontend',
-            language: 'javascript',
-            frameworks: { testing: 'cypress' },
-            file_count: 100,
-            testing: {
-              e2e: { framework: 'cypress' },
-            },
-          }],
-          is_monorepo: false,
+          testing_frameworks: { javascript: ['cypress'] },
+          primary_language: 'javascript',
         },
       };
       const cypressService = new CommandResolverService(cypressConfig as any);
@@ -274,18 +176,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'npm',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'frontend',
-            language: 'javascript',
-            frameworks: { testing: 'testcafe' },
-            file_count: 100,
-            testing: {
-              e2e: { framework: 'testcafe' },
-            },
-          }],
-          is_monorepo: false,
+          testing_frameworks: { javascript: ['testcafe'] },
+          primary_language: 'javascript',
         },
       };
       const testcafeService = new CommandResolverService(testcafeConfig as any);
@@ -298,15 +190,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'npm',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'typescript',
         },
       };
       const emptyService = new CommandResolverService(emptyConfig as any);
@@ -327,15 +212,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'pip',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'python',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'python',
         },
       };
       const pythonService = new CommandResolverService(pythonConfig as any);
@@ -348,15 +226,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'go',
-          services: [{
-            id: 'main',
-            path: 'cmd',
-            type: 'backend',
-            language: 'go',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'go',
         },
       };
       const goService = new CommandResolverService(goConfig as any);
@@ -369,15 +240,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'cargo',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'rust',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'rust',
         },
       };
       const rustService = new CommandResolverService(rustConfig as any);
@@ -390,15 +254,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'maven',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'java',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'java',
         },
       };
       const javaService = new CommandResolverService(javaConfig as any);
@@ -420,15 +277,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'yarn',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'javascript',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'javascript',
         },
       };
       const yarnService = new CommandResolverService(yarnConfig as any);
@@ -441,15 +291,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'pnpm',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'typescript',
         },
       };
       const pnpmService = new CommandResolverService(pnpmConfig as any);
@@ -462,15 +305,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'pip',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'python',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'python',
         },
       };
       const pipService = new CommandResolverService(pipConfig as any);
@@ -484,15 +320,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'go',
-          services: [{
-            id: 'main',
-            path: 'cmd',
-            type: 'backend',
-            language: 'go',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'go',
         },
       };
       const goService = new CommandResolverService(goConfig as any);
@@ -505,15 +334,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'cargo',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'rust',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'rust',
         },
       };
       const cargoService = new CommandResolverService(cargoConfig as any);
@@ -526,15 +348,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'unknown',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'typescript',
         },
       };
       const unknownService = new CommandResolverService(unknownConfig as any);
@@ -555,15 +370,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'pip',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'python',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'python',
         },
       };
       const pythonService = new CommandResolverService(pythonConfig as any);
@@ -576,15 +384,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'go',
-          services: [{
-            id: 'main',
-            path: 'cmd',
-            type: 'backend',
-            language: 'go',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'go',
         },
       };
       const goService = new CommandResolverService(goConfig as any);
@@ -597,15 +398,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'cargo',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'rust',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'rust',
         },
       };
       const rustService = new CommandResolverService(rustConfig as any);
@@ -626,15 +420,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'pip',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'python',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'python',
         },
       };
       const pythonService = new CommandResolverService(pythonConfig as any);
@@ -647,15 +434,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'go',
-          services: [{
-            id: 'main',
-            path: 'cmd',
-            type: 'backend',
-            language: 'go',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'go',
         },
       };
       const goService = new CommandResolverService(goConfig as any);
@@ -668,15 +448,8 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'cargo',
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'rust',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'rust',
         },
       };
       const rustService = new CommandResolverService(rustConfig as any);
@@ -738,15 +511,8 @@ describe('CommandResolverService', () => {
       const noPackageConfig = {
         project_name: 'test',
         stack_profile: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'typescript',
         },
       };
       const noPackageService = new CommandResolverService(noPackageConfig as any);
@@ -758,15 +524,8 @@ describe('CommandResolverService', () => {
       const pythonConfig = {
         project_name: 'test',
         stack_profile: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'python',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'python',
         },
       };
       const pythonService = new CommandResolverService(pythonConfig as any);
@@ -778,15 +537,8 @@ describe('CommandResolverService', () => {
       const goConfig = {
         project_name: 'test',
         stack_profile: {
-          services: [{
-            id: 'main',
-            path: 'cmd',
-            type: 'backend',
-            language: 'go',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'go',
         },
       };
       const goService = new CommandResolverService(goConfig as any);
@@ -798,15 +550,8 @@ describe('CommandResolverService', () => {
       const rustConfig = {
         project_name: 'test',
         stack_profile: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'rust',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'rust',
         },
       };
       const rustService = new CommandResolverService(rustConfig as any);
@@ -818,15 +563,8 @@ describe('CommandResolverService', () => {
       const unknownConfig = {
         project_name: 'test',
         stack_profile: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'unknown-lang',
-            frameworks: {},
-            file_count: 100,
-          }],
-          is_monorepo: false,
+          testing_frameworks: {},
+          primary_language: 'unknown-lang',
         },
       };
       const unknownService = new CommandResolverService(unknownConfig as any);

@@ -42,5 +42,3 @@ orchestration/orchestration-checkpoints.db
 dist
 coverage
 .coverage-test.json
-# AI Agentic Framework temporary files (auto-added)
-.claude-backups/
