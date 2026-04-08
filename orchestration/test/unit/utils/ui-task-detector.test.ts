@@ -7,15 +7,30 @@ import type { StackProfile } from '../../../src/schemas/index.js';
 // ---------------------------------------------------------------------------
 
 const reactStack: StackProfile = {
-  languages: ['typescript'],
-  primary_language: 'typescript',
-  frameworks: { frontend: ['React', 'Next.js'], backend: [] },
+  services: [{
+    id: 'frontend',
+    path: './src',
+    type: 'frontend' as const,
+    language: 'typescript',
+    frameworks: {
+      main: 'React 19',
+      ui: 'Next.js',
+    },
+  }],
+  is_monorepo: false,
 };
 
 const backendStack: StackProfile = {
-  languages: ['python'],
-  primary_language: 'python',
-  frameworks: { frontend: [], backend: ['Django'] },
+  services: [{
+    id: 'backend',
+    path: './src',
+    type: 'backend' as const,
+    language: 'python',
+    frameworks: {
+      main: 'Django',
+    },
+  }],
+  is_monorepo: false,
 };
 
 // ---------------------------------------------------------------------------

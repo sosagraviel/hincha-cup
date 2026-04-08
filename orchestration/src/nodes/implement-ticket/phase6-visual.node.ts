@@ -3,7 +3,8 @@ import { join, dirname } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { EnvironmentManagerService } from '../../services/implement-ticket/environment-manager.service.js';
 import { ScreenshotService, type ComparisonResult } from '../../services/implement-ticket/screenshot.service.js';
-import { AgentInvokerService } from '../../services/implement-ticket/agent-invoker.service.js';
+import { AgentFactory } from '../../utils/shared/agent-factory/index.js';
+import { buildVisualVerifierPrompt, buildImplementerPrompt, getProjectAgentPath } from '../../services/implement-ticket/shared/index.js';
 import { TestOrchestratorService } from '../../services/implement-ticket/test-orchestrator.service.js';
 import { FigmaExportService } from '../../services/implement-ticket/figma-export.service.js';
 import { UIVisualTestingConfigSchema, type UIVisualTestingConfig } from '../../schemas/ui-visual-testing.schema.js';
@@ -247,17 +248,24 @@ export async function phase6VisualNode(
         iterationLog.push(`Invoking visual-verifier agent to analyze visual changes\n`);
 
         try {
-          const agentInvoker = new AgentInvokerService(projectPath, frameworkPath);
-
           // Build context for visual verifier
           const beforePaths = beforeScreenshots.map((s: any) => s.path);
           const afterPaths = afterScreenshots.map(s => s.path);
 
-          const visualVerdict = await agentInvoker.invokeVisualVerifier(
-            beforePaths,
-            afterPaths,
-            diffResults
-          );
+          const inputPrompt = buildVisualVerifierPrompt(beforePaths, afterPaths, diffResults);
+
+          // Create and invoke visual verifier agent
+          const factory = await AgentFactory.create();
+          const agent = await factory.createAgent({
+            agentName: 'visual-verifier',
+            agentFilePath: getProjectAgentPath(projectPath, 'visual-verifier.md'),
+            projectPath,
+            frameworkPath,
+            timeout: 600000, // 10 minutes
+          });
+
+          const result = await agent.invoke({ inputPrompt });
+          const visualVerdict = result.output;
 
           console.log('[Phase 6: Visual Verification] ✓ Visual verifier completed');
           iterationLog.push(`Visual verifier verdict:\n${visualVerdict.substring(0, 200)}...\n`);
@@ -272,11 +280,21 @@ export async function phase6VisualNode(
 
             const fixContext = `${fullContext}\n\n## Visual Verification Feedback (Iteration ${iteration})\n\n${visualVerdict}`;
 
-            await agentInvoker.invokeImplementer(
-              stackProfile.primary_language?.toLowerCase() || 'generic',
-              implementationPlan,
-              fixContext
-            );
+            // Build implementer prompt and invoke
+            const implementerPrompt = buildImplementerPrompt(implementationPlan, fixContext);
+            const primaryLanguage = stackProfile.primary_language?.toLowerCase() || 'generic';
+            const agentFile = `implementer-${primaryLanguage}.md`;
+
+            const implementerFactory = await AgentFactory.create();
+            const implementerAgent = await implementerFactory.createAgent({
+              agentName: `implementer-${primaryLanguage}`,
+              agentFilePath: getProjectAgentPath(projectPath, agentFile),
+              projectPath,
+              frameworkPath,
+              timeout: 900000, // 15 minutes
+            });
+
+            await implementerAgent.invoke({ inputPrompt: implementerPrompt });
 
             console.log('[Phase 6: Visual Verification] ✓ Fixes applied');
 
@@ -694,32 +712,43 @@ async function runConfigDrivenPipeline(
       iterationLog.push(`${failedComparisons.length} comparison(s) failed\n`);
 
       try {
-        const agentInvoker = new AgentInvokerService(projectPath, frameworkPath);
-
         // Build constraints context for Figma mode
-        let constraintsJson: string | undefined;
+        let constraintsContext = '';
         if (figmaResult?.success && figmaResult.constraints.length > 0) {
           const allConstraints = figmaResult.constraints.map(c =>
             JSON.parse(readFileSync(c.constraintsPath, 'utf-8'))
           );
-          constraintsJson = JSON.stringify(allConstraints, null, 2);
+          constraintsContext = `\n\n## Figma Constraints\n\n${JSON.stringify(allConstraints, null, 2)}`;
         }
 
-        await agentInvoker.invokeVisualVerifier(
-          allComparisons.map(c => c.expectedPath),
-          allComparisons.map(c => c.actualPath),
-          allComparisons,
-          {
-            mode: activeMode,
-            figmaImagesPath: figmaResult?.success ? join(phase6Dir, 'figma') : undefined,
-            figmaConstraints: constraintsJson,
-            diffThreshold: activeMode === 'figma'
-              ? config.thresholds.figma
-              : config.thresholds.regression,
-            expectedImages: allComparisons.map(c => c.expectedPath),
-            actualImages: allComparisons.map(c => c.actualPath),
-          }
-        );
+        // Build visual verifier prompt
+        const expectedPaths = allComparisons.map(c => c.expectedPath);
+        const actualPaths = allComparisons.map(c => c.actualPath);
+        const diffThreshold = activeMode === 'figma' ? config.thresholds.figma : config.thresholds.regression;
+
+        const promptContext = [
+          `## Visual Verification Context`,
+          `Mode: ${activeMode}`,
+          `Diff Threshold: ${diffThreshold}%`,
+          `Failed Comparisons: ${failedComparisons.length}`,
+          constraintsContext,
+          `\n## Comparisons\n`,
+          JSON.stringify(allComparisons, null, 2),
+        ].join('\n');
+
+        const inputPrompt = buildVisualVerifierPrompt(expectedPaths, actualPaths, promptContext);
+
+        // Create and invoke visual verifier agent
+        const factory = await AgentFactory.create();
+        const agent = await factory.createAgent({
+          agentName: 'visual-verifier',
+          agentFilePath: getProjectAgentPath(projectPath, 'visual-verifier.md'),
+          projectPath,
+          frameworkPath,
+          timeout: 600000,
+        });
+
+        await agent.invoke({ inputPrompt });
 
         iterationLog.push('Visual-verifier invoked for fix suggestions\n');
       } catch (err: any) {

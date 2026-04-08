@@ -3,7 +3,7 @@ import { phase4ImplementationNode } from '../../../../src/nodes/implement-ticket
 import type { ImplementTicketState } from '../../../../src/state/schemas/implement-ticket.schema.js';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
-import { AgentInvokerService } from '../../../../src/services/implement-ticket/agent-invoker.service.js';
+import { AgentFactory } from '../../../../src/utils/shared/agent-factory/index.js';
 
 vi.mock('fs', () => ({
   existsSync: vi.fn(),
@@ -16,13 +16,13 @@ vi.mock('child_process', () => ({
   execSync: vi.fn(),
 }));
 
-vi.mock('../../../../src/services/implement-ticket/agent-invoker.service.js', () => ({
-  AgentInvokerService: vi.fn(),
+vi.mock('../../../../src/utils/shared/agent-factory/index.js', () => ({
+  AgentFactory: { create: vi.fn() },
 }));
 
 describe('phase4ImplementationNode', () => {
   let mockState: ImplementTicketState;
-  let mockAgentInvoker: any;
+  let mockAgent: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -36,13 +36,15 @@ describe('phase4ImplementationNode', () => {
       errors: [],
     } as unknown as ImplementTicketState;
 
-    mockAgentInvoker = {
-      invokeImplementer: vi.fn().mockResolvedValue('Implementation completed successfully'),
+    mockAgent = {
+      invoke: vi.fn().mockResolvedValue({
+        output: 'Implementation completed successfully',
+        sessionId: 'test-session-123',
+      }),
     };
 
-    vi.mocked(AgentInvokerService).mockImplementation(function(this: any) {
-      return mockAgentInvoker;
-    } as any);
+    const mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
 
     vi.mocked(fs.existsSync).mockImplementation((path: any) => {
       if (path.includes('implementation-complete.json')) return false;
@@ -88,7 +90,7 @@ describe('phase4ImplementationNode', () => {
 
       expect(result.current_phase).toBe('phase5_testing');
       expect(result.phase4_complete).toBe(true);
-      expect(mockAgentInvoker.invokeImplementer).not.toHaveBeenCalled();
+      expect(mockAgent.invoke).not.toHaveBeenCalled();
     });
 
     it('should read implementation data from disk', async () => {
@@ -106,7 +108,7 @@ describe('phase4ImplementationNode', () => {
   });
 
   describe('phase3 validation', () => {
-    it('should throw if phase3 not complete', async () => {
+    it('should fail if phase3 not complete', async () => {
       vi.mocked(fs.existsSync).mockImplementation((path: any) => {
         if (path.includes('implementation-complete.json')) return false;
         if (path.includes('environment-complete.json')) return false;
@@ -115,19 +117,19 @@ describe('phase4ImplementationNode', () => {
 
       const result = await phase4ImplementationNode(mockState);
 
-      expect(result.errors?.some(e => e.includes('Phase 3 not complete'))).toBe(true);
       expect(result.current_phase).toBe('failed');
+      expect(result.errors?.some(e => e.includes('Phase 3 not complete'))).toBe(true);
     });
 
     it('should proceed if phase3 complete', async () => {
       await phase4ImplementationNode(mockState);
 
-      expect(mockAgentInvoker.invokeImplementer).toHaveBeenCalled();
+      expect(mockAgent.invoke).toHaveBeenCalled();
     });
   });
 
   describe('phase2 validation', () => {
-    it('should throw if implementation plan not found', async () => {
+    it('should fail if implementation plan not found', async () => {
       vi.mocked(fs.existsSync).mockImplementation((path: any) => {
         if (path.includes('implementation-complete.json')) return false;
         if (path.includes('environment-complete.json')) return true;
@@ -137,6 +139,7 @@ describe('phase4ImplementationNode', () => {
 
       const result = await phase4ImplementationNode(mockState);
 
+      expect(result.current_phase).toBe('failed');
       expect(result.errors?.some(e => e.includes('Implementation plan not found'))).toBe(true);
     });
 
@@ -151,7 +154,7 @@ describe('phase4ImplementationNode', () => {
   });
 
   describe('phase1 validation', () => {
-    it('should throw if context not found', async () => {
+    it('should fail if context not found', async () => {
       vi.mocked(fs.existsSync).mockImplementation((path: any) => {
         if (path.includes('implementation-complete.json')) return false;
         if (path.includes('environment-complete.json')) return true;
@@ -162,6 +165,7 @@ describe('phase4ImplementationNode', () => {
 
       const result = await phase4ImplementationNode(mockState);
 
+      expect(result.current_phase).toBe('failed');
       expect(result.errors?.some(e => e.includes('Context not found'))).toBe(true);
     });
 
@@ -176,7 +180,7 @@ describe('phase4ImplementationNode', () => {
   });
 
   describe('phase0 validation', () => {
-    it('should throw if stack profile not found', async () => {
+    it('should fail if stack profile not found', async () => {
       vi.mocked(fs.existsSync).mockImplementation((path: any) => {
         if (path.includes('implementation-complete.json')) return false;
         if (path.includes('environment-complete.json')) return true;
@@ -188,6 +192,7 @@ describe('phase4ImplementationNode', () => {
 
       const result = await phase4ImplementationNode(mockState);
 
+      expect(result.current_phase).toBe('failed');
       expect(result.errors?.some(e => e.includes('Stack profile not found'))).toBe(true);
     });
 
@@ -210,13 +215,18 @@ describe('phase4ImplementationNode', () => {
         return '';
       });
 
+      const mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+      vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
+
       await phase4ImplementationNode(mockState);
 
-      expect(mockAgentInvoker.invokeImplementer).toHaveBeenCalledWith(
-        'python',
-        expect.any(String),
-        expect.any(String)
-      );
+      expect(mockFactory.createAgent).toHaveBeenCalledWith({
+        agentName: 'implementer-python',
+        agentFilePath: expect.stringContaining('implementer-python.md'),
+        projectPath: '/test/project',
+        frameworkPath: '/test/framework',
+        timeout: 900000,
+      });
     });
 
     it('should default to generic if no primary language', async () => {
@@ -229,50 +239,63 @@ describe('phase4ImplementationNode', () => {
         return '';
       });
 
+      const mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+      vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
+
       await phase4ImplementationNode(mockState);
 
-      expect(mockAgentInvoker.invokeImplementer).toHaveBeenCalledWith(
-        'generic',
-        expect.any(String),
-        expect.any(String)
-      );
+      expect(mockFactory.createAgent).toHaveBeenCalledWith({
+        agentName: 'implementer-generic',
+        agentFilePath: expect.stringContaining('implementer-generic.md'),
+        projectPath: '/test/project',
+        frameworkPath: '/test/framework',
+        timeout: 900000,
+      });
     });
   });
 
   describe('framework path validation', () => {
-    it('should throw if framework_path not set', async () => {
+    it('should fail if framework_path not set', async () => {
       mockState.framework_path = undefined as any;
 
       const result = await phase4ImplementationNode(mockState);
 
+      expect(result.current_phase).toBe('failed');
       expect(result.errors?.some(e => e.includes('framework_path not set'))).toBe(true);
     });
   });
 
   describe('agent invocation', () => {
-    it('should create AgentInvokerService with paths', async () => {
+    it('should create agent with correct configuration', async () => {
+      const mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+      vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
+
       await phase4ImplementationNode(mockState);
 
-      expect(AgentInvokerService).toHaveBeenCalledWith('/test/project', '/test/framework');
+      expect(mockFactory.createAgent).toHaveBeenCalledWith({
+        agentName: 'implementer-typescript',
+        agentFilePath: expect.stringContaining('implementer-typescript.md'),
+        projectPath: '/test/project',
+        frameworkPath: '/test/framework',
+        timeout: 900000,
+      });
     });
 
-    it('should invoke implementer with plan and context', async () => {
+    it('should invoke agent with implementer prompt', async () => {
       await phase4ImplementationNode(mockState);
 
-      expect(mockAgentInvoker.invokeImplementer).toHaveBeenCalledWith(
-        'typescript',
-        expect.stringContaining('Implementation Plan'),
-        expect.stringContaining('Full context')
-      );
+      expect(mockAgent.invoke).toHaveBeenCalledWith({
+        inputPrompt: expect.stringContaining('Implementation Plan'),
+      });
     });
 
     it('should handle implementer agent errors', async () => {
-      mockAgentInvoker.invokeImplementer.mockRejectedValue(new Error('Agent failed'));
+      mockAgent.invoke.mockRejectedValue(new Error('Agent failed'));
 
       const result = await phase4ImplementationNode(mockState);
 
-      expect(result.errors?.some(e => e.includes('Implementer agent invocation failed'))).toBe(true);
       expect(result.current_phase).toBe('failed');
+      expect(result.errors?.some(e => e.includes('Implementer agent invocation failed'))).toBe(true);
     });
   });
 
@@ -413,7 +436,10 @@ describe('phase4ImplementationNode', () => {
     });
 
     it('should write implementation log to disk', async () => {
-      mockAgentInvoker.invokeImplementer.mockResolvedValue('Implementation log content');
+      mockAgent.invoke.mockResolvedValue({
+        output: 'Implementation log content',
+        sessionId: 'test-session-123',
+      });
 
       await phase4ImplementationNode(mockState);
 
@@ -514,8 +540,8 @@ describe('phase4ImplementationNode', () => {
 
       const result = await phase4ImplementationNode(mockState);
 
-      expect(result.errors?.some(e => e.includes('Implementation failed'))).toBe(true);
       expect(result.current_phase).toBe('failed');
+      expect(result.errors?.some(e => e.includes('Implementation failed'))).toBe(true);
     });
 
     it('should use default temp_dir if not provided', async () => {

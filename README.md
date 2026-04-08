@@ -147,9 +147,11 @@ sequenceDiagram
 
 ### Prerequisites
 
-- **Claude Code** installed ([Get it here](https://claude.ai/code))
+- **Node.js** (v18+ or v20+) and **npm** (for framework dependencies)
 - **Git repository** with your project
 - **5 minutes** of setup time
+
+> **Note:** Claude CLI v2.1+ is bundled automatically as a framework dependency. You don't need to install it globally. See [Claude CLI Bundling](./docs/CLAUDE_CLI_BUNDLING.md) for details.
 
 ### Step 1: One-Time Setup (10-15 minutes)
 
@@ -160,7 +162,12 @@ cd /path/to/your-project
 # 2. Clone framework at project root
 git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework
 
-# 3. Run initialization (analyzes your codebase and sets everything up)
+# 3. Install framework dependencies (includes Claude CLI v2.1+)
+cd qubika-agentic-framework/orchestration
+npm install
+cd ../..
+
+# 4. Run initialization (analyzes your codebase and sets everything up)
 ./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
@@ -185,6 +192,7 @@ git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-ag
 
 **What initialization does**:
 
+- Installs Claude CLI v2.1+ as a local dependency (ensures version consistency)
 - Detects your tech stack automatically
 - Analyzes your codebase patterns and conventions
 - Generates project-specific documentation (CLAUDE.md, project-context)
@@ -421,6 +429,7 @@ For comprehensive phase-by-phase workflows with mermaid diagrams:
 | **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** | System design and workflow engine | 30 min |
 | **[API_REFERENCE.md](./docs/API_REFERENCE.md)** | Skills, agents, and commands | 20 min |
 | **[SKILL_CATALOG.md](./SKILL_CATALOG.md)** | Available skills with detection logic | 15 min |
+| **[CLAUDE_CLI_BUNDLING.md](./docs/CLAUDE_CLI_BUNDLING.md)** | Claude CLI bundling and version management | 10 min |
 
 ### 🔒 Operations & Security
 

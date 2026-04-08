@@ -169,12 +169,18 @@ function scoreFilePaths(text: string, changedFiles?: string[]): number {
 function scoreStack(stackProfile?: StackProfile): number {
   if (!stackProfile) return 0;
 
-  const frontendFrameworks = stackProfile.frameworks?.frontend ?? [];
-  const hasFrontend = frontendFrameworks.some(fw =>
-    FRONTEND_FRAMEWORKS.some(known =>
-      fw.toLowerCase().includes(known.toLowerCase())
-    )
-  );
+  const hasFrontend = stackProfile.services.some(service => {
+    const mainFramework = service.frameworks.main?.toLowerCase() ?? '';
+    const uiFramework = service.frameworks.ui?.toLowerCase() ?? '';
+    const additionalFrameworks = service.frameworks.additional?.map(f => f.toLowerCase()) ?? [];
+
+    return FRONTEND_FRAMEWORKS.some(known => {
+      const knownLower = known.toLowerCase();
+      return mainFramework.includes(knownLower) ||
+             uiFramework.includes(knownLower) ||
+             additionalFrameworks.some(fw => fw.includes(knownLower));
+    });
+  });
 
   return hasFrontend ? 15 : 0;
 }
