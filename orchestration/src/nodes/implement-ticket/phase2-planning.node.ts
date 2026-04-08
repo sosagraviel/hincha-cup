@@ -1,8 +1,7 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
-import { AgentFactory } from '../../utils/shared/agent-factory/index.js';
-import { buildPlannerPrompt, getProjectAgentPath } from '../../services/implement-ticket/shared/index.js';
+import { AgentInvokerService } from '../../services/implement-ticket/agent-invoker.service.js';
 
 /**
  * Phase 2: Planning & Architecture Node
@@ -76,27 +75,21 @@ export async function phase2PlanningNode(
       throw new Error('framework_path not set in state');
     }
 
+    // Create agent invoker service
+    const agentInvoker = new AgentInvokerService(projectPath, frameworkPath);
+
     // Declare variables outside try block so they're in scope for file writes
     let implementationPlan = '';
     let testPlan: any = {};
     let environmentRequirements: any = undefined;
 
     try {
-      // Build planner prompt
-      const inputPrompt = buildPlannerPrompt(ticketId, fullContext, stackProfile);
-
-      // Create and invoke planner agent (Opus)
-      const factory = await AgentFactory.create();
-      const agent = await factory.createAgent({
-        agentName: 'planner',
-        agentFilePath: getProjectAgentPath(projectPath, 'planner.md'),
-        projectPath,
-        frameworkPath,
-        timeout: 600000, // 10 minutes
-      });
-
-      const result = await agent.invoke({ inputPrompt });
-      const plannerOutput = result.output;
+      // Invoke planner agent (Opus) with full context and stack profile
+      const plannerOutput = await agentInvoker.invokePlanner(
+        fullContext,
+        stackProfile,
+        ticketId
+      );
 
       console.log('[Phase 2: Planning] ✓ Planner agent completed');
 

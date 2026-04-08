@@ -38,11 +38,9 @@ Thank you for your interest in contributing to the AI Agentic Framework! This gu
 
 ### Prerequisites
 
-- **Node.js** (v18+ or v20+) and **npm** (for framework dependencies)
+- **Claude Code** installed ([Get it here](https://claude.ai/code))
 - **Git** for version control
 - **Bash** (macOS/Linux) or WSL (Windows)
-
-> **Note:** The framework uses a local installation of Claude CLI (v2.1+) located at `orchestration/node_modules/.bin/claude`. This ensures all developers use the same version with `--agent` flag support. You do NOT need to install Claude CLI globally. See [docs/CLAUDE_CLI_BUNDLING.md](./docs/CLAUDE_CLI_BUNDLING.md) for details.
 
 ### Setup Steps
 
@@ -51,12 +49,7 @@ Thank you for your interest in contributing to the AI Agentic Framework! This gu
 git clone https://github.com/your-username/qubika-agentic-framework.git
 cd qubika-agentic-framework
 
-# 2. Install framework dependencies (includes Claude CLI v2.1+)
-cd orchestration
-npm install
-cd ..
-
-# 3. Test the framework on a sample project
+# 2. Test the framework on a sample project
 cd /path/to/test-project
 git clone https://github.com/your-username/qubika-agentic-framework.git qubika-agentic-framework
 ./qubika-agentic-framework/scripts/initialize-project.sh

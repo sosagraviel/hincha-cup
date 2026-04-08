@@ -237,13 +237,7 @@ Some text after`;
       agent_name: 'structure-architecture-analyzer',
       timestamp: '2024-01-01T00:00:00Z',
       findings: {
-        services: [{
-          id: 'main',
-          path: 'src',
-          type: 'backend',
-          language: 'typescript',
-          frameworks: { main: 'Express' }
-        }]
+        test: 'data',
       },
     };
 
@@ -277,15 +271,7 @@ Some text after`;
       const invalidOutput = {
         agent_name: 'structure-architecture-analyzer',
         // Missing timestamp
-        findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }]
-        },
+        findings: { test: 'data' },
       };
 
       const result = validateAnalyzerOutput(invalidOutput, 'structure-architecture-analyzer');
@@ -297,15 +283,7 @@ Some text after`;
     it('should fail when agent_name is missing', () => {
       const invalidOutput = {
         timestamp: '2024-01-01T00:00:00Z',
-        findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }]
-        },
+        findings: { test: 'data' },
       };
 
       const result = validateAnalyzerOutput(invalidOutput, 'structure-architecture-analyzer');
@@ -316,46 +294,24 @@ Some text after`;
       );
     });
 
-    it('should fail when findings.services is missing because it is required', () => {
+    it('should pass when findings is missing because z.any() accepts undefined', () => {
       const invalidOutput = {
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
-        findings: {},
       };
 
       const result = validateAnalyzerOutput(invalidOutput, 'structure-architecture-analyzer');
 
-      // findings.services is required in the new schema
-      expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.toLowerCase().includes('services'))).toBe(true);
+      // z.any() accepts undefined, so missing findings passes validation
+      // This is the actual behavior of the schema
+      expect(result.valid).toBe(true);
     });
 
     it('should accept optional fields', () => {
       const outputWithOptionals = {
-        agent_name: 'structure-architecture-analyzer',
-        timestamp: '2024-01-01T00:00:00Z',
-        findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }],
-          repository_type: 'monorepo',
-          monorepo_layout: {
-            root: '.',
-            packages: ['packages/*'],
-            services: ['services/*']
-          }
-        },
-        needs_verification: [
-          {
-            id: 'v1',
-            question: 'Is this correct?',
-            reason: 'Need confirmation'
-          }
-        ]
+        ...validOutput,
+        needs_verification: ['item1', 'item2'],
+        confidence_level: 'high',
       };
 
       const result = validateAnalyzerOutput(
@@ -370,15 +326,7 @@ Some text after`;
       const invalidTimestamp = {
         agent_name: 'structure-architecture-analyzer',
         timestamp: 'not-a-valid-timestamp',
-        findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }]
-        },
+        findings: { test: 'data' },
       };
 
       const result = validateAnalyzerOutput(invalidTimestamp, 'structure-architecture-analyzer');
@@ -413,9 +361,7 @@ Some text after`;
 
       expect(result.data).toBeDefined();
       expect(result.data.agent_name).toBe('structure-architecture-analyzer');
-      expect(result.data.findings.services).toBeDefined();
-      expect(result.data.findings.services.length).toBe(1);
-      expect(result.data.findings.services[0].id).toBe('main');
+      expect(result.data.findings).toEqual({ test: 'data' });
     });
   });
 
@@ -423,15 +369,7 @@ Some text after`;
     const validJSON = JSON.stringify({
       agent_name: 'structure-architecture-analyzer',
       timestamp: '2024-01-01T00:00:00Z',
-      findings: {
-        services: [{
-          id: 'main',
-          path: 'src',
-          type: 'backend',
-          language: 'typescript',
-          frameworks: { main: 'Express' }
-        }]
-      },
+      findings: { test: 'data' },
     });
 
     it('should validate and parse valid markdown-wrapped JSON', () => {
@@ -558,7 +496,7 @@ ${validJSON}
       const feedback = buildValidationErrorFeedback(invalidResult);
 
       expect(feedback).toContain('needs_verification');
-      expect(feedback).toContain('Optional fields');
+      expect(feedback).toContain('confidence_level');
     });
 
     it('should format feedback as multiline string', () => {
@@ -631,13 +569,6 @@ ${validJSON}
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }],
           data: Array(1000)
             .fill(null)
             .map((_, i) => ({ id: i, value: `item-${i}` })),
@@ -654,13 +585,6 @@ ${validJSON}
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }],
           message: 'Line 1\nLine 2\tTabbed\r\nWindows newline',
           symbols: '!@#$%^&*()_+-=[]{}|;:\'",.<>?/~`',
         },
@@ -676,13 +600,6 @@ ${validJSON}
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }],
           message: '你好世界 🌍 émojis ñ',
         },
       };
@@ -707,24 +624,18 @@ ${validJSON}
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' },
-            file_count: 42,
-            language_version: '5.8'
-          }],
-          repository_type: 'monorepo'
+          enabled: true,
+          disabled: false,
+          missing: null,
         },
       };
 
       const result = validateAnalyzerOutput(output, 'structure-architecture-analyzer');
 
       expect(result.valid).toBe(true);
-      expect(result.data.findings.services[0].file_count).toBe(42);
-      expect(result.data.findings.repository_type).toBe('monorepo');
+      expect(result.data.findings.enabled).toBe(true);
+      expect(result.data.findings.disabled).toBe(false);
+      expect(result.data.findings.missing).toBe(null);
     });
 
     it('should handle malformed JSON with trailing content', () => {
@@ -776,15 +687,10 @@ ${validJSON}
       const output = {
         agent_name: 'tech-stack-dependencies-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
-        findings: {
-          services: [{
-            id: 'main',
-            package_manager: 'npm'
-          }]
-        }
+        findings: { test: 'data' }
       };
 
-      // This should still be valid since agent_name is in the enum and matches the schema
+      // This should still be valid since agent_name is in the enum
       const result = validateAnalyzerOutput(output, 'structure-architecture-analyzer');
 
       expect(result.valid).toBe(true);
@@ -816,7 +722,7 @@ ${validJSON}
     });
 
     it('should handle extraction of JSON with preceding text', () => {
-      const input = 'Here is the analysis:\n{"agent_name": "structure-architecture-analyzer", "timestamp": "2024-01-01T00:00:00Z", "findings": {"services": [{"id": "main", "path": "src", "type": "backend", "language": "typescript", "frameworks": {"main": "Express"}}]}}';
+      const input = 'Here is the analysis:\n{"agent_name": "structure-architecture-analyzer", "timestamp": "2024-01-01T00:00:00Z", "findings": {"test": "data"}}';
 
       const result = validateAndParseAgentOutput(input, 'structure-architecture-analyzer');
 
@@ -863,27 +769,9 @@ ${validJSON}
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [
-            {
-              id: 'main',
-              path: 'src',
-              type: 'backend',
-              language: 'typescript',
-              frameworks: { main: 'Express' }
-            },
-            {
-              id: 'frontend',
-              path: 'web',
-              type: 'frontend',
-              language: 'typescript',
-              frameworks: { main: 'React' }
-            }
-          ],
-          monorepo_layout: {
-            root: '.',
-            packages: ['packages/ui', 'packages/utils'],
-            services: ['src', 'web'],
-            other: ['docs', 'scripts']
+          nested: {
+            arrays: [[1, 2], [3, 4]],
+            objects: [{ key: 'value1' }, { key: 'value2' }]
           }
         }
       };
@@ -891,8 +779,7 @@ ${validJSON}
       const result = validateAnalyzerOutput(complexOutput, 'structure-architecture-analyzer');
 
       expect(result.valid).toBe(true);
-      expect(result.data.findings.services.length).toBe(2);
-      expect(result.data.findings.monorepo_layout.packages).toEqual(['packages/ui', 'packages/utils']);
+      expect(result.data.findings.nested.arrays).toEqual([[1, 2], [3, 4]]);
     });
 
     it('should handle incomplete frontmatter in extractJSON', () => {
@@ -964,15 +851,7 @@ ${validJSON}
       const result = validateAnalyzerOutput({
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
-        findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }]
-        }
+        findings: {}
       }, 'structure-architecture-analyzer');
 
       // Normal validation should work

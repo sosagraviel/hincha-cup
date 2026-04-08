@@ -4,32 +4,22 @@
  * Central export point for all schema definitions
  */
 
-// Stack Profile schemas (Service-Centric)
+// Stack Profile schemas
 export {
   StackProfileSchema,
-  ServiceSchema,
-  ServiceTypeEnum,
-  ServiceTestingSchema,
-  ServiceTestingConfigSchema,
-  ServiceDatabaseSchema,
-  ServiceEnvironmentSchema,
-  ServiceFrameworksSchema,
+  DetectedWorkspaceSchema,
+  FileCountByLanguageSchema,
+  FileCountsSchema,
+  MultiStackWorkspaceSchema,
+  MultiStackSchema,
+  FrameworksByCategorySchema,
   type StackProfile,
-  type Service,
-  type ServiceType,
-  type ServiceTesting,
-  type ServiceTestingConfig,
-  type ServiceDatabase,
-  type ServiceEnvironment,
-  type ServiceFrameworks,
-  // Helper functions
-  getLanguagesFromStackProfile,
-  getPrimaryLanguage,
-  getAllDatabases,
-  getServicesByType,
-  getServicesByLanguage,
-  isPolyglotArchitecture,
-  getAllTestingFrameworks,
+  type DetectedWorkspace,
+  type FileCountByLanguage,
+  type FileCounts,
+  type MultiStackWorkspace,
+  type MultiStack,
+  type FrameworksByCategory,
 } from './stack-profile.schema.js';
 
 // Framework Config schemas

@@ -3,8 +3,7 @@ import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { EnvironmentManagerService } from '../../services/implement-ticket/environment-manager.service.js';
 import { ScreenshotService, type ComparisonResult } from '../../services/implement-ticket/screenshot.service.js';
-import { AgentFactory } from '../../utils/shared/agent-factory/index.js';
-import { buildVisualVerifierPrompt, buildImplementerPrompt, getProjectAgentPath } from '../../services/implement-ticket/shared/index.js';
+import { AgentInvokerService } from '../../services/implement-ticket/agent-invoker.service.js';
 import { TestOrchestratorService } from '../../services/implement-ticket/test-orchestrator.service.js';
 
 /**
@@ -204,24 +203,17 @@ export async function phase6VisualNode(
         iterationLog.push(`Invoking visual-verifier agent to analyze visual changes\n`);
 
         try {
+          const agentInvoker = new AgentInvokerService(projectPath, frameworkPath);
+
           // Build context for visual verifier
           const beforePaths = beforeScreenshots.map((s: any) => s.path);
           const afterPaths = afterScreenshots.map(s => s.path);
 
-          const inputPrompt = buildVisualVerifierPrompt(beforePaths, afterPaths, diffResults);
-
-          // Create and invoke visual verifier agent
-          const factory = await AgentFactory.create();
-          const agent = await factory.createAgent({
-            agentName: 'visual-verifier',
-            agentFilePath: getProjectAgentPath(projectPath, 'visual-verifier.md'),
-            projectPath,
-            frameworkPath,
-            timeout: 600000, // 10 minutes
-          });
-
-          const result = await agent.invoke({ inputPrompt });
-          const visualVerdict = result.output;
+          const visualVerdict = await agentInvoker.invokeVisualVerifier(
+            beforePaths,
+            afterPaths,
+            diffResults
+          );
 
           console.log('[Phase 6: Visual Verification] ✓ Visual verifier completed');
           iterationLog.push(`Visual verifier verdict:\n${visualVerdict.substring(0, 200)}...\n`);
@@ -236,21 +228,11 @@ export async function phase6VisualNode(
 
             const fixContext = `${fullContext}\n\n## Visual Verification Feedback (Iteration ${iteration})\n\n${visualVerdict}`;
 
-            // Build implementer prompt and invoke
-            const implementerPrompt = buildImplementerPrompt(implementationPlan, fixContext);
-            const primaryLanguage = stackProfile.primary_language?.toLowerCase() || 'generic';
-            const agentFile = `implementer-${primaryLanguage}.md`;
-
-            const implementerFactory = await AgentFactory.create();
-            const implementerAgent = await implementerFactory.createAgent({
-              agentName: `implementer-${primaryLanguage}`,
-              agentFilePath: getProjectAgentPath(projectPath, agentFile),
-              projectPath,
-              frameworkPath,
-              timeout: 900000, // 15 minutes
-            });
-
-            await implementerAgent.invoke({ inputPrompt: implementerPrompt });
+            await agentInvoker.invokeImplementer(
+              stackProfile.primary_language?.toLowerCase() || 'generic',
+              implementationPlan,
+              fixContext
+            );
 
             console.log('[Phase 6: Visual Verification] ✓ Fixes applied');
 

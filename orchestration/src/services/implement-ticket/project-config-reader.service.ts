@@ -5,10 +5,6 @@ import {
   type FrameworkConfig,
   type StackProfile,
 } from '../../schemas/index.js';
-import {
-  type Service,
-  type ServiceType,
-} from '../../schemas/stack-profile.schema.js';
 
 /**
  * Project Config Reader Service
@@ -133,21 +129,52 @@ export class ProjectConfigReaderService {
   }
 
   /**
-   * Get test commands aggregated from all services
+   * Extract test commands from stack profile
    * Returns empty arrays if not found
    */
   getTestCommands(): TestCommands {
-    const services = this.getServices();
-    const commands: TestCommands = { unit: [], integration: [], e2e: [] };
+    const stackProfile = this.readStackProfile();
+    const testingFrameworks = stackProfile.testing_frameworks || {};
 
-    for (const service of services) {
-      const serviceCommands = this.getTestCommandsForService(service.id);
-      commands.unit.push(...serviceCommands.unit);
-      commands.integration.push(...serviceCommands.integration);
-      commands.e2e.push(...serviceCommands.e2e);
+    // Build test commands based on detected testing frameworks
+    const commands: TestCommands = {
+      unit: [],
+      integration: [],
+      e2e: []
+    };
+
+    // Extract from each language's testing frameworks
+    for (const [lang, frameworks] of Object.entries(testingFrameworks)) {
+      for (const framework of frameworks) {
+        const frameworkLower = framework.toLowerCase();
+
+        // Unit test commands
+        if (frameworkLower.includes('jest')) {
+          commands.unit.push('npm test');
+          commands.unit.push('npx jest');
+        } else if (frameworkLower.includes('vitest')) {
+          commands.unit.push('npx vitest run');
+        } else if (frameworkLower.includes('pytest')) {
+          commands.unit.push('pytest');
+          commands.unit.push('python -m pytest');
+        } else if (frameworkLower.includes('mocha')) {
+          commands.unit.push('npx mocha');
+        } else if (frameworkLower === 'go' || lang === 'go') {
+          commands.unit.push('go test ./...');
+        } else if (frameworkLower.includes('cargo') || lang === 'rust') {
+          commands.unit.push('cargo test');
+        }
+
+        // E2E test commands
+        if (frameworkLower.includes('playwright')) {
+          commands.e2e.push('npx playwright test');
+        } else if (frameworkLower.includes('cypress')) {
+          commands.e2e.push('npx cypress run');
+        }
+      }
     }
 
-    // Deduplicate
+    // Remove duplicates
     commands.unit = [...new Set(commands.unit)];
     commands.integration = [...new Set(commands.integration)];
     commands.e2e = [...new Set(commands.e2e)];
@@ -160,6 +187,7 @@ export class ProjectConfigReaderService {
    * Returns empty arrays if not found
    */
   getBuildCommands(): BuildCommands {
+    const stackProfile = this.readStackProfile();
     const commands: BuildCommands = {
       build: [],
       dev: [],
@@ -184,8 +212,8 @@ export class ProjectConfigReaderService {
       }
     }
 
-    // Add framework-specific fallbacks based on primary language
-    const primaryLang = this.getPrimaryLanguage()?.toLowerCase();
+    // Add framework-specific fallbacks
+    const primaryLang = stackProfile.primary_language?.toLowerCase();
 
     if (primaryLang === 'javascript' || primaryLang === 'typescript') {
       if (!commands.build.length) commands.build.push('npm run build');
@@ -205,186 +233,36 @@ export class ProjectConfigReaderService {
     return commands;
   }
 
-  // ========== SERVICE-ORIENTED METHODS ==========
-
   /**
-   * Get all services from stack profile
-   */
-  getServices(): Service[] {
-    const stackProfile = this.readStackProfile();
-    return stackProfile.services || [];
-  }
-
-  /**
-   * Get service by ID
-   */
-  getServiceById(serviceId: string): Service | undefined {
-    const services = this.getServices();
-    return services.find(s => s.id === serviceId);
-  }
-
-  /**
-   * Get services by type
-   */
-  getServicesByType(type: ServiceType): Service[] {
-    const services = this.getServices();
-    return services.filter(s => s.type === type);
-  }
-
-  /**
-   * Get services by language
-   */
-  getServicesByLanguage(language: string): Service[] {
-    const services = this.getServices();
-    return services.filter(s => s.language.toLowerCase() === language.toLowerCase());
-  }
-
-  /**
-   * Get all unique languages from services
-   */
-  getLanguages(): string[] {
-    const services = this.getServices();
-    const languages = new Set(services.map(s => s.language));
-    return Array.from(languages);
-  }
-
-  /**
-   * Get primary language (language with most files)
+   * Get primary language from stack profile
    */
   getPrimaryLanguage(): string | undefined {
-    const services = this.getServices();
-    if (services.length === 0) return undefined;
-
-    const languageCounts: Record<string, number> = {};
-    for (const service of services) {
-      const lang = service.language;
-      languageCounts[lang] = (languageCounts[lang] || 0) + (service.file_count || 1);
-    }
-
-    return Object.entries(languageCounts)
-      .sort(([, a], [, b]) => b - a)[0]?.[0];
+    const stackProfile = this.readStackProfile();
+    return stackProfile.primary_language;
   }
 
   /**
-   * Check if project is polyglot (multiple languages)
+   * Get all detected languages
    */
-  isPolyglotArchitecture(): boolean {
-    const languages = this.getLanguages();
-    return languages.length > 1;
+  getLanguages(): string[] {
+    const stackProfile = this.readStackProfile();
+    return stackProfile.languages || [];
   }
 
   /**
-   * Get all unique databases used across services
-   */
-  getAllDatabases(): string[] {
-    const services = this.getServices();
-    const dbSet = new Set<string>();
-
-    for (const service of services) {
-      if (service.databases) {
-        for (const db of service.databases) {
-          dbSet.add(db.type);
-        }
-      }
-    }
-
-    return Array.from(dbSet);
-  }
-
-  /**
-   * Get all frontend frameworks from frontend services
+   * Get frontend frameworks
    */
   getFrontendFrameworks(): string[] {
-    const frontendServices = this.getServicesByType('frontend');
-    const frameworks: string[] = [];
-
-    for (const service of frontendServices) {
-      if (service.frameworks.main) frameworks.push(service.frameworks.main);
-      if (service.frameworks.ui) frameworks.push(service.frameworks.ui);
-    }
-
-    return [...new Set(frameworks)];
+    const stackProfile = this.readStackProfile();
+    return stackProfile.frameworks?.frontend || [];
   }
 
   /**
-   * Get all backend frameworks from backend/serverless services
+   * Get backend frameworks
    */
   getBackendFrameworks(): string[] {
-    const services = this.getServices();
-    const backendServices = services.filter(s => s.type === 'backend' || s.type === 'serverless');
-    const frameworks: string[] = [];
-
-    for (const service of backendServices) {
-      if (service.frameworks.main) frameworks.push(service.frameworks.main);
-    }
-
-    return [...new Set(frameworks)];
-  }
-
-  /**
-   * Get testing frameworks grouped by language
-   */
-  getTestingFrameworks(): Record<string, string[]> {
-    const services = this.getServices();
-    const testingFw: Record<string, string[]> = {};
-
-    for (const service of services) {
-      const lang = service.language;
-      if (!testingFw[lang]) testingFw[lang] = [];
-
-      if (service.testing?.unit?.framework) testingFw[lang].push(service.testing.unit.framework);
-      if (service.testing?.integration?.framework) testingFw[lang].push(service.testing.integration.framework);
-      if (service.testing?.e2e?.framework) testingFw[lang].push(service.testing.e2e.framework);
-    }
-
-    // Deduplicate
-    for (const lang in testingFw) {
-      testingFw[lang] = [...new Set(testingFw[lang])];
-    }
-
-    return testingFw;
-  }
-
-  /**
-   * Get test commands for specific service
-   */
-  getTestCommandsForService(serviceId: string): TestCommands {
-    const service = this.getServiceById(serviceId);
-    if (!service || !service.testing) {
-      return { unit: [], integration: [], e2e: [] };
-    }
-
-    const commands: TestCommands = { unit: [], integration: [], e2e: [] };
-
-    if (service.testing.unit) {
-      commands.unit.push(...this.generateTestCommands(service.testing.unit.framework, service.language));
-    }
-    if (service.testing.integration) {
-      commands.integration.push(...this.generateTestCommands(service.testing.integration.framework, service.language));
-    }
-    if (service.testing.e2e) {
-      commands.e2e.push(...this.generateTestCommands(service.testing.e2e.framework, service.language));
-    }
-
-    return commands;
-  }
-
-  /**
-   * Generate test commands for a framework/language combination
-   */
-  private generateTestCommands(framework: string, language: string): string[] {
-    const fw = framework.toLowerCase();
-
-    if (fw.includes('jest')) return ['npm test', 'npx jest'];
-    if (fw.includes('vitest')) return ['npx vitest run'];
-    if (fw.includes('pytest')) return ['pytest', 'python -m pytest'];
-    if (fw.includes('go test')) return ['go test ./...'];
-    if (fw.includes('cargo')) return ['cargo test'];
-    if (fw.includes('playwright')) return ['npx playwright test'];
-    if (fw.includes('cypress')) return ['npx cypress run'];
-    if (fw.includes('mocha')) return ['npx mocha'];
-
-    return [];
+    const stackProfile = this.readStackProfile();
+    return stackProfile.frameworks?.backend || [];
   }
 
   /**
@@ -403,6 +281,19 @@ export class ProjectConfigReaderService {
     return infrastructure.some(tool =>
       tool.toLowerCase().includes('docker')
     );
+  }
+
+  /**
+   * Get all detected workspaces
+   */
+  getWorkspaces(): Array<{
+    path: string;
+    language: string;
+    type: string;
+    frameworks: string[];
+  }> {
+    const stackProfile = this.readStackProfile();
+    return stackProfile.detected_workspaces || stackProfile.workspaces || [];
   }
 
   /**

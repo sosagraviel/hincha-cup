@@ -2,8 +2,7 @@ import { execSync } from 'child_process';
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
-import { AgentFactory } from '../../utils/shared/agent-factory/index.js';
-import { buildImplementerPrompt, getProjectAgentPath } from '../../services/implement-ticket/shared/index.js';
+import { AgentInvokerService } from '../../services/implement-ticket/agent-invoker.service.js';
 
 /**
  * Phase 4: Implementation Node
@@ -96,29 +95,19 @@ export async function phase4ImplementationNode(
       throw new Error('framework_path not set in state');
     }
 
-    // 7. Invoke implementer agent
+    // 7. Create agent invoker service
+    const agentInvoker = new AgentInvokerService(projectPath, frameworkPath);
+
+    // 8. Invoke implementer agent
     console.log('[Phase 4: Implementation] Invoking implementer agent...');
 
     let implementerOutput: string;
     try {
-      // Build implementer prompt
-      const inputPrompt = buildImplementerPrompt(implementationPlan, fullContext);
-
-      // Determine agent file based on primary language
-      const agentFile = `implementer-${primaryLanguage.toLowerCase()}.md`;
-
-      // Create and invoke implementer agent
-      const factory = await AgentFactory.create();
-      const agent = await factory.createAgent({
-        agentName: `implementer-${primaryLanguage}`,
-        agentFilePath: getProjectAgentPath(projectPath, agentFile),
-        projectPath,
-        frameworkPath,
-        timeout: 900000, // 15 minutes
-      });
-
-      const result = await agent.invoke({ inputPrompt });
-      implementerOutput = result.output;
+      implementerOutput = await agentInvoker.invokeImplementer(
+        primaryLanguage.toLowerCase(),
+        implementationPlan,
+        fullContext
+      );
 
       console.log('[Phase 4: Implementation] ✓ Implementer agent completed');
 

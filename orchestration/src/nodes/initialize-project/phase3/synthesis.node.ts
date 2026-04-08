@@ -1,18 +1,14 @@
 import type { InitializeProjectState } from "../../../state/schemas/initialize-project.schema.js";
-import { AgentFactory } from "../../../utils/shared/agent-factory/index.js";
+import { createAgentFromMarkdown } from "../../../utils/agent-factory.js";
 import {
   retryWithEnhancedFeedback,
   DEFAULT_RETRY_CONFIG,
+  type RetryConfig,
 } from "../../../utils/enhanced-retry.js";
 import type { ValidationResult } from "../../../utils/validator.js";
-import { validateSynthesisOutput } from "./validators/index.js";
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { logger } from "../../../utils/logger.js";
-import { buildSynthesisPrompt } from "./prompt-builder.js";
-import {
-  getFrameworkAgentPath,
-} from "../shared/index.js";
 
 /**
  * Phase 3: Opus Synthesis Node
@@ -63,53 +59,58 @@ export async function synthesisNode(
 
   try {
     // Define agent invocation function with feedback support
-    const agentInvoke = async (feedbackPrompt: string, resumeSessionId?: string): Promise<{ output: string; sessionId: string }> => {
-      // Build input prompt using shared utility
-      const contextPrompt = buildSynthesisPrompt(phase2Consolidation, feedbackPrompt);
+    const agentInvoke = async (feedbackPrompt: string): Promise<string> => {
+      const consolidatedContext = `
+=== CONSOLIDATED ANALYSIS FROM PHASE 2 ===
 
-      // Add ultrathink and task instruction to input prompt
-      const inputPrompt = `ultrathink\n\n${contextPrompt}\n\nSynthesize comprehensive results for: ${state.project_path}`;
+${JSON.stringify(phase2Consolidation, null, 2)}
 
-      // Create agent using new interface
-      const factory = await AgentFactory.create();
-      const agent = await factory.createAgent({
+${feedbackPrompt}
+`;
+
+      const agent = await createAgentFromMarkdown({
         agentName,
-        agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
+        agentFile,
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
+        additionalContext: consolidatedContext,
         timeout: 600000, // 10 minutes (longer for Opus)
-        resumeSessionId, // Pass session ID for context-preserving retry
-        settingsPath: join(state.framework_path, 'orchestration/src/nodes/initialize-project/phase3/settings.json'),
+        useUltrathink: true, // Enable maximum thinking for thorough synthesis
       });
 
-      const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()
+      const result = await agent.invoke({
+        input: `Synthesize comprehensive results for: ${state.project_path}`,
+      });
 
-      return {
-        output: result.output,
-        sessionId: result.sessionId,
-      };
+      return result.output || result.content || String(result);
     };
 
     const validator = (output: string): ValidationResult => {
-      // CRITICAL: This validator MUST be IDENTICAL to the stop hook validation
-      // Uses the shared comprehensive validator from synthesis-validator.ts
-      const result = validateSynthesisOutput(output);
+      // Basic validation: should contain markdown content
+      if (!output || output.length < 500) {
+        return {
+          valid: false,
+          errors: [
+            "Synthesis output too short or empty (minimum 500 characters)",
+          ],
+          data: null,
+        };
+      }
 
       return {
-        valid: result.valid,
-        errors: result.errors,
-        data: result.valid ? output : null,
+        valid: true,
+        errors: [],
+        data: output,
       };
     };
-
-    const synthesisPath = join(tempDir, "synthesis-raw.md");
 
     const synthesisContent = await retryWithEnhancedFeedback<string>(
       agentInvoke,
       validator,
       { ...DEFAULT_RETRY_CONFIG, maxAttempts: 10 },
-      synthesisPath, // Save failed attempts as synthesis-raw.attempt-N.md
     );
+
+    const synthesisPath = join(tempDir, "synthesis-raw.md");
     writeFileSync(synthesisPath, synthesisContent);
 
     phaseLogger.success(" ✓ Synthesis complete");

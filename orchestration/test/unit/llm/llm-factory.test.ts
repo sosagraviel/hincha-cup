@@ -14,9 +14,7 @@ describe('LLMFactory', () => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.GOOGLE_API_KEY;
 
-    // Ensure fixtures directory exists before writing test config
-    const fixturesDir = join(process.cwd(), 'test', 'fixtures');
-    mkdirSync(fixturesDir, { recursive: true });
+    mkdirSync(join(process.cwd(), 'test', 'fixtures'), { recursive: true });
 
     const testConfig = {
       version: '1.0.0',
@@ -97,10 +95,8 @@ describe('LLMFactory', () => {
 
   afterEach(() => {
     process.env = originalEnv;
-    // Only remove the specific test config file, not the entire fixtures directory
-    // This prevents race conditions when tests run in parallel
     try {
-      rmSync(testConfigPath, { force: true });
+      rmSync(join(process.cwd(), 'test', 'fixtures'), { recursive: true, force: true });
     } catch {}
   });
 

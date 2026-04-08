@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { validateAgentOutput } from '../schemas/phase1-agent-outputs.schema.js';
+import { AnalyzerOutputSchema } from '../state/schemas/initialize-project.schema.js';
 import { logger } from './logger.js';
 
 /**
@@ -14,10 +14,10 @@ export interface ValidationResult {
 /**
  * Validate analyzer output against Zod schema
  *
- * Uses centralized schema registry with automatic schema selection based on agent_name.
+ * Replaces the bash implementation's AJV validation with Zod.
  *
  * @param output - Raw output from analyzer agent (should be JSON string or object)
- * @param agentName - Name of the analyzer agent (for logging only - schema selected from agent_name field in output)
+ * @param agentName - Name of the analyzer agent
  * @returns Validation result with errors if invalid
  */
 export function validateAnalyzerOutput(
@@ -25,6 +25,17 @@ export function validateAnalyzerOutput(
   agentName: string
 ): ValidationResult {
   try {
+
+    // Defensive check: Ensure schema is loaded
+    if (!AnalyzerOutputSchema) {
+      logger.error('CRITICAL: AnalyzerOutputSchema is undefined!');
+      return {
+        valid: false,
+        errors: ['CRITICAL ERROR: Validation schema failed to load. This is a module loading issue.']
+      };
+    }
+
+
     let data: unknown;
     if (typeof output === 'string') {
       try {
@@ -40,30 +51,41 @@ export function validateAnalyzerOutput(
       data = output;
     }
 
-    // Use centralized validator with automatic schema selection
-    const result = validateAgentOutput(data);
+    const result = AnalyzerOutputSchema.safeParse(data);
 
     if (!result.success) {
-      const zodError = result.errors;
+      const zodError = result.error as any;
 
       logger.error('==================== VALIDATION FAILED ====================');
-      logger.error(`Agent (from argument): ${agentName}`);
-      logger.error(`Agent (from output): ${result.agentName || 'unknown'}`);
+      logger.error(`Agent: ${agentName}`);
       logger.error(`Data keys: ${Object.keys(data || {}).join(', ')}`);
+      logger.error(`Zod Error Type: ${zodError?.constructor?.name}`);
+      logger.error(`Error keys available: ${Object.keys(zodError || {}).join(', ')}`);
 
-      // Extract error messages from Zod error
+      // Check for different error property names
+      const errorsList = zodError?.issues || zodError?.errors || zodError?._errors || [];
+      logger.error(`Found errors/issues array: ${Array.isArray(errorsList)}, length: ${errorsList.length}`);
+
+      if (errorsList.length > 0) {
+        logger.error(`First error structure: ${JSON.stringify(errorsList[0], null, 2)}`);
+      }
+
+      // Try to extract error messages from whatever structure exists
       let errors: string[] = [];
 
-      if (zodError && zodError.issues) {
-        errors = zodError.issues.map((err: any) => {
+      if (Array.isArray(errorsList) && errorsList.length > 0) {
+        errors = errorsList.map((err: any) => {
           const path = Array.isArray(err?.path) ? err.path.join('.') : (err?.path || 'unknown');
           const message = err?.message || err?.msg || 'validation error';
           const code = err?.code ? ` (${err.code})` : '';
           return `${path}: ${message}${code}`;
         });
       } else {
+        // If no errors array found, show what we have
         errors = [
-          'Validation failed but error structure is unexpected.',
+          'Zod validation failed but error structure is unexpected.',
+          `Error object type: ${zodError?.constructor?.name || 'unknown'}`,
+          `Available properties: ${Object.keys(zodError || {}).join(', ')}`,
           `Full error: ${JSON.stringify(zodError, null, 2).substring(0, 500)}`
         ];
       }
@@ -167,66 +189,14 @@ export function extractJSON(output: string): string {
 }
 
 /**
- * Extract synthesis markdown sections from agent output
- *
- * Handles preamble text (like "Let me output..." or explanations) by finding
- * the actual section markers anywhere in the text. Similar to extractJSON resilience.
- *
- * Agents sometimes add conversational text before the actual output:
- * - "The validation hook requires my response to follow a specific format. Let me output..."
- * - "I see I need to follow the format. Here it is:"
- * - Tool use blocks before the actual content
- *
- * This function finds the section headers regardless of preamble.
- *
- * @param output - Raw output from synthesis agent
- * @returns Object with claudemd and projectContext content, or null if not found
- */
-export function extractSynthesisMarkdown(output: string): {
-  claudemd: string;
-  projectContext: string;
-} | null {
-  // Find "# CLAUDE.md Content" anywhere in the output (skip preamble)
-  const claudeHeaderIndex = output.indexOf('# CLAUDE.md Content');
-  if (claudeHeaderIndex === -1) {
-    return null;
-  }
-
-  // Find "---" separator after CLAUDE.md content
-  const separatorMatch = output.slice(claudeHeaderIndex).match(/\n---\s*\n/);
-  if (!separatorMatch || separatorMatch.index === undefined) {
-    return null;
-  }
-
-  // Find "# project-context/SKILL.md Content" after separator
-  const contextHeaderIndex = output.indexOf('# project-context/SKILL.md Content', claudeHeaderIndex);
-  if (contextHeaderIndex === -1) {
-    return null;
-  }
-
-  // Extract CLAUDE.md content (from header to separator)
-  const claudeStartIndex = claudeHeaderIndex + '# CLAUDE.md Content'.length;
-  const claudeEndIndex = claudeHeaderIndex + separatorMatch.index!;
-  const claudemd = output.slice(claudeStartIndex, claudeEndIndex).trim();
-
-  // Extract project-context content (from header to end)
-  const contextStartIndex = contextHeaderIndex + '# project-context/SKILL.md Content'.length;
-  const projectContext = output.slice(contextStartIndex).trim();
-
-  return { claudemd, projectContext };
-}
-
-/**
  * Extract a balanced JSON object from a string starting at a given position.
  * Tracks brace depth while respecting strings so trailing text is excluded.
- *
- * This is exported for use by hook validation scripts.
  *
  * @param text - The full text to extract from
  * @param startIndex - Index of the opening '{'
  * @returns The balanced JSON substring, or null if braces never balance
  */
-export function extractBalancedJSON(text: string, startIndex: number): string | null {
+function extractBalancedJSON(text: string, startIndex: number): string | null {
   let depth = 0;
   let inString = false;
   let escape = false;
@@ -331,15 +301,12 @@ export function buildValidationErrorFeedback(result: ValidationResult): string {
     '1. Ensure your output is valid JSON',
     '2. Do NOT wrap JSON in markdown code blocks',
     '3. All required fields must be present:',
-    '   - agent_name (must exactly match your analyzer name)',
+    '   - agent_name (must match your analyzer name)',
     '   - timestamp (ISO 8601 format)',
-    '   - findings.services (REQUIRED array with at least 1 service)',
-    '   - Each service must have: id, path, type, language',
+    '   - findings (object with your analysis)',
     '4. Optional fields:',
-    '   - needs_verification (array, max 5 items)',
-    '',
-    'CRITICAL: findings.services array is REQUIRED for service-centric schema.',
-    'Each service represents a discovered project component with its own stack.',
+    '   - needs_verification (array, max 3 items)',
+    '   - confidence_level ("high", "medium", or "low")',
     '',
     'Please correct these issues and output valid JSON.'
   ];
