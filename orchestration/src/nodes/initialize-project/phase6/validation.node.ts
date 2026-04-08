@@ -1,4 +1,5 @@
 import type { InitializeProjectState } from "../../../state/schemas/initialize-project.schema.js";
+import { join } from "path";
 import { logger } from "../../../utils/logger.js";
 import { validateMarkdownFile } from "./helpers/file-validator.js";
 import { validateFrameworkConfig } from "./helpers/config-validator.js";
@@ -35,11 +36,26 @@ export async function validationNode(
   const validationWarnings: string[] = [];
 
   try {
+    const projectClaudeDir = join(state.project_path, ".claude");
+    const claudeMdPath = join(projectClaudeDir, "CLAUDE.md");
+    const projectContextPath =
+      state.project_context_path ||
+      join(
+        state.project_path,
+        ".claude",
+        "skills",
+        "project-context",
+        "SKILL.md",
+      );
+    const frameworkConfigPath =
+      state.framework_config_path ||
+      join(state.project_path, ".claude", "framework-config.json");
+
     // Get standard directory paths
     const directories = getClaudeDirectories(state.project_path);
 
     // 1. Validate CLAUDE.md exists and is valid
-    const claudeMdResult = validateMarkdownFile(state.claude_md_path, "CLAUDE.md");
+    const claudeMdResult = validateMarkdownFile(claudeMdPath, "CLAUDE.md");
     validationErrors.push(...claudeMdResult.errors);
     validationWarnings.push(...claudeMdResult.warnings);
     if (claudeMdResult.valid) {
@@ -48,7 +64,7 @@ export async function validationNode(
 
     // 2. Validate project-context/SKILL.md exists and is valid
     const projectContextResult = validateMarkdownFile(
-      state.project_context_path,
+      projectContextPath,
       "project-context/SKILL.md",
     );
     validationErrors.push(...projectContextResult.errors);
@@ -58,7 +74,7 @@ export async function validationNode(
     }
 
     // 3. Validate framework-config.json exists and is valid
-    const configResult = validateFrameworkConfig(state.framework_config_path);
+    const configResult = validateFrameworkConfig(frameworkConfigPath);
     validationErrors.push(...configResult.errors);
     validationWarnings.push(...configResult.warnings);
     if (configResult.valid) {
@@ -73,14 +89,22 @@ export async function validationNode(
     }
 
     // 5. Validate agents directory exists and has minimum agents
-    const agentsResult = validateDirectoryWithFiles(directories.agents, "Agents");
+    const agentsResult = validateDirectoryWithFiles(
+      directories.agents,
+      "Agents",
+    );
     validationErrors.push(...agentsResult.errors);
 
     if (agentsResult.valid && agentsResult.files) {
-      phaseLogger.success(` ✓ Agents directory exists with ${agentsResult.fileCount} agents`);
+      phaseLogger.success(
+        ` ✓ Agents directory exists with ${agentsResult.fileCount} agents`,
+      );
 
       // Validate agent coverage
-      const coverageResult = validateAgentCoverage(agentsResult.files, state.framework_config_path);
+      const coverageResult = validateAgentCoverage(
+        agentsResult.files,
+        frameworkConfigPath,
+      );
       validationErrors.push(...coverageResult.errors);
       validationWarnings.push(...coverageResult.warnings);
 
@@ -96,10 +120,15 @@ export async function validationNode(
     }
 
     // 6. Validate commands directory exists
-    const commandsResult = validateDirectoryWithFiles(directories.commands, "Commands");
+    const commandsResult = validateDirectoryWithFiles(
+      directories.commands,
+      "Commands",
+    );
     validationErrors.push(...commandsResult.errors);
     if (commandsResult.valid) {
-      phaseLogger.success(` ✓ Commands directory exists with ${commandsResult.fileCount} commands`);
+      phaseLogger.success(
+        ` ✓ Commands directory exists with ${commandsResult.fileCount} commands`,
+      );
     }
 
     // 7. Validate all phases completed
@@ -134,8 +163,8 @@ export async function validationNode(
     phaseLogger.blank();
     phaseLogger.success("=== INITIALIZATION COMPLETE ===");
     phaseLogger.info(`Project: ${state.project_path}`);
-    phaseLogger.info(`CLAUDE.md: ${state.claude_md_path}`);
-    phaseLogger.info(`Config: ${state.framework_config_path}`);
+    phaseLogger.info(`CLAUDE.md: ${claudeMdPath}`);
+    phaseLogger.info(`Config: ${frameworkConfigPath}`);
     if (totalDuration) {
       phaseLogger.info(`Duration: ${(totalDuration / 1000).toFixed(2)}s`);
     }
@@ -145,6 +174,10 @@ export async function validationNode(
       completed_at: completedAt,
       total_duration_ms: totalDuration,
       warnings: [...state.warnings, ...validationWarnings],
+      // Set paths in state if they weren't already set (for --start-phase 6)
+      claude_md_path: claudeMdPath,
+      project_context_path: projectContextPath,
+      framework_config_path: frameworkConfigPath,
     };
   } catch (error) {
     const errorMessage = `Validation failed: ${(error as Error).message}`;

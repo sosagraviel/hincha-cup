@@ -6,7 +6,7 @@
 
 import { existsSync, readFileSync } from "fs";
 import type { StackProfile } from "../../../../schemas/index.js";
-import { MIN_AGENT_COUNT, SIGNIFICANT_LANGUAGE_THRESHOLD } from "../constants.js";
+import { MIN_AGENT_COUNT } from "../constants.js";
 import type { AgentCoverageResult } from "../types.js";
 
 /**
@@ -43,12 +43,15 @@ export function validateAgentCoverage(
       const config = JSON.parse(configContent);
       const stackProfile: StackProfile = config.stack_profile;
 
-      if (stackProfile && stackProfile.file_counts?.by_language) {
-        significantLanguages = Object.entries(stackProfile.file_counts.by_language)
-          .filter(([, count]) => count > SIGNIFICANT_LANGUAGE_THRESHOLD)
-          .map(([lang]) => lang.toLowerCase());
+      if (stackProfile && stackProfile.services) {
+        // Use services as the source of truth for languages (not file counts)
+        // This avoids false positives from config files (e.g., .js config files in TS projects)
+        const serviceLanguages = new Set(
+          stackProfile.services.map(s => s.language.toLowerCase())
+        );
+        significantLanguages = Array.from(serviceLanguages);
 
-        // Check if there's an implementer for each significant language
+        // Check if there's an implementer for each service language
         for (const lang of significantLanguages) {
           const hasImplementer = agentFiles.some(
             (f) => f.includes("implementer") && f.toLowerCase().includes(lang),
@@ -59,7 +62,7 @@ export function validateAgentCoverage(
         }
 
         if (missingImplementers.length > 0) {
-          warnings.push(`Missing implementers for significant languages: ${missingImplementers.join(", ")}`);
+          warnings.push(`Missing implementers for service languages: ${missingImplementers.join(", ")}`);
         }
       }
     } catch (error) {

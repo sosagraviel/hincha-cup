@@ -4,7 +4,7 @@ import {
   copyFileSync,
   readdirSync,
   readFileSync,
-  statSync,
+  existsSync,
 } from "fs";
 import { join } from "path";
 import {
@@ -34,16 +34,16 @@ export async function resourcesNode(
   const phaseLogger = logger.child("Phase 5: Resources");
   phaseLogger.info(" Copying resources...");
 
-  // Verify Phase 4 completed
-  if (!state.phase4_context?.framework_config_generated) {
-    throw new Error("Phase 4 context generation not completed");
-  }
-
   try {
     const projectClaudeDir = join(state.project_path, ".claude");
+    const frameworkConfigPath = join(projectClaudeDir, "framework-config.json");
+
+    // Verify Phase 4 completed by checking file exists (never use state)
+    if (!existsSync(frameworkConfigPath)) {
+      throw new Error("Phase 4 context generation not completed - framework-config.json not found");
+    }
 
     // Read framework-config.json to get stack profile
-    const frameworkConfigPath = join(projectClaudeDir, "framework-config.json");
     const frameworkConfig = JSON.parse(
       readFileSync(frameworkConfigPath, "utf-8"),
     );
@@ -74,21 +74,42 @@ export async function resourcesNode(
 
     // If we have file counts, verify they match languages
     if (stackProfile.file_counts?.by_language) {
+      // Debug logging
+      phaseLogger.info(`  Services: ${stackProfile.services.map(s => `${s.id}(${s.language})`).join(', ')}`);
+      phaseLogger.info(`  File counts: ${JSON.stringify(stackProfile.file_counts.by_language)}`);
+
+      // Languages commonly used for infrastructure/config files rather than services
+      const INFRASTRUCTURE_LANGUAGES = new Set(['javascript', 'json', 'yaml', 'yml', 'toml', 'ini', 'sh', 'bash']);
+      const VALIDATION_THRESHOLD = 20;  // Increased from 5 to ignore config files
+
       const languagesWithFiles = Object.entries(stackProfile.file_counts.by_language)
-        .filter(([, count]) => count >= 5)
+        .filter(([, count]) => count >= VALIDATION_THRESHOLD)
         .map(([lang]) => lang.toLowerCase());
 
       const profileLanguages = new Set(languages.map((l) => l.toLowerCase()));
 
       for (const lang of languagesWithFiles) {
+        const fileCount = stackProfile.file_counts.by_language[lang];
+
+        // Skip infrastructure languages with modest file counts
+        if (INFRASTRUCTURE_LANGUAGES.has(lang) && fileCount < 30) {
+          phaseLogger.info(
+            ` Skipping validation for ${lang} (${fileCount} files) - likely infrastructure/config files`
+          );
+          continue;
+        }
+
         if (!profileLanguages.has(lang)) {
-          const fileCount = stackProfile.file_counts.by_language[lang];
           phaseLogger.error(
             ` Language ${lang} has ${fileCount} files but is not in stack profile`,
           );
           throw new Error(
-            `Stack profile validation failed: ${lang} detected but not included. ` +
-              `This indicates a Phase 4 bug. Check file counting and language detection.`,
+            `Stack profile validation failed: ${lang} detected (${fileCount} files) but not included in any service. ` +
+              `This may indicate:\n` +
+              `  - Phase 4 missed detecting a ${lang} service\n` +
+              `  - File counter is including build artifacts/config files\n` +
+              `  - Validation threshold needs adjustment (currently ${VALIDATION_THRESHOLD})\n` +
+              `Please review services and file patterns.`
           );
         }
       }
