@@ -10,7 +10,7 @@ import { generateAgents, writeAgents } from '../../nodes/initialize-project/phas
 import type { ResolvedSkill, GeneratedAgent } from '../../nodes/initialize-project/phase5/types.js';
 import type { StackProfile } from '../../schemas/index.js';
 import { copyFileSync, mkdirSync, readdirSync, statSync, existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 
 /**
  * Copy a skill directory recursively (extracted from skill-resolver.ts internal function)
@@ -61,9 +61,8 @@ export async function updateSingleSkill(
     throw new Error(`Skill ${skillName} not found in framework`);
   }
 
-  // Get relative path for preserving directory structure
-  const relativePath = skillPath.replace(skillsDir + '/', '');
-  const targetPath = join(projectPath, '.claude', 'skills', relativePath);
+  // Use flat structure (skill name only, not nested path)
+  const targetPath = join(projectPath, '.claude', 'skills', skillName);
 
   // Copy the skill
   const filesChanged = copySkillDirectory(skillPath, targetPath);
@@ -184,4 +183,16 @@ function findSkillPath(skillsDir: string, skillName: string): string | null {
   };
 
   return searchDir(skillsDir);
+}
+
+/**
+ * Sync a single command file from framework to project
+ */
+export async function syncSingleCommand(
+  sourcePath: string,
+  targetPath: string
+): Promise<void> {
+  const targetDir = dirname(targetPath);
+  mkdirSync(targetDir, { recursive: true });
+  copyFileSync(sourcePath, targetPath);
 }
