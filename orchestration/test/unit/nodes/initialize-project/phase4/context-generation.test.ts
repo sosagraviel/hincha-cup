@@ -462,6 +462,28 @@ Wrong content
   });
 
   it("should detect primary language from workspace counts", async () => {
+    // Override file count mock to only include languages that have services
+    // This prevents fallback service creation for JavaScript (which has 20 files in global mock)
+    vi.mocked(fileCounter.countFilesByLanguage).mockResolvedValue({
+      total_files: 85,
+      by_language: [
+        {
+          language: "typescript",
+          count: 80,
+          extensions: [".ts", ".tsx"],
+          directories: ["ws1", "ws2"],
+        },
+        {
+          language: "python",
+          count: 5,
+          extensions: [".py"],
+          directories: ["ws3"],
+        },
+      ],
+      scanned_directories: 3,
+      errors: [],
+    });
+
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
       if (path.includes("synthesis-raw.md")) return validSynthesis;
       if (path.includes("01-structure-architecture.json")) {
