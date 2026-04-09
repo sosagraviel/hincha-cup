@@ -9,6 +9,7 @@ import matter from "gray-matter";
 
 /**
  * Standard directories to ignore during analysis
+ * These are build artifacts, dependencies, and temporary files
  */
 export const STANDARD_IGNORE_DIRS = [
   "node_modules",
@@ -86,9 +87,13 @@ export function getExcludedDirectories(
   projectPath: string,
   frameworkPath?: string,
 ): string[] {
+  // Determine framework directory name to exclude
+  // CRITICAL: This must match the logic in file-counter.ts and preflight-checks.ts
+  // Framework is ALWAYS at project root: <project>/<framework-name>/
   const frameworkDirName = frameworkPath
     ? basename(frameworkPath)
-    : "quibika-agentic-framework";
+    : "qubika-agentic-framework"; // Fallback if not provided
+
   const gitignoreDirs = parseGitignore(projectPath);
 
   return Array.from(
@@ -126,10 +131,14 @@ export function loadExecutionInstructions(
 ): string | null {
   // Map agent names to new execution-instructions locations
   const executionInstructionsMap: Record<string, string> = {
-    'structure-architecture-analyzer': 'orchestration/src/nodes/initialize-project/phase1/structure-analyzer/prompts/execution-instructions.md',
-    'tech-stack-dependencies-analyzer': 'orchestration/src/nodes/initialize-project/phase1/tech-stack-analyzer/prompts/execution-instructions.md',
-    'code-patterns-testing-analyzer': 'orchestration/src/nodes/initialize-project/phase1/code-patterns-analyzer/prompts/execution-instructions.md',
-    'data-flows-integrations-analyzer': 'orchestration/src/nodes/initialize-project/phase1/data-flows-analyzer/prompts/execution-instructions.md',
+    "structure-architecture-analyzer":
+      "orchestration/src/nodes/initialize-project/phase1/structure-analyzer/prompts/execution-instructions.md",
+    "tech-stack-dependencies-analyzer":
+      "orchestration/src/nodes/initialize-project/phase1/tech-stack-analyzer/prompts/execution-instructions.md",
+    "code-patterns-testing-analyzer":
+      "orchestration/src/nodes/initialize-project/phase1/code-patterns-analyzer/prompts/execution-instructions.md",
+    "data-flows-integrations-analyzer":
+      "orchestration/src/nodes/initialize-project/phase1/data-flows-analyzer/prompts/execution-instructions.md",
   };
 
   const newPath = executionInstructionsMap[agentName];

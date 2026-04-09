@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, appendFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import { join, basename } from "path";
 import { execSync } from "child_process";
 
 /**
@@ -198,7 +198,7 @@ export async function runPreflightChecks(
               `  ${localClaudePath}\n` +
               `\n` +
               `Please authenticate it manually:\n` +
-              `  "${localClaudePath}" /login\n` +
+              `  ${localClaudePath} /login\n` +
               `\n` +
               `Or use API key mode instead:\n` +
               `  export ANTHROPIC_API_KEY="your-api-key-here"`,
@@ -253,30 +253,38 @@ export async function runPreflightChecks(
   // CHECK 6: .gitignore automation
   // ============================================================================
   const gitignorePath = join(projectPath, ".gitignore");
-  const requiredEntries = [".claude-temp", ".claude-backups"];
+
+  // Determine framework directory name to exclude
+  // CRITICAL: Must match logic in file-counter.ts and prompt-loader.ts
+  // Framework is ALWAYS at project root: <project>/<framework-name>/
+  const frameworkDirName = basename(frameworkPath);
+
+  const requiredEntries = [".claude-temp", ".claude-backups", frameworkDirName];
 
   // Check if project has a .gitignore file
   if (!existsSync(gitignorePath)) {
     // Create .gitignore if it doesn't exist
     try {
       const gitignoreContent = [
-        "# AI Agentic Framework temporary files",
+        "# AI Agentic Framework files",
         ".claude-temp/",
         ".claude-backups/",
+        `${frameworkDirName}/`,
         "",
       ].join("\n");
 
       writeFileSync(gitignorePath, gitignoreContent, "utf-8");
       gitignoreUpdated = true;
       warnings.push(
-        `Created .gitignore file with .claude-temp and .claude-backups entries`,
+        `Created .gitignore with framework entries: .claude-temp, .claude-backups, ${frameworkDirName}`,
       );
     } catch (error) {
       warnings.push(
         `Unable to create .gitignore file: ${(error as Error).message}\n` +
           `Please manually create .gitignore with:\n` +
           `  .claude-temp/\n` +
-          `  .claude-backups/`,
+          `  .claude-backups/\n` +
+          `  ${frameworkDirName}/`,
       );
     }
   } else {
@@ -286,11 +294,13 @@ export async function runPreflightChecks(
       const missingEntries: string[] = [];
 
       for (const entry of requiredEntries) {
-        // Check if entry exists (with or without trailing slash)
-        const hasEntry =
-          gitignoreContent.includes(`${entry}/`) ||
-          gitignoreContent.includes(`${entry}\n`) ||
-          gitignoreContent.endsWith(entry);
+        // Check if entry exists as a standalone line (not as a substring of another path)
+        // Split into lines and check if any line matches exactly (with or without trailing slash)
+        const lines = gitignoreContent.split("\n");
+        const hasEntry = lines.some((line) => {
+          const trimmedLine = line.trim();
+          return trimmedLine === entry || trimmedLine === `${entry}/`;
+        });
 
         if (!hasEntry) {
           missingEntries.push(entry);
@@ -298,11 +308,9 @@ export async function runPreflightChecks(
       }
 
       if (missingEntries.length > 0) {
-        // Automatically add missing entries
         try {
           const entriesToAdd = [
             "",
-            "# AI Agentic Framework temporary files (auto-added)",
             ...missingEntries.map((entry) => `${entry}/`),
           ].join("\n");
 
@@ -324,7 +332,8 @@ export async function runPreflightChecks(
         `Unable to read .gitignore: ${(error as Error).message}\n` +
           `Please ensure .gitignore contains:\n` +
           `  .claude-temp/\n` +
-          `  .claude-backups/`,
+          `  .claude-backups/\n` +
+          `  ${frameworkDirName}/`,
       );
     }
   }

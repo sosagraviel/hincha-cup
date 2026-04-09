@@ -33,6 +33,7 @@ export function validateStackProfile(
       const isInProfile = finalLanguages.includes(lang);
 
       // Hard error: 20+ files but language not in profile
+      // This validation is performed in Phase 4 (early), Phase 5 has more sophisticated validation
       if (langCount.count >= MIN_REQUIRED_FILE_COUNT && !isInProfile) {
         logger.error(
           ` Validation failed: ${langCount.count} ${lang} files found but language not in profile`,

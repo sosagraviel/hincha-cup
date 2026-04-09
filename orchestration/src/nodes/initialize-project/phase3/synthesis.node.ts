@@ -67,7 +67,9 @@ export async function synthesisNode(
       // Build input prompt using shared utility
       const contextPrompt = buildSynthesisPrompt(phase2Consolidation, feedbackPrompt);
 
-      // Add ultrathink and task instruction to input prompt
+      // Add ultrathink for deep reasoning
+      // Synthesis analyzes code in depth to fill gaps identified in Phase 2 consolidation
+      // It must NOT assume or guess - it reads actual code to fill missing information
       const inputPrompt = `ultrathink\n\n${contextPrompt}\n\nSynthesize comprehensive results for: ${state.project_path}`;
 
       // Create agent using new interface
@@ -77,7 +79,7 @@ export async function synthesisNode(
         agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
-        timeout: 600000, // 10 minutes (longer for Opus)
+        timeout: 600000, // 10 minutes (agent should use max 10 tool calls, mostly synthesis)
         resumeSessionId, // Pass session ID for context-preserving retry
         settingsPath: join(state.framework_path, 'orchestration/src/nodes/initialize-project/phase3/settings.json'),
       });

@@ -192,13 +192,13 @@ Examine the source code directory structure (typically `src/`, `lib/`, `app/`, o
 
 <file_mapping>
 
-**CRITICAL:** Create a detailed table (20-30+ rows minimum) showing where EVERY major code type lives in the repository. This is THE MOST IMPORTANT output for developers.
+**CRITICAL:** Create a concise table (10-20 rows) showing where major code types live in the repository. This is THE MOST IMPORTANT output for developers.
 
 **Discovery approach:**
 
 1. **Start with manifest-driven discovery** (frameworks tell you what patterns to expect)
 2. **Search for semantic patterns** based on discovered frameworks
-3. **Find 3-5 REAL file paths** for each code type (not generic patterns!)
+3. **Use glob patterns with file counts** to describe where code types live (e.g., `src/modules/**/*.service.ts` ~12 files)
 4. **Group by service/package** if monorepo
 
 **Universal Code Type Patterns:**
@@ -260,27 +260,28 @@ Search for these code types using framework-specific patterns:
 Generate a markdown table with these columns:
 - **Package/Service**: Which service this applies to (or "Root" for monorepo-level)
 - **File Type**: What kind of code
-- **Location Pattern**: Where these files live (DISCOVERED paths, not assumptions)
-- **Examples**: 3-5 REAL file paths from the codebase
+- **Location Pattern**: Where these files live (glob pattern)
+- **File Count**: Approximate number of matching files (e.g., "~12 files")
 - **Notes**: Any important context
 
 **Example Table Row:**
 
 ```markdown
-| services/backend | Database Models | src/modules/*/database/models/ | user/database/models/user.model.ts, project/database/models/project.model.ts, ticket/database/models/ticket.model.ts | TypeORM entities, vertical slice per module |
+| services/backend | Database Models | src/modules/*/database/models/*.model.ts | ~8 files | TypeORM entities, vertical slice per module |
 ```
 
 **CRITICAL REQUIREMENTS:**
-1. Minimum 20 rows (comprehensive coverage)
-2. Every row must have 3-5 REAL file paths from actual codebase
+1. Target 10-20 rows (concise but comprehensive coverage)
+2. Every row must use glob patterns and include approximate file count
 3. Group by service/package for monorepos
 4. Include BOTH standard locations AND custom/unusual locations discovered
+5. Use 1-2 representative example paths ONLY when the pattern alone is ambiguous
 
 **Report in `findings.file_placement` object:**
 
 ```json
 "file_placement": {
-  "table_markdown": "| Package | File Type | Location Pattern | Examples (3-5 real paths) | Notes |\n|---------|-----------|------------------|---------------------------|-------|\n...",
+  "table_markdown": "| Package | File Type | Location Pattern | File Count | Notes |\n|---------|-----------|------------------|------------|-------|\n| packages/shared | Shared DTOs | packages/shared/src/dtos/**/*.dto.ts | ~15 files | DTOs used by both frontend and backend |\n| services/backend | Database Models | src/modules/*/database/models/*.model.ts | ~8 files | TypeORM entities, vertical slice per module |\n...",
   "shared_packages": ["packages/shared", "packages/types"],
   "import_conventions": [
     "import { UserDto } from '@org/shared/dtos'",
@@ -463,7 +464,7 @@ Before outputting results, verify:
 1. **Found at least ONE manifest file?** If no, search again with different patterns
 2. **Detected ALL languages?** Count files by extension - if project has 10+ .py files, Python should be in languages array
 3. **Extracted runtime versions?** Check for .nvmrc, .python-version, go.mod, etc.
-4. **File placement table has 20+ rows?** Each row must have 3-5 REAL file paths from the codebase
+4. **File placement table has 10-20 rows?** Each row must use glob patterns with file counts
 5. **Found path aliases?** Read tsconfig.json, jsconfig.json, vite.config, webpack.config
 6. **Detected database layer?** Check dependencies for pg, psycopg2, mongoose, etc. Find ORM and migration commands
 7. **Multi-stack analysis complete?** For monorepos, list ALL workspaces with file counts and dependencies
@@ -573,7 +574,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
     },
     "architecture_pattern": "Vertical Slicing",
     "file_placement": {
-      "table_markdown": "| Package | File Type | Location Pattern | Examples (3-5 real paths) | Notes |\n|---------|-----------|------------------|---------------------------|-------|\n| packages/shared | Shared DTOs | packages/shared/src/dtos/*/ | organization/create-organization.dto.ts, user/user.response.dto.ts, ticket/create-ticket.dto.ts | DTOs used by both frontend and backend |\n| services/backend | Database Models | services/backend/src/modules/*/database/models/ | user/database/models/user.model.ts, project/database/models/project.model.ts | TypeORM entities |\n...",
+      "table_markdown": "| Package | File Type | Location Pattern | File Count | Notes |\n|---------|-----------|------------------|------------|-------|\n| packages/shared | Shared DTOs | packages/shared/src/dtos/**/*.dto.ts | ~15 files | DTOs used by both frontend and backend |\n| services/backend | Database Models | src/modules/*/database/models/*.model.ts | ~8 files | TypeORM entities, vertical slice per module |\n...",
       "import_conventions": [
         "import { UserDto } from '@org/shared/dtos'",
         "import { Priority } from '@org/shared/enums'"
