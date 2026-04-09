@@ -1,0 +1,62 @@
+{
+  "version": "2.0.0",
+  "schema_version": "1.0.0",
+  "framework_version": "2.0.0",
+  "project_metadata": {
+    "project_path": "/Users/ignaciobarreto/itIsHere/projects/ai-agentic-framework",
+    "last_analysis": "2026-04-09T16:07:00.413Z",
+    "initialization_hash": "mnro6u6579v06efru3a"
+  },
+  "stack_profile": {
+    "services": [
+      {
+        "id": "orchestration",
+        "name": "orchestration",
+        "path": "orchestration",
+        "type": "cli",
+        "language": "typescript",
+        "language_version": "5.9.3",
+        "frameworks": {
+          "main": "LangGraph ^1.2.3",
+          "testing": "vitest ^4.1.0"
+        },
+        "environment": {
+          "node_min": ">=20",
+          "package_manager": "pnpm"
+        },
+        "file_count": 185,
+        "manifest_file": "orchestration/package.json"
+      },
+      {
+        "id": "python-scripts",
+        "name": "Python Scripts",
+        "path": ".",
+        "type": "library",
+        "language": "python",
+        "frameworks": {},
+        "file_count": 39
+      }
+    ],
+    "is_monorepo": true,
+    "workspace_tool": "pnpm",
+    "infrastructure": [
+      "docker",
+      "docker-compose"
+    ],
+    "file_counts": {
+      "total": 230,
+      "by_language": {
+        "typescript": 181,
+        "python": 39,
+        "javascript": 5,
+        "go": 5
+      }
+    }
+  },
+  "resource_state": {
+    "skills": {},
+    "agents": {},
+    "commands": {},
+    "last_sync": "2026-04-09T16:07:00.413Z"
+  }
+}

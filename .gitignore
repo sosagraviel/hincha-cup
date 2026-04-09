@@ -1,10 +1,7 @@
-# AI Agentic Framework - Git Ignore
-
 # Development artifacts
 node_modules/
 .vscode/
 .husky/
-.claude/
 *.log
 *.tmp
 
@@ -37,10 +34,11 @@ Thumbs.db
 orchestration/node_modules
 orchestration/package-lock.json
 orchestration/dist
-orchestration/.claude-temp
 orchestration/orchestration-checkpoints.db
 dist
 coverage
 .coverage-test.json
-# AI Agentic Framework temporary files (auto-added)
+
+.claude-temp/
 .claude-backups/
+qubika-agentic-framework/

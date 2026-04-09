@@ -7,10 +7,7 @@ import {
   existsSync,
 } from "fs";
 import { join } from "path";
-import {
-  resolveSkills,
-  copyResolvedSkills,
-} from "./skill-resolver.js";
+import { resolveSkills, copyResolvedSkills } from "./skill-resolver.js";
 import { generateAgents, writeAgents } from "./agent-generator.js";
 import type { StackProfile } from "../../../schemas/index.js";
 import { logger } from "../../../utils/logger.js";
@@ -40,7 +37,9 @@ export async function resourcesNode(
 
     // Verify Phase 4 completed by checking file exists (never use state)
     if (!existsSync(frameworkConfigPath)) {
-      throw new Error("Phase 4 context generation not completed - framework-config.json not found");
+      throw new Error(
+        "Phase 4 context generation not completed - framework-config.json not found",
+      );
     }
 
     // Read framework-config.json to get stack profile
@@ -52,15 +51,19 @@ export async function resourcesNode(
     phaseLogger.info(" Stack profile loaded");
 
     // Get languages from services array
-    const languages = Array.from(new Set(stackProfile.services.map(s => s.language)));
-    phaseLogger.info(
-      `  Languages: ${languages.join(", ") || "none"}`,
+    const languages = Array.from(
+      new Set(stackProfile.services.map((s) => s.language)),
     );
+    phaseLogger.info(`  Languages: ${languages.join(", ") || "none"}`);
 
     // VALIDATION: Ensure stack profile is complete before generating resources
     phaseLogger.info(" Validating stack profile before resource generation...");
 
-    if (!stackProfile || !stackProfile.services || stackProfile.services.length === 0) {
+    if (
+      !stackProfile ||
+      !stackProfile.services ||
+      stackProfile.services.length === 0
+    ) {
       throw new Error(
         "Stack profile is empty or invalid. Cannot generate agents/skills without knowing project services.",
       );
@@ -75,53 +78,72 @@ export async function resourcesNode(
     // If we have file counts, verify they match languages
     if (stackProfile.file_counts?.by_language) {
       // Debug logging
-      phaseLogger.info(`  Services: ${stackProfile.services.map(s => `${s.id}(${s.language})`).join(', ')}`);
-      phaseLogger.info(`  File counts: ${JSON.stringify(stackProfile.file_counts.by_language)}`);
+      phaseLogger.info(
+        `  Services: ${stackProfile.services.map((s) => `${s.id}(${s.language})`).join(", ")}`,
+      );
+      phaseLogger.info(
+        `  File counts: ${JSON.stringify(stackProfile.file_counts.by_language)}`,
+      );
 
       // Languages commonly used for infrastructure/config files rather than services
-      const INFRASTRUCTURE_LANGUAGES = new Set(['javascript', 'json', 'yaml', 'yml', 'toml', 'ini', 'sh', 'bash']);
-      const VALIDATION_THRESHOLD = 20;  // Increased from 5 to ignore config files
-
-      const languagesWithFiles = Object.entries(stackProfile.file_counts.by_language)
-        .filter(([, count]) => count >= VALIDATION_THRESHOLD)
-        .map(([lang]) => lang.toLowerCase());
+      const INFRASTRUCTURE_LANGUAGES = new Set([
+        "javascript",
+        "json",
+        "yaml",
+        "yml",
+        "toml",
+        "ini",
+        "sh",
+        "bash",
+      ]);
+      const WARN_THRESHOLD = 10; // Warn for 10-19 files (may be utility scripts or test fixtures)
+      const ERROR_THRESHOLD = 20; // Error for 20+ files (likely a real service)
 
       const profileLanguages = new Set(languages.map((l) => l.toLowerCase()));
 
-      for (const lang of languagesWithFiles) {
-        const fileCount = stackProfile.file_counts.by_language[lang];
+      for (const [lang, fileCount] of Object.entries(
+        stackProfile.file_counts.by_language,
+      )) {
+        const langLower = lang.toLowerCase();
+        const isInProfile = profileLanguages.has(langLower);
+
+        // Skip if language is in profile (valid)
+        if (isInProfile) continue;
 
         // Skip infrastructure languages with modest file counts
-        if (INFRASTRUCTURE_LANGUAGES.has(lang) && fileCount < 30) {
+        if (INFRASTRUCTURE_LANGUAGES.has(langLower) && fileCount < 30) {
           phaseLogger.info(
-            ` Skipping validation for ${lang} (${fileCount} files) - likely infrastructure/config files`
+            ` ${fileCount} ${lang} files - likely infrastructure/config files, skipping validation`,
           );
           continue;
         }
 
-        if (!profileLanguages.has(lang)) {
+        // STRICT: 20+ files without a service is a hard error (Phase 4 should have created a fallback service)
+        if (fileCount >= ERROR_THRESHOLD) {
           phaseLogger.error(
             ` Language ${lang} has ${fileCount} files but is not in stack profile`,
           );
           throw new Error(
             `Stack profile validation failed: ${lang} detected (${fileCount} files) but not included in any service. ` +
-              `This may indicate:\n` +
-              `  - Phase 4 missed detecting a ${lang} service\n` +
-              `  - File counter is including build artifacts/config files\n` +
-              `  - Validation threshold needs adjustment (currently ${VALIDATION_THRESHOLD})\n` +
-              `Please review services and file patterns.`
+              `This indicates Phase 4 service extraction logic failed to create a fallback service.`,
+          );
+        }
+
+        // LENIENT: 10-19 files is a warning (may be scattered config files)
+        if (fileCount >= WARN_THRESHOLD) {
+          phaseLogger.warn(
+            ` Advisory: ${fileCount} ${lang} files found but no service detected. ` +
+              `This may be scattered config files or build artifacts.`,
           );
         }
       }
     }
 
-    phaseLogger.success(
-      ` ✓ Stack profile validated: ${languages.join(", ")}`,
-    );
+    phaseLogger.success(` ✓ Stack profile validated: ${languages.join(", ")}`);
     if (stackProfile.is_monorepo) {
       const serviceCount = stackProfile.services.length;
       phaseLogger.info(
-        `  Monorepo with ${serviceCount} service${serviceCount !== 1 ? 's' : ''}`,
+        `  Monorepo with ${serviceCount} service${serviceCount !== 1 ? "s" : ""}`,
       );
     }
 

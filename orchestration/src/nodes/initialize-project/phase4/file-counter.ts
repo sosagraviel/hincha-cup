@@ -37,10 +37,12 @@ export async function countFilesByLanguage(
   maxDepth: number = 10,
   frameworkPath?: string,
 ): Promise<FileCountResult> {
-  // Derive the framework directory name (same logic as agent-factory.ts)
+  // Determine framework directory name to exclude
+  // CRITICAL: This must match the logic in prompt-loader.ts and preflight-checks.ts
+  // Framework is ALWAYS at project root: <project>/<framework-name>/
   const frameworkDirName = frameworkPath
-    ? basename(relative(projectPath, frameworkPath).split('/')[0])
-    : "qubika-agentic-framework";
+    ? basename(frameworkPath)
+    : "qubika-agentic-framework"; // Fallback if not provided
   // Map: language -> Set of file paths
   const languageFiles = new Map<string, Set<string>>();
   const errors: string[] = [];

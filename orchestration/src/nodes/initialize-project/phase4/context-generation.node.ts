@@ -216,12 +216,52 @@ export async function contextGenerationNode(
         codePatternsFindings,
         dataFlowsData?.findings
       );
-      phaseLogger.success(` ✓ Extracted ${services.length} service(s)`);
+      phaseLogger.success(` ✓ Extracted ${services.length} manifest-based service(s)`);
 
       for (const service of services) {
         phaseLogger.info(
           `   ${service.id} (${service.type}) at ${service.path}: ${service.language} ${service.language_version || ''} - ${service.frameworks.main || 'no framework'}`
         );
+      }
+
+      // ADD FALLBACK SERVICES: For languages with significant files but no manifest-based service
+      // This ensures we generate implementers for utility scripts, test code, etc.
+      if (fileCountResult) {
+        const FALLBACK_THRESHOLD = 10; // Create fallback service if >= 10 files
+        const existingLanguages = new Set(services.map(s => s.language.toLowerCase()));
+        let fallbackCount = 0;
+
+        for (const langCount of fileCountResult.by_language) {
+          const lang = langCount.language.toLowerCase();
+
+          // Skip if we already have a service for this language
+          if (existingLanguages.has(lang)) continue;
+
+          // Skip if below threshold
+          if (langCount.count < FALLBACK_THRESHOLD) continue;
+
+          // Create generic fallback service for this language
+          const fallbackService: Service = {
+            id: `${lang}-scripts`,
+            name: `${lang.charAt(0).toUpperCase() + lang.slice(1)} Scripts`,
+            path: ".", // Root level (files scattered across project)
+            type: "library" as any, // Generic type for utility code
+            language: lang,
+            language_version: undefined, // Unknown without manifest
+            frameworks: {}, // No framework detection for fallback services
+            file_count: langCount.count,
+          };
+
+          services.push(fallbackService);
+          fallbackCount++;
+          phaseLogger.info(
+            `   ${fallbackService.id} (${fallbackService.type}) at ${fallbackService.path}: ${fallbackService.language} - ${langCount.count} files (fallback service for utility code)`,
+          );
+        }
+
+        if (fallbackCount > 0) {
+          phaseLogger.success(` ✓ Added ${fallbackCount} fallback service(s) for languages without manifests`);
+        }
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
