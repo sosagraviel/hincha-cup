@@ -73,6 +73,9 @@ Generate comprehensive, implementation-ready SDD tickets following INVEST criter
 
 ## Workflow
 
+### Phase 0: Inject project context
+- Invoke /project-context skill to get in depth context of the project
+
 ### Phase 1: Parse Input Source
 - Fetch/read ticket from specified source (Jira/Markdown/Text)
 - Convert to canonical internal format
@@ -81,11 +84,10 @@ Generate comprehensive, implementation-ready SDD tickets following INVEST criter
 ### Phase 2: Intelligent Gap Detection
 - Validate ticket against SDD schema requirements
 - For EACH missing/incomplete field:
-  1. **Search project context** (.claude/CLAUDE.md, .claude/skills/project-context/)
-  2. **Search codebase** for patterns, similar implementations
-  3. **Analyze related files** for architectural patterns
-  4. **Check existing tickets** for precedents
-  5. **Only if inference fails**: Add to question list
+  1. **Search codebase** for patterns, similar implementations
+  2. **Analyze related files** for architectural patterns
+  3. **Check existing tickets** for precedents
+  4. **Only if inference fails**: Add to question list
 
 ### Phase 3: Batch Question Generation
 - Generate MINIMAL questions for unresolved gaps only
