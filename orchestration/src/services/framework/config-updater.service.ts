@@ -173,7 +173,7 @@ export class ConfigUpdaterService {
   }
 
   async updateResourceState(
-    resourceType: 'skills' | 'agents',
+    resourceType: 'skills' | 'agents' | 'commands',
     resourceName: string,
     metadata: Partial<ResourceInfo>
   ): Promise<FrameworkConfig> {
@@ -196,7 +196,7 @@ export class ConfigUpdaterService {
     return config;
   }
 
-  async removeResourceFromState(resourceType: 'skills' | 'agents', resourceName: string): Promise<boolean> {
+  async removeResourceFromState(resourceType: 'skills' | 'agents' | 'commands', resourceName: string): Promise<boolean> {
     const config = await this.readConfig();
 
     if (config.resource_state[resourceType] && config.resource_state[resourceType][resourceName]) {

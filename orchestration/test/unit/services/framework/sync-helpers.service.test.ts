@@ -8,12 +8,12 @@ import * as fs from 'fs';
 
 // Mock dependencies
 vi.mock('fs');
-vi.mock('../../../../src/utils/skill-resolver.js', () => ({
+vi.mock('../../../../src/nodes/initialize-project/phase5/skill-resolver.js', () => ({
   resolveSkills: vi.fn().mockReturnValue([
     { name: 'test-skill', sourcePath: '/framework/skills/test-skill', targetPath: '/project/.claude/skills/test-skill' },
   ]),
 }));
-vi.mock('../../../../src/utils/agent-generator.js', () => ({
+vi.mock('../../../../src/nodes/initialize-project/phase5/agent-generator.js', () => ({
   generateAgents: vi.fn().mockReturnValue([
     { name: 'test-agent', content: '# Test Agent' },
   ]),
