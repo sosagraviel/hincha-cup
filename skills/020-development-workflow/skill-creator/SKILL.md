@@ -114,10 +114,10 @@ If the skill needs bundled resources, create subdirectories as needed (`scripts/
 
 Before registering, verify the SKILL.md against the framework spec. Read these documents and apply them:
 
-- **`docs/SKILLS_SPEC.md`** — Canonical frontmatter schema, archetypes, validation rules
-- **`docs/ADDING_SKILLS.md`** — Registration procedure
-- **`docs/templates/SKILL_TEMPLATE_WORKFLOW.md`** — Starter template for workflow/orchestration skills
-- **`docs/templates/SKILL_TEMPLATE_REFERENCE.md`** — Starter template for reference/mastery skills
+- **`docs/reference/SKILLS_SPEC.md`** — Canonical frontmatter schema, archetypes, validation rules
+- **`docs/guides/ADDING_SKILLS.md`** — Registration procedure
+- **`docs/reference/templates/SKILL_TEMPLATE_WORKFLOW.md`** — Starter template for workflow/orchestration skills
+- **`docs/reference/templates/SKILL_TEMPLATE_REFERENCE.md`** — Starter template for reference/mastery skills
 
 Ensure the frontmatter includes all required fields:
 

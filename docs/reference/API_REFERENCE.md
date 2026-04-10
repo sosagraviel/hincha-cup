@@ -462,4 +462,4 @@ Framework reduces context by 70-85% through intelligent skill linking:
 
 ---
 
-**Need to add a custom skill?** See [Contributing](../CONTRIBUTING.md) for guidelines on creating new skills and agents.
+**Need to add a custom skill?** See [Contributing](../getting-started/CONTRIBUTING.md) for guidelines on creating new skills and agents.
