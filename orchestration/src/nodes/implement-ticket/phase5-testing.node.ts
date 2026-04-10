@@ -23,7 +23,7 @@ import { logger } from '../../utils/logger.js';
  * @returns Updated state with phase5 completion flag
  */
 export async function phase5TestingNode(
-  state: ImplementTicketState
+  state: ImplementTicketState,
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
@@ -41,7 +41,7 @@ export async function phase5TestingNode(
     return {
       current_phase: 'phase6_visual',
       phase5_complete: true,
-      phase5_testing: completionData.testing_data
+      phase5_testing: completionData.testing_data,
     };
   }
 
@@ -51,9 +51,7 @@ export async function phase5TestingNode(
     const phase4CompletionPath = join(phase4Dir, 'implementation-complete.json');
 
     if (!existsSync(phase4CompletionPath)) {
-      throw new Error(
-        'Phase 4 not complete. Run Phase 4 first or use --start-phase 4'
-      );
+      throw new Error('Phase 4 not complete. Run Phase 4 first or use --start-phase 4');
     }
     phaseLogger.success(' ✓ Phase 4 verified');
 
@@ -63,7 +61,9 @@ export async function phase5TestingNode(
     }
 
     const implementationData = JSON.parse(readFileSync(implementationDataPath, 'utf-8'));
-    phaseLogger.success(` ✓ Implementation data loaded (${implementationData.files_modified.length} files modified)`);
+    phaseLogger.success(
+      ` ✓ Implementation data loaded (${implementationData.files_modified.length} files modified)`,
+    );
 
     const phase0Dir = join(tempDir, 'phase0');
     const stackProfilePath = join(phase0Dir, 'stack-profile.json');
@@ -85,10 +85,7 @@ export async function phase5TestingNode(
     phaseLogger.success(` ✓ Framework config loaded`);
 
     // 6. Create test orchestrator
-    const testOrchestrator = new TestOrchestratorService(
-      projectPath,
-      frameworkConfig
-    );
+    const testOrchestrator = new TestOrchestratorService(projectPath, frameworkConfig);
 
     // 7. Run all tests with coverage (80% threshold)
     phaseLogger.info(' Running all tests with coverage...');
@@ -101,7 +98,6 @@ export async function phase5TestingNode(
 
       phaseLogger.blank();
       phaseLogger.success(' ✓ All tests completed');
-
     } catch (error: any) {
       // Hard stop if tests fail or coverage below threshold
       const errorMessage = error.message || 'Test execution failed';
@@ -111,42 +107,42 @@ export async function phase5TestingNode(
       mkdirSync(phase5Dir, { recursive: true });
       writeFileSync(
         join(phase5Dir, 'test-failure.txt'),
-        `Test Failure:\n${errorMessage}\n\nStack:\n${error.stack || 'N/A'}`
+        `Test Failure:\n${errorMessage}\n\nStack:\n${error.stack || 'N/A'}`,
       );
 
       throw new Error(
         `Phase 5 failed: ${errorMessage}\n\n` +
-        `This is a HARD STOP - tests must pass before continuing.\n` +
-        `Fix the failing tests and re-run from Phase 5.`
+          `This is a HARD STOP - tests must pass before continuing.\n` +
+          `Fix the failing tests and re-run from Phase 5.`,
       );
     }
 
     // 8. Validate test results
-    const failedTests = allTestResults.filter(r => !r.passed);
+    const failedTests = allTestResults.filter((r) => !r.passed);
     if (failedTests.length > 0) {
-      const failureDetails = failedTests.map(r =>
-        `${r.testType}: ${r.failedTests} failed out of ${r.totalTests} total`
-      ).join('\n');
+      const failureDetails = failedTests
+        .map((r) => `${r.testType}: ${r.failedTests} failed out of ${r.totalTests} total`)
+        .join('\n');
 
       throw new Error(
         `Tests failed:\n${failureDetails}\n\n` +
-        `This is a HARD STOP - all tests must pass before continuing.`
+          `This is a HARD STOP - all tests must pass before continuing.`,
       );
     }
 
     // 9. Validate coverage (if collected)
-    const resultsWithCoverage = allTestResults.filter(r => r.coverage);
+    const resultsWithCoverage = allTestResults.filter((r) => r.coverage);
     if (resultsWithCoverage.length > 0) {
-      const lowCoverage = resultsWithCoverage.filter(r => r.coverage!.overall < 80);
+      const lowCoverage = resultsWithCoverage.filter((r) => r.coverage!.overall < 80);
 
       if (lowCoverage.length > 0) {
-        const coverageDetails = lowCoverage.map(r =>
-          `${r.testType}: ${r.coverage!.overall.toFixed(2)}% (threshold: 80%)`
-        ).join('\n');
+        const coverageDetails = lowCoverage
+          .map((r) => `${r.testType}: ${r.coverage!.overall.toFixed(2)}% (threshold: 80%)`)
+          .join('\n');
 
         throw new Error(
           `Coverage below threshold:\n${coverageDetails}\n\n` +
-          `This is a HARD STOP - coverage must be >= 80% before continuing.`
+            `This is a HARD STOP - coverage must be >= 80% before continuing.`,
         );
       }
     }
@@ -155,7 +151,9 @@ export async function phase5TestingNode(
     phaseLogger.blank();
     phaseLogger.info(' Test Summary:');
     for (const result of allTestResults) {
-      phaseLogger.info(`  • ${result.testType.toUpperCase()}: ${result.passedTests}/${result.totalTests} passed (${(result.duration / 1000).toFixed(2)}s)`);
+      phaseLogger.info(
+        `  • ${result.testType.toUpperCase()}: ${result.passedTests}/${result.totalTests} passed (${(result.duration / 1000).toFixed(2)}s)`,
+      );
       if (result.coverage) {
         phaseLogger.info(`    Coverage: ${result.coverage.overall.toFixed(2)}%`);
       }
@@ -166,10 +164,7 @@ export async function phase5TestingNode(
     phaseLogger.info(' Writing outputs to disk...');
     mkdirSync(phase5Dir, { recursive: true });
 
-    writeFileSync(
-      join(phase5Dir, 'test-results.json'),
-      JSON.stringify(allTestResults, null, 2)
-    );
+    writeFileSync(join(phase5Dir, 'test-results.json'), JSON.stringify(allTestResults, null, 2));
 
     const testSummaryLines: string[] = [];
     testSummaryLines.push('# Test Results Summary\n');
@@ -188,42 +183,48 @@ export async function phase5TestingNode(
       if (result.coverage) {
         testSummaryLines.push('### Coverage\n');
         testSummaryLines.push(`- **Overall**: ${result.coverage.overall.toFixed(2)}%`);
-        testSummaryLines.push(`- **Lines**: ${result.coverage.lines.percentage.toFixed(2)}% (${result.coverage.lines.covered}/${result.coverage.lines.total})`);
-        testSummaryLines.push(`- **Statements**: ${result.coverage.statements.percentage.toFixed(2)}% (${result.coverage.statements.covered}/${result.coverage.statements.total})`);
-        testSummaryLines.push(`- **Functions**: ${result.coverage.functions.percentage.toFixed(2)}% (${result.coverage.functions.covered}/${result.coverage.functions.total})`);
-        testSummaryLines.push(`- **Branches**: ${result.coverage.branches.percentage.toFixed(2)}% (${result.coverage.branches.covered}/${result.coverage.branches.total})\n`);
+        testSummaryLines.push(
+          `- **Lines**: ${result.coverage.lines.percentage.toFixed(2)}% (${result.coverage.lines.covered}/${result.coverage.lines.total})`,
+        );
+        testSummaryLines.push(
+          `- **Statements**: ${result.coverage.statements.percentage.toFixed(2)}% (${result.coverage.statements.covered}/${result.coverage.statements.total})`,
+        );
+        testSummaryLines.push(
+          `- **Functions**: ${result.coverage.functions.percentage.toFixed(2)}% (${result.coverage.functions.covered}/${result.coverage.functions.total})`,
+        );
+        testSummaryLines.push(
+          `- **Branches**: ${result.coverage.branches.percentage.toFixed(2)}% (${result.coverage.branches.covered}/${result.coverage.branches.total})\n`,
+        );
       }
     }
 
-    writeFileSync(
-      join(phase5Dir, 'test-summary.md'),
-      testSummaryLines.join('\n')
-    );
+    writeFileSync(join(phase5Dir, 'test-summary.md'), testSummaryLines.join('\n'));
 
     const testingData = {
       test_results: allTestResults,
       total_tests: allTestResults.reduce((sum, r) => sum + r.totalTests, 0),
       passed_tests: allTestResults.reduce((sum, r) => sum + r.passedTests, 0),
       failed_tests: allTestResults.reduce((sum, r) => sum + r.failedTests, 0),
-      all_passed: allTestResults.every(r => r.passed),
-      overall_passed: allTestResults.every(r => r.passed),
-      coverage_threshold_met: resultsWithCoverage.every(r => r.coverage!.overall >= 80),
-      timestamp: new Date().toISOString()
+      all_passed: allTestResults.every((r) => r.passed),
+      overall_passed: allTestResults.every((r) => r.passed),
+      coverage_threshold_met: resultsWithCoverage.every((r) => r.coverage!.overall >= 80),
+      timestamp: new Date().toISOString(),
     };
 
-    writeFileSync(
-      join(phase5Dir, 'testing-data.json'),
-      JSON.stringify(testingData, null, 2)
-    );
+    writeFileSync(join(phase5Dir, 'testing-data.json'), JSON.stringify(testingData, null, 2));
 
     // Write completion marker (last file to write - indicates phase complete)
     writeFileSync(
       completionMarkerPath,
-      JSON.stringify({
-        completed_at: new Date().toISOString(),
-        ticket_id: ticketId,
-        testing_data: testingData
-      }, null, 2)
+      JSON.stringify(
+        {
+          completed_at: new Date().toISOString(),
+          ticket_id: ticketId,
+          testing_data: testingData,
+        },
+        null,
+        2,
+      ),
     );
 
     phaseLogger.success(' ✓ Outputs written to disk');
@@ -233,16 +234,15 @@ export async function phase5TestingNode(
     return {
       current_phase: 'phase6_visual',
       phase5_complete: true,
-      phase5_testing: testingData
+      phase5_testing: testingData,
     };
-
   } catch (error) {
     const errorMessage = `Testing failed: ${(error as Error).message}`;
     phaseLogger.error(` ✗ ${errorMessage}`);
 
     return {
       errors: [errorMessage],
-      current_phase: 'failed'
+      current_phase: 'failed',
     };
   }
 }

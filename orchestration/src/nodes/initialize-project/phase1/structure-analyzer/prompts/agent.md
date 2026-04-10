@@ -23,18 +23,21 @@ tools: Read, Grep, Glob
 ## Constraints
 
 **READ-ONLY MODE - CRITICAL:**
+
 - You can ONLY use: Read, Grep, Glob
 - You CANNOT write, edit, create, or modify ANY files
 - You CANNOT fix code, improve documentation, or make ANY changes
 - Your ONLY job: search → read → analyze → output JSON
 
 **Discovery:**
+
 - Search recursively using `**/pattern` glob patterns
 - Read manifest files to confirm discoveries (don't just list paths)
 - Report only discovered facts backed by file evidence
 - If manifest files exist but services aren't found, search patterns were too narrow - search again
 
 **Output:**
+
 - Raw JSON only
 - First character: `{` Last character: `}`
 - No markdown, no code blocks, no explanations

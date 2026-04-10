@@ -6,7 +6,10 @@
  */
 
 import { resolveSkills } from '../../nodes/initialize-project/phase5/skill-resolver.js';
-import { generateAgents, writeAgents } from '../../nodes/initialize-project/phase5/agent-generator.js';
+import {
+  generateAgents,
+  writeAgents,
+} from '../../nodes/initialize-project/phase5/agent-generator.js';
 import type { ResolvedSkill, GeneratedAgent } from '../../nodes/initialize-project/phase5/types.js';
 import type { StackProfile } from '../../schemas/index.js';
 import { copyFileSync, mkdirSync, readdirSync, statSync, existsSync, readFileSync } from 'fs';
@@ -50,7 +53,7 @@ function copySkillDirectory(srcPath: string, destPath: string): number {
 export async function updateSingleSkill(
   skillName: string,
   projectPath: string,
-  frameworkPath: string
+  frameworkPath: string,
 ): Promise<{ updated: boolean; filesChanged: number }> {
   const skillsDir = join(frameworkPath, 'skills');
 
@@ -80,7 +83,7 @@ export async function updateSingleSkill(
 export async function addSingleSkill(
   skillName: string,
   projectPath: string,
-  frameworkPath: string
+  frameworkPath: string,
 ): Promise<{ added: boolean; filesAdded: number }> {
   const result = await updateSingleSkill(skillName, projectPath, frameworkPath);
 
@@ -97,7 +100,7 @@ export async function addSingleSkill(
 export async function regenerateSingleAgent(
   agentName: string,
   projectPath: string,
-  frameworkPath: string
+  frameworkPath: string,
 ): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
   try {
     // Read framework-config.json to get stack profile
@@ -109,9 +112,7 @@ export async function regenerateSingleAgent(
       };
     }
 
-    const frameworkConfig = JSON.parse(
-      readFileSync(configPath, 'utf-8')
-    );
+    const frameworkConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
     const stackProfile: StackProfile = frameworkConfig.stack_profile;
 
     // Resolve skills to get current skill list
@@ -124,7 +125,7 @@ export async function regenerateSingleAgent(
       resolvedSkills,
       projectPath,
       templatesPath,
-      frameworkPath
+      frameworkPath,
     );
 
     // Find the specific agent to regenerate
@@ -188,10 +189,7 @@ function findSkillPath(skillsDir: string, skillName: string): string | null {
 /**
  * Sync a single command file from framework to project
  */
-export async function syncSingleCommand(
-  sourcePath: string,
-  targetPath: string
-): Promise<void> {
+export async function syncSingleCommand(sourcePath: string, targetPath: string): Promise<void> {
   const targetDir = dirname(targetPath);
   mkdirSync(targetDir, { recursive: true });
   copyFileSync(sourcePath, targetPath);

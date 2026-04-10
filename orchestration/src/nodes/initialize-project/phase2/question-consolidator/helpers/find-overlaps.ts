@@ -1,5 +1,5 @@
-import type { AnalyzerOutput } from "../../../../../state/schemas/initialize-project.schema.js";
-import type { Overlap } from "../types.js";
+import type { AnalyzerOutput } from '../../../../../state/schemas/initialize-project.schema.js';
+import type { Overlap } from '../types.js';
 
 /**
  * Find overlaps between agent findings
@@ -7,16 +7,16 @@ import type { Overlap } from "../types.js";
 export function findOverlaps(analyzers: AnalyzerOutput[]): Overlap[] {
   const overlaps: Overlap[] = [];
 
-  const allFindings = analyzers.flatMap(analyzer => {
+  const allFindings = analyzers.flatMap((analyzer) => {
     return Object.entries(analyzer.findings || {}).map(([category, items]) => ({
       agent: analyzer.agent_name,
       category,
-      items: Array.isArray(items) ? items : [items]
+      items: Array.isArray(items) ? items : [items],
     }));
   });
 
   const byCategory: Record<string, typeof allFindings> = {};
-  allFindings.forEach(finding => {
+  allFindings.forEach((finding) => {
     if (!byCategory[finding.category]) {
       byCategory[finding.category] = [];
     }
@@ -27,9 +27,9 @@ export function findOverlaps(analyzers: AnalyzerOutput[]): Overlap[] {
     if (findings.length > 1) {
       overlaps.push({
         category,
-        agents: findings.map(f => f.agent),
+        agents: findings.map((f) => f.agent),
         count: findings.length,
-        confidence: findings.length >= 3 ? 'high' : 'medium'
+        confidence: findings.length >= 3 ? 'high' : 'medium',
       });
     }
   });

@@ -25,7 +25,7 @@ import { ArtifactCollectorService } from '../../services/implement-ticket/artifa
  * @returns Updated state with phase8 completion flag
  */
 export async function phase8PRNode(
-  state: ImplementTicketState
+  state: ImplementTicketState,
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
@@ -41,7 +41,7 @@ export async function phase8PRNode(
     return {
       current_phase: 'phase9_review',
       phase8_complete: true,
-      phase8_pr: completionData.pr_data
+      phase8_pr: completionData.pr_data,
     };
   }
 
@@ -51,9 +51,7 @@ export async function phase8PRNode(
     const phase7CompletionPath = join(phase7Dir, 'documentation-complete.json');
 
     if (!existsSync(phase7CompletionPath)) {
-      throw new Error(
-        'Phase 7 not complete. Run Phase 7 first or use --start-phase 7'
-      );
+      throw new Error('Phase 7 not complete. Run Phase 7 first or use --start-phase 7');
     }
     console.log('[Phase 8: PR Creation] ✓ Phase 7 verified');
 
@@ -112,25 +110,29 @@ export async function phase8PRNode(
       visualVerification,
       beforeScreenshots,
       afterScreenshots,
-      diffResults
+      diffResults,
     );
 
     console.log(`[Phase 8: PR Creation] ✓ Artifacts collected`);
     console.log(`  • Screenshots: ${artifactCollection.artifacts.screenshots.length}`);
     console.log(`  • Test results: ${artifactCollection.artifacts.testResults.length}`);
     console.log(`  • Coverage reports: ${artifactCollection.artifacts.coverageReports.length}`);
-    console.log(`  • Implementation logs: ${artifactCollection.artifacts.implementationLogs.length}`);
+    console.log(
+      `  • Implementation logs: ${artifactCollection.artifacts.implementationLogs.length}`,
+    );
 
     // 7. Get commit statistics
     const commitStats = artifactCollector.getCommitStatistics();
-    console.log(`[Phase 8: PR Creation] ✓ Commit statistics: ${commitStats.filesChanged} files, +${commitStats.linesAdded}/-${commitStats.linesRemoved} lines`);
+    console.log(
+      `[Phase 8: PR Creation] ✓ Commit statistics: ${commitStats.filesChanged} files, +${commitStats.linesAdded}/-${commitStats.linesRemoved} lines`,
+    );
 
     // 8. Check git status
     console.log('[Phase 8: PR Creation] Checking git status...');
 
     const gitStatus = execSync('git status --porcelain', {
       cwd: projectPath,
-      encoding: 'utf-8'
+      encoding: 'utf-8',
     }).trim();
 
     if (!gitStatus) {
@@ -143,7 +145,7 @@ export async function phase8PRNode(
     // 9. Get current branch name
     const currentBranch = execSync('git branch --show-current', {
       cwd: projectPath,
-      encoding: 'utf-8'
+      encoding: 'utf-8',
     }).trim();
 
     console.log(`[Phase 8: PR Creation] Current branch: ${currentBranch}`);
@@ -153,7 +155,7 @@ export async function phase8PRNode(
       ticketId,
       artifactCollection,
       testResults,
-      visualVerification
+      visualVerification,
     );
 
     console.log('[Phase 8: PR Creation] Commit message generated');
@@ -163,7 +165,7 @@ export async function phase8PRNode(
 
     execSync('git add .', {
       cwd: projectPath,
-      stdio: 'pipe'
+      stdio: 'pipe',
     });
 
     console.log('[Phase 8: PR Creation] ✓ Changes staged');
@@ -175,11 +177,10 @@ export async function phase8PRNode(
       execSync(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, {
         cwd: projectPath,
         encoding: 'utf-8',
-        stdio: 'pipe'
+        stdio: 'pipe',
       });
 
       console.log('[Phase 8: PR Creation] ✓ Commit created');
-
     } catch (error: any) {
       throw new Error(`Git commit failed: ${error.message}`);
     }
@@ -191,13 +192,14 @@ export async function phase8PRNode(
       execSync(`git push -u origin ${currentBranch}`, {
         cwd: projectPath,
         encoding: 'utf-8',
-        stdio: 'pipe'
+        stdio: 'pipe',
       });
 
       console.log('[Phase 8: PR Creation] ✓ Pushed to remote');
-
     } catch (error: any) {
-      throw new Error(`Git push failed: ${error.message}\n\nMake sure you have push access to the repository.`);
+      throw new Error(
+        `Git push failed: ${error.message}\n\nMake sure you have push access to the repository.`,
+      );
     }
 
     // 14. Create PR via gh CLI
@@ -211,7 +213,7 @@ export async function phase8PRNode(
     try {
       const remoteMainExists = execSync('git ls-remote --heads origin main', {
         cwd: projectPath,
-        encoding: 'utf-8'
+        encoding: 'utf-8',
       }).trim();
 
       if (!remoteMainExists) {
@@ -229,7 +231,7 @@ export async function phase8PRNode(
       const prOutput = execSync(prCommand, {
         cwd: projectPath,
         encoding: 'utf-8',
-        shell: '/bin/bash'
+        shell: '/bin/bash',
       }).trim();
 
       // Extract PR URL from output (usually last line)
@@ -240,33 +242,25 @@ export async function phase8PRNode(
       }
 
       console.log(`[Phase 8: PR Creation] ✓ Pull request created: ${prUrl}`);
-
     } catch (error: any) {
-      throw new Error(`PR creation failed: ${error.message}\n\nMake sure gh CLI is installed and authenticated.`);
+      throw new Error(
+        `PR creation failed: ${error.message}\n\nMake sure gh CLI is installed and authenticated.`,
+      );
     }
 
     // 15. PERSIST TO DISK FIRST (critical for idempotency!)
     console.log('[Phase 8: PR Creation] Writing outputs to disk...');
     mkdirSync(phase8Dir, { recursive: true });
 
-    writeFileSync(
-      join(phase8Dir, 'pr-url.txt'),
-      prUrl
-    );
+    writeFileSync(join(phase8Dir, 'pr-url.txt'), prUrl);
 
-    writeFileSync(
-      join(phase8Dir, 'pr-description.md'),
-      prBody
-    );
+    writeFileSync(join(phase8Dir, 'pr-description.md'), prBody);
 
-    writeFileSync(
-      join(phase8Dir, 'commit-message.txt'),
-      commitMessage
-    );
+    writeFileSync(join(phase8Dir, 'commit-message.txt'), commitMessage);
 
     writeFileSync(
       join(phase8Dir, 'artifact-collection.json'),
-      JSON.stringify(artifactCollection, null, 2)
+      JSON.stringify(artifactCollection, null, 2),
     );
 
     const prData = {
@@ -278,22 +272,23 @@ export async function phase8PRNode(
       base_branch: baseBranch,
       commit_stats: commitStats,
       artifacts: artifactCollection.artifacts,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
-    writeFileSync(
-      join(phase8Dir, 'pr-data.json'),
-      JSON.stringify(prData, null, 2)
-    );
+    writeFileSync(join(phase8Dir, 'pr-data.json'), JSON.stringify(prData, null, 2));
 
     // Write completion marker (last file to write - indicates phase complete)
     writeFileSync(
       completionMarkerPath,
-      JSON.stringify({
-        completed_at: new Date().toISOString(),
-        ticket_id: ticketId,
-        pr_data: prData
-      }, null, 2)
+      JSON.stringify(
+        {
+          completed_at: new Date().toISOString(),
+          ticket_id: ticketId,
+          pr_data: prData,
+        },
+        null,
+        2,
+      ),
     );
 
     console.log('[Phase 8: PR Creation] ✓ Outputs written to disk');
@@ -304,16 +299,15 @@ export async function phase8PRNode(
     return {
       current_phase: 'phase9_review',
       phase8_complete: true,
-      phase8_pr: prData
+      phase8_pr: prData,
     };
-
   } catch (error) {
     const errorMessage = `PR creation failed: ${(error as Error).message}`;
     console.error(`[Phase 8: PR Creation] ✗ ${errorMessage}`);
 
     return {
       errors: [errorMessage],
-      current_phase: 'failed'
+      current_phase: 'failed',
     };
   }
 }
@@ -332,7 +326,7 @@ function generateCommitMessage(
   ticketId: string,
   artifactCollection: any,
   testResults: any[],
-  visualVerification: any
+  visualVerification: any,
 ): string {
   const lines: string[] = [];
 

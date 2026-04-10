@@ -1,14 +1,26 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { validateAgentFile, assertAgentFileValid } from '../../../../../src/utils/shared/agent-factory/agent-validator.js';
+import {
+  validateAgentFile,
+  assertAgentFileValid,
+} from '../../../../../src/utils/shared/agent-factory/agent-validator.js';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
 
 describe('validateAgentFile', () => {
   // Use new phase-specific agent paths
-  const phase1AgentsDir = path.join(__dirname, '../../../../../src/nodes/initialize-project/phase1');
-  const phase2AgentsDir = path.join(__dirname, '../../../../../src/nodes/initialize-project/phase2');
-  const phase3AgentsDir = path.join(__dirname, '../../../../../src/nodes/initialize-project/phase3');
+  const phase1AgentsDir = path.join(
+    __dirname,
+    '../../../../../src/nodes/initialize-project/phase1',
+  );
+  const phase2AgentsDir = path.join(
+    __dirname,
+    '../../../../../src/nodes/initialize-project/phase2',
+  );
+  const phase3AgentsDir = path.join(
+    __dirname,
+    '../../../../../src/nodes/initialize-project/phase3',
+  );
   let tempDir: string;
 
   beforeAll(() => {
@@ -24,7 +36,7 @@ describe('validateAgentFile', () => {
   describe('Valid Agent Files', () => {
     it('should validate structure-architecture-analyzer', () => {
       const result = validateAgentFile(
-        path.join(phase1AgentsDir, 'structure-analyzer/prompts/agent.md')
+        path.join(phase1AgentsDir, 'structure-analyzer/prompts/agent.md'),
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -33,7 +45,7 @@ describe('validateAgentFile', () => {
 
     it('should validate tech-stack-dependencies-analyzer', () => {
       const result = validateAgentFile(
-        path.join(phase1AgentsDir, 'tech-stack-analyzer/prompts/agent.md')
+        path.join(phase1AgentsDir, 'tech-stack-analyzer/prompts/agent.md'),
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -41,7 +53,7 @@ describe('validateAgentFile', () => {
 
     it('should validate code-patterns-testing-analyzer', () => {
       const result = validateAgentFile(
-        path.join(phase1AgentsDir, 'code-patterns-analyzer/prompts/agent.md')
+        path.join(phase1AgentsDir, 'code-patterns-analyzer/prompts/agent.md'),
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -49,23 +61,21 @@ describe('validateAgentFile', () => {
 
     it('should validate data-flows-integrations-analyzer', () => {
       const result = validateAgentFile(
-        path.join(phase1AgentsDir, 'data-flows-analyzer/prompts/agent.md')
+        path.join(phase1AgentsDir, 'data-flows-analyzer/prompts/agent.md'),
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
     it('should validate architect-synthesizer', () => {
-      const result = validateAgentFile(
-        path.join(phase3AgentsDir, 'prompts/agent.md')
-      );
+      const result = validateAgentFile(path.join(phase3AgentsDir, 'prompts/agent.md'));
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
     it('should validate question-consolidator', () => {
       const result = validateAgentFile(
-        path.join(phase2AgentsDir, 'question-consolidator/prompts/agent.md')
+        path.join(phase2AgentsDir, 'question-consolidator/prompts/agent.md'),
       );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -107,12 +117,15 @@ describe('validateAgentFile', () => {
 
     it('should reject invalid YAML syntax', () => {
       const invalidYaml = path.join(tempDir, 'invalid-yaml.md');
-      fs.writeFileSync(invalidYaml, `---
+      fs.writeFileSync(
+        invalidYaml,
+        `---
 name: test-agent
 description: [unclosed bracket
 ---
 
-# Agent Content`);
+# Agent Content`,
+      );
 
       const result = validateAgentFile(invalidYaml);
       expect(result.valid).toBe(false);
@@ -123,56 +136,68 @@ description: [unclosed bracket
   describe('Required Fields Validation', () => {
     it('should reject missing name field', () => {
       const missingName = path.join(tempDir, 'missing-name.md');
-      fs.writeFileSync(missingName, `---
+      fs.writeFileSync(
+        missingName,
+        `---
 description: This is a test agent
 ---
 
-# Agent Content`);
+# Agent Content`,
+      );
 
       const result = validateAgentFile(missingName);
       expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('name'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('name'))).toBe(true);
     });
 
     it('should reject missing description field', () => {
       const missingDesc = path.join(tempDir, 'missing-description.md');
-      fs.writeFileSync(missingDesc, `---
+      fs.writeFileSync(
+        missingDesc,
+        `---
 name: test-agent
 ---
 
-# Agent Content`);
+# Agent Content`,
+      );
 
       const result = validateAgentFile(missingDesc);
       expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('description'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('description'))).toBe(true);
     });
 
     it('should reject when both required fields are missing', () => {
       const missingBoth = path.join(tempDir, 'missing-both.md');
-      fs.writeFileSync(missingBoth, `---
+      fs.writeFileSync(
+        missingBoth,
+        `---
 model: sonnet
 ---
 
-# Agent Content`);
+# Agent Content`,
+      );
 
       const result = validateAgentFile(missingBoth);
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThanOrEqual(2);
-      expect(result.errors.some(e => e.includes('name'))).toBe(true);
-      expect(result.errors.some(e => e.includes('description'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('name'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('description'))).toBe(true);
     });
   });
 
   describe('Field Name Warnings', () => {
     it('should warn about unknown fields', () => {
       const unknownField = path.join(tempDir, 'unknown-field.md');
-      fs.writeFileSync(unknownField, `---
+      fs.writeFileSync(
+        unknownField,
+        `---
 name: test-agent
 description: Test agent with unknown field
 custom_unknown_field: some_value
 ---
 
-# Agent Content`);
+# Agent Content`,
+      );
 
       const result = validateAgentFile(unknownField);
       expect(result.valid).toBe(true); // Still valid (warnings don't fail validation)
@@ -183,7 +208,9 @@ custom_unknown_field: some_value
 
     it('should not warn about valid CLI fields', () => {
       const validFields = path.join(tempDir, 'valid-fields.md');
-      fs.writeFileSync(validFields, `---
+      fs.writeFileSync(
+        validFields,
+        `---
 name: test-agent
 description: Test agent with all valid fields
 model: sonnet
@@ -193,7 +220,8 @@ maxTurns: 10
 user-prompt-submit-hook: ./hooks/validate.ts
 ---
 
-# Agent Content`);
+# Agent Content`,
+      );
 
       const result = validateAgentFile(validFields);
       expect(result.valid).toBe(true);
@@ -202,7 +230,9 @@ user-prompt-submit-hook: ./hooks/validate.ts
 
     it('should not warn about framework fields', () => {
       const frameworkFields = path.join(tempDir, 'framework-fields.md');
-      fs.writeFileSync(frameworkFields, `---
+      fs.writeFileSync(
+        frameworkFields,
+        `---
 name: test-agent
 description: Test agent with framework fields
 subagent_type: Explore
@@ -210,7 +240,8 @@ run_in_background: true
 output_format: json
 ---
 
-# Agent Content`);
+# Agent Content`,
+      );
 
       const result = validateAgentFile(frameworkFields);
       expect(result.valid).toBe(true);
@@ -226,11 +257,14 @@ output_format: json
 
     it('should throw for invalid agent file with clear error message', () => {
       const invalidAgent = path.join(tempDir, 'invalid-for-assert.md');
-      fs.writeFileSync(invalidAgent, `---
+      fs.writeFileSync(
+        invalidAgent,
+        `---
 model: sonnet
 ---
 
-# Missing required fields`);
+# Missing required fields`,
+      );
 
       expect(() => assertAgentFileValid(invalidAgent)).toThrow('Invalid agent file');
       expect(() => assertAgentFileValid(invalidAgent)).toThrow('Errors:');
@@ -245,10 +279,13 @@ model: sonnet
   describe('Edge Cases', () => {
     it('should handle agent with empty frontmatter', () => {
       const emptyFrontmatter = path.join(tempDir, 'empty-frontmatter.md');
-      fs.writeFileSync(emptyFrontmatter, `---
+      fs.writeFileSync(
+        emptyFrontmatter,
+        `---
 ---
 
-# Agent Content`);
+# Agent Content`,
+      );
 
       const result = validateAgentFile(emptyFrontmatter);
       expect(result.valid).toBe(false);
@@ -257,7 +294,9 @@ model: sonnet
 
     it('should handle agent with comments in frontmatter', () => {
       const withComments = path.join(tempDir, 'with-comments.md');
-      fs.writeFileSync(withComments, `---
+      fs.writeFileSync(
+        withComments,
+        `---
 name: test-agent
 # This is a comment
 description: Test agent
@@ -265,7 +304,8 @@ description: Test agent
 model: sonnet
 ---
 
-# Agent Content`);
+# Agent Content`,
+      );
 
       const result = validateAgentFile(withComments);
       expect(result.valid).toBe(true);
@@ -275,12 +315,15 @@ model: sonnet
     it('should handle agent with very long description', () => {
       const longDesc = path.join(tempDir, 'long-description.md');
       const longDescription = 'A'.repeat(10000);
-      fs.writeFileSync(longDesc, `---
+      fs.writeFileSync(
+        longDesc,
+        `---
 name: test-agent
 description: ${longDescription}
 ---
 
-# Agent Content`);
+# Agent Content`,
+      );
 
       const result = validateAgentFile(longDesc);
       expect(result.valid).toBe(true);

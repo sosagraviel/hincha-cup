@@ -197,7 +197,7 @@ describe('Logger', () => {
       const logger = new Logger();
       const data = {
         'Key 1': 'Value 1',
-        'Key 2': 'Value 2'
+        'Key 2': 'Value 2',
       };
       logger.table(data);
       expect(consoleLogSpy).toHaveBeenCalled();
@@ -206,7 +206,7 @@ describe('Logger', () => {
     it('should log table with title', () => {
       const logger = new Logger();
       const data = {
-        'Key 1': 'Value 1'
+        'Key 1': 'Value 1',
       };
       logger.table(data, 'Test Table');
       expect(consoleLogSpy).toHaveBeenCalled();

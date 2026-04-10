@@ -1,7 +1,7 @@
-import { readdir, stat } from "fs/promises";
-import { join, extname, relative, basename } from "path";
-import { logger } from "../../../utils/logger.js";
-import { LANGUAGE_EXTENSIONS, IGNORE_DIRS } from "./constants.js";
+import { readdir, stat } from 'fs/promises';
+import { join, extname, relative, basename } from 'path';
+import { logger } from '../../../utils/logger.js';
+import { LANGUAGE_EXTENSIONS, IGNORE_DIRS } from './constants.js';
 
 /**
  * File count information for a specific language
@@ -23,7 +23,6 @@ export interface FileCountResult {
   errors: string[];
 }
 
-
 /**
  * Count files by programming language in a project directory
  *
@@ -40,9 +39,7 @@ export async function countFilesByLanguage(
   // Determine framework directory name to exclude
   // CRITICAL: This must match the logic in prompt-loader.ts and preflight-checks.ts
   // Framework is ALWAYS at project root: <project>/<framework-name>/
-  const frameworkDirName = frameworkPath
-    ? basename(frameworkPath)
-    : "qubika-agentic-framework"; // Fallback if not provided
+  const frameworkDirName = frameworkPath ? basename(frameworkPath) : 'qubika-agentic-framework'; // Fallback if not provided
   // Map: language -> Set of file paths
   const languageFiles = new Map<string, Set<string>>();
   const errors: string[] = [];
@@ -67,10 +64,7 @@ export async function countFilesByLanguage(
 
       // Extract unique directories
       for (const file of files) {
-        const dir = file.substring(
-          projectPath.length + 1,
-          file.lastIndexOf("/"),
-        );
+        const dir = file.substring(projectPath.length + 1, file.lastIndexOf('/'));
         if (dir) {
           directories.add(dir);
         }
@@ -140,9 +134,7 @@ export async function countFilesByLanguage(
             // Check file extension against language map
             const ext = extname(entry.name).toLowerCase();
 
-            for (const [language, extensions] of Object.entries(
-              LANGUAGE_EXTENSIONS,
-            )) {
+            for (const [language, extensions] of Object.entries(LANGUAGE_EXTENSIONS)) {
               if (extensions.includes(ext)) {
                 stats.get(language)?.add(fullPath);
                 break; // File matched, no need to check other languages
@@ -181,9 +173,7 @@ export function getLanguageExtensions(language: string): string[] | undefined {
 /**
  * Detect language from file extension
  */
-export function detectLanguageFromExtension(
-  filename: string,
-): string | undefined {
+export function detectLanguageFromExtension(filename: string): string | undefined {
   const ext = extname(filename).toLowerCase();
 
   for (const [language, extensions] of Object.entries(LANGUAGE_EXTENSIONS)) {

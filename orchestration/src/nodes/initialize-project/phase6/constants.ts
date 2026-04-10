@@ -37,16 +37,16 @@ export const SIGNIFICANT_LANGUAGE_THRESHOLD = 10;
  * Standard .claude subdirectories that should exist after initialization
  */
 export const REQUIRED_DIRECTORIES = {
-  SKILLS: "skills",
-  AGENTS: "agents",
-  COMMANDS: "commands",
-  PROJECT_CONTEXT: "project-context",
+  SKILLS: 'skills',
+  AGENTS: 'agents',
+  COMMANDS: 'commands',
+  PROJECT_CONTEXT: 'project-context',
 } as const;
 
 /**
  * File extensions for validation
  */
 export const FILE_EXTENSIONS = {
-  MARKDOWN: ".md",
-  JSON: ".json",
+  MARKDOWN: '.md',
+  JSON: '.json',
 } as const;

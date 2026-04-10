@@ -1,4 +1,4 @@
-import { AuthMode } from "../../../auth/auth-detector.js";
+import { AuthMode } from '../../../auth/auth-detector.js';
 
 export interface AgentConfig {
   agentName: string;

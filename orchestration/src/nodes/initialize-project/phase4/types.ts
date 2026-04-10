@@ -9,7 +9,7 @@ import type {
   ServiceTesting,
   ServiceDatabase,
   ServiceEnvironment,
-} from "../../../schemas/stack-profile.schema.js";
+} from '../../../schemas/stack-profile.schema.js';
 
 // ============================================================================
 // FILE COUNTER TYPES
@@ -126,16 +126,28 @@ export interface ServiceExtractionContext {
  * Helper functions for service extraction
  */
 export interface ServiceExtractionHelpers {
-  extractTestingForService: (serviceId: string, codePatternsFindings: any) => ServiceTesting | undefined;
-  extractTestingFrameworkForService: (serviceId: string, codePatternsFindings: any) => string | undefined;
+  extractTestingForService: (
+    serviceId: string,
+    codePatternsFindings: any,
+  ) => ServiceTesting | undefined;
+  extractTestingFrameworkForService: (
+    serviceId: string,
+    codePatternsFindings: any,
+  ) => string | undefined;
   extractDatabasesForService: (
     serviceId: string,
     techStackFindings: any,
-    dataFlowsFindings?: any
+    dataFlowsFindings?: any,
   ) => ServiceDatabase[] | undefined;
   extractORMForService: (serviceId: string, techStackFindings: any) => string | undefined;
-  extractEnvironmentForService: (serviceId: string, structureFindings: any) => ServiceEnvironment | undefined;
-  extractPackageManagerForService: (serviceId: string, techStackFindings: any) => string | undefined;
+  extractEnvironmentForService: (
+    serviceId: string,
+    structureFindings: any,
+  ) => ServiceEnvironment | undefined;
+  extractPackageManagerForService: (
+    serviceId: string,
+    techStackFindings: any,
+  ) => string | undefined;
   extractManifestFileForService: (serviceId: string, techStackFindings: any) => string | undefined;
 }
 

@@ -1,4 +1,4 @@
-import { GapQuestionsService } from "../../../../../services/gap-questions.service.js";
+import { GapQuestionsService } from '../../../../../services/gap-questions.service.js';
 
 /**
  * Ask gap questions interactively using TypeScript service
@@ -10,10 +10,7 @@ export async function askGapQuestions(
   const gapService = new GapQuestionsService();
 
   try {
-    const result = await gapService.askGapQuestions(
-      consolidationPath,
-      skipQuestions,
-    );
+    const result = await gapService.askGapQuestions(consolidationPath, skipQuestions);
 
     return {
       success: result.success,

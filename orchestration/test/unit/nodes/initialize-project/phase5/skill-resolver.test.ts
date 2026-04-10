@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { resolveSkills, copyResolvedSkills } from '../../../../../src/nodes/initialize-project/phase5/skill-resolver.js';
-import type { ResolvedSkill, SkillConfig } from '../../../../../src/nodes/initialize-project/phase5/types.js';
+import {
+  resolveSkills,
+  copyResolvedSkills,
+} from '../../../../../src/nodes/initialize-project/phase5/skill-resolver.js';
+import type {
+  ResolvedSkill,
+  SkillConfig,
+} from '../../../../../src/nodes/initialize-project/phase5/types.js';
 import type { StackProfile } from '../../../../../src/schemas/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -33,24 +39,24 @@ describe('skill-resolver', () => {
         type: 'backend',
         language: 'typescript',
         frameworks: {
-          main: 'express'
-        }
-      }
+          main: 'express',
+        },
+      },
     ],
     is_monorepo: false,
-    ...overrides
+    ...overrides,
   });
 
   const createSkillsConfig = (skills: Partial<SkillConfig>[]): { skills: SkillConfig[] } => ({
-    skills: skills.map(s => ({
+    skills: skills.map((s) => ({
       name: s.name || 'test-skill',
       path: s.path || '010-foundation/test-skill',
       description: s.description || 'Test skill',
       triggers: s.triggers,
       trigger_mode: s.trigger_mode || 'triggered',
       compatible_languages: s.compatible_languages,
-      is_linkable_to_agents: s.is_linkable_to_agents
-    }))
+      is_linkable_to_agents: s.is_linkable_to_agents,
+    })),
   });
 
   describe('resolveSkills', () => {
@@ -61,8 +67,8 @@ describe('skill-resolver', () => {
           name: 'typescript-skill',
           path: '020-languages/typescript',
           triggers: ['typescript'],
-          compatible_languages: ['typescript']
-        }
+          compatible_languages: ['typescript'],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -71,7 +77,7 @@ describe('skill-resolver', () => {
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
       expect(resolved.length).toBeGreaterThan(0);
-      const tsSkill = resolved.find(s => s.name === 'typescript-skill');
+      const tsSkill = resolved.find((s) => s.name === 'typescript-skill');
       expect(tsSkill).toBeDefined();
       expect(tsSkill?.reason).toContain('typescript');
     });
@@ -83,8 +89,8 @@ describe('skill-resolver', () => {
           name: 'always-skill',
           path: '010-foundation/always-skill',
           trigger_mode: 'always',
-          triggers: []
-        }
+          triggers: [],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -92,7 +98,7 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      const alwaysSkill = resolved.find(s => s.name === 'always-skill');
+      const alwaysSkill = resolved.find((s) => s.name === 'always-skill');
       expect(alwaysSkill).toBeDefined();
       expect(alwaysSkill?.reason).toBe('Always included');
       expect(alwaysSkill?.trigger_mode).toBe('always');
@@ -105,14 +111,14 @@ describe('skill-resolver', () => {
           name: 'generated-skill',
           path: '010-foundation/project-context',
           trigger_mode: 'generated',
-          triggers: []
+          triggers: [],
         },
         {
           name: 'normal-skill',
           path: '010-foundation/normal',
           trigger_mode: 'triggered',
-          triggers: ['typescript']
-        }
+          triggers: ['typescript'],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -120,8 +126,8 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      expect(resolved.find(s => s.name === 'generated-skill')).toBeUndefined();
-      expect(resolved.find(s => s.name === 'normal-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'generated-skill')).toBeUndefined();
+      expect(resolved.find((s) => s.name === 'normal-skill')).toBeDefined();
     });
 
     it('should match skills by framework triggers', () => {
@@ -134,8 +140,8 @@ describe('skill-resolver', () => {
             language: 'typescript',
             frameworks: {
               main: 'react',
-              additional: ['nextjs']
-            }
+              additional: ['nextjs'],
+            },
           },
           {
             id: 'backend',
@@ -143,23 +149,23 @@ describe('skill-resolver', () => {
             type: 'backend',
             language: 'typescript',
             frameworks: {
-              main: 'express'
-            }
-          }
+              main: 'express',
+            },
+          },
         ],
-        is_monorepo: true
+        is_monorepo: true,
       });
       const skillsConfig = createSkillsConfig([
         {
           name: 'react-skill',
           path: '030-frameworks/react',
-          triggers: ['react']
+          triggers: ['react'],
         },
         {
           name: 'vue-skill',
           path: '030-frameworks/vue',
-          triggers: ['vue']
-        }
+          triggers: ['vue'],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -167,8 +173,8 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      expect(resolved.find(s => s.name === 'react-skill')).toBeDefined();
-      expect(resolved.find(s => s.name === 'vue-skill')).toBeUndefined();
+      expect(resolved.find((s) => s.name === 'react-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'vue-skill')).toBeUndefined();
     });
 
     it('should match skills by testing framework triggers', () => {
@@ -180,31 +186,31 @@ describe('skill-resolver', () => {
             type: 'backend',
             language: 'typescript',
             frameworks: {
-              main: 'express'
+              main: 'express',
             },
             testing: {
               unit: {
-                framework: 'vitest'
+                framework: 'vitest',
               },
               e2e: {
-                framework: 'playwright'
-              }
-            }
-          }
+                framework: 'playwright',
+              },
+            },
+          },
         ],
-        is_monorepo: false
+        is_monorepo: false,
       });
       const skillsConfig = createSkillsConfig([
         {
           name: 'vitest-skill',
           path: '040-testing/vitest',
-          triggers: ['vitest']
+          triggers: ['vitest'],
         },
         {
           name: 'jest-skill',
           path: '040-testing/jest',
-          triggers: ['jest']
-        }
+          triggers: ['jest'],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -212,25 +218,25 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      expect(resolved.find(s => s.name === 'vitest-skill')).toBeDefined();
-      expect(resolved.find(s => s.name === 'jest-skill')).toBeUndefined();
+      expect(resolved.find((s) => s.name === 'vitest-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'jest-skill')).toBeUndefined();
     });
 
     it('should match skills by infrastructure triggers', () => {
       const stackProfile = createMockStackProfile({
-        infrastructure: ['docker', 'kubernetes']
+        infrastructure: ['docker', 'kubernetes'],
       });
       const skillsConfig = createSkillsConfig([
         {
           name: 'docker-skill',
           path: '050-infrastructure/docker',
-          triggers: ['docker']
+          triggers: ['docker'],
         },
         {
           name: 'terraform-skill',
           path: '050-infrastructure/terraform',
-          triggers: ['terraform']
-        }
+          triggers: ['terraform'],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -238,8 +244,8 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      expect(resolved.find(s => s.name === 'docker-skill')).toBeDefined();
-      expect(resolved.find(s => s.name === 'terraform-skill')).toBeUndefined();
+      expect(resolved.find((s) => s.name === 'docker-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'terraform-skill')).toBeUndefined();
     });
 
     it('should match skills from detected workspaces', () => {
@@ -252,18 +258,18 @@ describe('skill-resolver', () => {
             language: 'typescript',
             frameworks: {
               main: 'svelte',
-              additional: ['vite']
-            }
-          }
+              additional: ['vite'],
+            },
+          },
         ],
-        is_monorepo: true
+        is_monorepo: true,
       });
       const skillsConfig = createSkillsConfig([
         {
           name: 'svelte-skill',
           path: '030-frameworks/svelte',
-          triggers: ['svelte']
-        }
+          triggers: ['svelte'],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -271,7 +277,7 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      expect(resolved.find(s => s.name === 'svelte-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'svelte-skill')).toBeDefined();
     });
 
     it('should handle multiple languages', () => {
@@ -283,8 +289,8 @@ describe('skill-resolver', () => {
             type: 'backend',
             language: 'typescript',
             frameworks: {
-              main: 'express'
-            }
+              main: 'express',
+            },
           },
           {
             id: 'backend-py',
@@ -292,8 +298,8 @@ describe('skill-resolver', () => {
             type: 'backend',
             language: 'python',
             frameworks: {
-              main: 'django'
-            }
+              main: 'django',
+            },
           },
           {
             id: 'backend-go',
@@ -301,31 +307,31 @@ describe('skill-resolver', () => {
             type: 'backend',
             language: 'go',
             frameworks: {
-              main: 'gin'
-            }
-          }
+              main: 'gin',
+            },
+          },
         ],
-        is_monorepo: true
+        is_monorepo: true,
       });
       const skillsConfig = createSkillsConfig([
         {
           name: 'ts-skill',
           path: '020-languages/typescript',
           triggers: ['typescript'],
-          compatible_languages: ['typescript']
+          compatible_languages: ['typescript'],
         },
         {
           name: 'py-skill',
           path: '020-languages/python',
           triggers: ['python'],
-          compatible_languages: ['python']
+          compatible_languages: ['python'],
         },
         {
           name: 'go-skill',
           path: '020-languages/go',
           triggers: ['go'],
-          compatible_languages: ['go']
-        }
+          compatible_languages: ['go'],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -333,9 +339,9 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      expect(resolved.find(s => s.name === 'ts-skill')).toBeDefined();
-      expect(resolved.find(s => s.name === 'py-skill')).toBeDefined();
-      expect(resolved.find(s => s.name === 'go-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'ts-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'py-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'go-skill')).toBeDefined();
     });
 
     it('should throw error when skills config not found', () => {
@@ -354,8 +360,8 @@ describe('skill-resolver', () => {
         {
           name: 'no-triggers-skill',
           path: '010-foundation/no-triggers',
-          triggers: undefined
-        }
+          triggers: undefined,
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -363,7 +369,7 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      expect(resolved.find(s => s.name === 'no-triggers-skill')).toBeUndefined();
+      expect(resolved.find((s) => s.name === 'no-triggers-skill')).toBeUndefined();
     });
 
     it('should handle empty triggers array', () => {
@@ -372,8 +378,8 @@ describe('skill-resolver', () => {
         {
           name: 'empty-triggers-skill',
           path: '010-foundation/empty-triggers',
-          triggers: []
-        }
+          triggers: [],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -381,7 +387,7 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      expect(resolved.find(s => s.name === 'empty-triggers-skill')).toBeUndefined();
+      expect(resolved.find((s) => s.name === 'empty-triggers-skill')).toBeUndefined();
     });
 
     it('should normalize framework names for matching', () => {
@@ -394,23 +400,23 @@ describe('skill-resolver', () => {
             language: 'typescript',
             frameworks: {
               main: 'Next.js',
-              ui: '@angular/core'
-            }
-          }
+              ui: '@angular/core',
+            },
+          },
         ],
-        is_monorepo: false
+        is_monorepo: false,
       });
       const skillsConfig = createSkillsConfig([
         {
           name: 'nextjs-skill',
           path: '030-frameworks/nextjs',
-          triggers: ['nextjs']
+          triggers: ['nextjs'],
         },
         {
           name: 'angular-skill',
           path: '030-frameworks/angular',
-          triggers: ['angular']
-        }
+          triggers: ['angular'],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -418,8 +424,8 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      expect(resolved.find(s => s.name === 'nextjs-skill')).toBeDefined();
-      expect(resolved.find(s => s.name === 'angular-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'nextjs-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'angular-skill')).toBeDefined();
     });
 
     it('should include is_linkable_to_agents property', () => {
@@ -429,14 +435,14 @@ describe('skill-resolver', () => {
           name: 'linkable-skill',
           path: '010-foundation/linkable',
           trigger_mode: 'always',
-          is_linkable_to_agents: true
+          is_linkable_to_agents: true,
         },
         {
           name: 'non-linkable-skill',
           path: '010-foundation/non-linkable',
           trigger_mode: 'always',
-          is_linkable_to_agents: false
-        }
+          is_linkable_to_agents: false,
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -444,8 +450,10 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      expect(resolved.find(s => s.name === 'linkable-skill')?.is_linkable_to_agents).toBe(true);
-      expect(resolved.find(s => s.name === 'non-linkable-skill')?.is_linkable_to_agents).toBe(false);
+      expect(resolved.find((s) => s.name === 'linkable-skill')?.is_linkable_to_agents).toBe(true);
+      expect(resolved.find((s) => s.name === 'non-linkable-skill')?.is_linkable_to_agents).toBe(
+        false,
+      );
     });
 
     it('should include compatible_languages property', () => {
@@ -455,8 +463,8 @@ describe('skill-resolver', () => {
           name: 'multi-lang-skill',
           path: '010-foundation/multi-lang',
           trigger_mode: 'always',
-          compatible_languages: ['typescript', 'javascript', 'python']
-        }
+          compatible_languages: ['typescript', 'javascript', 'python'],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -464,7 +472,7 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      const skill = resolved.find(s => s.name === 'multi-lang-skill');
+      const skill = resolved.find((s) => s.name === 'multi-lang-skill');
       expect(skill?.compatible_languages).toEqual(['typescript', 'javascript', 'python']);
     });
 
@@ -478,23 +486,23 @@ describe('skill-resolver', () => {
             language: 'typescript',
             frameworks: {
               main: 'react-native',
-              additional: ['flutter']
-            }
-          }
+              additional: ['flutter'],
+            },
+          },
         ],
-        is_monorepo: false
+        is_monorepo: false,
       });
       const skillsConfig = createSkillsConfig([
         {
           name: 'react-native-skill',
           path: '030-frameworks/react-native',
-          triggers: ['reactnative']
+          triggers: ['reactnative'],
         },
         {
           name: 'flutter-skill',
           path: '030-frameworks/flutter',
-          triggers: ['flutter']
-        }
+          triggers: ['flutter'],
+        },
       ]);
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -502,8 +510,8 @@ describe('skill-resolver', () => {
 
       const resolved = resolveSkills(stackProfile, '/test/framework');
 
-      expect(resolved.find(s => s.name === 'react-native-skill')).toBeDefined();
-      expect(resolved.find(s => s.name === 'flutter-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'react-native-skill')).toBeDefined();
+      expect(resolved.find((s) => s.name === 'flutter-skill')).toBeDefined();
     });
   });
 
@@ -515,8 +523,8 @@ describe('skill-resolver', () => {
           path: '/framework/skills/010-foundation/test-skill',
           relative_path: '010-foundation/test-skill',
           reason: 'Test',
-          description: 'Test skill'
-        }
+          description: 'Test skill',
+        },
       ];
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -525,10 +533,9 @@ describe('skill-resolver', () => {
 
       const fileCount = copyResolvedSkills(skills, '/test/project');
 
-      expect(fs.mkdirSync).toHaveBeenCalledWith(
-        path.join('/test/project', '.claude', 'skills'),
-        { recursive: true }
-      );
+      expect(fs.mkdirSync).toHaveBeenCalledWith(path.join('/test/project', '.claude', 'skills'), {
+        recursive: true,
+      });
       expect(fileCount).toBeGreaterThan(0);
     });
 
@@ -539,8 +546,8 @@ describe('skill-resolver', () => {
           path: '/framework/skills/020-languages/typescript',
           relative_path: '020-languages/typescript',
           reason: 'Test',
-          description: 'Nested skill'
-        }
+          description: 'Nested skill',
+        },
       ];
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -552,7 +559,7 @@ describe('skill-resolver', () => {
       // Skills are copied to .claude/skills/{skill-name}, flattened structure
       expect(fs.mkdirSync).toHaveBeenCalledWith(
         expect.stringMatching(/\/\.claude\/skills\/nested-skill$/),
-        { recursive: true }
+        { recursive: true },
       );
     });
 
@@ -563,8 +570,8 @@ describe('skill-resolver', () => {
           path: '/framework/skills/010-foundation/complex-skill',
           relative_path: '010-foundation/complex-skill',
           reason: 'Test',
-          description: 'Complex skill'
-        }
+          description: 'Complex skill',
+        },
       ];
 
       let callCount = 0;
@@ -595,10 +602,9 @@ describe('skill-resolver', () => {
       const fileCount = copyResolvedSkills(skills, '/test/project');
 
       expect(fileCount).toBe(0);
-      expect(fs.mkdirSync).toHaveBeenCalledWith(
-        path.join('/test/project', '.claude', 'skills'),
-        { recursive: true }
-      );
+      expect(fs.mkdirSync).toHaveBeenCalledWith(path.join('/test/project', '.claude', 'skills'), {
+        recursive: true,
+      });
     });
 
     it('should handle non-existent source directory', () => {
@@ -608,8 +614,8 @@ describe('skill-resolver', () => {
           path: '/framework/skills/missing',
           relative_path: 'missing',
           reason: 'Test',
-          description: 'Missing skill'
-        }
+          description: 'Missing skill',
+        },
       ];
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -626,15 +632,15 @@ describe('skill-resolver', () => {
           path: '/framework/skills/skill1',
           relative_path: 'skill1',
           reason: 'Test',
-          description: 'Skill 1'
+          description: 'Skill 1',
         },
         {
           name: 'skill2',
           path: '/framework/skills/skill2',
           relative_path: 'skill2',
           reason: 'Test',
-          description: 'Skill 2'
-        }
+          description: 'Skill 2',
+        },
       ];
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -653,8 +659,8 @@ describe('skill-resolver', () => {
           path: '/framework/skills/test-skill',
           relative_path: 'test-skill',
           reason: 'Test',
-          description: 'Test'
-        }
+          description: 'Test',
+        },
       ];
 
       vi.mocked(fs.existsSync).mockReturnValue(true);

@@ -25,7 +25,7 @@ import { EnvironmentManagerService } from '../../services/implement-ticket/envir
  * @returns Updated state with phase10 completion flag
  */
 export async function phase10CleanupNode(
-  state: ImplementTicketState
+  state: ImplementTicketState,
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
@@ -41,7 +41,7 @@ export async function phase10CleanupNode(
     return {
       current_phase: 'complete',
       phase10_complete: true,
-      phase10_cleanup: completionData.cleanup_data
+      phase10_cleanup: completionData.cleanup_data,
     };
   }
 
@@ -70,7 +70,9 @@ export async function phase10CleanupNode(
       console.log('[Phase 10: Cleanup] ✓ Environment config loaded');
       cleanupLog.push('✓ Environment config loaded');
     } else {
-      console.log('[Phase 10: Cleanup] ⚠ No environment config found, skipping environment teardown');
+      console.log(
+        '[Phase 10: Cleanup] ⚠ No environment config found, skipping environment teardown',
+      );
       cleanupLog.push('⚠ No environment config found');
     }
 
@@ -84,7 +86,6 @@ export async function phase10CleanupNode(
 
         console.log('[Phase 10: Cleanup] ✓ Environment teardown complete');
         cleanupLog.push('✓ Environment teardown complete');
-
       } catch (error: any) {
         const errorMsg = `Environment teardown failed: ${error.message}`;
         console.error(`[Phase 10: Cleanup] ⚠ ${errorMsg}`);
@@ -105,12 +106,11 @@ export async function phase10CleanupNode(
       // Archive entire temp directory
       execSync(`tar -czf "${archivePath}" -C "${tempDir}" .`, {
         cwd: projectPath,
-        stdio: 'pipe'
+        stdio: 'pipe',
       });
 
       console.log(`[Phase 10: Cleanup] ✓ Artifacts archived: ${archivePath}`);
       cleanupLog.push(`✓ Artifacts archived: ${archivePath}`);
-
     } catch (error: any) {
       const errorMsg = `Archive creation failed: ${error.message}`;
       console.error(`[Phase 10: Cleanup] ⚠ ${errorMsg}`);
@@ -122,14 +122,13 @@ export async function phase10CleanupNode(
     let tempDirSize = 0;
     try {
       const duOutput = execSync(`du -sk "${tempDir}"`, {
-        encoding: 'utf-8'
+        encoding: 'utf-8',
       }).trim();
 
       tempDirSize = parseInt(duOutput.split('\t')[0], 10); // Size in KB
 
       console.log(`[Phase 10: Cleanup] Temp directory size: ${(tempDirSize / 1024).toFixed(2)} MB`);
       cleanupLog.push(`Temp directory size: ${(tempDirSize / 1024).toFixed(2)} MB`);
-
     } catch (error) {
       // Ignore size calculation errors
     }
@@ -143,8 +142,17 @@ export async function phase10CleanupNode(
       try {
         // Keep the archive, remove everything else
         const filesAndDirs = [
-          'phase0', 'phase1', 'phase2', 'phase3', 'phase4',
-          'phase5', 'phase6', 'phase7', 'phase8', 'phase9', 'phase10'
+          'phase0',
+          'phase1',
+          'phase2',
+          'phase3',
+          'phase4',
+          'phase5',
+          'phase6',
+          'phase7',
+          'phase8',
+          'phase9',
+          'phase10',
         ];
 
         for (const item of filesAndDirs) {
@@ -156,14 +164,12 @@ export async function phase10CleanupNode(
 
         console.log('[Phase 10: Cleanup] ✓ Temporary files removed');
         cleanupLog.push('✓ Temporary files removed (kept archive)');
-
       } catch (error: any) {
         const errorMsg = `Temp file removal failed: ${error.message}`;
         console.error(`[Phase 10: Cleanup] ⚠ ${errorMsg}`);
         cleanupLog.push(`⚠ ${errorMsg}`);
         cleanupErrors.push(errorMsg);
       }
-
     } else {
       console.log('[Phase 10: Cleanup] ✓ Keeping temporary files for debugging');
       console.log(`[Phase 10: Cleanup] Set CLEANUP_TEMP_FILES=true to remove temp files`);
@@ -174,16 +180,10 @@ export async function phase10CleanupNode(
     console.log('[Phase 10: Cleanup] Writing outputs to disk...');
     mkdirSync(phase10Dir, { recursive: true });
 
-    writeFileSync(
-      join(phase10Dir, 'cleanup-log.txt'),
-      cleanupLog.join('\n')
-    );
+    writeFileSync(join(phase10Dir, 'cleanup-log.txt'), cleanupLog.join('\n'));
 
     if (cleanupErrors.length > 0) {
-      writeFileSync(
-        join(phase10Dir, 'cleanup-errors.txt'),
-        cleanupErrors.join('\n')
-      );
+      writeFileSync(join(phase10Dir, 'cleanup-errors.txt'), cleanupErrors.join('\n'));
     }
 
     const cleanupData = {
@@ -194,22 +194,23 @@ export async function phase10CleanupNode(
       archive_path: archivePath,
       temp_dir_size_kb: tempDirSize,
       temp_files_removed: removeTempFiles,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
-    writeFileSync(
-      join(phase10Dir, 'cleanup-data.json'),
-      JSON.stringify(cleanupData, null, 2)
-    );
+    writeFileSync(join(phase10Dir, 'cleanup-data.json'), JSON.stringify(cleanupData, null, 2));
 
     // Write completion marker (last file to write - indicates phase complete)
     writeFileSync(
       completionMarkerPath,
-      JSON.stringify({
-        completed_at: new Date().toISOString(),
-        ticket_id: ticketId,
-        cleanup_data: cleanupData
-      }, null, 2)
+      JSON.stringify(
+        {
+          completed_at: new Date().toISOString(),
+          ticket_id: ticketId,
+          cleanup_data: cleanupData,
+        },
+        null,
+        2,
+      ),
     );
 
     console.log('[Phase 10: Cleanup] ✓ Outputs written to disk');
@@ -242,9 +243,8 @@ export async function phase10CleanupNode(
     return {
       current_phase: 'complete',
       phase10_complete: true,
-      phase10_cleanup: cleanupData
+      phase10_cleanup: cleanupData,
     };
-
   } catch (error) {
     const errorMessage = `Cleanup failed: ${(error as Error).message}`;
     console.error(`[Phase 10: Cleanup] ✗ ${errorMessage}`);
@@ -264,28 +264,29 @@ export async function phase10CleanupNode(
       temp_dir_size_kb: 0,
       temp_files_removed: false,
       failed: true,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
-    writeFileSync(
-      join(phase10Dir, 'cleanup-data.json'),
-      JSON.stringify(cleanupData, null, 2)
-    );
+    writeFileSync(join(phase10Dir, 'cleanup-data.json'), JSON.stringify(cleanupData, null, 2));
 
     writeFileSync(
       completionMarkerPath,
-      JSON.stringify({
-        completed_at: new Date().toISOString(),
-        ticket_id: ticketId,
-        cleanup_data: cleanupData
-      }, null, 2)
+      JSON.stringify(
+        {
+          completed_at: new Date().toISOString(),
+          ticket_id: ticketId,
+          cleanup_data: cleanupData,
+        },
+        null,
+        2,
+      ),
     );
 
     return {
       current_phase: 'complete',
       phase10_complete: true,
       phase10_cleanup: cleanupData,
-      warnings: [`Cleanup had errors: ${errorMessage}`]
+      warnings: [`Cleanup had errors: ${errorMessage}`],
     };
   }
 }

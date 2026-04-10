@@ -48,10 +48,10 @@ export interface HookContext {
  * Determines how to handle the error
  */
 export type ErrorAction =
-  | "retry" // Retry the phase
-  | "continue" // Continue to next phase despite error
-  | "fail" // Fail the entire workflow
-  | "skip"; // Skip this phase
+  | 'retry' // Retry the phase
+  | 'continue' // Continue to next phase despite error
+  | 'fail' // Fail the entire workflow
+  | 'skip'; // Skip this phase
 
 /**
  * Abstract base class for all hooks
@@ -102,7 +102,7 @@ export abstract class BaseHook {
    */
   async onError?(context: HookContext, error: Error): Promise<ErrorAction> {
     // Default: retry
-    return "retry";
+    return 'retry';
   }
 
   /**
@@ -132,11 +132,7 @@ export abstract class BaseHook {
 /**
  * Utility type for hook lifecycle method names
  */
-export type HookLifecycle =
-  | "preExecution"
-  | "postExecution"
-  | "onError"
-  | "onRetry";
+export type HookLifecycle = 'preExecution' | 'postExecution' | 'onError' | 'onRetry';
 
 /**
  * Hook execution result

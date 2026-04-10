@@ -3,7 +3,7 @@ import {
   HookContext,
   HookLifecycle,
   HookExecutionResult,
-  ErrorAction
+  ErrorAction,
 } from './base-hook.js';
 
 /**
@@ -43,7 +43,7 @@ export class HookRegistry {
    * @param hooks Array of hook instances
    */
   registerMany(phase: string, hooks: BaseHook[]): void {
-    hooks.forEach(hook => this.register(phase, hook));
+    hooks.forEach((hook) => this.register(phase, hook));
   }
 
   /**
@@ -54,7 +54,7 @@ export class HookRegistry {
    */
   unregister(phase: string, hookName: string): void {
     const phaseHooks = this.hooks.get(phase) || [];
-    const filtered = phaseHooks.filter(h => h.name !== hookName);
+    const filtered = phaseHooks.filter((h) => h.name !== hookName);
     this.hooks.set(phase, filtered);
   }
 
@@ -107,7 +107,7 @@ export class HookRegistry {
           }
         } catch (error) {
           currentContext.logger.warn(
-            `Hook ${hook.name} preExecution failed: ${error instanceof Error ? error.message : String(error)}`
+            `Hook ${hook.name} preExecution failed: ${error instanceof Error ? error.message : String(error)}`,
           );
           // Continue with other hooks
         }
@@ -124,10 +124,7 @@ export class HookRegistry {
    * @param result Phase execution result
    * @returns Modified result (after all hooks)
    */
-  async executePostExecution(
-    context: HookContext,
-    result: any
-  ): Promise<any> {
+  async executePostExecution(context: HookContext, result: any): Promise<any> {
     const hooks = this.getHooks(context.phase);
     let currentResult = result;
 
@@ -144,7 +141,7 @@ export class HookRegistry {
           }
         } catch (error) {
           context.logger.warn(
-            `Hook ${hook.name} postExecution failed: ${error instanceof Error ? error.message : String(error)}`
+            `Hook ${hook.name} postExecution failed: ${error instanceof Error ? error.message : String(error)}`,
           );
           // Continue with other hooks
         }
@@ -162,10 +159,7 @@ export class HookRegistry {
    * @param error The error that occurred
    * @returns Error handling action
    */
-  async executeOnError(
-    context: HookContext,
-    error: Error
-  ): Promise<ErrorAction> {
+  async executeOnError(context: HookContext, error: Error): Promise<ErrorAction> {
     const hooks = this.getHooks(context.phase);
     const actions: ErrorAction[] = [];
 
@@ -180,7 +174,7 @@ export class HookRegistry {
           actions.push(action);
         } catch (hookError) {
           context.logger.warn(
-            `Hook ${hook.name} onError failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`
+            `Hook ${hook.name} onError failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`,
           );
           // Default to retry if hook fails
           actions.push('retry');
@@ -215,7 +209,7 @@ export class HookRegistry {
           await hook.onRetry(context, attempt);
         } catch (error) {
           context.logger.warn(
-            `Hook ${hook.name} onRetry failed: ${error instanceof Error ? error.message : String(error)}`
+            `Hook ${hook.name} onRetry failed: ${error instanceof Error ? error.message : String(error)}`,
           );
           // Continue with other hooks
         }
@@ -231,15 +225,12 @@ export class HookRegistry {
    * @param lifecycle Lifecycle to check
    * @returns Array of execution results
    */
-  getExecutionResults(
-    phase: string,
-    lifecycle: HookLifecycle
-  ): HookExecutionResult[] {
+  getExecutionResults(phase: string, lifecycle: HookLifecycle): HookExecutionResult[] {
     const hooks = this.getHooks(phase);
-    return hooks.map(hook => ({
+    return hooks.map((hook) => ({
       success: true,
       hookName: hook.name,
-      lifecycle
+      lifecycle,
     }));
   }
 
@@ -282,7 +273,7 @@ export class HookRegistry {
     const state: Record<string, string[]> = {};
 
     for (const [phase, hooks] of this.hooks.entries()) {
-      state[phase] = hooks.map(h => `${h.name} (priority: ${h.priority})`);
+      state[phase] = hooks.map((h) => `${h.name} (priority: ${h.priority})`);
     }
 
     return state;

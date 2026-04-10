@@ -27,9 +27,7 @@ describe('UIVisualTestingConfigSchema', () => {
 
   it('applies default thresholds', () => {
     const config = {
-      screens: [
-        { label: 'Home', route: '/', viewport: { width: 1440, height: 900 } },
-      ],
+      screens: [{ label: 'Home', route: '/', viewport: { width: 1440, height: 900 } }],
     };
     const result = UIVisualTestingConfigSchema.parse(config);
     expect(result.thresholds.figma).toBe(2);
@@ -38,9 +36,7 @@ describe('UIVisualTestingConfigSchema', () => {
 
   it('applies default maxIterations', () => {
     const config = {
-      screens: [
-        { label: 'Home', route: '/', viewport: { width: 1440, height: 900 } },
-      ],
+      screens: [{ label: 'Home', route: '/', viewport: { width: 1440, height: 900 } }],
     };
     const result = UIVisualTestingConfigSchema.parse(config);
     expect(result.maxIterations).toBe(3);
@@ -48,9 +44,7 @@ describe('UIVisualTestingConfigSchema', () => {
 
   it('applies default modes to screen entries', () => {
     const config = {
-      screens: [
-        { label: 'Home', route: '/', viewport: { width: 1440, height: 900 } },
-      ],
+      screens: [{ label: 'Home', route: '/', viewport: { width: 1440, height: 900 } }],
     };
     const result = UIVisualTestingConfigSchema.parse(config);
     expect(result.screens[0].modes).toEqual(['figma', 'screenshot']);
@@ -82,9 +76,7 @@ describe('UIVisualTestingConfigSchema', () => {
   });
 
   it('rejects empty screens array', () => {
-    expect(() =>
-      UIVisualTestingConfigSchema.parse({ screens: [] }),
-    ).toThrow();
+    expect(() => UIVisualTestingConfigSchema.parse({ screens: [] })).toThrow();
   });
 
   it('rejects missing route', () => {
@@ -131,12 +123,14 @@ describe('UIVisualTestingConfigSchema', () => {
   it('rejects delay above 30000', () => {
     expect(() =>
       UIVisualTestingConfigSchema.parse({
-        screens: [{
-          label: 'Home',
-          route: '/',
-          viewport: { width: 1440, height: 900 },
-          delay: 60000,
-        }],
+        screens: [
+          {
+            label: 'Home',
+            route: '/',
+            viewport: { width: 1440, height: 900 },
+            delay: 60000,
+          },
+        ],
       }),
     ).toThrow();
   });
@@ -144,12 +138,14 @@ describe('UIVisualTestingConfigSchema', () => {
   it('rejects invalid mode value', () => {
     expect(() =>
       UIVisualTestingConfigSchema.parse({
-        screens: [{
-          label: 'Home',
-          route: '/',
-          viewport: { width: 1440, height: 900 },
-          modes: ['invalid'],
-        }],
+        screens: [
+          {
+            label: 'Home',
+            route: '/',
+            viewport: { width: 1440, height: 900 },
+            modes: ['invalid'],
+          },
+        ],
       }),
     ).toThrow();
   });

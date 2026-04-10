@@ -61,13 +61,13 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
         errors: [],
         warnings: [],
         started_at: new Date().toISOString(),
-        phase1_retry_tracking: {}
+        phase1_retry_tracking: {},
       };
 
       const config = {
         configurable: {
-          thread_id: `test-full-workflow-${Date.now()}`
-        }
+          thread_id: `test-full-workflow-${Date.now()}`,
+        },
       };
 
       console.log('\n=== Starting Full 6-Phase Workflow Test ===');
@@ -130,13 +130,13 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
         errors: [],
         warnings: [],
         started_at: new Date().toISOString(),
-        phase1_retry_tracking: {}
+        phase1_retry_tracking: {},
       };
 
       const config = {
         configurable: {
-          thread_id: `test-phase1-parallel-${Date.now()}`
-        }
+          thread_id: `test-phase1-parallel-${Date.now()}`,
+        },
       };
 
       console.log('\n=== Testing Phase 1 Parallel Execution ===');
@@ -146,7 +146,7 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
       // Stream execution to observe parallel execution
       for await (const event of await graph.stream(initialState, {
         ...config,
-        streamMode: 'updates'
+        streamMode: 'updates',
       })) {
         const nodeName = Object.keys(event)[0];
         events.push(nodeName);
@@ -158,10 +158,10 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
         'structure_architecture_analyzer',
         'tech_stack_dependencies_analyzer',
         'code_patterns_testing_analyzer',
-        'data_flows_integrations_analyzer'
+        'data_flows_integrations_analyzer',
       ];
 
-      phase1Nodes.forEach(node => {
+      phase1Nodes.forEach((node) => {
         expect(events).toContain(node);
       });
 
@@ -184,13 +184,13 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
         errors: [],
         warnings: [],
         started_at: new Date().toISOString(),
-        phase1_retry_tracking: {}
+        phase1_retry_tracking: {},
       };
 
       const config = {
         configurable: {
-          thread_id: threadId
-        }
+          thread_id: threadId,
+        },
       };
 
       console.log('\n=== Testing Checkpointing ===');
@@ -206,54 +206,56 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
 
       console.log('✓ Checkpointing verified');
     }, 1200000);
-
   });
 
   describe('Schema Validation Tests', () => {
     it('should validate Phase 1 analyzer output schema', async () => {
-      const { AnalyzerOutputSchema } = await import('../../src/state/schemas/initialize-project.schema.js');
+      const { AnalyzerOutputSchema } =
+        await import('../../src/state/schemas/initialize-project.schema.js');
 
       const validOutput = {
         agent_name: 'structure-architecture-analyzer',
         timestamp: new Date().toISOString(),
         findings: {
           project_structure: ['src/', 'test/', 'docs/'],
-          architecture_patterns: ['MVC', 'Repository Pattern']
+          architecture_patterns: ['MVC', 'Repository Pattern'],
         },
-        confidence_level: 'high'
+        confidence_level: 'high',
       };
 
       expect(() => AnalyzerOutputSchema.parse(validOutput)).not.toThrow();
     });
 
     it('should validate retry state schema', async () => {
-      const { RetryStateSchema } = await import('../../src/state/schemas/initialize-project.schema.js');
+      const { RetryStateSchema } =
+        await import('../../src/state/schemas/initialize-project.schema.js');
 
       const validRetryState = {
         attempt: 2,
         max_attempts: 5,
         last_error: 'Validation failed',
         error_history: ['Error 1', 'Error 2'],
-        next_delay_ms: 4000
+        next_delay_ms: 4000,
       };
 
       expect(() => RetryStateSchema.parse(validRetryState)).not.toThrow();
     });
 
     it('should validate consolidation output schema', async () => {
-      const { Phase2ConsolidationSchema } = await import('../../src/state/schemas/initialize-project.schema.js');
+      const { Phase2ConsolidationSchema } =
+        await import('../../src/state/schemas/initialize-project.schema.js');
 
       const validConsolidation = {
         consolidated_findings: {
           '01-structure-architecture': {
             agent_name: 'structure-architecture-analyzer',
             timestamp: new Date().toISOString(),
-            findings: {}
-          }
+            findings: {},
+          },
         },
         identified_gaps: ['Need verification: database schema'],
         conflicting_findings: [],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       expect(() => Phase2ConsolidationSchema.parse(validConsolidation)).not.toThrow();

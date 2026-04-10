@@ -14,10 +14,7 @@ export {
   HookContext,
   ErrorAction,
   HookLifecycle,
-  HookExecutionResult
+  HookExecutionResult,
 } from './base-hook.js';
 
-export {
-  HookRegistry,
-  globalHookRegistry
-} from './hook-registry.js';
+export { HookRegistry, globalHookRegistry } from './hook-registry.js';

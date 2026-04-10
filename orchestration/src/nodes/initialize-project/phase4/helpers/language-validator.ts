@@ -5,8 +5,8 @@
  * Ensures comprehensive language detection by merging multiple data sources.
  */
 
-import type { FileCountResult } from "../types.js";
-import type { WorkspaceDetectionResult } from "../types.js";
+import type { FileCountResult } from '../types.js';
+import type { WorkspaceDetectionResult } from '../types.js';
 
 /**
  * Cross-validate agent-detected languages with file count results
@@ -22,7 +22,7 @@ import type { WorkspaceDetectionResult } from "../types.js";
 export function crossValidateWithFileCount(
   detectedLanguages: Set<string>,
   fileCountResult: FileCountResult | undefined,
-  logger: any
+  logger: any,
 ): Set<string> {
   if (!fileCountResult) {
     return detectedLanguages;
@@ -33,9 +33,7 @@ export function crossValidateWithFileCount(
 
     // If file counter found significant files but agent missed it
     if (langCount.count >= 5 && !detectedLanguages.has(lang)) {
-      logger.warn(
-        ` Agent missed ${lang} (${langCount.count} files) - adding to stack profile`,
-      );
+      logger.warn(` Agent missed ${lang} (${langCount.count} files) - adding to stack profile`);
       detectedLanguages.add(lang);
     }
   }
@@ -57,7 +55,7 @@ export function crossValidateWithFileCount(
 export function mergeWorkspaceLanguages(
   detectedLanguages: Set<string>,
   workspaceResult: WorkspaceDetectionResult | undefined,
-  logger: any
+  logger: any,
 ): Set<string> {
   if (!workspaceResult || !workspaceResult.is_monorepo) {
     return detectedLanguages;

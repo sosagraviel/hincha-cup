@@ -21,6 +21,7 @@ For each service discovered in Phase 1 (by Structure Analyzer), locate and read 
 <manifest_patterns>
 
 **Package Managers:**
+
 - JavaScript/TypeScript: package.json, package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb
 - Python: pyproject.toml, setup.py, requirements.txt, Pipfile, Pipfile.lock, poetry.lock
 - Go: go.mod, go.sum
@@ -28,7 +29,7 @@ For each service discovered in Phase 1 (by Structure Analyzer), locate and read 
 - Java: pom.xml, build.gradle, build.gradle.kts, gradle.lockfile
 - Ruby: Gemfile, Gemfile.lock
 - PHP: composer.json, composer.lock
-- C#: *.csproj, packages.lock.json
+- C#: \*.csproj, packages.lock.json
 - Swift: Package.swift, Package.resolved
 - Elixir: mix.exs, mix.lock
 
@@ -58,11 +59,11 @@ Read `dependencies` (production) and `devDependencies` (development):
 ```json
 {
   "dependencies": {
-    "@nestjs/common": "^11.0.11",  // PRODUCTION
+    "@nestjs/common": "^11.0.11", // PRODUCTION
     "typeorm": "^0.3.21"
   },
   "devDependencies": {
-    "@nestjs/testing": "^11.0.11",  // DEVELOPMENT
+    "@nestjs/testing": "^11.0.11", // DEVELOPMENT
     "jest": "^29.7.0"
   }
 }
@@ -147,23 +148,27 @@ cargo-test = "0.1"  # DEVELOPMENT
 Search for database client libraries in dependencies:
 
 **SQL Databases:**
+
 - PostgreSQL: pg, psycopg2, asyncpg, node-postgres, pg-promise
 - MySQL: mysql, mysql2, mysqlclient, PyMySQL, aiomysql
 - SQLite: sqlite3, better-sqlite3, pysqlite3
 - SQL Server: mssql, tedious, pymssql, pyodbc
 
 **NoSQL Databases:**
+
 - MongoDB: mongodb, mongoose, pymongo, motor
 - Redis: redis, ioredis, redis-py, aioredis
 - Elasticsearch: @elastic/elasticsearch, elasticsearch-py
 - DynamoDB: aws-sdk, boto3 (with dynamodb imports)
 
 **ORMs indicate database usage:**
+
 - TypeORM, Prisma, Sequelize, Knex (Node)
 - SQLAlchemy, Django ORM, Tortoise ORM (Python)
 - GORM (Go), Diesel (Rust), Hibernate/JPA (Java), ActiveRecord (Ruby)
 
 For each database client found:
+
 1. Note the database type inferred from client library
 2. Record ORM if present
 3. Search for migration tool configs (TypeORM migrations, Alembic, Flyway, Liquibase)
@@ -210,15 +215,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: npm install
-      - run: npm test          # TEST COMMAND
-      - run: npm run build     # BUILD COMMAND
+      - run: npm test # TEST COMMAND
+      - run: npm run build # BUILD COMMAND
   deploy:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
-      - run: kubectl apply -f k8s/  # DEPLOY COMMAND
-    environment: production    # ENVIRONMENT
+      - run: kubectl apply -f k8s/ # DEPLOY COMMAND
+    environment: production # ENVIRONMENT
 ```
 
 **Report format:**
@@ -237,6 +242,7 @@ jobs:
 ```
 
 If CI/CD not detected:
+
 ```json
 "ci_cd": {
   "provider": "none",
@@ -261,21 +267,25 @@ If CI/CD not detected:
 Search for infrastructure configuration files:
 
 **Containerization:**
+
 - Docker: `Dockerfile*`, `docker-compose*.yml`, `.dockerignore`
 - Podman: `Containerfile`
 
 **Orchestration:**
+
 - Kubernetes: `k8s/`, `kubernetes/`, `*.yaml` files with `kind: Deployment/Service/Ingress`
 - Docker Compose: `docker-compose*.yml`
 - Helm: `Chart.yaml`, `values.yaml`, `templates/`
 
 **Infrastructure as Code:**
+
 - Terraform: `*.tf`, `terraform.tfvars`
 - Pulumi: `Pulumi.yaml`, `__main__.py|ts|go`
 - CloudFormation: `*.template.json`, `*.template.yaml`
 - Ansible: `ansible/`, `playbooks/`, `*.ansible.yml`
 
 **Serverless:**
+
 - Serverless Framework: `serverless.yml`
 - AWS SAM: `template.yaml` (with `Transform: AWS::Serverless-2016-10-31`)
 - Netlify: `netlify.toml`
@@ -303,13 +313,13 @@ services:
   backend:
     build: ./services/backend
     ports:
-      - "3050:3050"  # PORT
+      - '3050:3050' # PORT
     environment:
       - NODE_ENV=production
   frontend:
     build: ./services/web-frontend
     ports:
-      - "2712:2712"  # PORT
+      - '2712:2712' # PORT
 ```
 
 **Report format:**
@@ -346,11 +356,13 @@ services:
 Search for environment configuration patterns:
 
 **Environment Files:**
+
 - `.env.example`, `.env.sample`, `.env.template`
 - `config/`, `env/` directories
 - Environment-specific configs: `.env.development`, `.env.production`, `.env.staging`
 
 **Configuration Management:**
+
 - dotenv usage in dependencies
 - Config libraries (node-config, python-decouple, viper for Go)
 - Environment variable references in code (`process.env`, `os.getenv`, `os.Getenv`)
@@ -373,6 +385,7 @@ Extract variable names: `DATABASE_URL`, `REDIS_URL`, `API_KEY`, `PORT`, `NODE_EN
 ### Detect Environment Types:
 
 From file names and CI/CD configs, identify which environments exist:
+
 - `.env.development` → "development"
 - `.env.production` → "production"
 - `.env.staging` → "staging"
@@ -404,6 +417,7 @@ From file names and CI/CD configs, identify which environments exist:
 **Identify external service integrations from SDKs in dependencies:**
 
 ### Authentication & Identity
+
 - **Keycloak:** `@keycloak/keycloak-admin-client`, `keycloak-js`
 - **Auth0:** `@auth0/auth0-react`, `auth0`
 - **Firebase Auth:** `firebase`, `@angular/fire`
@@ -411,31 +425,37 @@ From file names and CI/CD configs, identify which environments exist:
 - **OAuth providers:** `passport-google-oauth20`, `passport-github2`
 
 ### Monitoring & Error Tracking
+
 - **Sentry:** `@sentry/node`, `@sentry/react`, `@sentry/nestjs`
 - **Datadog:** `dd-trace`, `@datadog/browser-rum`
 - **New Relic:** `newrelic`
 - **LogRocket:** `logrocket`
 
 ### Payment Processing
+
 - **Stripe:** `stripe`, `@stripe/stripe-js`
 - **PayPal:** `@paypal/checkout-server-sdk`
 
 ### Email Services
+
 - **SendGrid:** `@sendgrid/mail`
 - **Mailgun:** `mailgun-js`
 - **AWS SES:** `@aws-sdk/client-ses`
 - **MailHog:** (dev tool, found in docker-compose)
 
 ### Cloud Services
+
 - **AWS SDK:** `@aws-sdk/*`, `boto3`, `aws-sdk-go-v2`
 - **Google Cloud:** `@google-cloud/*`, `google-cloud-*`
 - **Azure:** `@azure/*`
 
 ### Search & Analytics
+
 - **Algolia:** `algoliasearch`
 - **Elasticsearch:** `@elastic/elasticsearch`
 
 **For each detected service, report:**
+
 1. Service name
 2. SDK package name and version
 3. Config location (e.g., "dependencies", "docker-compose", "env variables")
@@ -473,11 +493,13 @@ From file names and CI/CD configs, identify which environments exist:
 ### JavaScript/TypeScript Build Tools
 
 Search dependencies for:
+
 - **Bundlers:** webpack, vite, rollup, parcel, esbuild, turbo
 - **Transpilers:** @babel/core, tsc (TypeScript compiler)
 - **Task Runners:** gulp, grunt, nx
 
 Read build configuration files:
+
 - `vite.config.ts/js`
 - `webpack.config.js`
 - `rollup.config.js`
@@ -488,10 +510,10 @@ Read build configuration files:
 ```json
 {
   "scripts": {
-    "lint": "eslint --max-warnings=0",       // LINT COMMAND
-    "format": "prettier --write src",        // FORMAT COMMAND
-    "test": "jest",                          // TEST COMMAND
-    "build": "tsc -b && vite build"         // BUILD COMMAND
+    "lint": "eslint --max-warnings=0", // LINT COMMAND
+    "format": "prettier --write src", // FORMAT COMMAND
+    "test": "jest", // TEST COMMAND
+    "build": "tsc -b && vite build" // BUILD COMMAND
   }
 }
 ```
@@ -542,6 +564,7 @@ Read build configuration files:
 **Example for pnpm monorepo:**
 
 Read `pnpm-workspace.yaml`:
+
 ```yaml
 packages:
   - 'packages/*'
@@ -550,6 +573,7 @@ packages:
 ```
 
 Read root `package.json` scripts:
+
 ```json
 {
   "scripts": {
@@ -572,6 +596,7 @@ Read root `package.json` scripts:
 ```
 
 If not a monorepo:
+
 ```json
 "monorepo": {
   "enabled": false,
@@ -608,21 +633,25 @@ If not a monorepo:
 ## Common Patterns by Ecosystem
 
 **Node.js/TypeScript:**
+
 - Lock file indicates package manager: package-lock.json (npm), yarn.lock (yarn), pnpm-lock.yaml (pnpm)
 - Testing: jest, vitest, mocha, cypress, playwright
 - Build tools: webpack, vite, rollup, esbuild, turbo
 
 **Python:**
+
 - Package manager from lock file: poetry.lock (Poetry), Pipfile.lock (Pipenv), requirements.txt (pip)
 - Testing: pytest, unittest, nose
 - ASGI/WSGI servers: uvicorn, gunicorn, hypercorn
 
 **Go:**
+
 - Dependencies in go.mod, versions locked in go.sum
 - Testing: built-in `go test`
 - Common frameworks: gin, echo, chi, fiber
 
 **Rust:**
+
 - Dependencies in Cargo.toml with [dependencies], locked in Cargo.lock
 - Testing: built-in `cargo test`
 - Web frameworks: axum, rocket, actix-web
@@ -703,12 +732,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
       }
     },
     "environment": {
-      "required_vars": [
-        "DATABASE_URL",
-        "REDIS_URL",
-        "JWT_SECRET",
-        "SENTRY_DSN"
-      ],
+      "required_vars": ["DATABASE_URL", "REDIS_URL", "JWT_SECRET", "SENTRY_DSN"],
       "environments": ["development", "production"],
       "config_approach": "dotenv"
     },
@@ -717,10 +741,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
         "type": "postgres",
         "orm": "TypeORM",
         "migration_tool": "TypeORM",
-        "migration_commands": [
-          "npx typeorm migration:create",
-          "npx typeorm migration:run"
-        ]
+        "migration_commands": ["npx typeorm migration:create", "npx typeorm migration:run"]
       },
       {
         "type": "redis",
@@ -768,12 +789,14 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 See shared verification format documentation at: `../../../shared/prompts/verification-format.md`
 
 Use `needs_verification` for:
+
 - Production credentials and URLs (not in codebase for security)
 - External service endpoints not configured in code
 - Infrastructure details managed outside repository
 - Deployment-specific configuration values
 
 Do NOT use for:
+
 - Dependency versions (readable from manifests)
 - Database types (inferable from client libraries)
 - CI/CD presence (detectable from config files)

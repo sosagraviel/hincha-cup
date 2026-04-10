@@ -20,32 +20,81 @@ import type { StackProfile } from '../schemas/index.js';
 // ---------------------------------------------------------------------------
 
 const PRIMARY_UI_KEYWORDS = [
-  'screen', 'page', 'component', 'ui', 'design', 'layout', 'widget',
-  'dashboard', 'modal', 'dialog', 'form', 'button', 'navigation',
-  'sidebar', 'header', 'footer', 'responsive', 'mobile', 'tablet', 'desktop',
+  'screen',
+  'page',
+  'component',
+  'ui',
+  'design',
+  'layout',
+  'widget',
+  'dashboard',
+  'modal',
+  'dialog',
+  'form',
+  'button',
+  'navigation',
+  'sidebar',
+  'header',
+  'footer',
+  'responsive',
+  'mobile',
+  'tablet',
+  'desktop',
 ] as const;
 
 const SECONDARY_UI_KEYWORDS = [
-  'css', 'style', 'color', 'font', 'typography', 'spacing', 'padding',
-  'margin', 'border', 'animation', 'transition', 'hover', 'icon', 'image',
-  'figma', 'mockup', 'wireframe', 'pixel',
+  'css',
+  'style',
+  'color',
+  'font',
+  'typography',
+  'spacing',
+  'padding',
+  'margin',
+  'border',
+  'animation',
+  'transition',
+  'hover',
+  'icon',
+  'image',
+  'figma',
+  'mockup',
+  'wireframe',
+  'pixel',
 ] as const;
 
 const UI_FILE_PATH_PATTERNS = [
-  'components/', 'pages/', 'ui/', 'views/', 'layouts/',
-  'styles/', 'css/', 'scss/', 'templates/',
+  'components/',
+  'pages/',
+  'ui/',
+  'views/',
+  'layouts/',
+  'styles/',
+  'css/',
+  'scss/',
+  'templates/',
 ] as const;
 
-const FRONTEND_FRAMEWORKS = [
-  'react', 'vue', 'angular', 'next.js', 'nuxt', 'svelte',
-] as const;
+const FRONTEND_FRAMEWORKS = ['react', 'vue', 'angular', 'next.js', 'nuxt', 'svelte'] as const;
 
 const VISUAL_AC_TERMS = [
-  'renders', 'displays', 'shows', 'visible', 'hidden', 'screenshot',
-  'visual', 'pixel', 'diff', 'match', 'align', 'center', 'responsive',
+  'renders',
+  'displays',
+  'shows',
+  'visible',
+  'hidden',
+  'screenshot',
+  'visual',
+  'pixel',
+  'diff',
+  'match',
+  'align',
+  'center',
+  'responsive',
 ] as const;
 
-const FIGMA_URL_PATTERN = /https?:\/\/(?:www\.)?figma\.com\/(?:design|file)\/([a-zA-Z0-9]+)(?:\/[^?\s]*)?(?:\?[^?\s]*node-id=([0-9]+-[0-9]+))?/gi;
+const FIGMA_URL_PATTERN =
+  /https?:\/\/(?:www\.)?figma\.com\/(?:design|file)\/([a-zA-Z0-9]+)(?:\/[^?\s]*)?(?:\?[^?\s]*node-id=([0-9]+-[0-9]+))?/gi;
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -149,11 +198,11 @@ function scoreFigmaReferences(text: string): { score: number; references: FigmaR
  */
 function scoreFilePaths(text: string, changedFiles?: string[]): number {
   const lower = text.toLowerCase();
-  const filePaths = changedFiles?.map(f => f.toLowerCase()) ?? [];
+  const filePaths = changedFiles?.map((f) => f.toLowerCase()) ?? [];
   let score = 0;
 
   for (const pattern of UI_FILE_PATH_PATTERNS) {
-    if (lower.includes(pattern) || filePaths.some(f => f.includes(pattern))) {
+    if (lower.includes(pattern) || filePaths.some((f) => f.includes(pattern))) {
       score += 4;
       if (score >= 20) break;
     }
@@ -169,16 +218,18 @@ function scoreFilePaths(text: string, changedFiles?: string[]): number {
 function scoreStack(stackProfile?: StackProfile): number {
   if (!stackProfile) return 0;
 
-  const hasFrontend = stackProfile.services.some(service => {
+  const hasFrontend = stackProfile.services.some((service) => {
     const mainFramework = service.frameworks.main?.toLowerCase() ?? '';
     const uiFramework = service.frameworks.ui?.toLowerCase() ?? '';
-    const additionalFrameworks = service.frameworks.additional?.map(f => f.toLowerCase()) ?? [];
+    const additionalFrameworks = service.frameworks.additional?.map((f) => f.toLowerCase()) ?? [];
 
-    return FRONTEND_FRAMEWORKS.some(known => {
+    return FRONTEND_FRAMEWORKS.some((known) => {
       const knownLower = known.toLowerCase();
-      return mainFramework.includes(knownLower) ||
-             uiFramework.includes(knownLower) ||
-             additionalFrameworks.some(fw => fw.includes(knownLower));
+      return (
+        mainFramework.includes(knownLower) ||
+        uiFramework.includes(knownLower) ||
+        additionalFrameworks.some((fw) => fw.includes(knownLower))
+      );
     });
   });
 

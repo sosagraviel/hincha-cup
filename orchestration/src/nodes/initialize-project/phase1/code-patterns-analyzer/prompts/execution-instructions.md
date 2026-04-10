@@ -22,27 +22,33 @@ For each service discovered in Phase 1 (by Structure Analyzer), read its manifes
 <testing_frameworks>
 
 **JavaScript/TypeScript:**
+
 - Unit/Integration: jest, vitest, mocha, ava, tap
 - E2E: playwright, cypress, puppeteer, testcafe
 - Component: @testing-library/react, @testing-library/vue
 
 **Python:**
+
 - Unit/Integration: pytest, unittest (built-in), nose2
 - E2E: selenium, playwright-python
 
 **Go:**
+
 - Testing: built-in `testing` package (no external dependency needed)
 - Advanced: testify, ginkgo, gomega
 
 **Rust:**
+
 - Testing: built-in `cargo test` (no external dependency needed)
 - Advanced: mockall, proptest
 
 **Java:**
+
 - Unit: junit, testng
 - Integration: spring-boot-starter-test
 
 **Ruby:**
+
 - Unit/Integration: rspec, minitest (built-in)
 - E2E: capybara, selenium-webdriver
 
@@ -57,11 +63,13 @@ Search for test files using multiple patterns based on discovered framework:
 <test_patterns>
 
 **Universal Patterns:**
+
 - `**/test/**/*` - test directory
 - `**/tests/**/*` - tests directory
-- `**/__tests__/**/*` - __tests__ directory (Jest convention)
+- `**/__tests__/**/*` - **tests** directory (Jest convention)
 
 **Language-Specific Patterns:**
+
 - JavaScript/TypeScript: `**/*.{test,spec}.{js,ts,jsx,tsx,mjs,cjs}`
 - Python: `**/test_*.py`, `**/*_test.py`
 - Go: `**/*_test.go`
@@ -78,6 +86,7 @@ Count files matching each pattern to estimate test coverage breadth.
 <test_configs>
 
 **Unit Test Configs:**
+
 - Jest: `jest.config.js`, `jest.config.ts`, `jest.config.mjs`, or `"jest"` section in package.json
 - Vitest: `vitest.config.ts`, `vite.config.ts` (with test section)
 - Pytest: `pytest.ini`, `pyproject.toml` ([tool.pytest.ini_options]), `setup.cfg`
@@ -85,14 +94,17 @@ Count files matching each pattern to estimate test coverage breadth.
 - Rust: `Cargo.toml` ([dev-dependencies])
 
 **Integration Test Configs:**
+
 - Often same as unit test configs with different testMatch patterns
 - May have separate config: `jest.e2e.config.mjs`, `vitest.integration.config.ts`
 
 **E2E Test Configs:**
+
 - Playwright: `playwright.config.ts`
 - Cypress: `cypress.config.ts`, `cypress.config.js`, `cypress.json`
 
 Read config files to extract:
+
 - File patterns (`testMatch`, `testRegex`)
 - Test environment settings
 - Coverage thresholds
@@ -109,6 +121,7 @@ Read config files to extract:
 ### REST API Patterns
 
 Search for HTTP framework decorators/annotations:
+
 - **NestJS:** `@Controller`, `@Get`, `@Post`, `@Put`, `@Delete` decorators
 - **Express:** `app.get`, `app.post`, `router.get` calls
 - **Django:** `def get`, `def post` in views, `path()` in urls.py
@@ -155,6 +168,7 @@ Search for HTTP framework decorators/annotations:
 <quality_tools>
 
 **Linters (from dependencies):**
+
 - JavaScript/TypeScript: eslint, tslint (deprecated), @typescript-eslint
 - Python: pylint, flake8, ruff
 - Go: golangci-lint (used via CI, may not be in go.mod)
@@ -163,6 +177,7 @@ Search for HTTP framework decorators/annotations:
 - Ruby: rubocop
 
 **Formatters (from dependencies):**
+
 - JavaScript/TypeScript: prettier, dprint
 - Python: black, yapf, autopep8
 - Go: gofmt, goimports (built-in)
@@ -171,10 +186,12 @@ Search for HTTP framework decorators/annotations:
 - Ruby: rubocop (also formats)
 
 **Type Checkers:**
+
 - JavaScript: TypeScript compiler, flow
 - Python: mypy, pyright, pyre
 
 **Pre-commit Hooks:**
+
 - Search for: `.husky/`, `.git/hooks/`, `.pre-commit-config.yaml`, `lefthook.yml`
 - Check package.json for `husky`, `lint-staged`, `lefthook`
 
@@ -206,6 +223,7 @@ Find configuration files for each tool and note their presence.
 ### README and Guides
 
 Search for documentation files:
+
 - `README.md`, `README.rst`
 - `CONTRIBUTING.md`, `DEVELOPMENT.md`
 - `docs/` directory with markdown or reStructuredText
@@ -214,6 +232,7 @@ Search for documentation files:
 ### Static Site Generators
 
 Check dependencies for:
+
 - **VitePress:** `vitepress` in devDependencies
 - **Docusaurus:** `@docusaurus/core`
 - **MkDocs:** `mkdocs` (Python)
@@ -241,18 +260,21 @@ Check dependencies for:
 Categorize discovered tests into three types:
 
 **Unit Tests:**
+
 - Test individual functions/methods in isolation
 - Usually fast (<1s per test)
 - Typically in same directory as source OR in parallel test/ directory
 - Patterns: Files with `.test.`, `.spec.`, `test_` prefix
 
 **Integration Tests:**
+
 - Test multiple components working together
 - May interact with databases, APIs
 - Often in separate `tests/integration/` directory
 - May have separate config: `jest.integration.config.js`
 
 **E2E (End-to-End) Tests:**
+
 - Test complete user workflows
 - Use browser automation (Playwright, Cypress)
 - Usually in `e2e/`, `tests/e2e/`, or `cypress/` directories
@@ -268,7 +290,7 @@ Report counts for each type if distinguishable from file paths or config.
 
 ## Self-Verification Checklist
 
-1. **Testing framework in dependencies but no test files?** Try multiple search patterns (test/, tests/, __tests__/, *.test.*, *.spec.*)
+1. **Testing framework in dependencies but no test files?** Try multiple search patterns (test/, tests/, **tests**/, _.test._, _.spec._)
 2. **No testing framework in dependencies?** Valid to report "none" (MVP projects, separate test repo)
 3. **API patterns detected?** Check for REST/GraphQL/gRPC/WebSocket indicators
 4. **Linter in dependencies but no config?** Check package.json, pyproject.toml for inline config
@@ -280,17 +302,20 @@ Report counts for each type if distinguishable from file paths or config.
 ## Common Patterns
 
 **Node.js/TypeScript projects typically have:**
+
 - Jest or Vitest for unit tests
 - Playwright or Cypress for E2E
 - ESLint + Prettier for quality
 - Husky for pre-commit hooks
 
 **Python projects typically have:**
+
 - Pytest for testing
 - Black + Pylint or Ruff for quality
 - pre-commit for hooks
 
 **Go projects typically have:**
+
 - Built-in testing package
 - golangci-lint (in CI, not always in go.mod)
 - gofmt (built-in, no config)
@@ -376,12 +401,14 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 See shared verification format documentation at: `../../../shared/prompts/verification-format.md`
 
 Use `needs_verification` for:
+
 - Test coverage policies not in config files
 - Testing strategies for specific scenarios
 - Performance test requirements
 - Load testing configurations managed externally
 
 Do NOT use for:
+
 - Testing frameworks (discoverable from dependencies)
 - Test file locations (searchable with glob)
 - Linter/formatter presence (in dependencies and configs)

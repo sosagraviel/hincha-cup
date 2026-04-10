@@ -59,10 +59,10 @@ describe('phase9ReviewNode', () => {
 
     mockTestOrchestrator = {};
 
-    vi.mocked(ReviewLoopService).mockImplementation(function(this: any) {
+    vi.mocked(ReviewLoopService).mockImplementation(function (this: any) {
       return mockReviewLoop;
     } as any);
-    vi.mocked(TestOrchestratorService).mockImplementation(function(this: any) {
+    vi.mocked(TestOrchestratorService).mockImplementation(function (this: any) {
       return mockTestOrchestrator;
     } as any);
 
@@ -141,12 +141,7 @@ describe('phase9ReviewNode', () => {
     it('should create ReviewLoopService with correct params', async () => {
       await phase9ReviewNode(mockState);
 
-      expect(ReviewLoopService).toHaveBeenCalledWith(
-        '/test/project',
-        '/test/framework',
-        3,
-        10.0
-      );
+      expect(ReviewLoopService).toHaveBeenCalledWith('/test/project', '/test/framework', 3, 10.0);
     });
 
     it('should run review loop with services', async () => {

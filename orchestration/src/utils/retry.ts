@@ -1,5 +1,5 @@
-import { randomUUID } from "crypto";
-import type { RetryState } from "../state/schemas/initialize-project.schema.js";
+import { randomUUID } from 'crypto';
+import type { RetryState } from '../state/schemas/initialize-project.schema.js';
 
 export interface RetryConfig {
   maxAttempts: number;
@@ -40,9 +40,7 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function initRetryState(
-  maxAttempts: number = DEFAULT_RETRY_CONFIG.maxAttempts,
-): RetryState {
+export function initRetryState(maxAttempts: number = DEFAULT_RETRY_CONFIG.maxAttempts): RetryState {
   return {
     attempt: 0,
     max_attempts: maxAttempts,
@@ -99,33 +97,33 @@ export function shouldRetry(state: RetryState): boolean {
  */
 export function buildErrorFeedback(state: RetryState): string {
   if (!state.last_error) {
-    return "";
+    return '';
   }
 
   const lines = [
-    "",
+    '',
     `⚠️  PREVIOUS ATTEMPT FAILED (Attempt ${state.attempt}/${state.max_attempts})`,
-    "",
-    "=== ERROR FROM LAST ATTEMPT ===",
+    '',
+    '=== ERROR FROM LAST ATTEMPT ===',
     state.last_error,
-    "",
+    '',
   ];
 
   if (state.error_history.length > 1) {
-    lines.push("=== PREVIOUS ERRORS ===");
+    lines.push('=== PREVIOUS ERRORS ===');
     state.error_history.slice(0, -1).forEach((err, idx) => {
       lines.push(`Attempt ${idx + 1}: ${err}`);
     });
-    lines.push("");
+    lines.push('');
   }
 
-  lines.push("=== INSTRUCTIONS ===");
-  lines.push("Please fix the issues identified above and try again.");
-  lines.push("Pay special attention to:");
-  lines.push("1. JSON format must be valid");
-  lines.push("2. All required fields must be present");
-  lines.push("3. Follow the schema exactly");
-  lines.push("");
+  lines.push('=== INSTRUCTIONS ===');
+  lines.push('Please fix the issues identified above and try again.');
+  lines.push('Pay special attention to:');
+  lines.push('1. JSON format must be valid');
+  lines.push('2. All required fields must be present');
+  lines.push('3. Follow the schema exactly');
+  lines.push('');
 
-  return lines.join("\n");
+  return lines.join('\n');
 }

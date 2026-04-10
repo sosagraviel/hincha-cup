@@ -5,6 +5,7 @@
 ## When to Use needs_verification
 
 Use `needs_verification` ONLY for information that:
+
 1. Cannot be determined from code, configs, or manifests
 2. Requires human knowledge or business context
 3. Is genuinely ambiguous from technical analysis alone
@@ -12,6 +13,7 @@ Use `needs_verification` ONLY for information that:
 ## When NOT to Use
 
 Do NOT use `needs_verification` for:
+
 - Information you haven't searched for yet (search first)
 - Information that might exist in unread files (read them)
 - Technical details that can be inferred from code patterns

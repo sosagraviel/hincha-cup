@@ -118,7 +118,7 @@ describe('phase4ImplementationNode', () => {
       const result = await phase4ImplementationNode(mockState);
 
       expect(result.current_phase).toBe('failed');
-      expect(result.errors?.some(e => e.includes('Phase 3 not complete'))).toBe(true);
+      expect(result.errors?.some((e) => e.includes('Phase 3 not complete'))).toBe(true);
     });
 
     it('should proceed if phase3 complete', async () => {
@@ -140,7 +140,7 @@ describe('phase4ImplementationNode', () => {
       const result = await phase4ImplementationNode(mockState);
 
       expect(result.current_phase).toBe('failed');
-      expect(result.errors?.some(e => e.includes('Implementation plan not found'))).toBe(true);
+      expect(result.errors?.some((e) => e.includes('Implementation plan not found'))).toBe(true);
     });
 
     it('should read implementation plan from disk', async () => {
@@ -148,7 +148,7 @@ describe('phase4ImplementationNode', () => {
 
       expect(fs.readFileSync).toHaveBeenCalledWith(
         expect.stringContaining('implementation-plan.md'),
-        'utf-8'
+        'utf-8',
       );
     });
   });
@@ -166,7 +166,7 @@ describe('phase4ImplementationNode', () => {
       const result = await phase4ImplementationNode(mockState);
 
       expect(result.current_phase).toBe('failed');
-      expect(result.errors?.some(e => e.includes('Context not found'))).toBe(true);
+      expect(result.errors?.some((e) => e.includes('Context not found'))).toBe(true);
     });
 
     it('should read full context from disk', async () => {
@@ -174,7 +174,7 @@ describe('phase4ImplementationNode', () => {
 
       expect(fs.readFileSync).toHaveBeenCalledWith(
         expect.stringContaining('full-context.md'),
-        'utf-8'
+        'utf-8',
       );
     });
   });
@@ -193,7 +193,7 @@ describe('phase4ImplementationNode', () => {
       const result = await phase4ImplementationNode(mockState);
 
       expect(result.current_phase).toBe('failed');
-      expect(result.errors?.some(e => e.includes('Stack profile not found'))).toBe(true);
+      expect(result.errors?.some((e) => e.includes('Stack profile not found'))).toBe(true);
     });
 
     it('should read stack profile from disk', async () => {
@@ -201,7 +201,7 @@ describe('phase4ImplementationNode', () => {
 
       expect(fs.readFileSync).toHaveBeenCalledWith(
         expect.stringContaining('stack-profile.json'),
-        'utf-8'
+        'utf-8',
       );
     });
 
@@ -261,7 +261,7 @@ describe('phase4ImplementationNode', () => {
       const result = await phase4ImplementationNode(mockState);
 
       expect(result.current_phase).toBe('failed');
-      expect(result.errors?.some(e => e.includes('framework_path not set'))).toBe(true);
+      expect(result.errors?.some((e) => e.includes('framework_path not set'))).toBe(true);
     });
   });
 
@@ -295,7 +295,9 @@ describe('phase4ImplementationNode', () => {
       const result = await phase4ImplementationNode(mockState);
 
       expect(result.current_phase).toBe('failed');
-      expect(result.errors?.some(e => e.includes('Implementer agent invocation failed'))).toBe(true);
+      expect(result.errors?.some((e) => e.includes('Implementer agent invocation failed'))).toBe(
+        true,
+      );
     });
   });
 
@@ -305,14 +307,17 @@ describe('phase4ImplementationNode', () => {
 
       expect(child_process.execSync).toHaveBeenCalledWith(
         'git diff --name-only HEAD',
-        expect.objectContaining({ cwd: '/test/project' })
+        expect.objectContaining({ cwd: '/test/project' }),
       );
     });
 
     it('should extract file list from git output', async () => {
       const result = await phase4ImplementationNode(mockState);
 
-      expect(result.phase4_implementation?.files_modified).toEqual(['src/file1.ts', 'src/file2.ts']);
+      expect(result.phase4_implementation?.files_modified).toEqual([
+        'src/file1.ts',
+        'src/file2.ts',
+      ]);
     });
 
     it('should handle git diff errors gracefully', async () => {
@@ -328,9 +333,7 @@ describe('phase4ImplementationNode', () => {
       const result = await phase4ImplementationNode(mockState);
 
       expect(result.phase4_implementation?.files_modified).toEqual([]);
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Could not track files')
-      );
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Could not track files'));
 
       consoleSpy.mockRestore();
     });
@@ -355,7 +358,7 @@ describe('phase4ImplementationNode', () => {
 
       expect(child_process.execSync).toHaveBeenCalledWith(
         'git diff --stat HEAD',
-        expect.objectContaining({ cwd: '/test/project' })
+        expect.objectContaining({ cwd: '/test/project' }),
       );
     });
 
@@ -417,9 +420,7 @@ describe('phase4ImplementationNode', () => {
         linesAdded: 0,
         linesRemoved: 0,
       });
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Could not get statistics')
-      );
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Could not get statistics'));
 
       consoleSpy.mockRestore();
     });
@@ -429,10 +430,9 @@ describe('phase4ImplementationNode', () => {
     it('should create phase4 directory', async () => {
       await phase4ImplementationNode(mockState);
 
-      expect(fs.mkdirSync).toHaveBeenCalledWith(
-        expect.stringContaining('phase4'),
-        { recursive: true }
-      );
+      expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('phase4'), {
+        recursive: true,
+      });
     });
 
     it('should write implementation log to disk', async () => {
@@ -445,7 +445,7 @@ describe('phase4ImplementationNode', () => {
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringContaining('implementation-log.md'),
-        'Implementation log content'
+        'Implementation log content',
       );
     });
 
@@ -454,7 +454,7 @@ describe('phase4ImplementationNode', () => {
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringContaining('files-modified.txt'),
-        'src/file1.ts\nsrc/file2.ts'
+        'src/file1.ts\nsrc/file2.ts',
       );
     });
 
@@ -463,7 +463,7 @@ describe('phase4ImplementationNode', () => {
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringContaining('file-statistics.json'),
-        expect.stringContaining('"filesChanged"')
+        expect.stringContaining('"filesChanged"'),
       );
     });
 
@@ -472,7 +472,7 @@ describe('phase4ImplementationNode', () => {
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringContaining('implementation-data.json'),
-        expect.stringContaining('"implementation_log"')
+        expect.stringContaining('"implementation_log"'),
       );
     });
 
@@ -481,16 +481,16 @@ describe('phase4ImplementationNode', () => {
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringContaining('implementation-complete.json'),
-        expect.stringContaining('completed_at')
+        expect.stringContaining('completed_at'),
       );
     });
 
     it('should include ticket id in completion marker', async () => {
       await phase4ImplementationNode(mockState);
 
-      const lastCall = vi.mocked(fs.writeFileSync).mock.calls.find(call =>
-        (call[0] as string).includes('implementation-complete.json')
-      );
+      const lastCall = vi
+        .mocked(fs.writeFileSync)
+        .mock.calls.find((call) => (call[0] as string).includes('implementation-complete.json'));
 
       expect(lastCall).toBeDefined();
       expect(lastCall![1]).toContain('TICKET-123');
@@ -541,7 +541,7 @@ describe('phase4ImplementationNode', () => {
       const result = await phase4ImplementationNode(mockState);
 
       expect(result.current_phase).toBe('failed');
-      expect(result.errors?.some(e => e.includes('Implementation failed'))).toBe(true);
+      expect(result.errors?.some((e) => e.includes('Implementation failed'))).toBe(true);
     });
 
     it('should use default temp_dir if not provided', async () => {
@@ -551,7 +551,7 @@ describe('phase4ImplementationNode', () => {
 
       expect(fs.readFileSync).toHaveBeenCalledWith(
         expect.stringContaining('.claude-temp/implement-ticket/TICKET-123'),
-        'utf-8'
+        'utf-8',
       );
     });
   });

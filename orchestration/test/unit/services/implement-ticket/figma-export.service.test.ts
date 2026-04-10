@@ -39,9 +39,11 @@ describe('FigmaExportService', () => {
   describe('getAccessStatus', () => {
     it('returns "mcp" when Figma MCP configured', async () => {
       mockedExistsSync.mockReturnValue(true);
-      mockedReadFileSync.mockReturnValue(JSON.stringify({
-        mcpServers: { 'figma-mcp': { command: 'npx figma-mcp' } },
-      }));
+      mockedReadFileSync.mockReturnValue(
+        JSON.stringify({
+          mcpServers: { 'figma-mcp': { command: 'npx figma-mcp' } },
+        }),
+      );
       const status = await service.getAccessStatus();
       expect(status).toBe('mcp');
     });
@@ -61,9 +63,11 @@ describe('FigmaExportService', () => {
 
     it('returns "none" when MCP config has no Figma server', async () => {
       mockedExistsSync.mockReturnValue(true);
-      mockedReadFileSync.mockReturnValue(JSON.stringify({
-        mcpServers: { 'other-mcp': { command: 'npx other' } },
-      }));
+      mockedReadFileSync.mockReturnValue(
+        JSON.stringify({
+          mcpServers: { 'other-mcp': { command: 'npx other' } },
+        }),
+      );
       const status = await service.getAccessStatus();
       expect(status).toBe('none');
     });
@@ -84,9 +88,11 @@ describe('FigmaExportService', () => {
 
     it('returns mcp error when Figma MCP is configured', async () => {
       mockedExistsSync.mockReturnValue(true);
-      mockedReadFileSync.mockReturnValue(JSON.stringify({
-        mcpServers: { 'figma-mcp': { command: 'npx figma-mcp' } },
-      }));
+      mockedReadFileSync.mockReturnValue(
+        JSON.stringify({
+          mcpServers: { 'figma-mcp': { command: 'npx figma-mcp' } },
+        }),
+      );
       const result = await service.fetchDesignContext('fileKey', ['1-2']);
       expect(result.success).toBe(false);
       expect(result.accessMethod).toBe('mcp');
@@ -265,8 +271,19 @@ describe('FigmaExportService', () => {
             primaryAlign: 'MIN',
             counterAlign: 'MIN',
           },
-          colors: [{ role: 'background', rgba: [255, 255, 255, 1] as [number, number, number, number] }],
-          typography: [{ role: 'heading', fontFamily: 'Inter', fontSize: 24, fontWeight: 700, lineHeight: 32, letterSpacing: 0 }],
+          colors: [
+            { role: 'background', rgba: [255, 255, 255, 1] as [number, number, number, number] },
+          ],
+          typography: [
+            {
+              role: 'heading',
+              fontFamily: 'Inter',
+              fontSize: 24,
+              fontWeight: 700,
+              lineHeight: 32,
+              letterSpacing: 0,
+            },
+          ],
           children: [{ name: 'Header', type: 'FRAME' }],
         },
       ];

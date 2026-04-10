@@ -69,12 +69,12 @@ describe('techStackDependenciesAnalyzerNode', () => {
     };
 
     mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
-    vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
+    vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
         const { output } = await agentInvoke('');
         return JSON.parse(output);
-      }
+      },
     );
   });
 
@@ -97,7 +97,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
     expect(fs.mkdirSync).toHaveBeenCalledWith(
       expect.stringContaining('.claude-temp/initialize-project/phase1-outputs'),
-      { recursive: true }
+      { recursive: true },
     );
   });
 
@@ -106,7 +106,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
     expect(fs.mkdirSync).toHaveBeenCalledWith(
       expect.stringContaining('/test/temp/phase1-outputs'),
-      { recursive: true }
+      { recursive: true },
     );
   });
 
@@ -127,7 +127,9 @@ describe('techStackDependenciesAnalyzerNode', () => {
     await techStackDependenciesAnalyzerNode(mockState);
 
     expect(mockAgent.invoke).toHaveBeenCalledWith({
-      inputPrompt: expect.stringContaining('Analyze the tech stack and dependencies at: /test/project'),
+      inputPrompt: expect.stringContaining(
+        'Analyze the tech stack and dependencies at: /test/project',
+      ),
     });
   });
 
@@ -136,7 +138,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.stringContaining('02-tech-stack-dependencies.json'),
-      expect.any(String)
+      expect.any(String),
     );
   });
 
@@ -153,7 +155,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.any(String),
-      JSON.stringify(mockData, null, 2)
+      JSON.stringify(mockData, null, 2),
     );
   });
 
@@ -164,7 +166,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
       expect.any(Function),
       expect.any(Function),
       enhancedRetry.DEFAULT_RETRY_CONFIG,
-      expect.stringContaining('02-tech-stack-dependencies.json') // outputFilePath parameter
+      expect.stringContaining('02-tech-stack-dependencies.json'), // outputFilePath parameter
     );
   });
 
@@ -182,7 +184,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
         async (agentInvoke: any) => {
           await agentInvoke('');
           return { agent_name: 'test', timestamp: '2024-01-01T00:00:00Z', findings: {} };
-        }
+        },
       );
 
       const result = await techStackDependenciesAnalyzerNode(mockState);
@@ -206,7 +208,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     vi.mocked(AgentFactory.create).mockRejectedValue(sigintError);
 
     await expect(techStackDependenciesAnalyzerNode(mockState)).rejects.toThrow(
-      'Process interrupted by user'
+      'Process interrupted by user',
     );
   });
 
@@ -215,7 +217,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     vi.mocked(AgentFactory.create).mockRejectedValue(sigintError);
 
     await expect(techStackDependenciesAnalyzerNode(mockState)).rejects.toThrow(
-      'Received SIGINT signal'
+      'Received SIGINT signal',
     );
   });
 
@@ -225,9 +227,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
       errors: ['Previous error 1', 'Previous error 2'],
     };
 
-    vi.mocked(AgentFactory.create).mockRejectedValue(
-      new Error('New error')
-    );
+    vi.mocked(AgentFactory.create).mockRejectedValue(new Error('New error'));
 
     const result = await techStackDependenciesAnalyzerNode(stateWithErrors);
 
@@ -239,7 +239,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
   it('should handle validation errors', async () => {
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockRejectedValue(
-      new Error('Validation failed after retries')
+      new Error('Validation failed after retries'),
     );
 
     const result = await techStackDependenciesAnalyzerNode(mockState);
@@ -268,7 +268,15 @@ describe('techStackDependenciesAnalyzerNode', () => {
     await techStackDependenciesAnalyzerNode(mockState);
 
     const mkdirCalls = vi.mocked(fs.mkdirSync).mock.calls;
-    expect(mkdirCalls.some((call) => typeof call[1] === 'object' && call[1] !== null && 'recursive' in call[1] && call[1].recursive === true)).toBe(true);
+    expect(
+      mkdirCalls.some(
+        (call) =>
+          typeof call[1] === 'object' &&
+          call[1] !== null &&
+          'recursive' in call[1] &&
+          call[1].recursive === true,
+      ),
+    ).toBe(true);
   });
 
   it('should use correct agent file name', async () => {
@@ -277,7 +285,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     expect(mockFactory.createAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         agentFilePath: expect.stringContaining('tech-stack-analyzer/prompts/agent.md'),
-      })
+      }),
     );
   });
 
@@ -287,7 +295,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     expect(mockFactory.createAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         agentName: 'tech-stack-dependencies-analyzer',
-      })
+      }),
     );
   });
 
@@ -297,7 +305,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     expect(mockFactory.createAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         timeout: 600000,
-      })
+      }),
     );
   });
 
@@ -308,7 +316,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
       async (agentInvoke: any) => {
         const output = await agentInvoke('');
         return JSON.parse(JSON.stringify(output));
-      }
+      },
     );
 
     const result = await techStackDependenciesAnalyzerNode(mockState);

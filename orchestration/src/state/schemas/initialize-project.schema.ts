@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 /**
  * State schema for initialize-project workflow
@@ -23,12 +23,12 @@ export const AnalyzerOutputSchema = z.object({
     'structure-architecture-analyzer',
     'tech-stack-dependencies-analyzer',
     'code-patterns-testing-analyzer',
-    'data-flows-integrations-analyzer'
+    'data-flows-integrations-analyzer',
   ]),
   timestamp: z.string(),
   findings: z.any(), // Flexible structure - accepts anything (avoids Zod v4 beta bugs)
   needs_verification: z.array(z.any()).max(5).optional(), // Accept any structure for needs_verification (max 5 items)
-  confidence_level: z.enum(['high', 'medium', 'low']).optional()
+  confidence_level: z.enum(['high', 'medium', 'low']).optional(),
 });
 
 // Phase 1 Complete State
@@ -38,7 +38,7 @@ export const Phase1AnalysisSchema = z.object({
   code_patterns_testing: AnalyzerOutputSchema.optional(),
   data_flows_integrations: AnalyzerOutputSchema.optional(),
   all_completed: z.boolean().default(false),
-  completion_timestamp: z.string().optional()
+  completion_timestamp: z.string().optional(),
 });
 
 // ============================================================================
@@ -49,7 +49,7 @@ export const Phase2ConsolidationSchema = z.object({
   consolidated_findings: z.any(), // Flexible structure - accepts anything (avoids Zod v4 beta bugs)
   identified_gaps: z.array(z.string()).optional(),
   conflicting_findings: z.array(z.string()).optional(),
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -58,12 +58,14 @@ export const Phase2ConsolidationSchema = z.object({
 
 export const Phase3SynthesisSchema = z.object({
   synthesis_content: z.string(), // Raw markdown content
-  extracted_files: z.object({
-    claude_md: z.string().optional(),
-    project_context_md: z.string().optional()
-  }).optional(),
+  extracted_files: z
+    .object({
+      claude_md: z.string().optional(),
+      project_context_md: z.string().optional(),
+    })
+    .optional(),
   timestamp: z.string(),
-  validation_passed: z.boolean().default(false)
+  validation_passed: z.boolean().default(false),
 });
 
 // ============================================================================
@@ -75,7 +77,7 @@ export const Phase4ContextSchema = z.object({
   project_context_written: z.boolean().default(false),
   stack_profile: z.any().optional(), // Flexible structure - accepts anything (avoids Zod v4 beta bugs)
   framework_config_generated: z.boolean().default(false),
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -93,7 +95,7 @@ export const RetryStateSchema = z.object({
   next_delay_ms: z.number().optional(), // Exponential backoff delay
   started_at: z.string().optional(),
   completed_at: z.string().optional(),
-  session_id: z.string().optional() // UUID for tracking (not for Claude CLI session reuse)
+  session_id: z.string().optional(), // UUID for tracking (not for Claude CLI session reuse)
 });
 
 // Retry tracking for all Phase 1 agents
@@ -101,7 +103,7 @@ export const Phase1RetryTrackingSchema = z.object({
   structure_architecture: RetryStateSchema.optional(),
   tech_stack_dependencies: RetryStateSchema.optional(),
   code_patterns_testing: RetryStateSchema.optional(),
-  data_flows_integrations: RetryStateSchema.optional()
+  data_flows_integrations: RetryStateSchema.optional(),
 });
 
 // ============================================================================
@@ -117,17 +119,19 @@ export const InitializeProjectStateSchema = z.object({
   start_phase: z.number().min(1).max(6).default(1).optional(),
 
   // Current phase tracking
-  current_phase: z.enum([
-    'init',
-    'phase1_analysis',
-    'phase2_consolidation',
-    'phase3_synthesis',
-    'phase4_context',
-    'phase5_resources',
-    'phase6_validation',
-    'complete',
-    'failed'
-  ]).default('init'),
+  current_phase: z
+    .enum([
+      'init',
+      'phase1_analysis',
+      'phase2_consolidation',
+      'phase3_synthesis',
+      'phase4_context',
+      'phase5_resources',
+      'phase6_validation',
+      'complete',
+      'failed',
+    ])
+    .default('init'),
 
   // Phase outputs (stored for framework-config.json generation)
   phase1_analysis: Phase1AnalysisSchema.optional(),
@@ -159,7 +163,7 @@ export const InitializeProjectStateSchema = z.object({
   total_duration_ms: z.number().optional(),
 
   // Checkpointing
-  checkpoint_id: z.string().optional()
+  checkpoint_id: z.string().optional(),
 });
 
 // ============================================================================
@@ -235,15 +239,15 @@ export const InitializeProjectAnnotation = Annotation.Root({
       // Priority order (highest to lowest):
       // failed > complete > specific phases > init
       const priority = {
-        'failed': 100,
-        'complete': 90,
-        'phase6_validation': 60,
-        'phase5_resources': 50,
-        'phase4_context': 40,
-        'phase3_synthesis': 30,
-        'phase2_consolidation': 20,
-        'phase1_analysis': 10,
-        'init': 0
+        failed: 100,
+        complete: 90,
+        phase6_validation: 60,
+        phase5_resources: 50,
+        phase4_context: 40,
+        phase3_synthesis: 30,
+        phase2_consolidation: 20,
+        phase1_analysis: 10,
+        init: 0,
       };
 
       const leftPriority = priority[left] ?? -1;
@@ -252,7 +256,7 @@ export const InitializeProjectAnnotation = Annotation.Root({
       // Return the phase with highest priority
       return rightPriority >= leftPriority ? right : left;
     },
-    default: () => 'init'
+    default: () => 'init',
   }),
 
   // ============================================================================
@@ -263,8 +267,8 @@ export const InitializeProjectAnnotation = Annotation.Root({
   phase1_analysis: Annotation<Phase1Analysis>({
     reducer: (left, right) => ({ ...left, ...right }),
     default: () => ({
-      all_completed: false
-    })
+      all_completed: false,
+    }),
   }),
 
   // Phases 2-4: Sequential nodes, use default LastValue reducer
@@ -279,7 +283,7 @@ export const InitializeProjectAnnotation = Annotation.Root({
   // We need a reducer that can handle multiple identical updates
   temp_dir: Annotation<string | undefined>({
     reducer: (left, right) => right ?? left,
-    default: () => undefined
+    default: () => undefined,
   }),
 
   // ============================================================================
@@ -294,7 +298,7 @@ export const InitializeProjectAnnotation = Annotation.Root({
   //   - data_flows_integrations_analyzer → updates data_flows_integrations
   phase1_retry_tracking: Annotation<Phase1RetryTracking>({
     reducer: (left, right) => ({ ...left, ...right }),
-    default: () => ({})
+    default: () => ({}),
   }),
 
   // Phases 2-4: Sequential nodes, use default LastValue reducer
@@ -309,13 +313,13 @@ export const InitializeProjectAnnotation = Annotation.Root({
   // Errors: Concatenate arrays from multiple nodes
   errors: Annotation<string[]>({
     reducer: (left, right) => [...left, ...right],
-    default: () => []
+    default: () => [],
   }),
 
   // Warnings: Concatenate arrays from multiple nodes
   warnings: Annotation<string[]>({
     reducer: (left, right) => [...left, ...right],
-    default: () => []
+    default: () => [],
   }),
 
   // ============================================================================
@@ -331,5 +335,5 @@ export const InitializeProjectAnnotation = Annotation.Root({
   started_at: Annotation<string | undefined>,
   completed_at: Annotation<string | undefined>,
   total_duration_ms: Annotation<number | undefined>,
-  checkpoint_id: Annotation<string | undefined>
+  checkpoint_id: Annotation<string | undefined>,
 });

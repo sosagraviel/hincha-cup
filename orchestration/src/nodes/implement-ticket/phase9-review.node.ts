@@ -28,7 +28,7 @@ import { TestOrchestratorService } from '../../services/implement-ticket/test-or
  * @returns Updated state with phase9 completion flag
  */
 export async function phase9ReviewNode(
-  state: ImplementTicketState
+  state: ImplementTicketState,
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
@@ -45,7 +45,7 @@ export async function phase9ReviewNode(
     return {
       current_phase: 'phase10_cleanup',
       phase9_complete: true,
-      phase9_review: completionData.review_data
+      phase9_review: completionData.review_data,
     };
   }
 
@@ -55,9 +55,7 @@ export async function phase9ReviewNode(
     const phase8CompletionPath = join(phase8Dir, 'pr-complete.json');
 
     if (!existsSync(phase8CompletionPath)) {
-      throw new Error(
-        'Phase 8 not complete. Run Phase 8 first or use --start-phase 8'
-      );
+      throw new Error('Phase 8 not complete. Run Phase 8 first or use --start-phase 8');
     }
     console.log('[Phase 9: Review Loop] ✓ Phase 8 verified');
 
@@ -73,34 +71,29 @@ export async function phase9ReviewNode(
 
     const phase0Dir = join(tempDir, 'phase0');
     const stackProfile = JSON.parse(readFileSync(join(phase0Dir, 'stack-profile.json'), 'utf-8'));
-    const frameworkConfig = JSON.parse(readFileSync(join(phase0Dir, 'framework-config.json'), 'utf-8'));
+    const frameworkConfig = JSON.parse(
+      readFileSync(join(phase0Dir, 'framework-config.json'), 'utf-8'),
+    );
 
     // 5. Create review loop service
     const reviewLoopService = new ReviewLoopService(
       projectPath,
       frameworkPath,
-      3,   // maxIterations
-      10.0 // convergenceThreshold (10%)
+      3, // maxIterations
+      10.0, // convergenceThreshold (10%)
     );
 
     // 6. Create test orchestrator
-    const testOrchestrator = new TestOrchestratorService(
-      projectPath,
-      frameworkConfig
-    );
+    const testOrchestrator = new TestOrchestratorService(projectPath, frameworkConfig);
 
     // 7. Run review loop
     console.log('[Phase 9: Review Loop] Starting review iterations...\n');
 
     let reviewLoopResult;
     try {
-      reviewLoopResult = await reviewLoopService.runReviewLoop(
-        prUrl,
-        testOrchestrator
-      );
+      reviewLoopResult = await reviewLoopService.runReviewLoop(prUrl, testOrchestrator);
 
       console.log('\n[Phase 9: Review Loop] ✓ Review loop completed');
-
     } catch (error: any) {
       console.error(`[Phase 9: Review Loop] ⚠ Review loop failed: ${error.message}`);
       console.log('[Phase 9: Review Loop] Continuing to Phase 10 (review loop is non-blocking)');
@@ -111,7 +104,9 @@ export async function phase9ReviewNode(
 
     // 9. Log review summary
     console.log('\n[Phase 9: Review Loop] Review Summary:');
-    console.log(`  • Final status: ${reviewLoopResult.finalPassed ? 'PASSED ✅' : 'REQUIRES MANUAL REVIEW ⚠️'}`);
+    console.log(
+      `  • Final status: ${reviewLoopResult.finalPassed ? 'PASSED ✅' : 'REQUIRES MANUAL REVIEW ⚠️'}`,
+    );
     console.log(`  • Iterations: ${reviewLoopResult.iterations.length}`);
     console.log(`  • Convergence: ${reviewLoopResult.convergence}`);
     console.log(`  • Issues resolved: ${reviewLoopResult.totalIssuesResolved}`);
@@ -120,8 +115,12 @@ export async function phase9ReviewNode(
     // 10. Log iteration details
     for (const iteration of reviewLoopResult.iterations) {
       console.log(`  Iteration ${iteration.iteration}:`);
-      console.log(`    - PR review: ${iteration.prReview.blockerCount} blockers, ${iteration.prReview.majorCount} major`);
-      console.log(`    - Security review: ${iteration.securityReview.blockerCount} blockers, ${iteration.securityReview.majorCount} major`);
+      console.log(
+        `    - PR review: ${iteration.prReview.blockerCount} blockers, ${iteration.prReview.majorCount} major`,
+      );
+      console.log(
+        `    - Security review: ${iteration.securityReview.blockerCount} blockers, ${iteration.securityReview.majorCount} major`,
+      );
       console.log(`    - Fixes applied: ${iteration.fixesApplied.length}`);
       console.log(`    - Tests passed: ${iteration.testsPassedAfterFix ? 'Yes' : 'No'}`);
       console.log(`    - Improvement: ${iteration.improvement.toFixed(2)}%`);
@@ -134,7 +133,7 @@ export async function phase9ReviewNode(
 
     writeFileSync(
       join(phase9Dir, 'review-results.json'),
-      JSON.stringify(reviewLoopResult, null, 2)
+      JSON.stringify(reviewLoopResult, null, 2),
     );
 
     const reviewSummary: string[] = [];
@@ -174,7 +173,9 @@ export async function phase9ReviewNode(
       reviewSummary.push(`## ⚠️ Manual Review Required\n`);
 
       if (reviewLoopResult.convergence === 'max_iterations') {
-        reviewSummary.push(`Maximum iterations (3) reached. Some issues may still exist. Please review the PR manually.`);
+        reviewSummary.push(
+          `Maximum iterations (3) reached. Some issues may still exist. Please review the PR manually.`,
+        );
       } else if (reviewLoopResult.convergence === 'diverged') {
         reviewSummary.push(`Issue count increased during iteration. Manual intervention required.`);
       } else {
@@ -182,34 +183,33 @@ export async function phase9ReviewNode(
       }
     }
 
-    writeFileSync(
-      join(phase9Dir, 'review-summary.md'),
-      reviewSummary.join('\n')
-    );
+    writeFileSync(join(phase9Dir, 'review-summary.md'), reviewSummary.join('\n'));
 
     const reviewData = {
       pr_review_results: reviewLoopResult,
-      security_review_results: reviewLoopResult.iterations.length > 0
-        ? reviewLoopResult.iterations[reviewLoopResult.iterations.length - 1].securityReview
-        : undefined,
+      security_review_results:
+        reviewLoopResult.iterations.length > 0
+          ? reviewLoopResult.iterations[reviewLoopResult.iterations.length - 1].securityReview
+          : undefined,
       iteration_count: reviewLoopResult.iterations.length,
       all_resolved: reviewLoopResult.finalPassed,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
-    writeFileSync(
-      join(phase9Dir, 'review-data.json'),
-      JSON.stringify(reviewData, null, 2)
-    );
+    writeFileSync(join(phase9Dir, 'review-data.json'), JSON.stringify(reviewData, null, 2));
 
     // Write completion marker (last file to write - indicates phase complete)
     writeFileSync(
       completionMarkerPath,
-      JSON.stringify({
-        completed_at: new Date().toISOString(),
-        ticket_id: ticketId,
-        review_data: reviewData
-      }, null, 2)
+      JSON.stringify(
+        {
+          completed_at: new Date().toISOString(),
+          ticket_id: ticketId,
+          review_data: reviewData,
+        },
+        null,
+        2,
+      ),
     );
 
     console.log('[Phase 9: Review Loop] ✓ Outputs written to disk');
@@ -219,9 +219,8 @@ export async function phase9ReviewNode(
     return {
       current_phase: 'phase10_cleanup',
       phase9_complete: true,
-      phase9_review: reviewData
+      phase9_review: reviewData,
     };
-
   } catch (error) {
     const errorMessage = `Review loop failed: ${(error as Error).message}`;
     console.error(`[Phase 9: Review Loop] ✗ ${errorMessage}`);
@@ -240,7 +239,7 @@ function skipReviewLoop(
   phase9Dir: string,
   completionMarkerPath: string,
   ticketId: string,
-  reason: string
+  reason: string,
 ): Partial<ImplementTicketState> {
   mkdirSync(phase9Dir, { recursive: true });
 
@@ -251,37 +250,38 @@ function skipReviewLoop(
       iterations: [],
       totalIssuesResolved: 0,
       skipped: true,
-      skip_reason: reason
+      skip_reason: reason,
     },
     security_review_results: undefined,
     iteration_count: 0,
     all_resolved: false,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 
   writeFileSync(
     join(phase9Dir, 'review-summary.md'),
     `# Review Loop Summary\n\n⚠ SKIPPED\n\n**Reason**: ${reason}\n\n` +
-    `Manual PR review recommended.`
+      `Manual PR review recommended.`,
   );
 
-  writeFileSync(
-    join(phase9Dir, 'review-data.json'),
-    JSON.stringify(reviewData, null, 2)
-  );
+  writeFileSync(join(phase9Dir, 'review-data.json'), JSON.stringify(reviewData, null, 2));
 
   writeFileSync(
     completionMarkerPath,
-    JSON.stringify({
-      completed_at: new Date().toISOString(),
-      ticket_id: ticketId,
-      review_data: reviewData
-    }, null, 2)
+    JSON.stringify(
+      {
+        completed_at: new Date().toISOString(),
+        ticket_id: ticketId,
+        review_data: reviewData,
+      },
+      null,
+      2,
+    ),
   );
 
   return {
     current_phase: 'phase10_cleanup',
     phase9_complete: true,
-    phase9_review: reviewData
+    phase9_review: reviewData,
   };
 }

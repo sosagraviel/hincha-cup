@@ -114,7 +114,9 @@ export class ConfigUpdaterService {
   /**
    * Add or update a service in stack profile
    */
-  async updateService(serviceConfig: Service): Promise<{ updated: boolean; config?: FrameworkConfig }> {
+  async updateService(
+    serviceConfig: Service,
+  ): Promise<{ updated: boolean; config?: FrameworkConfig }> {
     const config = await this.readConfig();
 
     if (!config.stack_profile.services) {
@@ -122,7 +124,7 @@ export class ConfigUpdaterService {
     }
 
     const existingIndex = config.stack_profile.services.findIndex(
-      (s: any) => s.id === serviceConfig.id
+      (s: any) => s.id === serviceConfig.id,
     );
 
     if (existingIndex >= 0) {
@@ -145,7 +147,7 @@ export class ConfigUpdaterService {
 
     const originalLength = config.stack_profile.services.length;
     config.stack_profile.services = config.stack_profile.services.filter(
-      (s: any) => s.id !== serviceId
+      (s: any) => s.id !== serviceId,
     );
 
     if (config.stack_profile.services.length < originalLength) {
@@ -175,7 +177,7 @@ export class ConfigUpdaterService {
   async updateResourceState(
     resourceType: 'skills' | 'agents' | 'commands',
     resourceName: string,
-    metadata: Partial<ResourceInfo>
+    metadata: Partial<ResourceInfo>,
   ): Promise<FrameworkConfig> {
     const config = await this.readConfig();
 
@@ -196,7 +198,10 @@ export class ConfigUpdaterService {
     return config;
   }
 
-  async removeResourceFromState(resourceType: 'skills' | 'agents' | 'commands', resourceName: string): Promise<boolean> {
+  async removeResourceFromState(
+    resourceType: 'skills' | 'agents' | 'commands',
+    resourceName: string,
+  ): Promise<boolean> {
     const config = await this.readConfig();
 
     if (config.resource_state[resourceType] && config.resource_state[resourceType][resourceName]) {
@@ -231,7 +236,10 @@ export class ConfigUpdaterService {
 
       return hash;
     } catch (error) {
-      console.warn('Warning: Could not generate project hash:', error instanceof Error ? error.message : String(error));
+      console.warn(
+        'Warning: Could not generate project hash:',
+        error instanceof Error ? error.message : String(error),
+      );
       return createHash('sha256').update(Math.random().toString()).digest('hex');
     }
   }
@@ -369,7 +377,10 @@ export class ConfigUpdaterService {
     return modifications;
   }
 
-  async markResourceAsUserManaged(resourceType: 'skills' | 'agents', resourceName: string): Promise<boolean> {
+  async markResourceAsUserManaged(
+    resourceType: 'skills' | 'agents',
+    resourceName: string,
+  ): Promise<boolean> {
     const config = await this.readConfig();
 
     if (config.resource_state[resourceType] && config.resource_state[resourceType][resourceName]) {
@@ -379,7 +390,9 @@ export class ConfigUpdaterService {
 
       await this.writeConfig(config);
 
-      console.log(`Marked ${resourceType}/${resourceName} as user-managed (will skip future syncs)`);
+      console.log(
+        `Marked ${resourceType}/${resourceName} as user-managed (will skip future syncs)`,
+      );
 
       return true;
     }
@@ -387,7 +400,9 @@ export class ConfigUpdaterService {
     return false;
   }
 
-  async updateFrameworkVersion(newVersion: string): Promise<{ oldVersion: string; newVersion: string }> {
+  async updateFrameworkVersion(
+    newVersion: string,
+  ): Promise<{ oldVersion: string; newVersion: string }> {
     const config = await this.readConfig();
     const oldVersion = config.framework_version;
 

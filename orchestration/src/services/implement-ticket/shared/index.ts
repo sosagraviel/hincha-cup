@@ -9,11 +9,7 @@ import { buildContentSection } from '../../../utils/shared/context-tags.js';
 /**
  * Build input prompt for planner agent (Phase 2)
  */
-export function buildPlannerPrompt(
-  ticketId: string,
-  context: string,
-  stackProfile: any,
-): string {
+export function buildPlannerPrompt(ticketId: string, context: string, stackProfile: any): string {
   const parts: string[] = [
     buildContentSection('Ticket ID', ticketId),
     '',
@@ -100,9 +96,6 @@ export function buildVisualVerifierPrompt(
 /**
  * Get path to project-specific agent file
  */
-export function getProjectAgentPath(
-  projectPath: string,
-  agentFile: string,
-): string {
+export function getProjectAgentPath(projectPath: string, agentFile: string): string {
   return join(projectPath, '.claude/agents', agentFile);
 }
