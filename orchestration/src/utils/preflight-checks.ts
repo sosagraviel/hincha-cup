@@ -356,26 +356,19 @@ export async function runPreflightChecks(
  */
 async function checkClaudeAuthentication(claudePath: string): Promise<boolean> {
   try {
-    // Try a command that requires authentication
-    // Capture both stdout and stderr since auth errors may appear in either
+    // Use 'auth status' which returns JSON without opening the interactive TUI
     const testResult = execSync(
-      `echo "test" | "${claudePath}" --model sonnet --dangerously-skip-permissions`,
+      `"${claudePath}" auth status`,
       {
         encoding: "utf-8",
         timeout: 10000, // 10 second timeout
+        stdio: ["ignore", "pipe", "pipe"],
       },
     );
 
-    // Check if output contains authentication error messages
-    if (
-      testResult.includes("Not logged in") ||
-      testResult.includes("Please run /login") ||
-      testResult.includes("Please log in")
-    ) {
-      return false;
-    }
-
-    return true;
+    // Parse the JSON output to check login status
+    const authStatus = JSON.parse(testResult.trim());
+    return authStatus.loggedIn === true;
   } catch (error: any) {
     return false;
   }
