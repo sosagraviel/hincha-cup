@@ -1,14 +1,18 @@
 import type { InitializeProjectState } from "../../../state/schemas/initialize-project.schema.js";
-import { createAgentFromMarkdown } from "../../../utils/agent-factory.js";
+import { AgentFactory } from "../../../utils/shared/agent-factory/index.js";
 import {
   retryWithEnhancedFeedback,
   DEFAULT_RETRY_CONFIG,
-  type RetryConfig,
 } from "../../../utils/enhanced-retry.js";
 import type { ValidationResult } from "../../../utils/validator.js";
+import { validateSynthesisOutput } from "./validators/index.js";
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { logger } from "../../../utils/logger.js";
+import { buildSynthesisPrompt } from "./prompt-builder.js";
+import {
+  getFrameworkAgentPath,
+} from "../shared/index.js";
 
 /**
  * Phase 3: Opus Synthesis Node
@@ -59,58 +63,55 @@ export async function synthesisNode(
 
   try {
     // Define agent invocation function with feedback support
-    const agentInvoke = async (feedbackPrompt: string): Promise<string> => {
-      const consolidatedContext = `
-=== CONSOLIDATED ANALYSIS FROM PHASE 2 ===
+    const agentInvoke = async (feedbackPrompt: string, resumeSessionId?: string): Promise<{ output: string; sessionId: string }> => {
+      // Build input prompt using shared utility
+      const contextPrompt = buildSynthesisPrompt(phase2Consolidation, feedbackPrompt);
 
-${JSON.stringify(phase2Consolidation, null, 2)}
+      // Add ultrathink for deep reasoning
+      // Synthesis analyzes code in depth to fill gaps identified in Phase 2 consolidation
+      // It must NOT assume or guess - it reads actual code to fill missing information
+      const inputPrompt = `ultrathink\n\n${contextPrompt}\n\nSynthesize comprehensive results for: ${state.project_path}`;
 
-${feedbackPrompt}
-`;
-
-      const agent = await createAgentFromMarkdown({
+      // Create agent using new interface
+      const factory = await AgentFactory.create();
+      const agent = await factory.createAgent({
         agentName,
-        agentFile,
+        agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
-        additionalContext: consolidatedContext,
-        timeout: 600000, // 10 minutes (longer for Opus)
-        useUltrathink: true, // Enable maximum thinking for thorough synthesis
+        timeout: 600000, // 10 minutes (agent should use max 10 tool calls, mostly synthesis)
+        resumeSessionId, // Pass session ID for context-preserving retry
+        settingsPath: join(state.framework_path, 'orchestration/src/nodes/initialize-project/phase3/settings.json'),
       });
 
-      const result = await agent.invoke({
-        input: `Synthesize comprehensive results for: ${state.project_path}`,
-      });
+      const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()
 
-      return result.output || result.content || String(result);
+      return {
+        output: result.output,
+        sessionId: result.sessionId,
+      };
     };
 
     const validator = (output: string): ValidationResult => {
-      // Basic validation: should contain markdown content
-      if (!output || output.length < 500) {
-        return {
-          valid: false,
-          errors: [
-            "Synthesis output too short or empty (minimum 500 characters)",
-          ],
-          data: null,
-        };
-      }
+      // CRITICAL: This validator MUST be IDENTICAL to the stop hook validation
+      // Uses the shared comprehensive validator from synthesis-validator.ts
+      const result = validateSynthesisOutput(output);
 
       return {
-        valid: true,
-        errors: [],
-        data: output,
+        valid: result.valid,
+        errors: result.errors,
+        data: result.valid ? output : null,
       };
     };
+
+    const synthesisPath = join(tempDir, "synthesis-raw.md");
 
     const synthesisContent = await retryWithEnhancedFeedback<string>(
       agentInvoke,
       validator,
       { ...DEFAULT_RETRY_CONFIG, maxAttempts: 10 },
+      synthesisPath, // Save failed attempts as synthesis-raw.attempt-N.md
     );
-
-    const synthesisPath = join(tempDir, "synthesis-raw.md");
     writeFileSync(synthesisPath, synthesisContent);
 
     phaseLogger.success(" ✓ Synthesis complete");

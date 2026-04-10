@@ -68,7 +68,7 @@ export async function phase0PreflightNode(
     const testCommands = configReader.getTestCommands();
 
     console.log(
-      `[Phase 0: Preflight] ✓ Config loaded (primary language: ${stackProfile.primary_language || "unknown"})`,
+      `[Phase 0: Preflight] ✓ Config loaded (primary language: ${configReader.getPrimaryLanguage() || "unknown"})`,
     );
 
     console.log("[Phase 0: Preflight] Checking git status...");

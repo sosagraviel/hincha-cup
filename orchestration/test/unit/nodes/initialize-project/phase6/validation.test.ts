@@ -59,14 +59,16 @@ describe('validationNode', () => {
         return JSON.stringify({
           version: '2.0.0',
           project_metadata: {},
-          analysis_results: {},
           stack_profile: {
+            services: [
+              { id: 'main', language: 'typescript', path: 'src', type: 'backend' }
+            ],
             file_counts: {
               total: 70,
-              by_language: [
-                { language: 'typescript', count: 50 },
-                { language: 'javascript', count: 20 },
-              ],
+              by_language: {
+                typescript: 50,
+                javascript: 20,
+              },
             },
           },
         });
@@ -85,11 +87,16 @@ describe('validationNode', () => {
 
   it('should fail if CLAUDE.md path not set', async () => {
     mockState.claude_md_path = undefined;
+    // Mock existsSync to return false for CLAUDE.md
+    vi.mocked(fs.existsSync).mockImplementation((path: any) =>
+      !path.includes('CLAUDE.md')
+    );
 
     const result = await validationNode(mockState);
 
     expect(result.current_phase).toBe('failed');
-    expect(result.errors).toContain('CLAUDE.md not found');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('CLAUDE.md not found'))).toBe(true);
   });
 
   it('should fail if CLAUDE.md does not exist', async () => {
@@ -99,7 +106,8 @@ describe('validationNode', () => {
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('CLAUDE.md not found');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('CLAUDE.md not found'))).toBe(true);
   });
 
   it('should warn if CLAUDE.md content is too short', async () => {
@@ -107,22 +115,28 @@ describe('validationNode', () => {
       if (path.includes('CLAUDE.md')) return 'short';
       if (path.includes('SKILL.md')) return 'x'.repeat(200);
       if (path.includes('framework-config.json')) {
-        return JSON.stringify({ version: '2.0.0', project_metadata: {}, analysis_results: {}, stack_profile: {} });
+        return JSON.stringify({ version: '2.0.0', project_metadata: {}, stack_profile: {} });
       }
       return '';
     });
 
     const result = await validationNode(mockState);
 
-    expect(result.warnings).toContain('CLAUDE.md content seems too short');
+    expect(result.warnings).toBeDefined();
+    expect(result.warnings?.some(w => w.includes('CLAUDE.md content seems too short'))).toBe(true);
   });
 
   it('should fail if project-context/SKILL.md not found', async () => {
     mockState.project_context_path = undefined;
+    // Mock existsSync to return false for SKILL.md
+    vi.mocked(fs.existsSync).mockImplementation((path: any) =>
+      !path.includes('SKILL.md')
+    );
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('project-context/SKILL.md not found');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('project-context/SKILL.md not found'))).toBe(true);
   });
 
   it('should warn if SKILL.md content is too short', async () => {
@@ -130,22 +144,28 @@ describe('validationNode', () => {
       if (path.includes('CLAUDE.md')) return 'x'.repeat(200);
       if (path.includes('SKILL.md')) return 'short';
       if (path.includes('framework-config.json')) {
-        return JSON.stringify({ version: '2.0.0', project_metadata: {}, analysis_results: {}, stack_profile: {} });
+        return JSON.stringify({ version: '2.0.0', project_metadata: {}, stack_profile: {} });
       }
       return '';
     });
 
     const result = await validationNode(mockState);
 
-    expect(result.warnings).toContain('project-context/SKILL.md content seems too short');
+    expect(result.warnings).toBeDefined();
+    expect(result.warnings?.some(w => w.includes('project-context/SKILL.md content seems too short'))).toBe(true);
   });
 
   it('should fail if framework-config.json not found', async () => {
     mockState.framework_config_path = undefined;
+    // Mock existsSync to return false for framework-config.json
+    vi.mocked(fs.existsSync).mockImplementation((path: any) =>
+      !path.includes('framework-config.json')
+    );
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('framework-config.json not found');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('framework-config.json not found'))).toBe(true);
   });
 
   it('should fail if framework-config.json has invalid JSON', async () => {
@@ -162,30 +182,32 @@ describe('validationNode', () => {
   it('should fail if framework-config.json missing version', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
       if (path.includes('framework-config.json')) {
-        return JSON.stringify({ project_metadata: {}, analysis_results: {} });
+        return JSON.stringify({ project_metadata: {}, stack_profile: {} });
       }
       return 'x'.repeat(200);
     });
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('framework-config.json missing version');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('framework-config.json missing version'))).toBe(true);
   });
 
   it('should fail if framework-config.json missing project_metadata', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
       if (path.includes('framework-config.json')) {
-        return JSON.stringify({ version: '2.0.0', analysis_results: {} });
+        return JSON.stringify({ version: '2.0.0', stack_profile: {} });
       }
       return 'x'.repeat(200);
     });
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('framework-config.json missing project_metadata');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('framework-config.json missing project_metadata'))).toBe(true);
   });
 
-  it('should fail if framework-config.json missing analysis_results', async () => {
+  it('should fail if framework-config.json missing stack_profile', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
       if (path.includes('framework-config.json')) {
         return JSON.stringify({ version: '2.0.0', project_metadata: {} });
@@ -195,7 +217,8 @@ describe('validationNode', () => {
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('framework-config.json missing analysis_results');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('framework-config.json missing stack_profile'))).toBe(true);
   });
 
   it('should fail if skills directory not found', async () => {
@@ -205,7 +228,8 @@ describe('validationNode', () => {
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('Skills directory not found');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('Skills directory not found'))).toBe(true);
   });
 
   it('should fail if agents directory not found', async () => {
@@ -215,7 +239,8 @@ describe('validationNode', () => {
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('Agents directory not found');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('Agents directory not found'))).toBe(true);
   });
 
   it('should fail if insufficient agents generated', async () => {
@@ -231,10 +256,37 @@ describe('validationNode', () => {
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('Planner agent not found');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('Planner agent not found'))).toBe(true);
   });
 
   it('should warn about missing implementers for significant languages', async () => {
+    // Mock framework config with services array showing typescript and javascript
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('CLAUDE.md')) return 'x'.repeat(200);
+      if (path.includes('SKILL.md')) return 'x'.repeat(200);
+      if (path.includes('framework-config.json')) {
+        return JSON.stringify({
+          version: '2.0.0',
+          project_metadata: {},
+          stack_profile: {
+            services: [
+              { id: 'main', language: 'typescript', path: 'src', type: 'backend' },
+              { id: 'web', language: 'javascript', path: 'web', type: 'frontend' }
+            ],
+            file_counts: {
+              total: 70,
+              by_language: {
+                typescript: 50,
+                javascript: 20,
+              },
+            },
+          },
+        });
+      }
+      return '';
+    });
+    // Only provide python implementer - should warn about missing typescript and javascript
     vi.mocked(fs.readdirSync).mockReturnValue(['planner.md', 'implementer-python.md'] as any);
 
     const result = await validationNode(mockState);
@@ -261,39 +313,64 @@ describe('validationNode', () => {
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('Commands directory not found');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('Commands directory not found'))).toBe(true);
   });
 
   it('should fail if phase1 not completed', async () => {
-    mockState.phase1_analysis = { all_completed: false };
+    // Mock existsSync to return false for phase1 output files
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+      const pathStr = String(path);
+      if (pathStr.includes('phase1-outputs')) return false;
+      return true;
+    });
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('Phase 1 analysis not marked as complete');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('Phase 1 analysis'))).toBe(true);
   });
 
   it('should fail if phase2 missing', async () => {
-    mockState.phase2_consolidation = undefined;
+    // Mock existsSync to return false for phase2 consolidation file
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+      const pathStr = String(path);
+      if (pathStr.includes('phase2-consolidation.json')) return false;
+      return true;
+    });
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('Phase 2 consolidation missing');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('Phase 2 consolidation'))).toBe(true);
   });
 
   it('should fail if phase3 missing', async () => {
-    mockState.phase3_synthesis = undefined;
+    // Mock existsSync to return false for phase3 synthesis file
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+      const pathStr = String(path);
+      if (pathStr.includes('synthesis-raw.md')) return false;
+      return true;
+    });
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('Phase 3 synthesis missing');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('Phase 3 synthesis'))).toBe(true);
   });
 
   it('should fail if phase4 not complete', async () => {
-    mockState.phase4_context = { framework_config_generated: false, claude_md_written: true, project_context_written: true, timestamp: '2024-01-01T00:00:00Z' };
+    // Mock existsSync to return false for phase4 files (framework-config.json or CLAUDE.md)
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+      const pathStr = String(path);
+      if (pathStr.includes('framework-config.json') && pathStr.includes('.claude')) return false;
+      return true;
+    });
 
     const result = await validationNode(mockState);
 
-    expect(result.errors).toContain('Phase 4 context generation not complete');
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.some(e => e.includes('Phase 4 context generation'))).toBe(true);
   });
 
   it('should calculate total duration', async () => {

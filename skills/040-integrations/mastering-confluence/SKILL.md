@@ -1,22 +1,7 @@
 ---
 name: mastering-confluence
-description: |
-  Comprehensive Confluence documentation management. Use when asked to
-  "upload to Confluence", "download Confluence pages", "convert Markdown
-  to Wiki Markup", "sync documentation to Confluence", "search Confluence",
-  "create Confluence page", "update Confluence page", "export Confluence",
-  "publish to Confluence", or "Confluence CQL query". Handles Wiki Markup
-  conversion, Mermaid/PlantUML diagrams, image handling, large document
-  uploads without size limits, and Git-to-Confluence sync with mark CLI.
-license: MIT
-allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
-  - WebFetch
-  - mcp__atlassian
+description: Comprehensive Confluence documentation management. Use when asked to "upload to Confluence", "download Confluence pages", "convert Markdown to Wiki Markup", "sync documentation to Confluence", "search Confluence", "create Confluence page", "update Confluence page", "export Confluence", "publish to Confluence", or "Confluence CQL query". Handles Wiki Markup conversion, Mermaid/PlantUML diagrams, image handling, large document uploads without size limits, and Git-to-Confluence sync with mark CLI.
+allowed-tools: Read, Write, Bash, Glob, Grep, WebFetch, mcp__atlassian
 ---
 
 # Confluence Management Skill
@@ -84,22 +69,22 @@ python3 scripts/convert_markdown_to_wiki.py input.md output.wiki
 
 ```javascript
 mcp__atlassian__confluence_search({
-  query: 'space = "DEV" AND text ~ "API" AND created >= startOfYear()'
-})
+  query: 'space = "DEV" AND text ~ "API" AND created >= startOfYear()',
+});
 ```
 
 ## Core Capabilities
 
-| Capability | Tool/Script | Reference |
-|------------|-------------|-----------|
-| Upload pages with images | `upload_confluence_v2.py` | [upload_guide](references/upload_guide.md) |
-| Download pages to Markdown | `download_confluence.py` | [download_guide](references/download_guide.md) |
-| Convert Markdown ↔ Wiki | `convert_markdown_to_wiki.py` | [conversion_guide](references/conversion_guide.md) |
-| Search pages (CQL) | MCP confluence_search | [cql_reference](references/cql_reference.md) |
-| Wiki Markup syntax | - | [wiki_markup_guide](references/wiki_markup_guide.md) |
-| Render Mermaid diagrams | `render_mermaid.py` | [image_handling](references/image_handling_best_practices.md) |
-| Git-to-Confluence sync | mark CLI | [mark_tool_guide](references/mark_tool_guide.md) |
-| Troubleshooting | - | [troubleshooting_guide](references/troubleshooting_guide.md) |
+| Capability                 | Tool/Script                   | Reference                                                     |
+| -------------------------- | ----------------------------- | ------------------------------------------------------------- |
+| Upload pages with images   | `upload_confluence_v2.py`     | [upload_guide](references/upload_guide.md)                    |
+| Download pages to Markdown | `download_confluence.py`      | [download_guide](references/download_guide.md)                |
+| Convert Markdown ↔ Wiki    | `convert_markdown_to_wiki.py` | [conversion_guide](references/conversion_guide.md)            |
+| Search pages (CQL)         | MCP confluence_search         | [cql_reference](references/cql_reference.md)                  |
+| Wiki Markup syntax         | -                             | [wiki_markup_guide](references/wiki_markup_guide.md)          |
+| Render Mermaid diagrams    | `render_mermaid.py`           | [image_handling](references/image_handling_best_practices.md) |
+| Git-to-Confluence sync     | mark CLI                      | [mark_tool_guide](references/mark_tool_guide.md)              |
+| Troubleshooting            | -                             | [troubleshooting_guide](references/troubleshooting_guide.md)  |
 
 ## Checklists
 
@@ -136,6 +121,7 @@ Download Progress:
 **Standard Workflow:**
 
 1. **Convert diagrams** (if Mermaid/PlantUML):
+
    ```bash
    # Mermaid
    mmdc -i diagram.mmd -o diagram.png -b transparent
@@ -145,6 +131,7 @@ Download Progress:
    ```
 
 2. **Reference in markdown** (always use markdown syntax):
+
    ```markdown
    ![Architecture Diagram](./diagrams/architecture.png)
    ```
@@ -155,35 +142,36 @@ Download Progress:
    ```
 
 **Common Mistakes:**
+
 - Using raw XML: `<ac:image>...` - Gets HTML-escaped, appears as text
 - Using MCP for uploads - Size limits cause failures
 - Forgetting to convert diagrams - Code blocks don't render
 
 ## Reference Documentation
 
-| Document | Purpose |
-|----------|---------|
-| [upload_guide.md](references/upload_guide.md) | Complete upload workflow |
-| [download_guide.md](references/download_guide.md) | Complete download workflow |
-| [wiki_markup_guide.md](references/wiki_markup_guide.md) | Wiki Markup syntax reference |
-| [conversion_guide.md](references/conversion_guide.md) | Markdown ↔ Wiki Markup rules |
-| [image_handling_best_practices.md](references/image_handling_best_practices.md) | Diagrams and images |
-| [troubleshooting_guide.md](references/troubleshooting_guide.md) | Common errors and fixes |
-| [mark_tool_guide.md](references/mark_tool_guide.md) | Git-to-Confluence sync |
-| [confluence_storage_format.md](references/confluence_storage_format.md) | API storage format |
-| [cql_reference.md](references/cql_reference.md) | CQL query syntax |
-| [atlassian_mcp_tools.md](references/atlassian_mcp_tools.md) | MCP tool reference |
+| Document                                                                        | Purpose                      |
+| ------------------------------------------------------------------------------- | ---------------------------- |
+| [upload_guide.md](references/upload_guide.md)                                   | Complete upload workflow     |
+| [download_guide.md](references/download_guide.md)                               | Complete download workflow   |
+| [wiki_markup_guide.md](references/wiki_markup_guide.md)                         | Wiki Markup syntax reference |
+| [conversion_guide.md](references/conversion_guide.md)                           | Markdown ↔ Wiki Markup rules |
+| [image_handling_best_practices.md](references/image_handling_best_practices.md) | Diagrams and images          |
+| [troubleshooting_guide.md](references/troubleshooting_guide.md)                 | Common errors and fixes      |
+| [mark_tool_guide.md](references/mark_tool_guide.md)                             | Git-to-Confluence sync       |
+| [confluence_storage_format.md](references/confluence_storage_format.md)         | API storage format           |
+| [cql_reference.md](references/cql_reference.md)                                 | CQL query syntax             |
+| [atlassian_mcp_tools.md](references/atlassian_mcp_tools.md)                     | MCP tool reference           |
 
 ## Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `upload_confluence_v2.py` | Upload Markdown with images (no size limits) |
-| `download_confluence.py` | Download pages to Markdown with attachments |
-| `convert_markdown_to_wiki.py` | Convert Markdown to Wiki Markup |
-| `render_mermaid.py` | Render Mermaid diagrams to PNG/SVG |
-| `generate_mark_metadata.py` | Generate mark CLI metadata headers |
-| `confluence_auth.py` | Shared authentication utilities |
+| Script                        | Purpose                                      |
+| ----------------------------- | -------------------------------------------- |
+| `upload_confluence_v2.py`     | Upload Markdown with images (no size limits) |
+| `download_confluence.py`      | Download pages to Markdown with attachments  |
+| `convert_markdown_to_wiki.py` | Convert Markdown to Wiki Markup              |
+| `render_mermaid.py`           | Render Mermaid diagrams to PNG/SVG           |
+| `generate_mark_metadata.py`   | Generate mark CLI metadata headers           |
+| `confluence_auth.py`          | Shared authentication utilities              |
 
 ### Dependencies
 
@@ -201,6 +189,7 @@ pip install atlassian-python-api md2cf python-dotenv PyYAML mistune \
 ### Optional
 
 - **mark CLI**: Git-to-Confluence sync
+
   ```bash
   brew install kovetskiy/mark/mark
   ```

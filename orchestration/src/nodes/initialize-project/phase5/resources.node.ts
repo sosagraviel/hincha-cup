@@ -4,14 +4,11 @@ import {
   copyFileSync,
   readdirSync,
   readFileSync,
-  statSync,
+  existsSync,
 } from "fs";
 import { join } from "path";
-import {
-  resolveSkills,
-  copyResolvedSkills,
-} from "../../../utils/skill-resolver.js";
-import { generateAgents, writeAgents } from "../../../utils/agent-generator.js";
+import { resolveSkills, copyResolvedSkills } from "./skill-resolver.js";
+import { generateAgents, writeAgents } from "./agent-generator.js";
 import type { StackProfile } from "../../../schemas/index.js";
 import { logger } from "../../../utils/logger.js";
 
@@ -34,67 +31,119 @@ export async function resourcesNode(
   const phaseLogger = logger.child("Phase 5: Resources");
   phaseLogger.info(" Copying resources...");
 
-  // Verify Phase 4 completed
-  if (!state.phase4_context?.framework_config_generated) {
-    throw new Error("Phase 4 context generation not completed");
-  }
-
   try {
     const projectClaudeDir = join(state.project_path, ".claude");
+    const frameworkConfigPath = join(projectClaudeDir, "framework-config.json");
+
+    // Verify Phase 4 completed by checking file exists (never use state)
+    if (!existsSync(frameworkConfigPath)) {
+      throw new Error(
+        "Phase 4 context generation not completed - framework-config.json not found",
+      );
+    }
 
     // Read framework-config.json to get stack profile
-    const frameworkConfigPath = join(projectClaudeDir, "framework-config.json");
     const frameworkConfig = JSON.parse(
       readFileSync(frameworkConfigPath, "utf-8"),
     );
     const stackProfile: StackProfile = frameworkConfig.stack_profile;
 
     phaseLogger.info(" Stack profile loaded");
-    phaseLogger.info(
-      `  Languages: ${stackProfile.languages?.join(", ") || "none"}`,
+
+    // Get languages from services array
+    const languages = Array.from(
+      new Set(stackProfile.services.map((s) => s.language)),
     );
+    phaseLogger.info(`  Languages: ${languages.join(", ") || "none"}`);
 
     // VALIDATION: Ensure stack profile is complete before generating resources
     phaseLogger.info(" Validating stack profile before resource generation...");
 
-    if (!stackProfile || !stackProfile.languages || stackProfile.languages.length === 0) {
+    if (
+      !stackProfile ||
+      !stackProfile.services ||
+      stackProfile.services.length === 0
+    ) {
       throw new Error(
-        "Stack profile is empty or invalid. Cannot generate agents/skills without knowing project languages.",
+        "Stack profile is empty or invalid. Cannot generate agents/skills without knowing project services.",
+      );
+    }
+
+    if (languages.length === 0) {
+      throw new Error(
+        "No languages detected in services. Cannot generate agents/skills without knowing project languages.",
       );
     }
 
     // If we have file counts, verify they match languages
-    if (stackProfile.file_counts) {
-      const languagesWithFiles = stackProfile.file_counts.by_language
-        .filter((lc) => lc.count >= 5)
-        .map((lc) => lc.language.toLowerCase());
-
-      const profileLanguages = new Set(
-        stackProfile.languages.map((l) => l.toLowerCase()),
+    if (stackProfile.file_counts?.by_language) {
+      // Debug logging
+      phaseLogger.info(
+        `  Services: ${stackProfile.services.map((s) => `${s.id}(${s.language})`).join(", ")}`,
+      );
+      phaseLogger.info(
+        `  File counts: ${JSON.stringify(stackProfile.file_counts.by_language)}`,
       );
 
-      for (const lang of languagesWithFiles) {
-        if (!profileLanguages.has(lang)) {
-          const fileCount = stackProfile.file_counts.by_language.find(
-            (lc) => lc.language.toLowerCase() === lang,
-          )?.count;
+      // Languages commonly used for infrastructure/config files rather than services
+      const INFRASTRUCTURE_LANGUAGES = new Set([
+        "javascript",
+        "json",
+        "yaml",
+        "yml",
+        "toml",
+        "ini",
+        "sh",
+        "bash",
+      ]);
+      const WARN_THRESHOLD = 10; // Warn for 10-19 files (may be utility scripts or test fixtures)
+      const ERROR_THRESHOLD = 20; // Error for 20+ files (likely a real service)
+
+      const profileLanguages = new Set(languages.map((l) => l.toLowerCase()));
+
+      for (const [lang, fileCount] of Object.entries(
+        stackProfile.file_counts.by_language,
+      )) {
+        const langLower = lang.toLowerCase();
+        const isInProfile = profileLanguages.has(langLower);
+
+        // Skip if language is in profile (valid)
+        if (isInProfile) continue;
+
+        // Skip infrastructure languages with modest file counts
+        if (INFRASTRUCTURE_LANGUAGES.has(langLower) && fileCount < 30) {
+          phaseLogger.info(
+            ` ${fileCount} ${lang} files - likely infrastructure/config files, skipping validation`,
+          );
+          continue;
+        }
+
+        // STRICT: 20+ files without a service is a hard error (Phase 4 should have created a fallback service)
+        if (fileCount >= ERROR_THRESHOLD) {
           phaseLogger.error(
             ` Language ${lang} has ${fileCount} files but is not in stack profile`,
           );
           throw new Error(
-            `Stack profile validation failed: ${lang} detected but not included. ` +
-              `This indicates a Phase 4 bug. Check file counting and language detection.`,
+            `Stack profile validation failed: ${lang} detected (${fileCount} files) but not included in any service. ` +
+              `This indicates Phase 4 service extraction logic failed to create a fallback service.`,
+          );
+        }
+
+        // LENIENT: 10-19 files is a warning (may be scattered config files)
+        if (fileCount >= WARN_THRESHOLD) {
+          phaseLogger.warn(
+            ` Advisory: ${fileCount} ${lang} files found but no service detected. ` +
+              `This may be scattered config files or build artifacts.`,
           );
         }
       }
     }
 
-    phaseLogger.success(
-      ` ✓ Stack profile validated: ${stackProfile.languages.join(", ")}`,
-    );
-    if (stackProfile.multi_stack?.is_monorepo) {
+    phaseLogger.success(` ✓ Stack profile validated: ${languages.join(", ")}`);
+    if (stackProfile.is_monorepo) {
+      const serviceCount = stackProfile.services.length;
       phaseLogger.info(
-        `  Monorepo with ${stackProfile.multi_stack.workspaces.length} workspaces`,
+        `  Monorepo with ${serviceCount} service${serviceCount !== 1 ? "s" : ""}`,
       );
     }
 

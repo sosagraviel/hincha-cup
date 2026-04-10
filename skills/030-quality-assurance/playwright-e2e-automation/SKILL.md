@@ -1,13 +1,12 @@
 ---
 name: playwright-e2e-automation
 description: Multi-step Playwright E2E test automation using specialized agents (Planner, Implementer, Healer) for comprehensive screen coverage and real-time testing
-user-invokable: true
-disable-model-invocation: false
 ---
 
 # Playwright E2E Test Automation
 
 This skill orchestrates Playwright E2E test creation using three specialized agents:
+
 1. **Planner** - Analyzes requirements and plans test scenarios
 2. **Implementer** - Writes Playwright test code
 3. **Healer** - Fixes flaky tests and improves stability
@@ -68,14 +67,18 @@ Launch the healer agent from `./agents/healer.md` with the failing test.
 ## Project-Specific Guidelines
 
 ### Test Location
+
 - E2E tests: `services/web-frontend/e2e/**/*.e2e.spec.ts`
 
 ### Test Patterns
+
 ```typescript
 import { test, expect } from '@playwright/test';
 
 test.describe('Ticket Board', () => {
-  test('should create and update ticket with real-time sync', async ({ browser }) => {
+  test('should create and update ticket with real-time sync', async ({
+    browser,
+  }) => {
     // Multi-context for real-time testing
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
@@ -94,6 +97,7 @@ test.describe('Ticket Board', () => {
 ```
 
 ### Coverage Requirements
+
 - 100% of screens must have E2E tests
 - Test critical user flows
 - Test real-time updates with multiple sessions
@@ -120,24 +124,24 @@ pnpm --filter web-frontend test:e2e -- --debug
 ```typescript
 // 1. Plan
 Task({
-  subagent_type: "general-purpose",
-  model: "opus",
-  prompt: `[Read from ./agents/planner.md and inject feature context]`
-})
+  subagent_type: 'general-purpose',
+  model: 'opus',
+  prompt: `[Read from ./agents/planner.md and inject feature context]`,
+});
 
 // 2. Implement
 Task({
-  subagent_type: "general-purpose",
-  model: "sonnet",
-  prompt: `[Read from ./agents/implementer.md and inject test plan]`
-})
+  subagent_type: 'general-purpose',
+  model: 'sonnet',
+  prompt: `[Read from ./agents/implementer.md and inject test plan]`,
+});
 
 // 3. Heal (if needed)
 Task({
-  subagent_type: "general-purpose",
-  model: "sonnet",
-  prompt: `[Read from ./agents/healer.md and inject failure logs]`
-})
+  subagent_type: 'general-purpose',
+  model: 'sonnet',
+  prompt: `[Read from ./agents/healer.md and inject failure logs]`,
+});
 ```
 
 ## Multi-Session Real-Time Testing

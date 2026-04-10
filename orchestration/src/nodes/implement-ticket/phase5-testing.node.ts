@@ -2,6 +2,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { TestOrchestratorService } from '../../services/implement-ticket/test-orchestrator.service.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Phase 5: Testing Node
@@ -29,11 +30,13 @@ export async function phase5TestingNode(
   const tempDir = state.temp_dir || join(projectPath, '.claude-temp/implement-ticket', ticketId);
   const phase5Dir = join(tempDir, 'phase5');
 
-  console.log('\n[Phase 5: Testing] Starting test execution...');
+  const phaseLogger = logger.child('Phase 5: Testing');
+  phaseLogger.blank();
+  phaseLogger.info(' Starting test execution...');
 
   const completionMarkerPath = join(phase5Dir, 'testing-complete.json');
   if (existsSync(completionMarkerPath)) {
-    console.log('[Phase 5: Testing] Already complete, skipping');
+    phaseLogger.info(' Already complete, skipping');
     const completionData = JSON.parse(readFileSync(completionMarkerPath, 'utf-8'));
     return {
       current_phase: 'phase6_visual',
@@ -43,7 +46,7 @@ export async function phase5TestingNode(
   }
 
   try {
-    console.log('[Phase 5: Testing] Validating Phase 4 completion...');
+    phaseLogger.info(' Validating Phase 4 completion...');
     const phase4Dir = join(tempDir, 'phase4');
     const phase4CompletionPath = join(phase4Dir, 'implementation-complete.json');
 
@@ -52,7 +55,7 @@ export async function phase5TestingNode(
         'Phase 4 not complete. Run Phase 4 first or use --start-phase 4'
       );
     }
-    console.log('[Phase 5: Testing] ✓ Phase 4 verified');
+    phaseLogger.success(' ✓ Phase 4 verified');
 
     const implementationDataPath = join(phase4Dir, 'implementation-data.json');
     if (!existsSync(implementationDataPath)) {
@@ -60,7 +63,7 @@ export async function phase5TestingNode(
     }
 
     const implementationData = JSON.parse(readFileSync(implementationDataPath, 'utf-8'));
-    console.log(`[Phase 5: Testing] ✓ Implementation data loaded (${implementationData.files_modified.length} files modified)`);
+    phaseLogger.success(` ✓ Implementation data loaded (${implementationData.files_modified.length} files modified)`);
 
     const phase0Dir = join(tempDir, 'phase0');
     const stackProfilePath = join(phase0Dir, 'stack-profile.json');
@@ -70,7 +73,7 @@ export async function phase5TestingNode(
     }
 
     const stackProfile = JSON.parse(readFileSync(stackProfilePath, 'utf-8'));
-    console.log(`[Phase 5: Testing] ✓ Stack profile loaded`);
+    phaseLogger.success(` ✓ Stack profile loaded`);
 
     // 5. Read framework config from Phase 0 (from disk)
     const frameworkConfigPath = join(phase0Dir, 'framework-config.json');
@@ -79,7 +82,7 @@ export async function phase5TestingNode(
     }
 
     const frameworkConfig = JSON.parse(readFileSync(frameworkConfigPath, 'utf-8'));
-    console.log(`[Phase 5: Testing] ✓ Framework config loaded`);
+    phaseLogger.success(` ✓ Framework config loaded`);
 
     // 6. Create test orchestrator
     const testOrchestrator = new TestOrchestratorService(
@@ -88,19 +91,21 @@ export async function phase5TestingNode(
     );
 
     // 7. Run all tests with coverage (80% threshold)
-    console.log('[Phase 5: Testing] Running all tests with coverage...');
-    console.log('[Phase 5: Testing] Coverage threshold: 80%\n');
+    phaseLogger.info(' Running all tests with coverage...');
+    phaseLogger.info(' Coverage threshold: 80%');
+    phaseLogger.blank();
 
     let allTestResults;
     try {
       allTestResults = await testOrchestrator.runAllTests(true, 80);
 
-      console.log('\n[Phase 5: Testing] ✓ All tests completed');
+      phaseLogger.blank();
+      phaseLogger.success(' ✓ All tests completed');
 
     } catch (error: any) {
       // Hard stop if tests fail or coverage below threshold
       const errorMessage = error.message || 'Test execution failed';
-      console.error(`[Phase 5: Testing] ✗ ${errorMessage}`);
+      phaseLogger.error(` ✗ ${errorMessage}`);
 
       // Save partial results before failing
       mkdirSync(phase5Dir, { recursive: true });
@@ -147,17 +152,18 @@ export async function phase5TestingNode(
     }
 
     // 10. Log test summary
-    console.log('\n[Phase 5: Testing] Test Summary:');
+    phaseLogger.blank();
+    phaseLogger.info(' Test Summary:');
     for (const result of allTestResults) {
-      console.log(`  • ${result.testType.toUpperCase()}: ${result.passedTests}/${result.totalTests} passed (${(result.duration / 1000).toFixed(2)}s)`);
+      phaseLogger.info(`  • ${result.testType.toUpperCase()}: ${result.passedTests}/${result.totalTests} passed (${(result.duration / 1000).toFixed(2)}s)`);
       if (result.coverage) {
-        console.log(`    Coverage: ${result.coverage.overall.toFixed(2)}%`);
+        phaseLogger.info(`    Coverage: ${result.coverage.overall.toFixed(2)}%`);
       }
     }
-    console.log('');
+    phaseLogger.blank();
 
     // 11. PERSIST TO DISK FIRST (critical for idempotency!)
-    console.log('[Phase 5: Testing] Writing outputs to disk...');
+    phaseLogger.info(' Writing outputs to disk...');
     mkdirSync(phase5Dir, { recursive: true });
 
     writeFileSync(
@@ -220,8 +226,8 @@ export async function phase5TestingNode(
       }, null, 2)
     );
 
-    console.log('[Phase 5: Testing] ✓ Outputs written to disk');
-    console.log(`[Phase 5: Testing] ✓ Phase complete (outputs: ${phase5Dir})`);
+    phaseLogger.success(' ✓ Outputs written to disk');
+    phaseLogger.success(` ✓ Phase complete (outputs: ${phase5Dir})`);
 
     // 12. Return MINIMAL state (just flow control, NO data!)
     return {
@@ -232,7 +238,7 @@ export async function phase5TestingNode(
 
   } catch (error) {
     const errorMessage = `Testing failed: ${(error as Error).message}`;
-    console.error(`[Phase 5: Testing] ✗ ${errorMessage}`);
+    phaseLogger.error(` ✗ ${errorMessage}`);
 
     return {
       errors: [errorMessage],

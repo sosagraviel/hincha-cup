@@ -16,18 +16,19 @@
  *   npm run sync-framework-resources
  */
 
-import { mkdir, cp } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { mkdir, cp, readdir, rm } from 'fs/promises';
+import { existsSync, readdirSync, statSync } from 'fs';
+import { join, dirname } from 'path';
 import { logger } from '../utils/logger.js';
 import { ConfigUpdaterService } from '../services/framework/config-updater.service.js';
 import {
   updateSingleSkill,
   addSingleSkill,
   regenerateSingleAgent,
+  syncSingleCommand,
 } from '../services/framework/sync-helpers.service.js';
-import { resolveSkills } from '../utils/skill-resolver.js';
-import { generateAgents } from '../utils/agent-generator.js';
+import { resolveSkills } from '../nodes/initialize-project/phase5/skill-resolver.js';
+import { generateAgents } from '../nodes/initialize-project/phase5/agent-generator.js';
 
 interface SyncConfig {
   projectPath: string;
@@ -178,6 +179,7 @@ async function createBackup(config: SyncConfig): Promise<string> {
 async function syncSkills(config: SyncConfig): Promise<{
   updated: number;
   added: number;
+  removed: number;
   skipped: number;
 }> {
   logger.info('Step 5: Syncing skills...');
@@ -185,21 +187,13 @@ async function syncSkills(config: SyncConfig): Promise<{
   const configUpdater = new ConfigUpdaterService(config.projectPath, config.frameworkPath);
   const frameworkConfig = await configUpdater.readConfig();
 
-  // Ensure stack profile has required fields
-  if (!frameworkConfig.stack_profile.languages) {
-    frameworkConfig.stack_profile.languages = [];
-  }
-  if (!frameworkConfig.stack_profile.frameworks.frontend) {
-    frameworkConfig.stack_profile.frameworks.frontend = [];
-  }
-  if (!frameworkConfig.stack_profile.frameworks.backend) {
-    frameworkConfig.stack_profile.frameworks.backend = [];
-  }
-
   // Resolve which skills should exist based on stack profile
   const resolvedSkills = resolveSkills(frameworkConfig.stack_profile as any, config.frameworkPath);
 
-  const result = { updated: 0, added: 0, skipped: 0 };
+  const result = { updated: 0, added: 0, removed: 0, skipped: 0 };
+
+  // Create a set of skill names that should exist
+  const expectedSkillNames = new Set(resolvedSkills.map(s => s.name));
 
   // Process each skill that should exist for this project
   for (const resolvedSkill of resolvedSkills) {
@@ -258,8 +252,40 @@ async function syncSkills(config: SyncConfig): Promise<{
     }
   }
 
+  // Remove skills that are no longer in the framework (only if managed by framework)
+  const existingSkills = Object.keys(frameworkConfig.resource_state.skills || {});
+  for (const existingSkillName of existingSkills) {
+    const skillInfo = frameworkConfig.resource_state.skills[existingSkillName];
+
+    // Skip if skill is user-managed
+    if (!skillInfo.managed_by_framework) {
+      continue;
+    }
+
+    // If skill no longer exists in resolved skills, remove it
+    if (!expectedSkillNames.has(existingSkillName)) {
+      try {
+        const skillPath = join(config.projectPath, '.claude', 'skills', existingSkillName);
+
+        if (existsSync(skillPath)) {
+          await rm(skillPath, { recursive: true, force: true });
+          logger.info(`  ℹ️  Removed skill: ${existingSkillName}`);
+          result.removed++;
+        }
+
+        // Remove from resource state
+        await configUpdater.removeResourceFromState('skills', existingSkillName);
+      } catch (error) {
+        logger.error(
+          `  Failed to remove skill ${existingSkillName}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+  }
+
   logger.success(`  ✓ Skills updated:  ${result.updated}`);
   logger.success(`  ✓ Skills added:    ${result.added}`);
+  logger.success(`  ✓ Skills removed:  ${result.removed}`);
   logger.info(`  ℹ️  Skills skipped: ${result.skipped}\n`);
 
   return result;
@@ -279,17 +305,6 @@ async function syncAgents(config: SyncConfig, skillsChanged: boolean = false): P
 
   const configUpdater = new ConfigUpdaterService(config.projectPath, config.frameworkPath);
   const frameworkConfig = await configUpdater.readConfig();
-
-  // Ensure stack profile has required fields
-  if (!frameworkConfig.stack_profile.languages) {
-    frameworkConfig.stack_profile.languages = [];
-  }
-  if (!frameworkConfig.stack_profile.frameworks.frontend) {
-    frameworkConfig.stack_profile.frameworks.frontend = [];
-  }
-  if (!frameworkConfig.stack_profile.frameworks.backend) {
-    frameworkConfig.stack_profile.frameworks.backend = [];
-  }
 
   // Resolve skills and generate all agents that should exist
   const resolvedSkills = resolveSkills(frameworkConfig.stack_profile as any, config.frameworkPath);
@@ -316,9 +331,21 @@ async function syncAgents(config: SyncConfig, skillsChanged: boolean = false): P
     }
 
     // Determine template path based on agent name
-    const templateFilename = agentName.startsWith('implementer-')
-      ? 'implementer.template.md'
-      : `${agentName}.template.md`;
+    let templateFilename: string;
+    if (agentName === 'implementer-generic') {
+      // implementer-generic uses its own dedicated template
+      templateFilename = 'implementer-generic.template.md';
+    } else if (agentName.startsWith('implementer-')) {
+      // Language-specific implementers: check for dedicated template, fall back to generic
+      const dedicatedTemplate = `${agentName}.template.md`;
+      const dedicatedPath = join(config.frameworkPath, 'agents', 'templates', dedicatedTemplate);
+      templateFilename = existsSync(dedicatedPath)
+        ? dedicatedTemplate
+        : 'implementer.template.md';
+    } else {
+      // Other agents use their own templates
+      templateFilename = `${agentName}.template.md`;
+    }
     const templatePath = join(config.frameworkPath, 'agents', 'templates', templateFilename);
 
     if (!existsSync(templatePath)) {
@@ -377,6 +404,103 @@ async function syncAgents(config: SyncConfig, skillsChanged: boolean = false): P
 }
 
 /**
+ * Recursively find all .md files in commands directory
+ */
+async function findCommandFiles(commandsDir: string): Promise<string[]> {
+  const commandFiles: string[] = [];
+
+  const scanDirectory = (dir: string): void => {
+    const entries = readdirSync(dir);
+
+    for (const entry of entries) {
+      const fullPath = join(dir, entry);
+      const stat = statSync(fullPath);
+
+      if (stat.isDirectory()) {
+        scanDirectory(fullPath);
+      } else if (stat.isFile() && entry.endsWith('.md')) {
+        commandFiles.push(fullPath);
+      }
+    }
+  };
+
+  scanDirectory(commandsDir);
+  return commandFiles;
+}
+
+/**
+ * Sync commands from framework
+ */
+async function syncCommands(config: SyncConfig): Promise<{
+  updated: number;
+  added: number;
+  skipped: number;
+}> {
+  logger.info('Step 7: Syncing commands...');
+
+  const configUpdater = new ConfigUpdaterService(config.projectPath, config.frameworkPath);
+  const frameworkConfig = await configUpdater.readConfig();
+
+  const result = { updated: 0, added: 0, skipped: 0 };
+
+  const commandsSourcePath = join(config.frameworkPath, 'commands');
+  if (!existsSync(commandsSourcePath)) {
+    logger.info('  ℹ️  No commands directory in framework\n');
+    return result;
+  }
+
+  // Recursively find all .md files in commands/
+  const commandFiles = await findCommandFiles(commandsSourcePath);
+
+  for (const commandFile of commandFiles) {
+    const relativePath = commandFile.replace(commandsSourcePath + '/', '');
+    // Convert path to command name: task-management/create.md -> task-management-create
+    const commandName = relativePath.replace('.md', '').replace(/\//g, '-');
+
+    const existingCommandInfo = frameworkConfig.resource_state.commands[commandName];
+
+    // Skip if command is user-managed
+    if (existingCommandInfo && !existingCommandInfo.managed_by_framework) {
+      result.skipped++;
+      continue;
+    }
+
+    const currentSourceHash = configUpdater.hashFile(commandFile);
+
+    // If command doesn't exist or hash changed, sync it
+    if (!existingCommandInfo || currentSourceHash !== existingCommandInfo.source_hash) {
+      try {
+        const targetPath = join(config.projectPath, '.claude', 'commands', relativePath);
+        await syncSingleCommand(commandFile, targetPath);
+
+        if (!existingCommandInfo) {
+          result.added++;
+        } else {
+          result.updated++;
+        }
+
+        await configUpdater.updateResourceState('commands', commandName, {
+          managed_by_framework: true,
+          source_path: `commands/${relativePath}`,
+          source_hash: currentSourceHash,
+          file_hash: currentSourceHash,
+        });
+      } catch (error) {
+        logger.error(
+          `  Failed to sync command ${commandName}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+  }
+
+  logger.success(`  ✓ Commands updated: ${result.updated}`);
+  logger.success(`  ✓ Commands added:   ${result.added}`);
+  logger.info(`  ℹ️  Commands skipped: ${result.skipped}\n`);
+
+  return result;
+}
+
+/**
  * Main sync function
  */
 async function main() {
@@ -408,6 +532,9 @@ async function main() {
     // Sync agents (pass skills result to know if skills changed)
     const agentsResult = await syncAgents(config, skillsResult.added > 0 || skillsResult.updated > 0);
 
+    // Sync commands
+    const commandsResult = await syncCommands(config);
+
     // Summary
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     logger.info('  SYNC COMPLETE');
@@ -415,19 +542,24 @@ async function main() {
 
     logger.info('Summary:');
     logger.info(
-      `  Skills:  ${skillsResult.updated} updated, ${skillsResult.added} added, ${skillsResult.skipped} skipped`
+      `  Skills:   ${skillsResult.updated} updated, ${skillsResult.added} added, ${skillsResult.removed} removed, ${skillsResult.skipped} skipped`
     );
     logger.info(
-      `  Agents:  ${agentsResult.updated} updated, ${agentsResult.added} added, ${agentsResult.regenerated} regenerated, ${agentsResult.skipped} skipped`
+      `  Agents:   ${agentsResult.updated} updated, ${agentsResult.added} added, ${agentsResult.regenerated} regenerated, ${agentsResult.skipped} skipped`
     );
-    logger.info(`  Backup:  ${backupPath}\n`);
+    logger.info(
+      `  Commands: ${commandsResult.updated} updated, ${commandsResult.added} added, ${commandsResult.skipped} skipped`
+    );
+    logger.info(`  Backup:   ${backupPath}\n`);
 
     const totalChanges =
       skillsResult.updated +
       skillsResult.added +
       agentsResult.updated +
       agentsResult.added +
-      agentsResult.regenerated;
+      agentsResult.regenerated +
+      commandsResult.updated +
+      commandsResult.added;
 
     if (totalChanges === 0) {
       logger.info('ℹ️  No changes needed - all resources are up to date');

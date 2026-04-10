@@ -4,7 +4,6 @@ import type { ImplementTicketState } from '../../../../src/state/schemas/impleme
 import * as fs from 'fs';
 import { ReviewLoopService } from '../../../../src/services/implement-ticket/review-loop.service.js';
 import { TestOrchestratorService } from '../../../../src/services/implement-ticket/test-orchestrator.service.js';
-import { AgentInvokerService } from '../../../../src/services/implement-ticket/agent-invoker.service.js';
 
 vi.mock('fs', () => ({
   existsSync: vi.fn(),
@@ -21,15 +20,10 @@ vi.mock('../../../../src/services/implement-ticket/test-orchestrator.service.js'
   TestOrchestratorService: vi.fn(),
 }));
 
-vi.mock('../../../../src/services/implement-ticket/agent-invoker.service.js', () => ({
-  AgentInvokerService: vi.fn(),
-}));
-
 describe('phase9ReviewNode', () => {
   let mockState: ImplementTicketState;
   let mockReviewLoop: any;
   let mockTestOrchestrator: any;
-  let mockAgentInvoker: any;
 
   const mockReviewResult = {
     finalPassed: true,
@@ -64,16 +58,12 @@ describe('phase9ReviewNode', () => {
     };
 
     mockTestOrchestrator = {};
-    mockAgentInvoker = {};
 
     vi.mocked(ReviewLoopService).mockImplementation(function(this: any) {
       return mockReviewLoop;
     } as any);
     vi.mocked(TestOrchestratorService).mockImplementation(function(this: any) {
       return mockTestOrchestrator;
-    } as any);
-    vi.mocked(AgentInvokerService).mockImplementation(function(this: any) {
-      return mockAgentInvoker;
     } as any);
 
     vi.mocked(fs.existsSync).mockImplementation((path: any) => {

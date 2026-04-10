@@ -25,8 +25,7 @@ describe('ReviewLoopService', () => {
     it('should run review iterations', async () => {
       const result = await service.runReviewLoop(
         'https://github.com/org/repo/pull/123',
-        mockTestOrchestrator,
-        mockAgentInvoker
+        mockTestOrchestrator
       );
       expect(result).toBeDefined();
       expect(result.iterations).toBeDefined();
@@ -37,8 +36,7 @@ describe('ReviewLoopService', () => {
 
       const result = await service.runReviewLoop(
         'https://github.com/org/repo/pull/123',
-        mockTestOrchestrator,
-        mockAgentInvoker
+        mockTestOrchestrator
       );
       expect(result.iterations.length).toBeLessThanOrEqual(3);
     });
@@ -146,8 +144,7 @@ describe('ReviewLoopService', () => {
 
       const result = await service.runReviewLoop(
         'https://github.com/org/repo/pull/123',
-        mockTestOrchestrator,
-        mockAgentInvoker
+        mockTestOrchestrator
       );
 
       // Should still run iterations even with slow convergence
@@ -168,8 +165,7 @@ describe('ReviewLoopService', () => {
 
       const result = await service.runReviewLoop(
         'https://github.com/org/repo/pull/123',
-        mockTestOrchestrator,
-        mockAgentInvoker
+        mockTestOrchestrator
       );
 
       // Should still complete despite test errors
@@ -191,8 +187,7 @@ describe('ReviewLoopService', () => {
 
       const result = await service.runReviewLoop(
         'https://github.com/org/repo/pull/123',
-        mockTestOrchestrator,
-        mockAgentInvoker
+        mockTestOrchestrator
       );
 
       expect(result.finalPassed).toBe(false);

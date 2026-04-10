@@ -1,48 +1,6 @@
 ---
 name: react-frontend
-description: >
-  Enterprise React frontend engineering skill covering project architecture, atomic design,
-  component composition, state management, data fetching, schema-driven forms, routing,
-  performance optimization, testing, and accessibility. Use when asked to create, refactor,
-  plan, review, or implement any React frontend code. Covers greenfield projects, existing
-  codebase improvements, and architectural decisions. Technology-agnostic patterns that work
-  with any router, data layer, or styling solution.
-version: 1.1.0
-category: frontend-engineering
-triggers:
-  - react
-  - frontend
-  - component
-  - atomic design
-  - organism
-  - molecule
-  - feature
-  - route
-  - form
-  - state management
-  - accessibility
-  - performance
-  - testing
-  - code review
-  - refactor frontend
-  - project structure
-  - websocket
-  - real-time
-  - real time
-  - live updates
-  - socket
-tags:
-  - react
-  - typescript
-  - atomic-design
-  - architecture
-  - composition
-  - testing
-  - accessibility
-  - real-time
-  - websocket
-author: liveonit Engineering
-license: MIT
+description: Enterprise React frontend engineering skill covering project architecture, atomic design, component composition, state management, data fetching, schema-driven forms, routing, performance optimization, testing, and accessibility. Use when asked to create, refactor, plan, review, or implement any React frontend code. Covers greenfield projects, existing codebase improvements, and architectural decisions. Technology-agnostic patterns that work with any router, data layer, or styling solution.
 ---
 
 # React Frontend Engineering
@@ -161,7 +119,7 @@ function CreateOrderDialog({ open, onOpenChange }) {
       schema={createOrderSchema}
       fields={createOrderFields}
       defaultValues={{ status: 'draft' }}
-      onSubmit={data =>
+      onSubmit={(data) =>
         mutation.mutate(data, { onSuccess: () => onOpenChange(false) })
       }
     />
@@ -226,13 +184,13 @@ export const productKeys = {
   all: ['products'] as const,
   list: (categoryId: string) =>
     [...productKeys.all, 'list', categoryId] as const,
-  detail: (id: string) => [...productKeys.all, id] as const
+  detail: (id: string) => [...productKeys.all, id] as const,
 };
 
 export function useProductsQuery(categoryId: string) {
   return useQuery({
     queryKey: productKeys.list(categoryId),
-    queryFn: () => fetchProducts(categoryId)
+    queryFn: () => fetchProducts(categoryId),
   });
 }
 ```
@@ -255,7 +213,7 @@ See [state-and-data.md](references/state-and-data.md) for the full pattern.
 export const createItemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  category: z.string().min(1, 'Category is required')
+  category: z.string().min(1, 'Category is required'),
 });
 export type CreateItemFormValues = z.infer<typeof createItemSchema>;
 
@@ -267,8 +225,8 @@ export const createItemFields: FieldConfig<CreateItemFormValues>[] = [
     name: 'category',
     label: 'Category',
     type: 'select',
-    options: categoryOptions
-  }
+    options: categoryOptions,
+  },
 ];
 ```
 

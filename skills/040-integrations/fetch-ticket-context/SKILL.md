@@ -1,9 +1,7 @@
 ---
 name: fetch-ticket-context
 description: Fetch complete context for a Jira ticket including external documentation from Notion, Confluence, and linked resources. Use when starting ticket implementation to gather all requirements.
-user-invocable: true
 argument-hint: "JIRA-URL-OR-KEY"
-disable-model-invocation: false
 ---
 
 # Fetch Ticket Context
