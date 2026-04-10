@@ -1,14 +1,8 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
-import {
-  type FrameworkConfig,
-  type StackProfile,
-} from '../../schemas/index.js';
-import {
-  type Service,
-  type ServiceType,
-} from '../../schemas/stack-profile.schema.js';
+import { type FrameworkConfig, type StackProfile } from '../../schemas/index.js';
+import { type Service, type ServiceType } from '../../schemas/stack-profile.schema.js';
 
 /**
  * Project Config Reader Service
@@ -69,7 +63,7 @@ export class ProjectConfigReaderService {
     if (!existsSync(configPath)) {
       throw new Error(
         `Project not initialized. File not found: ${configPath}\n` +
-        `Run initialize-project first: npm run initialize`
+          `Run initialize-project first: npm run initialize`,
       );
     }
 
@@ -97,7 +91,7 @@ export class ProjectConfigReaderService {
    */
   readStackProfile(): StackProfile {
     const config = this.readFrameworkConfig();
-    return config.stack_profile as StackProfile;
+    return config.stack_profile;
   }
 
   /**
@@ -114,7 +108,7 @@ export class ProjectConfigReaderService {
     if (!existsSync(claudeMdPath)) {
       throw new Error(
         `Project not initialized. File not found: ${claudeMdPath}\n` +
-        `Run initialize-project first: npm run initialize`
+          `Run initialize-project first: npm run initialize`,
       );
     }
 
@@ -128,7 +122,7 @@ export class ProjectConfigReaderService {
     return {
       stackSection: stackMatch ? stackMatch[1].trim() : undefined,
       testCommandsSection: testCommandsMatch ? testCommandsMatch[1].trim() : undefined,
-      buildCommandsSection: buildCommandsMatch ? buildCommandsMatch[1].trim() : undefined
+      buildCommandsSection: buildCommandsMatch ? buildCommandsMatch[1].trim() : undefined,
     };
   }
 
@@ -163,7 +157,7 @@ export class ProjectConfigReaderService {
     const commands: BuildCommands = {
       build: [],
       dev: [],
-      start: []
+      start: [],
     };
 
     // Try to read package.json scripts
@@ -220,7 +214,7 @@ export class ProjectConfigReaderService {
    */
   getServiceById(serviceId: string): Service | undefined {
     const services = this.getServices();
-    return services.find(s => s.id === serviceId);
+    return services.find((s) => s.id === serviceId);
   }
 
   /**
@@ -228,7 +222,7 @@ export class ProjectConfigReaderService {
    */
   getServicesByType(type: ServiceType): Service[] {
     const services = this.getServices();
-    return services.filter(s => s.type === type);
+    return services.filter((s) => s.type === type);
   }
 
   /**
@@ -236,7 +230,7 @@ export class ProjectConfigReaderService {
    */
   getServicesByLanguage(language: string): Service[] {
     const services = this.getServices();
-    return services.filter(s => s.language.toLowerCase() === language.toLowerCase());
+    return services.filter((s) => s.language.toLowerCase() === language.toLowerCase());
   }
 
   /**
@@ -244,7 +238,7 @@ export class ProjectConfigReaderService {
    */
   getLanguages(): string[] {
     const services = this.getServices();
-    const languages = new Set(services.map(s => s.language));
+    const languages = new Set(services.map((s) => s.language));
     return Array.from(languages);
   }
 
@@ -261,8 +255,7 @@ export class ProjectConfigReaderService {
       languageCounts[lang] = (languageCounts[lang] || 0) + (service.file_count || 1);
     }
 
-    return Object.entries(languageCounts)
-      .sort(([, a], [, b]) => b - a)[0]?.[0];
+    return Object.entries(languageCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
   }
 
   /**
@@ -311,7 +304,7 @@ export class ProjectConfigReaderService {
    */
   getBackendFrameworks(): string[] {
     const services = this.getServices();
-    const backendServices = services.filter(s => s.type === 'backend' || s.type === 'serverless');
+    const backendServices = services.filter((s) => s.type === 'backend' || s.type === 'serverless');
     const frameworks: string[] = [];
 
     for (const service of backendServices) {
@@ -333,7 +326,8 @@ export class ProjectConfigReaderService {
       if (!testingFw[lang]) testingFw[lang] = [];
 
       if (service.testing?.unit?.framework) testingFw[lang].push(service.testing.unit.framework);
-      if (service.testing?.integration?.framework) testingFw[lang].push(service.testing.integration.framework);
+      if (service.testing?.integration?.framework)
+        testingFw[lang].push(service.testing.integration.framework);
       if (service.testing?.e2e?.framework) testingFw[lang].push(service.testing.e2e.framework);
     }
 
@@ -357,13 +351,19 @@ export class ProjectConfigReaderService {
     const commands: TestCommands = { unit: [], integration: [], e2e: [] };
 
     if (service.testing.unit) {
-      commands.unit.push(...this.generateTestCommands(service.testing.unit.framework, service.language));
+      commands.unit.push(
+        ...this.generateTestCommands(service.testing.unit.framework, service.language),
+      );
     }
     if (service.testing.integration) {
-      commands.integration.push(...this.generateTestCommands(service.testing.integration.framework, service.language));
+      commands.integration.push(
+        ...this.generateTestCommands(service.testing.integration.framework, service.language),
+      );
     }
     if (service.testing.e2e) {
-      commands.e2e.push(...this.generateTestCommands(service.testing.e2e.framework, service.language));
+      commands.e2e.push(
+        ...this.generateTestCommands(service.testing.e2e.framework, service.language),
+      );
     }
 
     return commands;
@@ -400,9 +400,7 @@ export class ProjectConfigReaderService {
    */
   hasDocker(): boolean {
     const infrastructure = this.getInfrastructure();
-    return infrastructure.some(tool =>
-      tool.toLowerCase().includes('docker')
-    );
+    return infrastructure.some((tool) => tool.toLowerCase().includes('docker'));
   }
 
   /**
@@ -428,7 +426,7 @@ export class ProjectConfigReaderService {
     const requiredFiles = [
       '.claude/framework-config.json',
       '.claude/CLAUDE.md',
-      '.claude/project-context/SKILL.md'
+      '.claude/project-context/SKILL.md',
     ];
 
     const missing: string[] = [];
@@ -441,7 +439,7 @@ export class ProjectConfigReaderService {
 
     return {
       valid: missing.length === 0,
-      missing
+      missing,
     };
   }
 }

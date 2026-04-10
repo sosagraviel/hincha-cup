@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 /**
  * State schema for implement-ticket workflow
@@ -26,13 +26,15 @@ import { z } from "zod";
 export const Phase0PreflightSchema = z.object({
   stack_profile: z.any(), // From .claude/CLAUDE.md
   framework_config: z.any(), // From .claude/framework-config.json
-  test_commands: z.object({
-    unit: z.array(z.string()).optional(),
-    integration: z.array(z.string()).optional(),
-    e2e: z.array(z.string()).optional()
-  }).optional(),
+  test_commands: z
+    .object({
+      unit: z.array(z.string()).optional(),
+      integration: z.array(z.string()).optional(),
+      e2e: z.array(z.string()).optional(),
+    })
+    .optional(),
   git_clean: z.boolean(),
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -43,7 +45,7 @@ export const Phase1ContextSchema = z.object({
   full_context: z.string(), // Main context markdown
   external_docs: z.string().optional(), // External docs fetched
   source: z.enum(['jira', 'markdown', 'input']),
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -54,7 +56,7 @@ export const Phase2PlanningSchema = z.object({
   implementation_plan: z.string(), // Markdown plan
   test_plan: z.any(), // Structured test plan
   environment_requirements: z.any().optional(), // Docker, env vars, etc.
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -66,7 +68,7 @@ export const Phase3EnvironmentSchema = z.object({
   docker_config: z.any().optional(), // Docker compose override config
   environment_config: z.any(), // Environment variables, etc.
   screenshots_before: z.array(z.string()).optional(), // Paths to before screenshots
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -79,11 +81,11 @@ export const Phase4ImplementationSchema = z.object({
   file_statistics: z.object({
     filesChanged: z.number(),
     linesAdded: z.number(),
-    linesRemoved: z.number()
+    linesRemoved: z.number(),
   }), // Git statistics about changes
   primary_language: z.string().optional(), // Primary language used
   agent_used: z.string(), // Which implementer agent was used
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -92,13 +94,15 @@ export const Phase4ImplementationSchema = z.object({
 
 export const Phase5TestingSchema = z.object({
   test_results: z.any(), // Framework-specific test results
-  coverage: z.object({
-    percentage: z.number().optional(),
-    html_path: z.string().optional(),
-    json_path: z.string().optional()
-  }).optional(),
+  coverage: z
+    .object({
+      percentage: z.number().optional(),
+      html_path: z.string().optional(),
+      json_path: z.string().optional(),
+    })
+    .optional(),
   all_passed: z.boolean(),
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -116,7 +120,7 @@ export const Phase6VisualSchema = z.object({
   config_used: z.string().optional(), // Path to ui-visual-testing.json if used
   figma_comparisons: z.any().optional(), // Figma mode comparison results
   regression_comparisons: z.any().optional(), // Screenshot mode comparison results
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -127,7 +131,7 @@ export const Phase7DocumentationSchema = z.object({
   doc_updates: z.any(), // Documentation changes made
   claude_md_updated: z.boolean().default(false),
   project_context_updated: z.boolean().default(false),
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -139,7 +143,7 @@ export const Phase8PRSchema = z.object({
   pr_description: z.string(), // Generated PR description
   commit_sha: z.string().optional(),
   branch_name: z.string().optional(),
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -151,7 +155,7 @@ export const Phase9ReviewSchema = z.object({
   security_review_results: z.any().optional(), // Security scan results
   iteration_count: z.number().default(0),
   all_resolved: z.boolean(),
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -162,7 +166,7 @@ export const Phase10CleanupSchema = z.object({
   docker_stopped: z.boolean().default(false),
   artifacts_archived: z.boolean().default(false),
   archive_path: z.string().optional(),
-  timestamp: z.string()
+  timestamp: z.string(),
 });
 
 // ============================================================================
@@ -177,7 +181,7 @@ export const RetryStateSchema = z.object({
   error_history: z.array(z.string()).default([]),
   next_delay_ms: z.number().optional(), // Exponential backoff delay
   started_at: z.string().optional(),
-  completed_at: z.string().optional()
+  completed_at: z.string().optional(),
 });
 
 // ============================================================================
@@ -196,22 +200,24 @@ export const ImplementTicketStateSchema = z.object({
   start_phase: z.number().min(0).max(10).default(0).optional(),
 
   // Current phase tracking
-  current_phase: z.enum([
-    'init',
-    'phase0_preflight',
-    'phase1_context',
-    'phase2_planning',
-    'phase3_environment',
-    'phase4_implementation',
-    'phase5_testing',
-    'phase6_visual',
-    'phase7_documentation',
-    'phase8_pr',
-    'phase9_review',
-    'phase10_cleanup',
-    'complete',
-    'failed'
-  ]).default('init'),
+  current_phase: z
+    .enum([
+      'init',
+      'phase0_preflight',
+      'phase1_context',
+      'phase2_planning',
+      'phase3_environment',
+      'phase4_implementation',
+      'phase5_testing',
+      'phase6_visual',
+      'phase7_documentation',
+      'phase8_pr',
+      'phase9_review',
+      'phase10_cleanup',
+      'complete',
+      'failed',
+    ])
+    .default('init'),
 
   // Phase completion flags (for flow control only - data is on disk!)
   phase0_complete: z.boolean().default(false),
@@ -267,7 +273,7 @@ export const ImplementTicketStateSchema = z.object({
   total_duration_ms: z.number().optional(),
 
   // Checkpointing
-  checkpoint_id: z.string().optional()
+  checkpoint_id: z.string().optional(),
 });
 
 // ============================================================================
@@ -340,20 +346,20 @@ export const ImplementTicketAnnotation = Annotation.Root({
     reducer: (left, right) => {
       // Priority order (highest to lowest)
       const priority = {
-        'failed': 100,
-        'complete': 90,
-        'phase10_cleanup': 80,
-        'phase9_review': 70,
-        'phase8_pr': 60,
-        'phase7_documentation': 50,
-        'phase6_visual': 40,
-        'phase5_testing': 30,
-        'phase4_implementation': 20,
-        'phase3_environment': 15,
-        'phase2_planning': 12,
-        'phase1_context': 11,
-        'phase0_preflight': 10,
-        'init': 0
+        failed: 100,
+        complete: 90,
+        phase10_cleanup: 80,
+        phase9_review: 70,
+        phase8_pr: 60,
+        phase7_documentation: 50,
+        phase6_visual: 40,
+        phase5_testing: 30,
+        phase4_implementation: 20,
+        phase3_environment: 15,
+        phase2_planning: 12,
+        phase1_context: 11,
+        phase0_preflight: 10,
+        init: 0,
       };
 
       const leftPriority = priority[left] ?? -1;
@@ -361,7 +367,7 @@ export const ImplementTicketAnnotation = Annotation.Root({
 
       return rightPriority >= leftPriority ? right : left;
     },
-    default: () => 'init'
+    default: () => 'init',
   }),
 
   // ============================================================================
@@ -419,12 +425,12 @@ export const ImplementTicketAnnotation = Annotation.Root({
   // ============================================================================
   errors: Annotation<string[]>({
     reducer: (left, right) => [...left, ...right],
-    default: () => []
+    default: () => [],
   }),
 
   warnings: Annotation<string[]>({
     reducer: (left, right) => [...left, ...right],
-    default: () => []
+    default: () => [],
   }),
 
   // ============================================================================
@@ -433,5 +439,5 @@ export const ImplementTicketAnnotation = Annotation.Root({
   started_at: Annotation<string | undefined>,
   completed_at: Annotation<string | undefined>,
   total_duration_ms: Annotation<number | undefined>,
-  checkpoint_id: Annotation<string | undefined>
+  checkpoint_id: Annotation<string | undefined>,
 });

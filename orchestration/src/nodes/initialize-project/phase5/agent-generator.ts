@@ -1,17 +1,17 @@
-import { writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
-import type { StackProfile } from "../../../schemas/index.js";
-import type { ResolvedSkill, GeneratedAgent } from "./types.js";
-import { registerHandlebarsHelpers } from "./helpers/handlebars-helpers.js";
-import { getLanguagesFromStackProfile } from "./helpers/stack-extractor.js";
-import { assignSkillsToAgents } from "./helpers/skill-assigner.js";
+import { writeFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import type { StackProfile } from '../../../schemas/index.js';
+import type { ResolvedSkill, GeneratedAgent } from './types.js';
+import { registerHandlebarsHelpers } from './helpers/handlebars-helpers.js';
+import { getLanguagesFromStackProfile } from './helpers/stack-extractor.js';
+import { assignSkillsToAgents } from './helpers/skill-assigner.js';
 import {
   generatePlannerAgent,
   generateImplementerAgent,
   generateGenericImplementerAgent,
   generateVisualVerifierAgent,
   isLanguageSupported,
-} from "./helpers/agent-generators.js";
+} from './helpers/agent-generators.js';
 
 /**
  * Generate all agents for the project
@@ -50,7 +50,12 @@ export function generateAgents(
       const agentSkills = assignments[agentName];
 
       if (agentSkills) {
-        const implementer = generateImplementerAgent(templatesPath, language, agentSkills, projectPath);
+        const implementer = generateImplementerAgent(
+          templatesPath,
+          language,
+          agentSkills,
+          projectPath,
+        );
         if (implementer) {
           agents.push(implementer);
         }
@@ -58,7 +63,10 @@ export function generateAgents(
     }
   }
 
-  const genericImplementer = generateGenericImplementerAgent(templatesPath, assignments["implementer-generic"]);
+  const genericImplementer = generateGenericImplementerAgent(
+    templatesPath,
+    assignments['implementer-generic'],
+  );
   if (genericImplementer) {
     agents.push(genericImplementer);
   }
@@ -75,7 +83,7 @@ export function generateAgents(
  * Write agents to project
  */
 export function writeAgents(agents: GeneratedAgent[], projectPath: string): void {
-  const agentsDir = join(projectPath, ".claude", "agents");
+  const agentsDir = join(projectPath, '.claude', 'agents');
   mkdirSync(agentsDir, { recursive: true });
 
   for (const agent of agents) {

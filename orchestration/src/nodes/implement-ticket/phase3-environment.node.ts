@@ -23,7 +23,7 @@ import { ScreenshotService } from '../../services/implement-ticket/screenshot.se
  * @returns Updated state with phase3 completion flag
  */
 export async function phase3EnvironmentNode(
-  state: ImplementTicketState
+  state: ImplementTicketState,
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
@@ -39,7 +39,7 @@ export async function phase3EnvironmentNode(
     return {
       current_phase: 'phase4_implementation',
       phase3_complete: true,
-      phase3_environment: completionData.environment_data
+      phase3_environment: completionData.environment_data,
     };
   }
 
@@ -49,9 +49,7 @@ export async function phase3EnvironmentNode(
     const phase2CompletionPath = join(phase2Dir, 'planning-complete.json');
 
     if (!existsSync(phase2CompletionPath)) {
-      throw new Error(
-        'Phase 2 not complete. Run Phase 2 first or use --start-phase 2'
-      );
+      throw new Error('Phase 2 not complete. Run Phase 2 first or use --start-phase 2');
     }
     console.log('[Phase 3: Environment] ✓ Phase 2 verified');
 
@@ -82,11 +80,10 @@ export async function phase3EnvironmentNode(
             page,
             baseUrl,
             routes,
-            'before'
+            'before',
           );
 
           console.log(`[Phase 3: Environment] ✓ Captured ${beforeScreenshots.length} screenshots`);
-
         } catch (error: any) {
           console.log(`[Phase 3: Environment] ⚠ Screenshot capture failed: ${error.message}`);
           console.log('[Phase 3: Environment] Continuing without screenshots');
@@ -101,37 +98,38 @@ export async function phase3EnvironmentNode(
     console.log('[Phase 3: Environment] Writing outputs to disk...');
     mkdirSync(phase3Dir, { recursive: true });
 
-    writeFileSync(
-      join(phase3Dir, 'environment-config.json'),
-      JSON.stringify(envConfig, null, 2)
-    );
+    writeFileSync(join(phase3Dir, 'environment-config.json'), JSON.stringify(envConfig, null, 2));
 
     if (beforeScreenshots.length > 0) {
       writeFileSync(
         join(phase3Dir, 'screenshots-before.json'),
-        JSON.stringify(beforeScreenshots, null, 2)
+        JSON.stringify(beforeScreenshots, null, 2),
       );
     }
 
     const environmentData = {
       environment_config: envConfig,
       screenshots_before: beforeScreenshots,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     writeFileSync(
       join(phase3Dir, 'environment-data.json'),
-      JSON.stringify(environmentData, null, 2)
+      JSON.stringify(environmentData, null, 2),
     );
 
     // Write completion marker (last file to write - indicates phase complete)
     writeFileSync(
       completionMarkerPath,
-      JSON.stringify({
-        completed_at: new Date().toISOString(),
-        ticket_id: ticketId,
-        environment_data: environmentData
-      }, null, 2)
+      JSON.stringify(
+        {
+          completed_at: new Date().toISOString(),
+          ticket_id: ticketId,
+          environment_data: environmentData,
+        },
+        null,
+        2,
+      ),
     );
 
     console.log('[Phase 3: Environment] ✓ Outputs written to disk');
@@ -141,16 +139,15 @@ export async function phase3EnvironmentNode(
     return {
       current_phase: 'phase4_implementation',
       phase3_complete: true,
-      phase3_environment: environmentData
+      phase3_environment: environmentData,
     };
-
   } catch (error) {
     const errorMessage = `Environment setup failed: ${(error as Error).message}`;
     console.error(`[Phase 3: Environment] ✗ ${errorMessage}`);
 
     return {
       errors: [errorMessage],
-      current_phase: 'failed'
+      current_phase: 'failed',
     };
   }
 }

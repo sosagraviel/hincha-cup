@@ -1,15 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, writeFile, rm } from "fs/promises";
-import { join } from "path";
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdir, writeFile, rm } from 'fs/promises';
+import { join } from 'path';
 import {
   countFilesByLanguage,
   getSupportedLanguages,
   getLanguageExtensions,
   detectLanguageFromExtension,
-} from "../../../../../src/nodes/initialize-project/phase4/file-counter.js";
+} from '../../../../../src/nodes/initialize-project/phase4/file-counter.js';
 
-describe("file-counter", () => {
-  const testDir = join(__dirname, "fixtures", "file-counter-test");
+describe('file-counter', () => {
+  const testDir = join(__dirname, 'fixtures', 'file-counter-test');
 
   beforeEach(async () => {
     await mkdir(testDir, { recursive: true });
@@ -19,96 +19,96 @@ describe("file-counter", () => {
     await rm(testDir, { recursive: true, force: true });
   });
 
-  describe("countFilesByLanguage", () => {
-    it("should count TypeScript files correctly", async () => {
-      await writeFile(join(testDir, "test1.ts"), "// TypeScript file");
-      await writeFile(join(testDir, "test2.tsx"), "// TSX file");
+  describe('countFilesByLanguage', () => {
+    it('should count TypeScript files correctly', async () => {
+      await writeFile(join(testDir, 'test1.ts'), '// TypeScript file');
+      await writeFile(join(testDir, 'test2.tsx'), '// TSX file');
 
       const result = await countFilesByLanguage(testDir);
 
       expect(result.total_files).toBe(2);
-      const tsCount = result.by_language.find((l) => l.language === "typescript");
+      const tsCount = result.by_language.find((l) => l.language === 'typescript');
       expect(tsCount).toBeDefined();
       expect(tsCount?.count).toBe(2);
-      expect(tsCount?.extensions).toContain(".ts");
-      expect(tsCount?.extensions).toContain(".tsx");
+      expect(tsCount?.extensions).toContain('.ts');
+      expect(tsCount?.extensions).toContain('.tsx');
     });
 
-    it("should count Python files correctly", async () => {
-      await writeFile(join(testDir, "test.py"), "# Python file");
-      await writeFile(join(testDir, "script.pyw"), "# Python Windows file");
+    it('should count Python files correctly', async () => {
+      await writeFile(join(testDir, 'test.py'), '# Python file');
+      await writeFile(join(testDir, 'script.pyw'), '# Python Windows file');
 
       const result = await countFilesByLanguage(testDir);
 
       expect(result.total_files).toBe(2);
-      const pyCount = result.by_language.find((l) => l.language === "python");
+      const pyCount = result.by_language.find((l) => l.language === 'python');
       expect(pyCount).toBeDefined();
       expect(pyCount?.count).toBe(2);
     });
 
-    it("should count JavaScript files with all extensions", async () => {
-      await writeFile(join(testDir, "test.js"), "// JS file");
-      await writeFile(join(testDir, "module.mjs"), "// ESM file");
-      await writeFile(join(testDir, "config.cjs"), "// CommonJS file");
-      await writeFile(join(testDir, "component.jsx"), "// JSX file");
+    it('should count JavaScript files with all extensions', async () => {
+      await writeFile(join(testDir, 'test.js'), '// JS file');
+      await writeFile(join(testDir, 'module.mjs'), '// ESM file');
+      await writeFile(join(testDir, 'config.cjs'), '// CommonJS file');
+      await writeFile(join(testDir, 'component.jsx'), '// JSX file');
 
       const result = await countFilesByLanguage(testDir);
 
       expect(result.total_files).toBe(4);
-      const jsCount = result.by_language.find((l) => l.language === "javascript");
+      const jsCount = result.by_language.find((l) => l.language === 'javascript');
       expect(jsCount?.count).toBe(4);
     });
 
-    it("should ignore node_modules directory", async () => {
-      const nodeModules = join(testDir, "node_modules");
+    it('should ignore node_modules directory', async () => {
+      const nodeModules = join(testDir, 'node_modules');
       await mkdir(nodeModules, { recursive: true });
-      await writeFile(join(nodeModules, "test.js"), "// Should ignore");
+      await writeFile(join(nodeModules, 'test.js'), '// Should ignore');
 
       const result = await countFilesByLanguage(testDir);
 
       expect(result.total_files).toBe(0);
     });
 
-    it("should ignore .git directory", async () => {
-      const gitDir = join(testDir, ".git");
+    it('should ignore .git directory', async () => {
+      const gitDir = join(testDir, '.git');
       await mkdir(gitDir, { recursive: true });
-      await writeFile(join(gitDir, "config"), "// Git config");
+      await writeFile(join(gitDir, 'config'), '// Git config');
 
       const result = await countFilesByLanguage(testDir);
 
       expect(result.total_files).toBe(0);
     });
 
-    it("should ignore build/dist directories", async () => {
-      const buildDir = join(testDir, "build");
-      const distDir = join(testDir, "dist");
+    it('should ignore build/dist directories', async () => {
+      const buildDir = join(testDir, 'build');
+      const distDir = join(testDir, 'dist');
       await mkdir(buildDir, { recursive: true });
       await mkdir(distDir, { recursive: true });
-      await writeFile(join(buildDir, "output.js"), "// Build output");
-      await writeFile(join(distDir, "bundle.js"), "// Dist bundle");
+      await writeFile(join(buildDir, 'output.js'), '// Build output');
+      await writeFile(join(distDir, 'bundle.js'), '// Dist bundle');
 
       const result = await countFilesByLanguage(testDir);
 
       expect(result.total_files).toBe(0);
     });
 
-    it("should ignore Python virtual environments", async () => {
-      const venvDir = join(testDir, "venv");
+    it('should ignore Python virtual environments', async () => {
+      const venvDir = join(testDir, 'venv');
       await mkdir(venvDir, { recursive: true });
-      await writeFile(join(venvDir, "script.py"), "// Should ignore");
+      await writeFile(join(venvDir, 'script.py'), '// Should ignore');
 
       const result = await countFilesByLanguage(testDir);
 
       expect(result.total_files).toBe(0);
     });
 
-    it("should ignore framework directories with -agentic-framework suffix", async () => {
+    it('should ignore framework directories with -agentic-framework suffix', async () => {
       // Create framework directory with specific name
-      const frameworkDir = join(testDir, "ai-agentic-framework");
+      const frameworkDir = join(testDir, 'ai-agentic-framework');
       await mkdir(frameworkDir, { recursive: true });
-      await writeFile(join(frameworkDir, "test.ts"), "// Framework file");
-      await writeFile(join(frameworkDir, "test.py"), "# Framework file");
-      await writeFile(join(frameworkDir, "test.go"), "// Framework file");
+      await writeFile(join(frameworkDir, 'test.ts'), '// Framework file');
+      await writeFile(join(frameworkDir, 'test.py'), '# Framework file');
+      await writeFile(join(frameworkDir, 'test.go'), '// Framework file');
 
       // Pass frameworkPath so it derives "ai-agentic-framework" as the directory name
       const result = await countFilesByLanguage(testDir, 10, frameworkDir);
@@ -116,29 +116,29 @@ describe("file-counter", () => {
       expect(result.total_files).toBe(0);
     });
 
-    it("should ignore .claude directories", async () => {
-      const claudeDir = join(testDir, ".claude");
-      const claudeTempDir = join(testDir, ".claude-temp");
-      const claudeBackupsDir = join(testDir, ".claude-backups");
+    it('should ignore .claude directories', async () => {
+      const claudeDir = join(testDir, '.claude');
+      const claudeTempDir = join(testDir, '.claude-temp');
+      const claudeBackupsDir = join(testDir, '.claude-backups');
 
       await mkdir(claudeDir, { recursive: true });
       await mkdir(claudeTempDir, { recursive: true });
       await mkdir(claudeBackupsDir, { recursive: true });
 
-      await writeFile(join(claudeDir, "skill.py"), "# Skill file");
-      await writeFile(join(claudeTempDir, "temp.ts"), "// Temp file");
-      await writeFile(join(claudeBackupsDir, "backup.js"), "// Backup file");
+      await writeFile(join(claudeDir, 'skill.py'), '# Skill file');
+      await writeFile(join(claudeTempDir, 'temp.ts'), '// Temp file');
+      await writeFile(join(claudeBackupsDir, 'backup.js'), '// Backup file');
 
       const result = await countFilesByLanguage(testDir);
 
       expect(result.total_files).toBe(0);
     });
 
-    it("should handle multiple languages in monorepo", async () => {
-      await writeFile(join(testDir, "app.ts"), "// TypeScript");
-      await writeFile(join(testDir, "server.py"), "# Python");
-      await writeFile(join(testDir, "main.go"), "// Go");
-      await writeFile(join(testDir, "lib.rs"), "// Rust");
+    it('should handle multiple languages in monorepo', async () => {
+      await writeFile(join(testDir, 'app.ts'), '// TypeScript');
+      await writeFile(join(testDir, 'server.py'), '# Python');
+      await writeFile(join(testDir, 'main.go'), '// Go');
+      await writeFile(join(testDir, 'lib.rs'), '// Rust');
 
       const result = await countFilesByLanguage(testDir);
 
@@ -146,72 +146,72 @@ describe("file-counter", () => {
       expect(result.by_language).toHaveLength(4);
 
       const languages = result.by_language.map((l) => l.language);
-      expect(languages).toContain("typescript");
-      expect(languages).toContain("python");
-      expect(languages).toContain("go");
-      expect(languages).toContain("rust");
+      expect(languages).toContain('typescript');
+      expect(languages).toContain('python');
+      expect(languages).toContain('go');
+      expect(languages).toContain('rust');
     });
 
-    it("should respect maxDepth parameter", async () => {
-      const deep = join(testDir, "a", "b", "c", "d", "e");
+    it('should respect maxDepth parameter', async () => {
+      const deep = join(testDir, 'a', 'b', 'c', 'd', 'e');
       await mkdir(deep, { recursive: true });
-      await writeFile(join(deep, "test.ts"), "// Deep file");
+      await writeFile(join(deep, 'test.ts'), '// Deep file');
 
       const result = await countFilesByLanguage(testDir, 3);
 
       expect(result.total_files).toBe(0); // Too deep
     });
 
-    it("should count files within maxDepth", async () => {
-      const shallow = join(testDir, "a", "b");
+    it('should count files within maxDepth', async () => {
+      const shallow = join(testDir, 'a', 'b');
       await mkdir(shallow, { recursive: true });
-      await writeFile(join(shallow, "test.ts"), "// Shallow file");
+      await writeFile(join(shallow, 'test.ts'), '// Shallow file');
 
       const result = await countFilesByLanguage(testDir, 3);
 
       expect(result.total_files).toBe(1);
     });
 
-    it("should track directories where files are found", async () => {
-      const srcDir = join(testDir, "src");
-      const libDir = join(testDir, "lib");
+    it('should track directories where files are found', async () => {
+      const srcDir = join(testDir, 'src');
+      const libDir = join(testDir, 'lib');
       await mkdir(srcDir, { recursive: true });
       await mkdir(libDir, { recursive: true });
-      await writeFile(join(srcDir, "app.ts"), "// App");
-      await writeFile(join(libDir, "util.ts"), "// Util");
+      await writeFile(join(srcDir, 'app.ts'), '// App');
+      await writeFile(join(libDir, 'util.ts'), '// Util');
 
       const result = await countFilesByLanguage(testDir);
 
-      const tsCount = result.by_language.find((l) => l.language === "typescript");
-      expect(tsCount?.directories).toContain("src");
-      expect(tsCount?.directories).toContain("lib");
+      const tsCount = result.by_language.find((l) => l.language === 'typescript');
+      expect(tsCount?.directories).toContain('src');
+      expect(tsCount?.directories).toContain('lib');
     });
 
-    it("should sort languages by count descending", async () => {
+    it('should sort languages by count descending', async () => {
       // Create 5 TypeScript files
       for (let i = 0; i < 5; i++) {
-        await writeFile(join(testDir, `file${i}.ts`), "// TS");
+        await writeFile(join(testDir, `file${i}.ts`), '// TS');
       }
 
       // Create 2 Python files
       for (let i = 0; i < 2; i++) {
-        await writeFile(join(testDir, `script${i}.py`), "# Python");
+        await writeFile(join(testDir, `script${i}.py`), '# Python');
       }
 
       // Create 1 Go file
-      await writeFile(join(testDir, "main.go"), "// Go");
+      await writeFile(join(testDir, 'main.go'), '// Go');
 
       const result = await countFilesByLanguage(testDir);
 
-      expect(result.by_language[0].language).toBe("typescript");
+      expect(result.by_language[0].language).toBe('typescript');
       expect(result.by_language[0].count).toBe(5);
-      expect(result.by_language[1].language).toBe("python");
+      expect(result.by_language[1].language).toBe('python');
       expect(result.by_language[1].count).toBe(2);
-      expect(result.by_language[2].language).toBe("go");
+      expect(result.by_language[2].language).toBe('go');
       expect(result.by_language[2].count).toBe(1);
     });
 
-    it("should handle empty directory", async () => {
+    it('should handle empty directory', async () => {
       const result = await countFilesByLanguage(testDir);
 
       expect(result.total_files).toBe(0);
@@ -219,55 +219,55 @@ describe("file-counter", () => {
       expect(result.scanned_directories).toBeGreaterThan(0);
     });
 
-    it("should handle non-source files (ignore them)", async () => {
-      await writeFile(join(testDir, "README.md"), "# Readme");
-      await writeFile(join(testDir, "data.json"), '{"key": "value"}');
-      await writeFile(join(testDir, "image.png"), "binary data");
+    it('should handle non-source files (ignore them)', async () => {
+      await writeFile(join(testDir, 'README.md'), '# Readme');
+      await writeFile(join(testDir, 'data.json'), '{"key": "value"}');
+      await writeFile(join(testDir, 'image.png'), 'binary data');
 
       const result = await countFilesByLanguage(testDir);
 
       expect(result.total_files).toBe(0); // No source files
     });
 
-    it("should count Java files", async () => {
-      const srcDir = join(testDir, "src", "main", "java");
+    it('should count Java files', async () => {
+      const srcDir = join(testDir, 'src', 'main', 'java');
       await mkdir(srcDir, { recursive: true });
-      await writeFile(join(srcDir, "Main.java"), "// Java file");
+      await writeFile(join(srcDir, 'Main.java'), '// Java file');
 
       const result = await countFilesByLanguage(testDir);
 
-      const javaCount = result.by_language.find((l) => l.language === "java");
+      const javaCount = result.by_language.find((l) => l.language === 'java');
       expect(javaCount?.count).toBe(1);
     });
 
-    it("should count C/C++ files", async () => {
-      await writeFile(join(testDir, "main.c"), "// C file");
-      await writeFile(join(testDir, "app.cpp"), "// C++ file");
-      await writeFile(join(testDir, "header.h"), "// Header");
+    it('should count C/C++ files', async () => {
+      await writeFile(join(testDir, 'main.c'), '// C file');
+      await writeFile(join(testDir, 'app.cpp'), '// C++ file');
+      await writeFile(join(testDir, 'header.h'), '// Header');
 
       const result = await countFilesByLanguage(testDir);
 
       // .c and .h go to "c", .cpp goes to "cpp"
-      const cCount = result.by_language.find((l) => l.language === "c");
-      const cppCount = result.by_language.find((l) => l.language === "cpp");
+      const cCount = result.by_language.find((l) => l.language === 'c');
+      const cppCount = result.by_language.find((l) => l.language === 'cpp');
 
       expect(cCount?.count).toBeGreaterThan(0);
       expect(cppCount?.count).toBeGreaterThan(0);
     });
 
-    it("should count Ruby files", async () => {
-      await writeFile(join(testDir, "app.rb"), "# Ruby file");
-      await writeFile(join(testDir, "Rakefile.rake"), "# Rake file");
+    it('should count Ruby files', async () => {
+      await writeFile(join(testDir, 'app.rb'), '# Ruby file');
+      await writeFile(join(testDir, 'Rakefile.rake'), '# Rake file');
 
       const result = await countFilesByLanguage(testDir);
 
-      const rubyCount = result.by_language.find((l) => l.language === "ruby");
+      const rubyCount = result.by_language.find((l) => l.language === 'ruby');
       expect(rubyCount?.count).toBe(2);
     });
 
-    it("should handle permission errors gracefully", async () => {
+    it('should handle permission errors gracefully', async () => {
       // Create a file that might cause permission issues
-      await writeFile(join(testDir, "test.ts"), "// File");
+      await writeFile(join(testDir, 'test.ts'), '// File');
 
       const result = await countFilesByLanguage(testDir);
 
@@ -275,12 +275,12 @@ describe("file-counter", () => {
       expect(result.total_files).toBeGreaterThan(0);
     });
 
-    it("should count scanned directories", async () => {
-      const dir1 = join(testDir, "dir1");
-      const dir2 = join(testDir, "dir2");
+    it('should count scanned directories', async () => {
+      const dir1 = join(testDir, 'dir1');
+      const dir2 = join(testDir, 'dir2');
       await mkdir(dir1, { recursive: true });
       await mkdir(dir2, { recursive: true });
-      await writeFile(join(dir1, "file.ts"), "// File");
+      await writeFile(join(dir1, 'file.ts'), '// File');
 
       const result = await countFilesByLanguage(testDir);
 
@@ -288,84 +288,84 @@ describe("file-counter", () => {
     });
   });
 
-  describe("getSupportedLanguages", () => {
-    it("should return list of supported languages", () => {
+  describe('getSupportedLanguages', () => {
+    it('should return list of supported languages', () => {
       const languages = getSupportedLanguages();
 
-      expect(languages).toContain("typescript");
-      expect(languages).toContain("javascript");
-      expect(languages).toContain("python");
-      expect(languages).toContain("java");
-      expect(languages).toContain("go");
-      expect(languages).toContain("rust");
+      expect(languages).toContain('typescript');
+      expect(languages).toContain('javascript');
+      expect(languages).toContain('python');
+      expect(languages).toContain('java');
+      expect(languages).toContain('go');
+      expect(languages).toContain('rust');
       expect(languages.length).toBeGreaterThan(10);
     });
   });
 
-  describe("getLanguageExtensions", () => {
-    it("should return extensions for TypeScript", () => {
-      const extensions = getLanguageExtensions("typescript");
+  describe('getLanguageExtensions', () => {
+    it('should return extensions for TypeScript', () => {
+      const extensions = getLanguageExtensions('typescript');
 
-      expect(extensions).toContain(".ts");
-      expect(extensions).toContain(".tsx");
+      expect(extensions).toContain('.ts');
+      expect(extensions).toContain('.tsx');
     });
 
-    it("should return extensions for Python", () => {
-      const extensions = getLanguageExtensions("python");
+    it('should return extensions for Python', () => {
+      const extensions = getLanguageExtensions('python');
 
-      expect(extensions).toContain(".py");
-      expect(extensions).toContain(".pyw");
+      expect(extensions).toContain('.py');
+      expect(extensions).toContain('.pyw');
     });
 
-    it("should be case-insensitive", () => {
-      const extensions = getLanguageExtensions("TypeScript");
+    it('should be case-insensitive', () => {
+      const extensions = getLanguageExtensions('TypeScript');
 
       expect(extensions).toBeDefined();
-      expect(extensions).toContain(".ts");
+      expect(extensions).toContain('.ts');
     });
 
-    it("should return undefined for unknown language", () => {
-      const extensions = getLanguageExtensions("unknown");
+    it('should return undefined for unknown language', () => {
+      const extensions = getLanguageExtensions('unknown');
 
       expect(extensions).toBeUndefined();
     });
   });
 
-  describe("detectLanguageFromExtension", () => {
-    it("should detect TypeScript from .ts extension", () => {
-      const lang = detectLanguageFromExtension("app.ts");
+  describe('detectLanguageFromExtension', () => {
+    it('should detect TypeScript from .ts extension', () => {
+      const lang = detectLanguageFromExtension('app.ts');
 
-      expect(lang).toBe("typescript");
+      expect(lang).toBe('typescript');
     });
 
-    it("should detect Python from .py extension", () => {
-      const lang = detectLanguageFromExtension("script.py");
+    it('should detect Python from .py extension', () => {
+      const lang = detectLanguageFromExtension('script.py');
 
-      expect(lang).toBe("python");
+      expect(lang).toBe('python');
     });
 
-    it("should detect JavaScript from .js extension", () => {
-      const lang = detectLanguageFromExtension("index.js");
+    it('should detect JavaScript from .js extension', () => {
+      const lang = detectLanguageFromExtension('index.js');
 
-      expect(lang).toBe("javascript");
+      expect(lang).toBe('javascript');
     });
 
-    it("should handle files without extension", () => {
-      const lang = detectLanguageFromExtension("README");
+    it('should handle files without extension', () => {
+      const lang = detectLanguageFromExtension('README');
 
       expect(lang).toBeUndefined();
     });
 
-    it("should handle unknown extensions", () => {
-      const lang = detectLanguageFromExtension("file.xyz");
+    it('should handle unknown extensions', () => {
+      const lang = detectLanguageFromExtension('file.xyz');
 
       expect(lang).toBeUndefined();
     });
 
-    it("should be case-insensitive for extensions", () => {
-      const lang = detectLanguageFromExtension("App.TS");
+    it('should be case-insensitive for extensions', () => {
+      const lang = detectLanguageFromExtension('App.TS');
 
-      expect(lang).toBe("typescript");
+      expect(lang).toBe('typescript');
     });
   });
 });

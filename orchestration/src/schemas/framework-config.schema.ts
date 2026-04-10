@@ -5,8 +5,8 @@
  * This is the authoritative schema used for generating and validating framework config files
  */
 
-import { z } from "zod";
-import { StackProfileSchema } from "./stack-profile.schema.js";
+import { z } from 'zod';
+import { StackProfileSchema } from './stack-profile.schema.js';
 
 /**
  * Resource Info Schema

@@ -4,9 +4,9 @@
  * Validates markdown files (CLAUDE.md and project-context/SKILL.md)
  */
 
-import { existsSync, readFileSync } from "fs";
-import { MIN_CONTENT_LENGTH } from "../constants.js";
-import type { FileValidationResult } from "../types.js";
+import { existsSync, readFileSync } from 'fs';
+import { MIN_CONTENT_LENGTH } from '../constants.js';
+import type { FileValidationResult } from '../types.js';
 
 /**
  * Validate a markdown file exists and has sufficient content
@@ -28,7 +28,7 @@ export function validateMarkdownFile(
     };
   }
 
-  const content = readFileSync(filePath, "utf-8");
+  const content = readFileSync(filePath, 'utf-8');
   const contentLength = content.length;
 
   if (contentLength < MIN_CONTENT_LENGTH) {

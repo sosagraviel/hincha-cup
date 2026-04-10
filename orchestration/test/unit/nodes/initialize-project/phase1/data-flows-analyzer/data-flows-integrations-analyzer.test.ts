@@ -9,8 +9,12 @@ vi.mock('fs', () => ({ mkdirSync: vi.fn(), writeFileSync: vi.fn(), existsSync: v
 vi.mock('../../../../../../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
-vi.mock('../../../../../../src/utils/shared/agent-factory/index.js', () => ({ AgentFactory: { create: vi.fn() } }));
-vi.mock('../../../../../../src/utils/validator.js', () => ({ validateAndParseAgentOutput: vi.fn() }));
+vi.mock('../../../../../../src/utils/shared/agent-factory/index.js', () => ({
+  AgentFactory: { create: vi.fn() },
+}));
+vi.mock('../../../../../../src/utils/validator.js', () => ({
+  validateAndParseAgentOutput: vi.fn(),
+}));
 vi.mock('../../../../../../src/utils/enhanced-retry.js', () => ({
   retryWithEnhancedFeedback: vi.fn(),
   DEFAULT_RETRY_CONFIG: { maxAttempts: 3 },
@@ -44,11 +48,13 @@ describe('dataFlowsIntegrationsAnalyzerNode', () => {
       }),
     };
     mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
-    vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
-    vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(async (agentInvoke: any) => {
-      const { output } = await agentInvoke('');
-      return JSON.parse(output);
-    });
+    vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory);
+    vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
+      async (agentInvoke: any) => {
+        const { output } = await agentInvoke('');
+        return JSON.parse(output);
+      },
+    );
   });
 
   it('should successfully analyze data flows', async () => {
@@ -73,7 +79,7 @@ describe('dataFlowsIntegrationsAnalyzerNode', () => {
     await dataFlowsIntegrationsAnalyzerNode(mockState);
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.stringContaining('04-data-flows-integrations.json'),
-      expect.any(String)
+      expect.any(String),
     );
   });
 

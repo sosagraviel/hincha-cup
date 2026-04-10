@@ -11,8 +11,8 @@
  * This file is synced to target project's .claude/hooks/ during initialization.
  */
 
-import fs from "fs";
-import { validateSynthesisOutput } from "../validators/index.js";
+import fs from 'fs';
+import { validateSynthesisOutput } from '../validators/index.js';
 
 interface HookInput {
   stop_hook_active: boolean;
@@ -60,22 +60,22 @@ async function main() {
     // Require transcript for validation
     if (!input.transcript_path) {
       return blockWithFeedback(
-        "❌ HOOK ERROR: No transcript path provided\n\n" +
-        "The validation hook requires a transcript to validate output.\n" +
-        "This is a framework error, not an agent error."
+        '❌ HOOK ERROR: No transcript path provided\n\n' +
+          'The validation hook requires a transcript to validate output.\n' +
+          'This is a framework error, not an agent error.',
       );
     }
 
     if (!fs.existsSync(input.transcript_path)) {
       return blockWithFeedback(
-        "❌ HOOK ERROR: Transcript file not found\n\n" +
-        `Expected transcript at: ${input.transcript_path}\n` +
-        "This is a framework error, not an agent error."
+        '❌ HOOK ERROR: Transcript file not found\n\n' +
+          `Expected transcript at: ${input.transcript_path}\n` +
+          'This is a framework error, not an agent error.',
       );
     }
 
-    const transcriptContent = fs.readFileSync(input.transcript_path, "utf-8");
-    const lines = transcriptContent.split("\n").filter((line: string) => line.trim());
+    const transcriptContent = fs.readFileSync(input.transcript_path, 'utf-8');
+    const lines = transcriptContent.split('\n').filter((line: string) => line.trim());
 
     const transcript = lines
       .map((line: string) => {
@@ -90,15 +90,15 @@ async function main() {
     const assistantMessages = transcript
       .filter((msg: any) => {
         // Support both formats: direct (msg.type === "assistant") and wrapped (msg.message.role === "assistant")
-        return msg.type === "assistant" || (msg.message && msg.message.role === "assistant");
+        return msg.type === 'assistant' || (msg.message && msg.message.role === 'assistant');
       })
       .reverse();
 
     if (assistantMessages.length === 0) {
       return blockWithFeedback(
-        "❌ HOOK ERROR: No assistant messages found in transcript\n\n" +
-        "The agent hasn't produced any output yet.\n" +
-        "This is unexpected - the hook should only run after agent output."
+        '❌ HOOK ERROR: No assistant messages found in transcript\n\n' +
+          "The agent hasn't produced any output yet.\n" +
+          'This is unexpected - the hook should only run after agent output.',
       );
     }
 
@@ -109,26 +109,24 @@ async function main() {
 
     if (!messageContent || !Array.isArray(messageContent)) {
       return blockWithFeedback(
-        "❌ HOOK ERROR: Last message has invalid content structure\n\n" +
-        "Expected an array of content blocks.\n" +
-        "This is a framework error, not an agent error."
+        '❌ HOOK ERROR: Last message has invalid content structure\n\n' +
+          'Expected an array of content blocks.\n' +
+          'This is a framework error, not an agent error.',
       );
     }
 
-    const textBlocks = messageContent.filter(
-      (c: any) => c.type === "text",
-    );
+    const textBlocks = messageContent.filter((c: any) => c.type === 'text');
 
     if (textBlocks.length === 0) {
       return blockWithFeedback(
-        "❌ OUTPUT ERROR: No text content in response\n\n" +
-        "Your response doesn't contain any text output.\n" +
-        "You must output markdown content starting with:\n" +
-        "# CLAUDE.md Content"
+        '❌ OUTPUT ERROR: No text content in response\n\n' +
+          "Your response doesn't contain any text output.\n" +
+          'You must output markdown content starting with:\n' +
+          '# CLAUDE.md Content',
       );
     }
 
-    const text = textBlocks.map((t: any) => t.text).join("\n");
+    const text = textBlocks.map((t: any) => t.text).join('\n');
 
     // Use comprehensive validator (same as external validator in synthesis.node.ts)
     const validation = validateSynthesisOutput(text);
@@ -140,12 +138,12 @@ async function main() {
     return allow();
   } catch (error) {
     // CRITICAL: On hook error, BLOCK (fail-safe) - don't allow potentially bad output
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     return blockWithFeedback(
       `❌ HOOK CRASHED: ${errorMsg}\n\n` +
-      "The validation hook encountered an unexpected error.\n" +
-      "This is a framework error. The output cannot be validated.\n\n" +
-      "Please report this issue if it persists."
+        'The validation hook encountered an unexpected error.\n' +
+        'This is a framework error. The output cannot be validated.\n\n' +
+        'Please report this issue if it persists.',
     );
   }
 }

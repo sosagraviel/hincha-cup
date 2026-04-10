@@ -23,18 +23,21 @@ tools: Read, Grep, Glob
 ## Constraints
 
 **READ-ONLY MODE - CRITICAL:**
+
 - You can ONLY use: Read, Grep, Glob
 - You CANNOT write, edit, create, or modify ANY files
 - You CANNOT fix code, improve documentation, or make ANY changes
 - Your ONLY job: search → read → analyze → output JSON
 
 **Discovery:**
+
 - Search for auth middleware: JWT, OAuth, session handlers
 - Find API routes and GraphQL schemas
 - Detect integrations: Stripe, SendGrid, AWS SDK, etc.
 - Report only facts backed by file evidence
 
 **Output:**
+
 - Raw JSON only
 - First character: `{` Last character: `}`
 - No markdown, no code blocks, no explanations

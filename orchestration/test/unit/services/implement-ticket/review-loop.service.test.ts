@@ -11,9 +11,7 @@ describe('ReviewLoopService', () => {
     service = new ReviewLoopService('/test/project', '/test/framework', 3, 10);
 
     mockTestOrchestrator = {
-      runAllTests: vi.fn().mockResolvedValue([
-        { passed: true, totalTests: 100, passedTests: 100 },
-      ]),
+      runAllTests: vi.fn().mockResolvedValue([{ passed: true, totalTests: 100, passedTests: 100 }]),
     };
 
     mockAgentInvoker = {
@@ -25,7 +23,7 @@ describe('ReviewLoopService', () => {
     it('should run review iterations', async () => {
       const result = await service.runReviewLoop(
         'https://github.com/org/repo/pull/123',
-        mockTestOrchestrator
+        mockTestOrchestrator,
       );
       expect(result).toBeDefined();
       expect(result.iterations).toBeDefined();
@@ -36,7 +34,7 @@ describe('ReviewLoopService', () => {
 
       const result = await service.runReviewLoop(
         'https://github.com/org/repo/pull/123',
-        mockTestOrchestrator
+        mockTestOrchestrator,
       );
       expect(result.iterations.length).toBeLessThanOrEqual(3);
     });
@@ -52,7 +50,6 @@ describe('ReviewLoopService', () => {
     });
   });
 
-
   describe('applyFixes', () => {
     it('should handle empty issues array', async () => {
       const fixes = await (service as any).applyFixes([]);
@@ -61,7 +58,13 @@ describe('ReviewLoopService', () => {
 
     it('should apply fixes for issues', async () => {
       const issues = [
-        { severity: 'blocker', description: 'Fix this', category: 'bug', file: 'test.ts', line: 10 }
+        {
+          severity: 'blocker',
+          description: 'Fix this',
+          category: 'bug',
+          file: 'test.ts',
+          line: 10,
+        },
       ];
 
       const fixes = await (service as any).applyFixes(issues);
@@ -69,9 +72,7 @@ describe('ReviewLoopService', () => {
     });
 
     it('should handle fix errors gracefully', async () => {
-      const issues = [
-        { severity: 'blocker', description: 'Fix this', category: 'bug' }
-      ];
+      const issues = [{ severity: 'blocker', description: 'Fix this', category: 'bug' }];
 
       // The method catches errors internally
       const fixes = await (service as any).applyFixes(issues);
@@ -88,8 +89,8 @@ describe('ReviewLoopService', () => {
           category: 'bug',
           file: 'src/test.ts',
           line: 42,
-          suggestedFix: 'Change x to y'
-        }
+          suggestedFix: 'Change x to y',
+        },
       ];
 
       const instructions = (service as any).buildFixInstructions(issues);
@@ -103,8 +104,8 @@ describe('ReviewLoopService', () => {
         {
           severity: 'major',
           description: 'General issue',
-          category: 'style'
-        }
+          category: 'style',
+        },
       ];
 
       const instructions = (service as any).buildFixInstructions(issues);
@@ -118,8 +119,8 @@ describe('ReviewLoopService', () => {
           severity: 'blocker',
           description: 'File issue',
           category: 'bug',
-          file: 'test.ts'
-        }
+          file: 'test.ts',
+        },
       ];
 
       const instructions = (service as any).buildFixInstructions(issues);
@@ -133,18 +134,18 @@ describe('ReviewLoopService', () => {
       mockAgentInvoker.invokeAgent.mockImplementation(async () => {
         callCount++;
         // Start with 100 issues, reduce by 5 each time (5% improvement)
-        const issueCount = Math.max(0, 100 - (callCount * 5));
+        const issueCount = Math.max(0, 100 - callCount * 5);
         const issues = Array.from({ length: issueCount }, (_, i) => ({
           severity: 'minor',
           description: `Issue ${i}`,
-          category: 'style'
+          category: 'style',
         }));
         return JSON.stringify({ issues });
       });
 
       const result = await service.runReviewLoop(
         'https://github.com/org/repo/pull/123',
-        mockTestOrchestrator
+        mockTestOrchestrator,
       );
 
       // Should still run iterations even with slow convergence
@@ -156,8 +157,8 @@ describe('ReviewLoopService', () => {
     it('should handle test execution failures gracefully', async () => {
       mockAgentInvoker.invokeAgent.mockResolvedValue(
         JSON.stringify({
-          issues: [{ severity: 'blocker', description: 'Issue 1', category: 'bug' }]
-        })
+          issues: [{ severity: 'blocker', description: 'Issue 1', category: 'bug' }],
+        }),
       );
 
       // Make test orchestrator throw an error
@@ -165,7 +166,7 @@ describe('ReviewLoopService', () => {
 
       const result = await service.runReviewLoop(
         'https://github.com/org/repo/pull/123',
-        mockTestOrchestrator
+        mockTestOrchestrator,
       );
 
       // Should still complete despite test errors
@@ -176,8 +177,8 @@ describe('ReviewLoopService', () => {
     it('should handle test failures after fixes', async () => {
       mockAgentInvoker.invokeAgent.mockResolvedValue(
         JSON.stringify({
-          issues: [{ severity: 'blocker', description: 'Issue 1', category: 'bug' }]
-        })
+          issues: [{ severity: 'blocker', description: 'Issue 1', category: 'bug' }],
+        }),
       );
 
       // Tests fail after fixes
@@ -187,12 +188,11 @@ describe('ReviewLoopService', () => {
 
       const result = await service.runReviewLoop(
         'https://github.com/org/repo/pull/123',
-        mockTestOrchestrator
+        mockTestOrchestrator,
       );
 
       expect(result.finalPassed).toBe(false);
       expect(result.convergence).toBe('diverged');
     });
   });
-
 });

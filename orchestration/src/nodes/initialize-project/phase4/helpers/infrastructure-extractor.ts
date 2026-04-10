@@ -11,9 +11,7 @@
  * @returns Array of infrastructure tool names
  */
 export function extractInfrastructure(techStackFindings: any): string[] {
-  const infrastructureFromPhase1 = Array.isArray(
-    techStackFindings?.infrastructure,
-  )
+  const infrastructureFromPhase1 = Array.isArray(techStackFindings?.infrastructure)
     ? (techStackFindings.infrastructure as string[])
     : [];
 

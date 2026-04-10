@@ -68,7 +68,7 @@ export class TestOrchestratorService {
    */
   async runAllTests(
     collectCoverage: boolean = true,
-    coverageThreshold: number = 80
+    coverageThreshold: number = 80,
   ): Promise<TestResults[]> {
     const results: TestResults[] = [];
 
@@ -84,7 +84,7 @@ export class TestOrchestratorService {
         if (unitResults.coverage.overall < coverageThreshold) {
           throw new Error(
             `Coverage below threshold: ${unitResults.coverage.overall.toFixed(2)}% ` +
-            `(minimum: ${coverageThreshold}%)`
+              `(minimum: ${coverageThreshold}%)`,
           );
         }
       }
@@ -140,10 +140,7 @@ export class TestOrchestratorService {
       const startTime = Date.now();
 
       // Execute test command with fallback
-      const result = await this.commandResolver.executeWithFallback(
-        commands,
-        this.projectPath
-      );
+      const result = await this.commandResolver.executeWithFallback(commands, this.projectPath);
 
       const duration = Date.now() - startTime;
 
@@ -157,13 +154,11 @@ export class TestOrchestratorService {
       }
 
       console.log(
-        `[TestOrchestrator] ✓ Unit tests: ${testResults.passedTests}/${testResults.totalTests} passed`
+        `[TestOrchestrator] ✓ Unit tests: ${testResults.passedTests}/${testResults.totalTests} passed`,
       );
 
       if (coverage) {
-        console.log(
-          `[TestOrchestrator] Coverage: ${coverage.overall.toFixed(2)}%`
-        );
+        console.log(`[TestOrchestrator] Coverage: ${coverage.overall.toFixed(2)}%`);
       }
 
       return {
@@ -171,9 +166,8 @@ export class TestOrchestratorService {
         testType: 'unit',
         duration,
         coverage,
-        output: result.stdout
+        output: result.stdout,
       };
-
     } catch (error: any) {
       throw new Error(`Unit test execution failed: ${error.message}`);
     }
@@ -196,26 +190,22 @@ export class TestOrchestratorService {
     try {
       const startTime = Date.now();
 
-      const result = await this.commandResolver.executeWithFallback(
-        commands,
-        this.projectPath
-      );
+      const result = await this.commandResolver.executeWithFallback(commands, this.projectPath);
 
       const duration = Date.now() - startTime;
 
       const testResults = this.parseTestOutput(result.stdout, 'integration');
 
       console.log(
-        `[TestOrchestrator] ✓ Integration tests: ${testResults.passedTests}/${testResults.totalTests} passed`
+        `[TestOrchestrator] ✓ Integration tests: ${testResults.passedTests}/${testResults.totalTests} passed`,
       );
 
       return {
         ...testResults,
         testType: 'integration',
         duration,
-        output: result.stdout
+        output: result.stdout,
       };
-
     } catch (error: any) {
       throw new Error(`Integration test execution failed: ${error.message}`);
     }
@@ -242,7 +232,7 @@ export class TestOrchestratorService {
       const result = await this.commandResolver.executeWithFallback(
         commands,
         this.projectPath,
-        600000 // 10 minute timeout
+        600000, // 10 minute timeout
       );
 
       const duration = Date.now() - startTime;
@@ -250,16 +240,15 @@ export class TestOrchestratorService {
       const testResults = this.parseTestOutput(result.stdout, 'e2e');
 
       console.log(
-        `[TestOrchestrator] ✓ E2E tests: ${testResults.passedTests}/${testResults.totalTests} passed`
+        `[TestOrchestrator] ✓ E2E tests: ${testResults.passedTests}/${testResults.totalTests} passed`,
       );
 
       return {
         ...testResults,
         testType: 'e2e',
         duration,
-        output: result.stdout
+        output: result.stdout,
       };
-
     } catch (error: any) {
       throw new Error(`E2E test execution failed: ${error.message}`);
     }
@@ -278,7 +267,10 @@ export class TestOrchestratorService {
    * @param testType - Test type
    * @returns Parsed test results
    */
-  private parseTestOutput(output: string, testType: string): Omit<TestResults, 'duration' | 'output' | 'testType'> {
+  private parseTestOutput(
+    output: string,
+    testType: string,
+  ): Omit<TestResults, 'duration' | 'output' | 'testType'> {
     // Try to parse Jest/Vitest JSON output
     const jestJsonMatch = output.match(/{"numTotalTests":\d+.*}/);
     if (jestJsonMatch) {
@@ -297,7 +289,7 @@ export class TestOrchestratorService {
         totalTests,
         passedTests,
         failedTests,
-        skippedTests: 0
+        skippedTests: 0,
       };
     }
 
@@ -313,7 +305,7 @@ export class TestOrchestratorService {
         totalTests,
         passedTests,
         failedTests,
-        skippedTests: 0
+        skippedTests: 0,
       };
     }
 
@@ -329,20 +321,20 @@ export class TestOrchestratorService {
         totalTests: failedTests + (passed ? 1 : 0),
         passedTests: passed ? 1 : 0,
         failedTests,
-        skippedTests: 0
+        skippedTests: 0,
       };
     }
 
     // Fallback: generic parsing
-    const passed = !output.toLowerCase().includes('fail') &&
-                   !output.toLowerCase().includes('error');
+    const passed =
+      !output.toLowerCase().includes('fail') && !output.toLowerCase().includes('error');
 
     return {
       passed,
       totalTests: 1,
       passedTests: passed ? 1 : 0,
       failedTests: passed ? 0 : 1,
-      skippedTests: 0
+      skippedTests: 0,
     };
   }
 
@@ -361,7 +353,7 @@ export class TestOrchestratorService {
         totalTests: data.numTotalTests,
         passedTests: data.numPassedTests,
         failedTests: data.numFailedTests,
-        skippedTests: data.numPendingTests || 0
+        skippedTests: data.numPendingTests || 0,
       };
     } catch (error) {
       // If JSON parsing fails, return generic success
@@ -370,7 +362,7 @@ export class TestOrchestratorService {
         totalTests: 1,
         passedTests: 1,
         failedTests: 0,
-        skippedTests: 0
+        skippedTests: 0,
       };
     }
   }
@@ -401,29 +393,26 @@ export class TestOrchestratorService {
             lines: {
               total: total.lines.total,
               covered: total.lines.covered,
-              percentage: total.lines.pct
+              percentage: total.lines.pct,
             },
             statements: {
               total: total.statements.total,
               covered: total.statements.covered,
-              percentage: total.statements.pct
+              percentage: total.statements.pct,
             },
             functions: {
               total: total.functions.total,
               covered: total.functions.covered,
-              percentage: total.functions.pct
+              percentage: total.functions.pct,
             },
             branches: {
               total: total.branches.total,
               covered: total.branches.covered,
-              percentage: total.branches.pct
+              percentage: total.branches.pct,
             },
-            overall: (
-              total.lines.pct +
-              total.statements.pct +
-              total.functions.pct +
-              total.branches.pct
-            ) / 4
+            overall:
+              (total.lines.pct + total.statements.pct + total.functions.pct + total.branches.pct) /
+              4,
           };
         }
       } catch (error) {

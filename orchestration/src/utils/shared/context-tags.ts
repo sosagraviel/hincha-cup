@@ -7,9 +7,7 @@
  * Build excluded directories XML tag
  */
 export function buildExcludedDirsTag(dirs: string[]): string {
-  return ['<excluded_directories>', dirs.join(', '), '</excluded_directories>'].join(
-    '\n',
-  );
+  return ['<excluded_directories>', dirs.join(', '), '</excluded_directories>'].join('\n');
 }
 
 /**

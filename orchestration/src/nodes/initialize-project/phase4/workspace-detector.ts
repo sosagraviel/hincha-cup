@@ -1,8 +1,8 @@
-import { readdir, readFile } from "fs/promises";
-import { join, basename, relative } from "path";
-import { logger } from "../../../utils/logger.js";
-import { MANIFEST_FILES, PRIMARY_MANIFESTS, IGNORE_DIRS, WORKSPACE_NAMES } from "./constants.js";
-import type { ManifestInfo } from "./types.js";
+import { readdir, readFile } from 'fs/promises';
+import { join, basename, relative } from 'path';
+import { logger } from '../../../utils/logger.js';
+import { MANIFEST_FILES, PRIMARY_MANIFESTS, IGNORE_DIRS, WORKSPACE_NAMES } from './constants.js';
+import type { ManifestInfo } from './types.js';
 
 /**
  * Represents a discovered workspace in a project
@@ -25,7 +25,6 @@ export interface WorkspaceDetectionResult {
   errors: string[];
 }
 
-
 /**
  * Detect workspaces in a project by finding manifest files
  *
@@ -45,7 +44,7 @@ export async function detectWorkspaces(
   // Derive the framework directory name (same logic as agent-factory.ts)
   const frameworkDirName = frameworkPath
     ? basename(relative(projectPath, frameworkPath).split('/')[0])
-    : "qubika-agentic-framework";
+    : 'qubika-agentic-framework';
 
   // Find all manifest files
   await findManifestFiles(projectPath, 0, maxDepth, workspaces, errors, frameworkDirName);
@@ -148,9 +147,7 @@ function filterToPrimaryWorkspaces(workspaces: Workspace[]): Workspace[] {
   const filtered: Workspace[] = [];
 
   for (const [path, workspacesInDir] of workspacesByPath.entries()) {
-    const primaryInDir = workspacesInDir.filter((ws) =>
-      PRIMARY_MANIFESTS.has(ws.manifest_file),
-    );
+    const primaryInDir = workspacesInDir.filter((ws) => PRIMARY_MANIFESTS.has(ws.manifest_file));
 
     if (primaryInDir.length > 0) {
       // Use primary manifests only
@@ -167,29 +164,26 @@ function filterToPrimaryWorkspaces(workspaces: Workspace[]): Workspace[] {
 /**
  * Enrich workspaces with additional metadata (name, etc.)
  */
-async function enrichWorkspaces(
-  workspaces: Workspace[],
-  errors: string[],
-): Promise<void> {
+async function enrichWorkspaces(workspaces: Workspace[], errors: string[]): Promise<void> {
   for (const ws of workspaces) {
     try {
       // Try to extract name from manifest
-      if (ws.manifest_file === "package.json") {
+      if (ws.manifest_file === 'package.json') {
         const name = await extractNameFromPackageJson(ws.path);
         if (name) {
           ws.name = name;
         }
-      } else if (ws.manifest_file === "pyproject.toml") {
+      } else if (ws.manifest_file === 'pyproject.toml') {
         const name = await extractNameFromPyprojectToml(ws.path);
         if (name) {
           ws.name = name;
         }
-      } else if (ws.manifest_file === "Cargo.toml") {
+      } else if (ws.manifest_file === 'Cargo.toml') {
         const name = await extractNameFromCargoToml(ws.path);
         if (name) {
           ws.name = name;
         }
-      } else if (ws.manifest_file === "go.mod") {
+      } else if (ws.manifest_file === 'go.mod') {
         const name = await extractNameFromGoMod(ws.path);
         if (name) {
           ws.name = name;
@@ -211,11 +205,9 @@ async function enrichWorkspaces(
 /**
  * Extract package name from package.json
  */
-async function extractNameFromPackageJson(
-  workspacePath: string,
-): Promise<string | undefined> {
+async function extractNameFromPackageJson(workspacePath: string): Promise<string | undefined> {
   try {
-    const content = await readFile(join(workspacePath, "package.json"), "utf8");
+    const content = await readFile(join(workspacePath, 'package.json'), 'utf8');
     const pkg = JSON.parse(content);
     return pkg.name;
   } catch {
@@ -226,14 +218,9 @@ async function extractNameFromPackageJson(
 /**
  * Extract project name from pyproject.toml
  */
-async function extractNameFromPyprojectToml(
-  workspacePath: string,
-): Promise<string | undefined> {
+async function extractNameFromPyprojectToml(workspacePath: string): Promise<string | undefined> {
   try {
-    const content = await readFile(
-      join(workspacePath, "pyproject.toml"),
-      "utf8",
-    );
+    const content = await readFile(join(workspacePath, 'pyproject.toml'), 'utf8');
     // Simple regex-based extraction (avoid full TOML parser dependency)
     const match = content.match(/^\s*name\s*=\s*["']([^"']+)["']/m);
     return match ? match[1] : undefined;
@@ -245,11 +232,9 @@ async function extractNameFromPyprojectToml(
 /**
  * Extract package name from Cargo.toml
  */
-async function extractNameFromCargoToml(
-  workspacePath: string,
-): Promise<string | undefined> {
+async function extractNameFromCargoToml(workspacePath: string): Promise<string | undefined> {
   try {
-    const content = await readFile(join(workspacePath, "Cargo.toml"), "utf8");
+    const content = await readFile(join(workspacePath, 'Cargo.toml'), 'utf8');
     // Simple regex-based extraction
     const match = content.match(/^\s*name\s*=\s*["']([^"']+)["']/m);
     return match ? match[1] : undefined;
@@ -261,16 +246,14 @@ async function extractNameFromCargoToml(
 /**
  * Extract module name from go.mod
  */
-async function extractNameFromGoMod(
-  workspacePath: string,
-): Promise<string | undefined> {
+async function extractNameFromGoMod(workspacePath: string): Promise<string | undefined> {
   try {
-    const content = await readFile(join(workspacePath, "go.mod"), "utf8");
+    const content = await readFile(join(workspacePath, 'go.mod'), 'utf8');
     // Extract module name from first line: "module github.com/user/project"
     const match = content.match(/^module\s+(.+)$/m);
     if (match) {
       // Use last part of module path as name
-      const parts = match[1].trim().split("/");
+      const parts = match[1].trim().split('/');
       return parts[parts.length - 1];
     }
     return undefined;
@@ -301,8 +284,6 @@ export function getSupportedManifests(): string[] {
 /**
  * Get language and type for a manifest file
  */
-export function getManifestInfo(
-  manifestFile: string,
-): ManifestInfo | undefined {
+export function getManifestInfo(manifestFile: string): ManifestInfo | undefined {
   return MANIFEST_FILES[manifestFile];
 }

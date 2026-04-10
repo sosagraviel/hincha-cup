@@ -4,10 +4,10 @@
  * Validates .claude subdirectories exist and contain expected files
  */
 
-import { existsSync, readdirSync } from "fs";
-import { join } from "path";
-import { FILE_EXTENSIONS } from "../constants.js";
-import type { DirectoryValidationResult } from "../types.js";
+import { existsSync, readdirSync } from 'fs';
+import { join } from 'path';
+import { FILE_EXTENSIONS } from '../constants.js';
+import type { DirectoryValidationResult } from '../types.js';
 
 /**
  * Validate a directory exists
@@ -74,10 +74,10 @@ export function validateDirectoryWithFiles(
  * Get standard .claude directory paths
  */
 export function getClaudeDirectories(projectPath: string) {
-  const claudeDir = join(projectPath, ".claude");
+  const claudeDir = join(projectPath, '.claude');
   return {
-    skills: join(claudeDir, "skills"),
-    agents: join(claudeDir, "agents"),
-    commands: join(claudeDir, "commands"),
+    skills: join(claudeDir, 'skills'),
+    agents: join(claudeDir, 'agents'),
+    commands: join(claudeDir, 'commands'),
   };
 }

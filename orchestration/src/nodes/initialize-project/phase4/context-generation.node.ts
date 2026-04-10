@@ -1,32 +1,26 @@
-import type { InitializeProjectState } from "../../../state/schemas/initialize-project.schema.js";
-import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
-import { join } from "path";
-import { generateFrameworkConfig } from "./config-generator.js";
-import type {
-  StackProfile,
-  Service,
-} from "../../../schemas/stack-profile.schema.js";
+import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+import { generateFrameworkConfig } from './config-generator.js';
+import type { StackProfile, Service } from '../../../schemas/stack-profile.schema.js';
 import type {
   StructureAnalyzerOutput,
   TechStackAnalyzerOutput,
   CodePatternsAnalyzerOutput,
-} from "../../../schemas/phase1-agent-outputs.schema.js";
-import { logger } from "../../../utils/logger.js";
+} from '../../../schemas/phase1-agent-outputs.schema.js';
+import { logger } from '../../../utils/logger.js';
+import { countFilesByLanguage, type FileCountResult } from './file-counter.js';
+import { detectWorkspaces, type WorkspaceDetectionResult } from './workspace-detector.js';
+import { extractAndWriteSynthesis } from './helpers/synthesis-extractor.js';
+import { extractLanguagesFromPhase1 } from './helpers/language-extractor.js';
 import {
-  countFilesByLanguage,
-  type FileCountResult,
-} from "./file-counter.js";
-import {
-  detectWorkspaces,
-  type WorkspaceDetectionResult,
-} from "./workspace-detector.js";
-import { extractAndWriteSynthesis } from "./helpers/synthesis-extractor.js";
-import { extractLanguagesFromPhase1 } from "./helpers/language-extractor.js";
-import { crossValidateWithFileCount, mergeWorkspaceLanguages } from "./helpers/language-validator.js";
-import { extractFrameworks } from "./helpers/framework-extractor.js";
-import { extractInfrastructure } from "./helpers/infrastructure-extractor.js";
-import { extractServicesFromPhase1Analyzers } from "./helpers/service-extractor.js";
-import { validateStackProfile } from "./helpers/stack-profile-validator.js";
+  crossValidateWithFileCount,
+  mergeWorkspaceLanguages,
+} from './helpers/language-validator.js';
+import { extractFrameworks } from './helpers/framework-extractor.js';
+import { extractInfrastructure } from './helpers/infrastructure-extractor.js';
+import { extractServicesFromPhase1Analyzers } from './helpers/service-extractor.js';
+import { validateStackProfile } from './helpers/stack-profile-validator.js';
 
 /**
  * Phase 4: Context Generation Node
@@ -49,88 +43,86 @@ export async function contextGenerationNode(
   state: InitializeProjectState,
 ): Promise<Partial<InitializeProjectState>> {
   logger.blank();
-  const phaseLogger = logger.child("Phase 4: Context Generation");
-  phaseLogger.info(" Starting file extraction...");
+  const phaseLogger = logger.child('Phase 4: Context Generation');
+  phaseLogger.info(' Starting file extraction...');
 
   // Read Phase 3 synthesis from disk (not from state)
-  const tempDir =
-    state.temp_dir ||
-    join(state.project_path, ".claude-temp/initialize-project");
-  const synthesisPath = join(tempDir, "synthesis-raw.md");
+  const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
+  const synthesisPath = join(tempDir, 'synthesis-raw.md');
 
   if (!existsSync(synthesisPath)) {
     throw new Error(`Phase 3 synthesis file not found: ${synthesisPath}`);
   }
 
-  phaseLogger.info(" Loading Phase 3 synthesis from disk...");
-  const synthesisContent = readFileSync(synthesisPath, "utf-8");
-  phaseLogger.success(" ✓ Phase 3 synthesis loaded from disk");
+  phaseLogger.info(' Loading Phase 3 synthesis from disk...');
+  const synthesisContent = readFileSync(synthesisPath, 'utf-8');
+  phaseLogger.success(' ✓ Phase 3 synthesis loaded from disk');
 
   try {
-    const synthesisResult = extractAndWriteSynthesis(synthesisContent, state.project_path, phaseLogger);
+    const synthesisResult = extractAndWriteSynthesis(
+      synthesisContent,
+      state.project_path,
+      phaseLogger,
+    );
     const claudeMdContent = synthesisResult.claudeMdContent;
     const claudeMdPath = synthesisResult.claudeMdPath;
     const projectContextContent = synthesisResult.projectContextContent;
     const projectContextPath = synthesisResult.projectContextPath;
 
-    const claudeMdLines = claudeMdContent.split("\n").length;
-    const projectContextLines = projectContextContent.split("\n").length;
+    const claudeMdLines = claudeMdContent.split('\n').length;
+    const projectContextLines = projectContextContent.split('\n').length;
     phaseLogger.success(`✓ Extracted CLAUDE.md (${claudeMdLines} lines)`);
     phaseLogger.success(`✓ Extracted project-context/SKILL.md (${projectContextLines} lines)`);
     phaseLogger.success(`✓ Written: ${claudeMdPath}`);
     phaseLogger.success(`✓ Written: ${projectContextPath}`);
 
     // Read Phase 1 analysis files from disk (not from state)
-    phaseLogger.info(" Loading Phase 1 analysis from disk...");
+    phaseLogger.info(' Loading Phase 1 analysis from disk...');
 
-    const phase1Dir = join(tempDir, "phase1-outputs");
+    const phase1Dir = join(tempDir, 'phase1-outputs');
     if (!existsSync(phase1Dir)) {
       throw new Error(`Phase 1 outputs directory not found: ${phase1Dir}`);
     }
 
-    const structureArchPath = join(phase1Dir, "01-structure-architecture.json");
-    const techStackPath = join(phase1Dir, "02-tech-stack-dependencies.json");
-    const codePatternsPath = join(phase1Dir, "03-code-patterns-testing.json");
-    const dataFlowsPath = join(phase1Dir, "04-data-flows-integrations.json");
+    const structureArchPath = join(phase1Dir, '01-structure-architecture.json');
+    const techStackPath = join(phase1Dir, '02-tech-stack-dependencies.json');
+    const codePatternsPath = join(phase1Dir, '03-code-patterns-testing.json');
+    const dataFlowsPath = join(phase1Dir, '04-data-flows-integrations.json');
 
     if (!existsSync(structureArchPath) || !existsSync(techStackPath)) {
-      throw new Error("Required Phase 1 analyzer outputs not found");
+      throw new Error('Required Phase 1 analyzer outputs not found');
     }
 
-    const structureArchData = JSON.parse(
-      readFileSync(structureArchPath, "utf-8"),
-    );
-    const techStackData = JSON.parse(readFileSync(techStackPath, "utf-8"));
+    const structureArchData = JSON.parse(readFileSync(structureArchPath, 'utf-8'));
+    const techStackData = JSON.parse(readFileSync(techStackPath, 'utf-8'));
 
     // Also read code-patterns-testing for testing_framework field
     const codePatternsData = existsSync(codePatternsPath)
-      ? JSON.parse(readFileSync(codePatternsPath, "utf-8"))
+      ? JSON.parse(readFileSync(codePatternsPath, 'utf-8'))
       : {
-          agent_name: "code-patterns-testing-analyzer",
+          agent_name: 'code-patterns-testing-analyzer',
           timestamp: new Date().toISOString(),
           findings: {},
         };
 
     // Read data-flows-integrations if it exists
     const dataFlowsData = existsSync(dataFlowsPath)
-      ? JSON.parse(readFileSync(dataFlowsPath, "utf-8"))
+      ? JSON.parse(readFileSync(dataFlowsPath, 'utf-8'))
       : null;
 
-    phaseLogger.success(" ✓ Phase 1 analysis loaded from disk");
-    phaseLogger.info(" Extracting stack profile from Phase 1 analysis...");
+    phaseLogger.success(' ✓ Phase 1 analysis loaded from disk');
+    phaseLogger.info(' Extracting stack profile from Phase 1 analysis...');
 
-    const structureFindings = structureArchData.findings as any;
-    const techStackFindings = techStackData.findings as any;
-    const codePatternsFindings = codePatternsData?.findings as any;
+    const structureFindings = structureArchData.findings;
+    const techStackFindings = techStackData.findings;
+    const codePatternsFindings = codePatternsData?.findings;
 
     const languagesFromPhase1 = extractLanguagesFromPhase1(structureFindings, techStackFindings);
 
-    phaseLogger.info(
-      `  Languages from Phase 1: ${languagesFromPhase1.join(", ") || "none"}`,
-    );
+    phaseLogger.info(`  Languages from Phase 1: ${languagesFromPhase1.join(', ') || 'none'}`);
 
     // STEP 1: Count files by language (independent validation)
-    phaseLogger.info(" Counting files by language for validation...");
+    phaseLogger.info(' Counting files by language for validation...');
     let fileCountResult: FileCountResult | undefined;
     try {
       fileCountResult = await countFilesByLanguage(state.project_path, 10, state.framework_path);
@@ -146,7 +138,7 @@ export async function contextGenerationNode(
       phaseLogger.warn(
         ` File counting failed: ${error instanceof Error ? error.message : String(error)}`,
       );
-      phaseLogger.warn(" Continuing with agent-detected languages only");
+      phaseLogger.warn(' Continuing with agent-detected languages only');
     }
 
     // STEP 2: Cross-validate agent findings with file counts
@@ -154,7 +146,7 @@ export async function contextGenerationNode(
     detectedLanguages = crossValidateWithFileCount(detectedLanguages, fileCountResult, phaseLogger);
 
     // STEP 3: Detect workspaces for monorepo projects
-    phaseLogger.info(" Detecting workspaces...");
+    phaseLogger.info(' Detecting workspaces...');
     let workspaceResult: WorkspaceDetectionResult | undefined;
     try {
       workspaceResult = await detectWorkspaces(state.project_path, 5, state.framework_path);
@@ -167,7 +159,7 @@ export async function contextGenerationNode(
           phaseLogger.info(`   ${ws.path} (${ws.language} - ${ws.type})`);
         }
       } else {
-        phaseLogger.info(" Single-repo project (no additional workspaces)");
+        phaseLogger.info(' Single-repo project (no additional workspaces)');
       }
     } catch (error) {
       phaseLogger.warn(
@@ -182,17 +174,13 @@ export async function contextGenerationNode(
 
     const { frontendFrameworks, backendFrameworks } = extractFrameworks(structureFindings);
 
-    phaseLogger.info(
-      `  Frontend frameworks: ${frontendFrameworks.join(", ") || "none"}`,
-    );
-    phaseLogger.info(
-      `  Backend frameworks: ${backendFrameworks.join(", ") || "none"}`,
-    );
+    phaseLogger.info(`  Frontend frameworks: ${frontendFrameworks.join(', ') || 'none'}`);
+    phaseLogger.info(`  Backend frameworks: ${backendFrameworks.join(', ') || 'none'}`);
 
     const infrastructureFromPhase1 = extractInfrastructure(techStackFindings);
 
     phaseLogger.info(
-      `  Infrastructure from Phase 1: ${infrastructureFromPhase1.join(", ") || "none"}`,
+      `  Infrastructure from Phase 1: ${infrastructureFromPhase1.join(', ') || 'none'}`,
     );
 
     // NOTE: Testing framework extraction now handled by extractServicesFromPhase1Analyzers()
@@ -200,13 +188,13 @@ export async function contextGenerationNode(
     // This legacy code that extracted from multi_stack.workspaces has been removed
 
     // STEP 5: Validate stack profile completeness
-    phaseLogger.info(" Validating stack profile completeness...");
+    phaseLogger.info(' Validating stack profile completeness...');
     validateStackProfile(finalLanguages, fileCountResult, phaseLogger);
-    phaseLogger.success(" ✓ Stack profile validation passed");
-    phaseLogger.info(`  Final languages: ${finalLanguages.join(", ")}`);
+    phaseLogger.success(' ✓ Stack profile validation passed');
+    phaseLogger.info(`  Final languages: ${finalLanguages.join(', ')}`);
 
     // ========== EXTRACT SERVICES FROM PHASE 1 ANALYZERS ==========
-    phaseLogger.info("📦 Extracting service configurations...");
+    phaseLogger.info('📦 Extracting service configurations...');
 
     let services: Service[];
     try {
@@ -214,13 +202,13 @@ export async function contextGenerationNode(
         structureFindings,
         techStackFindings,
         codePatternsFindings,
-        dataFlowsData?.findings
+        dataFlowsData?.findings,
       );
       phaseLogger.success(` ✓ Extracted ${services.length} manifest-based service(s)`);
 
       for (const service of services) {
         phaseLogger.info(
-          `   ${service.id} (${service.type}) at ${service.path}: ${service.language} ${service.language_version || ''} - ${service.frameworks.main || 'no framework'}`
+          `   ${service.id} (${service.type}) at ${service.path}: ${service.language} ${service.language_version || ''} - ${service.frameworks.main || 'no framework'}`,
         );
       }
 
@@ -228,7 +216,7 @@ export async function contextGenerationNode(
       // This ensures we generate implementers for utility scripts, test code, etc.
       if (fileCountResult) {
         const FALLBACK_THRESHOLD = 10; // Create fallback service if >= 10 files
-        const existingLanguages = new Set(services.map(s => s.language.toLowerCase()));
+        const existingLanguages = new Set(services.map((s) => s.language.toLowerCase()));
         let fallbackCount = 0;
 
         for (const langCount of fileCountResult.by_language) {
@@ -244,8 +232,8 @@ export async function contextGenerationNode(
           const fallbackService: Service = {
             id: `${lang}-scripts`,
             name: `${lang.charAt(0).toUpperCase() + lang.slice(1)} Scripts`,
-            path: ".", // Root level (files scattered across project)
-            type: "library" as any, // Generic type for utility code
+            path: '.', // Root level (files scattered across project)
+            type: 'library' as any, // Generic type for utility code
             language: lang,
             language_version: undefined, // Unknown without manifest
             frameworks: {}, // No framework detection for fallback services
@@ -260,7 +248,9 @@ export async function contextGenerationNode(
         }
 
         if (fallbackCount > 0) {
-          phaseLogger.success(` ✓ Added ${fallbackCount} fallback service(s) for languages without manifests`);
+          phaseLogger.success(
+            ` ✓ Added ${fallbackCount} fallback service(s) for languages without manifests`,
+          );
         }
       }
     } catch (error) {
@@ -278,25 +268,25 @@ export async function contextGenerationNode(
       is_monorepo: workspaceResult?.is_monorepo || false,
       workspace_tool: techStackFindings?.monorepo?.workspace_manager,
       package_manager: techStackFindings?.monorepo?.package_manager,
-      infrastructure:
-        infrastructureFromPhase1.length > 0
-          ? infrastructureFromPhase1
-          : undefined,
+      infrastructure: infrastructureFromPhase1.length > 0 ? infrastructureFromPhase1 : undefined,
       file_counts: fileCountResult
         ? {
             total: fileCountResult.total_files,
-            by_language: fileCountResult.by_language.reduce((acc, lc) => {
-              acc[lc.language] = lc.count;
-              return acc;
-            }, {} as Record<string, number>),
+            by_language: fileCountResult.by_language.reduce(
+              (acc, lc) => {
+                acc[lc.language] = lc.count;
+                return acc;
+              },
+              {} as Record<string, number>,
+            ),
           }
         : undefined,
     };
 
-    const stackProfilePath = join(state.temp_dir!, "stack-profile.json");
+    const stackProfilePath = join(state.temp_dir!, 'stack-profile.json');
     writeFileSync(stackProfilePath, JSON.stringify(stackProfile, null, 2));
 
-    phaseLogger.info(" Generating framework-config.json...");
+    phaseLogger.info(' Generating framework-config.json...');
 
     // Prepare Phase 1 analysis data for config generator
     const phase1Data = {
@@ -315,11 +305,7 @@ export async function contextGenerationNode(
       state.framework_path,
     );
 
-    const configPath = join(
-      state.project_path,
-      ".claude",
-      "framework-config.json",
-    );
+    const configPath = join(state.project_path, '.claude', 'framework-config.json');
     writeFileSync(configPath, JSON.stringify(frameworkConfig, null, 2));
     phaseLogger.success(`✓ Written: ${configPath}`);
 
@@ -343,7 +329,7 @@ export async function contextGenerationNode(
       framework_config_path: configPath,
       claude_md_path: claudeMdPath,
       project_context_path: projectContextPath,
-      current_phase: "phase4_context",
+      current_phase: 'phase4_context',
     };
   } catch (error) {
     const errorMessage = `Context generation failed: ${(error as Error).message}`;
@@ -351,7 +337,7 @@ export async function contextGenerationNode(
 
     return {
       errors: [...state.errors, errorMessage],
-      current_phase: "failed",
+      current_phase: 'failed',
     };
   }
 }

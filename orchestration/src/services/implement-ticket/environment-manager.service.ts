@@ -57,7 +57,7 @@ export class EnvironmentManagerService {
     // Simple hash function: sum of character codes
     let hash = 0;
     for (let i = 0; i < ticketId.length; i++) {
-      hash = ((hash << 5) - hash) + ticketId.charCodeAt(i);
+      hash = (hash << 5) - hash + ticketId.charCodeAt(i);
       hash = hash & hash; // Convert to 32bit integer
     }
 
@@ -81,11 +81,7 @@ export class EnvironmentManagerService {
    * @param baseComposeFile - Path to base docker-compose.yml (optional)
    * @returns Path to generated override file
    */
-  generateDockerComposeOverride(
-    ticketId: string,
-    port: number,
-    baseComposeFile?: string
-  ): string {
+  generateDockerComposeOverride(ticketId: string, port: number, baseComposeFile?: string): string {
     // Validate base compose file exists
     const defaultComposeFile = join(this.projectPath, 'docker-compose.yml');
     const composeFile = baseComposeFile || defaultComposeFile;
@@ -93,7 +89,7 @@ export class EnvironmentManagerService {
     if (!existsSync(composeFile)) {
       throw new Error(
         `Docker Compose file not found: ${composeFile}\n` +
-        `Cannot generate override without base compose file.`
+          `Cannot generate override without base compose file.`,
       );
     }
 
@@ -164,7 +160,7 @@ services:
   async startDockerServices(
     ticketId: string,
     overrideFile: string,
-    detached: boolean = true
+    detached: boolean = true,
   ): Promise<boolean> {
     try {
       const baseComposeFile = join(this.projectPath, 'docker-compose.yml');
@@ -178,23 +174,19 @@ services:
 
       console.log(`[EnvironmentManager] Starting Docker services for ${ticketId}...`);
 
-      execSync(
-        `docker-compose -f ${baseComposeFile} -f ${overrideFile} up ${detachedFlag}`,
-        {
-          cwd: this.projectPath,
-          stdio: 'inherit'
-        }
-      );
+      execSync(`docker-compose -f ${baseComposeFile} -f ${overrideFile} up ${detachedFlag}`, {
+        cwd: this.projectPath,
+        stdio: 'inherit',
+      });
 
       // Wait for services to be ready (simple sleep for now)
       if (detached) {
         console.log(`[EnvironmentManager] Waiting 10s for services to start...`);
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        await new Promise((resolve) => setTimeout(resolve, 10000));
       }
 
       console.log(`[EnvironmentManager] ✓ Docker services started`);
       return true;
-
     } catch (error: any) {
       console.error(`[EnvironmentManager] Failed to start Docker services: ${error.message}`);
       return false;
@@ -208,10 +200,7 @@ services:
    * @param overrideFile - Path to docker-compose override file
    * @returns true if stopped successfully
    */
-  async stopDockerServices(
-    ticketId: string,
-    overrideFile: string
-  ): Promise<boolean> {
+  async stopDockerServices(ticketId: string, overrideFile: string): Promise<boolean> {
     try {
       const baseComposeFile = join(this.projectPath, 'docker-compose.yml');
 
@@ -222,17 +211,13 @@ services:
 
       console.log(`[EnvironmentManager] Stopping Docker services for ${ticketId}...`);
 
-      execSync(
-        `docker-compose -f ${baseComposeFile} -f ${overrideFile} down`,
-        {
-          cwd: this.projectPath,
-          stdio: 'inherit'
-        }
-      );
+      execSync(`docker-compose -f ${baseComposeFile} -f ${overrideFile} down`, {
+        cwd: this.projectPath,
+        stdio: 'inherit',
+      });
 
       console.log(`[EnvironmentManager] ✓ Docker services stopped`);
       return true;
-
     } catch (error: any) {
       console.error(`[EnvironmentManager] Failed to stop Docker services: ${error.message}`);
       return false;
@@ -252,20 +237,19 @@ services:
 
       const response = await fetch(healthCheckUrl, {
         method: 'GET',
-        signal: AbortSignal.timeout(2000) // 2 second timeout
+        signal: AbortSignal.timeout(2000), // 2 second timeout
       });
 
       return {
         running: response.ok || response.status < 500,
         port,
-        healthCheckUrl
+        healthCheckUrl,
       };
-
     } catch (error) {
       // Connection failed - service not running
       return {
         running: false,
-        port
+        port,
       };
     }
   }
@@ -285,7 +269,6 @@ services:
 
       console.log(`[EnvironmentManager] ✓ Playwright initialized`);
       return true;
-
     } catch (error: any) {
       console.error(`[EnvironmentManager] Failed to initialize Playwright: ${error.message}`);
       return false;
@@ -328,7 +311,7 @@ services:
    */
   async setupEnvironment(
     ticketId: string,
-    initPlaywright: boolean = true
+    initPlaywright: boolean = true,
   ): Promise<EnvironmentConfig> {
     console.log(`\n[EnvironmentManager] Setting up environment for ${ticketId}...`);
 
@@ -362,7 +345,7 @@ services:
       projectPath: this.projectPath,
       port,
       dockerComposeOverride,
-      playwrightInitialized
+      playwrightInitialized,
     };
   }
 
@@ -376,10 +359,7 @@ services:
    * @param ticketId - Ticket ID
    * @param dockerComposeOverride - Path to Docker Compose override file
    */
-  async teardownEnvironment(
-    ticketId: string,
-    dockerComposeOverride?: string
-  ): Promise<void> {
+  async teardownEnvironment(ticketId: string, dockerComposeOverride?: string): Promise<void> {
     console.log(`\n[EnvironmentManager] Tearing down environment for ${ticketId}...`);
 
     // 1. Close Playwright

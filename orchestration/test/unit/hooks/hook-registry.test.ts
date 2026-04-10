@@ -112,8 +112,8 @@ describe('HookRegistry', () => {
         info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
-        success: vi.fn()
-      }
+        success: vi.fn(),
+      },
     };
   });
 
@@ -298,7 +298,7 @@ describe('HookRegistry', () => {
         async preExecution(context: HookContext): Promise<HookContext> {
           return {
             ...context,
-            phaseInput: { ...(context.phaseInput || {}), step: 2 }
+            phaseInput: { ...(context.phaseInput || {}), step: 2 },
           };
         }
       }
@@ -345,7 +345,7 @@ describe('HookRegistry', () => {
       const result = await registry.executePreExecution(mockContext);
 
       expect(mockContext.logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('throwing-hook')
+        expect.stringContaining('throwing-hook'),
       );
       expect(normalHook.preExecutionCalled).toBe(true);
     });
@@ -427,7 +427,7 @@ describe('HookRegistry', () => {
       const result = await registry.executePostExecution(mockContext, { data: 'test' });
 
       expect(mockContext.logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('throwing-hook')
+        expect.stringContaining('throwing-hook'),
       );
     });
 
@@ -510,7 +510,7 @@ describe('HookRegistry', () => {
       const action = await registry.executeOnError(mockContext, new Error('test'));
 
       expect(mockContext.logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('throwing-hook')
+        expect.stringContaining('throwing-hook'),
       );
       expect(action).toBe('retry'); // Falls back to retry
     });
@@ -570,7 +570,7 @@ describe('HookRegistry', () => {
       await registry.executeOnRetry(mockContext, 1);
 
       expect(mockContext.logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('throwing-hook')
+        expect.stringContaining('throwing-hook'),
       );
     });
 

@@ -26,22 +26,22 @@ describe('LLMFactory', () => {
           modelId: 'claude-sonnet-4-6',
           description: 'Test Sonnet',
           capabilities: ['code'],
-          contextWindow: 200000
+          contextWindow: 200000,
         },
         'test-gpt': {
           provider: 'openai',
           modelId: 'gpt-5.4-2026-03-05',
           description: 'Test GPT',
           capabilities: ['code'],
-          contextWindow: 128000
+          contextWindow: 128000,
         },
         'test-gemini': {
           provider: 'google',
           modelId: 'gemini-3.1-pro-preview',
           description: 'Test Gemini',
           capabilities: ['code'],
-          contextWindow: 1000000
-        }
+          contextWindow: 1000000,
+        },
       },
       tiers: {
         standard: {
@@ -49,25 +49,25 @@ describe('LLMFactory', () => {
           provider: 'anthropic',
           agents: {
             planner: 'test-sonnet',
-            implementer: 'test-sonnet'
-          }
+            implementer: 'test-sonnet',
+          },
         },
         openai: {
           description: 'OpenAI tier',
           provider: 'openai',
           agents: {
             planner: 'test-gpt',
-            implementer: 'test-gpt'
-          }
+            implementer: 'test-gpt',
+          },
         },
         gemini: {
           description: 'Gemini tier',
           provider: 'google',
           agents: {
             planner: 'test-gemini',
-            implementer: 'test-gemini'
-          }
-        }
+            implementer: 'test-gemini',
+          },
+        },
       },
       providerConfig: {
         anthropic: {
@@ -75,21 +75,21 @@ describe('LLMFactory', () => {
           defaultTemperature: 0,
           defaultMaxTokens: 4096,
           headers: {
-            'anthropic-beta': 'test-header'
-          }
+            'anthropic-beta': 'test-header',
+          },
         },
         openai: {
           apiKeyEnv: 'OPENAI_API_KEY',
           defaultTemperature: 0,
           defaultMaxTokens: 4096,
-          baseURL: 'https://api.openai.com/v1'
+          baseURL: 'https://api.openai.com/v1',
         },
         google: {
           apiKeyEnv: 'GOOGLE_API_KEY',
           defaultTemperature: 0,
-          defaultMaxTokens: 8192
-        }
-      }
+          defaultMaxTokens: 8192,
+        },
+      },
     };
 
     writeFileSync(testConfigPath, JSON.stringify(testConfig, null, 2));
@@ -123,9 +123,7 @@ describe('LLMFactory', () => {
 
     it('should throw error for unknown tier', () => {
       process.env.MODEL_TIER = 'unknown-tier';
-      expect(() => new LLMFactory(testConfigPath)).toThrow(
-        /Unknown tier: unknown-tier/
-      );
+      expect(() => new LLMFactory(testConfigPath)).toThrow(/Unknown tier: unknown-tier/);
     });
   });
 
@@ -205,7 +203,7 @@ describe('LLMFactory', () => {
       const factory = new LLMFactory(testConfigPath);
 
       await expect(factory.createModel('unknown-agent')).rejects.toThrow(
-        /No model configured for agent 'unknown-agent'/
+        /No model configured for agent 'unknown-agent'/,
       );
     });
 
@@ -218,7 +216,7 @@ describe('LLMFactory', () => {
       const factory = new LLMFactory(testConfigPath);
 
       await expect(factory.createModel('planner')).rejects.toThrow(
-        /Unknown model alias: unknown-alias/
+        /Unknown model alias: unknown-alias/,
       );
     });
 
@@ -226,7 +224,7 @@ describe('LLMFactory', () => {
       const factory = new LLMFactory(testConfigPath);
 
       await expect(factory.createModel('planner')).rejects.toThrow(
-        /API key not found in environment variable: ANTHROPIC_API_KEY/
+        /API key not found in environment variable: ANTHROPIC_API_KEY/,
       );
     });
   });
@@ -256,7 +254,7 @@ describe('LLMFactory', () => {
       const factory = new LLMFactory(testConfigPath);
 
       expect(() => factory.getModelInfo('unknown-agent')).toThrow(
-        /No model configured for agent 'unknown-agent'/
+        /No model configured for agent 'unknown-agent'/,
       );
     });
 
@@ -267,9 +265,7 @@ describe('LLMFactory', () => {
 
       const factory = new LLMFactory(testConfigPath);
 
-      expect(() => factory.getModelInfo('planner')).toThrow(
-        /Unknown model alias: unknown-alias/
-      );
+      expect(() => factory.getModelInfo('planner')).toThrow(/Unknown model alias: unknown-alias/);
     });
   });
 

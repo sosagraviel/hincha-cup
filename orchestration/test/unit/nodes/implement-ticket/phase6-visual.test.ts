@@ -45,11 +45,11 @@ describe('phase6VisualNode', () => {
       getPlaywrightPage: vi.fn().mockReturnValue({ screenshot: vi.fn() }),
     };
 
-    vi.mocked(ScreenshotService).mockImplementation(function(this: any) {
+    vi.mocked(ScreenshotService).mockImplementation(function (this: any) {
       return mockScreenshotService;
     } as any);
 
-    vi.mocked(EnvironmentManagerService).mockImplementation(function(this: any) {
+    vi.mocked(EnvironmentManagerService).mockImplementation(function (this: any) {
       return mockEnvManager;
     } as any);
 

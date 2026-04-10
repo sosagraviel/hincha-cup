@@ -4,7 +4,7 @@
  * Common functions used across all validation hooks to eliminate code duplication.
  */
 
-import fs from "fs";
+import fs from 'fs';
 
 /**
  * Hook input interface (used by Phase 2 and Phase 3 hooks)
@@ -40,23 +40,23 @@ export function readTranscript(input: HookInput): any[] {
   // Validate transcript path
   if (!input.transcript_path) {
     blockWithFeedback(
-      "❌ HOOK ERROR: No transcript path provided\n\n" +
-      "The validation hook requires a transcript to validate output.\n" +
-      "This is a framework error, not an agent error."
+      '❌ HOOK ERROR: No transcript path provided\n\n' +
+        'The validation hook requires a transcript to validate output.\n' +
+        'This is a framework error, not an agent error.',
     );
   }
 
   if (!fs.existsSync(input.transcript_path)) {
     blockWithFeedback(
-      "❌ HOOK ERROR: Transcript file not found\n\n" +
-      `Expected transcript at: ${input.transcript_path}\n` +
-      "This is a framework error, not an agent error."
+      '❌ HOOK ERROR: Transcript file not found\n\n' +
+        `Expected transcript at: ${input.transcript_path}\n` +
+        'This is a framework error, not an agent error.',
     );
   }
 
   // Read and parse JSONL transcript
-  const transcriptContent = fs.readFileSync(input.transcript_path, "utf-8");
-  const lines = transcriptContent.split("\n").filter((line: string) => line.trim());
+  const transcriptContent = fs.readFileSync(input.transcript_path, 'utf-8');
+  const lines = transcriptContent.split('\n').filter((line: string) => line.trim());
 
   const transcript = lines
     .map((line: string) => {
@@ -79,15 +79,15 @@ export function getLastAssistantMessage(transcript: any[]): string {
   const assistantMessages = transcript
     .filter((msg: any) => {
       // Support both formats: direct (msg.type === "assistant") and wrapped (msg.message.role === "assistant")
-      return msg.type === "assistant" || (msg.message && msg.message.role === "assistant");
+      return msg.type === 'assistant' || (msg.message && msg.message.role === 'assistant');
     })
     .reverse();
 
   if (assistantMessages.length === 0) {
     blockWithFeedback(
-      "❌ HOOK ERROR: No assistant messages found in transcript\n\n" +
-      "The agent hasn't produced any output yet.\n" +
-      "This is unexpected - the hook should only run after agent output."
+      '❌ HOOK ERROR: No assistant messages found in transcript\n\n' +
+        "The agent hasn't produced any output yet.\n" +
+        'This is unexpected - the hook should only run after agent output.',
     );
   }
 
@@ -98,25 +98,23 @@ export function getLastAssistantMessage(transcript: any[]): string {
 
   if (!messageContent || !Array.isArray(messageContent)) {
     blockWithFeedback(
-      "❌ HOOK ERROR: Last message has invalid content structure\n\n" +
-      "Expected an array of content blocks.\n" +
-      "This is a framework error, not an agent error."
+      '❌ HOOK ERROR: Last message has invalid content structure\n\n' +
+        'Expected an array of content blocks.\n' +
+        'This is a framework error, not an agent error.',
     );
   }
 
-  const textBlocks = messageContent.filter(
-    (c: any) => c.type === "text",
-  );
+  const textBlocks = messageContent.filter((c: any) => c.type === 'text');
 
   if (textBlocks.length === 0) {
     blockWithFeedback(
-      "❌ OUTPUT ERROR: No text content in response\n\n" +
-      "Your response doesn't contain any text output.\n" +
-      "You must provide the required output format."
+      '❌ OUTPUT ERROR: No text content in response\n\n' +
+        "Your response doesn't contain any text output.\n" +
+        'You must provide the required output format.',
     );
   }
 
-  return textBlocks.map((t: any) => t.text).join("\n");
+  return textBlocks.map((t: any) => t.text).join('\n');
 }
 
 /**
@@ -137,7 +135,7 @@ Please fix these syntax errors and output valid JSON.`;
  * Format JSON parsing error with guidance
  */
 export function formatJSONParsingError(parseError: unknown): string {
-  const errorMsg = parseError instanceof Error ? parseError.message : "Unknown error";
+  const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown error';
   return `❌ JSON parsing failed: ${errorMsg}\n\n${JSON_PARSING_ERROR_GUIDANCE}`;
 }
 
@@ -147,12 +145,12 @@ export function formatJSONParsingError(parseError: unknown): string {
  */
 export function wrapHookMain(mainFn: () => Promise<void>): void {
   mainFn().catch((error) => {
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     blockWithFeedback(
       `❌ HOOK CRASHED: ${errorMsg}\n\n` +
-      "The validation hook encountered an unexpected error.\n" +
-      "This is a framework error. The output cannot be validated.\n\n" +
-      "Please report this issue if it persists."
+        'The validation hook encountered an unexpected error.\n' +
+        'This is a framework error. The output cannot be validated.\n\n' +
+        'Please report this issue if it persists.',
     );
   });
 }

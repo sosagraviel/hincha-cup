@@ -35,6 +35,7 @@ Each manifest file represents a potential service or package. Read each one to e
 <multi_language_detection>
 
 **Don't assume a single primary language!** Modern projects often mix multiple languages:
+
 - TypeScript backend + Python ML workers + Go microservices
 - JavaScript config files in TypeScript projects
 - Shell scripts in any project
@@ -48,6 +49,7 @@ find . -type f -name "*" | grep -v node_modules | grep -v .git | awk -F. '{print
 ```
 
 **Language identification from extensions:**
+
 - `.ts, .tsx, .mts, .cts` → TypeScript
 - `.js, .jsx, .mjs, .cjs` → JavaScript
 - `.py` → Python
@@ -68,6 +70,7 @@ find . -type f -name "*" | grep -v node_modules | grep -v .git | awk -F. '{print
 **Report in `findings.languages` array:** All languages with 5+ files (excludes trivial config files).
 
 **Example output:**
+
 ```json
 "languages": ["typescript", "javascript", "python", "shell"]
 ```
@@ -79,6 +82,7 @@ find . -type f -name "*" | grep -v node_modules | grep -v .git | awk -F. '{print
 <repository_detection>
 
 **Monorepo indicators:**
+
 - JavaScript/TypeScript: `workspaces` field in package.json, lerna.json, pnpm-workspace.yaml, nx.json, turbo.json
 - Python: Multiple pyproject.toml/setup.py in subdirectories
 - Go: go.work file (Go workspaces)
@@ -101,6 +105,7 @@ If monorepo detected, list ALL packages/services with their relative paths.
 **Search for version constraint files across the repository:**
 
 Use Glob to find version files:
+
 ```
 **/.nvmrc                # Node.js version
 **/.node-version         # Node.js version (alternative)
@@ -146,19 +151,23 @@ For each discovered manifest file, read it and extract:
 <service_metadata>
 
 **Identity:**
+
 - id: Short identifier (e.g., "api", "web", "worker")
 - name: Human-readable name from manifest (if present)
 - path: Relative path from repository root to service directory
 
 **Language & Version:**
+
 - Primary language inferred from manifest type
 - Version constraints from manifest or version files (.nvmrc, .python-version, .go-version, .ruby-version, runtime.txt)
 
 **Frameworks (from dependencies):**
+
 - Main framework: Express, NestJS, Fastify (Node); Django, Flask, FastAPI (Python); Gin, Echo, Chi (Go); Axum, Rocket, Actix (Rust); Spring Boot (Java); Rails, Sinatra (Ruby)
 - ORM/Database: TypeORM, Prisma, Sequelize (Node); SQLAlchemy, Django ORM (Python); GORM (Go); Diesel (Rust); Hibernate, JPA (Java); ActiveRecord (Ruby)
 
 **Service Type (infer from dependencies and structure):**
+
 - backend: HTTP framework dependencies (express, flask, gin, actix-web)
 - frontend: UI framework dependencies (react, vue, angular, svelte)
 - serverless: Serverless framework, AWS Lambda packages
@@ -207,57 +216,58 @@ Search for these code types using framework-specific patterns:
 
 ### Backend Services
 
-| Code Type | Search Strategy | Example Patterns by Framework |
-|-----------|----------------|-------------------------------|
-| **Database Models/Entities** | ORM decorators, class definitions with fields | NestJS: `@Entity()`, Django: `models.Model`, Go: struct tags, Rust: `#[derive]` |
-| **Controllers/Handlers/Routes** | Route decorators, HTTP method handlers | NestJS: `@Controller()`, Django: `views.py`, Go: `router.Group()`, Rust: `Router::new()` |
-| **Services/Business Logic** | Service classes, business logic | NestJS: `@Injectable()`, Django: `services.py`, Go: `service/`, Rust: `impl` blocks |
-| **DTOs/Request-Response** | Data transfer objects, validation schemas | NestJS: `class.*Dto`, Django: `serializers.py`, Go: request/response structs, Rust: Serde derives |
-| **Database Migrations** | Migration files in ORM-specific locations | TypeORM: `src/**/migrations/*.ts`, Alembic: `alembic/versions/*.py`, GORM: `migrations/*.go` |
-| **Guards/Middleware** | Auth guards, middleware functions | NestJS: `@Injectable()` guards, Django: `middleware.py`, Go: middleware funcs, Rust: middleware layers |
-| **Config/Environment** | Config classes, env loaders | NestJS: `@nestjs/config`, Django: `settings.py`, Go: viper/env configs, Rust: config crates |
+| Code Type                       | Search Strategy                               | Example Patterns by Framework                                                                          |
+| ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Database Models/Entities**    | ORM decorators, class definitions with fields | NestJS: `@Entity()`, Django: `models.Model`, Go: struct tags, Rust: `#[derive]`                        |
+| **Controllers/Handlers/Routes** | Route decorators, HTTP method handlers        | NestJS: `@Controller()`, Django: `views.py`, Go: `router.Group()`, Rust: `Router::new()`               |
+| **Services/Business Logic**     | Service classes, business logic               | NestJS: `@Injectable()`, Django: `services.py`, Go: `service/`, Rust: `impl` blocks                    |
+| **DTOs/Request-Response**       | Data transfer objects, validation schemas     | NestJS: `class.*Dto`, Django: `serializers.py`, Go: request/response structs, Rust: Serde derives      |
+| **Database Migrations**         | Migration files in ORM-specific locations     | TypeORM: `src/**/migrations/*.ts`, Alembic: `alembic/versions/*.py`, GORM: `migrations/*.go`           |
+| **Guards/Middleware**           | Auth guards, middleware functions             | NestJS: `@Injectable()` guards, Django: `middleware.py`, Go: middleware funcs, Rust: middleware layers |
+| **Config/Environment**          | Config classes, env loaders                   | NestJS: `@nestjs/config`, Django: `settings.py`, Go: viper/env configs, Rust: config crates            |
 
 ### Frontend Services
 
-| Code Type | Search Strategy | Example Patterns by Framework |
-|-----------|----------------|-------------------------------|
-| **Feature Components** | Feature-based directories | React: `features/*/components`, Vue: `views/*`, Angular: `app/*/*.component.ts` |
-| **Atomic Components** | Design system components | React: `components/atoms/`, `components/molecules/`, Vue: `components/ui/`, Angular: `shared/components/` |
-| **Pages/Views** | Page-level components | React: `pages/*.tsx`, Vue: `views/*.vue`, Angular: `app/pages/*.component.ts` |
-| **API Clients** | HTTP client services | React: `api/*.ts`, Vue: `services/api/*.ts`, Angular: `services/*.service.ts` |
-| **State Management** | Store/context files | React: `store/*.ts` or `context/*.tsx`, Vue: `store/*.ts`, Angular: `state/*.ts` |
-| **Hooks/Composables** | Custom hooks/composables | React: `hooks/*.ts`, Vue: `composables/*.ts`, Angular: `shared/hooks/*.ts` |
-| **Routing** | Route configuration | React Router: `routes.tsx`, Vue Router: `router/*.ts`, Angular: `app-routing.module.ts` |
+| Code Type              | Search Strategy           | Example Patterns by Framework                                                                             |
+| ---------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Feature Components** | Feature-based directories | React: `features/*/components`, Vue: `views/*`, Angular: `app/*/*.component.ts`                           |
+| **Atomic Components**  | Design system components  | React: `components/atoms/`, `components/molecules/`, Vue: `components/ui/`, Angular: `shared/components/` |
+| **Pages/Views**        | Page-level components     | React: `pages/*.tsx`, Vue: `views/*.vue`, Angular: `app/pages/*.component.ts`                             |
+| **API Clients**        | HTTP client services      | React: `api/*.ts`, Vue: `services/api/*.ts`, Angular: `services/*.service.ts`                             |
+| **State Management**   | Store/context files       | React: `store/*.ts` or `context/*.tsx`, Vue: `store/*.ts`, Angular: `state/*.ts`                          |
+| **Hooks/Composables**  | Custom hooks/composables  | React: `hooks/*.ts`, Vue: `composables/*.ts`, Angular: `shared/hooks/*.ts`                                |
+| **Routing**            | Route configuration       | React Router: `routes.tsx`, Vue Router: `router/*.ts`, Angular: `app-routing.module.ts`                   |
 
 ### Shared/Library Packages
 
-| Code Type | Search Strategy | Example Patterns |
-|-----------|----------------|------------------|
-| **Shared DTOs** | Cross-service types | `shared/dtos/`, `common/types/`, `@org/shared/src/` |
+| Code Type                  | Search Strategy         | Example Patterns                                     |
+| -------------------------- | ----------------------- | ---------------------------------------------------- |
+| **Shared DTOs**            | Cross-service types     | `shared/dtos/`, `common/types/`, `@org/shared/src/`  |
 | **Shared Enums/Constants** | Shared enums, constants | `shared/enums/`, `common/constants/`, `types/enums/` |
-| **Shared Utils** | Utility functions | `shared/utils/`, `common/helpers/`, `lib/utils/` |
-| **Base Classes** | Abstract base classes | `shared/base/`, `common/abstract/`, `lib/base/` |
+| **Shared Utils**           | Utility functions       | `shared/utils/`, `common/helpers/`, `lib/utils/`     |
+| **Base Classes**           | Abstract base classes   | `shared/base/`, `common/abstract/`, `lib/base/`      |
 
 ### Testing
 
-| Code Type | Search Strategy | Example Patterns |
-|-----------|----------------|------------------|
-| **Unit Tests** | Co-located test files | `**/*.spec.ts`, `**/*.test.py`, `**/*_test.go`, `**/*.spec.js` |
-| **Integration Tests** | Integration test directories | `tests/integration/`, `e2e/`, `__tests__/integration/` |
-| **E2E Tests** | E2E test directories | `e2e/`, `tests/e2e/`, `playwright/`, `cypress/` |
-| **Test Fixtures** | Test data and fixtures | `tests/fixtures/`, `__fixtures__/`, `testdata/` |
+| Code Type             | Search Strategy              | Example Patterns                                               |
+| --------------------- | ---------------------------- | -------------------------------------------------------------- |
+| **Unit Tests**        | Co-located test files        | `**/*.spec.ts`, `**/*.test.py`, `**/*_test.go`, `**/*.spec.js` |
+| **Integration Tests** | Integration test directories | `tests/integration/`, `e2e/`, `__tests__/integration/`         |
+| **E2E Tests**         | E2E test directories         | `e2e/`, `tests/e2e/`, `playwright/`, `cypress/`                |
+| **Test Fixtures**     | Test data and fixtures       | `tests/fixtures/`, `__fixtures__/`, `testdata/`                |
 
 ### Infrastructure/Deployment
 
-| Code Type | Search Strategy | Example Patterns |
-|-----------|----------------|------------------|
-| **Docker Configuration** | Dockerfiles | `Dockerfile*`, `docker-compose*.yml`, `.dockerignore` |
-| **CI/CD Configuration** | CI config files | `.github/workflows/*.yml`, `.gitlab-ci.yml`, `Jenkinsfile` |
+| Code Type                        | Search Strategy           | Example Patterns                                             |
+| -------------------------------- | ------------------------- | ------------------------------------------------------------ |
+| **Docker Configuration**         | Dockerfiles               | `Dockerfile*`, `docker-compose*.yml`, `.dockerignore`        |
+| **CI/CD Configuration**          | CI config files           | `.github/workflows/*.yml`, `.gitlab-ci.yml`, `Jenkinsfile`   |
 | **IaC (Infrastructure as Code)** | Terraform, CloudFormation | `terraform/*.tf`, `infrastructure/`, `cloudformation/*.yaml` |
 
 **Output Format - File Placement Table:**
 
 Generate a markdown table with these columns:
+
 - **Package/Service**: Which service this applies to (or "Root" for monorepo-level)
 - **File Type**: What kind of code
 - **Location Pattern**: Where these files live (glob pattern)
@@ -267,10 +277,11 @@ Generate a markdown table with these columns:
 **Example Table Row:**
 
 ```markdown
-| services/backend | Database Models | src/modules/*/database/models/*.model.ts | ~8 files | TypeORM entities, vertical slice per module |
+| services/backend | Database Models | src/modules/_/database/models/_.model.ts | ~8 files | TypeORM entities, vertical slice per module |
 ```
 
 **CRITICAL REQUIREMENTS:**
+
 1. Target 10-20 rows (concise but comprehensive coverage)
 2. Every row must use glob patterns and include approximate file count
 3. Group by service/package for monorepos
@@ -301,22 +312,27 @@ Generate a markdown table with these columns:
 **Search for path alias configurations:**
 
 ### JavaScript/TypeScript
+
 - Read `**/tsconfig.json` → `compilerOptions.paths` field
 - Read `**/jsconfig.json` → `compilerOptions.paths` field
 - Read `**/vite.config.*` → `resolve.alias` configuration
 - Read `**/webpack.config.*` → `resolve.alias` configuration
 
 ### Python
+
 - Read `**/pyproject.toml` → `[tool.setuptools.packages.find]` or custom path configs
 - Check for `sys.path` manipulations in `__init__.py` files
 
 ### Go
+
 - Read `**/go.mod` → module name (used as import prefix)
 
 ### Java
+
 - Read `**/pom.xml` or `**/build.gradle*` → source set configurations
 
 **Example TypeScript config:**
+
 ```json
 {
   "compilerOptions": {
@@ -349,6 +365,7 @@ Generate a markdown table with these columns:
 ### Database Detection
 
 Look for database client libraries in dependencies:
+
 - **PostgreSQL:** pg, psycopg2, pgx, diesel-postgres
 - **MySQL:** mysql2, PyMySQL, go-sql-driver/mysql
 - **MongoDB:** mongoose, pymongo, mongo-driver
@@ -431,18 +448,20 @@ For each service discovered in Step 4, add file count information:
 2. **Total LOC (optional):** If time permits, estimate lines of code
 
 **Example command to count files:**
+
 ```bash
 find services/backend -type f | wc -l
 ```
 
 **Add file_count to each service in the services array:**
+
 ```json
 {
   "id": "backend",
   "path": "services/backend",
   "type": "backend",
   "language": "typescript",
-  "file_count": 145,  // ← Add this
+  "file_count": 145, // ← Add this
   "frameworks": {
     "main": "NestJS 11",
     "orm": "TypeORM 0.3"
@@ -588,10 +607,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
     "database": {
       "orm": "TypeORM ^0.3.21",
       "type": "postgres",
-      "migration_commands": [
-        "pnpm typeorm:migration:create",
-        "pnpm typeorm:migration:run"
-      ]
+      "migration_commands": ["pnpm typeorm:migration:create", "pnpm typeorm:migration:run"]
     }
   },
   "needs_verification": [

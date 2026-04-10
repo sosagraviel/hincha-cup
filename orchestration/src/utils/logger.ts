@@ -8,7 +8,7 @@ export enum LogLevel {
   SUCCESS = 2,
   WARN = 3,
   ERROR = 4,
-  SILENT = 5
+  SILENT = 5,
 }
 
 /**
@@ -117,7 +117,7 @@ export class Logger {
       if (error.stack) {
         console.error(chalk.dim(this.format('Stack trace:')));
         const stackLines = error.stack.split('\n').slice(1);
-        stackLines.forEach(line => {
+        stackLines.forEach((line) => {
           console.error(chalk.dim(this.format(line.trim())));
         });
       }
@@ -173,7 +173,7 @@ export class Logger {
     const spinner = ora({
       text: fullText,
       color: 'cyan',
-      spinner: 'dots'
+      spinner: 'dots',
     }).start();
 
     this.spinners.set(spinnerId, spinner);
@@ -286,7 +286,7 @@ export class Logger {
   }
 
   stopAllSpinners(): void {
-    this.spinners.forEach(spinner => spinner.stop());
+    this.spinners.forEach((spinner) => spinner.stop());
     this.spinners.clear();
 
     // Also stop concurrent agent tracker if active
@@ -355,14 +355,18 @@ export class Logger {
     console.log();
   }
 
-  keyValue(key: string, value: string, color: 'green' | 'blue' | 'yellow' | 'red' | 'gray' = 'blue'): void {
+  keyValue(
+    key: string,
+    value: string,
+    color: 'green' | 'blue' | 'yellow' | 'red' | 'gray' = 'blue',
+  ): void {
     const indentation = ' '.repeat(this.indent);
     const colorFn = {
       green: chalk.green,
       blue: chalk.blue,
       yellow: chalk.yellow,
       red: chalk.red,
-      gray: chalk.gray
+      gray: chalk.gray,
     }[color];
 
     console.log(`${indentation}${chalk.dim(key + ':')} ${colorFn(value)}`);
@@ -374,7 +378,7 @@ export class Logger {
       this.increaseIndent();
     }
 
-    const maxKeyLength = Math.max(...Object.keys(data).map(k => k.length));
+    const maxKeyLength = Math.max(...Object.keys(data).map((k) => k.length));
 
     Object.entries(data).forEach(([key, value]) => {
       const paddedKey = key.padEnd(maxKeyLength);

@@ -22,7 +22,7 @@ export interface ValidationResult {
  */
 export function validateAnalyzerOutput(
   output: string | object,
-  agentName: string
+  agentName: string,
 ): ValidationResult {
   try {
     let data: unknown;
@@ -30,10 +30,13 @@ export function validateAnalyzerOutput(
       try {
         data = JSON.parse(output);
       } catch (parseError) {
-        logger.error('[validator] JSON parse failed', parseError instanceof Error ? parseError : new Error(String(parseError)));
+        logger.error(
+          '[validator] JSON parse failed',
+          parseError instanceof Error ? parseError : new Error(String(parseError)),
+        );
         return {
           valid: false,
-          errors: ['Invalid JSON format: ' + (parseError as Error).message]
+          errors: ['Invalid JSON format: ' + (parseError as Error).message],
         };
       }
     } else {
@@ -56,7 +59,7 @@ export function validateAnalyzerOutput(
 
       if (zodError && zodError.issues) {
         errors = zodError.issues.map((err: any) => {
-          const path = Array.isArray(err?.path) ? err.path.join('.') : (err?.path || 'unknown');
+          const path = Array.isArray(err?.path) ? err.path.join('.') : err?.path || 'unknown';
           const message = err?.message || err?.msg || 'validation error';
           const code = err?.code ? ` (${err.code})` : '';
           return `${path}: ${message}${code}`;
@@ -64,7 +67,7 @@ export function validateAnalyzerOutput(
       } else {
         errors = [
           'Validation failed but error structure is unexpected.',
-          `Full error: ${JSON.stringify(zodError, null, 2).substring(0, 500)}`
+          `Full error: ${JSON.stringify(zodError, null, 2).substring(0, 500)}`,
         ];
       }
 
@@ -73,17 +76,14 @@ export function validateAnalyzerOutput(
 
       return {
         valid: false,
-        errors: [
-          'Schema validation failed:',
-          ...errors
-        ]
+        errors: ['Schema validation failed:', ...errors],
       };
     }
 
     return {
       valid: true,
       errors: [],
-      data: result.data
+      data: result.data,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -100,23 +100,20 @@ export function validateAnalyzerOutput(
 
       return {
         valid: false,
-        errors: [
-          'Schema validation failed:',
-          ...errors
-        ]
+        errors: ['Schema validation failed:', ...errors],
       };
     }
 
     if (error instanceof SyntaxError) {
       return {
         valid: false,
-        errors: ['Invalid JSON format: ' + error.message]
+        errors: ['Invalid JSON format: ' + error.message],
       };
     }
 
     return {
       valid: false,
-      errors: ['Validation error: ' + (error as Error).message]
+      errors: ['Validation error: ' + (error as Error).message],
     };
   }
 }
@@ -156,7 +153,7 @@ export function extractJSON(output: string): string {
     }
     // Fallback: take from first { to end (original behavior)
     const lines = cleaned.split('\n');
-    const firstBraceIndex = lines.findIndex(line => line.trimStart().startsWith('{'));
+    const firstBraceIndex = lines.findIndex((line) => line.trimStart().startsWith('{'));
     if (firstBraceIndex >= 0) {
       return lines.slice(firstBraceIndex).join('\n').trim();
     }
@@ -199,14 +196,17 @@ export function extractSynthesisMarkdown(output: string): {
   }
 
   // Find "# project-context/SKILL.md Content" after separator
-  const contextHeaderIndex = output.indexOf('# project-context/SKILL.md Content', claudeHeaderIndex);
+  const contextHeaderIndex = output.indexOf(
+    '# project-context/SKILL.md Content',
+    claudeHeaderIndex,
+  );
   if (contextHeaderIndex === -1) {
     return null;
   }
 
   // Extract CLAUDE.md content (from header to separator)
   const claudeStartIndex = claudeHeaderIndex + '# CLAUDE.md Content'.length;
-  const claudeEndIndex = claudeHeaderIndex + separatorMatch.index!;
+  const claudeEndIndex = claudeHeaderIndex + separatorMatch.index;
   const claudemd = output.slice(claudeStartIndex, claudeEndIndex).trim();
 
   // Extract project-context content (from header to end)
@@ -275,10 +275,9 @@ export function extractBalancedJSON(text: string, startIndex: number): string | 
  */
 export function validateAndParseAgentOutput(
   rawOutput: string,
-  agentName: string
+  agentName: string,
 ): ValidationResult {
   try {
-
     const jsonString = extractJSON(rawOutput);
 
     const result = validateAnalyzerOutput(jsonString, agentName);
@@ -300,8 +299,8 @@ export function validateAndParseAgentOutput(
         'Failed to extract JSON: ' + (error as Error).message,
         '',
         '=== RAW OUTPUT PREVIEW ===',
-        preview + (hasMore ? '\n...[truncated]' : '')
-      ]
+        preview + (hasMore ? '\n...[truncated]' : ''),
+      ],
     };
   }
 }
@@ -341,7 +340,7 @@ export function buildValidationErrorFeedback(result: ValidationResult): string {
     'CRITICAL: findings.services array is REQUIRED for service-centric schema.',
     'Each service represents a discovered project component with its own stack.',
     '',
-    'Please correct these issues and output valid JSON.'
+    'Please correct these issues and output valid JSON.',
   ];
 
   return lines.join('\n');

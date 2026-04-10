@@ -1,13 +1,13 @@
 import type {
   AnalyzerOutput,
   Phase2Consolidation,
-} from "../../../../state/schemas/initialize-project.schema.js";
+} from '../../../../state/schemas/initialize-project.schema.js';
 import {
   normalizeAgentName,
   findOverlaps,
   identifyGaps,
   detectConflicts,
-} from "./helpers/index.js";
+} from './helpers/index.js';
 
 /**
  * Consolidate findings from 4 analyzer agents
@@ -21,9 +21,7 @@ import {
  * @param analyzers - Array of 4 analyzer outputs
  * @returns Consolidated findings with gaps and conflicts identified
  */
-export function analysisConsolidator(
-  analyzers: AnalyzerOutput[],
-): Phase2Consolidation {
+export function analysisConsolidator(analyzers: AnalyzerOutput[]): Phase2Consolidation {
   if (analyzers.length !== 4) {
     throw new Error(`Expected 4 analyzer outputs, got ${analyzers.length}`);
   }
@@ -36,7 +34,7 @@ export function analysisConsolidator(
       agent_name: analyzer.agent_name,
       timestamp: analyzer.timestamp,
       findings: analyzer.findings,
-      confidence_level: analyzer.confidence_level || "medium",
+      confidence_level: analyzer.confidence_level || 'medium',
     };
   });
 
@@ -48,15 +46,13 @@ export function analysisConsolidator(
   const gaps = identifyGaps(analyzers);
   const identified_gaps =
     gaps.length > 0
-      ? gaps.map(
-          (g) => `${g.agent}: ${g.item}${g.question ? ` (${g.question})` : ""}`,
-        )
+      ? gaps.map((g) => `${g.agent}: ${g.item}${g.question ? ` (${g.question})` : ''}`)
       : undefined;
 
   const conflicts = detectConflicts(analyzers);
   const conflicting_findings =
     conflicts.length > 0
-      ? conflicts.map((c) => `${c.type} between ${c.agents.join(", ")}`)
+      ? conflicts.map((c) => `${c.type} between ${c.agents.join(', ')}`)
       : undefined;
 
   return {

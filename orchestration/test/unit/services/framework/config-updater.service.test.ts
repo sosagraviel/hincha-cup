@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConfigUpdaterService } from '../../../../src/services/framework/config-updater.service.js';
-import type { FrameworkConfig, ResourceInfo } from '../../../../src/services/framework/config-updater.service.js';
+import type {
+  FrameworkConfig,
+  ResourceInfo,
+} from '../../../../src/services/framework/config-updater.service.js';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as childProcess from 'child_process';
@@ -10,10 +13,7 @@ vi.mock('fs');
 vi.mock('fs/promises');
 vi.mock('child_process');
 vi.mock('ajv', () => {
-  const mockValidate = Object.assign(
-    vi.fn().mockReturnValue(true),
-    { errors: null }
-  );
+  const mockValidate = Object.assign(vi.fn().mockReturnValue(true), { errors: null });
 
   const MockAjv = vi.fn().mockImplementation(() => ({
     compile: vi.fn().mockReturnValue(mockValidate),
@@ -146,7 +146,7 @@ describe('ConfigUpdaterService', () => {
 
       expect(fsPromises.writeFile).toHaveBeenCalledWith(
         configPath,
-        JSON.stringify(mockConfig, null, 2)
+        JSON.stringify(mockConfig, null, 2),
       );
     });
 
@@ -158,10 +158,9 @@ describe('ConfigUpdaterService', () => {
 
       await service.writeConfig(mockConfig);
 
-      expect(fsPromises.mkdir).toHaveBeenCalledWith(
-        expect.stringContaining('.claude'),
-        { recursive: true }
-      );
+      expect(fsPromises.mkdir).toHaveBeenCalledWith(expect.stringContaining('.claude'), {
+        recursive: true,
+      });
       expect(fsPromises.writeFile).toHaveBeenCalled();
     });
   });
@@ -254,7 +253,7 @@ describe('ConfigUpdaterService', () => {
 
       expect(result.updated).toBe(true);
       expect(result.config?.stack_profile.services?.length).toBe(2);
-      const updatedService = result.config?.stack_profile.services?.find(s => s.id === 'backend');
+      const updatedService = result.config?.stack_profile.services?.find((s) => s.id === 'backend');
       expect(updatedService?.name).toBe('Updated Backend');
       expect(updatedService?.language_version).toBe('5.4');
     });
@@ -694,9 +693,7 @@ describe('ConfigUpdaterService', () => {
 
     it('should detect no update needed', async () => {
       const mockConfig = createMockConfig({ framework_version: '2.0.0' });
-      vi.mocked(fs.existsSync)
-        .mockReturnValueOnce(true)
-        .mockReturnValueOnce(true);
+      vi.mocked(fs.existsSync).mockReturnValueOnce(true).mockReturnValueOnce(true);
       vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ version: '2.0.0' }));
 
@@ -717,7 +714,7 @@ describe('ConfigUpdaterService', () => {
       expect(hash).toBe('abc123def456');
       expect(childProcess.execSync).toHaveBeenCalledWith(
         expect.stringContaining('find'),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -733,7 +730,7 @@ describe('ConfigUpdaterService', () => {
       expect(hash.length).toBe(64);
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Could not generate project hash'),
-        expect.any(String)
+        expect.any(String),
       );
 
       consoleWarnSpy.mockRestore();
@@ -820,8 +817,8 @@ describe('ConfigUpdaterService', () => {
       const files = service.getAllFiles('/test/dir');
 
       expect(files.length).toBe(2);
-      expect(files.some(f => f.includes('file1.txt'))).toBe(true);
-      expect(files.some(f => f.includes('file2.txt'))).toBe(true);
+      expect(files.some((f) => f.includes('file1.txt'))).toBe(true);
+      expect(files.some((f) => f.includes('file2.txt'))).toBe(true);
     });
 
     it('should handle empty directory', () => {

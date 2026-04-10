@@ -1,24 +1,16 @@
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-import type {
-  Gap,
-  QuestionConsolidationOutput,
-} from "../types.js";
-import { AgentFactory } from "../../../../../utils/shared/agent-factory/index.js";
-import {
-  extractJSON,
-  type ValidationResult,
-} from "../../../../../utils/validator.js";
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import type { Gap, QuestionConsolidationOutput } from '../types.js';
+import { AgentFactory } from '../../../../../utils/shared/agent-factory/index.js';
+import { extractJSON, type ValidationResult } from '../../../../../utils/validator.js';
 import {
   retryWithEnhancedFeedback,
   DEFAULT_RETRY_CONFIG,
-} from "../../../../../utils/enhanced-retry.js";
-import { logger } from "../../../../../utils/logger.js";
-import { buildConsolidationPrompt } from "../prompt-builder.js";
-import {
-  getFrameworkAgentPath,
-} from "../../../shared/index.js";
+} from '../../../../../utils/enhanced-retry.js';
+import { logger } from '../../../../../utils/logger.js';
+import { buildConsolidationPrompt } from '../prompt-builder.js';
+import { getFrameworkAgentPath } from '../../../shared/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -27,11 +19,8 @@ const __dirname = dirname(__filename);
  * Load consolidation instructions from markdown file
  */
 function loadConsolidationInstructions(): string {
-  const instructionsPath = join(
-    __dirname,
-    "../prompts/consolidation-instructions.md",
-  );
-  return readFileSync(instructionsPath, "utf-8");
+  const instructionsPath = join(__dirname, '../prompts/consolidation-instructions.md');
+  return readFileSync(instructionsPath, 'utf-8');
 }
 
 /**
@@ -48,7 +37,7 @@ export async function consolidateQuestions(
   consolidated?: QuestionConsolidationOutput;
   error?: string;
 }> {
-  const consolidationLogger = logger.child("Phase 2: Consolidation");
+  const consolidationLogger = logger.child('Phase 2: Consolidation');
 
   try {
     const consolidationInstructions = loadConsolidationInstructions();
@@ -71,16 +60,16 @@ ${consolidationInstructions}`;
       // Create agent using new interface
       const factory = await AgentFactory.create();
       const agent = await factory.createAgent({
-        agentName: "question-consolidator",
-        agentFilePath: getFrameworkAgentPath(
-          frameworkPath,
-          "06-question-consolidator.md",
-        ),
+        agentName: 'question-consolidator',
+        agentFilePath: getFrameworkAgentPath(frameworkPath, '06-question-consolidator.md'),
         projectPath,
         frameworkPath,
         timeout: 300000, // 5 minutes
         resumeSessionId, // Pass session ID for context-preserving retry
-        settingsPath: join(frameworkPath, 'orchestration/src/nodes/initialize-project/phase2/question-consolidator/settings.json'),
+        settingsPath: join(
+          frameworkPath,
+          'orchestration/src/nodes/initialize-project/phase2/question-consolidator/settings.json',
+        ),
       });
 
       const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()
@@ -99,7 +88,7 @@ ${consolidationInstructions}`;
         let parsed: any = JSON.parse(jsonOutput);
 
         // Unwrap: LLM often wraps output in analyzer schema { findings: { consolidated_gaps, ... } }
-        if (parsed.findings && typeof parsed.findings === "object") {
+        if (parsed.findings && typeof parsed.findings === 'object') {
           parsed = parsed.findings;
         }
 
@@ -112,9 +101,7 @@ ${consolidationInstructions}`;
               consolidated_gap_count: parsed.length,
               reduction_percentage:
                 gaps.length > 0
-                  ? Math.round(
-                      ((gaps.length - parsed.length) / gaps.length) * 100,
-                    )
+                  ? Math.round(((gaps.length - parsed.length) / gaps.length) * 100)
                   : 0,
               consolidation_groups: [],
             },
@@ -124,7 +111,7 @@ ${consolidationInstructions}`;
         // Auto-remap: if the LLM used a different key name for the gaps array
         if (!parsed.consolidated_gaps && !Array.isArray(parsed)) {
           const arrayKey = Object.keys(parsed).find(
-            (k) => Array.isArray(parsed[k]) && k !== "consolidation_groups",
+            (k) => Array.isArray(parsed[k]) && k !== 'consolidation_groups',
           );
           if (arrayKey) {
             parsed.consolidated_gaps = parsed[arrayKey];
@@ -132,15 +119,12 @@ ${consolidationInstructions}`;
         }
 
         // Basic validation
-        if (
-          !parsed.consolidated_gaps ||
-          !Array.isArray(parsed.consolidated_gaps)
-        ) {
-          const topLevelKeys = Object.keys(parsed).join(", ");
+        if (!parsed.consolidated_gaps || !Array.isArray(parsed.consolidated_gaps)) {
+          const topLevelKeys = Object.keys(parsed).join(', ');
           return {
             valid: false,
             errors: [
-              `Invalid output: missing consolidated_gaps array. Top-level keys found: ${topLevelKeys || "(none)"}. Expected structure: { "consolidated_gaps": [...], "consolidation_metadata": {...} }`,
+              `Invalid output: missing consolidated_gaps array. Top-level keys found: ${topLevelKeys || '(none)'}. Expected structure: { "consolidated_gaps": [...], "consolidation_metadata": {...} }`,
             ],
             data: null,
           };
@@ -153,11 +137,7 @@ ${consolidationInstructions}`;
             consolidated_gap_count: parsed.consolidated_gaps.length,
             reduction_percentage:
               gaps.length > 0
-                ? Math.round(
-                    ((gaps.length - parsed.consolidated_gaps.length) /
-                      gaps.length) *
-                      100,
-                  )
+                ? Math.round(((gaps.length - parsed.consolidated_gaps.length) / gaps.length) * 100)
                 : 0,
             consolidation_groups: [],
           };
@@ -165,12 +145,10 @@ ${consolidationInstructions}`;
 
         // Validate question format (must end with ?)
         for (const gap of parsed.consolidated_gaps) {
-          if (!gap.question || !gap.question.endsWith("?")) {
+          if (!gap.question || !gap.question.endsWith('?')) {
             return {
               valid: false,
-              errors: [
-                `Invalid question format: "${gap.question}" must end with ?`,
-              ],
+              errors: [`Invalid question format: "${gap.question}" must end with ?`],
               data: null,
             };
           }
@@ -192,10 +170,7 @@ ${consolidationInstructions}`;
 
     // Use enhanced retry with progressive feedback
     // Save failed attempts with .attempt-N-question-consolidation suffix
-    const outputPath = consolidatedPath.replace(
-      ".json",
-      "-question-consolidation.json",
-    );
+    const outputPath = consolidatedPath.replace('.json', '-question-consolidation.json');
 
     const parsed = await retryWithEnhancedFeedback<QuestionConsolidationOutput>(
       agentInvoke,
@@ -204,7 +179,7 @@ ${consolidationInstructions}`;
       outputPath, // Pass output path for attempt logging
     );
 
-    consolidationLogger.info("  ✓ Consolidation successful and validated");
+    consolidationLogger.info('  ✓ Consolidation successful and validated');
     return { success: true, consolidated: parsed };
   } catch (error) {
     const errMsg = (error as Error).message;

@@ -28,7 +28,7 @@ vi.mock('pngjs', () => ({
         if (event === 'end') setTimeout(cb, 0);
         return this;
       });
-    }
+    },
   },
   PNG: class PNG {
     static sync = {
@@ -43,7 +43,7 @@ vi.mock('pngjs', () => ({
       if (event === 'end') setTimeout(cb, 0);
       return this;
     });
-  }
+  },
 }));
 
 describe('ScreenshotService', () => {
@@ -73,11 +73,7 @@ describe('ScreenshotService', () => {
 
   describe('captureScreenshot', () => {
     it('should capture single screenshot', async () => {
-      const result = await service.captureScreenshot(
-        mockPage,
-        'http://localhost:3000',
-        'home'
-      );
+      const result = await service.captureScreenshot(mockPage, 'http://localhost:3000', 'home');
       expect(result).toBeDefined();
       expect(mockPage.goto).toHaveBeenCalled();
       expect(mockPage.screenshot).toHaveBeenCalled();
@@ -86,7 +82,7 @@ describe('ScreenshotService', () => {
     it('should handle navigation errors', async () => {
       mockPage.goto.mockRejectedValue(new Error('Navigation failed'));
       await expect(
-        service.captureScreenshot(mockPage, 'http://localhost:3000', 'home')
+        service.captureScreenshot(mockPage, 'http://localhost:3000', 'home'),
       ).rejects.toThrow();
     });
   });
@@ -97,7 +93,7 @@ describe('ScreenshotService', () => {
         mockPage,
         'http://localhost:3000',
         ['/', '/about'],
-        'before'
+        'before',
       );
       expect(result).toBeDefined();
       expect(Array.isArray(result)).toBe(true);
@@ -108,7 +104,7 @@ describe('ScreenshotService', () => {
         mockPage,
         'http://localhost:3000',
         [],
-        'before'
+        'before',
       );
       expect(result).toHaveLength(0);
     });
@@ -119,7 +115,7 @@ describe('ScreenshotService', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
       await expect(
-        service.compareScreenshots('/path/to/before.png', '/path/to/after.png', '/diff.png')
+        service.compareScreenshots('/path/to/before.png', '/path/to/after.png', '/diff.png'),
       ).rejects.toThrow('Before screenshot not found');
     });
 
@@ -130,7 +126,7 @@ describe('ScreenshotService', () => {
       });
 
       await expect(
-        service.compareScreenshots('/path/to/before.png', '/path/to/after.png', '/diff.png')
+        service.compareScreenshots('/path/to/before.png', '/path/to/after.png', '/diff.png'),
       ).rejects.toThrow('After screenshot not found');
     });
 
@@ -140,7 +136,7 @@ describe('ScreenshotService', () => {
       const result = await service.compareScreenshots(
         '/path/to/before.png',
         '/path/to/after.png',
-        '/diff.png'
+        '/diff.png',
       );
 
       expect(result).toBeDefined();
@@ -157,7 +153,7 @@ describe('ScreenshotService', () => {
       const result = await service.compareScreenshots(
         '/path/to/before.png',
         '/path/to/after.png',
-        '/diff.png'
+        '/diff.png',
       );
 
       expect(result.diffPixels).toBe(1000);
@@ -172,7 +168,7 @@ describe('ScreenshotService', () => {
       const result = await service.compareScreenshots(
         '/path/to/before.png',
         '/path/to/after.png',
-        '/diff.png'
+        '/diff.png',
       );
 
       expect(result.passed).toBe(false);
@@ -189,7 +185,7 @@ describe('ScreenshotService', () => {
         .mockReturnValueOnce({ width: 200, height: 200, data: Buffer.alloc(160000) } as any);
 
       await expect(
-        service.compareScreenshots('/before.png', '/after.png', '/diff.png')
+        service.compareScreenshots('/before.png', '/after.png', '/diff.png'),
       ).rejects.toThrow("Image dimensions don't match");
     });
 
@@ -207,13 +203,33 @@ describe('ScreenshotService', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
       const beforeScreenshots = [
-        { url: 'http://test.com/', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-home.png' },
-        { url: 'http://test.com/about', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-about.png' }
+        {
+          url: 'http://test.com/',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-home.png',
+        },
+        {
+          url: 'http://test.com/about',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-about.png',
+        },
       ];
 
       const afterScreenshots = [
-        { url: 'http://test.com/', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/after-home.png' },
-        { url: 'http://test.com/about', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/after-about.png' }
+        {
+          url: 'http://test.com/',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/after-home.png',
+        },
+        {
+          url: 'http://test.com/about',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/after-about.png',
+        },
       ];
 
       const results = await service.compareMultipleScreenshots(beforeScreenshots, afterScreenshots);
@@ -225,12 +241,27 @@ describe('ScreenshotService', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
       const beforeScreenshots = [
-        { url: 'http://test.com/', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-home.png' },
-        { url: 'http://test.com/missing', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-missing.png' }
+        {
+          url: 'http://test.com/',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-home.png',
+        },
+        {
+          url: 'http://test.com/missing',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-missing.png',
+        },
       ];
 
       const afterScreenshots = [
-        { url: 'http://test.com/', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/after-home.png' }
+        {
+          url: 'http://test.com/',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/after-home.png',
+        },
       ];
 
       const results = await service.compareMultipleScreenshots(beforeScreenshots, afterScreenshots);
@@ -242,11 +273,21 @@ describe('ScreenshotService', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
       const beforeScreenshots = [
-        { url: 'http://test.com/', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-home.png' }
+        {
+          url: 'http://test.com/',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-home.png',
+        },
       ];
 
       const afterScreenshots = [
-        { url: 'http://test.com/', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/after-home.png' }
+        {
+          url: 'http://test.com/',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/after-home.png',
+        },
       ];
 
       const results = await service.compareMultipleScreenshots(beforeScreenshots, afterScreenshots);
@@ -258,13 +299,37 @@ describe('ScreenshotService', () => {
   describe('generateComparisonReport', () => {
     it('should generate report with all passed', () => {
       const results = [
-        { diffPixels: 0, diffPercentage: 0, totalPixels: 10000, diffImagePath: '/diff1.png', passed: true, threshold: 0.1 },
-        { diffPixels: 10, diffPercentage: 0.1, totalPixels: 10000, diffImagePath: '/diff2.png', passed: true, threshold: 0.1 }
+        {
+          diffPixels: 0,
+          diffPercentage: 0,
+          totalPixels: 10000,
+          diffImagePath: '/diff1.png',
+          passed: true,
+          threshold: 0.1,
+        },
+        {
+          diffPixels: 10,
+          diffPercentage: 0.1,
+          totalPixels: 10000,
+          diffImagePath: '/diff2.png',
+          passed: true,
+          threshold: 0.1,
+        },
       ];
 
       const screenshots = [
-        { url: 'http://test.com/', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-home.png' },
-        { url: 'http://test.com/about', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-about.png' }
+        {
+          url: 'http://test.com/',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-home.png',
+        },
+        {
+          url: 'http://test.com/about',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-about.png',
+        },
       ];
 
       const report = service.generateComparisonReport(results, screenshots);
@@ -277,13 +342,37 @@ describe('ScreenshotService', () => {
 
     it('should generate report with failures', () => {
       const results = [
-        { diffPixels: 0, diffPercentage: 0, totalPixels: 10000, diffImagePath: '/diff1.png', passed: true, threshold: 0.1 },
-        { diffPixels: 600, diffPercentage: 6, totalPixels: 10000, diffImagePath: '/diff2.png', passed: false, threshold: 0.1 }
+        {
+          diffPixels: 0,
+          diffPercentage: 0,
+          totalPixels: 10000,
+          diffImagePath: '/diff1.png',
+          passed: true,
+          threshold: 0.1,
+        },
+        {
+          diffPixels: 600,
+          diffPercentage: 6,
+          totalPixels: 10000,
+          diffImagePath: '/diff2.png',
+          passed: false,
+          threshold: 0.1,
+        },
       ];
 
       const screenshots = [
-        { url: 'http://test.com/', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-home.png' },
-        { url: 'http://test.com/about', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-about.png' }
+        {
+          url: 'http://test.com/',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-home.png',
+        },
+        {
+          url: 'http://test.com/about',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-about.png',
+        },
       ];
 
       const report = service.generateComparisonReport(results, screenshots);
@@ -296,15 +385,51 @@ describe('ScreenshotService', () => {
 
     it('should calculate statistics correctly', () => {
       const results = [
-        { diffPixels: 0, diffPercentage: 0, totalPixels: 10000, diffImagePath: '/diff1.png', passed: true, threshold: 0.1 },
-        { diffPixels: 100, diffPercentage: 1, totalPixels: 10000, diffImagePath: '/diff2.png', passed: true, threshold: 0.1 },
-        { diffPixels: 200, diffPercentage: 2, totalPixels: 10000, diffImagePath: '/diff3.png', passed: true, threshold: 0.1 }
+        {
+          diffPixels: 0,
+          diffPercentage: 0,
+          totalPixels: 10000,
+          diffImagePath: '/diff1.png',
+          passed: true,
+          threshold: 0.1,
+        },
+        {
+          diffPixels: 100,
+          diffPercentage: 1,
+          totalPixels: 10000,
+          diffImagePath: '/diff2.png',
+          passed: true,
+          threshold: 0.1,
+        },
+        {
+          diffPixels: 200,
+          diffPercentage: 2,
+          totalPixels: 10000,
+          diffImagePath: '/diff3.png',
+          passed: true,
+          threshold: 0.1,
+        },
       ];
 
       const screenshots = [
-        { url: 'http://test.com/', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-home.png' },
-        { url: 'http://test.com/about', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-about.png' },
-        { url: 'http://test.com/contact', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-contact.png' }
+        {
+          url: 'http://test.com/',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-home.png',
+        },
+        {
+          url: 'http://test.com/about',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-about.png',
+        },
+        {
+          url: 'http://test.com/contact',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-contact.png',
+        },
       ];
 
       const report = service.generateComparisonReport(results, screenshots);
@@ -316,11 +441,23 @@ describe('ScreenshotService', () => {
 
     it('should include details for each comparison', () => {
       const results = [
-        { diffPixels: 0, diffPercentage: 0, totalPixels: 10000, diffImagePath: '/diff1.png', passed: true, threshold: 0.1 }
+        {
+          diffPixels: 0,
+          diffPercentage: 0,
+          totalPixels: 10000,
+          diffImagePath: '/diff1.png',
+          passed: true,
+          threshold: 0.1,
+        },
       ];
 
       const screenshots = [
-        { url: 'http://test.com/', timestamp: '2024-01-01', viewport: { width: 1920, height: 1080 }, path: '/before-home.png' }
+        {
+          url: 'http://test.com/',
+          timestamp: '2024-01-01',
+          viewport: { width: 1920, height: 1080 },
+          path: '/before-home.png',
+        },
       ];
 
       const report = service.generateComparisonReport(results, screenshots);
@@ -351,7 +488,7 @@ describe('ScreenshotService', () => {
         mockPage,
         'http://localhost:3000',
         'custom-viewport',
-        customViewport
+        customViewport,
       );
 
       expect(mockPage.setViewportSize).toHaveBeenCalledWith(customViewport);
@@ -370,7 +507,7 @@ describe('ScreenshotService', () => {
         mockPage,
         'http://localhost:3000',
         ['/', '/error', '/about'],
-        'before'
+        'before',
       );
 
       expect(result.length).toBe(2);
@@ -383,10 +520,7 @@ describe('ScreenshotService', () => {
 
       new ScreenshotService('/new/screenshots');
 
-      expect(fs.mkdirSync).toHaveBeenCalledWith(
-        '/new/screenshots',
-        { recursive: true }
-      );
+      expect(fs.mkdirSync).toHaveBeenCalledWith('/new/screenshots', { recursive: true });
     });
 
     it('should not create directory if exists', () => {

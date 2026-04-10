@@ -25,12 +25,12 @@ export class ConcurrentAgentTracker {
       this.spinnies = new Spinnies({
         spinner: {
           interval: 80,
-          frames: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+          frames: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
         },
         color: 'cyan',
         succeedColor: 'green',
         failColor: 'red',
-        spinnerColor: 'cyan'
+        spinnerColor: 'cyan',
       });
     }
   }
@@ -54,14 +54,14 @@ export class ConcurrentAgentTracker {
       name,
       status: 'running',
       message,
-      startTime: Date.now()
+      startTime: Date.now(),
     });
 
     const formattedText = `${this.formatAgentLabel(name)} ${message}`;
 
     this.spinnies!.add(id, {
       text: formattedText,
-      color: 'cyan'
+      color: 'cyan',
     });
 
     this.isActive = true;
@@ -125,7 +125,7 @@ export class ConcurrentAgentTracker {
       // Spinnies doesn't have a warn method, use fail with yellow color
       this.spinnies.update(id, {
         text: `${chalk.yellow('⚠')} ${formattedText}`,
-        status: 'stopped'
+        status: 'stopped',
       });
     }
     this.checkIfAllComplete();
@@ -158,7 +158,7 @@ export class ConcurrentAgentTracker {
    */
   private checkIfAllComplete(): void {
     const allComplete = Array.from(this.agents.values()).every(
-      agent => agent.status !== 'running'
+      (agent) => agent.status !== 'running',
     );
 
     if (allComplete && this.isActive) {

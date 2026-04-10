@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, appendFileSync, writeFileSync } from "fs";
-import { join, basename } from "path";
-import { execSync } from "child_process";
+import { existsSync, readFileSync, appendFileSync, writeFileSync } from 'fs';
+import { join, basename } from 'path';
+import { execSync } from 'child_process';
 
 /**
  * Preflight validation results
@@ -13,7 +13,7 @@ export interface PreflightResult {
   npmVersion?: string;
   claudeVersion?: string;
   gitignoreUpdated?: boolean;
-  authMode?: "api_key" | "claude_cli" | "none";
+  authMode?: 'api_key' | 'claude_cli' | 'none';
 }
 
 /**
@@ -44,15 +44,14 @@ export async function runPreflightChecks(
   let npmVersion: string | undefined;
   let claudeVersion: string | undefined;
   let gitignoreUpdated = false;
-  let authMode: "api_key" | "claude_cli" | "none" = "none";
+  let authMode: 'api_key' | 'claude_cli' | 'none' = 'none';
 
   // ============================================================================
   // CHECK 1: Project Path Exists
   // ============================================================================
   if (!existsSync(projectPath)) {
     errors.push(
-      `Project path does not exist: ${projectPath}\n` +
-        `Please provide a valid project directory.`,
+      `Project path does not exist: ${projectPath}\n` + `Please provide a valid project directory.`,
     );
     // Can't continue without valid project path
     return {
@@ -93,8 +92,8 @@ export async function runPreflightChecks(
   // CHECK 3: Node.js version >= 20
   // ============================================================================
   try {
-    const nodeVersionOutput = execSync("node --version", {
-      encoding: "utf-8",
+    const nodeVersionOutput = execSync('node --version', {
+      encoding: 'utf-8',
     }).trim();
     nodeVersion = nodeVersionOutput;
 
@@ -126,8 +125,8 @@ export async function runPreflightChecks(
   // CHECK 4: npm is available
   // ============================================================================
   try {
-    const npmVersionOutput = execSync("npm --version", {
-      encoding: "utf-8",
+    const npmVersionOutput = execSync('npm --version', {
+      encoding: 'utf-8',
     }).trim();
     npmVersion = `v${npmVersionOutput}`;
   } catch (error) {
@@ -149,36 +148,32 @@ export async function runPreflightChecks(
   const hasGoogleKey = !!process.env.GOOGLE_API_KEY;
 
   if (hasAnthropicKey || hasOpenAIKey || hasGoogleKey) {
-    authMode = "api_key";
+    authMode = 'api_key';
     try {
-      const claudeVersionOutput = execSync("claude --version", {
-        encoding: "utf-8",
-        stdio: "pipe",
+      const claudeVersionOutput = execSync('claude --version', {
+        encoding: 'utf-8',
+        stdio: 'pipe',
       }).trim();
-      claudeVersion = claudeVersionOutput.split("\n")[0] || "unknown";
+      claudeVersion = claudeVersionOutput.split('\n')[0] || 'unknown';
     } catch {
       // Ignore - API key mode doesn't need Claude CLI
     }
   } else {
-    const localClaudePath = join(
-      frameworkPath,
-      "orchestration/node_modules/.bin/claude",
-    );
+    const localClaudePath = join(frameworkPath, 'orchestration/node_modules/.bin/claude');
 
     if (existsSync(localClaudePath)) {
       try {
         const claudeVersionOutput = execSync(`"${localClaudePath}" --version`, {
-          encoding: "utf-8",
-          stdio: "pipe",
+          encoding: 'utf-8',
+          stdio: 'pipe',
         }).trim();
-        claudeVersion = claudeVersionOutput.split("\n")[0] || "unknown";
+        claudeVersion = claudeVersionOutput.split('\n')[0] || 'unknown';
 
         // CHECK 5.5: Verify local Claude CLI is authenticated
-        const isAuthenticated =
-          await checkClaudeAuthentication(localClaudePath);
+        const isAuthenticated = await checkClaudeAuthentication(localClaudePath);
 
         if (!isAuthenticated) {
-          console.log("\n⚠️  Local Claude CLI is not authenticated.");
+          console.log('\n⚠️  Local Claude CLI is not authenticated.');
           console.log(`📍 CLI Location: ${localClaudePath}`);
           console.log(
             `Claude CLI authentication failed.\n` +
@@ -204,7 +199,7 @@ export async function runPreflightChecks(
               `  export ANTHROPIC_API_KEY="your-api-key-here"`,
           );
         } else {
-          authMode = "claude_cli";
+          authMode = 'claude_cli';
         }
       } catch (error) {
         // Local Claude CLI exists but failed to execute
@@ -217,14 +212,14 @@ export async function runPreflightChecks(
     }
 
     // Fallback to global Claude CLI if local not found or failed
-    if (authMode === "none") {
+    if (authMode === 'none') {
       try {
-        const claudeVersionOutput = execSync("claude --version", {
-          encoding: "utf-8",
-          stdio: "pipe",
+        const claudeVersionOutput = execSync('claude --version', {
+          encoding: 'utf-8',
+          stdio: 'pipe',
         }).trim();
-        claudeVersion = claudeVersionOutput.split("\n")[0] || "unknown";
-        authMode = "claude_cli";
+        claudeVersion = claudeVersionOutput.split('\n')[0] || 'unknown';
+        authMode = 'claude_cli';
 
         warnings.push(
           `Using global Claude CLI instead of framework's bundled version.\n` +
@@ -233,7 +228,7 @@ export async function runPreflightChecks(
         );
       } catch (error) {
         // No Claude CLI at all
-        authMode = "none";
+        authMode = 'none';
         errors.push(
           `No authentication method found.\n` +
             `\n` +
@@ -252,28 +247,28 @@ export async function runPreflightChecks(
   // ============================================================================
   // CHECK 6: .gitignore automation
   // ============================================================================
-  const gitignorePath = join(projectPath, ".gitignore");
+  const gitignorePath = join(projectPath, '.gitignore');
 
   // Determine framework directory name to exclude
   // CRITICAL: Must match logic in file-counter.ts and prompt-loader.ts
   // Framework is ALWAYS at project root: <project>/<framework-name>/
   const frameworkDirName = basename(frameworkPath);
 
-  const requiredEntries = [".claude-temp", ".claude-backups", frameworkDirName];
+  const requiredEntries = ['.claude-temp', '.claude-backups', frameworkDirName];
 
   // Check if project has a .gitignore file
   if (!existsSync(gitignorePath)) {
     // Create .gitignore if it doesn't exist
     try {
       const gitignoreContent = [
-        "# AI Agentic Framework files",
-        ".claude-temp/",
-        ".claude-backups/",
+        '# AI Agentic Framework files',
+        '.claude-temp/',
+        '.claude-backups/',
         `${frameworkDirName}/`,
-        "",
-      ].join("\n");
+        '',
+      ].join('\n');
 
-      writeFileSync(gitignorePath, gitignoreContent, "utf-8");
+      writeFileSync(gitignorePath, gitignoreContent, 'utf-8');
       gitignoreUpdated = true;
       warnings.push(
         `Created .gitignore with framework entries: .claude-temp, .claude-backups, ${frameworkDirName}`,
@@ -290,13 +285,13 @@ export async function runPreflightChecks(
   } else {
     // .gitignore exists, check if it contains required entries
     try {
-      const gitignoreContent = readFileSync(gitignorePath, "utf-8");
+      const gitignoreContent = readFileSync(gitignorePath, 'utf-8');
       const missingEntries: string[] = [];
 
       for (const entry of requiredEntries) {
         // Check if entry exists as a standalone line (not as a substring of another path)
         // Split into lines and check if any line matches exactly (with or without trailing slash)
-        const lines = gitignoreContent.split("\n");
+        const lines = gitignoreContent.split('\n');
         const hasEntry = lines.some((line) => {
           const trimmedLine = line.trim();
           return trimmedLine === entry || trimmedLine === `${entry}/`;
@@ -309,21 +304,16 @@ export async function runPreflightChecks(
 
       if (missingEntries.length > 0) {
         try {
-          const entriesToAdd = [
-            "",
-            ...missingEntries.map((entry) => `${entry}/`),
-          ].join("\n");
+          const entriesToAdd = ['', ...missingEntries.map((entry) => `${entry}/`)].join('\n');
 
-          appendFileSync(gitignorePath, entriesToAdd + "\n", "utf-8");
+          appendFileSync(gitignorePath, entriesToAdd + '\n', 'utf-8');
           gitignoreUpdated = true;
-          warnings.push(
-            `Added missing entries to .gitignore: ${missingEntries.join(", ")}`,
-          );
+          warnings.push(`Added missing entries to .gitignore: ${missingEntries.join(', ')}`);
         } catch (error) {
           warnings.push(
             `Unable to update .gitignore: ${(error as Error).message}\n` +
               `Please manually add to .gitignore:\n` +
-              missingEntries.map((e) => `  ${e}/`).join("\n"),
+              missingEntries.map((e) => `  ${e}/`).join('\n'),
           );
         }
       }
@@ -356,26 +346,16 @@ export async function runPreflightChecks(
  */
 async function checkClaudeAuthentication(claudePath: string): Promise<boolean> {
   try {
-    // Try a command that requires authentication
-    // Capture both stdout and stderr since auth errors may appear in either
-    const testResult = execSync(
-      `echo "test" | "${claudePath}" --model sonnet --dangerously-skip-permissions`,
-      {
-        encoding: "utf-8",
-        timeout: 10000, // 10 second timeout
-      },
-    );
+    // Use 'auth status' which returns JSON without opening the interactive TUI
+    const testResult = execSync(`"${claudePath}" auth status`, {
+      encoding: 'utf-8',
+      timeout: 10000, // 10 second timeout
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
 
-    // Check if output contains authentication error messages
-    if (
-      testResult.includes("Not logged in") ||
-      testResult.includes("Please run /login") ||
-      testResult.includes("Please log in")
-    ) {
-      return false;
-    }
-
-    return true;
+    // Parse the JSON output to check login status
+    const authStatus = JSON.parse(testResult.trim());
+    return authStatus.loggedIn === true;
   } catch (error: any) {
     return false;
   }

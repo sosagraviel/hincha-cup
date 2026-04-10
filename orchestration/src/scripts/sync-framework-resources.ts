@@ -68,7 +68,7 @@ function detectPaths(): SyncConfig {
   // Validate project path is not the same as framework
   if (projectPath === frameworkPath) {
     throw new Error(
-      'Framework is not inside a project directory. The framework must be cloned at your project root.'
+      'Framework is not inside a project directory. The framework must be cloned at your project root.',
     );
   }
 
@@ -85,7 +85,7 @@ async function validatePrerequisites(config: SyncConfig): Promise<void> {
   const configFile = join(config.projectPath, '.claude/framework-config.json');
   if (!existsSync(configFile)) {
     throw new Error(
-      `framework-config.json not found at ${configFile}. Run initialize-project first.`
+      `framework-config.json not found at ${configFile}. Run initialize-project first.`,
     );
   }
 
@@ -155,7 +155,9 @@ async function createBackup(config: SyncConfig): Promise<string> {
     try {
       await cp(skillsPath, backupSkillsPath, { recursive: true });
     } catch (error) {
-      logger.warn(`  Warning: Could not backup skills: ${error instanceof Error ? error.message : String(error)}`);
+      logger.warn(
+        `  Warning: Could not backup skills: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -165,7 +167,9 @@ async function createBackup(config: SyncConfig): Promise<string> {
     try {
       await cp(agentsPath, join(backupDir, 'agents'), { recursive: true });
     } catch (error) {
-      logger.warn(`  Warning: Could not backup agents: ${error instanceof Error ? error.message : String(error)}`);
+      logger.warn(
+        `  Warning: Could not backup agents: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -193,7 +197,7 @@ async function syncSkills(config: SyncConfig): Promise<{
   const result = { updated: 0, added: 0, removed: 0, skipped: 0 };
 
   // Create a set of skill names that should exist
-  const expectedSkillNames = new Set(resolvedSkills.map(s => s.name));
+  const expectedSkillNames = new Set(resolvedSkills.map((s) => s.name));
 
   // Process each skill that should exist for this project
   for (const resolvedSkill of resolvedSkills) {
@@ -217,7 +221,11 @@ async function syncSkills(config: SyncConfig): Promise<{
     // If skill doesn't exist in project yet, add it
     if (!existingSkillInfo) {
       try {
-        const syncResult = await addSingleSkill(skillName, config.projectPath, config.frameworkPath);
+        const syncResult = await addSingleSkill(
+          skillName,
+          config.projectPath,
+          config.frameworkPath,
+        );
         if (syncResult.added) {
           result.added++;
 
@@ -230,13 +238,19 @@ async function syncSkills(config: SyncConfig): Promise<{
           });
         }
       } catch (error) {
-        logger.error(`  Failed to add skill ${skillName}: ${error instanceof Error ? error.message : String(error)}`);
+        logger.error(
+          `  Failed to add skill ${skillName}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
     // If skill exists and source has changed, update it
     else if (currentSourceHash !== existingSkillInfo.source_hash) {
       try {
-        const syncResult = await updateSingleSkill(skillName, config.projectPath, config.frameworkPath);
+        const syncResult = await updateSingleSkill(
+          skillName,
+          config.projectPath,
+          config.frameworkPath,
+        );
         if (syncResult.updated) {
           result.updated++;
 
@@ -247,7 +261,9 @@ async function syncSkills(config: SyncConfig): Promise<{
           });
         }
       } catch (error) {
-        logger.error(`  Failed to update skill ${skillName}: ${error instanceof Error ? error.message : String(error)}`);
+        logger.error(
+          `  Failed to update skill ${skillName}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   }
@@ -277,7 +293,7 @@ async function syncSkills(config: SyncConfig): Promise<{
         await configUpdater.removeResourceFromState('skills', existingSkillName);
       } catch (error) {
         logger.error(
-          `  Failed to remove skill ${existingSkillName}: ${error instanceof Error ? error.message : String(error)}`
+          `  Failed to remove skill ${existingSkillName}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
@@ -295,7 +311,10 @@ async function syncSkills(config: SyncConfig): Promise<{
  * Sync agents from framework
  * @param skillsChanged - Whether skills were added or updated in this sync
  */
-async function syncAgents(config: SyncConfig, skillsChanged: boolean = false): Promise<{
+async function syncAgents(
+  config: SyncConfig,
+  skillsChanged: boolean = false,
+): Promise<{
   updated: number;
   added: number;
   regenerated: number;
@@ -314,7 +333,7 @@ async function syncAgents(config: SyncConfig, skillsChanged: boolean = false): P
     resolvedSkills,
     config.projectPath,
     templatesPath,
-    config.frameworkPath
+    config.frameworkPath,
   );
 
   const result = { updated: 0, added: 0, regenerated: 0, skipped: 0 };
@@ -339,9 +358,7 @@ async function syncAgents(config: SyncConfig, skillsChanged: boolean = false): P
       // Language-specific implementers: check for dedicated template, fall back to generic
       const dedicatedTemplate = `${agentName}.template.md`;
       const dedicatedPath = join(config.frameworkPath, 'agents', 'templates', dedicatedTemplate);
-      templateFilename = existsSync(dedicatedPath)
-        ? dedicatedTemplate
-        : 'implementer.template.md';
+      templateFilename = existsSync(dedicatedPath) ? dedicatedTemplate : 'implementer.template.md';
     } else {
       // Other agents use their own templates
       templateFilename = `${agentName}.template.md`;
@@ -359,7 +376,11 @@ async function syncAgents(config: SyncConfig, skillsChanged: boolean = false): P
     // If agent doesn't exist in project yet, add it
     if (!existingAgentInfo) {
       try {
-        const regenerateResult = await regenerateSingleAgent(agentName, config.projectPath, config.frameworkPath);
+        const regenerateResult = await regenerateSingleAgent(
+          agentName,
+          config.projectPath,
+          config.frameworkPath,
+        );
         if (regenerateResult.success) {
           result.added++;
 
@@ -368,30 +389,42 @@ async function syncAgents(config: SyncConfig, skillsChanged: boolean = false): P
             managed_by_framework: true,
             template_path: relativeTemplatePath,
             template_hash: currentTemplateHash,
-            file_hash: configUpdater.hashFile(join(config.projectPath, '.claude/agents', `${agentName}.md`)),
+            file_hash: configUpdater.hashFile(
+              join(config.projectPath, '.claude/agents', `${agentName}.md`),
+            ),
           });
         }
       } catch (error) {
-        logger.error(`  Failed to add agent ${agentName}: ${error instanceof Error ? error.message : String(error)}`);
+        logger.error(
+          `  Failed to add agent ${agentName}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
     // If agent exists and (template changed OR skills changed), update it
     else if (currentTemplateHash !== existingAgentInfo.template_hash || skillsChanged) {
       try {
-        const regenerateResult = await regenerateSingleAgent(agentName, config.projectPath, config.frameworkPath);
+        const regenerateResult = await regenerateSingleAgent(
+          agentName,
+          config.projectPath,
+          config.frameworkPath,
+        );
         if (regenerateResult.success) {
           result.updated++;
 
           // Update hash in config
           await configUpdater.updateResourceState('agents', agentName, {
             template_hash: currentTemplateHash,
-            file_hash: configUpdater.hashFile(join(config.projectPath, '.claude/agents', `${agentName}.md`)),
+            file_hash: configUpdater.hashFile(
+              join(config.projectPath, '.claude/agents', `${agentName}.md`),
+            ),
           });
         } else if (regenerateResult.skipped) {
           result.skipped++;
         }
       } catch (error) {
-        logger.error(`  Failed to regenerate agent ${agentName}: ${error instanceof Error ? error.message : String(error)}`);
+        logger.error(
+          `  Failed to regenerate agent ${agentName}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   }
@@ -487,7 +520,7 @@ async function syncCommands(config: SyncConfig): Promise<{
         });
       } catch (error) {
         logger.error(
-          `  Failed to sync command ${commandName}: ${error instanceof Error ? error.message : String(error)}`
+          `  Failed to sync command ${commandName}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
@@ -530,7 +563,10 @@ async function main() {
     const skillsResult = await syncSkills(config);
 
     // Sync agents (pass skills result to know if skills changed)
-    const agentsResult = await syncAgents(config, skillsResult.added > 0 || skillsResult.updated > 0);
+    const agentsResult = await syncAgents(
+      config,
+      skillsResult.added > 0 || skillsResult.updated > 0,
+    );
 
     // Sync commands
     const commandsResult = await syncCommands(config);
@@ -542,13 +578,13 @@ async function main() {
 
     logger.info('Summary:');
     logger.info(
-      `  Skills:   ${skillsResult.updated} updated, ${skillsResult.added} added, ${skillsResult.removed} removed, ${skillsResult.skipped} skipped`
+      `  Skills:   ${skillsResult.updated} updated, ${skillsResult.added} added, ${skillsResult.removed} removed, ${skillsResult.skipped} skipped`,
     );
     logger.info(
-      `  Agents:   ${agentsResult.updated} updated, ${agentsResult.added} added, ${agentsResult.regenerated} regenerated, ${agentsResult.skipped} skipped`
+      `  Agents:   ${agentsResult.updated} updated, ${agentsResult.added} added, ${agentsResult.regenerated} regenerated, ${agentsResult.skipped} skipped`,
     );
     logger.info(
-      `  Commands: ${commandsResult.updated} updated, ${commandsResult.added} added, ${commandsResult.skipped} skipped`
+      `  Commands: ${commandsResult.updated} updated, ${commandsResult.added} added, ${commandsResult.skipped} skipped`,
     );
     logger.info(`  Backup:   ${backupPath}\n`);
 

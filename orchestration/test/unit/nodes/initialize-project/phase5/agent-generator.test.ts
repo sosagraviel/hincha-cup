@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateAgents, writeAgents } from '../../../../../src/nodes/initialize-project/phase5/agent-generator.js';
-import type { GeneratedAgent, ResolvedSkill } from '../../../../../src/nodes/initialize-project/phase5/types.js';
+import {
+  generateAgents,
+  writeAgents,
+} from '../../../../../src/nodes/initialize-project/phase5/agent-generator.js';
+import type {
+  GeneratedAgent,
+  ResolvedSkill,
+} from '../../../../../src/nodes/initialize-project/phase5/types.js';
 import type { StackProfile } from '../../../../../src/schemas/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -36,7 +42,7 @@ describe('agent-generator', () => {
       },
     ],
     is_monorepo: false,
-    ...overrides
+    ...overrides,
   });
 
   const createMockSkill = (overrides: Partial<ResolvedSkill> = {}): ResolvedSkill => ({
@@ -45,7 +51,7 @@ describe('agent-generator', () => {
     relative_path: 'test-skill',
     reason: 'Test reason',
     description: 'Test description',
-    ...overrides
+    ...overrides,
   });
 
   const mockPlannerTemplate = `# Planner Agent
@@ -68,7 +74,9 @@ Frontend: {{frameworks.frontend}}`;
   describe('generateAgents', () => {
     it('should generate planner agent', () => {
       const stackProfile = createMockStackProfile();
-      const skills = [createMockSkill({ name: 'typescript-skill', compatible_languages: ['typescript'] })];
+      const skills = [
+        createMockSkill({ name: 'typescript-skill', compatible_languages: ['typescript'] }),
+      ];
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockImplementation((filePath: any) => {
@@ -84,11 +92,11 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
       expect(agents.length).toBeGreaterThan(0);
-      const planner = agents.find(a => a.name === 'planner');
+      const planner = agents.find((a) => a.name === 'planner');
       expect(planner).toBeDefined();
       expect(planner?.filename).toBe('planner.md');
     });
@@ -119,7 +127,7 @@ Frontend: {{frameworks.frontend}}`;
       });
       const skills = [
         createMockSkill({ name: 'ts-skill', compatible_languages: ['typescript'] }),
-        createMockSkill({ name: 'py-skill', compatible_languages: ['python'] })
+        createMockSkill({ name: 'py-skill', compatible_languages: ['python'] }),
       ];
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -128,7 +136,8 @@ Frontend: {{frameworks.frontend}}`;
         if (filePath.includes('implementer.md')) return mockImplementerTemplate;
         if (filePath.includes('generic-implementer.md')) return mockGenericImplementerTemplate;
         if (filePath.includes('visual-verifier.md')) return mockVisualVerifierTemplate;
-        if (filePath.includes('package.json')) return JSON.stringify({ scripts: { test: 'vitest', lint: 'eslint' } });
+        if (filePath.includes('package.json'))
+          return JSON.stringify({ scripts: { test: 'vitest', lint: 'eslint' } });
         return '';
       });
 
@@ -137,11 +146,11 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
-      const tsImplementer = agents.find(a => a.name === 'implementer-typescript');
-      const pyImplementer = agents.find(a => a.name === 'implementer-python');
+      const tsImplementer = agents.find((a) => a.name === 'implementer-typescript');
+      const pyImplementer = agents.find((a) => a.name === 'implementer-python');
 
       expect(tsImplementer).toBeDefined();
       expect(pyImplementer).toBeDefined();
@@ -165,10 +174,10 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
-      const genericImplementer = agents.find(a => a.name === 'implementer-generic');
+      const genericImplementer = agents.find((a) => a.name === 'implementer-generic');
       expect(genericImplementer).toBeDefined();
     });
 
@@ -203,10 +212,10 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
-      const visualVerifier = agents.find(a => a.name === 'visual-verifier');
+      const visualVerifier = agents.find((a) => a.name === 'visual-verifier');
       expect(visualVerifier).toBeDefined();
     });
 
@@ -228,7 +237,7 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
       expect(agents.length).toBeGreaterThan(0);
@@ -238,7 +247,11 @@ Frontend: {{frameworks.frontend}}`;
       const stackProfile = createMockStackProfile();
       const skills = [
         createMockSkill({ name: 'always-skill', trigger_mode: 'always' as any }),
-        createMockSkill({ name: 'triggered-skill', trigger_mode: 'triggered' as any, compatible_languages: ['typescript'] })
+        createMockSkill({
+          name: 'triggered-skill',
+          trigger_mode: 'triggered' as any,
+          compatible_languages: ['typescript'],
+        }),
       ];
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -255,10 +268,10 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
-      const planner = agents.find(a => a.name === 'planner');
+      const planner = agents.find((a) => a.name === 'planner');
       expect(planner?.content).not.toContain('always-skill');
     });
 
@@ -266,7 +279,11 @@ Frontend: {{frameworks.frontend}}`;
       const stackProfile = createMockStackProfile();
       const skills = [
         createMockSkill({ name: 'non-linkable', is_linkable_to_agents: false }),
-        createMockSkill({ name: 'linkable', is_linkable_to_agents: true, compatible_languages: ['typescript'] })
+        createMockSkill({
+          name: 'linkable',
+          is_linkable_to_agents: true,
+          compatible_languages: ['typescript'],
+        }),
       ];
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -283,10 +300,10 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
-      const planner = agents.find(a => a.name === 'planner');
+      const planner = agents.find((a) => a.name === 'planner');
       expect(planner?.content).not.toContain('non-linkable');
     });
 
@@ -301,7 +318,7 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
       // Should return empty or partial array when templates missing
@@ -342,7 +359,10 @@ Frontend: {{frameworks.frontend}}`;
         is_monorepo: true,
       });
       const skills = [
-        createMockSkill({ name: 'multi-lang-skill', compatible_languages: ['typescript', 'python', 'go'] })
+        createMockSkill({
+          name: 'multi-lang-skill',
+          compatible_languages: ['typescript', 'python', 'go'],
+        }),
       ];
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -359,12 +379,12 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
-      const tsImplementer = agents.find(a => a.name === 'implementer-typescript');
-      const pyImplementer = agents.find(a => a.name === 'implementer-python');
-      const goImplementer = agents.find(a => a.name === 'implementer-go');
+      const tsImplementer = agents.find((a) => a.name === 'implementer-typescript');
+      const pyImplementer = agents.find((a) => a.name === 'implementer-python');
+      const goImplementer = agents.find((a) => a.name === 'implementer-go');
 
       expect(tsImplementer).toBeDefined();
       expect(pyImplementer).toBeDefined();
@@ -381,7 +401,7 @@ Frontend: {{frameworks.frontend}}`;
           model: 'opus',
           description: 'Planner agent',
           content: '# Planner',
-          path: ''
+          path: '',
         },
         {
           name: 'implementer-typescript',
@@ -389,25 +409,24 @@ Frontend: {{frameworks.frontend}}`;
           model: 'sonnet',
           description: 'TypeScript implementer',
           content: '# Implementer',
-          path: ''
-        }
+          path: '',
+        },
       ];
 
       writeAgents(agents, '/test/project');
 
-      expect(fs.mkdirSync).toHaveBeenCalledWith(
-        path.join('/test/project', '.claude', 'agents'),
-        { recursive: true }
-      );
+      expect(fs.mkdirSync).toHaveBeenCalledWith(path.join('/test/project', '.claude', 'agents'), {
+        recursive: true,
+      });
 
       expect(fs.writeFileSync).toHaveBeenCalledTimes(2);
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         path.join('/test/project', '.claude', 'agents', 'planner.md'),
-        '# Planner'
+        '# Planner',
       );
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         path.join('/test/project', '.claude', 'agents', 'implementer-typescript.md'),
-        '# Implementer'
+        '# Implementer',
       );
     });
 
@@ -419,8 +438,8 @@ Frontend: {{frameworks.frontend}}`;
           model: 'opus',
           description: 'Planner agent',
           content: '# Planner',
-          path: ''
-        }
+          path: '',
+        },
       ];
 
       writeAgents(agents, '/test/project');
@@ -445,15 +464,15 @@ Frontend: {{frameworks.frontend}}`;
           model: 'sonnet',
           description: 'Test agent',
           content: '# Test',
-          path: ''
-        }
+          path: '',
+        },
       ];
 
       writeAgents(agents, '/deep/nested/project/path');
 
       expect(fs.mkdirSync).toHaveBeenCalledWith(
         path.join('/deep/nested/project/path', '.claude', 'agents'),
-        { recursive: true }
+        { recursive: true },
       );
     });
   });
@@ -464,7 +483,11 @@ Frontend: {{frameworks.frontend}}`;
       // Actual rendering is tested indirectly through agent generation
       const stackProfile = createMockStackProfile();
       const skills = [
-        createMockSkill({ name: 'skill1', compatible_languages: ['typescript'], trigger_mode: 'triggered' as any })
+        createMockSkill({
+          name: 'skill1',
+          compatible_languages: ['typescript'],
+          trigger_mode: 'triggered' as any,
+        }),
       ];
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -475,7 +498,7 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
       // Just verify agents are generated, helper is used internally
@@ -514,7 +537,7 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
       expect(agents.length).toBeGreaterThan(0);
@@ -522,7 +545,9 @@ Frontend: {{frameworks.frontend}}`;
 
     it('should generate skillsDoc with skillsDoc helper', () => {
       const stackProfile = createMockStackProfile();
-      const skills = [createMockSkill({ name: 'test-skill', compatible_languages: ['typescript'] })];
+      const skills = [
+        createMockSkill({ name: 'test-skill', compatible_languages: ['typescript'] }),
+      ];
 
       const template = '{{skillsDoc skills}}';
 
@@ -540,7 +565,7 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
       expect(agents.length).toBeGreaterThan(0);
@@ -562,8 +587,8 @@ Frontend: {{frameworks.frontend}}`;
               format: 'prettier --write .',
               typecheck: 'tsc --noEmit',
               test: 'vitest',
-              build: 'tsc && vite build'
-            }
+              build: 'tsc && vite build',
+            },
           });
         }
         return mockImplementerTemplate;
@@ -574,12 +599,12 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
       // Verify TypeScript implementer is generated
       // Package.json extraction happens internally
-      const tsImplementer = agents.find(a => a.name === 'implementer-typescript');
+      const tsImplementer = agents.find((a) => a.name === 'implementer-typescript');
       expect(tsImplementer).toBeDefined();
     });
 
@@ -603,7 +628,7 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
       expect(agents.length).toBeGreaterThan(0);
@@ -630,7 +655,7 @@ Frontend: {{frameworks.frontend}}`;
         skills,
         '/test/project',
         '/test/templates',
-        '/test/framework'
+        '/test/framework',
       );
 
       expect(agents.length).toBeGreaterThan(0);

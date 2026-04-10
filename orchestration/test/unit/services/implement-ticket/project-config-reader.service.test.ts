@@ -27,9 +27,9 @@ describe('ProjectConfigReaderService', () => {
                 language: 'typescript',
                 frameworks: { main: 'React', testing: 'Vitest' },
                 testing: {
-                  unit: { framework: 'Vitest' }
+                  unit: { framework: 'Vitest' },
                 },
-                file_count: 50
+                file_count: 50,
               },
               {
                 id: 'backend',
@@ -38,12 +38,12 @@ describe('ProjectConfigReaderService', () => {
                 language: 'typescript',
                 frameworks: { main: 'Express', testing: 'Vitest' },
                 testing: {
-                  unit: { framework: 'Vitest' }
+                  unit: { framework: 'Vitest' },
                 },
-                file_count: 50
-              }
+                file_count: 50,
+              },
             ],
-            is_monorepo: false
+            is_monorepo: false,
           },
         });
       }
@@ -57,10 +57,10 @@ describe('ProjectConfigReaderService', () => {
               language: 'typescript',
               frameworks: {},
               testing: {},
-              file_count: 100
-            }
+              file_count: 100,
+            },
           ],
-          is_monorepo: false
+          is_monorepo: false,
         });
       }
       return '{}';
@@ -102,9 +102,16 @@ describe('ProjectConfigReaderService', () => {
             version: '1.0.0',
             stack_profile: {
               services: [
-                { id: 'web', type: 'frontend', language: 'typescript', file_count: 10, frameworks: {}, testing: {} }
-              ]
-            }
+                {
+                  id: 'web',
+                  type: 'frontend',
+                  language: 'typescript',
+                  file_count: 10,
+                  frameworks: {},
+                  testing: {},
+                },
+              ],
+            },
           });
         }
         return '{}';
@@ -138,8 +145,8 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
               is_monorepo: false,
               infrastructure: ['docker'],
@@ -184,11 +191,11 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -225,11 +232,11 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -253,8 +260,8 @@ describe('ProjectConfigReaderService', () => {
               dev: 'vite',
               start: 'node dist/index.js',
               lint: 'eslint .',
-              format: 'prettier --write .'
-            }
+              format: 'prettier --write .',
+            },
           });
         }
         if (path.includes('framework-config.json')) {
@@ -268,11 +275,11 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -303,11 +310,11 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -336,11 +343,11 @@ describe('ProjectConfigReaderService', () => {
                   language: 'python',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -368,11 +375,11 @@ describe('ProjectConfigReaderService', () => {
                   language: 'go',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -400,11 +407,11 @@ describe('ProjectConfigReaderService', () => {
                   language: 'rust',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -432,11 +439,11 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -461,13 +468,13 @@ describe('ProjectConfigReaderService', () => {
                   language: 'javascript',
                   frameworks: { testing: 'Jest' },
                   testing: {
-                    unit: { framework: 'Jest' }
+                    unit: { framework: 'Jest' },
                   },
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -492,13 +499,13 @@ describe('ProjectConfigReaderService', () => {
                   language: 'python',
                   frameworks: { testing: 'Pytest' },
                   testing: {
-                    unit: { framework: 'Pytest' }
+                    unit: { framework: 'Pytest' },
                   },
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -523,13 +530,13 @@ describe('ProjectConfigReaderService', () => {
                   language: 'javascript',
                   frameworks: { testing: 'Mocha' },
                   testing: {
-                    unit: { framework: 'Mocha' }
+                    unit: { framework: 'Mocha' },
                   },
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -553,13 +560,13 @@ describe('ProjectConfigReaderService', () => {
                   language: 'go',
                   frameworks: { testing: 'Go test' },
                   testing: {
-                    unit: { framework: 'Go test' }
+                    unit: { framework: 'Go test' },
                   },
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -583,13 +590,13 @@ describe('ProjectConfigReaderService', () => {
                   language: 'rust',
                   frameworks: { testing: 'Cargo' },
                   testing: {
-                    unit: { framework: 'Cargo' }
+                    unit: { framework: 'Cargo' },
                   },
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -613,13 +620,13 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: { testing: 'Playwright' },
                   testing: {
-                    e2e: { framework: 'Playwright' }
+                    e2e: { framework: 'Playwright' },
                   },
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -643,13 +650,13 @@ describe('ProjectConfigReaderService', () => {
                   language: 'javascript',
                   frameworks: { testing: 'Cypress' },
                   testing: {
-                    e2e: { framework: 'Cypress' }
+                    e2e: { framework: 'Cypress' },
                   },
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -673,9 +680,9 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: { testing: 'Vitest' },
                   testing: {
-                    unit: { framework: 'Vitest' }
+                    unit: { framework: 'Vitest' },
                   },
-                  file_count: 50
+                  file_count: 50,
                 },
                 {
                   id: 'backend',
@@ -684,13 +691,13 @@ describe('ProjectConfigReaderService', () => {
                   language: 'javascript',
                   frameworks: { testing: 'Vitest' },
                   testing: {
-                    unit: { framework: 'Vitest' }
+                    unit: { framework: 'Vitest' },
                   },
-                  file_count: 50
-                }
+                  file_count: 50,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -698,7 +705,7 @@ describe('ProjectConfigReaderService', () => {
 
       service = new ProjectConfigReaderService('/test/project');
       const commands = service.getTestCommands();
-      const vitestCount = commands.unit.filter(cmd => cmd.includes('vitest')).length;
+      const vitestCount = commands.unit.filter((cmd) => cmd.includes('vitest')).length;
       expect(vitestCount).toBe(1);
     });
   });
@@ -724,7 +731,7 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: {},
                   testing: {},
-                  file_count: 50
+                  file_count: 50,
                 },
                 {
                   id: 'backend',
@@ -733,7 +740,7 @@ describe('ProjectConfigReaderService', () => {
                   language: 'javascript',
                   frameworks: {},
                   testing: {},
-                  file_count: 30
+                  file_count: 30,
                 },
                 {
                   id: 'worker',
@@ -742,11 +749,11 @@ describe('ProjectConfigReaderService', () => {
                   language: 'python',
                   frameworks: {},
                   testing: {},
-                  file_count: 20
-                }
+                  file_count: 20,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -765,8 +772,8 @@ describe('ProjectConfigReaderService', () => {
           return JSON.stringify({
             stack_profile: {
               services: [],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -797,11 +804,11 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -832,11 +839,11 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -862,12 +869,12 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
               is_monorepo: false,
-              infrastructure: ['docker', 'kubernetes']
-            }
+              infrastructure: ['docker', 'kubernetes'],
+            },
           });
         }
         return '{}';
@@ -894,12 +901,12 @@ describe('ProjectConfigReaderService', () => {
                   language: 'typescript',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
               is_monorepo: false,
-              package_manager: 'pnpm'
-            }
+              package_manager: 'pnpm',
+            },
           });
         }
         return '{}';

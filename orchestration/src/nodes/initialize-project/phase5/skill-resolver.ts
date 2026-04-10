@@ -1,10 +1,10 @@
-import { readFileSync, existsSync, readdirSync, statSync, copyFileSync, mkdirSync } from "fs";
-import { join } from "path";
-import type { StackProfile } from "../../../schemas/index.js";
-import { SkillsConfigFileSchema } from "./types.js";
-import type { SkillConfig, ResolvedSkill } from "./types.js";
-import { extractDetectedStack } from "./helpers/stack-detector.js";
-import { matchesTriggers } from "./helpers/trigger-matcher.js";
+import { readFileSync, existsSync, readdirSync, statSync, copyFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import type { StackProfile } from '../../../schemas/index.js';
+import { SkillsConfigFileSchema } from './types.js';
+import type { SkillConfig, ResolvedSkill } from './types.js';
+import { extractDetectedStack } from './helpers/stack-detector.js';
+import { matchesTriggers } from './helpers/trigger-matcher.js';
 
 /**
  * Load skills configuration
@@ -22,14 +22,10 @@ function loadSkillsConfig(frameworkPath: string): SkillConfig[] {
   return parsed.skills;
 }
 
-
 /**
  * Resolve skills based on stack profile
  */
-export function resolveSkills(
-  stackProfile: StackProfile,
-  frameworkPath: string
-): ResolvedSkill[] {
+export function resolveSkills(stackProfile: StackProfile, frameworkPath: string): ResolvedSkill[] {
   const skills = loadSkillsConfig(frameworkPath);
   const detectedStack = extractDetectedStack(stackProfile);
   const resolved: ResolvedSkill[] = [];
@@ -50,7 +46,7 @@ export function resolveSkills(
         description: skill.description,
         compatible_languages: skill.compatible_languages,
         trigger_mode: skill.trigger_mode,
-        is_linkable_to_agents: skill.is_linkable_to_agents
+        is_linkable_to_agents: skill.is_linkable_to_agents,
       });
       continue;
     }
@@ -66,7 +62,7 @@ export function resolveSkills(
         description: skill.description,
         compatible_languages: skill.compatible_languages,
         trigger_mode: skill.trigger_mode,
-        is_linkable_to_agents: skill.is_linkable_to_agents
+        is_linkable_to_agents: skill.is_linkable_to_agents,
       });
     }
   }
@@ -112,10 +108,7 @@ function copySkillDirectory(srcPath: string, destPath: string): number {
  * Flattens the directory structure - all skills are copied directly to .claude/skills/
  * (e.g., skills/050-language-frameworks/mastering-javascript -> .claude/skills/mastering-javascript)
  */
-export function copyResolvedSkills(
-  resolvedSkills: ResolvedSkill[],
-  projectPath: string
-): number {
+export function copyResolvedSkills(resolvedSkills: ResolvedSkill[], projectPath: string): number {
   const skillsTargetDir = join(projectPath, '.claude', 'skills');
   mkdirSync(skillsTargetDir, { recursive: true });
 

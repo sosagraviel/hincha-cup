@@ -3,10 +3,7 @@ import { buildContentSection } from '../../../../utils/shared/context-tags.js';
 /**
  * Build input prompt for Phase 2 consolidation agent
  */
-export function buildConsolidationPrompt(
-  gaps: any[],
-  feedbackPrompt?: string,
-): string {
+export function buildConsolidationPrompt(gaps: any[], feedbackPrompt?: string): string {
   const gapsJson = JSON.stringify(gaps, null, 2);
 
   const parts: string[] = [buildContentSection('Input Gaps', gapsJson)];

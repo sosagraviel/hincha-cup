@@ -4,10 +4,10 @@
  * Validates agent coverage for detected languages (multi-stack validation)
  */
 
-import { existsSync, readFileSync } from "fs";
-import type { StackProfile } from "../../../../schemas/index.js";
-import { MIN_AGENT_COUNT } from "../constants.js";
-import type { AgentCoverageResult } from "../types.js";
+import { existsSync, readFileSync } from 'fs';
+import type { StackProfile } from '../../../../schemas/index.js';
+import { MIN_AGENT_COUNT } from '../constants.js';
+import type { AgentCoverageResult } from '../types.js';
 
 /**
  * Validate agent count and coverage
@@ -28,18 +28,18 @@ export function validateAgentCoverage(
   }
 
   // Check for planner agent
-  const hasPlannerAgent = agentFiles.some((f) => f.includes("planner"));
+  const hasPlannerAgent = agentFiles.some((f) => f.includes('planner'));
   if (!hasPlannerAgent) {
-    errors.push("Planner agent not found");
+    errors.push('Planner agent not found');
   }
 
   // Validate multi-stack coverage if config exists
-  let missingImplementers: string[] = [];
+  const missingImplementers: string[] = [];
   let significantLanguages: string[] = [];
 
   if (configPath && existsSync(configPath)) {
     try {
-      const configContent = readFileSync(configPath, "utf-8");
+      const configContent = readFileSync(configPath, 'utf-8');
       const config = JSON.parse(configContent);
       const stackProfile: StackProfile = config.stack_profile;
 
@@ -47,14 +47,14 @@ export function validateAgentCoverage(
         // Use services as the source of truth for languages (not file counts)
         // This avoids false positives from config files (e.g., .js config files in TS projects)
         const serviceLanguages = new Set(
-          stackProfile.services.map(s => s.language.toLowerCase())
+          stackProfile.services.map((s) => s.language.toLowerCase()),
         );
         significantLanguages = Array.from(serviceLanguages);
 
         // Check if there's an implementer for each service language
         for (const lang of significantLanguages) {
           const hasImplementer = agentFiles.some(
-            (f) => f.includes("implementer") && f.toLowerCase().includes(lang),
+            (f) => f.includes('implementer') && f.toLowerCase().includes(lang),
           );
           if (!hasImplementer) {
             missingImplementers.push(lang);
@@ -62,7 +62,9 @@ export function validateAgentCoverage(
         }
 
         if (missingImplementers.length > 0) {
-          warnings.push(`Missing implementers for service languages: ${missingImplementers.join(", ")}`);
+          warnings.push(
+            `Missing implementers for service languages: ${missingImplementers.join(', ')}`,
+          );
         }
       }
     } catch (error) {

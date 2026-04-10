@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BaseHook, type HookContext, type ErrorAction, type HookLifecycle } from '../../../src/hooks/base-hook.js';
+import {
+  BaseHook,
+  type HookContext,
+  type ErrorAction,
+  type HookLifecycle,
+} from '../../../src/hooks/base-hook.js';
 
 // Create a concrete implementation of BaseHook for testing
 class TestHook extends BaseHook {
@@ -67,8 +72,8 @@ describe('BaseHook', () => {
         info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
-        success: vi.fn()
-      }
+        success: vi.fn(),
+      },
     };
   });
 
@@ -115,22 +120,22 @@ describe('BaseHook', () => {
         async preExecution(context: HookContext): Promise<HookContext> {
           return {
             ...context,
-            phaseInput: { modified: true }
+            phaseInput: { modified: true },
           };
         }
       }
 
       const hook = new ModifyingHook();
-      const result = await hook.preExecution!(mockContext);
+      const result = await hook.preExecution(mockContext);
 
       expect(result).toBeDefined();
-      expect((result as HookContext).phaseInput).toEqual({ modified: true });
+      expect(result.phaseInput).toEqual({ modified: true });
     });
 
     it('should handle context with phaseInput', async () => {
       const contextWithInput: HookContext = {
         ...mockContext,
-        phaseInput: { existing: 'data' }
+        phaseInput: { existing: 'data' },
       };
 
       class InputHook extends BaseHook {
@@ -143,7 +148,7 @@ describe('BaseHook', () => {
       }
 
       const hook = new InputHook();
-      await hook.preExecution!(contextWithInput);
+      await hook.preExecution(contextWithInput);
     });
   });
 
@@ -174,14 +179,14 @@ describe('BaseHook', () => {
           return {
             ...result,
             transformed: true,
-            timestamp: context.timestamp
+            timestamp: context.timestamp,
           };
         }
       }
 
       const hook = new TransformingHook();
       const originalResult = { data: 'original' };
-      const transformedResult = await hook.postExecution!(mockContext, originalResult);
+      const transformedResult = await hook.postExecution(mockContext, originalResult);
 
       expect(transformedResult.data).toBe('original');
       expect(transformedResult.transformed).toBe(true);
@@ -191,7 +196,7 @@ describe('BaseHook', () => {
     it('should handle context with phaseOutput', async () => {
       const contextWithOutput: HookContext = {
         ...mockContext,
-        phaseOutput: { outputData: 'test' }
+        phaseOutput: { outputData: 'test' },
       };
 
       class OutputHook extends BaseHook {
@@ -204,7 +209,7 @@ describe('BaseHook', () => {
       }
 
       const hook = new OutputHook();
-      await hook.postExecution!(contextWithOutput, {});
+      await hook.postExecution(contextWithOutput, {});
     });
   });
 
@@ -242,7 +247,7 @@ describe('BaseHook', () => {
 
         const hook = new CustomErrorHook();
         const error = new Error('Test error');
-        const action = await hook.onError!(mockContext, error);
+        const action = await hook.onError(mockContext, error);
 
         expect(action).toBe(expectedAction);
       }
@@ -252,7 +257,7 @@ describe('BaseHook', () => {
       const testError = new Error('Specific error message');
       const contextWithError: HookContext = {
         ...mockContext,
-        error: testError
+        error: testError,
       };
 
       class ErrorCheckHook extends BaseHook {
@@ -266,7 +271,7 @@ describe('BaseHook', () => {
       }
 
       const hook = new ErrorCheckHook();
-      await hook.onError!(contextWithError, testError);
+      await hook.onError(contextWithError, testError);
     });
 
     it('should allow conditional error handling', async () => {
@@ -286,9 +291,9 @@ describe('BaseHook', () => {
 
       const hook = new SmartErrorHook();
 
-      expect(await hook.onError!(mockContext, new Error('network timeout'))).toBe('retry');
-      expect(await hook.onError!(mockContext, new Error('validation failed'))).toBe('fail');
-      expect(await hook.onError!(mockContext, new Error('unknown error'))).toBe('skip');
+      expect(await hook.onError(mockContext, new Error('network timeout'))).toBe('retry');
+      expect(await hook.onError(mockContext, new Error('validation failed'))).toBe('fail');
+      expect(await hook.onError(mockContext, new Error('unknown error'))).toBe('skip');
     });
   });
 
@@ -322,9 +327,9 @@ describe('BaseHook', () => {
 
       const hook = new AttemptTrackingHook();
 
-      await hook.onRetry!(mockContext, 1);
-      await hook.onRetry!(mockContext, 2);
-      await hook.onRetry!(mockContext, 3);
+      await hook.onRetry(mockContext, 1);
+      await hook.onRetry(mockContext, 2);
+      await hook.onRetry(mockContext, 3);
 
       expect(hook.attempts).toEqual([1, 2, 3]);
     });
@@ -332,7 +337,7 @@ describe('BaseHook', () => {
     it('should receive attempt in context', async () => {
       const contextWithAttempt: HookContext = {
         ...mockContext,
-        attempt: 3
+        attempt: 3,
       };
 
       class RetryCheckHook extends BaseHook {
@@ -345,7 +350,7 @@ describe('BaseHook', () => {
       }
 
       const hook = new RetryCheckHook();
-      await hook.onRetry!(contextWithAttempt, 3);
+      await hook.onRetry(contextWithAttempt, 3);
     });
 
     it('should support logging during retry', async () => {
@@ -358,9 +363,11 @@ describe('BaseHook', () => {
       }
 
       const hook = new LoggingRetryHook();
-      await hook.onRetry!(mockContext, 2);
+      await hook.onRetry(mockContext, 2);
 
-      expect(mockContext.logger.warn).toHaveBeenCalledWith('Retrying phase phase4_implementation, attempt 2');
+      expect(mockContext.logger.warn).toHaveBeenCalledWith(
+        'Retrying phase phase4_implementation, attempt 2',
+      );
     });
   });
 
@@ -381,11 +388,9 @@ describe('BaseHook', () => {
 
     it('should support phase-based conditions', () => {
       const onlyPhase4 = new ConditionalHook(
-        (context) => context.phase === 'phase4_implementation'
+        (context) => context.phase === 'phase4_implementation',
       );
-      const onlyPhase5 = new ConditionalHook(
-        (context) => context.phase === 'phase5_testing'
-      );
+      const onlyPhase5 = new ConditionalHook((context) => context.phase === 'phase5_testing');
 
       expect(onlyPhase4.shouldRun(mockContext)).toBe(true);
       expect(onlyPhase5.shouldRun(mockContext)).toBe(false);
@@ -393,17 +398,14 @@ describe('BaseHook', () => {
 
     it('should support complex conditions', () => {
       const conditionalHook = new ConditionalHook((context) => {
-        return (
-          context.phase.startsWith('phase') &&
-          context.ticketId.startsWith('TICKET-')
-        );
+        return context.phase.startsWith('phase') && context.ticketId.startsWith('TICKET-');
       });
 
       expect(conditionalHook.shouldRun(mockContext)).toBe(true);
 
       const invalidContext = {
         ...mockContext,
-        ticketId: 'INVALID-123'
+        ticketId: 'INVALID-123',
       };
       expect(conditionalHook.shouldRun(invalidContext)).toBe(false);
     });
@@ -428,9 +430,11 @@ describe('BaseHook', () => {
       }
 
       const hook = new LoggingHook();
-      await hook.preExecution!(mockContext);
+      await hook.preExecution(mockContext);
 
-      expect(mockContext.logger.info).toHaveBeenCalledWith('Pre-execution for phase4_implementation');
+      expect(mockContext.logger.info).toHaveBeenCalledWith(
+        'Pre-execution for phase4_implementation',
+      );
     });
   });
 
@@ -450,7 +454,7 @@ describe('BaseHook', () => {
         phaseInput: { input: 'data' },
         phaseOutput: { output: 'data' },
         error: new Error('test'),
-        attempt: 2
+        attempt: 2,
       };
 
       expect(fullContext.phaseInput).toEqual({ input: 'data' });
@@ -469,12 +473,7 @@ describe('BaseHook', () => {
     });
 
     it('should define HookLifecycle type correctly', () => {
-      const lifecycles: HookLifecycle[] = [
-        'preExecution',
-        'postExecution',
-        'onError',
-        'onRetry'
-      ];
+      const lifecycles: HookLifecycle[] = ['preExecution', 'postExecution', 'onError', 'onRetry'];
 
       expect(lifecycles).toHaveLength(4);
     });
@@ -533,9 +532,9 @@ describe('BaseHook', () => {
 
       const hook = new StatefulHook();
 
-      await hook.preExecution!(mockContext);
-      await hook.preExecution!(mockContext);
-      await hook.preExecution!(mockContext);
+      await hook.preExecution(mockContext);
+      await hook.preExecution(mockContext);
+      await hook.preExecution(mockContext);
 
       expect(hook.getExecutionCount()).toBe(3);
     });

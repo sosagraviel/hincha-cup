@@ -4,7 +4,7 @@
  * Render Handlebars templates with provided variables
  */
 
-import Handlebars from "handlebars";
+import Handlebars from 'handlebars';
 
 /**
  * Render template with variables using Handlebars (matching bash implementation)
