@@ -391,7 +391,7 @@ For manual tickets, use the template and guidelines above to ensure clarity.
 
 ## Further Reading
 
-- [Quick Start Guide](../QUICKSTART.md) - Full SDLC workflows
+- [Quick Start Guide](../getting-started/QUICKSTART.md) - Full SDLC workflows
 - [User Guide](./USER_GUIDE.md) - Daily development practices
 - [INVEST Criteria](https://en.wikipedia.org/wiki/INVEST_(mnemonic))
 - [Given-When-Then](https://martinfowler.com/bliki/GivenWhenThen.html)

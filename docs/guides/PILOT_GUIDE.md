@@ -462,6 +462,6 @@ If you have an idea but no ticket yet:
 
 ## Further Reading
 
-- [Quick Start Guide](../QUICKSTART.md) - Full SDLC workflows
+- [Quick Start Guide](../getting-started/QUICKSTART.md) - Full SDLC workflows
 - [User Guide](./USER_GUIDE.md) - Daily development practices
 - [Security Guide](./SECURITY.md) - Security best practices

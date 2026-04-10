@@ -42,7 +42,7 @@ Thank you for your interest in contributing to the AI Agentic Framework! This gu
 - **Git** for version control
 - **Bash** (macOS/Linux) or WSL (Windows)
 
-> **Note:** The framework uses a local installation of Claude CLI (v2.1+) located at `orchestration/node_modules/.bin/claude`. This ensures all developers use the same version with `--agent` flag support. You do NOT need to install Claude CLI globally. See [docs/CLAUDE_CLI_BUNDLING.md](./docs/CLAUDE_CLI_BUNDLING.md) for details.
+> **Note:** The framework uses a local installation of Claude CLI (v2.1+) located at `orchestration/node_modules/.bin/claude`. This ensures all developers use the same version with `--agent` flag support. You do NOT need to install Claude CLI globally. See [docs/CLAUDE_CLI_BUNDLING.md](../reference/CLAUDE_CLI_BUNDLING.md) for details.
 
 ### Setup Steps
 
@@ -68,7 +68,7 @@ git clone https://github.com/your-username/qubika-agentic-framework.git qubika-a
 
 Skills are reusable knowledge modules that provide context to AI agents. When you add a skill to the framework, users automatically receive it during sync if their project stack matches.
 
-> 📖 **Detailed Guide**: See [docs/ADDING_SKILLS.md](./docs/ADDING_SKILLS.md) for complete documentation
+> 📖 **Detailed Guide**: See [docs/ADDING_SKILLS.md](../guides/ADDING_SKILLS.md) for complete documentation
 
 ### Skill Structure
 
@@ -522,7 +522,7 @@ Thank you for contributing to the AI Agentic Framework! 🎉
 
 ## Further Reading
 
-- [Architecture](./docs/ARCHITECTURE.md) - How the framework works
-- [Adding Skills](./docs/ADDING_SKILLS.md) - Complete guide to adding and distributing skills
-- [API Reference](./docs/API_REFERENCE.md) - Skills, agents, and commands
-- [Skill Catalog](./SKILL_CATALOG.md) - Available skills with detection logic
+- [Architecture](../architecture/ARCHITECTURE.md) - How the framework works
+- [Adding Skills](../guides/ADDING_SKILLS.md) - Complete guide to adding and distributing skills
+- [API Reference](../reference/API_REFERENCE.md) - Skills, agents, and commands
+- [Skill Catalog](../../SKILL_CATALOG.md) - Available skills with detection logic

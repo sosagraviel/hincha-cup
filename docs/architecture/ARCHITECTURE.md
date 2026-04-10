@@ -604,9 +604,9 @@ The framework is built on:
 
 ## Further Reading
 
-- **[User Guide](./USER_GUIDE.md)** - Complete workflows and best practices
-- **[API Reference](./API_REFERENCE.md)** - Skills, agents, and utilities
-- **[Skill Catalog](../SKILL_CATALOG.md)** - Available skills with detection logic
+- **[User Guide](../guides/USER_GUIDE.md)** - Complete workflows and best practices
+- **[API Reference](../reference/API_REFERENCE.md)** - Skills, agents, and utilities
+- **[Skill Catalog](../../SKILL_CATALOG.md)** - Available skills with detection logic
 
 ---
 

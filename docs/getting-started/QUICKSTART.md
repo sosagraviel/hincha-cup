@@ -234,18 +234,18 @@ Common issues:
 
 ### Learn the Full Workflows
 
-- **[User Guide](./docs/USER_GUIDE.md)** - Complete workflows and daily development (15 min)
-- **[Writing Good Tickets](./docs/WRITING_GOOD_TICKETS.md)** - How to write AI-friendly tickets (10 min)
+- **[User Guide](../guides/USER_GUIDE.md)** - Complete workflows and daily development (15 min)
+- **[Writing Good Tickets](../guides/WRITING_GOOD_TICKETS.md)** - How to write AI-friendly tickets (10 min)
 
 ### Understand the System
 
-- **[Architecture](./docs/ARCHITECTURE.md)** - How the workflow engine works (30 min)
-- **[API Reference](./docs/API_REFERENCE.md)** - Skills, agents, and commands (20 min)
+- **[Architecture](../architecture/ARCHITECTURE.md)** - How the workflow engine works (30 min)
+- **[API Reference](../reference/API_REFERENCE.md)** - Skills, agents, and commands (20 min)
 
 ### Roll Out to Your Team
 
-- **[Pilot Guide](./docs/PILOT_GUIDE.md)** - How to introduce this to your team (30 min)
-- **[Security Best Practices](./docs/SECURITY.md)** - Security guidelines (15 min)
+- **[Pilot Guide](../guides/PILOT_GUIDE.md)** - How to introduce this to your team (30 min)
+- **[Security Best Practices](../security/SECURITY.md)** - Security guidelines (15 min)
 
 ---
 

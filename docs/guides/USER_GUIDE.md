@@ -583,7 +583,7 @@ A: **Yes**:
 - Add custom skills in `.claude/skills/`
 - Create custom agents in `.claude/agents/`
 - Modify prompts for your needs
-- See [Contributing](../CONTRIBUTING.md)
+- See [Contributing](../getting-started/CONTRIBUTING.md)
 
 ---
 
