@@ -108,7 +108,15 @@
       "path": "030-quality-assurance/ui-testing",
       "description": "UI testing orchestration: unit, component, E2E, and visual test levels",
       "trigger_mode": "triggered",
-      "triggers": ["react", "next", "nextjs", "vue", "angular", "nuxt", "svelte"],
+      "triggers": [
+        "react",
+        "next",
+        "nextjs",
+        "vue",
+        "angular",
+        "nuxt",
+        "svelte"
+      ],
       "compatible_languages": ["typescript", "javascript"],
       "is_linkable_to_agents": true
     },
@@ -117,7 +125,15 @@
       "path": "030-quality-assurance/ui-visual-testing",
       "description": "Dual-mode visual testing: Figma design fidelity and screenshot regression comparison",
       "trigger_mode": "triggered",
-      "triggers": ["react", "next", "nextjs", "vue", "angular", "nuxt", "svelte"],
+      "triggers": [
+        "react",
+        "next",
+        "nextjs",
+        "vue",
+        "angular",
+        "nuxt",
+        "svelte"
+      ],
       "compatible_languages": ["typescript", "javascript"],
       "is_linkable_to_agents": true
     },
@@ -171,7 +187,15 @@
       "path": "040-integrations/figma-design-fetcher",
       "description": "Fetches Figma designs, exports frame images, and extracts structured design constraints",
       "trigger_mode": "triggered",
-      "triggers": ["react", "next", "nextjs", "vue", "angular", "nuxt", "svelte"],
+      "triggers": [
+        "react",
+        "next",
+        "nextjs",
+        "vue",
+        "angular",
+        "nuxt",
+        "svelte"
+      ],
       "compatible_languages": ["typescript", "javascript"],
       "is_linkable_to_agents": true
     },
@@ -228,7 +252,7 @@
       "path": "050-language-frameworks/react-frontend",
       "description": "React frontend development patterns",
       "trigger_mode": "triggered",
-      "triggers": ["react"],
+      "triggers": ["react", "next", "nextjs"],
       "compatible_languages": ["typescript", "javascript"]
     },
     {
@@ -260,7 +284,7 @@
       "path": "050-language-frameworks/atomic-design-react",
       "description": "Atomic Design methodology for React applications",
       "trigger_mode": "triggered",
-      "triggers": ["react"],
+      "triggers": ["react", "next", "nextjs"],
       "compatible_languages": ["typescript", "javascript"]
     },
     {
