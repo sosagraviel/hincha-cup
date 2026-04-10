@@ -13,11 +13,12 @@ vi.mock('fs', () => ({
 }));
 
 vi.mock('../../../../src/services/implement-ticket/command-resolver.service.js', () => ({
-  CommandResolverService: vi.fn().mockImplementation(function(this: any) {
+  CommandResolverService: vi.fn().mockImplementation(function (this: any) {
     return {
       getTestCommand: vi.fn().mockReturnValue(['npm', 'test']),
       executeWithFallback: vi.fn().mockResolvedValue({
-        stdout: 'PASS test/example.test.ts\nTest Suites: 1 passed, 1 total\nTests: 10 passed, 10 total',
+        stdout:
+          'PASS test/example.test.ts\nTest Suites: 1 passed, 1 total\nTests: 10 passed, 10 total',
         stderr: '',
         command: 'npm test',
       }),
@@ -32,9 +33,11 @@ describe('TestOrchestratorService', () => {
     vi.clearAllMocks();
 
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-      test_commands: { unit: ['npm', 'test'] },
-    }));
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({
+        test_commands: { unit: ['npm', 'test'] },
+      }),
+    );
     vi.mocked(child_process.execSync).mockReturnValue('Tests passed' as any);
 
     service = new TestOrchestratorService('/test/project', {
@@ -57,7 +60,9 @@ describe('TestOrchestratorService', () => {
     it('should handle test failures gracefully', async () => {
       // Override the mock to throw an error
       const mockCommandResolver = (service as any).commandResolver;
-      mockCommandResolver.executeWithFallback = vi.fn().mockRejectedValue(new Error('Tests failed'));
+      mockCommandResolver.executeWithFallback = vi
+        .fn()
+        .mockRejectedValue(new Error('Tests failed'));
 
       await expect(service.runAllTests(false, 80)).rejects.toThrow();
     });
@@ -143,7 +148,8 @@ describe('TestOrchestratorService', () => {
     });
 
     it('should parse Jest JSON output', () => {
-      const output = '{"numTotalTests":20,"numPassedTests":18,"numFailedTests":2,"numPendingTests":0,"success":false}';
+      const output =
+        '{"numTotalTests":20,"numPassedTests":18,"numFailedTests":2,"numPendingTests":0,"success":false}';
       const result = (service as any).parseTestOutput(output, 'unit');
       expect(result.totalTests).toBe(20);
       expect(result.passedTests).toBe(18);
@@ -169,7 +175,8 @@ describe('TestOrchestratorService', () => {
 
   describe('parseJestJson', () => {
     it('should parse valid Jest JSON', () => {
-      const json = '{"numTotalTests":10,"numPassedTests":10,"numFailedTests":0,"numPendingTests":2,"success":true}';
+      const json =
+        '{"numTotalTests":10,"numPassedTests":10,"numFailedTests":0,"numPendingTests":2,"success":true}';
       const result = (service as any).parseJestJson(json);
       expect(result.totalTests).toBe(10);
       expect(result.passedTests).toBe(10);
@@ -196,14 +203,16 @@ describe('TestOrchestratorService', () => {
   describe('collectCoverage', () => {
     it('should collect coverage from coverage-summary.json', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-        total: {
-          lines: { total: 100, covered: 85, pct: 85 },
-          statements: { total: 120, covered: 100, pct: 83.33 },
-          functions: { total: 30, covered: 28, pct: 93.33 },
-          branches: { total: 50, covered: 40, pct: 80 }
-        }
-      }));
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({
+          total: {
+            lines: { total: 100, covered: 85, pct: 85 },
+            statements: { total: 120, covered: 100, pct: 83.33 },
+            functions: { total: 30, covered: 28, pct: 93.33 },
+            branches: { total: 50, covered: 40, pct: 80 },
+          },
+        }),
+      );
 
       const result = (service as any).collectCoverage();
       expect(result).toBeDefined();
@@ -228,9 +237,11 @@ describe('TestOrchestratorService', () => {
 
     it('should handle missing total in coverage data', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-        someOtherData: {}
-      }));
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({
+          someOtherData: {},
+        }),
+      );
 
       const result = (service as any).collectCoverage();
       expect(result).toBeUndefined();
@@ -321,18 +332,20 @@ describe('TestOrchestratorService', () => {
       mockCommandResolver.executeWithFallback = vi.fn().mockResolvedValue({
         stdout: 'Tests: 10 passed, 10 total',
         stderr: '',
-        command: 'npm test'
+        command: 'npm test',
       });
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-        total: {
-          lines: { total: 100, covered: 50, pct: 50 },
-          statements: { total: 100, covered: 50, pct: 50 },
-          functions: { total: 100, covered: 50, pct: 50 },
-          branches: { total: 100, covered: 50, pct: 50 }
-        }
-      }));
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({
+          total: {
+            lines: { total: 100, covered: 50, pct: 50 },
+            statements: { total: 100, covered: 50, pct: 50 },
+            functions: { total: 100, covered: 50, pct: 50 },
+            branches: { total: 100, covered: 50, pct: 50 },
+          },
+        }),
+      );
 
       await expect(service.runAllTests(true, 80)).rejects.toThrow('Coverage below threshold');
     });
@@ -350,12 +363,16 @@ describe('TestOrchestratorService', () => {
       const mockCommandResolver = (service as any).commandResolver;
       mockCommandResolver.getTestCommand = vi.fn().mockReturnValue([]);
 
-      await expect(service.runIntegrationTests()).rejects.toThrow('No integration test command configured');
+      await expect(service.runIntegrationTests()).rejects.toThrow(
+        'No integration test command configured',
+      );
     });
 
     it('should handle unit test execution failure in runAllTests', async () => {
       const mockCommandResolver = (service as any).commandResolver;
-      mockCommandResolver.executeWithFallback = vi.fn().mockRejectedValue(new Error('Command execution failed'));
+      mockCommandResolver.executeWithFallback = vi
+        .fn()
+        .mockRejectedValue(new Error('Command execution failed'));
 
       await expect(service.runAllTests(false, 80)).rejects.toThrow('Unit tests failed');
     });

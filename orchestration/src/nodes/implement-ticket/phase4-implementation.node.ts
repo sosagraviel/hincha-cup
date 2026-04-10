@@ -3,7 +3,10 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { AgentFactory } from '../../utils/shared/agent-factory/index.js';
-import { buildImplementerPrompt, getProjectAgentPath } from '../../services/implement-ticket/shared/index.js';
+import {
+  buildImplementerPrompt,
+  getProjectAgentPath,
+} from '../../services/implement-ticket/shared/index.js';
 
 /**
  * Phase 4: Implementation Node
@@ -25,7 +28,7 @@ import { buildImplementerPrompt, getProjectAgentPath } from '../../services/impl
  * @returns Updated state with phase4 completion flag
  */
 export async function phase4ImplementationNode(
-  state: ImplementTicketState
+  state: ImplementTicketState,
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
@@ -42,7 +45,7 @@ export async function phase4ImplementationNode(
     return {
       current_phase: 'phase5_testing',
       phase4_complete: true,
-      phase4_implementation: completionData.implementation_data
+      phase4_implementation: completionData.implementation_data,
     };
   }
 
@@ -52,9 +55,7 @@ export async function phase4ImplementationNode(
     const phase3CompletionPath = join(phase3Dir, 'environment-complete.json');
 
     if (!existsSync(phase3CompletionPath)) {
-      throw new Error(
-        'Phase 3 not complete. Run Phase 3 first or use --start-phase 3'
-      );
+      throw new Error('Phase 3 not complete. Run Phase 3 first or use --start-phase 3');
     }
     console.log('[Phase 4: Implementation] ✓ Phase 3 verified');
 
@@ -66,7 +67,9 @@ export async function phase4ImplementationNode(
     }
 
     const implementationPlan = readFileSync(implementationPlanPath, 'utf-8');
-    console.log(`[Phase 4: Implementation] ✓ Plan loaded (${implementationPlan.split('\n').length} lines)`);
+    console.log(
+      `[Phase 4: Implementation] ✓ Plan loaded (${implementationPlan.split('\n').length} lines)`,
+    );
 
     const phase1Dir = join(tempDir, 'phase1');
     const fullContextPath = join(phase1Dir, 'full-context.md');
@@ -121,11 +124,10 @@ export async function phase4ImplementationNode(
       implementerOutput = result.output;
 
       console.log('[Phase 4: Implementation] ✓ Implementer agent completed');
-
     } catch (error: any) {
       throw new Error(
         `Implementer agent invocation failed: ${error.message}\n` +
-        `Make sure initialize-project has generated the implementer agent.`
+          `Make sure initialize-project has generated the implementer agent.`,
       );
     }
 
@@ -136,13 +138,12 @@ export async function phase4ImplementationNode(
     try {
       const gitDiff = execSync('git diff --name-only HEAD', {
         cwd: projectPath,
-        encoding: 'utf-8'
+        encoding: 'utf-8',
       }).trim();
 
       modifiedFiles = gitDiff.split('\n').filter(Boolean);
 
       console.log(`[Phase 4: Implementation] ✓ Modified ${modifiedFiles.length} files`);
-
     } catch (error: any) {
       console.log(`[Phase 4: Implementation] ⚠ Could not track files: ${error.message}`);
     }
@@ -151,30 +152,31 @@ export async function phase4ImplementationNode(
     let fileStatistics: any = {
       filesChanged: modifiedFiles.length,
       linesAdded: 0,
-      linesRemoved: 0
+      linesRemoved: 0,
     };
 
     try {
       const gitStats = execSync('git diff --stat HEAD', {
         cwd: projectPath,
-        encoding: 'utf-8'
+        encoding: 'utf-8',
       });
 
-      const match = gitStats.match(/(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/);
+      const match = gitStats.match(
+        /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/,
+      );
 
       if (match) {
         fileStatistics = {
           filesChanged: parseInt(match[1], 10),
           linesAdded: match[2] ? parseInt(match[2], 10) : 0,
-          linesRemoved: match[3] ? parseInt(match[3], 10) : 0
+          linesRemoved: match[3] ? parseInt(match[3], 10) : 0,
         };
       }
 
       console.log(
         `[Phase 4: Implementation] Statistics: ${fileStatistics.filesChanged} files, ` +
-        `+${fileStatistics.linesAdded}/-${fileStatistics.linesRemoved} lines`
+          `+${fileStatistics.linesAdded}/-${fileStatistics.linesRemoved} lines`,
       );
-
     } catch (error: any) {
       console.log(`[Phase 4: Implementation] ⚠ Could not get statistics: ${error.message}`);
     }
@@ -183,20 +185,11 @@ export async function phase4ImplementationNode(
     console.log('[Phase 4: Implementation] Writing outputs to disk...');
     mkdirSync(phase4Dir, { recursive: true });
 
-    writeFileSync(
-      join(phase4Dir, 'implementation-log.md'),
-      implementerOutput
-    );
+    writeFileSync(join(phase4Dir, 'implementation-log.md'), implementerOutput);
 
-    writeFileSync(
-      join(phase4Dir, 'files-modified.txt'),
-      modifiedFiles.join('\n')
-    );
+    writeFileSync(join(phase4Dir, 'files-modified.txt'), modifiedFiles.join('\n'));
 
-    writeFileSync(
-      join(phase4Dir, 'file-statistics.json'),
-      JSON.stringify(fileStatistics, null, 2)
-    );
+    writeFileSync(join(phase4Dir, 'file-statistics.json'), JSON.stringify(fileStatistics, null, 2));
 
     const implementationData = {
       implementation_log: implementerOutput,
@@ -204,22 +197,26 @@ export async function phase4ImplementationNode(
       file_statistics: fileStatistics,
       primary_language: primaryLanguage,
       agent_used: `implementer-${primaryLanguage}`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     writeFileSync(
       join(phase4Dir, 'implementation-data.json'),
-      JSON.stringify(implementationData, null, 2)
+      JSON.stringify(implementationData, null, 2),
     );
 
     // Write completion marker (last file to write - indicates phase complete)
     writeFileSync(
       completionMarkerPath,
-      JSON.stringify({
-        completed_at: new Date().toISOString(),
-        ticket_id: ticketId,
-        implementation_data: implementationData
-      }, null, 2)
+      JSON.stringify(
+        {
+          completed_at: new Date().toISOString(),
+          ticket_id: ticketId,
+          implementation_data: implementationData,
+        },
+        null,
+        2,
+      ),
     );
 
     console.log('[Phase 4: Implementation] ✓ Outputs written to disk');
@@ -229,16 +226,15 @@ export async function phase4ImplementationNode(
     return {
       current_phase: 'phase5_testing',
       phase4_complete: true,
-      phase4_implementation: implementationData
+      phase4_implementation: implementationData,
     };
-
   } catch (error) {
     const errorMessage = `Implementation failed: ${(error as Error).message}`;
     console.error(`[Phase 4: Implementation] ✗ ${errorMessage}`);
 
     return {
       errors: [errorMessage],
-      current_phase: 'failed'
+      current_phase: 'failed',
     };
   }
 }

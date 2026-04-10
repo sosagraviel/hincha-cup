@@ -5,8 +5,8 @@
  * match file counts and vice versa.
  */
 
-import type { FileCountResult } from "../types.js";
-import { MIN_ADVISORY_FILE_COUNT, MIN_REQUIRED_FILE_COUNT } from "../constants.js";
+import type { FileCountResult } from '../types.js';
+import { MIN_ADVISORY_FILE_COUNT, MIN_REQUIRED_FILE_COUNT } from '../constants.js';
 
 /**
  * Validate stack profile completeness
@@ -24,7 +24,7 @@ import { MIN_ADVISORY_FILE_COUNT, MIN_REQUIRED_FILE_COUNT } from "../constants.j
 export function validateStackProfile(
   finalLanguages: string[],
   fileCountResult: FileCountResult | undefined,
-  logger: any
+  logger: any,
 ): void {
   // Check 1: Validate file counts against detected languages
   if (fileCountResult) {
@@ -65,9 +65,7 @@ export function validateStackProfile(
     );
 
     if (!fileCount || fileCount.count === 0) {
-      logger.warn(
-        ` Language ${lang} in profile but no files found - may be configuration-only`,
-      );
+      logger.warn(` Language ${lang} in profile but no files found - may be configuration-only`);
     }
   }
 }

@@ -178,8 +178,8 @@ export class FigmaExportService {
       }
 
       // Generate human-readable design context
-      const allConstraints = constraints.map(c =>
-        JSON.parse(readFileSync(c.constraintsPath, 'utf-8')) as DesignConstraints,
+      const allConstraints = constraints.map(
+        (c) => JSON.parse(readFileSync(c.constraintsPath, 'utf-8')) as DesignConstraints,
       );
       const contextMd = this.generateDesignContext(allConstraints);
       const designContextPath = join(figmaDir, 'design-context.md');
@@ -217,9 +217,7 @@ export class FigmaExportService {
     try {
       const config = JSON.parse(readFileSync(mcpConfigPath, 'utf-8'));
       const servers = config.mcpServers ?? config.servers ?? {};
-      return Object.keys(servers).some(
-        name => name.toLowerCase().includes('figma'),
-      );
+      return Object.keys(servers).some((name) => name.toLowerCase().includes('figma'));
     } catch {
       return false;
     }
@@ -387,8 +385,12 @@ export class FigmaExportService {
       lines.push(`# Design Context: ${c.label}\n`);
 
       lines.push('## Layout');
-      lines.push(`- Direction: ${c.layout.mode === 'HORIZONTAL' ? 'Horizontal (row)' : c.layout.mode === 'VERTICAL' ? 'Vertical (column)' : c.layout.mode}`);
-      lines.push(`- Padding: ${c.layout.padding.top}px ${c.layout.padding.right}px ${c.layout.padding.bottom}px ${c.layout.padding.left}px`);
+      lines.push(
+        `- Direction: ${c.layout.mode === 'HORIZONTAL' ? 'Horizontal (row)' : c.layout.mode === 'VERTICAL' ? 'Vertical (column)' : c.layout.mode}`,
+      );
+      lines.push(
+        `- Padding: ${c.layout.padding.top}px ${c.layout.padding.right}px ${c.layout.padding.bottom}px ${c.layout.padding.left}px`,
+      );
       lines.push(`- Gap between items: ${c.layout.gap}px\n`);
 
       lines.push('## Dimensions');
@@ -404,7 +406,10 @@ export class FigmaExportService {
         lines.push('| Role | Value | CSS Variable |');
         lines.push('|------|-------|-------------|');
         for (const color of c.colors) {
-          const hex = `#${color.rgba.slice(0, 3).map(v => v.toString(16).padStart(2, '0')).join('')}`;
+          const hex = `#${color.rgba
+            .slice(0, 3)
+            .map((v) => v.toString(16).padStart(2, '0'))
+            .join('')}`;
           lines.push(`| ${color.role} | ${hex} | ${color.cssVar ?? '—'} |`);
         }
         lines.push('');
@@ -415,7 +420,9 @@ export class FigmaExportService {
         lines.push('| Role | Font | Size | Weight | Line Height |');
         lines.push('|------|------|------|--------|-------------|');
         for (const t of c.typography) {
-          lines.push(`| ${t.role} | ${t.fontFamily} | ${t.fontSize}px | ${t.fontWeight} | ${t.lineHeight}px |`);
+          lines.push(
+            `| ${t.role} | ${t.fontFamily} | ${t.fontSize}px | ${t.fontWeight} | ${t.lineHeight}px |`,
+          );
         }
         lines.push('');
       }

@@ -119,7 +119,7 @@ describe('synthesisNode', () => {
       JSON.stringify({
         consolidated_findings: { test: 'data' },
         timestamp: '2024-01-01T00:00:00Z',
-      })
+      }),
     );
 
     // Create valid synthesis output that passes all validator checks
@@ -140,16 +140,14 @@ describe('synthesisNode', () => {
         const result = validator(output);
         if (!result.valid) throw new Error('Validation failed');
         return result.data; // Return validated data, not raw output
-      }
+      },
     );
   });
 
   it('should throw error if phase2 consolidation file not found', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false);
 
-    await expect(synthesisNode(mockState)).rejects.toThrow(
-      'Phase 2 consolidation file not found'
-    );
+    await expect(synthesisNode(mockState)).rejects.toThrow('Phase 2 consolidation file not found');
   });
 
   it('should read phase2 consolidation from disk', async () => {
@@ -157,7 +155,7 @@ describe('synthesisNode', () => {
 
     expect(fs.readFileSync).toHaveBeenCalledWith(
       expect.stringContaining('phase2-consolidation.json'),
-      'utf-8'
+      'utf-8',
     );
   });
 
@@ -207,7 +205,7 @@ describe('synthesisNode', () => {
         expect(result.valid).toBe(false);
         expect(result.errors[0]).toContain('too short or empty');
         throw new Error('Synthesis output too short');
-      }
+      },
     );
 
     const result = await synthesisNode(mockState);
@@ -230,7 +228,7 @@ describe('synthesisNode', () => {
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.stringContaining('synthesis-raw.md'),
-      expect.any(String)
+      expect.any(String),
     );
   });
 
@@ -256,14 +254,12 @@ describe('synthesisNode', () => {
       expect.any(Function),
       expect.any(Function),
       expect.objectContaining({ maxAttempts: 10 }),
-      expect.stringContaining('synthesis-raw.md') // outputFilePath parameter
+      expect.stringContaining('synthesis-raw.md'), // outputFilePath parameter
     );
   });
 
   it('should handle agent errors gracefully', async () => {
-    vi.mocked(AgentFactory.create).mockRejectedValue(
-      new Error('Agent creation failed')
-    );
+    vi.mocked(AgentFactory.create).mockRejectedValue(new Error('Agent creation failed'));
 
     const result = await synthesisNode(mockState);
 
@@ -295,7 +291,7 @@ describe('synthesisNode', () => {
         const result = validator(output);
         if (!result.valid) throw new Error('Validation failed');
         return result.data;
-      }
+      },
     );
     let result = await synthesisNode(mockState);
     expect(result.phase3_synthesis).toBeDefined();
@@ -312,7 +308,7 @@ describe('synthesisNode', () => {
         const result = validator(output);
         if (!result.valid) throw new Error('Validation failed');
         return result.data;
-      }
+      },
     );
     result = await synthesisNode(mockState);
     expect(result.phase3_synthesis).toBeDefined();
@@ -325,7 +321,7 @@ describe('synthesisNode', () => {
 
     expect(fs.readFileSync).toHaveBeenCalledWith(
       expect.stringContaining('.claude-temp/initialize-project/phase2-consolidation.json'),
-      'utf-8'
+      'utf-8',
     );
   });
 
@@ -334,7 +330,7 @@ describe('synthesisNode', () => {
 
     expect(fs.readFileSync).toHaveBeenCalledWith(
       expect.stringContaining('/test/temp/phase2-consolidation.json'),
-      'utf-8'
+      'utf-8',
     );
   });
 
@@ -358,7 +354,7 @@ describe('synthesisNode', () => {
     const result = await synthesisNode(mockState);
 
     expect(result.phase3_synthesis?.timestamp).toMatch(
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
     );
   });
 
@@ -371,7 +367,7 @@ describe('synthesisNode', () => {
         const result = validator(output);
         expect(result.valid).toBe(false);
         throw new Error('Empty output');
-      }
+      },
     );
 
     const result = await synthesisNode(mockState);
@@ -381,7 +377,7 @@ describe('synthesisNode', () => {
 
   it('should handle validation errors', async () => {
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockRejectedValue(
-      new Error('Validation failed after retries')
+      new Error('Validation failed after retries'),
     );
 
     const result = await synthesisNode(mockState);
@@ -395,10 +391,7 @@ describe('synthesisNode', () => {
 
     await synthesisNode(mockState);
 
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
-      '/test/temp/synthesis-raw.md',
-      testContent
-    );
+    expect(fs.writeFileSync).toHaveBeenCalledWith('/test/temp/synthesis-raw.md', testContent);
   });
 
   it('should handle string coercion for non-string results', async () => {
@@ -413,7 +406,7 @@ describe('synthesisNode', () => {
         // String coercion will produce short string, validation fails
         expect(result.valid).toBe(false);
         throw new Error('Validation failed');
-      }
+      },
     );
 
     const result = await synthesisNode(mockState);

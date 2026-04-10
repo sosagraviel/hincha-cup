@@ -56,12 +56,12 @@ describe('structureArchitectureAnalyzerNode', () => {
       }),
     };
     mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
-    vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
+    vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
         const { output } = await agentInvoke('');
         return JSON.parse(output);
-      }
+      },
     );
   });
 
@@ -93,7 +93,7 @@ describe('structureArchitectureAnalyzerNode', () => {
     await structureArchitectureAnalyzerNode(mockState);
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.stringContaining('01-structure-architecture.json'),
-      expect.any(String)
+      expect.any(String),
     );
   });
 
@@ -112,7 +112,9 @@ describe('structureArchitectureAnalyzerNode', () => {
   it('should invoke agent with correct input', async () => {
     await structureArchitectureAnalyzerNode(mockState);
     expect(mockAgent.invoke).toHaveBeenCalledWith({
-      inputPrompt: expect.stringContaining('Analyze the project structure and architecture at: /test/project'),
+      inputPrompt: expect.stringContaining(
+        'Analyze the project structure and architecture at: /test/project',
+      ),
     });
   });
 });

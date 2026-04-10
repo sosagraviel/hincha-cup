@@ -1,27 +1,24 @@
-import { readFileSync, writeFileSync } from "fs";
-import { createInterface } from "readline/promises";
-import { stdin as input, stdout as output } from "process";
-import { logger } from "../utils/logger.js";
-import chalk from "chalk";
+import { readFileSync, writeFileSync } from 'fs';
+import { createInterface } from 'readline/promises';
+import { stdin as input, stdout as output } from 'process';
+import { logger } from '../utils/logger.js';
+import chalk from 'chalk';
 
 /**
  * Gap from Phase 2 consolidation
  */
 export interface ConsolidatedGap {
-  type:
-    | "needs_verification"
-    | "sparse_findings"
-    | "missing_language_coverage";
+  type: 'needs_verification' | 'sparse_findings' | 'missing_language_coverage';
   agent: string;
   item: string;
   question: string;
   reason?: string;
-  priority: "high" | "medium" | "low";
+  priority: 'high' | 'medium' | 'low';
   consolidated_from: string[];
   original_count: number;
   user_response?: string;
   response_timestamp?: string;
-  status?: "answered" | "skipped" | "pending";
+  status?: 'answered' | 'skipped' | 'pending';
 }
 
 /**
@@ -39,7 +36,7 @@ export interface GapQuestionsResult {
  * Collects user responses to enrich project analysis
  */
 export class GapQuestionsService {
-  private serviceLogger = logger.child("gap-questions");
+  private serviceLogger = logger.child('gap-questions');
 
   /**
    * Ask gap questions interactively and update consolidation file
@@ -54,29 +51,22 @@ export class GapQuestionsService {
   ): Promise<GapQuestionsResult> {
     try {
       // Read consolidation file
-      const consolidationData = JSON.parse(
-        readFileSync(consolidationPath, "utf-8"),
-      );
+      const consolidationData = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
 
       const gaps: ConsolidatedGap[] = consolidationData.gaps || [];
 
       if (gaps.length === 0) {
-        this.serviceLogger.info("No gaps to address");
+        this.serviceLogger.info('No gaps to address');
         return { success: true, answered_count: 0, skipped_count: 0 };
       }
 
       if (skipQuestions) {
-        this.serviceLogger.info(
-          `Skipping ${gaps.length} gap questions (automated mode)`,
-        );
+        this.serviceLogger.info(`Skipping ${gaps.length} gap questions (automated mode)`);
         // Mark all as skipped
         for (const gap of gaps) {
-          gap.status = "skipped";
+          gap.status = 'skipped';
         }
-        writeFileSync(
-          consolidationPath,
-          JSON.stringify(consolidationData, null, 2),
-        );
+        writeFileSync(consolidationPath, JSON.stringify(consolidationData, null, 2));
         return {
           success: true,
           answered_count: 0,
@@ -89,20 +79,17 @@ export class GapQuestionsService {
 
       // Check if stdin is available for reading
       if (input.readableEnded) {
-        this.serviceLogger.error("stdin has been closed/ended - cannot read user input");
+        this.serviceLogger.error('stdin has been closed/ended - cannot read user input');
         // Mark all as skipped since we can't read input
         for (const gap of gaps) {
-          gap.status = "skipped";
+          gap.status = 'skipped';
         }
-        writeFileSync(
-          consolidationPath,
-          JSON.stringify(consolidationData, null, 2),
-        );
+        writeFileSync(consolidationPath, JSON.stringify(consolidationData, null, 2));
         return {
           success: true,
           answered_count: 0,
           skipped_count: gaps.length,
-          error: "stdin not available for interactive input",
+          error: 'stdin not available for interactive input',
         };
       }
 
@@ -111,20 +98,12 @@ export class GapQuestionsService {
       // Calling resume() is safe even if stdin is already flowing
       input.resume();
 
-      console.log("\n");
-      console.log(chalk.cyan("━".repeat(70)));
-      console.log(
-        chalk.cyan.bold(
-          "  GAP QUESTIONS - Help us understand your project better",
-        ),
-      );
-      console.log(chalk.cyan("━".repeat(70)));
-      console.log(
-        "\nWe found some areas where more information would be helpful.",
-      );
-      console.log(
-        "Please answer the following questions (or press Enter to skip):\n",
-      );
+      console.log('\n');
+      console.log(chalk.cyan('━'.repeat(70)));
+      console.log(chalk.cyan.bold('  GAP QUESTIONS - Help us understand your project better'));
+      console.log(chalk.cyan('━'.repeat(70)));
+      console.log('\nWe found some areas where more information would be helpful.');
+      console.log('Please answer the following questions (or press Enter to skip):\n');
 
       const rl = createInterface({ input, output });
 
@@ -137,32 +116,28 @@ export class GapQuestionsService {
 
           // Display question
           console.log(chalk.yellow(`\n[Question ${i + 1}/${gaps.length}]`));
-          console.log(
-            chalk.gray(`Priority: ${gap.priority} | From: ${gap.agent}`),
-          );
+          console.log(chalk.gray(`Priority: ${gap.priority} | From: ${gap.agent}`));
           console.log(chalk.white.bold(`\n${gap.question}`));
 
           if (gap.reason) {
             console.log(chalk.gray(`Context: ${gap.reason}`));
           }
 
-          console.log(
-            chalk.gray("\n(Press Enter to skip, or type your answer)\n"),
-          );
+          console.log(chalk.gray('\n(Press Enter to skip, or type your answer)\n'));
 
           // Get user response
-          const response = await rl.question(chalk.green("> "));
+          const response = await rl.question(chalk.green('> '));
 
-          if (response.trim() === "") {
-            gap.status = "skipped";
+          if (response.trim() === '') {
+            gap.status = 'skipped';
             skippedCount++;
-            console.log(chalk.gray("  ⊘ Skipped"));
+            console.log(chalk.gray('  ⊘ Skipped'));
           } else {
             gap.user_response = response.trim();
             gap.response_timestamp = new Date().toISOString();
-            gap.status = "answered";
+            gap.status = 'answered';
             answeredCount++;
-            console.log(chalk.green("  ✓ Answer recorded"));
+            console.log(chalk.green('  ✓ Answer recorded'));
           }
         }
 
@@ -173,20 +148,17 @@ export class GapQuestionsService {
         consolidationData.gap_questions_completed = true;
         consolidationData.gap_questions_timestamp = new Date().toISOString();
 
-        writeFileSync(
-          consolidationPath,
-          JSON.stringify(consolidationData, null, 2),
-        );
+        writeFileSync(consolidationPath, JSON.stringify(consolidationData, null, 2));
 
-        console.log("\n");
-        console.log(chalk.cyan("━".repeat(70)));
+        console.log('\n');
+        console.log(chalk.cyan('━'.repeat(70)));
         console.log(
           chalk.green(
             `✓ Gap questions complete: ${answeredCount} answered, ${skippedCount} skipped`,
           ),
         );
-        console.log(chalk.cyan("━".repeat(70)));
-        console.log("\n");
+        console.log(chalk.cyan('━'.repeat(70)));
+        console.log('\n');
 
         this.serviceLogger.success(
           `Gap questions completed: ${answeredCount} answered, ${skippedCount} skipped`,
@@ -204,25 +176,17 @@ export class GapQuestionsService {
         // Save partial progress
         consolidationData.gaps = gaps;
         consolidationData.gap_questions_partial = true;
-        writeFileSync(
-          consolidationPath,
-          JSON.stringify(consolidationData, null, 2),
-        );
+        writeFileSync(consolidationPath, JSON.stringify(consolidationData, null, 2));
 
         if (
           error instanceof Error &&
-          (error.message.includes("aborted") ||
-            error.message.includes("canceled"))
+          (error.message.includes('aborted') || error.message.includes('canceled'))
         ) {
-          console.log("\n");
-          console.log(chalk.yellow("⚠ Gap questions interrupted"));
-          console.log(
-            chalk.gray(`Partial progress saved: ${answeredCount} answered`),
-          );
+          console.log('\n');
+          console.log(chalk.yellow('⚠ Gap questions interrupted'));
+          console.log(chalk.gray(`Partial progress saved: ${answeredCount} answered`));
 
-          this.serviceLogger.warn(
-            `Gap questions interrupted after ${answeredCount} answers`,
-          );
+          this.serviceLogger.warn(`Gap questions interrupted after ${answeredCount} answers`);
 
           return {
             success: true,
@@ -256,13 +220,11 @@ export class GapQuestionsService {
     skipped: number;
   } {
     try {
-      const consolidationData = JSON.parse(
-        readFileSync(consolidationPath, "utf-8"),
-      );
+      const consolidationData = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
 
       const gaps: ConsolidatedGap[] = consolidationData.gaps || [];
-      const answered = gaps.filter((g) => g.status === "answered").length;
-      const skipped = gaps.filter((g) => g.status === "skipped").length;
+      const answered = gaps.filter((g) => g.status === 'answered').length;
+      const skipped = gaps.filter((g) => g.status === 'skipped').length;
 
       return {
         completed: consolidationData.gap_questions_completed === true,

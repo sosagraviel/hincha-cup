@@ -4,7 +4,7 @@
  * Centralized type definitions for Phase 5 components
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // ============================================================================
 // AGENT GENERATOR TYPES
@@ -16,7 +16,7 @@ import { z } from "zod";
 export interface AgentMetadata {
   name: string;
   filename: string;
-  model: "opus" | "sonnet" | "haiku";
+  model: 'opus' | 'sonnet' | 'haiku';
   description: string;
 }
 
@@ -49,7 +49,7 @@ export const SkillConfigSchema = z.object({
   path: z.string(),
   description: z.string(),
   triggers: z.array(z.string()).optional(),
-  trigger_mode: z.enum(["always", "triggered", "generated"]).default("triggered"),
+  trigger_mode: z.enum(['always', 'triggered', 'generated']).default('triggered'),
   compatible_languages: z.array(z.string()).optional(),
   is_linkable_to_agents: z.boolean().optional(),
 });
@@ -70,7 +70,7 @@ export interface ResolvedSkill {
   reason: string;
   description: string;
   compatible_languages?: string[];
-  trigger_mode?: "always" | "triggered" | "generated";
+  trigger_mode?: 'always' | 'triggered' | 'generated';
   is_linkable_to_agents?: boolean;
 }
 

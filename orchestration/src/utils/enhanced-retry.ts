@@ -1,8 +1,8 @@
-import type { RetryState } from "../state/schemas/initialize-project.schema.js";
-import type { ValidationResult } from "./validator.js";
-import { logger } from "./logger.js";
-import { writeFileSync } from "fs";
-import { dirname, basename, extname } from "path";
+import type { RetryState } from '../state/schemas/initialize-project.schema.js';
+import type { ValidationResult } from './validator.js';
+import { logger } from './logger.js';
+import { writeFileSync } from 'fs';
+import { dirname, basename, extname } from 'path';
 import {
   RetryConfig,
   DEFAULT_RETRY_CONFIG,
@@ -11,7 +11,7 @@ import {
   updateRetryState,
   completeRetryState,
   shouldRetry,
-} from "./retry.js";
+} from './retry.js';
 
 /**
  * Detect recurring error patterns from history
@@ -23,45 +23,30 @@ function detectErrorPatterns(errorHistory: string[]): string[] {
   const errorTexts = errorHistory.map((e) => e.toLowerCase());
 
   // Pattern 1: Repeated JSON parsing errors
-  if (errorTexts.filter((e) => e.includes("json")).length >= 2) {
-    patterns.push(
-      "RECURRING: JSON format issues detected across multiple attempts",
-    );
-    patterns.push(
-      "→ Double-check your JSON syntax, especially closing braces and commas",
-    );
+  if (errorTexts.filter((e) => e.includes('json')).length >= 2) {
+    patterns.push('RECURRING: JSON format issues detected across multiple attempts');
+    patterns.push('→ Double-check your JSON syntax, especially closing braces and commas');
   }
 
   // Pattern 2: Repeated missing field errors
   const missingFieldErrors = errorTexts.filter(
-    (e) => e.includes("required") || e.includes("missing"),
+    (e) => e.includes('required') || e.includes('missing'),
   );
   if (missingFieldErrors.length >= 2) {
-    patterns.push(
-      "RECURRING: Missing required fields across multiple attempts",
-    );
-    patterns.push(
-      "→ Verify ALL required fields are present: agent_name, timestamp, findings",
-    );
+    patterns.push('RECURRING: Missing required fields across multiple attempts');
+    patterns.push('→ Verify ALL required fields are present: agent_name, timestamp, findings');
   }
 
   // Pattern 3: Repeated schema validation errors
-  if (errorTexts.filter((e) => e.includes("schema")).length >= 2) {
-    patterns.push("RECURRING: Schema mismatch detected repeatedly");
-    patterns.push(
-      "→ Review the exact schema requirements and match them precisely",
-    );
+  if (errorTexts.filter((e) => e.includes('schema')).length >= 2) {
+    patterns.push('RECURRING: Schema mismatch detected repeatedly');
+    patterns.push('→ Review the exact schema requirements and match them precisely');
   }
 
   // Pattern 4: Markdown wrapping issues
-  if (
-    errorTexts.filter((e) => e.includes("markdown") || e.includes("```"))
-      .length >= 1
-  ) {
-    patterns.push("ISSUE: Markdown code blocks detected");
-    patterns.push(
-      "→ Output ONLY raw JSON, no markdown formatting or code blocks",
-    );
+  if (errorTexts.filter((e) => e.includes('markdown') || e.includes('```')).length >= 1) {
+    patterns.push('ISSUE: Markdown code blocks detected');
+    patterns.push('→ Output ONLY raw JSON, no markdown formatting or code blocks');
   }
 
   return patterns;
@@ -91,15 +76,12 @@ function extractMissingFields(errors: string[]): string[] {
 /**
  * Generate contextual guidance based on specific validation errors
  */
-function generateContextualGuidance(
-  validation: ValidationResult,
-  attemptNumber: number,
-): string[] {
+function generateContextualGuidance(validation: ValidationResult, attemptNumber: number): string[] {
   const guidance: string[] = [];
 
   // Early attempts: General guidance
   if (attemptNumber === 1) {
-    guidance.push("First attempt failed. Review the error details carefully.");
+    guidance.push('First attempt failed. Review the error details carefully.');
   }
 
   // Later attempts: More specific, escalating urgency
@@ -110,65 +92,47 @@ function generateContextualGuidance(
   }
 
   if (attemptNumber >= 3) {
-    guidance.push(
-      "⚠️  Multiple retries required. Pay close attention to error patterns.",
-    );
+    guidance.push('⚠️  Multiple retries required. Pay close attention to error patterns.');
   }
 
   // Specific error-based guidance
-  if (validation.errors.some((e) => e.toLowerCase().includes("json"))) {
-    guidance.push("JSON ERROR: Ensure output is valid, parseable JSON");
-    guidance.push("  - Use double quotes for strings, not single quotes");
-    guidance.push("  - No trailing commas in objects/arrays");
-    guidance.push("  - Properly escape special characters");
+  if (validation.errors.some((e) => e.toLowerCase().includes('json'))) {
+    guidance.push('JSON ERROR: Ensure output is valid, parseable JSON');
+    guidance.push('  - Use double quotes for strings, not single quotes');
+    guidance.push('  - No trailing commas in objects/arrays');
+    guidance.push('  - Properly escape special characters');
   }
 
-  if (validation.errors.some((e) => e.toLowerCase().includes("required"))) {
+  if (validation.errors.some((e) => e.toLowerCase().includes('required'))) {
     const missingFields = extractMissingFields(validation.errors);
     if (missingFields.length > 0) {
-      guidance.push(`MISSING FIELDS: ${missingFields.join(", ")}`);
-      guidance.push(
-        "  - These fields are REQUIRED and must be present in your JSON output",
-      );
+      guidance.push(`MISSING FIELDS: ${missingFields.join(', ')}`);
+      guidance.push('  - These fields are REQUIRED and must be present in your JSON output');
     }
   }
 
-  if (validation.errors.some((e) => e.includes("agent_name"))) {
-    guidance.push(
-      "AGENT NAME ERROR: Ensure agent_name field matches your analyzer name exactly",
-    );
+  if (validation.errors.some((e) => e.includes('agent_name'))) {
+    guidance.push('AGENT NAME ERROR: Ensure agent_name field matches your analyzer name exactly');
   }
 
-  if (validation.errors.some((e) => e.includes("timestamp"))) {
-    guidance.push(
-      'TIMESTAMP ERROR: Use ISO 8601 format (e.g., "2024-01-15T10:30:00Z")',
-    );
+  if (validation.errors.some((e) => e.includes('timestamp'))) {
+    guidance.push('TIMESTAMP ERROR: Use ISO 8601 format (e.g., "2024-01-15T10:30:00Z")');
   }
 
   // Check for array size limit violations (e.g., needs_verification too large)
-  const tooBigError = validation.errors.find((e) =>
-    e.toLowerCase().includes("too big") && e.includes("needs_verification"),
+  const tooBigError = validation.errors.find(
+    (e) => e.toLowerCase().includes('too big') && e.includes('needs_verification'),
   );
   if (tooBigError) {
     // Extract the limit from error message like "<=5 items"
     const limitMatch = tooBigError.match(/<=(\d+)/);
-    const limit = limitMatch ? limitMatch[1] : "5";
+    const limit = limitMatch ? limitMatch[1] : '5';
 
-    guidance.push(
-      `❌ ARRAY SIZE LIMIT EXCEEDED: needs_verification has TOO MANY items`,
-    );
-    guidance.push(
-      `  - Maximum allowed: ${limit} items`,
-    );
-    guidance.push(
-      `  - You must REDUCE the array to ${limit} items or fewer`,
-    );
-    guidance.push(
-      `  - Keep ONLY the most critical questions that CANNOT be determined from code`,
-    );
-    guidance.push(
-      `  - Remove less important or redundant questions`,
-    );
+    guidance.push(`❌ ARRAY SIZE LIMIT EXCEEDED: needs_verification has TOO MANY items`);
+    guidance.push(`  - Maximum allowed: ${limit} items`);
+    guidance.push(`  - You must REDUCE the array to ${limit} items or fewer`);
+    guidance.push(`  - Keep ONLY the most critical questions that CANNOT be determined from code`);
+    guidance.push(`  - Remove less important or redundant questions`);
   }
 
   return guidance;
@@ -209,12 +173,9 @@ function saveFailedAttempt(
 /**
  * Build enhanced, progressive error feedback
  */
-export function buildEnhancedFeedback(
-  state: RetryState,
-  validation: ValidationResult,
-): string {
+export function buildEnhancedFeedback(state: RetryState, validation: ValidationResult): string {
   if (!state.last_error) {
-    return "";
+    return '';
   }
 
   const attemptNumber = state.attempt;
@@ -229,87 +190,79 @@ export function buildEnhancedFeedback(
   // Extract schema hints
   const missingFields = extractMissingFields(validation.errors);
   const schemaHints =
-    missingFields.length > 0
-      ? [`Required fields you're missing: ${missingFields.join(", ")}`]
-      : [];
+    missingFields.length > 0 ? [`Required fields you're missing: ${missingFields.join(', ')}`] : [];
 
   const lines = [
-    "",
+    '',
     `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
     `⚠️  VALIDATION FAILED - ATTEMPT ${attemptNumber}/${state.max_attempts}`,
     `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    "",
+    '',
   ];
 
   // Show current error prominently
-  lines.push("=== CURRENT ERROR ===");
+  lines.push('=== CURRENT ERROR ===');
   lines.push(state.last_error);
-  lines.push("");
+  lines.push('');
 
   // Show validation errors if available
   if (validation && !validation.valid) {
-    lines.push("=== VALIDATION DETAILS ===");
+    lines.push('=== VALIDATION DETAILS ===');
     validation.errors.forEach((err) => lines.push(`  • ${err}`));
-    lines.push("");
+    lines.push('');
   }
 
   // Show detected patterns (if any)
   if (patterns.length > 0) {
-    lines.push("=== ERROR PATTERNS DETECTED ===");
+    lines.push('=== ERROR PATTERNS DETECTED ===');
     patterns.forEach((pattern) => lines.push(`  ${pattern}`));
-    lines.push("");
+    lines.push('');
   }
 
   // Show contextual guidance
   if (guidance.length > 0) {
-    lines.push("=== SPECIFIC GUIDANCE ===");
+    lines.push('=== SPECIFIC GUIDANCE ===');
     guidance.forEach((guide) => lines.push(`  ${guide}`));
-    lines.push("");
+    lines.push('');
   }
 
   // Show schema hints
   if (schemaHints.length > 0) {
-    lines.push("=== SCHEMA REQUIREMENTS ===");
+    lines.push('=== SCHEMA REQUIREMENTS ===');
     schemaHints.forEach((hint) => lines.push(`  • ${hint}`));
-    lines.push("");
+    lines.push('');
   }
 
   // Show previous attempt summary (if multiple retries)
   if (errorHistory.length > 1) {
-    lines.push("=== PREVIOUS ATTEMPT SUMMARY ===");
+    lines.push('=== PREVIOUS ATTEMPT SUMMARY ===');
     errorHistory.slice(0, -1).forEach((err, idx) => {
       const preview = err.substring(0, 80);
-      lines.push(
-        `  Attempt ${idx + 1}: ${preview}${err.length > 80 ? "..." : ""}`,
-      );
+      lines.push(`  Attempt ${idx + 1}: ${preview}${err.length > 80 ? '...' : ''}`);
     });
-    lines.push("");
+    lines.push('');
   }
 
   // Final instructions - escalating urgency
-  lines.push("=== CRITICAL INSTRUCTIONS ===");
+  lines.push('=== CRITICAL INSTRUCTIONS ===');
   if (attemptNumber >= 4) {
-    lines.push("⚠️⚠️⚠️ FINAL ATTEMPT APPROACHING ⚠️⚠️⚠️");
-    lines.push("This is your LAST chance. Carefully review ALL errors above.");
-    lines.push("");
+    lines.push('⚠️⚠️⚠️ FINAL ATTEMPT APPROACHING ⚠️⚠️⚠️');
+    lines.push('This is your LAST chance. Carefully review ALL errors above.');
+    lines.push('');
   }
 
-  lines.push("You MUST fix the following to proceed:");
-  lines.push(
-    "  1. ✓ Output valid, parseable JSON (no markdown, no code blocks)",
-  );
-  lines.push(
-    "  2. ✓ Include ALL required fields (check schema requirements above)",
-  );
-  lines.push("  3. ✓ Use correct data types for each field");
-  lines.push("  4. ✓ Match the agent_name to your analyzer name exactly");
-  lines.push("  5. ✓ Use ISO 8601 format for timestamps");
-  lines.push("");
+  lines.push('You MUST fix the following to proceed:');
+  lines.push('  1. ✓ Output valid, parseable JSON (no markdown, no code blocks)');
+  lines.push('  2. ✓ Include ALL required fields (check schema requirements above)');
+  lines.push('  3. ✓ Use correct data types for each field');
+  lines.push('  4. ✓ Match the agent_name to your analyzer name exactly');
+  lines.push('  5. ✓ Use ISO 8601 format for timestamps');
+  lines.push('');
   lines.push(`Remaining attempts: ${state.max_attempts - attemptNumber}`);
   lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  lines.push("");
+  lines.push('');
 
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 /**
@@ -347,7 +300,10 @@ export function buildEnhancedFeedback(
  * @returns Validated result or throws after max attempts
  */
 export async function retryWithEnhancedFeedback<T>(
-  agentInvoke: (feedbackPrompt: string, resumeSessionId?: string) => Promise<{ output: string; sessionId: string }>,
+  agentInvoke: (
+    feedbackPrompt: string,
+    resumeSessionId?: string,
+  ) => Promise<{ output: string; sessionId: string }>,
   validator: (output: string) => ValidationResult,
   config: RetryConfig = DEFAULT_RETRY_CONFIG,
   outputFilePath?: string,
@@ -358,9 +314,7 @@ export async function retryWithEnhancedFeedback<T>(
 
   while (shouldRetry(retryState)) {
     // Build enhanced feedback from previous attempt
-    const feedbackPrompt = validation
-      ? buildEnhancedFeedback(retryState, validation)
-      : "";
+    const feedbackPrompt = validation ? buildEnhancedFeedback(retryState, validation) : '';
 
     try {
       // Log external retry attempt start (skip first attempt - that's initial invocation)
@@ -379,7 +333,7 @@ export async function retryWithEnhancedFeedback<T>(
       // On retry (attempt > 0), pass lastSessionId to --resume the conversation
       const { output, sessionId } = await agentInvoke(
         feedbackPrompt,
-        retryState.attempt > 0 ? lastSessionId : undefined
+        retryState.attempt > 0 ? lastSessionId : undefined,
       );
       lastSessionId = sessionId; // Store for next retry
 
@@ -392,16 +346,14 @@ export async function retryWithEnhancedFeedback<T>(
 
         // Log success if this was a retry
         if (retryState.attempt > 1) {
-          logger.success(
-            `✓ External retry succeeded after ${retryState.attempt} attempts`,
-          );
+          logger.success(`✓ External retry succeeded after ${retryState.attempt} attempts`);
         }
 
         return validation.data as T;
       }
 
       // Validation failed - prepare for retry
-      const errorMessage = validation.errors.join("; ");
+      const errorMessage = validation.errors.join('; ');
       retryState = updateRetryState(retryState, errorMessage, config, output); // Store failed output
 
       // Save failed attempt to disk for troubleshooting
@@ -428,17 +380,14 @@ export async function retryWithEnhancedFeedback<T>(
         logger.error(`Max retry attempts (${config.maxAttempts}) exhausted`);
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       retryState = updateRetryState(retryState, errorMessage, config);
 
       // Log exception during agent invocation
       logger.error(`❌ Agent invocation failed: ${errorMessage}`);
 
       if (shouldRetry(retryState)) {
-        logger.info(
-          `Retrying (${config.maxAttempts - retryState.attempt} attempts remaining)...`,
-        );
+        logger.info(`Retrying (${config.maxAttempts - retryState.attempt} attempts remaining)...`);
 
         if (retryState.next_delay_ms) {
           logger.info(
@@ -470,4 +419,4 @@ export async function retryWithEnhancedFeedback<T>(
 }
 
 // Export everything from base retry.ts for convenience
-export * from "./retry.js";
+export * from './retry.js';

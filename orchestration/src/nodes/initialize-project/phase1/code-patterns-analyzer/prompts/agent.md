@@ -23,18 +23,21 @@ tools: Read, Grep, Glob
 ## Constraints
 
 **READ-ONLY MODE - CRITICAL:**
+
 - You can ONLY use: Read, Grep, Glob
 - You CANNOT write, edit, create, or modify ANY files
 - You CANNOT fix code, improve documentation, or make ANY changes
 - Your ONLY job: search → read → analyze → output JSON
 
 **Discovery:**
+
 - Read dependencies for test frameworks (jest, pytest, etc.)
 - Search for test files: `**/*.test.*`, `**/*.spec.*`, `**/test/**/*`
 - Find configs: jest.config.js, pytest.ini, etc.
 - Report only facts backed by file evidence
 
 **Output:**
+
 - Raw JSON only
 - First character: `{` Last character: `}`
 - No markdown, no code blocks, no explanations

@@ -2,7 +2,7 @@
  * Extract synthesis markdown sections from agent output
  */
 
-import { SECTION_MARKERS } from "./types.js";
+import { SECTION_MARKERS } from './types.js';
 
 /**
  * Extract synthesis markdown sections from agent output.
@@ -36,14 +36,12 @@ export function extractSynthesisMarkdown(output: string): {
   }
 
   // Extract CLAUDE.md content (from header to separator)
-  const claudeStartIndex =
-    claudeHeaderIndex + SECTION_MARKERS.CLAUDE_MD_HEADER.length;
+  const claudeStartIndex = claudeHeaderIndex + SECTION_MARKERS.CLAUDE_MD_HEADER.length;
   const claudeEndIndex = claudeHeaderIndex + separatorMatch.index;
   const claudemd = output.slice(claudeStartIndex, claudeEndIndex).trim();
 
   // Extract project-context content (from header to end)
-  const contextStartIndex =
-    contextHeaderIndex + SECTION_MARKERS.PROJECT_CONTEXT_HEADER.length;
+  const contextStartIndex = contextHeaderIndex + SECTION_MARKERS.PROJECT_CONTEXT_HEADER.length;
   const projectContext = output.slice(contextStartIndex).trim();
 
   return { claudemd, projectContext };

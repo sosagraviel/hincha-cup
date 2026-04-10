@@ -57,7 +57,7 @@ export class ArtifactCollectorService {
     visualVerification?: any,
     beforeScreenshots?: ScreenshotMetadata[],
     afterScreenshots?: ScreenshotMetadata[],
-    diffResults?: ComparisonResult[]
+    diffResults?: ComparisonResult[],
   ): Promise<ArtifactCollection> {
     console.log('\n[ArtifactCollector] Collecting artifacts...');
 
@@ -65,7 +65,7 @@ export class ArtifactCollectorService {
       screenshots: [],
       testResults: [],
       coverageReports: [],
-      implementationLogs: []
+      implementationLogs: [],
     };
 
     // 1. Collect screenshots
@@ -73,7 +73,7 @@ export class ArtifactCollectorService {
       artifacts.screenshots = this.collectScreenshots(
         beforeScreenshots,
         afterScreenshots,
-        diffResults
+        diffResults,
       );
     }
 
@@ -96,7 +96,7 @@ export class ArtifactCollectorService {
       ticketId,
       testResults,
       visualVerification,
-      diffResults
+      diffResults,
     );
 
     // 7. Create tar.gz archive
@@ -107,7 +107,7 @@ export class ArtifactCollectorService {
     return {
       prDescription,
       artifacts,
-      archivePath
+      archivePath,
     };
   }
 
@@ -117,19 +117,19 @@ export class ArtifactCollectorService {
   private collectScreenshots(
     beforeScreenshots: ScreenshotMetadata[],
     afterScreenshots: ScreenshotMetadata[],
-    diffResults?: ComparisonResult[]
+    diffResults?: ComparisonResult[],
   ): string[] {
     const screenshots: string[] = [];
 
     // Add before screenshots
-    screenshots.push(...beforeScreenshots.map(s => s.path));
+    screenshots.push(...beforeScreenshots.map((s) => s.path));
 
     // Add after screenshots
-    screenshots.push(...afterScreenshots.map(s => s.path));
+    screenshots.push(...afterScreenshots.map((s) => s.path));
 
     // Add diff images
     if (diffResults) {
-      screenshots.push(...diffResults.map(d => d.diffImagePath));
+      screenshots.push(...diffResults.map((d) => d.diffImagePath));
     }
 
     console.log(`[ArtifactCollector] Collected ${screenshots.length} screenshots`);
@@ -222,7 +222,7 @@ export class ArtifactCollectorService {
     ticketId: string,
     testResults: TestResults[],
     visualVerification?: any,
-    diffResults?: ComparisonResult[]
+    diffResults?: ComparisonResult[],
   ): string {
     const lines: string[] = [];
 
@@ -264,7 +264,7 @@ export class ArtifactCollectorService {
       lines.push('## Visual Verification');
       lines.push('');
 
-      const allPassed = diffResults.every(r => r.passed);
+      const allPassed = diffResults.every((r) => r.passed);
       const icon = allPassed ? '✅' : '⚠️';
 
       lines.push(`### ${icon} Screenshot Comparison`);
@@ -272,7 +272,9 @@ export class ArtifactCollectorService {
 
       for (const diff of diffResults) {
         const diffIcon = diff.passed ? '✅' : '⚠️';
-        lines.push(`- ${diffIcon} Diff: ${diff.diffPercentage.toFixed(2)}% (${diff.diffPixels} pixels)`);
+        lines.push(
+          `- ${diffIcon} Diff: ${diff.diffPercentage.toFixed(2)}% (${diff.diffPixels} pixels)`,
+        );
       }
 
       lines.push('');
@@ -298,7 +300,7 @@ export class ArtifactCollectorService {
    */
   private async createArchive(
     ticketId: string,
-    artifacts: ArtifactCollection['artifacts']
+    artifacts: ArtifactCollection['artifacts'],
   ): Promise<string> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const archiveName = `${ticketId}-artifacts-${timestamp}.tar.gz`;
@@ -309,7 +311,7 @@ export class ArtifactCollectorService {
       ...artifacts.screenshots,
       ...artifacts.testResults,
       ...artifacts.coverageReports,
-      ...artifacts.implementationLogs
+      ...artifacts.implementationLogs,
     ];
 
     if (allPaths.length === 0) {
@@ -319,21 +321,17 @@ export class ArtifactCollectorService {
 
     try {
       // Create tar.gz archive
-      const relativePaths = allPaths.map(p => relative(this.projectPath, p));
+      const relativePaths = allPaths.map((p) => relative(this.projectPath, p));
       const pathsArg = relativePaths.join(' ');
 
-      execSync(
-        `tar -czf ${archivePath} ${pathsArg}`,
-        {
-          cwd: this.projectPath,
-          stdio: 'pipe'
-        }
-      );
+      execSync(`tar -czf ${archivePath} ${pathsArg}`, {
+        cwd: this.projectPath,
+        stdio: 'pipe',
+      });
 
       console.log(`[ArtifactCollector] ✓ Created archive: ${archivePath}`);
 
       return archivePath;
-
     } catch (error: any) {
       console.error(`[ArtifactCollector] Failed to create archive: ${error.message}`);
       return archivePath;
@@ -349,11 +347,10 @@ export class ArtifactCollectorService {
     try {
       const output = execSync('git diff --name-only HEAD', {
         cwd: this.projectPath,
-        encoding: 'utf-8'
+        encoding: 'utf-8',
       });
 
       return output.trim().split('\n').filter(Boolean);
-
     } catch (error) {
       console.error(`[ArtifactCollector] Failed to get modified files: ${error}`);
       return [];
@@ -369,32 +366,33 @@ export class ArtifactCollectorService {
     try {
       const output = execSync('git diff --stat HEAD', {
         cwd: this.projectPath,
-        encoding: 'utf-8'
+        encoding: 'utf-8',
       });
 
       // Parse output like: "5 files changed, 120 insertions(+), 45 deletions(-)"
-      const match = output.match(/(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/);
+      const match = output.match(
+        /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/,
+      );
 
       if (match) {
         return {
           filesChanged: parseInt(match[1], 10),
           linesAdded: match[2] ? parseInt(match[2], 10) : 0,
-          linesRemoved: match[3] ? parseInt(match[3], 10) : 0
+          linesRemoved: match[3] ? parseInt(match[3], 10) : 0,
         };
       }
 
       return {
         filesChanged: 0,
         linesAdded: 0,
-        linesRemoved: 0
+        linesRemoved: 0,
       };
-
     } catch (error) {
       console.error(`[ArtifactCollector] Failed to get commit statistics: ${error}`);
       return {
         filesChanged: 0,
         linesAdded: 0,
-        linesRemoved: 0
+        linesRemoved: 0,
       };
     }
   }

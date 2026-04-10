@@ -40,9 +40,9 @@ export const LIMITS = {
 } as const;
 
 export const SECTION_MARKERS = {
-  CLAUDE_MD_HEADER: "# CLAUDE.md Content",
-  PROJECT_CONTEXT_HEADER: "# project-context/SKILL.md Content",
-  SEPARATOR: "---",
+  CLAUDE_MD_HEADER: '# CLAUDE.md Content',
+  PROJECT_CONTEXT_HEADER: '# project-context/SKILL.md Content',
+  SEPARATOR: '---',
 } as const;
 
 // Patterns that indicate the agent is describing what it did instead of outputting content

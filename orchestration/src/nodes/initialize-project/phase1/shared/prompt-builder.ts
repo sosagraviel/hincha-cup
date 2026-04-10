@@ -26,10 +26,7 @@ export function buildPhase1AnalyzerPrompt(
   feedbackPrompt?: string, // Error feedback for retry
 ): string {
   const excludedDirs = getExcludedDirectories(projectPath, frameworkPath);
-  const executionInstructions = loadExecutionInstructions(
-    agentName,
-    frameworkPath,
-  );
+  const executionInstructions = loadExecutionInstructions(agentName, frameworkPath);
 
   const parts: string[] = [
     buildExcludedDirsTag(excludedDirs),

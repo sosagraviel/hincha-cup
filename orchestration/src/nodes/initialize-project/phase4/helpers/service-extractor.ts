@@ -11,7 +11,7 @@ import type {
   ServiceTesting,
   ServiceDatabase,
   ServiceEnvironment,
-} from "../../../../schemas/stack-profile.schema.js";
+} from '../../../../schemas/stack-profile.schema.js';
 
 /**
  * Extract testing configuration for a specific service
@@ -54,8 +54,7 @@ export function extractTestingFrameworkForService(
 
   // Extract framework from unit/integration/e2e tests
   if (serviceTests.unit?.framework) return serviceTests.unit.framework;
-  if (serviceTests.integration?.framework)
-    return serviceTests.integration.framework;
+  if (serviceTests.integration?.framework) return serviceTests.integration.framework;
   if (serviceTests.e2e?.framework) return serviceTests.e2e.framework;
 
   return undefined;
@@ -74,9 +73,7 @@ export function extractDatabasesForService(
   techStackFindings: any,
   dataFlowsFindings?: any,
 ): ServiceDatabase[] | undefined {
-  const serviceDbs = techStackFindings?.services?.find(
-    (s: any) => s.id === serviceId,
-  )?.databases;
+  const serviceDbs = techStackFindings?.services?.find((s: any) => s.id === serviceId)?.databases;
   if (!serviceDbs || serviceDbs.length === 0) return undefined;
 
   return serviceDbs.map((db: any) => ({
@@ -99,9 +96,7 @@ export function extractORMForService(
   serviceId: string,
   techStackFindings: any,
 ): string | undefined {
-  const serviceDbs = techStackFindings?.services?.find(
-    (s: any) => s.id === serviceId,
-  )?.databases;
+  const serviceDbs = techStackFindings?.services?.find((s: any) => s.id === serviceId)?.databases;
   if (!serviceDbs || serviceDbs.length === 0) return undefined;
 
   for (const db of serviceDbs) {
@@ -122,9 +117,7 @@ export function extractEnvironmentForService(
   serviceId: string,
   structureFindings: any,
 ): ServiceEnvironment | undefined {
-  const svcEnv = structureFindings?.services?.find(
-    (s: any) => s.id === serviceId,
-  )?.environment;
+  const svcEnv = structureFindings?.services?.find((s: any) => s.id === serviceId)?.environment;
   if (!svcEnv) return undefined;
 
   return {
@@ -146,8 +139,7 @@ export function extractPackageManagerForService(
   serviceId: string,
   techStackFindings: any,
 ): string | undefined {
-  return techStackFindings?.services?.find((s: any) => s.id === serviceId)
-    ?.package_manager;
+  return techStackFindings?.services?.find((s: any) => s.id === serviceId)?.package_manager;
 }
 
 /**
@@ -161,8 +153,7 @@ export function extractManifestFileForService(
   serviceId: string,
   techStackFindings: any,
 ): string | undefined {
-  return techStackFindings?.services?.find((s: any) => s.id === serviceId)
-    ?.manifest_file;
+  return techStackFindings?.services?.find((s: any) => s.id === serviceId)?.manifest_file;
 }
 
 /**
@@ -187,14 +178,11 @@ export function extractServicesFromPhase1Analyzers(
   const services: Service[] = [];
 
   // Use explicit services[] from Agent 01 (structure-architecture)
-  if (
-    !structureFindings?.services ||
-    !Array.isArray(structureFindings.services)
-  ) {
+  if (!structureFindings?.services || !Array.isArray(structureFindings.services)) {
     throw new Error(
-      "Phase 1 structure analyzer did not output services[] array. " +
-        "Cannot generate service-centric framework config. " +
-        "This indicates the analyzer is using an outdated output format.",
+      'Phase 1 structure analyzer did not output services[] array. ' +
+        'Cannot generate service-centric framework config. ' +
+        'This indicates the analyzer is using an outdated output format.',
     );
   }
 
@@ -208,9 +196,7 @@ export function extractServicesFromPhase1Analyzers(
       language_version: svc.language_version,
       frameworks: {
         main: svc.frameworks?.main,
-        orm:
-          svc.frameworks?.orm ||
-          extractORMForService(svc.id, techStackFindings),
+        orm: svc.frameworks?.orm || extractORMForService(svc.id, techStackFindings),
         ui: svc.frameworks?.ui,
         testing:
           svc.frameworks?.testing ||
@@ -218,21 +204,12 @@ export function extractServicesFromPhase1Analyzers(
         additional: svc.frameworks?.additional,
       },
       testing: extractTestingForService(svc.id, codePatternsFindings),
-      databases: extractDatabasesForService(
-        svc.id,
-        techStackFindings,
-        dataFlowsFindings,
-      ),
-      environment:
-        svc.environment ||
-        extractEnvironmentForService(svc.id, structureFindings),
+      databases: extractDatabasesForService(svc.id, techStackFindings, dataFlowsFindings),
+      environment: svc.environment || extractEnvironmentForService(svc.id, structureFindings),
       file_count: svc.file_count,
       package_manager:
-        svc.package_manager ||
-        extractPackageManagerForService(svc.id, techStackFindings),
-      manifest_file:
-        svc.manifest_file ||
-        extractManifestFileForService(svc.id, techStackFindings), // DYNAMIC path
+        svc.package_manager || extractPackageManagerForService(svc.id, techStackFindings),
+      manifest_file: svc.manifest_file || extractManifestFileForService(svc.id, techStackFindings), // DYNAMIC path
     };
 
     services.push(service);

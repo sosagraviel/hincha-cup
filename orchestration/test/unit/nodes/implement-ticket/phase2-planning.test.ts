@@ -233,7 +233,7 @@ Environment variables: DATABASE_URL=postgres://...
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringContaining('planning-complete.json'),
-        expect.any(String)
+        expect.any(String),
       );
     });
   });

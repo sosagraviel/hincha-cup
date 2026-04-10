@@ -3,10 +3,14 @@ import {
   AuthConfig,
   detectAuthMode,
   getAuthErrorMessage,
-} from "../../../auth/auth-detector.js";
-import type { Agent, AgentConfig } from "./types.js";
-import { createDeepAgentImpl } from "./deep-agent-impl.js";
-import { createCLIAgentImpl, abortAllInvocations, killAllActiveProcesses } from "./cli-agent-impl.js";
+} from '../../../auth/auth-detector.js';
+import type { Agent, AgentConfig } from './types.js';
+import { createDeepAgentImpl } from './deep-agent-impl.js';
+import {
+  createCLIAgentImpl,
+  abortAllInvocations,
+  killAllActiveProcesses,
+} from './cli-agent-impl.js';
 
 /**
  * Creates agents using DeepAgents.js (API key) or Claude CLI (subscription)

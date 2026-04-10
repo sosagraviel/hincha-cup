@@ -32,7 +32,7 @@ export class CommandResolverService {
 
   constructor(frameworkConfig: FrameworkConfig) {
     this.frameworkConfig = frameworkConfig;
-    this.stackProfile = frameworkConfig.stack_profile as StackProfile;
+    this.stackProfile = frameworkConfig.stack_profile;
   }
 
   /**
@@ -46,7 +46,8 @@ export class CommandResolverService {
       if (!testingFw[lang]) testingFw[lang] = [];
 
       if (service.testing?.unit?.framework) testingFw[lang].push(service.testing.unit.framework);
-      if (service.testing?.integration?.framework) testingFw[lang].push(service.testing.integration.framework);
+      if (service.testing?.integration?.framework)
+        testingFw[lang].push(service.testing.integration.framework);
       if (service.testing?.e2e?.framework) testingFw[lang].push(service.testing.e2e.framework);
     }
 
@@ -71,8 +72,7 @@ export class CommandResolverService {
       languageCounts[lang] = (languageCounts[lang] || 0) + (service.file_count || 1);
     }
 
-    return Object.entries(languageCounts)
-      .sort(([, a], [, b]) => b - a)[0]?.[0];
+    return Object.entries(languageCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
   }
 
   /**
@@ -89,7 +89,7 @@ export class CommandResolverService {
 
     // Build commands from detected frameworks
     for (const [lang, frameworks] of Object.entries(testingFrameworks)) {
-      const frameworkList = frameworks as string[];
+      const frameworkList = frameworks;
       for (const framework of frameworkList) {
         const frameworkLower = framework.toLowerCase();
 
@@ -147,7 +147,10 @@ export class CommandResolverService {
   /**
    * Get default test fallbacks for a language
    */
-  private getDefaultTestFallbacks(type: 'unit' | 'integration' | 'e2e', language?: string): string[] {
+  private getDefaultTestFallbacks(
+    type: 'unit' | 'integration' | 'e2e',
+    language?: string,
+  ): string[] {
     const fallbacks: string[] = [];
 
     if (type === 'unit') {
@@ -246,7 +249,7 @@ export class CommandResolverService {
   async executeWithFallback(
     commands: string[],
     cwd: string,
-    timeout: number = 120000
+    timeout: number = 120000,
   ): Promise<CommandResult> {
     if (commands.length === 0) {
       throw new Error('No commands provided to executeWithFallback');
@@ -287,7 +290,7 @@ export class CommandResolverService {
     // All commands failed
     throw new Error(
       `All commands failed. Last error: ${lastError?.message}\n` +
-      `Tried commands: ${commands.join(', ')}`
+        `Tried commands: ${commands.join(', ')}`,
     );
   }
 
@@ -302,14 +305,14 @@ export class CommandResolverService {
   private async executeCommand(
     command: string,
     cwd: string,
-    timeout: number
+    timeout: number,
   ): Promise<CommandResult> {
     try {
       const output = execSync(command, {
         cwd,
         timeout,
         encoding: 'utf-8',
-        stdio: 'pipe'
+        stdio: 'pipe',
       });
 
       return {
@@ -317,7 +320,7 @@ export class CommandResolverService {
         stdout: output,
         stderr: '',
         command,
-        exitCode: 0
+        exitCode: 0,
       };
     } catch (error: any) {
       return {
@@ -325,7 +328,7 @@ export class CommandResolverService {
         stdout: error.stdout?.toString() || '',
         stderr: error.stderr?.toString() || error.message,
         command,
-        exitCode: error.status || 1
+        exitCode: error.status || 1,
       };
     }
   }
@@ -353,7 +356,7 @@ export class CommandResolverService {
         return [
           ...this.getTestCommand('unit'),
           ...this.getTestCommand('integration'),
-          ...this.getTestCommand('e2e')
+          ...this.getTestCommand('e2e'),
         ];
       case 'build':
         return this.getBuildCommand();

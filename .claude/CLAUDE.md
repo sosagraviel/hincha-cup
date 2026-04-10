@@ -14,6 +14,8 @@
 - gray-matter ^4.0.3 — frontmatter parsing for skill/agent markdown files
 - playwright ^1.58.2 — visual regression screenshot capture
 - pixelmatch ^7.1.0 — pixel-level screenshot diffing
+- eslint + @typescript-eslint — TypeScript-aware linting
+- prettier + husky — code formatting and pre-commit hooks
 - pnpm — package manager
 
 ## File Placement Guide
@@ -78,6 +80,10 @@ tests/              # Fixture projects for integration tests
 | Run integration tests | `cd orchestration && pnpm test:integration` |
 | Build (compile) | `cd orchestration && pnpm build` |
 | Type-check (no emit) | `cd orchestration && pnpm typecheck` |
+| Lint code | `cd orchestration && pnpm lint` |
+| Lint and auto-fix | `cd orchestration && pnpm lint:fix` |
+| Check formatting | `cd orchestration && pnpm format` |
+| Format code | `cd orchestration && pnpm format:fix` |
 | Initialize a project | `cd orchestration && pnpm initialize -- --project-path <path>` |
 | Implement a ticket | `cd orchestration && pnpm implement -- --ticket <id>` |
 | Sync framework resources | `cd orchestration && pnpm sync-framework-resources` |

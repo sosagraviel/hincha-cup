@@ -1,20 +1,20 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { consolidationNode } from "../../../../../../src/nodes/initialize-project/phase2/question-consolidator/question-consolidator.node.js";
-import type { InitializeProjectState } from "../../../../../../src/state/schemas/initialize-project.schema.js";
-import * as fs from "fs";
-import * as consolidationUtil from "../../../../../../src/nodes/initialize-project/phase2/question-consolidator/analysis-consolidator.js";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { consolidationNode } from '../../../../../../src/nodes/initialize-project/phase2/question-consolidator/question-consolidator.node.js';
+import type { InitializeProjectState } from '../../../../../../src/state/schemas/initialize-project.schema.js';
+import * as fs from 'fs';
+import * as consolidationUtil from '../../../../../../src/nodes/initialize-project/phase2/question-consolidator/analysis-consolidator.js';
 
-vi.mock("fs", () => ({
+vi.mock('fs', () => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
 }));
 
-vi.mock("child_process", () => ({
+vi.mock('child_process', () => ({
   spawn: vi.fn(),
 }));
 
-vi.mock("../../../../../../src/utils/logger.js", () => ({
+vi.mock('../../../../../../src/utils/logger.js', () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -32,47 +32,47 @@ vi.mock("../../../../../../src/utils/logger.js", () => ({
 }));
 
 vi.mock(
-  "../../../../../../src/nodes/initialize-project/phase2/question-consolidator/analysis-consolidator.js",
+  '../../../../../../src/nodes/initialize-project/phase2/question-consolidator/analysis-consolidator.js',
   () => ({
     analysisConsolidator: vi.fn(),
   }),
 );
 
-vi.mock("../../../../../../src/utils/shared/agent-factory/index.js", () => ({
+vi.mock('../../../../../../src/utils/shared/agent-factory/index.js', () => ({
   AgentFactory: { create: vi.fn() },
 }));
 
-vi.mock("../../../../../../src/utils/validator.js", () => ({
+vi.mock('../../../../../../src/utils/validator.js', () => ({
   extractJSON: vi.fn(),
 }));
 
-vi.mock("../../../../../../src/utils/enhanced-retry.js", () => ({
+vi.mock('../../../../../../src/utils/enhanced-retry.js', () => ({
   retryWithEnhancedFeedback: vi.fn(),
   DEFAULT_RETRY_CONFIG: { maxAttempts: 3 },
 }));
 
-describe("consolidationNode", () => {
+describe('consolidationNode', () => {
   let mockState: InitializeProjectState;
 
   const mockPhase1Files = {
-    "01-structure-architecture.json": JSON.stringify({
-      agent_name: "structure-architecture-analyzer",
-      timestamp: "2024-01-01T00:00:00Z",
-      findings: { languages: ["typescript"] },
+    '01-structure-architecture.json': JSON.stringify({
+      agent_name: 'structure-architecture-analyzer',
+      timestamp: '2024-01-01T00:00:00Z',
+      findings: { languages: ['typescript'] },
     }),
-    "02-tech-stack-dependencies.json": JSON.stringify({
-      agent_name: "tech-stack-dependencies-analyzer",
-      timestamp: "2024-01-01T00:00:00Z",
+    '02-tech-stack-dependencies.json': JSON.stringify({
+      agent_name: 'tech-stack-dependencies-analyzer',
+      timestamp: '2024-01-01T00:00:00Z',
       findings: { dependencies: {} },
     }),
-    "03-code-patterns-testing.json": JSON.stringify({
-      agent_name: "code-patterns-testing-analyzer",
-      timestamp: "2024-01-01T00:00:00Z",
+    '03-code-patterns-testing.json': JSON.stringify({
+      agent_name: 'code-patterns-testing-analyzer',
+      timestamp: '2024-01-01T00:00:00Z',
       findings: {},
     }),
-    "04-data-flows-integrations.json": JSON.stringify({
-      agent_name: "data-flows-integrations-analyzer",
-      timestamp: "2024-01-01T00:00:00Z",
+    '04-data-flows-integrations.json': JSON.stringify({
+      agent_name: 'data-flows-integrations-analyzer',
+      timestamp: '2024-01-01T00:00:00Z',
       findings: {},
     }),
   };
@@ -81,10 +81,10 @@ describe("consolidationNode", () => {
     vi.clearAllMocks();
 
     mockState = {
-      project_path: "/test/project",
-      framework_path: "/test/framework",
-      current_phase: "phase1_analysis",
-      temp_dir: "/test/temp",
+      project_path: '/test/project',
+      framework_path: '/test/framework',
+      current_phase: 'phase1_analysis',
+      temp_dir: '/test/temp',
       phase1_analysis: { all_completed: false },
       phase1_retry_tracking: {},
       errors: [],
@@ -94,137 +94,133 @@ describe("consolidationNode", () => {
     // Mock successful scenario
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
-      const filename = path.split("/").pop() as string;
+      const filename = path.split('/').pop() as string;
       if (mockPhase1Files[filename as keyof typeof mockPhase1Files]) {
         return mockPhase1Files[filename as keyof typeof mockPhase1Files];
       }
-      if (path.includes("phase2-consolidation.json")) {
+      if (path.includes('phase2-consolidation.json')) {
         return JSON.stringify({
           consolidated_findings: {},
           identified_gaps: [],
           conflicting_findings: [],
         });
       }
-      return "";
+      return '';
     });
 
     vi.mocked(consolidationUtil.analysisConsolidator).mockReturnValue({
-      consolidated_findings: { test: "data" },
+      consolidated_findings: { test: 'data' },
       identified_gaps: [],
       conflicting_findings: [],
       consolidation_summary: {
         total_analyzers: 4,
         merged_fields: 10,
-        timestamp: "2024-01-01T00:00:00Z",
+        timestamp: '2024-01-01T00:00:00Z',
       },
     } as any);
   });
 
-  it("should throw if phase1 outputs directory not found", async () => {
+  it('should throw if phase1 outputs directory not found', async () => {
     vi.mocked(fs.existsSync).mockImplementation((path: any) => {
-      if (path.includes("phase1-outputs")) return false;
+      if (path.includes('phase1-outputs')) return false;
       return true;
     });
 
     await expect(consolidationNode(mockState)).rejects.toThrow(
-      "Phase 1 outputs directory not found",
+      'Phase 1 outputs directory not found',
     );
   });
 
-  it("should throw if a phase1 output file is missing", async () => {
+  it('should throw if a phase1 output file is missing', async () => {
     vi.mocked(fs.existsSync).mockImplementation((path: any) => {
-      if (path.includes("01-structure-architecture.json")) return false;
+      if (path.includes('01-structure-architecture.json')) return false;
       return true;
     });
 
-    await expect(consolidationNode(mockState)).rejects.toThrow(
-      "Phase 1 output file not found",
-    );
+    await expect(consolidationNode(mockState)).rejects.toThrow('Phase 1 output file not found');
   });
 
-  it("should load all 4 phase1 files", async () => {
+  it('should load all 4 phase1 files', async () => {
     await consolidationNode(mockState);
 
     expect(fs.readFileSync).toHaveBeenCalledWith(
-      expect.stringContaining("01-structure-architecture.json"),
-      "utf-8",
+      expect.stringContaining('01-structure-architecture.json'),
+      'utf-8',
     );
     expect(fs.readFileSync).toHaveBeenCalledWith(
-      expect.stringContaining("02-tech-stack-dependencies.json"),
-      "utf-8",
+      expect.stringContaining('02-tech-stack-dependencies.json'),
+      'utf-8',
     );
     expect(fs.readFileSync).toHaveBeenCalledWith(
-      expect.stringContaining("03-code-patterns-testing.json"),
-      "utf-8",
+      expect.stringContaining('03-code-patterns-testing.json'),
+      'utf-8',
     );
     expect(fs.readFileSync).toHaveBeenCalledWith(
-      expect.stringContaining("04-data-flows-integrations.json"),
-      "utf-8",
+      expect.stringContaining('04-data-flows-integrations.json'),
+      'utf-8',
     );
   });
 
-  it("should call analysisConsolidator with all phase1 outputs", async () => {
+  it('should call analysisConsolidator with all phase1 outputs', async () => {
     await consolidationNode(mockState);
 
     expect(consolidationUtil.analysisConsolidator).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
-          agent_name: "structure-architecture-analyzer",
+          agent_name: 'structure-architecture-analyzer',
         }),
         expect.objectContaining({
-          agent_name: "tech-stack-dependencies-analyzer",
+          agent_name: 'tech-stack-dependencies-analyzer',
         }),
         expect.objectContaining({
-          agent_name: "code-patterns-testing-analyzer",
+          agent_name: 'code-patterns-testing-analyzer',
         }),
         expect.objectContaining({
-          agent_name: "data-flows-integrations-analyzer",
+          agent_name: 'data-flows-integrations-analyzer',
         }),
       ]),
     );
   });
 
-  it("should write consolidation to disk", async () => {
+  it('should write consolidation to disk', async () => {
     await consolidationNode(mockState);
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
-      expect.stringContaining("phase2-consolidation.json"),
+      expect.stringContaining('phase2-consolidation.json'),
       expect.any(String),
     );
   });
 
-  it("should handle no gaps scenario", async () => {
+  it('should handle no gaps scenario', async () => {
     const result = await consolidationNode(mockState);
 
     expect(result.phase2_consolidation).toBeDefined();
-    expect(result.current_phase).toBe("phase2_consolidation");
+    expect(result.current_phase).toBe('phase2_consolidation');
   });
 
-  it("should use default temp_dir if not provided", async () => {
+  it('should use default temp_dir if not provided', async () => {
     mockState.temp_dir = undefined;
 
     await consolidationNode(mockState);
 
     expect(fs.readFileSync).toHaveBeenCalledWith(
-      expect.stringContaining(".claude-temp/initialize-project/phase1-outputs"),
-      "utf-8",
+      expect.stringContaining('.claude-temp/initialize-project/phase1-outputs'),
+      'utf-8',
     );
   });
 
-  it("should handle errors gracefully", async () => {
+  it('should handle errors gracefully', async () => {
     vi.mocked(consolidationUtil.analysisConsolidator).mockImplementation(() => {
-      throw new Error("Consolidation failed");
+      throw new Error('Consolidation failed');
     });
 
     const result = await consolidationNode(mockState);
 
-    expect(result.errors?.some((e) => e.includes("Consolidation failed"))).toBe(
-      true,
-    );
-    expect(result.current_phase).toBe("failed");
+    expect(result.errors?.some((e) => e.includes('Consolidation failed'))).toBe(true);
+    expect(result.current_phase).toBe('failed');
   });
 
-  it("should set phase2_consolidation in result", async () => {
+  it('should set phase2_consolidation in result', async () => {
     const result = await consolidationNode(mockState);
 
     expect(result.phase2_consolidation).toEqual(
@@ -235,20 +231,20 @@ describe("consolidationNode", () => {
     );
   });
 
-  it("should set current_phase to phase2_consolidation", async () => {
+  it('should set current_phase to phase2_consolidation', async () => {
     const result = await consolidationNode(mockState);
 
-    expect(result.current_phase).toBe("phase2_consolidation");
+    expect(result.current_phase).toBe('phase2_consolidation');
   });
 
-  it("should preserve existing errors", async () => {
-    mockState.errors = ["Previous error"];
+  it('should preserve existing errors', async () => {
+    mockState.errors = ['Previous error'];
     vi.mocked(consolidationUtil.analysisConsolidator).mockImplementation(() => {
-      throw new Error("New error");
+      throw new Error('New error');
     });
 
     const result = await consolidationNode(mockState);
 
-    expect(result.errors).toContain("Previous error");
+    expect(result.errors).toContain('Previous error');
   });
 });

@@ -38,7 +38,7 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     return {
       valid: false,
       errors: [`Agent file must be markdown (.md), got: ${agentPath}`],
-      warnings: []
+      warnings: [],
     };
   }
 
@@ -50,7 +50,7 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     return {
       valid: false,
       errors: [`Failed to read agent file: ${(e as Error).message}`],
-      warnings: []
+      warnings: [],
     };
   }
 
@@ -58,7 +58,7 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     return {
       valid: false,
       errors: [`Agent file missing frontmatter (must start with '---'): ${agentPath}`],
-      warnings: []
+      warnings: [],
     };
   }
 
@@ -71,7 +71,7 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     return {
       valid: false,
       errors: [`Invalid YAML in agent frontmatter: ${(e as Error).message}`],
-      warnings: []
+      warnings: [],
     };
   }
 
@@ -88,28 +88,38 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
   // Valid Claude CLI frontmatter fields per official documentation
   // Source: https://code.claude.com/docs/en/sub-agents.md#supported-frontmatter-fields
   const VALID_CLI_FIELDS = [
-    'name', 'description', 'model', 'tools', 'disallowedTools',
-    'permissionMode', 'maxTurns', 'skills', 'mcpServers',
-    'hooks', 'memory', 'background', 'effort',
-    'isolation', 'initialPrompt',
+    'name',
+    'description',
+    'model',
+    'tools',
+    'disallowedTools',
+    'permissionMode',
+    'maxTurns',
+    'skills',
+    'mcpServers',
+    'hooks',
+    'memory',
+    'background',
+    'effort',
+    'isolation',
+    'initialPrompt',
     // Individual hook fields (alternative to hooks object)
     // Source: https://code.claude.com/docs/en/hooks-guide
-    'user-prompt-submit-hook', 'assistant-message-hook',
-    'pre-tool-use-hook', 'post-tool-use-hook', 'stop-hook'
+    'user-prompt-submit-hook',
+    'assistant-message-hook',
+    'pre-tool-use-hook',
+    'post-tool-use-hook',
+    'stop-hook',
   ];
 
   // Framework-specific fields (not Claude CLI, but we use them internally)
-  const FRAMEWORK_FIELDS = [
-    'subagent_type', 'output_format', 'run_in_background'
-  ];
+  const FRAMEWORK_FIELDS = ['subagent_type', 'output_format', 'run_in_background'];
 
   const allFields = [...VALID_CLI_FIELDS, ...FRAMEWORK_FIELDS];
 
   for (const field of Object.keys(frontmatter)) {
     if (!allFields.includes(field)) {
-      warnings.push(
-        `Unknown field '${field}' - Claude CLI may not recognize this field`
-      );
+      warnings.push(`Unknown field '${field}' - Claude CLI may not recognize this field`);
     }
   }
 
@@ -117,7 +127,7 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     valid: errors.length === 0,
     errors,
     warnings,
-    frontmatter
+    frontmatter,
   };
 }
 
@@ -138,7 +148,7 @@ export function assertAgentFileValid(agentPath: string): void {
       `Invalid agent file: ${agentPath}`,
       '',
       'Errors:',
-      ...result.errors.map(e => `  - ${e}`)
+      ...result.errors.map((e) => `  - ${e}`),
     ].join('\n');
 
     throw new Error(errorMsg);
@@ -146,6 +156,6 @@ export function assertAgentFileValid(agentPath: string): void {
 
   if (result.warnings.length > 0) {
     logger.warn(`Agent file warnings for ${agentPath}:`);
-    result.warnings.forEach(w => logger.warn(`  - ${w}`));
+    result.warnings.forEach((w) => logger.warn(`  - ${w}`));
   }
 }

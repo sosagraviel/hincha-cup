@@ -7,29 +7,33 @@ import type { StackProfile } from '../../../src/schemas/index.js';
 // ---------------------------------------------------------------------------
 
 const reactStack: StackProfile = {
-  services: [{
-    id: 'frontend',
-    path: './src',
-    type: 'frontend' as const,
-    language: 'typescript',
-    frameworks: {
-      main: 'React 19',
-      ui: 'Next.js',
+  services: [
+    {
+      id: 'frontend',
+      path: './src',
+      type: 'frontend' as const,
+      language: 'typescript',
+      frameworks: {
+        main: 'React 19',
+        ui: 'Next.js',
+      },
     },
-  }],
+  ],
   is_monorepo: false,
 };
 
 const backendStack: StackProfile = {
-  services: [{
-    id: 'backend',
-    path: './src',
-    type: 'backend' as const,
-    language: 'python',
-    frameworks: {
-      main: 'Django',
+  services: [
+    {
+      id: 'backend',
+      path: './src',
+      type: 'backend' as const,
+      language: 'python',
+      frameworks: {
+        main: 'Django',
+      },
     },
-  }],
+  ],
   is_monorepo: false,
 };
 
@@ -54,7 +58,8 @@ describe('UI Task Detector — Keywords', () => {
   });
 
   it('caps total keyword score at 30', () => {
-    const text = 'screen page component ui design layout widget dashboard modal dialog form button navigation sidebar header footer responsive css style color font typography spacing padding';
+    const text =
+      'screen page component ui design layout widget dashboard modal dialog form button navigation sidebar header footer responsive css style color font typography spacing padding';
     const result = classifyUITask(text);
     expect(result.signals.keywordScore).toBe(30);
   });
@@ -146,8 +151,12 @@ describe('UI Task Detector — File Paths', () => {
 
   it('caps at 20', () => {
     const changedFiles = [
-      'src/components/a.tsx', 'src/pages/b.tsx', 'src/ui/c.tsx',
-      'src/views/d.tsx', 'src/layouts/e.tsx', 'src/styles/f.css',
+      'src/components/a.tsx',
+      'src/pages/b.tsx',
+      'src/ui/c.tsx',
+      'src/views/d.tsx',
+      'src/layouts/e.tsx',
+      'src/styles/f.css',
     ];
     const result = classifyUITask('', undefined, changedFiles);
     expect(result.signals.filePathScore).toBe(20);
@@ -186,14 +195,16 @@ describe('UI Task Detector — Stack Detection', () => {
 
 describe('UI Task Detector — Acceptance Criteria', () => {
   it('scores visual terms at 2 pts each', () => {
-    const text = 'Given the component renders, When user clicks, Then it displays the hidden panel and shows a visual diff';
+    const text =
+      'Given the component renders, When user clicks, Then it displays the hidden panel and shows a visual diff';
     const result = classifyUITask(text);
     // renders(2) + displays(2) + hidden(2) + shows(2) + visual(2) + diff(2) → cap 10
     expect(result.signals.acceptanceCriteriaScore).toBeGreaterThanOrEqual(10);
   });
 
   it('caps at 10', () => {
-    const text = 'renders displays shows visible hidden screenshot visual pixel diff match align center responsive';
+    const text =
+      'renders displays shows visible hidden screenshot visual pixel diff match align center responsive';
     const result = classifyUITask(text);
     expect(result.signals.acceptanceCriteriaScore).toBe(10);
   });
@@ -229,7 +240,8 @@ describe('UI Task Detector — Classification', () => {
   });
 
   it('classifies dashboard bug fix as likely UI', () => {
-    const text = 'Fix responsive layout issue on the dashboard page where sidebar overlaps on tablet';
+    const text =
+      'Fix responsive layout issue on the dashboard page where sidebar overlaps on tablet';
     const result = classifyUITask(text, reactStack);
     expect(result.isUI).toBe(true);
     expect(result.confidence).toBeGreaterThanOrEqual(25);

@@ -44,16 +44,24 @@ function formatAtlassianDocument(adf: any): string {
         return '#'.repeat(level) + ' ' + headingText + '\n\n';
 
       case 'bulletList':
-        return (node.content || []).map((item: any) => {
-          const itemText = formatNode(item).trim();
-          return `- ${itemText}`;
-        }).join('\n') + '\n\n';
+        return (
+          (node.content || [])
+            .map((item: any) => {
+              const itemText = formatNode(item).trim();
+              return `- ${itemText}`;
+            })
+            .join('\n') + '\n\n'
+        );
 
       case 'orderedList':
-        return (node.content || []).map((item: any, index: number) => {
-          const itemText = formatNode(item).trim();
-          return `${index + 1}. ${itemText}`;
-        }).join('\n') + '\n\n';
+        return (
+          (node.content || [])
+            .map((item: any, index: number) => {
+              const itemText = formatNode(item).trim();
+              return `${index + 1}. ${itemText}`;
+            })
+            .join('\n') + '\n\n'
+        );
 
       case 'listItem':
         return (node.content || []).map(formatNode).join('').trim();
@@ -65,7 +73,12 @@ function formatAtlassianDocument(adf: any): string {
 
       case 'blockquote':
         const quoteText = (node.content || []).map(formatNode).join('');
-        return quoteText.split('\n').map((line: string) => `> ${line}`).join('\n') + '\n\n';
+        return (
+          quoteText
+            .split('\n')
+            .map((line: string) => `> ${line}`)
+            .join('\n') + '\n\n'
+        );
 
       case 'hardBreak':
         return '\n';
@@ -99,7 +112,7 @@ function formatAtlassianDocument(adf: any): string {
  * @returns Updated state with phase1 completion flag
  */
 export async function phase1ContextNode(
-  state: ImplementTicketState
+  state: ImplementTicketState,
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
@@ -115,7 +128,7 @@ export async function phase1ContextNode(
     return {
       current_phase: 'phase2_planning',
       phase1_complete: true,
-      phase1_context: completionData.context_data
+      phase1_context: completionData.context_data,
     };
   }
 
@@ -125,9 +138,7 @@ export async function phase1ContextNode(
     const phase0CompletionPath = join(phase0Dir, 'preflight-complete.json');
 
     if (!existsSync(phase0CompletionPath)) {
-      throw new Error(
-        'Phase 0 not complete. Run Phase 0 first or use --start-phase 0'
-      );
+      throw new Error('Phase 0 not complete. Run Phase 0 first or use --start-phase 0');
     }
     console.log('[Phase 1: Context] ✓ Phase 0 verified');
 
@@ -146,7 +157,9 @@ export async function phase1ContextNode(
         }
 
         fullContext = readFileSync(inputValue, 'utf-8');
-        console.log(`[Phase 1: Context] ✓ Read markdown file (${fullContext.split('\n').length} lines)`);
+        console.log(
+          `[Phase 1: Context] ✓ Read markdown file (${fullContext.split('\n').length} lines)`,
+        );
 
         // TODO: Optionally fetch external links mentioned in markdown
         // For now, just note that external docs are empty
@@ -157,7 +170,9 @@ export async function phase1ContextNode(
       case 'input': {
         // Direct input
         fullContext = inputValue;
-        console.log(`[Phase 1: Context] ✓ Used direct input (${fullContext.split('\n').length} lines)`);
+        console.log(
+          `[Phase 1: Context] ✓ Used direct input (${fullContext.split('\n').length} lines)`,
+        );
         externalDocs = '';
         break;
       }
@@ -165,12 +180,14 @@ export async function phase1ContextNode(
       case 'jira': {
         // Parse Jira URL to extract domain and ticket key
         // Expected format: https://{domain}.atlassian.net/browse/{TICKET_KEY}
-        const jiraUrlMatch = inputValue.match(/https?:\/\/([^.]+)\.atlassian\.net\/browse\/([A-Z]+-\d+)/i);
+        const jiraUrlMatch = inputValue.match(
+          /https?:\/\/([^.]+)\.atlassian\.net\/browse\/([A-Z]+-\d+)/i,
+        );
 
         if (!jiraUrlMatch) {
           throw new Error(
             `Invalid Jira URL format: ${inputValue}\n` +
-            `Expected format: https://{domain}.atlassian.net/browse/{TICKET-123}`
+              `Expected format: https://{domain}.atlassian.net/browse/{TICKET-123}`,
           );
         }
 
@@ -184,11 +201,11 @@ export async function phase1ContextNode(
         if (!jiraEmail || !jiraApiToken) {
           throw new Error(
             'Jira authentication not configured.\n' +
-            'Please set the following environment variables:\n' +
-            '  JIRA_EMAIL - Your Atlassian account email\n' +
-            '  JIRA_API_TOKEN - Your Jira API token\n\n' +
-            'Generate a token at: https://id.atlassian.com/manage-profile/security/api-tokens\n\n' +
-            'Alternative: Use --from-markdown with a manually exported Jira ticket'
+              'Please set the following environment variables:\n' +
+              '  JIRA_EMAIL - Your Atlassian account email\n' +
+              '  JIRA_API_TOKEN - Your Jira API token\n\n' +
+              'Generate a token at: https://id.atlassian.com/manage-profile/security/api-tokens\n\n' +
+              'Alternative: Use --from-markdown with a manually exported Jira ticket',
           );
         }
 
@@ -198,33 +215,28 @@ export async function phase1ContextNode(
           // Fetch issue from Jira REST API v3
           const authHeader = `Basic ${Buffer.from(`${jiraEmail}:${jiraApiToken}`).toString('base64')}`;
 
-          const response = await fetch(
-            `${jiraBaseUrl}/rest/api/3/issue/${ticketKey}`,
-            {
-              headers: {
-                'Authorization': authHeader,
-                'Accept': 'application/json'
-              }
-            }
-          );
+          const response = await fetch(`${jiraBaseUrl}/rest/api/3/issue/${ticketKey}`, {
+            headers: {
+              Authorization: authHeader,
+              Accept: 'application/json',
+            },
+          });
 
           if (!response.ok) {
             if (response.status === 401) {
               throw new Error(
                 'Jira authentication failed (401 Unauthorized).\n' +
-                'Please verify your JIRA_EMAIL and JIRA_API_TOKEN are correct.\n' +
-                'Generate a new token at: https://id.atlassian.com/manage-profile/security/api-tokens'
+                  'Please verify your JIRA_EMAIL and JIRA_API_TOKEN are correct.\n' +
+                  'Generate a new token at: https://id.atlassian.com/manage-profile/security/api-tokens',
               );
             } else if (response.status === 404) {
               throw new Error(
                 `Jira ticket not found: ${ticketKey}\n` +
-                `Please verify the ticket exists and you have access to it.`
+                  `Please verify the ticket exists and you have access to it.`,
               );
             } else {
               const errorText = await response.text();
-              throw new Error(
-                `Jira API error (${response.status}): ${errorText}`
-              );
+              throw new Error(`Jira API error (${response.status}): ${errorText}`);
             }
           }
 
@@ -292,10 +304,14 @@ export async function phase1ContextNode(
 
           fullContext = contextLines.join('\n');
 
-          console.log(`[Phase 1: Context] ✓ Fetched Jira ticket (${fullContext.split('\n').length} lines)`);
+          console.log(
+            `[Phase 1: Context] ✓ Fetched Jira ticket (${fullContext.split('\n').length} lines)`,
+          );
 
           // Detect Confluence links in description
-          const confluenceLinks = descriptionMarkdown.match(/https?:\/\/[^.]+\.atlassian\.net\/wiki\/spaces\/[^\s)]+/g);
+          const confluenceLinks = descriptionMarkdown.match(
+            /https?:\/\/[^.]+\.atlassian\.net\/wiki\/spaces\/[^\s)]+/g,
+          );
 
           if (confluenceLinks && confluenceLinks.length > 0) {
             console.log(`[Phase 1: Context] Detected ${confluenceLinks.length} Confluence link(s)`);
@@ -311,14 +327,13 @@ export async function phase1ContextNode(
           } else {
             externalDocs = '';
           }
-
         } catch (error: any) {
           // Check if it's a network error
           if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
             throw new Error(
               `Cannot connect to Jira at ${jiraBaseUrl}\n` +
-              `Please check your internet connection and verify the domain is correct.\n` +
-              `Original error: ${error.message}`
+                `Please check your internet connection and verify the domain is correct.\n` +
+                `Original error: ${error.message}`,
             );
           }
 
@@ -341,7 +356,7 @@ export async function phase1ContextNode(
     if (fullContext.trim().length < 50) {
       throw new Error(
         `Context too short (${fullContext.length} characters). ` +
-        'Please provide more detailed implementation requirements.'
+          'Please provide more detailed implementation requirements.',
       );
     }
 
@@ -361,22 +376,23 @@ export async function phase1ContextNode(
       full_context: fullContext,
       external_docs: externalDocs || undefined,
       source: inputSource,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
-    writeFileSync(
-      join(phase1Dir, 'context-data.json'),
-      JSON.stringify(contextData, null, 2)
-    );
+    writeFileSync(join(phase1Dir, 'context-data.json'), JSON.stringify(contextData, null, 2));
 
     // Write completion marker (last file to write - indicates phase complete)
     writeFileSync(
       completionMarkerPath,
-      JSON.stringify({
-        completed_at: new Date().toISOString(),
-        ticket_id: ticketId,
-        context_data: contextData
-      }, null, 2)
+      JSON.stringify(
+        {
+          completed_at: new Date().toISOString(),
+          ticket_id: ticketId,
+          context_data: contextData,
+        },
+        null,
+        2,
+      ),
     );
 
     console.log('[Phase 1: Context] ✓ Outputs written to disk');
@@ -386,16 +402,15 @@ export async function phase1ContextNode(
     return {
       current_phase: 'phase2_planning',
       phase1_complete: true,
-      phase1_context: contextData
+      phase1_context: contextData,
     };
-
   } catch (error) {
     const errorMessage = `Context gathering failed: ${(error as Error).message}`;
     console.error(`[Phase 1: Context] ✗ ${errorMessage}`);
 
     return {
       errors: [errorMessage],
-      current_phase: 'failed'
+      current_phase: 'failed',
     };
   }
 }

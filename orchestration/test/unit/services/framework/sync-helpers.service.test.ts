@@ -10,13 +10,15 @@ import * as fs from 'fs';
 vi.mock('fs');
 vi.mock('../../../../src/nodes/initialize-project/phase5/skill-resolver.js', () => ({
   resolveSkills: vi.fn().mockReturnValue([
-    { name: 'test-skill', sourcePath: '/framework/skills/test-skill', targetPath: '/project/.claude/skills/test-skill' },
+    {
+      name: 'test-skill',
+      sourcePath: '/framework/skills/test-skill',
+      targetPath: '/project/.claude/skills/test-skill',
+    },
   ]),
 }));
 vi.mock('../../../../src/nodes/initialize-project/phase5/agent-generator.js', () => ({
-  generateAgents: vi.fn().mockReturnValue([
-    { name: 'test-agent', content: '# Test Agent' },
-  ]),
+  generateAgents: vi.fn().mockReturnValue([{ name: 'test-agent', content: '# Test Agent' }]),
   writeAgents: vi.fn(),
 }));
 
@@ -57,7 +59,7 @@ describe('sync-helpers.service', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
       await expect(updateSingleSkill('non-existent', '/project', '/framework')).rejects.toThrow(
-        'Skill non-existent not found in framework'
+        'Skill non-existent not found in framework',
       );
     });
 
@@ -104,7 +106,7 @@ describe('sync-helpers.service', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
       await expect(updateSingleSkill('non-existent', '/project', '/framework')).rejects.toThrow(
-        'not found in framework'
+        'not found in framework',
       );
     });
   });
@@ -118,7 +120,7 @@ describe('sync-helpers.service', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
       await expect(addSingleSkill('missing-skill', '/project', '/framework')).rejects.toThrow(
-        'not found in framework'
+        'not found in framework',
       );
     });
   });

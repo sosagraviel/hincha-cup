@@ -1,17 +1,17 @@
-import { createDeepAgent } from "deepagents";
-import { AuthMode } from "../../../auth/auth-detector.js";
-import { getLLMFactory } from "../../../llm/llm-factory.js";
-import { logger } from "../../logger.js";
-import { loadMarkdownFile } from "../prompt-loader.js";
-import type { Agent, AgentConfig, AgentInvokeInput, AgentInvokeResult } from "./types.js";
-import { getAgentAction } from "./agent-utils.js";
+import { createDeepAgent } from 'deepagents';
+import { AuthMode } from '../../../auth/auth-detector.js';
+import { getLLMFactory } from '../../../llm/llm-factory.js';
+import { logger } from '../../logger.js';
+import { loadMarkdownFile } from '../prompt-loader.js';
+import type { Agent, AgentConfig, AgentInvokeInput, AgentInvokeResult } from './types.js';
+import { getAgentAction } from './agent-utils.js';
 
 /**
  * Create agent using DeepAgents.js (API key mode)
  */
 export async function createDeepAgentImpl(
   config: AgentConfig,
-  authProvider: string
+  authProvider: string,
 ): Promise<Agent> {
   const llmFactory = getLLMFactory();
   const modelInfo = llmFactory.getModelInfo(config.agentName);
@@ -58,19 +58,14 @@ export async function createDeepAgentImpl(
 
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => {
-            reject(
-              new Error(`DeepAgent execution timeout after ${timeout}ms`),
-            );
+            reject(new Error(`DeepAgent execution timeout after ${timeout}ms`));
           }, timeout);
         });
 
         const result = await Promise.race([agentPromise, timeoutPromise]);
         const executionTimeMs = Date.now() - startTime;
 
-        const output =
-          (result as any).output ||
-          (result as any).content ||
-          JSON.stringify(result);
+        const output = result.output || result.content || JSON.stringify(result);
 
         // Update tracker to success
         logger.trackConcurrentAgentSucceed(
@@ -92,17 +87,14 @@ export async function createDeepAgentImpl(
       } catch (error: unknown) {
         // Update to failure state
         const executionTimeMs = Date.now() - startTime;
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
 
         logger.trackConcurrentAgentFail(
           config.agentName,
           `Failed after ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
         );
 
-        throw new Error(
-          `DeepAgent execution failed after ${executionTimeMs}ms: ${errorMessage}`,
-        );
+        throw new Error(`DeepAgent execution failed after ${executionTimeMs}ms: ${errorMessage}`);
       }
     },
 

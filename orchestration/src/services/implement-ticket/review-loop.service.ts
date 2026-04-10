@@ -62,7 +62,7 @@ export class ReviewLoopService {
     projectPath: string,
     frameworkPath: string,
     maxIterations: number = 3,
-    convergenceThreshold: number = 10.0 // 10% improvement per iteration
+    convergenceThreshold: number = 10.0, // 10% improvement per iteration
   ) {
     this.projectPath = projectPath;
     this.frameworkPath = frameworkPath;
@@ -79,7 +79,7 @@ export class ReviewLoopService {
    */
   async runReviewLoop(
     prUrl: string,
-    testOrchestrator: TestOrchestratorService
+    testOrchestrator: TestOrchestratorService,
   ): Promise<ReviewLoopResult> {
     console.log('\n[ReviewLoop] Starting review loop...');
     console.log(`[ReviewLoop] Max iterations: ${this.maxIterations}`);
@@ -100,8 +100,11 @@ export class ReviewLoopService {
       const securityReview = await this.runSecurityReview(prUrl);
 
       // 3. Count total issues
-      const currentIssueCount = prReview.blockerCount + prReview.majorCount +
-                                securityReview.blockerCount + securityReview.majorCount;
+      const currentIssueCount =
+        prReview.blockerCount +
+        prReview.majorCount +
+        securityReview.blockerCount +
+        securityReview.majorCount;
 
       console.log(`[ReviewLoop] Found ${currentIssueCount} blocking/major issues`);
 
@@ -117,16 +120,17 @@ export class ReviewLoopService {
           testsPassedAfterFix: true,
           issueCountBefore: previousIssueCount,
           issueCountAfter: currentIssueCount,
-          improvement: previousIssueCount > 0
-            ? ((previousIssueCount - currentIssueCount) / previousIssueCount) * 100
-            : 0
+          improvement:
+            previousIssueCount > 0
+              ? ((previousIssueCount - currentIssueCount) / previousIssueCount) * 100
+              : 0,
         });
 
         return {
           finalPassed: true,
           iterations,
           convergence: 'converged',
-          totalIssuesResolved: this.calculateTotalIssuesResolved(iterations)
+          totalIssuesResolved: this.calculateTotalIssuesResolved(iterations),
         };
       }
 
@@ -142,7 +146,7 @@ export class ReviewLoopService {
       let testsPassedAfterFix = false;
       try {
         const testResults = await testOrchestrator.runAllTests(false); // No coverage
-        testsPassedAfterFix = testResults.every(r => r.passed);
+        testsPassedAfterFix = testResults.every((r) => r.passed);
 
         if (!testsPassedAfterFix) {
           console.error('[ReviewLoop] Tests failed after fixes - hard stop');
@@ -155,28 +159,28 @@ export class ReviewLoopService {
             testsPassedAfterFix: false,
             issueCountBefore: previousIssueCount,
             issueCountAfter: currentIssueCount,
-            improvement: 0
+            improvement: 0,
           });
 
           return {
             finalPassed: false,
             iterations,
             convergence: 'diverged',
-            totalIssuesResolved: 0
+            totalIssuesResolved: 0,
           };
         }
 
         console.log('[ReviewLoop] ✓ Tests passed after fixes');
-
       } catch (error: any) {
         console.error(`[ReviewLoop] Test execution failed: ${error.message}`);
         testsPassedAfterFix = false;
       }
 
       // 8. Calculate improvement
-      const improvement = previousIssueCount > 0
-        ? ((previousIssueCount - currentIssueCount) / previousIssueCount) * 100
-        : 0;
+      const improvement =
+        previousIssueCount > 0
+          ? ((previousIssueCount - currentIssueCount) / previousIssueCount) * 100
+          : 0;
 
       console.log(`[ReviewLoop] Improvement: ${improvement.toFixed(2)}%`);
 
@@ -189,7 +193,7 @@ export class ReviewLoopService {
         testsPassedAfterFix,
         issueCountBefore: previousIssueCount,
         issueCountAfter: currentIssueCount,
-        improvement
+        improvement,
       });
 
       // 10. Check for divergence (issues increased)
@@ -200,13 +204,15 @@ export class ReviewLoopService {
           finalPassed: false,
           iterations,
           convergence: 'diverged',
-          totalIssuesResolved: 0
+          totalIssuesResolved: 0,
         };
       }
 
       // 11. Check for convergence (improvement < threshold)
       if (i > 1 && improvement < this.convergenceThreshold) {
-        console.log(`[ReviewLoop] ⚠ Convergence slowing (improvement < ${this.convergenceThreshold}%)`);
+        console.log(
+          `[ReviewLoop] ⚠ Convergence slowing (improvement < ${this.convergenceThreshold}%)`,
+        );
       }
 
       // Update previous issue count for next iteration
@@ -220,7 +226,7 @@ export class ReviewLoopService {
       finalPassed: false,
       iterations,
       convergence: 'max_iterations',
-      totalIssuesResolved: this.calculateTotalIssuesResolved(iterations)
+      totalIssuesResolved: this.calculateTotalIssuesResolved(iterations),
     };
   }
 
@@ -242,12 +248,12 @@ export class ReviewLoopService {
           severity: 'blocking',
           category: 'code-quality',
           description: 'Example blocking issue',
-          suggestedFix: 'Fix suggested here'
-        }
+          suggestedFix: 'Fix suggested here',
+        },
       ],
       blockerCount: 1,
       majorCount: 0,
-      minorCount: 0
+      minorCount: 0,
     };
   }
 
@@ -266,7 +272,7 @@ export class ReviewLoopService {
       issues: [],
       blockerCount: 0,
       majorCount: 0,
-      minorCount: 0
+      minorCount: 0,
     };
   }
 
@@ -276,19 +282,17 @@ export class ReviewLoopService {
   private extractIssues(
     prReview: ReviewResult,
     securityReview: ReviewResult,
-    severities: ReviewIssue['severity'][]
+    severities: ReviewIssue['severity'][],
   ): ReviewIssue[] {
     const allIssues = [...prReview.issues, ...securityReview.issues];
 
-    return allIssues.filter(issue => severities.includes(issue.severity));
+    return allIssues.filter((issue) => severities.includes(issue.severity));
   }
 
   /**
    * Apply fixes for issues via implementer agent
    */
-  private async applyFixes(
-    issues: ReviewIssue[]
-  ): Promise<string[]> {
+  private async applyFixes(issues: ReviewIssue[]): Promise<string[]> {
     const fixes: string[] = [];
 
     if (issues.length === 0) {
@@ -304,7 +308,6 @@ export class ReviewLoopService {
       console.log(`[ReviewLoop] Would invoke implementer with ${issues.length} fixes`);
 
       fixes.push(`Applied ${issues.length} fixes`);
-
     } catch (error: any) {
       console.error(`[ReviewLoop] Failed to apply fixes: ${error.message}`);
     }

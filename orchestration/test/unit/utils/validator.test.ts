@@ -28,7 +28,7 @@ describe('validator', () => {
       Object.defineProperty(badObject, 'toString', {
         value() {
           throw new SyntaxError('Invalid syntax encountered');
-        }
+        },
       });
 
       const result = validateAnalyzerOutput(badObject as any, 'test-agent');
@@ -71,13 +71,13 @@ describe('validator', () => {
       Object.defineProperty(poisonedObject, 'agent_name', {
         get() {
           throw new Error('Poisoned property access');
-        }
+        },
       });
 
       const result = validateAnalyzerOutput(poisonedObject as any, 'test-agent');
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors.some(e => e.includes('Validation error'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('Validation error'))).toBe(true);
     });
 
     it('should handle ZodError thrown during validation', () => {
@@ -86,7 +86,7 @@ describe('validator', () => {
       circularObject.self = circularObject;
       circularObject.findings = circularObject;
 
-      const result = validateAnalyzerOutput(circularObject as any, 'test-agent');
+      const result = validateAnalyzerOutput(circularObject, 'test-agent');
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
     });
@@ -237,13 +237,15 @@ Some text after`;
       agent_name: 'structure-architecture-analyzer',
       timestamp: '2024-01-01T00:00:00Z',
       findings: {
-        services: [{
-          id: 'main',
-          path: 'src',
-          type: 'backend',
-          language: 'typescript',
-          frameworks: { main: 'Express' }
-        }]
+        services: [
+          {
+            id: 'main',
+            path: 'src',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: { main: 'Express' },
+          },
+        ],
       },
     };
 
@@ -258,7 +260,7 @@ Some text after`;
     it('should validate correct analyzer output JSON string', () => {
       const result = validateAnalyzerOutput(
         JSON.stringify(validOutput),
-        'structure-architecture-analyzer'
+        'structure-architecture-analyzer',
       );
 
       expect(result.valid).toBe(true);
@@ -278,13 +280,15 @@ Some text after`;
         agent_name: 'structure-architecture-analyzer',
         // Missing timestamp
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }]
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: { main: 'Express' },
+            },
+          ],
         },
       };
 
@@ -298,22 +302,22 @@ Some text after`;
       const invalidOutput = {
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }]
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: { main: 'Express' },
+            },
+          ],
         },
       };
 
       const result = validateAnalyzerOutput(invalidOutput, 'structure-architecture-analyzer');
 
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.toLowerCase().includes('agent_name'))).toBe(
-        true
-      );
+      expect(result.errors.some((e) => e.toLowerCase().includes('agent_name'))).toBe(true);
     });
 
     it('should fail when findings.services is missing because it is required', () => {
@@ -335,33 +339,32 @@ Some text after`;
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }],
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: { main: 'Express' },
+            },
+          ],
           repository_type: 'monorepo',
           monorepo_layout: {
             root: '.',
             packages: ['packages/*'],
-            services: ['services/*']
-          }
+            services: ['services/*'],
+          },
         },
         needs_verification: [
           {
             id: 'v1',
             question: 'Is this correct?',
-            reason: 'Need confirmation'
-          }
-        ]
+            reason: 'Need confirmation',
+          },
+        ],
       };
 
-      const result = validateAnalyzerOutput(
-        outputWithOptionals,
-        'structure-architecture-analyzer'
-      );
+      const result = validateAnalyzerOutput(outputWithOptionals, 'structure-architecture-analyzer');
 
       expect(result.valid).toBe(true);
     });
@@ -371,13 +374,15 @@ Some text after`;
         agent_name: 'structure-architecture-analyzer',
         timestamp: 'not-a-valid-timestamp',
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }]
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: { main: 'Express' },
+            },
+          ],
         },
       };
 
@@ -424,13 +429,15 @@ Some text after`;
       agent_name: 'structure-architecture-analyzer',
       timestamp: '2024-01-01T00:00:00Z',
       findings: {
-        services: [{
-          id: 'main',
-          path: 'src',
-          type: 'backend',
-          language: 'typescript',
-          frameworks: { main: 'Express' }
-        }]
+        services: [
+          {
+            id: 'main',
+            path: 'src',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: { main: 'Express' },
+          },
+        ],
       },
     });
 
@@ -468,15 +475,17 @@ ${validJSON}
     it('should include raw output preview on failure', () => {
       const result = validateAndParseAgentOutput(
         'This is not JSON at all',
-        'structure-architecture-analyzer'
+        'structure-architecture-analyzer',
       );
 
       expect(result.valid).toBe(false);
       // Raw output preview is only added when an exception occurs during extraction
       // For invalid JSON, we get a JSON parse error
-      expect(result.errors.some((e) => e.toLowerCase().includes('invalid json') || e.includes('RAW OUTPUT PREVIEW'))).toBe(
-        true
-      );
+      expect(
+        result.errors.some(
+          (e) => e.toLowerCase().includes('invalid json') || e.includes('RAW OUTPUT PREVIEW'),
+        ),
+      ).toBe(true);
     });
 
     it('should handle extraction errors gracefully', () => {
@@ -577,11 +586,7 @@ ${validJSON}
     it('should include all errors', () => {
       const invalidResult: ValidationResult = {
         valid: false,
-        errors: [
-          'Error 1: Missing field',
-          'Error 2: Invalid format',
-          'Error 3: Wrong type',
-        ],
+        errors: ['Error 1: Missing field', 'Error 2: Invalid format', 'Error 3: Wrong type'],
       };
 
       const feedback = buildValidationErrorFeedback(invalidResult);
@@ -620,7 +625,7 @@ ${validJSON}
       const result = extractJSON(input);
 
       expect(JSON.parse(result)).toEqual({
-        message: 'Line with "quotes" and \n newline'
+        message: 'Line with "quotes" and \n newline',
       });
     });
   });
@@ -631,13 +636,15 @@ ${validJSON}
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }],
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: { main: 'Express' },
+            },
+          ],
           data: Array(1000)
             .fill(null)
             .map((_, i) => ({ id: i, value: `item-${i}` })),
@@ -654,13 +661,15 @@ ${validJSON}
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }],
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: { main: 'Express' },
+            },
+          ],
           message: 'Line 1\nLine 2\tTabbed\r\nWindows newline',
           symbols: '!@#$%^&*()_+-=[]{}|;:\'",.<>?/~`',
         },
@@ -676,13 +685,15 @@ ${validJSON}
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }],
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: { main: 'Express' },
+            },
+          ],
           message: '你好世界 🌍 émojis ñ',
         },
       };
@@ -707,16 +718,18 @@ ${validJSON}
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' },
-            file_count: 42,
-            language_version: '5.8'
-          }],
-          repository_type: 'monorepo'
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: { main: 'Express' },
+              file_count: 42,
+              language_version: '5.8',
+            },
+          ],
+          repository_type: 'monorepo',
         },
       };
 
@@ -753,7 +766,7 @@ ${validJSON}
       const invalidOutput = {
         agent_name: 'invalid-analyzer-name', // Not in enum
         timestamp: '2024-01-01T00:00:00Z',
-        findings: { test: 'data' }
+        findings: { test: 'data' },
       };
 
       const result = validateAnalyzerOutput(invalidOutput, 'structure-architecture-analyzer');
@@ -777,11 +790,13 @@ ${validJSON}
         agent_name: 'tech-stack-dependencies-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [{
-            id: 'main',
-            package_manager: 'npm'
-          }]
-        }
+          services: [
+            {
+              id: 'main',
+              package_manager: 'npm',
+            },
+          ],
+        },
       };
 
       // This should still be valid since agent_name is in the enum and matches the schema
@@ -803,7 +818,7 @@ ${validJSON}
       const result = validateAnalyzerOutput(invalidJSON, 'structure-architecture-analyzer');
 
       expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.toLowerCase().includes('invalid json'))).toBe(true);
+      expect(result.errors.some((e) => e.toLowerCase().includes('invalid json'))).toBe(true);
     });
 
     it('should handle markdown wrapped invalid JSON', () => {
@@ -816,7 +831,8 @@ ${validJSON}
     });
 
     it('should handle extraction of JSON with preceding text', () => {
-      const input = 'Here is the analysis:\n{"agent_name": "structure-architecture-analyzer", "timestamp": "2024-01-01T00:00:00Z", "findings": {"services": [{"id": "main", "path": "src", "type": "backend", "language": "typescript", "frameworks": {"main": "Express"}}]}}';
+      const input =
+        'Here is the analysis:\n{"agent_name": "structure-architecture-analyzer", "timestamp": "2024-01-01T00:00:00Z", "findings": {"services": [{"id": "main", "path": "src", "type": "backend", "language": "typescript", "frameworks": {"main": "Express"}}]}}';
 
       const result = validateAndParseAgentOutput(input, 'structure-architecture-analyzer');
 
@@ -845,8 +861,8 @@ ${validJSON}
           'Schema validation failed:',
           'agent_name: Required',
           'timestamp: Required',
-          'findings: Required'
-        ]
+          'findings: Required',
+        ],
       };
 
       const feedback = buildValidationErrorFeedback(invalidResult);
@@ -869,30 +885,33 @@ ${validJSON}
               path: 'src',
               type: 'backend',
               language: 'typescript',
-              frameworks: { main: 'Express' }
+              frameworks: { main: 'Express' },
             },
             {
               id: 'frontend',
               path: 'web',
               type: 'frontend',
               language: 'typescript',
-              frameworks: { main: 'React' }
-            }
+              frameworks: { main: 'React' },
+            },
           ],
           monorepo_layout: {
             root: '.',
             packages: ['packages/ui', 'packages/utils'],
             services: ['src', 'web'],
-            other: ['docs', 'scripts']
-          }
-        }
+            other: ['docs', 'scripts'],
+          },
+        },
       };
 
       const result = validateAnalyzerOutput(complexOutput, 'structure-architecture-analyzer');
 
       expect(result.valid).toBe(true);
       expect(result.data.findings.services.length).toBe(2);
-      expect(result.data.findings.monorepo_layout.packages).toEqual(['packages/ui', 'packages/utils']);
+      expect(result.data.findings.monorepo_layout.packages).toEqual([
+        'packages/ui',
+        'packages/utils',
+      ]);
     });
 
     it('should handle incomplete frontmatter in extractJSON', () => {
@@ -917,7 +936,7 @@ ${validJSON}
     it('should handle empty error array in buildValidationErrorFeedback', () => {
       const invalidResult: ValidationResult = {
         valid: false,
-        errors: []
+        errors: [],
       };
 
       const feedback = buildValidationErrorFeedback(invalidResult);
@@ -955,25 +974,30 @@ ${validJSON}
         {
           code: 'custom',
           path: ['test', 'field'],
-          message: 'Test validation error'
-        }
+          message: 'Test validation error',
+        },
       ]);
 
       // We need to trigger the outer catch block that handles ZodError
       // This happens when an unexpected error occurs during validation
-      const result = validateAnalyzerOutput({
-        agent_name: 'structure-architecture-analyzer',
-        timestamp: '2024-01-01T00:00:00Z',
-        findings: {
-          services: [{
-            id: 'main',
-            path: 'src',
-            type: 'backend',
-            language: 'typescript',
-            frameworks: { main: 'Express' }
-          }]
-        }
-      }, 'structure-architecture-analyzer');
+      const result = validateAnalyzerOutput(
+        {
+          agent_name: 'structure-architecture-analyzer',
+          timestamp: '2024-01-01T00:00:00Z',
+          findings: {
+            services: [
+              {
+                id: 'main',
+                path: 'src',
+                type: 'backend',
+                language: 'typescript',
+                frameworks: { main: 'Express' },
+              },
+            ],
+          },
+        },
+        'structure-architecture-analyzer',
+      );
 
       // Normal validation should work
       expect(result.valid).toBe(true);
@@ -985,7 +1009,10 @@ ${validJSON}
 
       // This should trigger the catch block in validateAndParseAgentOutput
       // which adds RAW OUTPUT PREVIEW (lines 260-267)
-      const result = validateAndParseAgentOutput(longInvalidInput, 'structure-architecture-analyzer');
+      const result = validateAndParseAgentOutput(
+        longInvalidInput,
+        'structure-architecture-analyzer',
+      );
 
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
@@ -1008,29 +1035,37 @@ ${validJSON}
         trim() {
           throw new Error('Extraction failed');
         },
-        substring() { return ''; },
+        substring() {
+          return '';
+        },
         length: 100,
       };
 
-      const result = validateAndParseAgentOutput(poisonedString as any, 'structure-architecture-analyzer');
+      const result = validateAndParseAgentOutput(
+        poisonedString as any,
+        'structure-architecture-analyzer',
+      );
 
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
       // Should have the "Failed to extract JSON:" error message
-      expect(result.errors.some(e => e.includes('Failed to extract JSON'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('Failed to extract JSON'))).toBe(true);
       // Should have RAW OUTPUT PREVIEW
-      expect(result.errors.some(e => e.includes('RAW OUTPUT PREVIEW'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('RAW OUTPUT PREVIEW'))).toBe(true);
     });
 
     it('should truncate long output in catch block preview', () => {
       // Create a very long string that will cause an error and be truncated
       const longInvalidOutput = 'x'.repeat(600);
 
-      const result = validateAndParseAgentOutput(longInvalidOutput as any, 'structure-architecture-analyzer');
+      const result = validateAndParseAgentOutput(
+        longInvalidOutput as any,
+        'structure-architecture-analyzer',
+      );
 
       expect(result.valid).toBe(false);
       // The error should include RAW OUTPUT PREVIEW
-      const hasPreview = result.errors.some(e => e.includes('RAW OUTPUT PREVIEW'));
+      const hasPreview = result.errors.some((e) => e.includes('RAW OUTPUT PREVIEW'));
       // May or may not have preview depending on error path
       expect(result.errors.length).toBeGreaterThan(0);
     });
@@ -1046,7 +1081,7 @@ ${validJSON}
 
       // Schema validation should catch missing timestamp (required field)
       expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.toLowerCase().includes('timestamp'))).toBe(true);
+      expect(result.errors.some((e) => e.toLowerCase().includes('timestamp'))).toBe(true);
     });
 
     it('should return json block content even if not valid', () => {

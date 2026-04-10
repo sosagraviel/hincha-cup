@@ -23,7 +23,7 @@ import type { ImplementTicketState } from '../../state/schemas/implement-ticket.
  * @returns Updated state with phase7 completion flag
  */
 export async function phase7DocumentationNode(
-  state: ImplementTicketState
+  state: ImplementTicketState,
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
@@ -39,7 +39,7 @@ export async function phase7DocumentationNode(
     return {
       current_phase: 'phase8_pr',
       phase7_complete: true,
-      phase7_documentation: completionData.documentation_data
+      phase7_documentation: completionData.documentation_data,
     };
   }
 
@@ -49,9 +49,7 @@ export async function phase7DocumentationNode(
     const phase6CompletionPath = join(phase6Dir, 'visual-complete.json');
 
     if (!existsSync(phase6CompletionPath)) {
-      throw new Error(
-        'Phase 6 not complete. Run Phase 6 first or use --start-phase 6'
-      );
+      throw new Error('Phase 6 not complete. Run Phase 6 first or use --start-phase 6');
     }
     console.log('[Phase 7: Documentation] ✓ Phase 6 verified');
 
@@ -59,7 +57,9 @@ export async function phase7DocumentationNode(
     const filesModifiedPath = join(phase4Dir, 'files-modified.txt');
 
     if (!existsSync(filesModifiedPath)) {
-      console.log('[Phase 7: Documentation] ⚠ No modified files found, skipping documentation update');
+      console.log(
+        '[Phase 7: Documentation] ⚠ No modified files found, skipping documentation update',
+      );
       return skipDocumentation(phase7Dir, completionMarkerPath, ticketId, 'No modified files');
     }
 
@@ -68,7 +68,10 @@ export async function phase7DocumentationNode(
 
     console.log(`[Phase 7: Documentation] ✓ Found ${modifiedFiles.length} modified files`);
 
-    const implementationPlan = readFileSync(join(tempDir, 'phase2', 'implementation-plan.md'), 'utf-8');
+    const implementationPlan = readFileSync(
+      join(tempDir, 'phase2', 'implementation-plan.md'),
+      'utf-8',
+    );
     const fullContext = readFileSync(join(tempDir, 'phase1', 'full-context.md'), 'utf-8');
 
     console.log('[Phase 7: Documentation] Analyzing changes for documentation updates...');
@@ -77,12 +80,17 @@ export async function phase7DocumentationNode(
       modifiedFiles,
       implementationPlan,
       fullContext,
-      ticketId
+      ticketId,
     );
 
     if (docUpdates.length === 0) {
       console.log('[Phase 7: Documentation] ⚠ No documentation updates needed');
-      return skipDocumentation(phase7Dir, completionMarkerPath, ticketId, 'No hard-to-discover knowledge to document');
+      return skipDocumentation(
+        phase7Dir,
+        completionMarkerPath,
+        ticketId,
+        'No hard-to-discover knowledge to document',
+      );
     }
 
     console.log(`[Phase 7: Documentation] Found ${docUpdates.length} documentation updates needed`);
@@ -106,7 +114,6 @@ export async function phase7DocumentationNode(
         writeFileSync(claudeMdPath, claudeMdContent);
         console.log('[Phase 7: Documentation] ✓ CLAUDE.md updated');
       }
-
     } else {
       console.log('[Phase 7: Documentation] ⚠ CLAUDE.md not found, skipping update');
     }
@@ -116,7 +123,9 @@ export async function phase7DocumentationNode(
     const stackProfileUpdates = detectStackProfileChanges(modifiedFiles, projectPath);
 
     if (stackProfileUpdates.length > 0) {
-      console.log(`[Phase 7: Documentation] Found ${stackProfileUpdates.length} stack profile updates:`);
+      console.log(
+        `[Phase 7: Documentation] Found ${stackProfileUpdates.length} stack profile updates:`,
+      );
       for (const update of stackProfileUpdates) {
         console.log(`  • ${update.type}: ${update.value}`);
       }
@@ -128,7 +137,6 @@ export async function phase7DocumentationNode(
         writeFileSync(claudeMdPath, claudeMdContent);
         console.log('[Phase 7: Documentation] ✓ Stack profile updated in CLAUDE.md');
       }
-
     } else {
       console.log('[Phase 7: Documentation] ✓ No stack profile updates needed');
     }
@@ -137,14 +145,11 @@ export async function phase7DocumentationNode(
     console.log('[Phase 7: Documentation] Writing outputs to disk...');
     mkdirSync(phase7Dir, { recursive: true });
 
-    writeFileSync(
-      join(phase7Dir, 'doc-updates.json'),
-      JSON.stringify(docUpdates, null, 2)
-    );
+    writeFileSync(join(phase7Dir, 'doc-updates.json'), JSON.stringify(docUpdates, null, 2));
 
     writeFileSync(
       join(phase7Dir, 'stack-profile-updates.json'),
-      JSON.stringify(stackProfileUpdates, null, 2)
+      JSON.stringify(stackProfileUpdates, null, 2),
     );
 
     const docSummary: string[] = [];
@@ -165,10 +170,7 @@ export async function phase7DocumentationNode(
       docSummary.push('');
     }
 
-    writeFileSync(
-      join(phase7Dir, 'documentation-summary.md'),
-      docSummary.join('\n')
-    );
+    writeFileSync(join(phase7Dir, 'documentation-summary.md'), docSummary.join('\n'));
 
     const documentationData = {
       doc_updates: docUpdates,
@@ -176,22 +178,26 @@ export async function phase7DocumentationNode(
       claude_md_updated: claudeMdUpdated,
       project_context_updated: false, // TODO: Implement project context updates
       modified_files_count: modifiedFiles.length,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     writeFileSync(
       join(phase7Dir, 'documentation-data.json'),
-      JSON.stringify(documentationData, null, 2)
+      JSON.stringify(documentationData, null, 2),
     );
 
     // Write completion marker (last file to write - indicates phase complete)
     writeFileSync(
       completionMarkerPath,
-      JSON.stringify({
-        completed_at: new Date().toISOString(),
-        ticket_id: ticketId,
-        documentation_data: documentationData
-      }, null, 2)
+      JSON.stringify(
+        {
+          completed_at: new Date().toISOString(),
+          ticket_id: ticketId,
+          documentation_data: documentationData,
+        },
+        null,
+        2,
+      ),
     );
 
     console.log('[Phase 7: Documentation] ✓ Outputs written to disk');
@@ -201,9 +207,8 @@ export async function phase7DocumentationNode(
     return {
       current_phase: 'phase8_pr',
       phase7_complete: true,
-      phase7_documentation: documentationData
+      phase7_documentation: documentationData,
     };
-
   } catch (error) {
     const errorMessage = `Documentation update failed: ${(error as Error).message}`;
     console.error(`[Phase 7: Documentation] ✗ ${errorMessage}`);
@@ -222,7 +227,7 @@ function skipDocumentation(
   phase7Dir: string,
   completionMarkerPath: string,
   ticketId: string,
-  reason: string
+  reason: string,
 ): Partial<ImplementTicketState> {
   mkdirSync(phase7Dir, { recursive: true });
 
@@ -234,32 +239,36 @@ function skipDocumentation(
     modified_files_count: 0,
     skipped: true,
     skip_reason: reason,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 
   writeFileSync(
     join(phase7Dir, 'documentation-summary.md'),
-    `# Documentation Updates\n\n⚠ SKIPPED\n\n**Reason**: ${reason}\n`
+    `# Documentation Updates\n\n⚠ SKIPPED\n\n**Reason**: ${reason}\n`,
   );
 
   writeFileSync(
     join(phase7Dir, 'documentation-data.json'),
-    JSON.stringify(documentationData, null, 2)
+    JSON.stringify(documentationData, null, 2),
   );
 
   writeFileSync(
     completionMarkerPath,
-    JSON.stringify({
-      completed_at: new Date().toISOString(),
-      ticket_id: ticketId,
-      documentation_data: documentationData
-    }, null, 2)
+    JSON.stringify(
+      {
+        completed_at: new Date().toISOString(),
+        ticket_id: ticketId,
+        documentation_data: documentationData,
+      },
+      null,
+      2,
+    ),
   );
 
   return {
     current_phase: 'phase8_pr',
     phase7_complete: true,
-    phase7_documentation: documentationData
+    phase7_documentation: documentationData,
   };
 }
 
@@ -271,62 +280,67 @@ function analyzeDocumentationNeeds(
   modifiedFiles: string[],
   implementationPlan: string,
   fullContext: string,
-  ticketId: string
+  ticketId: string,
 ): Array<{ section: string; content: string; type: 'add' | 'update' }> {
   const updates: Array<{ section: string; content: string; type: 'add' | 'update' }> = [];
 
   // Check for new API endpoints
-  const apiFiles = modifiedFiles.filter(f =>
-    f.includes('/api/') || f.includes('/routes/') || f.includes('/controllers/')
+  const apiFiles = modifiedFiles.filter(
+    (f) => f.includes('/api/') || f.includes('/routes/') || f.includes('/controllers/'),
   );
 
   if (apiFiles.length > 0) {
     updates.push({
       section: 'API Endpoints',
-      content: `Added/modified API endpoints in ${ticketId}:\n` +
-        apiFiles.map(f => `  - ${f}`).join('\n'),
-      type: 'update'
+      content:
+        `Added/modified API endpoints in ${ticketId}:\n` +
+        apiFiles.map((f) => `  - ${f}`).join('\n'),
+      type: 'update',
     });
   }
 
   // Check for new configuration
-  const configFiles = modifiedFiles.filter(f =>
-    f.includes('config') || f.includes('.env') || f.includes('settings')
+  const configFiles = modifiedFiles.filter(
+    (f) => f.includes('config') || f.includes('.env') || f.includes('settings'),
   );
 
   if (configFiles.length > 0) {
     updates.push({
       section: 'Configuration',
-      content: `Configuration changes in ${ticketId}:\n` +
-        configFiles.map(f => `  - ${f}`).join('\n') +
+      content:
+        `Configuration changes in ${ticketId}:\n` +
+        configFiles.map((f) => `  - ${f}`).join('\n') +
         '\n\nCheck these files for new environment variables or settings.',
-      type: 'update'
+      type: 'update',
     });
   }
 
   // Check for new database migrations
-  const migrationFiles = modifiedFiles.filter(f =>
-    f.includes('migration') || f.includes('schema') || f.includes('models/')
+  const migrationFiles = modifiedFiles.filter(
+    (f) => f.includes('migration') || f.includes('schema') || f.includes('models/'),
   );
 
   if (migrationFiles.length > 0) {
     updates.push({
       section: 'Database Schema',
-      content: `Database changes in ${ticketId}:\n` +
-        migrationFiles.map(f => `  - ${f}`).join('\n'),
-      type: 'update'
+      content:
+        `Database changes in ${ticketId}:\n` + migrationFiles.map((f) => `  - ${f}`).join('\n'),
+      type: 'update',
     });
   }
 
   // Check for new external integrations
-  if (implementationPlan.toLowerCase().includes('api') ||
-      implementationPlan.toLowerCase().includes('integration') ||
-      implementationPlan.toLowerCase().includes('external')) {
+  if (
+    implementationPlan.toLowerCase().includes('api') ||
+    implementationPlan.toLowerCase().includes('integration') ||
+    implementationPlan.toLowerCase().includes('external')
+  ) {
     updates.push({
       section: 'External Integrations',
-      content: `Added/modified external integrations in ${ticketId}. ` +
+      content:
+        `Added/modified external integrations in ${ticketId}. ` +
         'Check implementation for API keys, webhooks, or third-party services.',
-      type: 'add'
+      type: 'add',
     });
   }
 
@@ -339,7 +353,7 @@ function analyzeDocumentationNeeds(
  */
 function applySurgicalUpdate(
   claudeMdContent: string,
-  update: { section: string; content: string; type: 'add' | 'update' }
+  update: { section: string; content: string; type: 'add' | 'update' },
 ): string {
   // Find section in CLAUDE.md
   const sectionRegex = new RegExp(`##\\s+${update.section}\\s*\\n`, 'i');
@@ -355,12 +369,12 @@ function applySurgicalUpdate(
     const nextSectionMatch = afterSection.match(/\n##\s+/);
     const insertIndex = nextSectionMatch ? nextSectionMatch.index! : afterSection.length;
 
-    const updatedSection = afterSection.substring(0, insertIndex) +
+    const updatedSection =
+      afterSection.substring(0, insertIndex) +
       `\n${update.content}\n` +
       afterSection.substring(insertIndex);
 
     return beforeSection + updatedSection;
-
   } else if (!sectionMatch && update.type === 'add') {
     // Section doesn't exist, add it at the end
     return claudeMdContent + `\n## ${update.section}\n\n${update.content}\n`;
@@ -375,7 +389,7 @@ function applySurgicalUpdate(
  */
 function detectStackProfileChanges(
   modifiedFiles: string[],
-  projectPath: string
+  projectPath: string,
 ): Array<{ type: string; value: string }> {
   const updates: Array<{ type: string; value: string }> = [];
 
@@ -387,20 +401,28 @@ function detectStackProfileChanges(
       // Extract new dependencies (this is simplified - ideally compare with previous)
       const allDeps = {
         ...packageJson.dependencies,
-        ...packageJson.devDependencies
+        ...packageJson.devDependencies,
       };
 
-      const majorFrameworks = ['react', 'vue', 'angular', 'svelte', 'express', 'fastify', 'next', 'nuxt'];
+      const majorFrameworks = [
+        'react',
+        'vue',
+        'angular',
+        'svelte',
+        'express',
+        'fastify',
+        'next',
+        'nuxt',
+      ];
 
       for (const framework of majorFrameworks) {
         if (allDeps[framework]) {
           updates.push({
             type: 'dependency',
-            value: `${framework}@${allDeps[framework]}`
+            value: `${framework}@${allDeps[framework]}`,
           });
         }
       }
-
     } catch (error) {
       // Ignore parse errors
     }
@@ -410,7 +432,7 @@ function detectStackProfileChanges(
   if (modifiedFiles.includes('requirements.txt')) {
     updates.push({
       type: 'dependency_file',
-      value: 'requirements.txt updated - check for new Python dependencies'
+      value: 'requirements.txt updated - check for new Python dependencies',
     });
   }
 
@@ -418,7 +440,7 @@ function detectStackProfileChanges(
   if (modifiedFiles.includes('Cargo.toml')) {
     updates.push({
       type: 'dependency_file',
-      value: 'Cargo.toml updated - check for new Rust dependencies'
+      value: 'Cargo.toml updated - check for new Rust dependencies',
     });
   }
 
@@ -426,7 +448,7 @@ function detectStackProfileChanges(
   if (modifiedFiles.includes('go.mod')) {
     updates.push({
       type: 'dependency_file',
-      value: 'go.mod updated - check for new Go dependencies'
+      value: 'go.mod updated - check for new Go dependencies',
     });
   }
 
@@ -438,7 +460,7 @@ function detectStackProfileChanges(
  */
 function updateStackProfileSection(
   claudeMdContent: string,
-  stackProfileUpdates: Array<{ type: string; value: string }>
+  stackProfileUpdates: Array<{ type: string; value: string }>,
 ): string {
   // Find stack profile section
   const stackSectionRegex = /##\s+Stack\s+Profile\s*\n/i;
@@ -450,8 +472,9 @@ function updateStackProfileSection(
     const afterSection = claudeMdContent.substring(sectionIndex);
 
     // Add updates to stack profile section
-    const updateText = '\n### Recent Updates\n\n' +
-      stackProfileUpdates.map(u => `- ${u.type}: ${u.value}`).join('\n') +
+    const updateText =
+      '\n### Recent Updates\n\n' +
+      stackProfileUpdates.map((u) => `- ${u.type}: ${u.value}`).join('\n') +
       '\n';
 
     // Insert updates at beginning of stack profile section

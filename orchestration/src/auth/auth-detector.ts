@@ -11,7 +11,7 @@ export enum AuthMode {
   CLAUDE_CLI = 'claude_cli',
 
   /** No authentication available */
-  NONE = 'none'
+  NONE = 'none',
 }
 
 /**
@@ -73,7 +73,7 @@ export async function detectAuthMode(): Promise<AuthConfig> {
       provider: 'anthropic',
       hasClaudeCLI,
       hasAPIKey: true,
-      claudeCLIVersion
+      claudeCLIVersion,
     };
   }
 
@@ -83,7 +83,7 @@ export async function detectAuthMode(): Promise<AuthConfig> {
       provider: 'openai',
       hasClaudeCLI,
       hasAPIKey: true,
-      claudeCLIVersion
+      claudeCLIVersion,
     };
   }
 
@@ -93,7 +93,7 @@ export async function detectAuthMode(): Promise<AuthConfig> {
       provider: 'google',
       hasClaudeCLI,
       hasAPIKey: true,
-      claudeCLIVersion
+      claudeCLIVersion,
     };
   }
 
@@ -106,7 +106,7 @@ export async function detectAuthMode(): Promise<AuthConfig> {
         provider: 'anthropic',
         hasClaudeCLI: true,
         hasAPIKey: false,
-        claudeCLIVersion
+        claudeCLIVersion,
       };
     }
   }
@@ -116,7 +116,7 @@ export async function detectAuthMode(): Promise<AuthConfig> {
     mode: AuthMode.NONE,
     hasClaudeCLI,
     hasAPIKey: false,
-    claudeCLIVersion
+    claudeCLIVersion,
   };
 }
 
@@ -140,7 +140,7 @@ export async function getClaudeCLIVersion(): Promise<string | undefined> {
     const output = execSync('claude --version', {
       encoding: 'utf-8',
       timeout: 5000,
-      stdio: ['ignore', 'pipe', 'ignore']
+      stdio: ['ignore', 'pipe', 'ignore'],
     });
     return output.trim();
   } catch {
@@ -160,7 +160,7 @@ export async function isClaudeCLIAuthenticated(): Promise<boolean> {
     // Using --version should work without auth, but we can try a more specific check
     execSync('claude --help', {
       stdio: 'ignore',
-      timeout: 5000
+      timeout: 5000,
     });
 
     // If we got here, Claude CLI is installed
@@ -209,7 +209,7 @@ export function getAuthErrorMessage(authConfig: AuthConfig): string {
     '❌ No authentication available',
     '',
     'Please choose one of the following options:',
-    ''
+    '',
   ];
 
   // Option 1: API Key (any provider)

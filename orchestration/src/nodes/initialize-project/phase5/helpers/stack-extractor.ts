@@ -4,7 +4,7 @@
  * Extract language and service type information from stack profile
  */
 
-import type { StackProfile } from "../../../../schemas/index.js";
+import type { StackProfile } from '../../../../schemas/index.js';
 
 /**
  * Helper to get unique languages from services
@@ -17,5 +17,5 @@ export function getLanguagesFromStackProfile(stackProfile: StackProfile): string
  * Helper to check if stack profile has frontend services
  */
 export function hasFrontendService(stackProfile: StackProfile): boolean {
-  return stackProfile.services.some((s) => s.type === "frontend");
+  return stackProfile.services.some((s) => s.type === 'frontend');
 }

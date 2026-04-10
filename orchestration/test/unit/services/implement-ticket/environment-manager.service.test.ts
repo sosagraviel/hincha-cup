@@ -82,8 +82,9 @@ describe('EnvironmentManagerService', () => {
     it('should throw error if base compose file not found', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      expect(() => service.generateDockerComposeOverride('PROJ-123', 15000))
-        .toThrow('Docker Compose file not found');
+      expect(() => service.generateDockerComposeOverride('PROJ-123', 15000)).toThrow(
+        'Docker Compose file not found',
+      );
     });
 
     it('should generate override file with port mapping', () => {
@@ -169,7 +170,7 @@ services:
 
       expect(child_process.execSync).toHaveBeenCalledWith(
         expect.stringContaining('docker-compose'),
-        expect.any(Object)
+        expect.any(Object),
       );
       expect(result).toBe(true);
       vi.useRealTimers();
@@ -185,7 +186,7 @@ services:
 
       expect(child_process.execSync).toHaveBeenCalledWith(
         expect.stringContaining('-d'),
-        expect.any(Object)
+        expect.any(Object),
       );
       vi.useRealTimers();
     });
@@ -223,11 +224,11 @@ services:
       const result = await service.stopDockerServices('PROJ-123', '/test/override.yml');
       expect(child_process.execSync).toHaveBeenCalledWith(
         expect.stringContaining('docker-compose'),
-        expect.any(Object)
+        expect.any(Object),
       );
       expect(child_process.execSync).toHaveBeenCalledWith(
         expect.stringContaining('down'),
-        expect.any(Object)
+        expect.any(Object),
       );
       expect(result).toBe(true);
     });
@@ -247,7 +248,7 @@ services:
     it('should return running true when service responds', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        status: 200
+        status: 200,
       });
 
       const result = await service.checkServiceStatus(15000);
@@ -267,7 +268,7 @@ services:
     it('should consider 4xx errors as running', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
-        status: 404
+        status: 404,
       });
 
       const result = await service.checkServiceStatus(15000);
@@ -277,7 +278,7 @@ services:
     it('should consider 5xx errors as not running', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
-        status: 500
+        status: 500,
       });
 
       const result = await service.checkServiceStatus(15000);

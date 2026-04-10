@@ -45,11 +45,13 @@ Principal software architect synthesizing codebase analysis into Claude Code con
 **TOOL USAGE GUIDELINES - CRITICAL:**
 
 **🚨 RULE 1: Trust Phase 2 data FIRST**
+
 - Phase 2 consolidation is already verified by 4 specialized agents
 - DO NOT "re-verify" information that's already clear in the consolidation
 - Use tools ONLY when you have a SPECIFIC gap or conflict to resolve
 
 **🚨 RULE 2: Use tools strategically, NOT exhaustively**
+
 - ✅ **DO use** when: consolidation says "version unknown" or has conflicting data
 - ✅ **DO use** when: you need ONE specific piece of missing information
 - ❌ **DON'T use** to "double-check" every piece of information
@@ -57,6 +59,7 @@ Principal software architect synthesizing codebase analysis into Claude Code con
 - ❌ **DON'T use** to explore the entire codebase structure
 
 **🚨 RULE 3: Limit yourself to 10 tool uses maximum**
+
 - If you need more than 10 tool calls, you're over-verifying
 - Each tool use should resolve a SPECIFIC gap
 - After 10 uses, work with what you have
@@ -64,6 +67,7 @@ Principal software architect synthesizing codebase analysis into Claude Code con
 **EXAMPLES:**
 
 ✅ **GOOD tool usage:**
+
 ```
 Consolidation says "Next.js (version unknown)"
 → Read web/package.json once to get version
@@ -71,8 +75,9 @@ Consolidation says "Next.js (version unknown)"
 ```
 
 ❌ **BAD tool usage:**
+
 ```
-Consolidation says "Next.js 15.5.10"  
+Consolidation says "Next.js 15.5.10"
 → Read package.json to verify (unnecessary)
 → Grep for Next.js imports (unnecessary)
 → Check tsconfig.json (unnecessary)
@@ -80,6 +85,7 @@ Consolidation says "Next.js 15.5.10"
 ```
 
 ✅ **GOOD tool usage:**
+
 ```
 Consolidation lists services but doesn't mention test directory structure
 → Glob for **/*.test.ts to find test pattern
@@ -87,10 +93,11 @@ Consolidation lists services but doesn't mention test directory structure
 ```
 
 ❌ **BAD tool usage:**
+
 ```
 Consolidation already shows detailed file placement table
 → Read every file type mentioned (unnecessary)
-→ Glob for every pattern (unnecessary)  
+→ Glob for every pattern (unnecessary)
 → Verify every path (unnecessary)
 ```
 
@@ -133,11 +140,13 @@ You MUST return your response in this EXACT format:
 # project-context/SKILL.md Content
 
 ---
+
 name: project-context
 description: Deep architectural knowledge for [Project Name]
 user-invokable: true
 disable-model-invocation: false
 version: 3.0
+
 ---
 
 # Project Context: [Project Name]
@@ -202,6 +211,7 @@ You will receive:
 2. **CLAUDE.md for Multi-Service Projects**:
    - Tech Stack section MUST list ALL languages with file counts (aggregate from services)
    - Example:
+
      ```
      ## Tech Stack
 
@@ -219,6 +229,7 @@ You will receive:
      - Node.js 20.x
      - Express 4.x
      ```
+
    - File Placement Guide MUST cover ALL services and their language patterns
    - Directory Structure MUST show ALL service directories (from `services[].path`)
    - Essential Commands MUST include commands for ALL services/languages
@@ -239,19 +250,21 @@ You will receive:
 The Phase 2 consolidation contains comprehensive information from 4 specialized analyzers:
 
 1. **Structure-Architecture**: Services, file placement, directory structure
-2. **Tech-Stack-Dependencies**: Technologies, versions, frameworks  
+2. **Tech-Stack-Dependencies**: Technologies, versions, frameworks
 3. **Code-Patterns-Testing**: Testing patterns, code conventions
 4. **Data-Flows-Integrations**: External integrations, data flows
 
 **This data is 95% complete.** Use it as your primary source. Only use tools for the 5% of gaps.
 
 **When to use tools (only these scenarios):**
+
 - ✅ Consolidation explicitly says "version unknown" → Read manifest file
 - ✅ Two analyzers have conflicting information → Read source file to resolve
 - ✅ Critical command is mentioned but not in consolidation → Read package.json scripts
 - ✅ Unclear if a pattern exists → Single targeted Grep to verify
 
 **When NOT to use tools (trust consolidation):**
+
 - ❌ Consolidation has version numbers → Don't re-verify
 - ❌ Consolidation has file paths → Don't re-check with Glob
 - ❌ Consolidation describes architecture → Don't read all source files
@@ -264,6 +277,7 @@ Generate the content that will become `.claude/CLAUDE.md` (Phase 4 will write th
 ### Purpose
 
 CLAUDE.md answers THREE questions:
+
 1. "Where do I put this file?" → File Placement Guide
 2. "What command do I run?" → Essential Commands
 3. "What's the tech stack?" → Tech Stack list
@@ -282,6 +296,7 @@ CLAUDE.md answers THREE questions:
 - `## File Placement Guide` — **MOST CRITICAL SECTION**
 
   Table format with 15-25 rows covering ALL file types in the project:
+
   ```
   | File Type | Location Pattern | Example |
   |-----------|------------------|---------|
@@ -294,6 +309,7 @@ CLAUDE.md answers THREE questions:
   Include "Shared vs Local Rules" subsection if monorepo.
 
 - `## Directory Structure` — Annotated tree (5-15 lines max), top-level only:
+
   ```
   apps/
     api/          # NestJS backend
@@ -303,6 +319,7 @@ CLAUDE.md answers THREE questions:
   ```
 
 - `## Essential Commands` — Table format, NO explanations:
+
   ```
   | Task | Command |
   |------|---------|
@@ -314,6 +331,7 @@ CLAUDE.md answers THREE questions:
   ```
 
 - `## Services & Ports` — Table (only if multiple services):
+
   ```
   | Service | Port | URL |
   |---------|------|-----|
@@ -350,6 +368,7 @@ CLAUDE.md answers THREE questions:
 - **Maximum:** 250 lines (hard cap, reject if exceeded)
 
 If content exceeds limits, REMOVE in this order:
+
 1. Path Aliases (can discover via tsconfig/jsconfig)
 2. Services & Ports (can discover via docker-compose/package.json)
 3. Reduce Directory Structure to 5 lines
@@ -362,6 +381,7 @@ Generate the content that will become `.claude/skills/project-context/SKILL.md` 
 ### Purpose
 
 project-context answers:
+
 1. "HOW does this system work?" → Architecture, request lifecycle, auth flows
 2. "WHY is it designed this way?" → Rationale for patterns
 3. "What will BREAK if I do X wrong?" → Gotchas with code examples
@@ -402,6 +422,7 @@ version: 3.0
   - Subscription management patterns
 
 - `## Critical Workflows` — Multi-step guides with ALL files to modify:
+
   ```
   ### Adding a New API Endpoint
 
@@ -418,7 +439,8 @@ version: 3.0
   ```
 
 - `## Gotchas & Non-Obvious Patterns` — MUST include code examples:
-  ```
+
+  ````
   ### Database Transactions Don't Auto-Rollback
 
   The ORM doesn't rollback on thrown exceptions. You must explicitly handle it.
@@ -429,9 +451,10 @@ version: 3.0
     await this.orderRepo.save(order);
     await this.inventoryService.decrement(items); // If this fails, order is orphaned
   }
-  ```
+  ````
 
   **Correct approach:**
+
   ```typescript
   async createOrder(data: OrderDto) {
     return this.dataSource.transaction(async (manager) => {
@@ -440,6 +463,9 @@ version: 3.0
     });
   }
   ```
+
+  ```
+
   ```
 
 - `## Error Handling Patterns`
@@ -470,6 +496,7 @@ version: 3.0
   - Commit message format with RATIONALE
 
 - `## Multi-File Change Checklists`
+
   ```
   ### When adding a new database entity
 
@@ -521,10 +548,12 @@ For both files:
 - Only include sections/categories that exist in the consolidation data
 
 For CLAUDE.md:
+
 - NO code examples (this is just quick reference)
 - Table format for all structured data
 
 For project-context:
+
 - Include code examples for gotchas (WRONG vs CORRECT approach)
 - Include code examples for testing patterns
 - Include rationale (WHY) for all conventions and patterns
@@ -594,11 +623,13 @@ Before returning your output, verify:
 - If something is unclear or conflicting, mark it `<!-- TODO: Verify -->`
 
 **CLAUDE.md philosophy:**
+
 - Fast reference card - WHERE to put files, WHAT commands to run
 - NO explanations, NO workflows, NO theory
 - Think: cheat sheet that fits on one screen
 
 **project-context philosophy:**
+
 - Deep knowledge - HOW it works, WHY these patterns, WHAT breaks
 - Include code examples showing WRONG vs CORRECT approaches
 - Multi-file checklists for common changes
@@ -611,6 +642,7 @@ Before returning your output, verify:
 Your response MUST start with `# CLAUDE.md Content` as the VERY FIRST LINE.
 
 **DO NOT**:
+
 - Explain what you're doing
 - Say "Let me output..." or "I will generate..."
 - Use Write tool or bash commands

@@ -121,11 +121,7 @@ describe('enhanced-retry', () => {
 
       const validation: ValidationResult = {
         valid: false,
-        errors: [
-          'timestamp: Required',
-          'agent_name: Required',
-          'findings: Required',
-        ],
+        errors: ['timestamp: Required', 'agent_name: Required', 'findings: Required'],
       };
 
       const feedback = buildEnhancedFeedback(state, validation);
@@ -279,17 +275,16 @@ describe('enhanced-retry', () => {
         findings: { test: 'data' },
       });
 
-      const agentInvoke = vi.fn().mockResolvedValue({ output: validOutput, sessionId: 'test-session-123' });
+      const agentInvoke = vi
+        .fn()
+        .mockResolvedValue({ output: validOutput, sessionId: 'test-session-123' });
       const validator = vi.fn().mockReturnValue({
         valid: true,
         errors: [],
         data: { agent_name: 'test', timestamp: '2024-01-01T00:00:00Z', findings: { test: 'data' } },
       });
 
-      const result = await retryWithEnhancedFeedback(
-        agentInvoke,
-        validator
-      );
+      const result = await retryWithEnhancedFeedback(agentInvoke, validator);
 
       expect(result).toBeDefined();
       expect(agentInvoke).toHaveBeenCalledTimes(1);
@@ -318,14 +313,20 @@ describe('enhanced-retry', () => {
         .mockReturnValueOnce({
           valid: true,
           errors: [],
-          data: { agent_name: 'test', timestamp: '2024-01-01T00:00:00Z', findings: { test: 'data' } },
+          data: {
+            agent_name: 'test',
+            timestamp: '2024-01-01T00:00:00Z',
+            findings: { test: 'data' },
+          },
         });
 
-      const result = await retryWithEnhancedFeedback(
-        agentInvoke,
-        validator,
-        { maxAttempts: 5, initialDelayMs: 10, maxDelayMs: 100, backoffMultiplier: 2, jitter: false }
-      );
+      const result = await retryWithEnhancedFeedback(agentInvoke, validator, {
+        maxAttempts: 5,
+        initialDelayMs: 10,
+        maxDelayMs: 100,
+        backoffMultiplier: 2,
+        jitter: false,
+      });
 
       expect(result).toBeDefined();
       expect(agentInvoke).toHaveBeenCalledTimes(2);
@@ -350,7 +351,7 @@ describe('enhanced-retry', () => {
           maxDelayMs: 100,
           backoffMultiplier: 2,
           jitter: false,
-        })
+        }),
       ).rejects.toThrow('Validation failed after 3 attempts');
 
       expect(agentInvoke).toHaveBeenCalledTimes(3);
@@ -372,7 +373,7 @@ describe('enhanced-retry', () => {
           maxDelayMs: 1000,
           backoffMultiplier: 2,
           jitter: false,
-        })
+        }),
       ).rejects.toThrow();
 
       const elapsed = Date.now() - start;
@@ -390,7 +391,7 @@ describe('enhanced-retry', () => {
             agent_name: 'test',
             timestamp: '2024-01-01T00:00:00Z',
             findings: { test: 'data' },
-          })
+          }),
         );
 
       const validator = vi.fn().mockReturnValue({
@@ -399,11 +400,13 @@ describe('enhanced-retry', () => {
         data: { agent_name: 'test', timestamp: '2024-01-01T00:00:00Z', findings: { test: 'data' } },
       });
 
-      const result = await retryWithEnhancedFeedback(
-        agentInvoke,
-        validator,
-        { maxAttempts: 5, initialDelayMs: 10, maxDelayMs: 100, backoffMultiplier: 2, jitter: false }
-      );
+      const result = await retryWithEnhancedFeedback(agentInvoke, validator, {
+        maxAttempts: 5,
+        initialDelayMs: 10,
+        maxDelayMs: 100,
+        backoffMultiplier: 2,
+        jitter: false,
+      });
 
       expect(result).toBeDefined();
       expect(agentInvoke).toHaveBeenCalledTimes(2);
@@ -419,7 +422,7 @@ describe('enhanced-retry', () => {
             agent_name: 'test',
             timestamp: '2024-01-01T00:00:00Z',
             findings: { test: 'data' },
-          })
+          }),
         );
 
       const validator = vi
@@ -435,14 +438,20 @@ describe('enhanced-retry', () => {
         .mockReturnValueOnce({
           valid: true,
           errors: [],
-          data: { agent_name: 'test', timestamp: '2024-01-01T00:00:00Z', findings: { test: 'data' } },
+          data: {
+            agent_name: 'test',
+            timestamp: '2024-01-01T00:00:00Z',
+            findings: { test: 'data' },
+          },
         });
 
-      await retryWithEnhancedFeedback(
-        agentInvoke,
-        validator,
-        { maxAttempts: 5, initialDelayMs: 10, maxDelayMs: 100, backoffMultiplier: 2, jitter: false }
-      );
+      await retryWithEnhancedFeedback(agentInvoke, validator, {
+        maxAttempts: 5,
+        initialDelayMs: 10,
+        maxDelayMs: 100,
+        backoffMultiplier: 2,
+        jitter: false,
+      });
 
       expect(agentInvoke).toHaveBeenCalledTimes(3);
 
@@ -467,9 +476,9 @@ describe('enhanced-retry', () => {
         jitter: false,
       };
 
-      await expect(
-        retryWithEnhancedFeedback(agentInvoke, validator, customConfig)
-      ).rejects.toThrow('Validation failed after 2 attempts');
+      await expect(retryWithEnhancedFeedback(agentInvoke, validator, customConfig)).rejects.toThrow(
+        'Validation failed after 2 attempts',
+      );
 
       expect(agentInvoke).toHaveBeenCalledTimes(2);
     });
@@ -512,7 +521,7 @@ describe('enhanced-retry', () => {
           maxDelayMs: 1000,
           backoffMultiplier: 2,
           jitter: false,
-        })
+        }),
       ).rejects.toThrow();
 
       const elapsed = Date.now() - start;

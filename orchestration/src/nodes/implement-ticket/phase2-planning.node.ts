@@ -2,7 +2,10 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { AgentFactory } from '../../utils/shared/agent-factory/index.js';
-import { buildPlannerPrompt, getProjectAgentPath } from '../../services/implement-ticket/shared/index.js';
+import {
+  buildPlannerPrompt,
+  getProjectAgentPath,
+} from '../../services/implement-ticket/shared/index.js';
 
 /**
  * Phase 2: Planning & Architecture Node
@@ -23,7 +26,7 @@ import { buildPlannerPrompt, getProjectAgentPath } from '../../services/implemen
  * @returns Updated state with phase2 completion flag
  */
 export async function phase2PlanningNode(
-  state: ImplementTicketState
+  state: ImplementTicketState,
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
@@ -39,7 +42,7 @@ export async function phase2PlanningNode(
     return {
       current_phase: 'phase3_environment',
       phase2_complete: true,
-      phase2_planning: completionData.planning_data
+      phase2_planning: completionData.planning_data,
     };
   }
 
@@ -50,9 +53,7 @@ export async function phase2PlanningNode(
     const fullContextPath = join(phase1Dir, 'full-context.md');
 
     if (!existsSync(phase1CompletionPath) || !existsSync(fullContextPath)) {
-      throw new Error(
-        'Phase 1 not complete. Run Phase 1 first or use --start-phase 1'
-      );
+      throw new Error('Phase 1 not complete. Run Phase 1 first or use --start-phase 1');
     }
 
     // Read context from disk (NOT from state!)
@@ -67,7 +68,9 @@ export async function phase2PlanningNode(
     }
 
     const stackProfile = JSON.parse(readFileSync(stackProfilePath, 'utf-8'));
-    console.log(`[Phase 2: Planning] ✓ Stack profile loaded (primary language: ${stackProfile.primary_language || 'unknown'})`);
+    console.log(
+      `[Phase 2: Planning] ✓ Stack profile loaded (primary language: ${stackProfile.primary_language || 'unknown'})`,
+    );
 
     console.log('[Phase 2: Planning] Invoking planner agent...');
 
@@ -106,7 +109,9 @@ export async function phase2PlanningNode(
 
       // Extract test plan from planner output
       // Look for "## Test Plan" or "## Testing" section
-      const testPlanMatch = plannerOutput.match(/##\s+Test(?:ing)?\s+Plan\s*\n([\s\S]*?)(?=\n##|$)/i);
+      const testPlanMatch = plannerOutput.match(
+        /##\s+Test(?:ing)?\s+Plan\s*\n([\s\S]*?)(?=\n##|$)/i,
+      );
       const testPlanText = testPlanMatch ? testPlanMatch[1].trim() : '';
 
       // Build structured test plan
@@ -114,22 +119,26 @@ export async function phase2PlanningNode(
         unit_tests: {
           required: testPlanText.toLowerCase().includes('unit test'),
           frameworks: stackProfile.testing_frameworks || {},
-          coverage_target: 80
+          coverage_target: 80,
         },
         integration_tests: {
           required: testPlanText.toLowerCase().includes('integration test'),
-          frameworks: stackProfile.testing_frameworks || {}
+          frameworks: stackProfile.testing_frameworks || {},
         },
         e2e_tests: {
-          required: testPlanText.toLowerCase().includes('e2e') || testPlanText.toLowerCase().includes('end-to-end'),
-          frameworks: stackProfile.testing_frameworks || {}
+          required:
+            testPlanText.toLowerCase().includes('e2e') ||
+            testPlanText.toLowerCase().includes('end-to-end'),
+          frameworks: stackProfile.testing_frameworks || {},
         },
-        details: testPlanText
+        details: testPlanText,
       };
 
       // Extract environment requirements from planner output
       // Look for "## Environment" section
-      const envMatch = plannerOutput.match(/##\s+Environment(?:\s+Requirements)?\s*\n([\s\S]*?)(?=\n##|$)/i);
+      const envMatch = plannerOutput.match(
+        /##\s+Environment(?:\s+Requirements)?\s*\n([\s\S]*?)(?=\n##|$)/i,
+      );
       const envText = envMatch ? envMatch[1].trim() : '';
 
       if (envText && envText.length > 0) {
@@ -138,15 +147,15 @@ export async function phase2PlanningNode(
 
         // Extract environment variables
         const envVarMatches = envText.match(/[A-Z_][A-Z0-9_]*=/g) || [];
-        const envVars = envVarMatches.map(match => match.replace('=', ''));
+        const envVars = envVarMatches.map((match) => match.replace('=', ''));
 
         environmentRequirements = {
           docker: {
             required: requiresDocker,
-            services: requiresDocker ? ['app'] : []
+            services: requiresDocker ? ['app'] : [],
           },
           env_vars: envVars,
-          details: envText
+          details: envText,
         };
       } else {
         // No environment requirements mentioned
@@ -154,13 +163,12 @@ export async function phase2PlanningNode(
       }
 
       console.log('[Phase 2: Planning] ✓ Plans extracted and structured');
-
     } catch (error: any) {
       // If agent invocation fails, provide helpful error message
       throw new Error(
         `Planner agent invocation failed: ${error.message}\n` +
-        `Make sure initialize-project has generated the planner agent at:\n` +
-        `${projectPath}/.claude/agents/planner.md`
+          `Make sure initialize-project has generated the planner agent at:\n` +
+          `${projectPath}/.claude/agents/planner.md`,
       );
     }
 
@@ -170,15 +178,12 @@ export async function phase2PlanningNode(
 
     writeFileSync(join(phase2Dir, 'implementation-plan.md'), implementationPlan);
 
-    writeFileSync(
-      join(phase2Dir, 'test-plan.json'),
-      JSON.stringify(testPlan, null, 2)
-    );
+    writeFileSync(join(phase2Dir, 'test-plan.json'), JSON.stringify(testPlan, null, 2));
 
     if (environmentRequirements) {
       writeFileSync(
         join(phase2Dir, 'environment-requirements.json'),
-        JSON.stringify(environmentRequirements, null, 2)
+        JSON.stringify(environmentRequirements, null, 2),
       );
     }
 
@@ -186,22 +191,23 @@ export async function phase2PlanningNode(
       implementation_plan: implementationPlan,
       test_plan: testPlan,
       environment_requirements: environmentRequirements,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
-    writeFileSync(
-      join(phase2Dir, 'planning-data.json'),
-      JSON.stringify(planningData, null, 2)
-    );
+    writeFileSync(join(phase2Dir, 'planning-data.json'), JSON.stringify(planningData, null, 2));
 
     // Write completion marker (last file to write - indicates phase complete)
     writeFileSync(
       completionMarkerPath,
-      JSON.stringify({
-        completed_at: new Date().toISOString(),
-        ticket_id: ticketId,
-        planning_data: planningData
-      }, null, 2)
+      JSON.stringify(
+        {
+          completed_at: new Date().toISOString(),
+          ticket_id: ticketId,
+          planning_data: planningData,
+        },
+        null,
+        2,
+      ),
     );
 
     console.log('[Phase 2: Planning] ✓ Outputs written to disk');
@@ -211,17 +217,15 @@ export async function phase2PlanningNode(
     return {
       current_phase: 'phase3_environment',
       phase2_complete: true,
-      phase2_planning: planningData
+      phase2_planning: planningData,
     };
-
   } catch (error) {
     const errorMessage = `Planning failed: ${(error as Error).message}`;
     console.error(`[Phase 2: Planning] ✗ ${errorMessage}`);
 
     return {
       errors: [errorMessage],
-      current_phase: 'failed'
+      current_phase: 'failed',
     };
   }
 }
-

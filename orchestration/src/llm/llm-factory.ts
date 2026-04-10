@@ -1,17 +1,17 @@
-import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { ChatAnthropic } from "@langchain/anthropic";
-import { ChatOpenAI } from "@langchain/openai";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { z } from "zod";
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { ChatAnthropic } from '@langchain/anthropic';
+import { ChatOpenAI } from '@langchain/openai';
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { z } from 'zod';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const ModelAliasSchema = z.object({
-  provider: z.enum(["anthropic", "openai", "google"]),
+  provider: z.enum(['anthropic', 'openai', 'google']),
   modelId: z.string(),
   description: z.string(),
   capabilities: z.array(z.string()),
@@ -28,7 +28,7 @@ const ProviderConfigSchema = z.object({
 
 const TierConfigSchema = z.object({
   description: z.string(),
-  provider: z.enum(["anthropic", "openai", "google"]),
+  provider: z.enum(['anthropic', 'openai', 'google']),
   agents: z.record(z.string(), z.string()),
 });
 
@@ -47,17 +47,17 @@ export class LLMFactory {
   private currentTier: string;
 
   constructor(configPath?: string) {
-    const defaultConfigPath = join(__dirname, "../../config/model-config.json");
+    const defaultConfigPath = join(__dirname, '../../config/model-config.json');
     const path = configPath || defaultConfigPath;
 
-    const rawConfig = JSON.parse(readFileSync(path, "utf-8"));
+    const rawConfig = JSON.parse(readFileSync(path, 'utf-8'));
     this.config = ModelConfigSchema.parse(rawConfig);
 
-    this.currentTier = process.env.MODEL_TIER || "standard";
+    this.currentTier = process.env.MODEL_TIER || 'standard';
 
     if (!this.config.tiers[this.currentTier]) {
       throw new Error(
-        `Unknown tier: ${this.currentTier}. Available tiers: ${Object.keys(this.config.tiers).join(", ")}`,
+        `Unknown tier: ${this.currentTier}. Available tiers: ${Object.keys(this.config.tiers).join(', ')}`,
       );
     }
   }
@@ -67,9 +67,7 @@ export class LLMFactory {
     const alias = tierConfig.agents[agentName];
 
     if (!alias) {
-      throw new Error(
-        `No model configured for agent '${agentName}' in tier '${this.currentTier}'`,
-      );
+      throw new Error(`No model configured for agent '${agentName}' in tier '${this.currentTier}'`);
     }
 
     return alias;
@@ -92,33 +90,28 @@ export class LLMFactory {
     const aliasConfig = this.config.modelAliases[alias];
     if (!aliasConfig) {
       throw new Error(
-        `Unknown model alias: ${alias}. Available aliases: ${Object.keys(this.config.modelAliases).join(", ")}`,
+        `Unknown model alias: ${alias}. Available aliases: ${Object.keys(this.config.modelAliases).join(', ')}`,
       );
     }
 
     const providerConfig = this.config.providerConfig[aliasConfig.provider];
     if (!providerConfig) {
-      throw new Error(
-        `No configuration found for provider: ${aliasConfig.provider}`,
-      );
+      throw new Error(`No configuration found for provider: ${aliasConfig.provider}`);
     }
 
     const apiKey = process.env[providerConfig.apiKeyEnv];
     if (!apiKey) {
-      throw new Error(
-        `API key not found in environment variable: ${providerConfig.apiKeyEnv}`,
-      );
+      throw new Error(`API key not found in environment variable: ${providerConfig.apiKeyEnv}`);
     }
 
     let model: BaseChatModel;
 
     switch (aliasConfig.provider) {
-      case "anthropic":
+      case 'anthropic':
         model = new ChatAnthropic({
           model: aliasConfig.modelId,
           apiKey,
-          temperature:
-            overrides?.temperature ?? providerConfig.defaultTemperature,
+          temperature: overrides?.temperature ?? providerConfig.defaultTemperature,
           maxTokens: overrides?.maxTokens ?? providerConfig.defaultMaxTokens,
           clientOptions: {
             defaultHeaders: providerConfig.headers,
@@ -126,12 +119,11 @@ export class LLMFactory {
         });
         break;
 
-      case "openai":
+      case 'openai':
         model = new ChatOpenAI({
           model: aliasConfig.modelId,
           apiKey,
-          temperature:
-            overrides?.temperature ?? providerConfig.defaultTemperature,
+          temperature: overrides?.temperature ?? providerConfig.defaultTemperature,
           maxTokens: overrides?.maxTokens ?? providerConfig.defaultMaxTokens,
           configuration: {
             baseURL: providerConfig.baseURL,
@@ -139,14 +131,12 @@ export class LLMFactory {
         });
         break;
 
-      case "google":
+      case 'google':
         model = new ChatGoogleGenerativeAI({
           model: aliasConfig.modelId,
           apiKey,
-          temperature:
-            overrides?.temperature ?? providerConfig.defaultTemperature,
-          maxOutputTokens:
-            overrides?.maxTokens ?? providerConfig.defaultMaxTokens,
+          temperature: overrides?.temperature ?? providerConfig.defaultTemperature,
+          maxOutputTokens: overrides?.maxTokens ?? providerConfig.defaultMaxTokens,
         });
         break;
 

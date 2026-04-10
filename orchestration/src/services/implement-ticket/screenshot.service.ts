@@ -78,13 +78,9 @@ export class ScreenshotService {
       waitForSelector?: string;
       waitForLoadState?: 'load' | 'domcontentloaded' | 'networkidle';
       delay?: number;
-    } = {}
+    } = {},
   ): Promise<void> {
-    const {
-      waitForSelector,
-      waitForLoadState = 'domcontentloaded',
-      delay = 0,
-    } = options;
+    const { waitForSelector, waitForLoadState = 'domcontentloaded', delay = 0 } = options;
 
     await page.waitForLoadState(waitForLoadState);
 
@@ -113,7 +109,7 @@ export class ScreenshotService {
     page: Page,
     url: string,
     filename: string,
-    viewport: { width: number; height: number } = { width: 1920, height: 1080 }
+    viewport: { width: number; height: number } = { width: 1920, height: 1080 },
   ): Promise<ScreenshotMetadata> {
     try {
       // Set viewport
@@ -123,7 +119,7 @@ export class ScreenshotService {
       console.log(`[Screenshot] Navigating to ${url}...`);
       await page.goto(url, {
         waitUntil: 'networkidle',
-        timeout: 30000 // 30 second timeout
+        timeout: 30000, // 30 second timeout
       });
 
       // Wait for page to be fully rendered
@@ -133,7 +129,7 @@ export class ScreenshotService {
       const screenshotPath = join(this.outputDir, `${filename}.png`);
       await page.screenshot({
         path: screenshotPath,
-        fullPage: true
+        fullPage: true,
       });
 
       console.log(`[Screenshot] ✓ Captured: ${screenshotPath}`);
@@ -142,13 +138,10 @@ export class ScreenshotService {
         url,
         timestamp: new Date().toISOString(),
         viewport,
-        path: screenshotPath
+        path: screenshotPath,
       };
-
     } catch (error: any) {
-      throw new Error(
-        `Failed to capture screenshot of ${url}: ${error.message}`
-      );
+      throw new Error(`Failed to capture screenshot of ${url}: ${error.message}`);
     }
   }
 
@@ -160,7 +153,7 @@ export class ScreenshotService {
     page: Page,
     baseUrl: string,
     screenEntry: ScreenEntry,
-    prefix: string
+    prefix: string,
   ): Promise<ScreenshotMetadata> {
     const url = `${baseUrl}${screenEntry.route}`;
     const label = screenEntry.label.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase();
@@ -189,7 +182,9 @@ export class ScreenshotService {
         if (element) {
           await element.screenshot({ path: screenshotPath });
         } else {
-          console.warn(`[Screenshot] Selector "${screenEntry.captureSelector}" not found, capturing full page`);
+          console.warn(
+            `[Screenshot] Selector "${screenEntry.captureSelector}" not found, capturing full page`,
+          );
           await page.screenshot({ path: screenshotPath, fullPage: true });
         }
       } else {
@@ -205,9 +200,7 @@ export class ScreenshotService {
         path: screenshotPath,
       };
     } catch (error: any) {
-      throw new Error(
-        `Failed to capture screenshot of ${url}: ${error.message}`
-      );
+      throw new Error(`Failed to capture screenshot of ${url}: ${error.message}`);
     }
   }
 
@@ -224,7 +217,7 @@ export class ScreenshotService {
     page: Page,
     baseUrl: string,
     routes: string[],
-    prefix: string
+    prefix: string,
   ): Promise<ScreenshotMetadata[]> {
     const screenshots: ScreenshotMetadata[] = [];
 
@@ -260,19 +253,13 @@ export class ScreenshotService {
     beforePath: string,
     afterPath: string,
     diffOutputPath: string,
-    options: CompareOptions | number = {}
+    options: CompareOptions | number = {},
   ): Promise<ComparisonResult> {
     // Backward compatibility: accept number as pixelThreshold
-    const opts: CompareOptions = typeof options === 'number'
-      ? { pixelThreshold: options }
-      : options;
+    const opts: CompareOptions =
+      typeof options === 'number' ? { pixelThreshold: options } : options;
 
-    const {
-      pixelThreshold = 0.1,
-      passPercentage = 5.0,
-      includeAA = false,
-      ignoreRegions,
-    } = opts;
+    const { pixelThreshold = 0.1, passPercentage = 5.0, includeAA = false, ignoreRegions } = opts;
 
     try {
       // Validate files exist
@@ -298,8 +285,8 @@ export class ScreenshotService {
         if (widthDiff > 0.2 || heightDiff > 0.2) {
           console.warn(
             `[Screenshot] ⚠ Image dimensions differ by >20%: ` +
-            `${img1.width}x${img1.height} vs ${img2.width}x${img2.height}. ` +
-            `This may indicate a viewport configuration issue.`
+              `${img1.width}x${img1.height} vs ${img2.width}x${img2.height}. ` +
+              `This may indicate a viewport configuration issue.`,
           );
         }
 
@@ -307,8 +294,8 @@ export class ScreenshotService {
         // Full dimension normalization via sharp will be added when sharp is installed
         throw new Error(
           `Image dimensions don't match: ` +
-          `${img1.width}x${img1.height} vs ${img2.width}x${img2.height}. ` +
-          `Ensure both captures use the same viewport and deviceScaleFactor.`
+            `${img1.width}x${img1.height} vs ${img2.width}x${img2.height}. ` +
+            `Ensure both captures use the same viewport and deviceScaleFactor.`,
         );
       }
 
@@ -324,14 +311,10 @@ export class ScreenshotService {
       const diff = new PNG.PNG({ width, height });
 
       // Compare images with anti-aliasing handling
-      const diffPixels = pixelmatch(
-        img1.data,
-        img2.data,
-        diff.data,
-        width,
-        height,
-        { threshold: pixelThreshold, includeAA }
-      );
+      const diffPixels = pixelmatch(img1.data, img2.data, diff.data, width, height, {
+        threshold: pixelThreshold,
+        includeAA,
+      });
 
       // Calculate diff percentage
       const diffPercentage = (diffPixels / totalPixels) * 100;
@@ -340,9 +323,7 @@ export class ScreenshotService {
       const diffBuffer = PNG.PNG.sync.write(diff);
       writeFileSync(diffOutputPath, diffBuffer);
 
-      console.log(
-        `[Screenshot] Diff: ${diffPixels} pixels (${diffPercentage.toFixed(2)}%)`
-      );
+      console.log(`[Screenshot] Diff: ${diffPixels} pixels (${diffPercentage.toFixed(2)}%)`);
 
       // Use configurable pass percentage (was hardcoded to 5.0)
       const passed = diffPercentage < passPercentage;
@@ -353,13 +334,10 @@ export class ScreenshotService {
         totalPixels,
         diffImagePath: diffOutputPath,
         passed,
-        threshold: pixelThreshold
+        threshold: pixelThreshold,
       };
-
     } catch (error: any) {
-      throw new Error(
-        `Screenshot comparison failed: ${error.message}`
-      );
+      throw new Error(`Screenshot comparison failed: ${error.message}`);
     }
   }
 
@@ -372,13 +350,13 @@ export class ScreenshotService {
    */
   async compareMultipleScreenshots(
     beforeScreenshots: ScreenshotMetadata[],
-    afterScreenshots: ScreenshotMetadata[]
+    afterScreenshots: ScreenshotMetadata[],
   ): Promise<ComparisonResult[]> {
     const results: ComparisonResult[] = [];
 
     // Match screenshots by URL
-    const screenshotPairs = beforeScreenshots.map(before => {
-      const after = afterScreenshots.find(a => a.url === before.url);
+    const screenshotPairs = beforeScreenshots.map((before) => {
+      const after = afterScreenshots.find((a) => a.url === before.url);
       return { before, after };
     });
 
@@ -388,16 +366,10 @@ export class ScreenshotService {
         continue;
       }
 
-      const diffFilename = before.path
-        .replace('before-', 'diff-')
-        .replace(/\.png$/, '-diff.png');
+      const diffFilename = before.path.replace('before-', 'diff-').replace(/\.png$/, '-diff.png');
 
       try {
-        const result = await this.compareScreenshots(
-          before.path,
-          after.path,
-          diffFilename
-        );
+        const result = await this.compareScreenshots(before.path, after.path, diffFilename);
 
         results.push(result);
       } catch (error: any) {
@@ -417,37 +389,37 @@ export class ScreenshotService {
    */
   generateComparisonReport(
     results: ComparisonResult[],
-    beforeScreenshots: ScreenshotMetadata[]
+    beforeScreenshots: ScreenshotMetadata[],
   ): any {
     const totalComparisons = results.length;
-    const passedComparisons = results.filter(r => r.passed).length;
+    const passedComparisons = results.filter((r) => r.passed).length;
     const failedComparisons = totalComparisons - passedComparisons;
 
     const averageDiffPercentage =
       results.reduce((sum, r) => sum + r.diffPercentage, 0) / totalComparisons;
 
-    const maxDiff = Math.max(...results.map(r => r.diffPercentage));
-    const minDiff = Math.min(...results.map(r => r.diffPercentage));
+    const maxDiff = Math.max(...results.map((r) => r.diffPercentage));
+    const minDiff = Math.min(...results.map((r) => r.diffPercentage));
 
     return {
       summary: {
         total_comparisons: totalComparisons,
         passed: passedComparisons,
         failed: failedComparisons,
-        pass_rate: ((passedComparisons / totalComparisons) * 100).toFixed(2) + '%'
+        pass_rate: ((passedComparisons / totalComparisons) * 100).toFixed(2) + '%',
       },
       statistics: {
         average_diff_percentage: averageDiffPercentage.toFixed(2) + '%',
         max_diff_percentage: maxDiff.toFixed(2) + '%',
-        min_diff_percentage: minDiff.toFixed(2) + '%'
+        min_diff_percentage: minDiff.toFixed(2) + '%',
       },
       details: results.map((result, index) => ({
         url: beforeScreenshots[index]?.url || 'Unknown',
         diff_percentage: result.diffPercentage.toFixed(2) + '%',
         diff_pixels: result.diffPixels,
         passed: result.passed,
-        diff_image: result.diffImagePath
-      }))
+        diff_image: result.diffImagePath,
+      })),
     };
   }
 
@@ -483,7 +455,7 @@ function applyIgnoreRegions(
   img1Data: Buffer,
   img2Data: Buffer,
   width: number,
-  regions: IgnoreRegion[]
+  regions: IgnoreRegion[],
 ): void {
   for (const region of regions) {
     for (let y = region.y; y < region.y + region.height; y++) {
