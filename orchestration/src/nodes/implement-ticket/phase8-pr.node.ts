@@ -29,7 +29,7 @@ export async function phase8PRNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir = state.temp_dir || join(projectPath, '.claude-temp/implement-ticket', ticketId);
+  const tempDir = state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
   const phase8Dir = join(tempDir, 'phase8');
 
   console.log('\n[Phase 8: PR Creation] Starting PR creation...');

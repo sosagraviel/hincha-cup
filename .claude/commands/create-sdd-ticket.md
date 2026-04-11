@@ -45,7 +45,7 @@ Generate comprehensive, implementation-ready SDD tickets following INVEST criter
 ```bash
 /create-sdd-ticket \
   --from-input "Implement password reset flow with email verification" \
-  --save-to-markdown .claude/tickets/password-reset.md
+  --save-to-markdown .claude-temp/tickets/password-reset/password-reset.md
 ```
 
 ### Example 3: Refine Jira ticket to Markdown
@@ -116,7 +116,11 @@ Generate comprehensive, implementation-ready SDD tickets following INVEST criter
 ### Phase 7: Output Ticket
 - Format canonical ticket to output destination
 - If Jira: Create ticket via MCP
-- If Markdown: Write file with proper structure
+- If Markdown:
+  - **IMPORTANT**: ALWAYS save to `.claude-temp/tickets/<ticket-id>/<ticket-id>.md`
+  - Create parent directories if they don't exist
+  - Use ticket ID or timestamp for directory name
+  - Write file with proper structure
 - Return ticket ID/path to user
 
 ## Key Features

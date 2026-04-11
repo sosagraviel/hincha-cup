@@ -13,7 +13,7 @@ import { ProjectConfigReaderService } from '../../services/implement-ticket/proj
  * - Validates input source (--from-jira, --from-markdown, --from-input)
  * - Reads existing config using ProjectConfigReaderService (NO detection!)
  * - Validates prerequisites (gh CLI, docker if needed)
- * - WRITES TO DISK FIRST: Saves outputs to .claude-temp/implement-ticket/{TICKET_ID}/phase0/
+ * - WRITES TO DISK FIRST: Saves outputs to .claude-temp/tickets/{TICKET_ID}/artifacts/phase0/
  * - Returns minimal state for flow control only
  *
  * Key Design Principles:
@@ -30,7 +30,7 @@ export async function phase0PreflightNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir = state.temp_dir || join(projectPath, '.claude-temp/implement-ticket', ticketId);
+  const tempDir = state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
   const phase0Dir = join(tempDir, 'phase0');
 
   console.log('\n[Phase 0: Preflight] Starting validation...');
