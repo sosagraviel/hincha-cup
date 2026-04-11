@@ -104,7 +104,7 @@ if (options.fromJira) {
   inputSource = 'input';
 }
 
-const tempDir = join(projectPath, '.claude-temp/implement-ticket', ticketId);
+const tempDir = join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
 let startPhase = 0;
 
 if (options.resume) {

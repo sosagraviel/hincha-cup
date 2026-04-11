@@ -247,7 +247,7 @@ export const ImplementTicketStateSchema = z.object({
   phase10_cleanup: Phase10CleanupSchema.optional(),
 
   // Temp directory for intermediate files
-  // All outputs written to: .claude-temp/implement-ticket/{TICKET_ID}/phase{N}/
+  // All outputs written to: .claude-temp/tickets/{TICKET_ID}/artifacts/phase{N}/
   temp_dir: z.string().optional(),
 
   // Retry tracking (with exponential backoff and error feedback)
