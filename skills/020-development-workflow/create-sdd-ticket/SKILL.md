@@ -2,14 +2,15 @@
 name: create-sdd-ticket
 description: Generate specification-driven development (SDD) tickets with intelligent gap detection and multiple input/output formats
 model: sonnet
+user-invokable: true
 ---
 
 # Create SDD Ticket Skill
 
 **Purpose**: Generate comprehensive, assumption-free tickets following Specification-Driven Development (SDD) principles with intelligent gap detection from multiple sources.
 
-**Version**: 2.0.0
-**Last Updated**: 2026-03-08
+**Version**: 3.0.0
+**Last Updated**: 2026-04-10
 
 ---
 
@@ -47,6 +48,25 @@ model: sonnet
 
 ---
 
+## Migration from Slash Command
+
+**Previous approach (deprecated)**:
+```bash
+/create-sdd-ticket --from-input "..." --save-to-jira <url>
+```
+
+**Current approach**:
+
+Use the Skill tool to invoke `create-sdd-ticket` directly with the same arguments:
+
+```
+Skill(create-sdd-ticket, args: "--from-input \"...\" --save-to-jira <url>")
+```
+
+All flags and functionality remain identical. Only the invocation mechanism has changed.
+
+---
+
 ## Overview
 
 This skill produces gap-free, implementation-ready tickets by:
@@ -71,7 +91,8 @@ This skill produces gap-free, implementation-ready tickets by:
 Free-form text describing the requirement:
 
 ```bash
-/create-sdd-ticket --from-input "Add user authentication with JWT tokens" --save-to-markdown "./specs/AUTH-001.md"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-input "Add user authentication with JWT tokens" --save-to-markdown "./specs/AUTH-001.md"
 ```
 
 #### 2. Jira Input (`--from-jira <JIRA-URL-OR-KEY>`)
@@ -79,8 +100,11 @@ Free-form text describing the requirement:
 Import existing Jira ticket and enhance it:
 
 ```bash
-/create-sdd-ticket --from-jira "https://company.atlassian.net/browse/PROJ-123" --save-to-markdown "./specs/PROJ-123.md"
-/create-sdd-ticket --from-jira "PROJ-123" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-jira "https://company.atlassian.net/browse/PROJ-123" --save-to-markdown "./specs/PROJ-123.md"
+
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-jira "PROJ-123" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
 ```
 
 #### 3. Markdown Input (`--from-markdown <PATH>`)
@@ -88,7 +112,8 @@ Import existing Jira ticket and enhance it:
 Import existing markdown ticket and complete gaps:
 
 ```bash
-/create-sdd-ticket --from-markdown "./specs/DRAFT-001.md" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-markdown "./specs/DRAFT-001.md" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
 ```
 
 ### Output Modes
@@ -117,27 +142,84 @@ Display canonical ticket in console without saving.
 
 ```bash
 # Text → Markdown
-/create-sdd-ticket --from-input "..." --save-to-markdown "./specs/ticket.md"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-input "..." --save-to-markdown "./specs/ticket.md"
 
 # Text → Jira
-/create-sdd-ticket --from-input "..." --save-to-jira "<board-url>"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-input "..." --save-to-jira "<board-url>"
 
 # Jira → Markdown (enhance Jira ticket)
-/create-sdd-ticket --from-jira "PROJ-123" --save-to-markdown "./specs/PROJ-123.md"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-jira "PROJ-123" --save-to-markdown "./specs/PROJ-123.md"
 
 # Jira → Jira (update Jira ticket with enhancements)
-/create-sdd-ticket --from-jira "PROJ-123" --save-to-jira "<board-url>"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-jira "PROJ-123" --save-to-jira "<board-url>"
 
 # Markdown → Jira (complete draft and publish)
-/create-sdd-ticket --from-markdown "./specs/DRAFT-001.md" --save-to-jira "<board-url>"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-markdown "./specs/DRAFT-001.md" --save-to-jira "<board-url>"
 
 # Markdown → Markdown (complete draft and save)
-/create-sdd-ticket --from-markdown "./specs/DRAFT-001.md" --save-to-markdown "./specs/FEAT-001.md"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-markdown "./specs/DRAFT-001.md" --save-to-markdown "./specs/FEAT-001.md"
 ```
 
 ---
 
-## Execution Workflow (7 Phases)
+## CRITICAL: Artifact Path Enforcement
+
+**ALL artifacts MUST be saved to the following deterministic structure:**
+
+```
+.claude-temp/tickets/<TICKET_ID>/artifacts/
+```
+
+**NEVER save artifacts to:**
+- `.claude/artifacts/`
+- `.claude/tickets/`
+- `orchestration/artifacts/`
+- Any other location
+
+When working with tickets, ALWAYS use the ticket-specific artifacts directory:
+```bash
+ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+export ARTIFACTS_DIR
+```
+
+This ensures:
+- Artifacts are excluded from PRs (via `.gitignore`)
+- Consistent paths across all workflows
+- No artifact pollution in version control
+
+---
+
+## Execution Workflow (8 Phases)
+
+### Phase 0: Inject Project Context
+
+**Actions**:
+
+1. Invoke the `project-context` skill to gather deep architectural knowledge
+2. Extract project-specific patterns, conventions, tech stack details
+3. Use this context for intelligent gap detection in later phases
+
+**Tools**:
+
+```javascript
+// Invoke project-context skill to load project conventions
+const projectContext = await invokeSkill('project-context', {});
+console.log('✓ Project context loaded for gap detection');
+```
+
+**Output**: Project context loaded into working memory for use in Phase 3 (Gap Detection)
+
+**Error Handling**:
+- If `project-context` skill unavailable: Log warning and continue without project context
+- Degraded mode: Gap detection will rely only on codebase search without project-specific patterns
+
+---
 
 ### Phase 1: Parse Input Source
 
@@ -234,7 +316,7 @@ const canonical = parseMarkdownTicket(filePath);
    - Infer architecture decisions
 
    **Strategy 4: Analyze Existing Tickets**
-   - Search `.claude/tickets/` for similar tickets
+   - Search `.claude-temp/tickets/` for similar tickets
    - Extract common patterns for stakeholders, DoD, testing
    - Learn from precedents
 
@@ -754,9 +836,8 @@ Then [outcome]
 ### Example 1: Text → Markdown
 
 ```bash
-/create-sdd-ticket \
-  --from-input "Add user authentication with JWT tokens" \
-  --save-to-markdown "./specs/AUTH-001.md"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-input "Add user authentication with JWT tokens" --save-to-markdown "./specs/AUTH-001.md"
 ````
 
 **Process**:
@@ -777,9 +858,8 @@ Then [outcome]
 ### Example 2: Jira → Markdown (Enhance)
 
 ```bash
-/create-sdd-ticket \
-  --from-jira "PROJ-123" \
-  --save-to-markdown "./specs/PROJ-123.md"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-jira "PROJ-123" --save-to-markdown "./specs/PROJ-123.md"
 ```
 
 **Process**:
@@ -797,9 +877,8 @@ Then [outcome]
 ### Example 3: Markdown → Jira (Complete Draft)
 
 ```bash
-/create-sdd-ticket \
-  --from-markdown "./specs/DRAFT-20260308.md" \
-  --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-markdown "./specs/DRAFT-20260308.md" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
 ```
 
 **Process**:
@@ -817,9 +896,8 @@ Then [outcome]
 ### Example 4: Jira → Jira (Update)
 
 ```bash
-/create-sdd-ticket \
-  --from-jira "PROJ-123" \
-  --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+Use the Skill tool to invoke create-sdd-ticket with arguments:
+--from-jira "PROJ-123" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
 ```
 
 **Process**:
@@ -890,7 +968,7 @@ Would you like to split this ticket? (y/n): **\_**
 ```markdown
 ❌ Jira MCP not available
 
-Ticket saved locally: .claude/tickets/DRAFT-20260308-143022.md
+Ticket saved locally: .claude-temp/tickets/DRAFT-20260308-143022/DRAFT-20260308-143022.md
 
 Options:
 
@@ -968,7 +1046,7 @@ Before finalizing, validate:
 
 - SDD tickets are ready for implementation
 - BDD scenarios become automated tests
-- Use: `/implement-ticket --from-markdown "./specs/AUTH-001.md"`
+- Use: Skill(implement-ticket, args: "--from-markdown ./specs/AUTH-001.md")
 
 ### With `/fetch-ticket-context`
 
@@ -979,6 +1057,12 @@ Before finalizing, validate:
 
 ## Version History
 
+- **3.0.0** (2026-04-10):
+  - **BREAKING**: Removed `/create-sdd-ticket` slash command (use Skill tool instead)
+  - Added Phase 0: Project Context Injection for smarter gap detection
+  - Added migration guide for users transitioning from command to skill
+  - Added `user-invokable: true` to frontmatter
+  - All functionality preserved, only invocation mechanism changed
 - **2.0.0** (2026-03-08):
   - Added multiple input sources (text, Jira, markdown)
   - Added multiple output formats (Jira, markdown)
