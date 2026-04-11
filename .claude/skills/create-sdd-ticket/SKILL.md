@@ -168,6 +168,33 @@ Use the Skill tool to invoke create-sdd-ticket with arguments:
 
 ---
 
+## CRITICAL: Artifact Path Enforcement
+
+**ALL artifacts MUST be saved to the following deterministic structure:**
+
+```
+.claude-temp/tickets/<TICKET_ID>/artifacts/
+```
+
+**NEVER save artifacts to:**
+- `.claude/artifacts/`
+- `.claude/tickets/`
+- `orchestration/artifacts/`
+- Any other location
+
+When working with tickets, ALWAYS use the ticket-specific artifacts directory:
+```bash
+ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+export ARTIFACTS_DIR
+```
+
+This ensures:
+- Artifacts are excluded from PRs (via `.gitignore`)
+- Consistent paths across all workflows
+- No artifact pollution in version control
+
+---
+
 ## Execution Workflow (8 Phases)
 
 ### Phase 0: Inject Project Context
@@ -289,7 +316,7 @@ const canonical = parseMarkdownTicket(filePath);
    - Infer architecture decisions
 
    **Strategy 4: Analyze Existing Tickets**
-   - Search `.claude/tickets/` for similar tickets
+   - Search `.claude-temp/tickets/` for similar tickets
    - Extract common patterns for stakeholders, DoD, testing
    - Learn from precedents
 
@@ -941,7 +968,7 @@ Would you like to split this ticket? (y/n): **\_**
 ```markdown
 ❌ Jira MCP not available
 
-Ticket saved locally: .claude/tickets/DRAFT-20260308-143022.md
+Ticket saved locally: .claude-temp/tickets/DRAFT-20260308-143022/DRAFT-20260308-143022.md
 
 Options:
 
