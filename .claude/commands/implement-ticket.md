@@ -22,6 +22,32 @@ Parse the input for these flags:
 - `--skip-pr` - skip PR creation (commit only)
 - `--branch <NAME>` - custom branch name (default: auto-generated)
 
+## CRITICAL: Artifact Path Enforcement
+
+**ALL artifacts MUST be saved to the following deterministic structure:**
+
+```
+.claude-temp/tickets/<TICKET_ID>/artifacts/
+```
+
+**NEVER save artifacts to:**
+- `.claude/artifacts/`
+- `.claude/screenshots/`
+- `.claude/decisions/`
+- `orchestration/artifacts/`
+- Any other location
+
+When spawning agents or invoking skills, ALWAYS pass the ARTIFACTS_DIR variable:
+```bash
+ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+export ARTIFACTS_DIR
+```
+
+This ensures:
+- Artifacts are excluded from PRs (via `.gitignore`)
+- Consistent paths across all workflows
+- No artifact pollution in version control
+
 ## CRITICAL: Task Tracking Setup
 
 BEFORE starting any phase work, you MUST create the full task list using TaskCreate. This gives the user real-time progress visibility via Ctrl+T. Do NOT skip this step. Create all 11 tasks first, then set up dependencies, then begin Phase 0.

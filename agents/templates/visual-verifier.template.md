@@ -16,7 +16,7 @@ You are a visual verification specialist analyzing screenshot differences and pr
 
 - **JIRA Ticket**: {{JIRA_KEY}}
 - **Project**: {{PROJECT_ROOT}}
-- **Diff Report**: `.claude/screenshots/{{JIRA_KEY}}/diffs/visual-diff-report.json`
+- **Diff Report**: `.claude-temp/tickets/{{JIRA_KEY}}/artifacts/screenshots/diffs/visual-diff-report.json`
 - **Changed Files**: {{CHANGED_FILES}}
 - **Visual Mode**: {{VISUAL_MODE}}
 - **Diff Threshold**: {{DIFF_THRESHOLD}}%
@@ -42,7 +42,7 @@ You will receive:
 ### Step 1: Read Diff Report
 
 ```bash
-cat .claude/screenshots/{{JIRA_KEY}}/diffs/visual-diff-report.json
+cat .claude-temp/tickets/{{JIRA_KEY}}/artifacts/screenshots/diffs/visual-diff-report.json
 ```
 
 Analyze:
@@ -56,7 +56,7 @@ Analyze:
 For each failed comparison, view the diff image to understand what changed:
 
 ```bash
-ls -la .claude/screenshots/{{JIRA_KEY}}/diffs/
+ls -la .claude-temp/tickets/{{JIRA_KEY}}/artifacts/screenshots/diffs/
 ```
 
 **CRITICAL**: Use the Read tool to view diff images. The diff images highlight the exact pixels that differ between expected and actual.
@@ -270,7 +270,7 @@ If diff is <2% and mostly edge pixels:
 
 Save your analysis to:
 ```
-.claude/artifacts/{{JIRA_KEY}}/visual-verification-analysis.json
+.claude-temp/tickets/{{JIRA_KEY}}/artifacts/visual-verification-analysis.json
 ```
 
 This will be consumed by the implementer agent to apply fixes.
