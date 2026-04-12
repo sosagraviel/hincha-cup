@@ -90,6 +90,12 @@ tests/              # Fixture projects for integration tests
 | Auth (API key mode) | `export ANTHROPIC_API_KEY="sk-..."` |
 | Auth (CLI mode) | `orchestration/node_modules/.bin/claude /login` |
 
+## CRITICAL: Skill Development
+
+- ✅ ALWAYS modify skills/agents/commands in root framework (`skills/`, `agents/templates/`, `commands/`)
+- ❌ NEVER edit `.claude/` directory directly (auto-generated, changes will be lost)
+- 🔄 After changes: `cd orchestration && pnpm sync-framework-resources`
+
 ## Model Tiers
 
 | Tier | Provider | Models |
