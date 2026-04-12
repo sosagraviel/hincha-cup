@@ -27,7 +27,8 @@ export async function phase7DocumentationNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir = state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+  const tempDir =
+    state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
   const phase7Dir = join(tempDir, 'phase7');
 
   console.log('\n[Phase 7: Documentation] Starting documentation update...');

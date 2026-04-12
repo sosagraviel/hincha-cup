@@ -30,7 +30,8 @@ export async function phase0PreflightNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir = state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+  const tempDir =
+    state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
   const phase0Dir = join(tempDir, 'phase0');
 
   console.log('\n[Phase 0: Preflight] Starting validation...');
