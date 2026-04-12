@@ -46,6 +46,12 @@ Agents communicate exclusively via **disk-first artifact files** under `.claude-
 | Skills config | `skills/skills.config.json` | — |
 | Artifacts (runtime, gitignored) | `.claude-temp/tickets/<TICKET_ID>/artifacts/` | — |
 
+## CRITICAL: Framework Development
+
+- ✅ ALWAYS modify in root: `skills/`, `agents/templates/`, `commands/`
+- ❌ NEVER edit `.claude/` (auto-generated, will be overwritten)
+- User must manually sync after changes (agent must NOT run sync command)
+
 ## Essential Commands
 
 | Task | Command |
