@@ -550,7 +550,7 @@ describe('phase4ImplementationNode', () => {
       await phase4ImplementationNode(mockState);
 
       expect(fs.readFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('.claude-temp/implement-ticket/TICKET-123'),
+        expect.stringContaining('.claude-temp/tickets/TICKET-123'),
         'utf-8',
       );
     });
