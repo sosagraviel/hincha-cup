@@ -11,6 +11,8 @@ env:
 jobs:
   install:
     runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,15 +27,28 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+            orchestration/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('orchestration/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         working-directory: orchestration
 
-      - name: Cache node_modules
-        uses: actions/cache/save@v4
-        with:
-          path: orchestration/node_modules
-          key: deps-${{ hashFiles('orchestration/pnpm-lock.yaml') }}
+      - name: Output cache key
+        id: cache-key
+        run: echo "key=pnpm-${{ runner.os }}-${{ hashFiles('orchestration/pnpm-lock.yaml') }}" >> $GITHUB_OUTPUT
 
   lint-build:
     runs-on: ubuntu-latest
@@ -52,12 +67,24 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Restore node_modules cache
-        uses: actions/cache/restore@v4
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Restore pnpm cache
+        uses: actions/cache@v4
         with:
-          path: orchestration/node_modules
-          key: deps-${{ hashFiles('orchestration/pnpm-lock.yaml') }}
-          fail-on-cache-miss: true
+          path: |
+            ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+            orchestration/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('orchestration/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+
+      - name: Install dependencies (if cache miss)
+        run: pnpm install --frozen-lockfile
+        working-directory: orchestration
 
       - name: Lint code
         run: pnpm lint
@@ -92,12 +119,24 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Restore node_modules cache
-        uses: actions/cache/restore@v4
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Restore pnpm cache
+        uses: actions/cache@v4
         with:
-          path: orchestration/node_modules
-          key: deps-${{ hashFiles('orchestration/pnpm-lock.yaml') }}
-          fail-on-cache-miss: true
+          path: |
+            ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+            orchestration/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('orchestration/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+
+      - name: Install dependencies (if cache miss)
+        run: pnpm install --frozen-lockfile
+        working-directory: orchestration
 
       - name: Run unit tests
         run: pnpm test:unit
