@@ -46,8 +46,9 @@
     {
       "name": "mastering-git-cli",
       "path": "020-development-workflow/mastering-git-cli",
-      "description": "Git CLI commands and workflows",
-      "trigger_mode": "always"
+      "description": "Git version control operations: git status, git log, git diff, commits, branches, merge conflicts, rebase, stash, cherry-pick, git history, worktrees, submodules, and repository troubleshooting. Use for git commands, branch management, merge strategies, conflict resolution, commit history, viewing changes, checking repository state, and git workflows.",
+      "trigger_mode": "always",
+      "is_linkable_to_agents": true
     },
     {
       "name": "code-quality-check",
@@ -167,10 +168,8 @@
     {
       "name": "mastering-github-cli",
       "path": "040-integrations/mastering-github-cli",
-      "description": "GitHub CLI commands and automation",
-      "trigger_mode": "triggered",
-      "triggers": ["github"],
-      "compatible_languages": [],
+      "description": "GitHub CLI (gh) for viewing GitHub Actions logs, workflow run outputs, CI/CD failures, action results, workflow status, PR checks, downloading artifacts, monitoring workflows, checking run logs, viewing workflow failures, repository operations, issues, pull requests, and GitHub automation. Use for GitHub Actions, workflow logs, CI logs, action outputs, workflow monitoring, gh run commands, gh workflow commands, and GitHub repository management.",
+      "trigger_mode": "always",
       "is_linkable_to_agents": true
     },
     {
