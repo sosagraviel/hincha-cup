@@ -54,21 +54,28 @@ interface SyncResult {
  * Auto-detect paths from script location
  */
 function detectPaths(): SyncConfig {
-  // Framework path is parent of orchestration
-  const frameworkPath = join(process.cwd(), '..');
+  let frameworkPath: string;
+  let projectPath: string;
 
-  // Project path is parent of framework
-  const projectPath = join(frameworkPath, '..');
+  if (process.env.FRAMEWORK_PATH && process.env.PROJECT_PATH) {
+    frameworkPath = process.env.FRAMEWORK_PATH;
+    projectPath = process.env.PROJECT_PATH;
+  } else {
+    frameworkPath = join(process.cwd(), '..');
+    projectPath = join(frameworkPath, '..');
+  }
 
-  // Validate framework path exists
   if (!existsSync(frameworkPath)) {
     throw new Error(`Framework path does not exist: ${frameworkPath}`);
   }
 
-  // Validate project path is not the same as framework
+  if (!existsSync(projectPath)) {
+    throw new Error(`Project path does not exist: ${projectPath}`);
+  }
+
   if (projectPath === frameworkPath) {
-    throw new Error(
-      'Framework is not inside a project directory. The framework must be cloned at your project root.',
+    logger.warn(
+      '⚠️  Project and framework paths are identical - running in dogfooding mode (framework on itself)',
     );
   }
 

@@ -1,11 +1,11 @@
 {
-  "version": "2.0.0",
+  "version": "1.0.0",
   "schema_version": "1.0.0",
-  "framework_version": "2.0.0",
+  "framework_version": "1.0.0",
   "project_metadata": {
-    "project_path": "/Users/ignaciobarreto/itIsHere/projects/ai-agentic-framework",
-    "last_analysis": "2026-04-09T16:07:00.413Z",
-    "initialization_hash": "mnro6u6579v06efru3a"
+    "project_path": "/Users/ignaciobarreto/itIsHere/projects/ai-agentic-framework/.worktrees/QAF-3-remove-create-sdd-ticket-command-and-keep-only-skill-to-eliminate-duplication",
+    "last_analysis": "2026-04-12T15:01:34.475Z",
+    "initialization_hash": "mnvw68wbb1br88sqvf7"
   },
   "stack_profile": {
     "services": [
@@ -15,16 +15,15 @@
         "path": "orchestration",
         "type": "cli",
         "language": "typescript",
-        "language_version": "5.9.3",
+        "language_version": "^5.9.3",
         "frameworks": {
-          "main": "LangGraph ^1.2.3",
-          "testing": "vitest ^4.1.0"
+          "main": "LangGraph @langchain/langgraph ^1.2.3",
+          "testing": "Vitest ^4.1.0"
         },
         "environment": {
-          "node_min": ">=20",
-          "package_manager": "pnpm"
+          "checkpointer": "SQLite (@langchain/langgraph-checkpoint-sqlite ^1.0.1)"
         },
-        "file_count": 185,
+        "file_count": 155,
         "manifest_file": "orchestration/package.json"
       },
       {
@@ -44,11 +43,11 @@
       "docker-compose"
     ],
     "file_counts": {
-      "total": 230,
+      "total": 231,
       "by_language": {
         "typescript": 181,
         "python": 39,
-        "javascript": 5,
+        "javascript": 6,
         "go": 5
       }
     }
@@ -57,6 +56,6 @@
     "skills": {},
     "agents": {},
     "commands": {},
-    "last_sync": "2026-04-09T16:07:00.413Z"
+    "last_sync": "2026-04-12T15:01:34.475Z"
   }
 }

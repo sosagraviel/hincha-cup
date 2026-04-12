@@ -186,21 +186,35 @@ if [ ! -d "$FRAMEWORK_PATH" ]; then
     exit 1
 fi
 
-# Detect project path from parent directory of framework
-# Framework should be at: project-root/qubika-agentic-framework
-PROJECT_PATH="$(cd "$FRAMEWORK_PATH/.." && pwd)"
+# Detect dogfooding mode: framework directory is a symlink pointing to "."
+# When qubika-agentic-framework -> ., doing cd qubika-agentic-framework/.. goes to parent
+# We need to detect this case and fix the paths
+FRAMEWORK_REAL_PATH="$(cd "$FRAMEWORK_PATH" && pwd -P)"
 
-# Validate project path is not the same as framework (framework should be inside project)
-if [ "$PROJECT_PATH" = "$FRAMEWORK_PATH" ]; then
-    echo -e "${RED}Error: Framework is not inside a project directory${NC}"
-    echo ""
-    echo "The framework must be cloned at your project root:"
-    echo ""
-    echo "  cd /path/to/your/project"
-    echo "  git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework"
-    echo "  ./qubika-agentic-framework/scripts/initialize-project.sh"
-    echo ""
-    exit 1
+# If framework's real path equals its parent directory, we're in dogfooding mode
+if [ "$FRAMEWORK_REAL_PATH" = "$(dirname "$FRAMEWORK_PATH")" ]; then
+    # Dogfooding mode: framework is using itself via symlink
+    echo -e "${YELLOW}🔄 Dogfooding mode detected (framework developing itself)${NC}"
+    PROJECT_PATH="$FRAMEWORK_REAL_PATH"
+    export PROJECT_PATH
+    export FRAMEWORK_PATH
+else
+    # Normal mode: Detect project path from parent directory of framework
+    # Framework should be at: project-root/qubika-agentic-framework
+    PROJECT_PATH="$(cd "$FRAMEWORK_PATH/.." && pwd)"
+
+    # Validate project path is not the same as framework (framework should be inside project)
+    if [ "$PROJECT_PATH" = "$FRAMEWORK_PATH" ]; then
+        echo -e "${RED}Error: Framework is not inside a project directory${NC}"
+        echo ""
+        echo "The framework must be cloned at your project root:"
+        echo ""
+        echo "  cd /path/to/your/project"
+        echo "  git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework"
+        echo "  ./qubika-agentic-framework/scripts/initialize-project.sh"
+        echo ""
+        exit 1
+    fi
 fi
 
 echo -e "${BLUE}ℹ Framework location: $FRAMEWORK_PATH${NC}"

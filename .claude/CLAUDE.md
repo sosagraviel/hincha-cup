@@ -2,108 +2,87 @@
 
 ## Tech Stack
 
-- Node.js >= 20 (Docker runtime: Node 22)
-- TypeScript 5.9.3 (ESM modules — `"type": "module"` in package.json)
-- LangGraph ^1.2.3 — stateful graph orchestration engine
-- deepagents ^1.8.4 — sub-agent management (API key mode)
-- @anthropic-ai/claude-code ^2.1.0 — Claude CLI subprocess (CLI auth mode)
-- commander ^14.0.3 — CLI argument parsing
-- vitest ^4.1.0 — test framework
-- zod ^4.3.6 — schema validation
-- handlebars ^4.7.8 — agent template rendering
-- gray-matter ^4.0.3 — frontmatter parsing for skill/agent markdown files
-- playwright ^1.58.2 — visual regression screenshot capture
-- pixelmatch ^7.1.0 — pixel-level screenshot diffing
-- eslint + @typescript-eslint — TypeScript-aware linting
-- prettier + husky — code formatting and pre-commit hooks
-- pnpm — package manager
+- **TypeScript** 5.9.3 (ESM modules, `"type": "module"`)
+- **Node.js** 22 (Docker base image; no `.nvmrc` — use 20+ locally)
+- **LangGraph** `@langchain/langgraph` ^1.2.3 — workflow orchestration
+- **DeepAgents** ^1.8.4 — agent invocation (API key mode)
+- **Commander** ^14.0.3 — CLI interface
+- **Zod** ^4.3.6 — runtime validation
+- **Handlebars** ^4.7.8 — template rendering
+- **Vitest** ^4.1.0 — testing
+- **Playwright** ^1.58.2 — E2E and visual testing
+- **pnpm** workspaces
+
+## Architecture Pattern
+
+Two LangGraph `StateGraph` workflows, each organized into phases:
+
+| Workflow | Entry | Phases | Pattern |
+|---|---|---|---|
+| `initialize-project` | `orchestration/src/cli/initialize.ts` | 6 (Phase 1 runs 4 analyzers in parallel) | Parallel → Sequential |
+| `implement-ticket` | `orchestration/src/cli/implement.ts` | 11 sequential (Phase 0–10) | Sequential |
+
+Agents communicate exclusively via **disk-first artifact files** under `.claude-temp/tickets/<TICKET_ID>/artifacts/`. No shared memory between agent invocations.
 
 ## File Placement Guide
 
-| File Type | Location Pattern | Example |
-|-----------|-----------------|---------|
-| CLI entry point | `orchestration/src/cli/*.ts` | `initialize.ts` |
-| LangGraph graph definition | `orchestration/src/graphs/*.graph.ts` | `initialize-project.graph.ts` |
-| Phase node (initialize-project) | `orchestration/src/nodes/initialize-project/phase{N}/**/*.node.ts` | `synthesis.node.ts` |
-| Phase node (implement-ticket) | `orchestration/src/nodes/implement-ticket/phase*.node.ts` | `phase3-planning.node.ts` |
-| Phase agent prompt | `orchestration/src/nodes/initialize-project/phase1/**/prompts/agent.md` | `agent.md` |
-| Phase execution instructions | `orchestration/src/nodes/initialize-project/phase1/**/prompts/execution-instructions.md` | `execution-instructions.md` |
-| Phase validator | `orchestration/src/nodes/initialize-project/phase{N}/validators/*.ts` | `validate-claude-md-content.ts` |
-| Phase helper | `orchestration/src/nodes/initialize-project/phase{N}/helpers/*.ts` | `stack-profile-validator.ts` |
-| Stop hook | `orchestration/src/nodes/initialize-project/phase{N}/hooks/*.hook.ts` | `validate-synthesis.hook.ts` |
-| implement-ticket service | `orchestration/src/services/implement-ticket/*.service.ts` | `review-loop.service.ts` |
-| Framework service | `orchestration/src/services/framework/*.service.ts` | `config-updater.service.ts` |
-| Agent factory util | `orchestration/src/utils/shared/agent-factory/*.ts` | `agent-factory.ts` |
-| State schema (Zod + LangGraph) | `orchestration/src/state/schemas/*.schema.ts` | `initialize-project.schema.ts` |
-| Shared Zod schema | `orchestration/src/schemas/*.schema.ts` | `stack-profile.schema.ts` |
-| Hook registry | `orchestration/src/hooks/*.ts` | `hook-registry.ts` |
-| Unit test | `orchestration/test/unit/**/*.test.ts` | `synthesis.node.test.ts` |
-| Integration test | `orchestration/test/integration/*.test.ts` | `initialize-project.integration.test.ts` |
-| Skill definition | `skills/{NNN}-{category}/**/*.md` | `skills/010-dev-workflow/git/commit.md` |
-| Agent template | `agents/templates/*.md` | `implementer.md` |
-| Claude slash command | `commands/*.md` | `implement.md` |
-| Docker config | `docker/claude-runtime/` | `Dockerfile`, `docker-compose.yml` |
-
-## Directory Structure
-
-```
-orchestration/      # TypeScript CLI — only deployable package
-  src/
-    cli/            # initialize.ts, implement.ts — CLI entry points
-    graphs/         # LangGraph StateGraph definitions
-    nodes/
-      initialize-project/  # phase1–phase6 nodes (6 phases)
-      implement-ticket/    # phase0–phase10 nodes (11 phases)
-    services/       # implement-ticket/ and framework/ support services
-    state/schemas/  # Zod schemas + LangGraph Annotation definitions
-    utils/shared/   # agent-factory, retry, enhanced-retry, prompt-loader
-    hooks/          # hook-registry, base-hook
-    schemas/        # stack-profile.schema.ts, ui-visual-testing.schema.ts
-    auth/           # auth-detector.ts — API key vs CLI mode detection
-  test/
-    unit/           # ~44 test files, mirrors src/ structure
-    integration/    # end-to-end workflow tests
-skills/             # AI skill markdown definitions by category
-agents/templates/   # Handlebars agent templates
-commands/           # Claude slash command definitions
-docker/             # Docker runtime for containerized execution
-tests/              # Fixture projects for integration tests
-```
+| File Type | Location | Example |
+|---|---|---|
+| CLI entrypoints | `orchestration/src/cli/` | `implement.ts`, `initialize.ts` |
+| LangGraph graphs | `orchestration/src/graphs/` | `implement-ticket.graph.ts` |
+| Phase nodes (implement-ticket) | `orchestration/src/nodes/implement-ticket/` | `phase4-implementation.node.ts` |
+| Phase nodes (initialize-project) | `orchestration/src/nodes/initialize-project/phase{N}/` | `phase1/structure-analyzer/` |
+| Services (business logic) | `orchestration/src/services/` | `gap-questions.service.ts` |
+| State schemas | `orchestration/src/state/schemas/` | `implement-ticket.schema.ts` |
+| Zod validation schemas | `orchestration/src/schemas/` | `framework-config.schema.ts` |
+| LLM factory | `orchestration/src/llm/llm-factory.ts` | — |
+| Auth detection | `orchestration/src/auth/auth-detector.ts` | — |
+| Hooks | `orchestration/src/hooks/` | `hook-registry.ts` |
+| Utilities | `orchestration/src/utils/` | `logger.ts`, `retry.ts` |
+| Unit tests | `orchestration/test/unit/` (mirrors `src/`) | `*.test.ts` |
+| Integration tests | `orchestration/test/integration/` | `*.integration.test.ts` |
+| Shell workflow scripts | `scripts/` | `implement-ticket.sh` |
+| Skills library | `skills/<NNN>-<category>/<skill-name>/SKILL.md` | `skills/020-development-workflow/architect-agent/SKILL.md` |
+| Skills config | `skills/skills.config.json` | — |
+| Artifacts (runtime, gitignored) | `.claude-temp/tickets/<TICKET_ID>/artifacts/` | — |
 
 ## Essential Commands
 
 | Task | Command |
-|------|---------|
-| Install deps | `cd orchestration && pnpm install` |
-| Run all tests | `cd orchestration && pnpm test` |
-| Run unit tests | `cd orchestration && pnpm test:unit` |
-| Run integration tests | `cd orchestration && pnpm test:integration` |
-| Build (compile) | `cd orchestration && pnpm build` |
-| Type-check (no emit) | `cd orchestration && pnpm typecheck` |
-| Lint code | `cd orchestration && pnpm lint` |
-| Lint and auto-fix | `cd orchestration && pnpm lint:fix` |
-| Check formatting | `cd orchestration && pnpm format` |
-| Format code | `cd orchestration && pnpm format:fix` |
-| Initialize a project | `cd orchestration && pnpm initialize -- --project-path <path>` |
-| Implement a ticket | `cd orchestration && pnpm implement -- --ticket <id>` |
+|---|---|
+| Build | `cd orchestration && pnpm build` |
+| Type check | `cd orchestration && pnpm typecheck` |
+| Lint | `cd orchestration && pnpm lint` |
+| Format check | `cd orchestration && pnpm format` |
+| Test (all) | `cd orchestration && pnpm test` |
+| Test (unit only) | `cd orchestration && pnpm test:unit` |
+| Run initialize-project | `cd orchestration && pnpm initialize -- -p <path> -f <framework-path>` |
+| Run implement-ticket | `cd orchestration && pnpm implement -- -p <path> -f <framework-path> --ticket-id PROJ-123 --from-jira` |
 | Sync framework resources | `cd orchestration && pnpm sync-framework-resources` |
-| Auth (API key mode) | `export ANTHROPIC_API_KEY="sk-..."` |
-| Auth (CLI mode) | `orchestration/node_modules/.bin/claude /login` |
 
-## CRITICAL: Framework Development
+## Import Conventions
 
-- ✅ ALWAYS modify in root: `skills/`, `agents/templates/`, `commands/`
-- ❌ NEVER edit `.claude/` (auto-generated, will be overwritten)
-- User must manually sync after changes (agent must NOT run sync command)
+```typescript
+// LangGraph
+import { StateGraph, END, START } from '@langchain/langgraph';
+import { MemorySaver } from '@langchain/langgraph';
 
-## Model Tiers
+// Internal — always use .js extension for ESM
+import { getLLMFactory } from '../llm/llm-factory.js';
+import { ImplementTicketAnnotation } from '../state/schemas/implement-ticket.schema.js';
+import { Logger } from '../utils/logger.js';
+```
 
-| Tier | Provider | Models |
-|------|----------|--------|
-| `fast` | Anthropic | claude-haiku-4-5-20251001 |
-| `standard` (default) | Anthropic | claude-sonnet-4-6 |
-| `advanced` | Anthropic | claude-opus-4-6 |
-| `openai` | OpenAI | gpt-5.4-2026-03-05 / gpt-5.4-mini |
-| `gemini` | Google | gemini-3.1-pro-preview / gemini-2.5-flash |
+## Key Patterns
 
-Set with: `MODEL_TIER=advanced pnpm initialize -- --project-path <path>`
+- **ESM only** — all imports require `.js` extension even for `.ts` source files
+- **Disk-first idempotency** — each phase writes a `phase{N}/*-complete.json` marker; `--resume` detects last complete phase
+- **Model tiers** — `sonnet` (default), `opus`, `haiku`; configured via `MODEL_TIER` env var
+- **Auth detection order** — (1) `ANTHROPIC_API_KEY` env → LangChain ChatAnthropic; (2) Claude CLI `~/.claude` credentials → subprocess mode; (3) fail
+- **Agent outputs** — LLM agents write raw JSON inside markdown fences; `validateAndParseAgentOutput()` extracts and validates
+- **Skill invocation** — skills are invoked via the Claude Code `Skill(name, args: "...")` tool, NOT as slash commands
+- **Artifact path** — always `.claude-temp/tickets/$TICKET_ID/artifacts/` (gitignored); never `.claude/artifacts/`
+
+## Skills System
+
+Skills live in `skills/<NNN>-<category>/<skill-name>/SKILL.md`. The `skills/skills.config.json` registry controls which skills are synced to target projects and their trigger conditions (`always` | `triggered` | `generated`). The Phase 5 `resources.node.ts` uses this config to generate `.claude/` configuration for target projects.

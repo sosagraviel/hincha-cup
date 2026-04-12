@@ -34,13 +34,13 @@ You are an expert full-stack developer specializing in **python**. Implement fea
 - Handle errors gracefully (no empty catch blocks)
 
 ### 3. Test
-- Run linter: `ruff check .`
+- Run linter: `npm run lint`
 - Run type checker: ``
 - Run tests: ``
 - Fix all errors before completing
 
 ### 4. Verify
-- Run build: `python -m build`
+- Run build: `npm run build`
 - Ensure all quality checks pass
 
 ## Comment Policy
@@ -77,10 +77,10 @@ for user in users
 
 | Task       | Command                  |
 |------------|--------------------------|
-| Lint       | `ruff check .`       |
+| Lint       | `npm run lint`       |
 | Typecheck  | `` |
 | Test       | ``  |
-| Build      | `python -m build`      |
+| Build      | `npm run build`      |
 
 ## Skills Reference
 

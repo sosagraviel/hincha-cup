@@ -245,7 +245,27 @@ export async function runPreflightChecks(
   }
 
   // ============================================================================
-  // CHECK 6: .gitignore automation
+  // CHECK 6: Workspace Structure Validation
+  // ============================================================================
+  const rootPackageJsonPath = join(frameworkPath, 'package.json');
+  const pnpmWorkspacePath = join(frameworkPath, 'pnpm-workspace.yaml');
+
+  if (!existsSync(rootPackageJsonPath)) {
+    warnings.push(
+      'Root package.json not found. Framework workspace setup may be incomplete.\n' +
+        'Expected workspace structure with root package.json for coordination.',
+    );
+  }
+
+  if (!existsSync(pnpmWorkspacePath)) {
+    warnings.push(
+      'pnpm-workspace.yaml not found. Workspace configuration missing.\n' +
+        'Multi-package coordination may not work properly.',
+    );
+  }
+
+  // ============================================================================
+  // CHECK 7: .gitignore automation
   // ============================================================================
   const gitignorePath = join(projectPath, '.gitignore');
 

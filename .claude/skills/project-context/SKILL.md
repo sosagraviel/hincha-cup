@@ -1,365 +1,246 @@
 ---
 name: project-context
-description: Deep architectural knowledge for AI Agentic Framework — phase-based LangGraph orchestration, dual-auth agent invocation, two-layer retry system, state management patterns, and non-obvious gotchas. Load when implementing new phases, modifying agents, or debugging retry failures.
+description: Deep architectural knowledge of the AI Agentic Framework — LangGraph workflow engine, skills system, agent invocation patterns, and file conventions. Use when implementing features, adding phases, creating skills, or modifying workflow graphs.
 user-invokable: true
-disable-model-invocation: false
-version: 3.0
 ---
 
 # Project Context: AI Agentic Framework
 
-A TypeScript CLI that orchestrates multi-phase LangGraph workflows to analyze codebases (`initialize-project`) and implement development tickets (`implement-ticket`), dispatching AI sub-agents at each phase.
-
 ## When to Use This Skill
 
-- Adding a new phase to either workflow
-- Modifying agent prompts or stop hooks
-- Changing state schema (Zod or LangGraph Annotation)
-- Debugging retry loop failures or validation errors
-- Changing auth detection or agent invocation mode
-- Adding or modifying skills and agent templates
-- Troubleshooting cross-phase data exchange failures
-- Writing tests for phase nodes
+- When adding a new phase to `initialize-project` or `implement-ticket`
+- When creating or modifying a skill in `skills/`
+- When modifying the LangGraph graph topology (edges, conditional routing)
+- When adding a new service or utility
+- When writing tests for orchestration nodes
+- When understanding agent → artifact → next-phase data flow
+
+---
 
 ## Architecture Deep Dive
 
-The framework has two top-level LangGraph `StateGraph` instances:
+### Two Workflows, One Pattern
 
-```
-initialize-project:  [Phase1 x4 parallel] → Phase2 → Phase3 → Phase4 → Phase5 → Phase6
-implement-ticket:    Phase0 → Phase1 → ... → Phase10 (sequential)
-```
-
-Each phase is a **self-contained LangGraph node** — a pure async function `(state) → Partial<state>`. The phase node owns its sub-graph of helpers, validators, agent prompts, and stop hooks.
-
-### Key Architectural Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| Phase-based vertical slicing | Each phase is independently testable and retryable; failure in one phase does not corrupt earlier work |
-| Disk-based cross-phase data exchange | Phase outputs go to `.claude-temp/initialize-project/` — disk allows resumption after crash and avoids LangGraph state size limits |
-| Dual-auth modes (API key + Claude CLI) | Claude Pro/Max subscribers can run without API keys; API key mode enables CI/CD and custom models |
-| Two-layer retry (stop hooks + external) | Stop hooks retry within the same session (context preserved); external retry is the fallback for complete agent failures |
-| LangGraph Annotation merge reducers for Phase 1 | 4 parallel agents update different fields of the same state — `LastValue` reducer throws on concurrent updates; merge reducers are required |
-
-## Request Lifecycle (initialize-project workflow)
-
-```
-pnpm initialize -- --project-path /path/to/project
-│
-├─ CLI parses args (commander)
-├─ runPreflightChecks() — validates Node >= 20, npm, auth, .gitignore
-├─ LLMFactory.init() — loads config/model-config.json, selects tier
-├─ StateGraph compiled with MemorySaver checkpointer
-│
-├─ Phase 1 (parallel): 4 analyzer agents run concurrently
-│   ├─ structure-architecture-analyzer.node.ts
-│   ├─ tech-stack-dependencies-analyzer.node.ts
-│   ├─ code-patterns-testing-analyzer.node.ts
-│   └─ data-flows-integrations-analyzer.node.ts
-│   Each agent: AgentFactory.create() → detects auth → createDeepAgentImpl or createCLIAgentImpl
-│   Each result persisted to disk: .claude-temp/initialize-project/phase1-{analyzer}.json
-│
-├─ Phase 2 (consolidation): merges 4 outputs, identifies gaps
-│   Reads phase1-*.json from disk, persists phase2-consolidation.json
-│
-├─ Phase 3 (synthesis): architect-synthesizer agent (Opus)
-│   Reads phase2-consolidation.json, invokes agent with ultrathink
-│   Output persisted as synthesis-raw.md; validated via stop hook + external retry (max 10 attempts)
-│
-├─ Phase 4 (context generation): extracts CLAUDE.md + project-context from synthesis
-│   Produces .claude/CLAUDE.md, .claude/skills/project-context/SKILL.md
-│   Produces .claude/framework-config.json (stack_profile consumed by Phase 5)
-│
-├─ Phase 5 (resources): reads framework-config.json (NOT state)
-│   Resolves skills by stack, generates agents from templates, copies commands
-│
-└─ Phase 6 (validation): verifies all files are present and valid
-```
-
-## Authentication & Authorization
-
-### Auth Detection Flow
-
-```
-Does ANTHROPIC_API_KEY || OPENAI_API_KEY || GOOGLE_API_KEY exist?
-  YES → authMode = "api_key"
-       (Claude CLI is optional, only detected for version reporting)
-  NO  → Check local bundled CLI: orchestration/node_modules/.bin/claude
-         Found + authenticated? → authMode = "claude_cli"
-         Not found → check global `claude` in PATH
-         Nothing? → error: no auth method
-```
-
-Implemented in `orchestration/src/utils/preflight-checks.ts`.
-
-### Auth Mode in Agent Factory
+Both workflows use the same LangGraph `StateGraph` + `MemorySaver` pattern:
 
 ```typescript
-// orchestration/src/utils/shared/agent-factory/agent-factory.ts
-if (authMode === "api_key") {
-  return createDeepAgentImpl(...)  // Uses deepagents SDK + LLM provider API
-} else {
-  return createCLIAgentImpl(...)   // Spawns claude subprocess with --resume support
+// Pattern for all graphs
+const workflow = new StateGraph(AnnotationType);
+workflow.addNode('phase0_preflight', phase0PreflightNode);
+workflow.addEdge(START, 'phase0_preflight');
+workflow.addConditionalEdges('phase0_preflight', routeAfterPhase0);
+const app = workflow.compile({ checkpointer });
+```
+
+Each phase node is an `async function (state: StateType): Promise<Partial<StateType>>` that:
+1. Reads inputs from `state.*` fields
+2. Reads artifact files from `state.temp_dir` (if resuming)
+3. Invokes an agent or performs computation
+4. Writes completion marker: `<temp_dir>/phase{N}/<name>-complete.json`
+5. Returns state delta
+
+### Phase Numbering Convention
+
+```
+implement-ticket:  phase0=preflight, phase1=context, phase2=planning,
+                   phase3=environment, phase4=implementation, phase5=testing,
+                   phase6=visual, phase7=documentation, phase8=pr,
+                   phase9=review, phase10=cleanup
+
+initialize-project: phase1=4×parallel analyzers, phase2=consolidator,
+                    phase3=synthesis, phase4=context-generation,
+                    phase5=resources, phase6=validation
+```
+
+### initialize-project Phase 1: Parallel Analyzers
+
+The four Phase 1 analyzers run in parallel via LangGraph's fan-out pattern:
+
+```
+phase1_structure_analyzer ─┐
+phase1_tech_stack_analyzer ─┤→ phase2_consolidator → phase3_synthesis → ...
+phase1_code_patterns_analyzer─┤
+phase1_data_flows_analyzer ─┘
+```
+
+Each analyzer agent writes its output to `.claude-temp/<analyzer-name>/output.json`. The Phase 2 consolidator reads all four outputs and produces the consolidated analysis.
+
+### Agent Invocation Modes
+
+Two execution modes based on auth detection (`orchestration/src/auth/auth-detector.ts`):
+
+| Mode | When | Mechanism |
+|---|---|---|
+| **API Key mode** | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` present | DeepAgents library or LangChain ChatModel |
+| **CLI Subscription mode** | `~/.claude` credentials exist | Subprocess spawn of `claude` binary |
+
+The `AgentFactory` (`orchestration/src/utils/shared/agent-factory/`) abstracts both modes behind a unified interface.
+
+### LLM Factory
+
+`orchestration/src/llm/llm-factory.ts` — singleton factory with internal `Map` cache keyed by `modelAlias + overrides`. Multi-provider: Anthropic, OpenAI, Google Gemini.
+
+```typescript
+const factory = getLLMFactory();
+const model = factory.getModel('sonnet');  // returns ChatAnthropic/ChatOpenAI/etc.
+```
+
+### State Schemas
+
+Each workflow has a Zod + LangGraph Annotation schema:
+
+```
+orchestration/src/state/schemas/
+├── implement-ticket.schema.ts    # ImplementTicketAnnotation, ImplementTicketState
+└── initialize-project.schema.ts  # InitializeProjectAnnotation, InitializeProjectState
+```
+
+State fields use LangGraph's `Annotation.Root()` pattern. Phase outputs are namespaced: `phase1_complete`, `phase1_context`, `phase2_complete`, etc.
+
+---
+
+## Skills System Deep Dive
+
+### Directory Structure
+
+```
+skills/
+├── skills.config.json              ← registry of all skills
+├── 010-foundation/
+│   ├── start-task/SKILL.md
+│   └── project-context/SKILL.md    ← generated per-project (trigger_mode: "generated")
+├── 020-development-workflow/
+│   ├── create-sdd-ticket/SKILL.md  ← invoked as Skill(create-sdd-ticket, args: "...")
+│   ├── implement-ticket/SKILL.md
+│   └── ...
+├── 030-quality-assurance/
+├── 040-integrations/
+├── 050-language-frameworks/
+├── 060-documentation/
+├── 070-infrastructure/
+└── 080-cloud-platforms/
+```
+
+### Skill Invocation (Current Pattern)
+
+Skills are invoked via the Claude Code `Skill` tool, NOT as slash commands:
+
+```
+# Correct (current)
+Skill(create-sdd-ticket, args: "--from-jira PROJ-123 --save-to-markdown ./specs/PROJ-123.md")
+
+# Deprecated (removed in v3.0.0)
+/create-sdd-ticket --from-jira PROJ-123
+```
+
+### skills.config.json Registry
+
+Controls which skills are synced to target projects via `sync-framework-resources`:
+
+```json
+{
+  "name": "ui-testing",
+  "path": "030-quality-assurance/ui-testing",
+  "trigger_mode": "triggered",
+  "triggers": ["react", "next", "nextjs", "vue", "angular"],
+  "compatible_languages": ["typescript", "javascript"],
+  "is_linkable_to_agents": true
 }
 ```
 
-### Auth Gotchas
+`trigger_mode` values:
+- `always` — synced to every project
+- `triggered` — synced only when `triggers` match detected stack
+- `generated` — not synced; generated fresh by Phase 5 for each target project
 
-- **Only one provider key is needed** — whichever matches `MODEL_TIER`. `ANTHROPIC_API_KEY` for `standard`/`fast`/`advanced`; `OPENAI_API_KEY` for `openai`; `GOOGLE_API_KEY` for `gemini`.
-- **Stop hooks only work in CLI mode** — `deepagents` (API key mode) has no hook mechanism. The external retry layer handles all validation failures in API key mode.
-- **Local bundled CLI takes precedence over global** — path: `orchestration/node_modules/.bin/claude`. Authenticating the global CLI does NOT authenticate the local one.
+### Phase 5 Resources Node
 
-## Two-Layer Retry System
+`orchestration/src/nodes/initialize-project/phase5/resources.node.ts` uses `skills.config.json` + detected stack profile to generate `.claude/` configuration for target projects. This includes Handlebars-rendered `CLAUDE.md`, agent config files, and selected skill symlinks.
 
-This is the most non-obvious architecture in the codebase.
-
-### Layer 1: Stop Hooks (Claude CLI mode only)
-
-Stop hooks are scripts registered in phase `settings.json`. They execute **before the agent finishes** and can block output, forcing the agent to self-correct **within the same session** (context preserved, no new session spawned).
-
-```
-Agent produces output
-  → Stop hook runs validate-synthesis.hook.ts
-  → Hook calls validateSynthesisOutput(output)
-  → If invalid: hook exits non-zero → Claude sees error feedback, retries inline
-  → If valid: hook exits 0 → agent output accepted
-```
-
-**Critical**: The stop hook validator (`agents/hooks/validate-synthesis.ts`) MUST be byte-for-byte identical to the external validator (`orchestration/src/nodes/initialize-project/phase3/validators/index.ts`). If they diverge, the hook may pass but the external validator rejects, creating an infinite retry loop.
-
-### Layer 2: External Retry (`retryWithEnhancedFeedback`)
-
-Triggers only when Layer 1 is exhausted or unavailable (API key mode). Each attempt is a **fresh agent session**.
-
-```typescript
-// orchestration/src/utils/enhanced-retry.ts
-retryWithEnhancedFeedback(agentInvoke, validator, { maxAttempts: 10 }, outputFilePath)
-// - Failed attempts persisted as synthesis-raw.attempt-1.md, .attempt-2.md, etc.
-// - Previous error passed as feedbackPrompt to the fresh session
-// - Exponential backoff between attempts
-// - In CLI mode: passes resumeSessionId (--resume flag) for context-preserving retry
-```
-
-### When to Modify Validators
-
-If you change output format for a phase, update validators in **both**:
-1. `orchestration/src/nodes/initialize-project/phase{N}/validators/index.ts` (external)
-2. `agents/hooks/validate-{phase}.ts` (stop hook — CLI mode only)
-
-## State Schema Patterns
-
-### Zod Schema vs LangGraph Annotation
-
-Every workflow state is defined **twice** in the same file:
-
-```typescript
-// orchestration/src/state/schemas/initialize-project.schema.ts
-
-// 1. Zod schema — for type inference and documentation
-export const InitializeProjectStateSchema = z.object({ ... })
-export type InitializeProjectState = z.infer<typeof InitializeProjectStateSchema>
-
-// 2. LangGraph Annotation — required for parallel state updates
-export const InitializeProjectAnnotation = Annotation.Root({ ... })
-```
-
-The `Annotation.Root` definition MUST use **merge reducers** for any fields updated by Phase 1's 4 parallel nodes. The default `LastValue` reducer throws `"LastValue can only receive one value per step"` at runtime.
-
-```typescript
-// Correct — merge reducer handles concurrent updates from 4 parallel nodes
-phase1_analysis: Annotation<Phase1Analysis>({
-  reducer: (left, right) => ({ ...left, ...right }),
-  default: () => ({ all_completed: false })
-}),
-
-// Wrong — default LastValue crashes when 4 nodes update simultaneously
-phase1_analysis: Annotation<Phase1Analysis>,
-```
-
-Fields updated by sequential phases (2–4) use the default `LastValue` reducer.
-
-## Critical Workflows
-
-### Adding a New Phase to initialize-project
-
-1. Create `orchestration/src/nodes/initialize-project/phase{N}/` directory
-2. Add `phase{N}.node.ts` — export `async function phaseNNode(state: InitializeProjectState): Promise<Partial<InitializeProjectState>>`
-3. Add `current_phase` enum value in `orchestration/src/state/schemas/initialize-project.schema.ts` (both Zod schema AND Annotation priority map)
-4. Add new phase state fields to `InitializeProjectStateSchema` and `InitializeProjectAnnotation`
-5. Wire the node into `orchestration/src/graphs/initialize-project.graph.ts`
-6. If the phase uses an agent with stop hooks, create `settings.json` and `hooks/*.hook.ts`
-7. Add validators in `validators/index.ts` — must match stop hook validator
-
-**Files to modify:**
-- `orchestration/src/state/schemas/initialize-project.schema.ts` — Add state fields + enum value + priority map entry
-- `orchestration/src/graphs/initialize-project.graph.ts` — Register node + edges
-- `orchestration/src/nodes/initialize-project/phase{N}/phase{N}.node.ts` — New node (create)
-
-> **Gotcha**: The `current_phase` priority map in the Annotation reducer must be updated. Missing values default to `-1` priority and may be overridden by lower-priority phases.
-
-### Adding a New Phase 1 Analyzer Agent
-
-1. Create `orchestration/src/nodes/initialize-project/phase1/{name}-analyzer/` directory
-2. Add `{name}-analyzer.node.ts`, `prompts/agent.md`, `prompts/execution-instructions.md`
-3. Register new `agent_name` value in `AnalyzerOutputSchema` (Zod enum in `initialize-project.schema.ts`)
-4. Add field to `Phase1AnalysisSchema` and `Phase1RetryTrackingSchema`
-5. Add corresponding field to `InitializeProjectAnnotation` with merge reducer
-6. Wire into graph with parallel edge from `START`
-
-> **Gotcha**: Phase 1 analyzer outputs are JSON, NOT markdown. This is opposite to Phase 3 (synthesis), which MUST return markdown. The `agent.md` for Phase 1 agents instructs JSON output.
+---
 
 ## Gotchas & Non-Obvious Patterns
 
-### Phase 5 Reads Stack Profile from Disk, Not from LangGraph State
-
-Phase 5 (`resources.node.ts`) reads `framework-config.json` produced by Phase 4 and performs strict stack profile validation. If Phase 4 missed a language with 20+ files, Phase 5 throws a hard error.
+### 1. ESM `.js` extension required
 
 ```typescript
-// The validation thresholds in resources.node.ts:
-const WARN_THRESHOLD = 10;   // Advisory for 10-19 files (may be utility scripts)
-const ERROR_THRESHOLD = 20;  // Hard error for 20+ files without a service entry
+// ❌ WRONG — will fail at runtime
+import { Logger } from '../utils/logger';
+import { Logger } from '../utils/logger.ts';
 
-// Infrastructure languages (js, json, yaml, sh) under 30 files are skipped entirely
-// Wrong: Assuming Phase 5 always succeeds if Phase 4 completes
-// Phase 5 will throw if language detection was incomplete in Phase 4
+// ✅ CORRECT — always .js even for .ts source files
+import { Logger } from '../utils/logger.js';
 ```
 
-### Cross-Phase Data Lives on Disk, Not in State
-
-Every phase reads the previous phase's output from `.claude-temp/initialize-project/`, not from LangGraph state. The LangGraph state fields (`phase2_consolidation`, etc.) exist for type inference only.
+### 2. Artifact paths are deterministic and gitignored
 
 ```typescript
-// Correct: read from disk
-const consolidationPath = join(tempDir, "phase2-consolidation.json")
-if (!existsSync(consolidationPath)) {
-  throw new Error("Phase 2 not completed")
-}
-const data = JSON.parse(readFileSync(consolidationPath, "utf-8"))
+// ❌ WRONG — will pollute git
+const artifactsDir = '.claude/tickets/PROJ-123/';
 
-// Wrong: read from LangGraph state — unreliable, may be stale
-const data = state.phase2_consolidation
+// ✅ CORRECT — always under .claude-temp/
+const artifactsDir = join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
 ```
 
-### Session Resumption in Layer 2 Is Subprocess-Level
+### 3. Phase completion markers enable --resume
 
-The `resumeSessionId` passed in `retryWithEnhancedFeedback` uses the `--resume` flag of Claude CLI. This resumes conversation context in a **new subprocess** — it does NOT reuse the same OS process. In API key mode (deepagents), session IDs are ignored entirely.
-
-### LangGraph MemorySaver Is In-Process Only
+Each phase node must write a completion marker or resume will skip it:
 
 ```typescript
-// orchestration/src/graphs/initialize-project.graph.ts
-const checkpointer = new MemorySaver()
+// At the END of every phase node, write the marker
+await writeFile(
+  join(state.temp_dir, 'phase4', 'implementation-complete.json'),
+  JSON.stringify({ completed_at: new Date().toISOString(), success: true })
+);
 ```
 
-Workflow state is lost on process restart. Cross-phase resumption relies exclusively on disk files in `.claude-temp/`. For production durability, replace `MemorySaver` with `SqliteSaver` or `PostgresSaver` — the interface is compatible.
+### 4. Agent output validation
 
-### Parallel Phase 1 State Conflict
-
-Phase 1 has 4 nodes running concurrently. Adding a new parallel agent field without a merge reducer causes a runtime crash:
+LLM agents embed JSON in markdown fences. Never `JSON.parse()` directly:
 
 ```typescript
-// Wrong — throws "LastValue can only receive one value per step"
-newAnalyzerResult: Annotation<AnalyzerOutput | undefined>,
+// ❌ WRONG
+const result = JSON.parse(agentOutput);
 
-// Correct — merge reducer handles all 4 concurrent updates
-phase1_analysis: Annotation<Phase1Analysis>({
-  reducer: (left, right) => ({ ...left, ...right }),
-  default: () => ({ all_completed: false })
-}),
+// ✅ CORRECT — strips markdown, validates agent_name field
+const result = validateAndParseAgentOutput(agentOutput, 'expected-agent-name');
 ```
 
-### Synthesis Agent Must Not Perform File Operations
+### 5. MemorySaver vs SQLite
 
-The architect-synthesizer is configured in `settings.json` with `tools: Read, Grep, Glob` only — no filesystem mutations. Its output is pure markdown text that Phase 4 parses and persists to disk. Any synthesis output that references file operations is blocked by the stop hook and triggers a retry.
+The `sqlite.checkpointer.ts` file is named misleadingly — it currently exports `MemorySaver` (in-memory). SQLite/Postgres checkpointing is planned for production but not yet wired up. Do not assume persistence across process restarts.
 
-### ESM Import Extension Requirement
+### 6. Model tier inheritance
 
-All imports within `orchestration/src/` must use the `.js` extension, even when importing `.ts` source files:
+`MODEL_TIER` env var is set once at CLI startup and read by `getLLMFactory()`. Do not set it per-node; it applies globally to the entire workflow run.
 
-```typescript
-// Correct (TypeScript ESM with Node16 module resolution)
-import { validateSynthesisOutput } from "./validators/index.js"
+### 7. Skills are not slash commands
 
-// Wrong — fails at runtime
-import { validateSynthesisOutput } from "./validators/index"
+The `.claude/commands/` directory is NOT the source of truth for skills. The `skills/` directory and `skills.config.json` are. Slash commands (`.claude/commands/*.md`) were the legacy invocation mechanism. The current approach uses the `Skill` tool.
+
+---
+
+## External Integration Points
+
+| Service | How Used | Auth |
+|---|---|---|
+| Jira REST API v3 | Phase 1 context fetching (`phase1-context.node.ts`) | `JIRA_EMAIL` + `JIRA_API_TOKEN` (Basic Auth) |
+| Figma REST API | Phase 6 visual design context | `FIGMA_ACCESS_TOKEN` (Bearer) |
+| GitHub (`gh` CLI) | Phase 8 PR creation | `GITHUB_PERSONAL_ACCESS_TOKEN` |
+| Atlassian MCP Server | Docker runtime only | `ATLASSIAN_CLOUD_ID`, `ATLASSIAN_API_TOKEN` |
+| Playwright | Phase 6 screenshot capture | No auth; headless browser |
+
+---
+
+## Testing Conventions
+
+```
+orchestration/test/
+├── unit/              # Mirrors src/ — test individual functions/classes
+│   ├── llm/
+│   ├── nodes/
+│   └── utils/
+└── integration/       # End-to-end workflow tests (*.integration.test.ts)
 ```
 
-## Testing Strategy
-
-### Philosophy
-
-Unit tests cover validators, helpers, and prompt builders — pure functions that do not invoke agents. Integration tests cover complete workflows with real agents (expensive, require credentials, run against fixture projects in `tests/integration/`).
-
-### Unit Test Pattern
-
-```typescript
-// orchestration/test/unit/nodes/initialize-project/phase3/validators/validate-claude-md-content.test.ts
-import { describe, it, expect } from "vitest"
-import { validateClaudeMdContent } from "../../../../../../src/nodes/initialize-project/phase3/validators/validate-claude-md-content.js"
-
-describe("validateClaudeMdContent", () => {
-  it("rejects empty content", () => {
-    const result = validateClaudeMdContent("")
-    expect(result).toContain("CONTENT TOO SHORT")
-  })
-
-  it("passes valid content with all required sections", () => {
-    const result = validateClaudeMdContent(validClaudeMdFixture)
-    expect(result).toHaveLength(0)
-  })
-})
-```
-
-- Test files mirror `src/` structure under `test/unit/`
-- Use `.js` extension in imports (ESM requirement)
-- Never invoke agents in unit tests — mock at `AgentFactory` boundary
-
-### What NOT to Test
-
-- Do not test agent output format in unit tests — that is the validator's responsibility
-- Do not mock `fs.readFileSync` for disk-based cross-phase data — use real temp directories with fixtures
-- Do not test LangGraph graph topology — trust LangGraph's own test suite
-
-## Integration Points
-
-### deepagents (API key mode)
-
-Used when any of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GOOGLE_API_KEY` is set. Creates agents via the deepagents SDK with the LLM provider configured by `MODEL_TIER`. No stop hooks available — all validation is handled by `retryWithEnhancedFeedback`.
-
-### Claude CLI (CLI auth mode)
-
-Used when no API keys are present but `claude` binary is found (local or global). Spawns subprocess with `--dangerously-skip-permissions`. Stop hooks run as registered scripts in `settings.json`. Retry passes `--resume <sessionId>` to preserve conversation context between external retry attempts.
-
-### Skills System
-
-Skills are markdown files in `skills/{NNN}-{category}/` with YAML frontmatter. Phase 5 resolves skills by matching the project's detected `StackProfile` against skill metadata, then copies matching skills to the target project's `.claude/skills/`. New skills need YAML frontmatter with at least `name`, `description`, and applicable language/framework tags.
-
-### Agent Templates (Handlebars)
-
-Agent files for target projects are generated in Phase 5 from `agents/templates/*.md` using Handlebars. Template variables are populated from `StackProfile`. To add a new agent type, add a template to `agents/templates/` and register it in `agent-generator.ts`.
-
-## Multi-File Change Checklists
-
-### When adding a new Phase 3 output validator
-
-- [ ] `orchestration/src/nodes/initialize-project/phase3/validators/{validator-name}.ts` — Create validator function
-- [ ] `orchestration/src/nodes/initialize-project/phase3/validators/index.ts` — Import and call in `validateSynthesisOutput`
-- [ ] `orchestration/src/nodes/initialize-project/phase3/validators/types.ts` — Add any new regex patterns or constants
-- [ ] `agents/hooks/validate-synthesis.ts` — Mirror identical logic in the stop hook
-- [ ] `orchestration/test/unit/nodes/initialize-project/phase3/validators/{validator-name}.test.ts` — Unit test
-
-### When changing Phase 1 analyzer output schema
-
-- [ ] `orchestration/src/state/schemas/initialize-project.schema.ts` — Update `AnalyzerOutputSchema` and `Phase1AnalysisSchema`
-- [ ] `orchestration/src/nodes/initialize-project/phase1/{analyzer}/prompts/execution-instructions.md` — Update output format instructions
-- [ ] `orchestration/src/nodes/initialize-project/phase2/question-consolidator/` — Update consolidation logic if field names changed
-- [ ] Any phase that reads phase1 disk output — Update parsing logic accordingly
-
-### When adding a new LLM provider tier
-
-- [ ] `orchestration/config/model-config.json` — Add tier entry with model IDs
-- [ ] `orchestration/src/utils/preflight-checks.ts` — Add new env var to `hasXxxKey` detection block
-- [ ] `orchestration/src/utils/shared/agent-factory/agent-factory.ts` — Handle new provider in factory switch
-- [ ] `orchestration/src/auth/auth-detector.ts` — Register new env var in auth detection
-- [ ] `README.md` — Document the new tier
+Test files use Vitest. Mock LLM calls with `vi.mock('../llm/llm-factory.js')`. Do not mock the filesystem unless absolutely necessary — phase nodes are tested with real temp directories.
