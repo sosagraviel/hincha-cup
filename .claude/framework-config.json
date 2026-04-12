@@ -106,9 +106,9 @@
       "mastering-git-cli": {
         "managed_by_framework": true,
         "source_path": "skills/020-development-workflow/mastering-git-cli",
-        "source_hash": "d3ea6a3055fcdebffd32f518605e0456e9cc375feae1fbc2f78c478cc04d900c",
-        "file_hash": "d3ea6a3055fcdebffd32f518605e0456e9cc375feae1fbc2f78c478cc04d900c",
-        "last_sync": "2026-04-12T17:45:46.139Z"
+        "source_hash": "cf4085e95d75b989917a49e2e3d15ba9264c7fc71e9a802d0778397c429b8ad0",
+        "file_hash": "cf4085e95d75b989917a49e2e3d15ba9264c7fc71e9a802d0778397c429b8ad0",
+        "last_sync": "2026-04-12T18:50:39.393Z"
       },
       "code-quality-check": {
         "managed_by_framework": true,
@@ -186,6 +186,13 @@
         "source_hash": "3da8a5edb50a93aba4b7310f29b8ba7f36cd3a14596dcafc058312e4ce9185c2",
         "file_hash": "3da8a5edb50a93aba4b7310f29b8ba7f36cd3a14596dcafc058312e4ce9185c2",
         "last_sync": "2026-04-12T17:45:46.273Z"
+      },
+      "mastering-github-cli": {
+        "managed_by_framework": true,
+        "source_path": "skills/040-integrations/mastering-github-cli",
+        "source_hash": "e8945f9822c5d62a7cbaa5da653f82e231fc33df71cfe21f93b8bfe2a9862c80",
+        "file_hash": "e8945f9822c5d62a7cbaa5da653f82e231fc33df71cfe21f93b8bfe2a9862c80",
+        "last_sync": "2026-04-12T18:50:39.419Z"
       }
     },
     "agents": {
@@ -194,28 +201,28 @@
         "template_path": "agents/templates/planner.template.md",
         "template_hash": "af475dddaccf98293ece5a436292c6cadad40cd3749546e667b066c00a32e534",
         "file_hash": "223fe0a7689e4d807add5194fa19e94cb33d07bae182155dad55fa71dd4959e9",
-        "last_sync": "2026-04-12T17:45:46.290Z"
+        "last_sync": "2026-04-12T18:50:39.443Z"
       },
       "implementer-typescript": {
         "managed_by_framework": true,
         "template_path": "agents/templates/implementer.template.md",
         "template_hash": "f1d0ead449b371926f81947451b5e9bc04fd6418bb65fa2466af98460a490da5",
         "file_hash": "8c5c4936f8e18a716f6c395534d645915dcfd5dba7c72651f4edb3c8aba94c65",
-        "last_sync": "2026-04-12T17:45:46.293Z"
+        "last_sync": "2026-04-12T18:50:39.448Z"
       },
       "implementer-python": {
         "managed_by_framework": true,
         "template_path": "agents/templates/implementer.template.md",
         "template_hash": "f1d0ead449b371926f81947451b5e9bc04fd6418bb65fa2466af98460a490da5",
         "file_hash": "d1eb6023c072710c0c2b61b3ccd94b5e0b141a8232d3d2dbb170ec28d5988f8c",
-        "last_sync": "2026-04-12T17:45:46.296Z"
+        "last_sync": "2026-04-12T18:50:39.452Z"
       },
       "implementer-generic": {
         "managed_by_framework": true,
         "template_path": "agents/templates/implementer-generic.template.md",
         "template_hash": "553b1cd4cbf95a18127b912f065a8af2e5bdf4ba57cc0f05fa42e083b8dec7b5",
         "file_hash": "e64b52921d019161e921047f56699e67a927711dfa2f6814cc93ac23170fba80",
-        "last_sync": "2026-04-12T17:45:46.299Z"
+        "last_sync": "2026-04-12T18:50:39.457Z"
       }
     },
     "commands": {
@@ -262,6 +269,6 @@
         "last_sync": "2026-04-12T17:45:46.313Z"
       }
     },
-    "last_sync": "2026-04-12T17:45:46.313Z"
+    "last_sync": "2026-04-12T18:50:39.457Z"
   }
 }
