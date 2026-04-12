@@ -53,9 +53,215 @@
     }
   },
   "resource_state": {
-    "skills": {},
-    "agents": {},
-    "commands": {},
-    "last_sync": "2026-04-12T15:01:34.475Z"
+    "skills": {
+      "start-task": {
+        "managed_by_framework": true,
+        "source_path": "skills/010-foundation/start-task",
+        "source_hash": "3d8e9948415fd192a0badbab6e1d9a6e1ee62484b30071a7dfd8003adf9767be",
+        "file_hash": "3d8e9948415fd192a0badbab6e1d9a6e1ee62484b30071a7dfd8003adf9767be",
+        "last_sync": "2026-04-12T17:45:45.996Z"
+      },
+      "analyze-requirements": {
+        "managed_by_framework": true,
+        "source_path": "skills/020-development-workflow/analyze-requirements",
+        "source_hash": "9029aa96541a16e108dcfbf56e07e62ba08e3421f99e3f3370a776411988379b",
+        "file_hash": "9029aa96541a16e108dcfbf56e07e62ba08e3421f99e3f3370a776411988379b",
+        "last_sync": "2026-04-12T17:45:45.998Z"
+      },
+      "architect-agent": {
+        "managed_by_framework": true,
+        "source_path": "skills/020-development-workflow/architect-agent",
+        "source_hash": "33020af02ff52fcfb60d55671fdc5f33383248b5cdbd7ca5b1f7a2f89a82b468",
+        "file_hash": "33020af02ff52fcfb60d55671fdc5f33383248b5cdbd7ca5b1f7a2f89a82b468",
+        "last_sync": "2026-04-12T17:45:46.081Z"
+      },
+      "code-implementation": {
+        "managed_by_framework": true,
+        "source_path": "skills/020-development-workflow/code-implementation",
+        "source_hash": "384fff5557a92035baa90e9aba2d2e08d98912bb6deed04a7608b3ba24707fc4",
+        "file_hash": "384fff5557a92035baa90e9aba2d2e08d98912bb6deed04a7608b3ba24707fc4",
+        "last_sync": "2026-04-12T17:45:46.091Z"
+      },
+      "create-sdd-ticket": {
+        "managed_by_framework": true,
+        "source_path": "skills/020-development-workflow/create-sdd-ticket",
+        "source_hash": "1a23f945c2b96b00858428b14b79675b142dcf912c8984078c3a6b0caceb7ae0",
+        "file_hash": "1a23f945c2b96b00858428b14b79675b142dcf912c8984078c3a6b0caceb7ae0",
+        "last_sync": "2026-04-12T17:45:46.098Z"
+      },
+      "skill-creator": {
+        "managed_by_framework": true,
+        "source_path": "skills/020-development-workflow/skill-creator",
+        "source_hash": "5f49dca51a35865b4a5bc3beaafe8c826ff78b065e44ef26aceefc972c1b2f2a",
+        "file_hash": "5f49dca51a35865b4a5bc3beaafe8c826ff78b065e44ef26aceefc972c1b2f2a",
+        "last_sync": "2026-04-12T17:45:46.116Z"
+      },
+      "implement-ticket": {
+        "managed_by_framework": true,
+        "source_path": "skills/020-development-workflow/implement-ticket",
+        "source_hash": "b90dfdf8f3c18e47faa9e2a5b9cd2c5fd63564d278f61349eaf8cc1b7ab6bd87",
+        "file_hash": "b90dfdf8f3c18e47faa9e2a5b9cd2c5fd63564d278f61349eaf8cc1b7ab6bd87",
+        "last_sync": "2026-04-12T17:45:46.127Z"
+      },
+      "mastering-git-cli": {
+        "managed_by_framework": true,
+        "source_path": "skills/020-development-workflow/mastering-git-cli",
+        "source_hash": "d3ea6a3055fcdebffd32f518605e0456e9cc375feae1fbc2f78c478cc04d900c",
+        "file_hash": "d3ea6a3055fcdebffd32f518605e0456e9cc375feae1fbc2f78c478cc04d900c",
+        "last_sync": "2026-04-12T17:45:46.139Z"
+      },
+      "code-quality-check": {
+        "managed_by_framework": true,
+        "source_path": "skills/030-quality-assurance/code-quality-check",
+        "source_hash": "96a540a5ed489337ff9d7eb7f975f720a4affbe89efcefa864134c7f5cbf5f20",
+        "file_hash": "96a540a5ed489337ff9d7eb7f975f720a4affbe89efcefa864134c7f5cbf5f20",
+        "last_sync": "2026-04-12T17:45:46.149Z"
+      },
+      "create-pr": {
+        "managed_by_framework": true,
+        "source_path": "skills/030-quality-assurance/create-pr",
+        "source_hash": "304f6a16291b270764a59bb925d84d1426791dfd339a349e7ac34c2a395293cd",
+        "file_hash": "304f6a16291b270764a59bb925d84d1426791dfd339a349e7ac34c2a395293cd",
+        "last_sync": "2026-04-12T17:45:46.156Z"
+      },
+      "doc-updater": {
+        "managed_by_framework": true,
+        "source_path": "skills/030-quality-assurance/doc-updater",
+        "source_hash": "de0c4776528a1b82e1ae1aad095c5f300dcf96e54e01f3b3bc027df82414efa3",
+        "file_hash": "de0c4776528a1b82e1ae1aad095c5f300dcf96e54e01f3b3bc027df82414efa3",
+        "last_sync": "2026-04-12T17:45:46.161Z"
+      },
+      "pr-reviewer": {
+        "managed_by_framework": true,
+        "source_path": "skills/030-quality-assurance/pr-reviewer",
+        "source_hash": "7760a8fc89fd13a2b5cc54509821005f5918361e71a9a30bde94a49c631db66f",
+        "file_hash": "7760a8fc89fd13a2b5cc54509821005f5918361e71a9a30bde94a49c631db66f",
+        "last_sync": "2026-04-12T17:45:46.172Z"
+      },
+      "security-review": {
+        "managed_by_framework": true,
+        "source_path": "skills/030-quality-assurance/security-review",
+        "source_hash": "131126456d85f5b7f70673f0e3b73dd34343b3981153dd3b717c9c5d34089439",
+        "file_hash": "131126456d85f5b7f70673f0e3b73dd34343b3981153dd3b717c9c5d34089439",
+        "last_sync": "2026-04-12T17:45:46.188Z"
+      },
+      "mastering-typescript": {
+        "managed_by_framework": true,
+        "source_path": "skills/050-language-frameworks/mastering-typescript",
+        "source_hash": "af26e96b08fdb4a0a6c46f283855218803c2f12600de2a168725684bc919cf47",
+        "file_hash": "af26e96b08fdb4a0a6c46f283855218803c2f12600de2a168725684bc919cf47",
+        "last_sync": "2026-04-12T17:45:46.203Z"
+      },
+      "mastering-python-skill": {
+        "managed_by_framework": true,
+        "source_path": "skills/050-language-frameworks/mastering-python-skill",
+        "source_hash": "0ec2fde02c7a93d9ee0b927801c03a36d01076c725dcb86f11360a10bf80edba",
+        "file_hash": "0ec2fde02c7a93d9ee0b927801c03a36d01076c725dcb86f11360a10bf80edba",
+        "last_sync": "2026-04-12T17:45:46.234Z"
+      },
+      "mastering-vitest": {
+        "managed_by_framework": true,
+        "source_path": "skills/050-language-frameworks/mastering-vitest",
+        "source_hash": "1c0e4878895b0d92bca9200a2318862c3ef3e6e10f2438a8bb5af2977fc36150",
+        "file_hash": "1c0e4878895b0d92bca9200a2318862c3ef3e6e10f2438a8bb5af2977fc36150",
+        "last_sync": "2026-04-12T17:45:46.245Z"
+      },
+      "mastering-langgraph-agent-skill": {
+        "managed_by_framework": true,
+        "source_path": "skills/050-language-frameworks/mastering-langgraph-agent-skill",
+        "source_hash": "27daec9159301c2fa0bafe73fab4c6f84796903f708638124eb41f47b0a81fd3",
+        "file_hash": "27daec9159301c2fa0bafe73fab4c6f84796903f708638124eb41f47b0a81fd3",
+        "last_sync": "2026-04-12T17:45:46.254Z"
+      },
+      "design-doc-mermaid": {
+        "managed_by_framework": true,
+        "source_path": "skills/060-documentation/design-doc-mermaid",
+        "source_hash": "e95cd4d93405b906154c3051f6fb41d2dd438fb7539d66592704a8f636eaadb9",
+        "file_hash": "e95cd4d93405b906154c3051f6fb41d2dd438fb7539d66592704a8f636eaadb9",
+        "last_sync": "2026-04-12T17:45:46.263Z"
+      },
+      "developing-with-docker": {
+        "managed_by_framework": true,
+        "source_path": "skills/070-infrastructure/developing-with-docker",
+        "source_hash": "3da8a5edb50a93aba4b7310f29b8ba7f36cd3a14596dcafc058312e4ce9185c2",
+        "file_hash": "3da8a5edb50a93aba4b7310f29b8ba7f36cd3a14596dcafc058312e4ce9185c2",
+        "last_sync": "2026-04-12T17:45:46.273Z"
+      }
+    },
+    "agents": {
+      "planner": {
+        "managed_by_framework": true,
+        "template_path": "agents/templates/planner.template.md",
+        "template_hash": "af475dddaccf98293ece5a436292c6cadad40cd3749546e667b066c00a32e534",
+        "file_hash": "223fe0a7689e4d807add5194fa19e94cb33d07bae182155dad55fa71dd4959e9",
+        "last_sync": "2026-04-12T17:45:46.290Z"
+      },
+      "implementer-typescript": {
+        "managed_by_framework": true,
+        "template_path": "agents/templates/implementer.template.md",
+        "template_hash": "f1d0ead449b371926f81947451b5e9bc04fd6418bb65fa2466af98460a490da5",
+        "file_hash": "8c5c4936f8e18a716f6c395534d645915dcfd5dba7c72651f4edb3c8aba94c65",
+        "last_sync": "2026-04-12T17:45:46.293Z"
+      },
+      "implementer-python": {
+        "managed_by_framework": true,
+        "template_path": "agents/templates/implementer.template.md",
+        "template_hash": "f1d0ead449b371926f81947451b5e9bc04fd6418bb65fa2466af98460a490da5",
+        "file_hash": "d1eb6023c072710c0c2b61b3ccd94b5e0b141a8232d3d2dbb170ec28d5988f8c",
+        "last_sync": "2026-04-12T17:45:46.296Z"
+      },
+      "implementer-generic": {
+        "managed_by_framework": true,
+        "template_path": "agents/templates/implementer-generic.template.md",
+        "template_hash": "553b1cd4cbf95a18127b912f065a8af2e5bdf4ba57cc0f05fa42e083b8dec7b5",
+        "file_hash": "e64b52921d019161e921047f56699e67a927711dfa2f6814cc93ac23170fba80",
+        "last_sync": "2026-04-12T17:45:46.299Z"
+      }
+    },
+    "commands": {
+      "create-sdd-ticket": {
+        "managed_by_framework": true,
+        "source_path": "commands/create-sdd-ticket.md",
+        "source_hash": "83bde4bc8708fc09017a58b59979804e1682805c52762db50efc213d32f5a3cb",
+        "file_hash": "83bde4bc8708fc09017a58b59979804e1682805c52762db50efc213d32f5a3cb",
+        "last_sync": "2026-04-12T17:45:46.309Z"
+      },
+      "implement-ticket": {
+        "managed_by_framework": true,
+        "source_path": "commands/implement-ticket.md",
+        "source_hash": "be798bee1e6bd6d5e1f70edacdef4f642b5ec8285889e6e3dc0094ca04f3a201",
+        "file_hash": "be798bee1e6bd6d5e1f70edacdef4f642b5ec8285889e6e3dc0094ca04f3a201",
+        "last_sync": "2026-04-12T17:45:46.310Z"
+      },
+      "task-management-end-task": {
+        "managed_by_framework": true,
+        "source_path": "commands/task-management/end-task.md",
+        "source_hash": "a1c932ec0be6cce39fc5e48cd9da1a905338cafdbcdaa364c9a797931401c452",
+        "file_hash": "a1c932ec0be6cce39fc5e48cd9da1a905338cafdbcdaa364c9a797931401c452",
+        "last_sync": "2026-04-12T17:45:46.311Z"
+      },
+      "task-management-list-tasks": {
+        "managed_by_framework": true,
+        "source_path": "commands/task-management/list-tasks.md",
+        "source_hash": "8a44f0bbefea9aa9c3c6402f556357319e37533b3474f06b2f85e10e14319345",
+        "file_hash": "8a44f0bbefea9aa9c3c6402f556357319e37533b3474f06b2f85e10e14319345",
+        "last_sync": "2026-04-12T17:45:46.312Z"
+      },
+      "task-management-start-task": {
+        "managed_by_framework": true,
+        "source_path": "commands/task-management/start-task.md",
+        "source_hash": "3cdf71f06ff1890818e693478088d21f98f54bbce9d0661718731ce35eed3618",
+        "file_hash": "3cdf71f06ff1890818e693478088d21f98f54bbce9d0661718731ce35eed3618",
+        "last_sync": "2026-04-12T17:45:46.312Z"
+      },
+      "task-management-switch-task": {
+        "managed_by_framework": true,
+        "source_path": "commands/task-management/switch-task.md",
+        "source_hash": "dc825789856d85cd3de834d7358ef4e8ae63722d078e6ff2bfa2c47d11ef0a4a",
+        "file_hash": "dc825789856d85cd3de834d7358ef4e8ae63722d078e6ff2bfa2c47d11ef0a4a",
+        "last_sync": "2026-04-12T17:45:46.313Z"
+      }
+    },
+    "last_sync": "2026-04-12T17:45:46.313Z"
   }
 }
