@@ -175,7 +175,7 @@ Supports **1000+ parallel tickets** with isolated environments:
 
 - Each ticket gets a unique port range via hash-based allocation
 - Docker Compose override files for isolation (`docker-compose.PROJ-123.yml`)
-- Separate artifact directories (`.claude/artifacts/PROJ-123/`)
+- Separate artifact directories (`.claude-temp/tickets/PROJ-123/artifacts/`)
 - Base port range: 10000 (100 ports per ticket)
 - Supports 500 concurrent tickets: 10000-59999
 
@@ -227,7 +227,7 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 fi
 
 # Step 2: Create artifact directories
-ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
+ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
 mkdir -p "$ARTIFACTS_DIR"/{context,plans,implementations,tests,screenshots/{before,after,diffs},videos,coverage,decisions}
 
 export ARTIFACTS_DIR

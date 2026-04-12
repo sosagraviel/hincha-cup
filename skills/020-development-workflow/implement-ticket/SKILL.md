@@ -110,7 +110,7 @@ CLAUDE_AUTO_MODE=true /implement-ticket PROJ-123
 
 **Best for**: Production workflows, overnight runs, CI/CD integration
 
-**Decision Logging**: All autonomous decisions logged to `.claude-temp/tickets/PROJ-123/artifacts/decisions/PROJ-123.md` and included in PR
+**Decision Logging**: All autonomous decisions logged to `.claude/decisions/PROJ-123.md` and included in PR
 
 ---
 
@@ -175,7 +175,7 @@ Supports **1000+ parallel tickets** with isolated environments:
 
 - Each ticket gets a unique port range via hash-based allocation
 - Docker Compose override files for isolation (`docker-compose.PROJ-123.yml`)
-- Separate artifact directories (`.claude/artifacts/PROJ-123/`)
+- Separate artifact directories (`.claude-temp/tickets/PROJ-123/artifacts/`)
 - Base port range: 10000 (100 ports per ticket)
 - Supports 500 concurrent tickets: 10000-59999
 
@@ -353,7 +353,7 @@ TICKET_ID="$1"
 INPUT_SOURCE="$2"
 INPUT_VALUE="$3"
 
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 
 # Spawn context-gatherer agent
 if [[ "$INPUT_SOURCE" == "--from-jira" ]]; then
@@ -451,7 +451,7 @@ echo "📐 Phase 2: Planning & Architectural Design"
 echo "============================================"
 
 TICKET_ID="$1"
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 
 # Read full context
 FULL_CONTEXT=$(cat "$ARTIFACTS_DIR/context/full-context.md")
@@ -637,7 +637,7 @@ echo "🔧 Phase 3: Environment Setup"
 echo "=============================="
 
 TICKET_ID="$1"
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 UTILS_DIR="$HOME/.claude/utils"
 
 # Read environment requirements
@@ -837,7 +837,7 @@ echo "⚙️  Phase 4: Implementation"
 echo "=========================="
 
 TICKET_ID="$1"
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 
 # Read stack profile
 STACK_PROFILE=$(cat "$ARTIFACTS_DIR/stack-profile.json")
@@ -909,7 +909,7 @@ echo "✅ Phase 5: Testing"
 echo "==================="
 
 TICKET_ID="$1"
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 UTILS_DIR="$HOME/.claude/utils"
 
 # Use TestOrchestrator to run all tests
@@ -1132,7 +1132,7 @@ echo "📸 Phase 6: Visual Verification"
 echo "================================"
 
 TICKET_ID="$1"
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 
 # ── Step 1: Locate ui-visual-testing.json ──────────────────────────────
 
@@ -1318,7 +1318,7 @@ echo "📝 Phase 7: Documentation Update"
 echo "================================="
 
 TICKET_ID="$1"
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 
 # Get list of changed files
 CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
@@ -1448,7 +1448,7 @@ echo "🚀 Phase 8: PR Creation"
 echo "======================="
 
 TICKET_ID="$1"
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 UTILS_DIR="$HOME/.claude/utils"
 
 # Step 1: Collect artifacts
@@ -1562,7 +1562,7 @@ echo "🔄 Phase 9: Review Loop"
 echo "======================="
 
 TICKET_ID="$1"
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 UTILS_DIR="$HOME/.claude/utils"
 
 echo "  - Running automated review loop with max 3 iterations..."
@@ -1638,7 +1638,7 @@ echo "🧹 Phase 10: Cleanup"
 echo "===================="
 
 TICKET_ID="$1"
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR=".claude/artifacts/$TICKET_ID"
 UTILS_DIR="$HOME/.claude/utils"
 
 # Step 1: Teardown isolated environment
@@ -1795,7 +1795,7 @@ Each phase has specific error handling:
 
 # Checkpoints and Resume
 
-Each phase writes a checkpoint file: `.claude-temp/tickets/{JIRA_KEY}/artifacts/checkpoints/phase-{N}.json`
+Each phase writes a checkpoint file: `.claude/artifacts/{JIRA_KEY}/checkpoints/phase-{N}.json`
 
 **Checkpoint Format**:
 
@@ -1826,7 +1826,7 @@ When `--resume` is provided:
 
 # Autonomous Decision Logging
 
-All autonomous decisions are logged to `.claude-temp/tickets/{JIRA_KEY}/artifacts/decisions/{JIRA_KEY}.md`
+All autonomous decisions are logged to `.claude/decisions/{JIRA_KEY}.md`
 
 **Decision Format**:
 
@@ -1926,7 +1926,7 @@ All autonomous decisions are logged to `.claude-temp/tickets/{JIRA_KEY}/artifact
 
 **Solution**:
 
-1. Check which files are missing coverage: `cat .claude-temp/tickets/{JIRA_KEY}/artifacts/coverage/index.html`
+1. Check which files are missing coverage: `cat .claude/artifacts/{JIRA_KEY}/coverage/index.html`
 2. Re-run Phase 4 (implementation) to add missing tests
 3. Resume from Phase 5: `/implement-ticket {JIRA_KEY} --resume`
 
@@ -1936,7 +1936,7 @@ All autonomous decisions are logged to `.claude-temp/tickets/{JIRA_KEY}/artifact
 
 **Solution**:
 
-1. Review visual-verifier analysis: `cat .claude-temp/tickets/{JIRA_KEY}/artifacts/screenshots/diffs/visual-verification-analysis-iter-*.json`
+1. Review visual-verifier analysis: `cat .claude/artifacts/{JIRA_KEY}/screenshots/diffs/visual-verification-analysis-iter-*.json`
 2. Check if issue is anti-aliasing (<2% diff): Safe to ignore
 3. Check if issue is design mismatch (>20% diff): May need manual design review
 4. In autonomous mode, workflow will continue after 5 iterations (non-blocking)
@@ -2021,13 +2021,13 @@ When running multiple tickets in parallel:
 
 - Check port allocation: `docker ps` (each ticket uses unique ports)
 - Monitor resource usage: `docker stats`
-- Review logs: `tail -f .claude-temp/tickets/{JIRA_KEY}/artifacts/workflow.log`
+- Review logs: `tail -f .claude/artifacts/{JIRA_KEY}/workflow.log`
 
 ## 4. Review Visual Diffs
 
 Even in autonomous mode, review visual diffs before merging:
 
-- Check `.claude-temp/tickets/{JIRA_KEY}/artifacts/screenshots/diffs/`
+- Check `.claude/artifacts/{JIRA_KEY}/screenshots/diffs/`
 - View side-by-side comparisons
 - Validate design fidelity
 
