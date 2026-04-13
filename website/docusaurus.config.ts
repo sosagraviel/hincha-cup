@@ -52,6 +52,11 @@ const config: Config = {
     ],
   ],
 
+  markdown: {
+    mermaid: true,
+  },
+  themes: ['@docusaurus/theme-mermaid'],
+
   themeConfig: {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
@@ -85,8 +90,25 @@ const config: Config = {
           title: 'Documentation',
           items: [
             {
-              label: 'Getting Started',
-              to: '/docs/intro',
+              label: 'Installation',
+              to: '/docs/getting-started/installation',
+            },
+            {
+              label: 'Quick Start',
+              to: '/docs/getting-started/quickstart',
+            },
+          ],
+        },
+        {
+          title: 'Workflows',
+          items: [
+            {
+              label: 'Initialize Project',
+              to: '/docs/workflows/initialize-project',
+            },
+            {
+              label: 'Implement Ticket',
+              to: '/docs/workflows/implement-ticket',
             },
           ],
         },
@@ -109,6 +131,7 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
+      additionalLanguages: ['bash', 'typescript', 'javascript', 'json', 'python', 'go', 'java', 'rust', 'yaml'],
     },
   } satisfies Preset.ThemeConfig,
 };

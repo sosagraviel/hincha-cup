@@ -11,32 +11,35 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Easy to Use',
+    title: 'Full SDLC Automation',
     Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and used to get your
-        website up and running quickly.
+        From idea to production-ready pull request with minimal human intervention. Handles ticket
+        creation, implementation, testing, and PR generation - achieving 70-80% time savings across
+        the full development cycle.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
+    title: 'Stack Agnostic',
     Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go ahead and move your
-        docs into the <code>docs</code> directory.
+        Works with any tech stack - TypeScript, Python, Go, Java, Rust, and more. Automatically
+        detects your project&apos;s languages, frameworks, and conventions to provide tailored
+        assistance.
       </>
     ),
   },
   {
-    title: 'Powered by React',
+    title: 'Production Ready',
     Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can be extended while
-        reusing the same header and footer.
+        Built for enterprise use across 1000+ projects. Features include multi-provider AI support
+        (Anthropic, OpenAI, Google), Docker runtime, comprehensive security controls, and full CI/CD
+        integration.
       </>
     ),
   },
