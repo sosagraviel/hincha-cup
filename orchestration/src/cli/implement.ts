@@ -50,7 +50,7 @@ program
   .option('--from-input', 'Read ticket context from stdin')
   .option('--start-phase <phase>', 'Start from specific phase (0-10)', parseInt)
   .option('--resume', 'Auto-detect last completed phase and resume from next')
-  .option('--model-tier <tier>', 'Model tier to use (sonnet, opus, haiku)', 'sonnet')
+  .option('--model-tier <tier>', 'Model tier to use (standard, fast, advanced, openai, gemini)', 'standard')
   .parse(process.argv);
 
 const options = program.opts();
@@ -160,7 +160,7 @@ if (options.resume) {
   }
 }
 
-const validTiers = ['sonnet', 'opus', 'haiku'];
+const validTiers = ['standard', 'fast', 'advanced', 'openai', 'gemini'];
 if (!validTiers.includes(options.modelTier)) {
   logger.error(
     `Invalid model tier: ${options.modelTier}. Must be one of: ${validTiers.join(', ')}`,
