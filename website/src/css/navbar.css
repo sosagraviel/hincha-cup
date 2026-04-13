@@ -1,0 +1,102 @@
+/**
+ * Navbar Customization
+ * Professional navbar styling with Qubika brand colors
+ */
+
+.navbar {
+  background: var(--qaf-white);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  padding: var(--qaf-space-md) 0;
+}
+
+.navbar__title {
+  font-weight: var(--qaf-weight-bold);
+  color: var(--qaf-black);
+  font-size: var(--qaf-font-lg);
+}
+
+.navbar__logo {
+  height: 32px;
+}
+
+.navbar__link {
+  color: var(--qaf-gray-medium);
+  font-weight: var(--qaf-weight-medium);
+  transition: color var(--qaf-transition-base);
+  font-size: var(--qaf-font-base);
+}
+
+.navbar__link:hover {
+  color: var(--qaf-cyan);
+  text-decoration: none;
+}
+
+.navbar__link--active {
+  color: var(--qaf-cyan);
+  font-weight: var(--qaf-weight-semibold);
+}
+
+.navbar__item {
+  padding: 0 var(--qaf-space-sm);
+}
+
+/* GitHub link styling */
+.navbar__link[href*='github'] {
+  color: var(--qaf-dark-gray);
+}
+
+.navbar__link[href*='github']:hover {
+  color: var(--qaf-cyan);
+}
+
+/* Mobile menu */
+.navbar-sidebar {
+  background: var(--qaf-white);
+}
+
+.navbar-sidebar__brand {
+  padding: var(--qaf-space-lg);
+}
+
+.menu {
+  padding: var(--qaf-space-md);
+}
+
+.menu__link {
+  color: var(--qaf-gray-medium);
+  font-weight: var(--qaf-weight-medium);
+  transition: all var(--qaf-transition-base);
+  border-radius: var(--qaf-radius-sm);
+}
+
+.menu__link:hover {
+  color: var(--qaf-cyan);
+  background: rgba(6, 147, 227, 0.05);
+}
+
+.menu__link--active {
+  color: var(--qaf-cyan);
+  background: rgba(6, 147, 227, 0.1);
+}
+
+/* Dark mode toggle */
+html[data-theme='dark'] .navbar {
+  background: #1b1b1d;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+html[data-theme='dark'] .navbar__title {
+  color: var(--qaf-white);
+}
+
+html[data-theme='dark'] .navbar__link {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+html[data-theme='dark'] .navbar__link:hover {
+  color: var(--qaf-cyan);
+}
+
+html[data-theme='dark'] .navbar-sidebar {
+  background: #1b1b1d;
+}

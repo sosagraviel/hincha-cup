@@ -1,0 +1,122 @@
+/**
+ * Hero Section Styles
+ * Professional hero design matching Qubika marketing page
+ */
+
+.qaf-hero {
+  position: relative;
+  min-height: 600px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--qaf-black);
+  overflow: hidden;
+  padding: var(--qaf-space-6xl) var(--qaf-space-xl);
+}
+
+.qaf-hero__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--qaf-gradient-hero);
+  z-index: 1;
+}
+
+.qaf-hero__content {
+  position: relative;
+  z-index: 2;
+  max-width: 900px;
+  text-align: center;
+  animation: qaf-fade-in-up 0.8s ease-out;
+}
+
+.qaf-hero__badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--qaf-white);
+  padding: var(--qaf-space-sm) var(--qaf-space-lg);
+  border-radius: var(--qaf-radius-full);
+  font-size: var(--qaf-font-sm);
+  font-weight: var(--qaf-weight-medium);
+  margin-bottom: var(--qaf-space-xl);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  letter-spacing: 0.05em;
+}
+
+.qaf-hero__title {
+  font-size: var(--qaf-font-6xl);
+  font-weight: var(--qaf-weight-bold);
+  color: var(--qaf-white);
+  margin-bottom: var(--qaf-space-lg);
+  line-height: var(--qaf-leading-tight);
+  letter-spacing: -0.02em;
+}
+
+.qaf-hero__subtitle {
+  font-size: var(--qaf-font-xl);
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: var(--qaf-space-2xl);
+  line-height: var(--qaf-leading-relaxed);
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+  font-weight: var(--qaf-weight-normal);
+}
+
+.qaf-hero__ctas {
+  display: flex;
+  gap: var(--qaf-space-lg);
+  justify-content: center;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 996px) {
+  .qaf-hero {
+    min-height: 550px;
+    padding: var(--qaf-space-5xl) var(--qaf-space-lg);
+  }
+
+  .qaf-hero__title {
+    font-size: var(--qaf-font-5xl);
+  }
+
+  .qaf-hero__subtitle {
+    font-size: var(--qaf-font-lg);
+  }
+}
+
+@media (max-width: 768px) {
+  .qaf-hero {
+    min-height: 500px;
+    padding: var(--qaf-space-4xl) var(--qaf-space-lg);
+  }
+
+  .qaf-hero__title {
+    font-size: var(--qaf-font-4xl);
+  }
+
+  .qaf-hero__subtitle {
+    font-size: var(--qaf-font-base);
+    margin-bottom: var(--qaf-space-xl);
+  }
+
+  .qaf-hero__ctas {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .qaf-hero__ctas .qaf-button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .qaf-hero__badge {
+    font-size: var(--qaf-font-xs);
+    padding: var(--qaf-space-xs) var(--qaf-space-md);
+  }
+}

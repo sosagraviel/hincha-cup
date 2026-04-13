@@ -1,30 +1,304 @@
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * Qubika Agentic Framework - Custom Design System
+ * Based on Qubika brand guidelines and marketing page design
  */
 
-/* You can override the default Infima variables here. */
+/* Import component styles */
+@import './navbar.css';
+@import './footer.css';
+
+/* ===== DESIGN TOKENS ===== */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
+  /* ===== COLOR PALETTE ===== */
+  /* Primary Colors */
+  --qaf-black: #000000;
+  --qaf-white: #ffffff;
+  --qaf-dark-gray: #32373c;
+
+  /* Brand Accent Colors */
+  --qaf-cyan: #0693e3;
+  --qaf-purple: #9b51e0;
+  --qaf-orange: #ff6900;
+
+  /* Neutral Grays */
+  --qaf-gray-light: #abb8c3;
+  --qaf-gray-bg: #f8f8f8;
+  --qaf-gray-medium: #4a4a4a;
+
+  /* Gradients */
+  --qaf-gradient-primary: linear-gradient(135deg, rgba(6, 147, 227, 1) 0%, rgb(155, 81, 224) 100%);
+  --qaf-gradient-hero: linear-gradient(135deg, rgba(0, 0, 0, 0.8) 0%, rgba(6, 147, 227, 0.4) 100%);
+
+  /* ===== TYPOGRAPHY ===== */
+  /* Font Families */
+  --qaf-font-primary:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif;
+  --qaf-font-heading:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif;
+
+  /* Font Sizes */
+  --qaf-font-xs: 0.8125rem; /* 13px */
+  --qaf-font-sm: 0.875rem; /* 14px */
+  --qaf-font-base: 1rem; /* 16px */
+  --qaf-font-lg: 1.125rem; /* 18px */
+  --qaf-font-xl: 1.25rem; /* 20px */
+  --qaf-font-2xl: 1.5rem; /* 24px */
+  --qaf-font-3xl: 1.875rem; /* 30px */
+  --qaf-font-4xl: 2.25rem; /* 36px */
+  --qaf-font-5xl: 2.625rem; /* 42px */
+  --qaf-font-6xl: 3.5rem; /* 56px */
+
+  /* Font Weights */
+  --qaf-weight-normal: 400;
+  --qaf-weight-medium: 500;
+  --qaf-weight-semibold: 600;
+  --qaf-weight-bold: 700;
+
+  /* Line Heights */
+  --qaf-leading-tight: 1.25;
+  --qaf-leading-normal: 1.5;
+  --qaf-leading-relaxed: 1.6;
+  --qaf-leading-loose: 1.8;
+
+  /* ===== SPACING ===== */
+  --qaf-space-xs: 0.25rem; /* 4px */
+  --qaf-space-sm: 0.5rem; /* 8px */
+  --qaf-space-md: 1rem; /* 16px */
+  --qaf-space-lg: 1.5rem; /* 24px */
+  --qaf-space-xl: 2rem; /* 32px */
+  --qaf-space-2xl: 3rem; /* 48px */
+  --qaf-space-3xl: 4rem; /* 64px */
+  --qaf-space-4xl: 5rem; /* 80px */
+  --qaf-space-5xl: 6rem; /* 96px */
+  --qaf-space-6xl: 8rem; /* 128px */
+
+  /* ===== EFFECTS ===== */
+  /* Shadows */
+  --qaf-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --qaf-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --qaf-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --qaf-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  --qaf-shadow-card-hover:
+    0 20px 25px -5px rgba(6, 147, 227, 0.15), 0 10px 10px -5px rgba(155, 81, 224, 0.1);
+
+  /* Border Radius */
+  --qaf-radius-sm: 0.25rem; /* 4px */
+  --qaf-radius-md: 0.5rem; /* 8px */
+  --qaf-radius-lg: 1rem; /* 16px */
+  --qaf-radius-full: 9999px; /* Fully rounded */
+
+  /* Transitions */
+  --qaf-transition-fast: 150ms ease-in-out;
+  --qaf-transition-base: 250ms ease-in-out;
+  --qaf-transition-slow: 350ms ease-in-out;
+
+  /* ===== LAYOUT ===== */
+  --qaf-container-max: 1200px;
+  --qaf-container-padding: 1rem;
+
+  /* ===== DOCUSAURUS OVERRIDES ===== */
+  --ifm-color-primary: var(--qaf-cyan);
+  --ifm-color-primary-dark: #0583ce;
+  --ifm-color-primary-darker: #057cc3;
+  --ifm-color-primary-darkest: #0466a0;
+  --ifm-color-primary-light: #07a3f8;
+  --ifm-color-primary-lighter: #19acf9;
+  --ifm-color-primary-lightest: #3eb8fa;
+  --ifm-font-family-base: var(--qaf-font-primary);
+  --ifm-heading-font-family: var(--qaf-font-heading);
   --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --docusaurus-highlighted-code-line-bg: rgba(6, 147, 227, 0.1);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
+.navbar__logo img {
+  border-radius: 100%;
+}
+
+/* Dark mode overrides */
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  --ifm-color-primary: var(--qaf-cyan);
+  --ifm-color-primary-dark: #0583ce;
+  --ifm-color-primary-darker: #057cc3;
+  --ifm-color-primary-darkest: #0466a0;
+  --ifm-color-primary-light: #07a3f8;
+  --ifm-color-primary-lighter: #19acf9;
+  --ifm-color-primary-lightest: #3eb8fa;
+  --docusaurus-highlighted-code-line-bg: rgba(6, 147, 227, 0.2);
+}
+
+/* Dark mode typography fixes */
+[data-theme='dark'] h1,
+[data-theme='dark'] h2,
+[data-theme='dark'] h3,
+[data-theme='dark'] h4,
+[data-theme='dark'] h5,
+[data-theme='dark'] h6 {
+  color: var(--qaf-white);
+}
+
+[data-theme='dark'] p {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme='dark'] .qaf-button--primary {
+  background: var(--qaf-cyan);
+  color: var(--qaf-white);
+}
+
+[data-theme='dark'] .qaf-button--primary:hover {
+  background: var(--qaf-purple);
+  color: var(--qaf-white);
+}
+
+/* ===== GLOBAL TYPOGRAPHY ===== */
+html {
+  font-family: var(--qaf-font-primary);
+  font-size: 16px;
+  line-height: var(--qaf-leading-relaxed);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--qaf-font-primary);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--qaf-font-heading);
+  font-weight: var(--qaf-weight-bold);
+  line-height: var(--qaf-leading-tight);
+  color: var(--qaf-black);
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-size: var(--qaf-font-5xl);
+  margin-bottom: var(--qaf-space-lg);
+}
+
+h2 {
+  font-size: var(--qaf-font-4xl);
+  margin-bottom: var(--qaf-space-md);
+}
+
+h3 {
+  font-size: var(--qaf-font-2xl);
+  margin-bottom: var(--qaf-space-md);
+}
+
+p {
+  font-size: var(--qaf-font-base);
+  line-height: var(--qaf-leading-relaxed);
+  margin-bottom: var(--qaf-space-md);
+  color: var(--qaf-gray-medium);
+}
+
+/* ===== BUTTON COMPONENTS ===== */
+.qaf-button {
+  display: inline-block;
+  text-decoration: none;
+  font-weight: var(--qaf-weight-semibold);
+  transition: all var(--qaf-transition-base);
+  cursor: pointer;
+  border: none;
+  font-family: var(--qaf-font-primary);
+}
+
+.qaf-button--primary {
+  background: var(--qaf-dark-gray);
+  color: var(--qaf-white);
+  border-radius: var(--qaf-radius-full);
+  padding: calc(0.667em + 2px) calc(1.333em + 2px);
+  font-size: var(--qaf-font-lg);
+}
+
+.qaf-button--primary:hover {
+  background: var(--qaf-black);
+  color: var(--qaf-white);
+  transform: translateY(-2px);
+  box-shadow: var(--qaf-shadow-lg);
+  text-decoration: none;
+}
+
+.qaf-button--secondary {
+  background: transparent;
+  color: var(--qaf-cyan);
+  border: 2px solid var(--qaf-cyan);
+  border-radius: var(--qaf-radius-full);
+  padding: calc(0.667em) calc(1.333em);
+  font-size: var(--qaf-font-lg);
+}
+
+.qaf-button--secondary:hover {
+  background: var(--qaf-cyan);
+  color: var(--qaf-white);
+  transform: translateY(-2px);
+  text-decoration: none;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes qaf-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes qaf-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ===== RESPONSIVE BREAKPOINTS ===== */
+@media (max-width: 768px) {
+  :root {
+    --qaf-font-6xl: 2.25rem; /* 36px on mobile */
+    --qaf-font-5xl: 2rem; /* 32px on mobile */
+    --qaf-font-4xl: 1.875rem; /* 30px on mobile */
+    --qaf-space-6xl: 4rem; /* Reduce large spacing */
+    --qaf-space-5xl: 3rem;
+  }
+
+  h1 {
+    font-size: var(--qaf-font-4xl);
+  }
+
+  h2 {
+    font-size: var(--qaf-font-3xl);
+  }
+}
+
+/* ===== UTILITY CLASSES ===== */
+.qaf-container {
+  max-width: var(--qaf-container-max);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--qaf-container-padding);
+  padding-right: var(--qaf-container-padding);
+}
+
+.qaf-text-center {
+  text-align: center;
+}
+
+.qaf-text-gradient {
+  background: var(--qaf-gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

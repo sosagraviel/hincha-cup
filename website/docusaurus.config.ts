@@ -1,5 +1,5 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
+import { themes as prismThemes } from 'prism-react-renderer';
+import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'Qubika Agentic Framework',
   tagline: 'AI-powered autonomous software development workflows',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/qubika-logo.png',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -41,8 +41,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl:
-            'https://github.com/thisisqubika/qubika-agentic-framework/tree/main/website/',
+          editUrl: 'https://github.com/thisisqubika/qubika-agentic-framework/tree/main/website/',
         },
         blog: false, // Disable blog for now
         theme: {
@@ -67,7 +66,8 @@ const config: Config = {
       title: 'QAF',
       logo: {
         alt: 'Qubika Agentic Framework Logo',
-        src: 'img/logo.svg',
+        src: 'img/qubika-logo.png',
+        rounded: true,
       },
       items: [
         {
@@ -131,7 +131,17 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
-      additionalLanguages: ['bash', 'typescript', 'javascript', 'json', 'python', 'go', 'java', 'rust', 'yaml'],
+      additionalLanguages: [
+        'bash',
+        'typescript',
+        'javascript',
+        'json',
+        'python',
+        'go',
+        'java',
+        'rust',
+        'yaml',
+      ],
     },
   } satisfies Preset.ThemeConfig,
 };
