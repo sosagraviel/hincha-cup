@@ -27,29 +27,29 @@ function routeToStartPhase(state: typeof ImplementTicketAnnotation.State): strin
 
   switch (startPhase) {
     case 0:
-      return 'phase0_preflight';
+      return 'phase0';
     case 1:
-      return 'phase1_context';
+      return 'phase1';
     case 2:
-      return 'phase2_planning';
+      return 'phase2';
     case 3:
-      return 'phase3_environment';
+      return 'phase3';
     case 4:
-      return 'phase4_implementation';
+      return 'phase4';
     case 5:
-      return 'phase5_testing';
+      return 'phase5';
     case 6:
-      return 'phase6_visual';
+      return 'phase6';
     case 7:
-      return 'phase7_documentation';
+      return 'phase7';
     case 8:
-      return 'phase8_pr';
+      return 'phase8';
     case 9:
-      return 'phase9_review';
+      return 'phase9';
     case 10:
-      return 'phase10_cleanup';
+      return 'phase10';
     default:
-      return 'phase0_preflight';
+      return 'phase0';
   }
 }
 
@@ -81,42 +81,42 @@ export function createImplementTicketGraph() {
     // ============================================================================
     // ADD ALL 11 PHASE NODES
     // ============================================================================
-    .addNode('phase0_preflight', phase0PreflightNode)
-    .addNode('phase1_context', phase1ContextNode)
-    .addNode('phase2_planning', phase2PlanningNode)
-    .addNode('phase3_environment', phase3EnvironmentNode)
-    .addNode('phase4_implementation', phase4ImplementationNode)
-    .addNode('phase5_testing', phase5TestingNode)
-    .addNode('phase6_visual', phase6VisualNode)
-    .addNode('phase7_documentation', phase7DocumentationNode)
-    .addNode('phase8_pr', phase8PRNode)
-    .addNode('phase9_review', phase9ReviewNode)
-    .addNode('phase10_cleanup', phase10CleanupNode)
+    .addNode('phase0', phase0PreflightNode)
+    .addNode('phase1', phase1ContextNode)
+    .addNode('phase2', phase2PlanningNode)
+    .addNode('phase3', phase3EnvironmentNode)
+    .addNode('phase4', phase4ImplementationNode)
+    .addNode('phase5', phase5TestingNode)
+    .addNode('phase6', phase6VisualNode)
+    .addNode('phase7', phase7DocumentationNode)
+    .addNode('phase8', phase8PRNode)
+    .addNode('phase9', phase9ReviewNode)
+    .addNode('phase10', phase10CleanupNode)
     // Route to appropriate phase based on start_phase parameter
     .addConditionalEdges(START, routeToStartPhase, {
-      phase0_preflight: 'phase0_preflight',
-      phase1_context: 'phase1_context',
-      phase2_planning: 'phase2_planning',
-      phase3_environment: 'phase3_environment',
-      phase4_implementation: 'phase4_implementation',
-      phase5_testing: 'phase5_testing',
-      phase6_visual: 'phase6_visual',
-      phase7_documentation: 'phase7_documentation',
-      phase8_pr: 'phase8_pr',
-      phase9_review: 'phase9_review',
-      phase10_cleanup: 'phase10_cleanup',
+      phase0: 'phase0',
+      phase1: 'phase1',
+      phase2: 'phase2',
+      phase3: 'phase3',
+      phase4: 'phase4',
+      phase5: 'phase5',
+      phase6: 'phase6',
+      phase7: 'phase7',
+      phase8: 'phase8',
+      phase9: 'phase9',
+      phase10: 'phase10',
     })
-    .addEdge('phase0_preflight', 'phase1_context')
-    .addEdge('phase1_context', 'phase2_planning')
-    .addEdge('phase2_planning', 'phase3_environment')
-    .addEdge('phase3_environment', 'phase4_implementation')
-    .addEdge('phase4_implementation', 'phase5_testing')
-    .addEdge('phase5_testing', 'phase6_visual')
-    .addEdge('phase6_visual', 'phase7_documentation')
-    .addEdge('phase7_documentation', 'phase8_pr')
-    .addEdge('phase8_pr', 'phase9_review')
-    .addEdge('phase9_review', 'phase10_cleanup')
-    .addEdge('phase10_cleanup', END);
+    .addEdge('phase0', 'phase1')
+    .addEdge('phase1', 'phase2')
+    .addEdge('phase2', 'phase3')
+    .addEdge('phase3', 'phase4')
+    .addEdge('phase4', 'phase5')
+    .addEdge('phase5', 'phase6')
+    .addEdge('phase6', 'phase7')
+    .addEdge('phase7', 'phase8')
+    .addEdge('phase8', 'phase9')
+    .addEdge('phase9', 'phase10')
+    .addEdge('phase10', END);
 
   return graph;
 }
