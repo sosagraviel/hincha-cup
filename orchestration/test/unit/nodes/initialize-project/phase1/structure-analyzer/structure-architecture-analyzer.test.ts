@@ -117,4 +117,49 @@ describe('structureArchitectureAnalyzerNode', () => {
       ),
     });
   });
+
+  it('should handle agent output with automation data', async () => {
+    const mockOutputWithAutomation = {
+      agent_name: 'structure-architecture-analyzer',
+      timestamp: '2024-01-01T00:00:00Z',
+      findings: {
+        services: [
+          {
+            id: 'backend',
+            path: 'src',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: { main: 'NestJS' },
+          },
+        ],
+        automation: {
+          makefiles: [
+            {
+              path: 'Makefile',
+              targets: ['build', 'test', 'deploy'],
+            },
+          ],
+          shell_scripts: [
+            {
+              path: 'scripts/setup.sh',
+              name: 'setup.sh',
+              purpose: 'Project setup script',
+            },
+          ],
+        },
+      },
+    };
+
+    mockAgent.invoke.mockResolvedValue({
+      output: JSON.stringify(mockOutputWithAutomation),
+      sessionId: 'test-session-123',
+    });
+
+    const result = await structureArchitectureAnalyzerNode(mockState);
+    expect(result.temp_dir).toBeDefined();
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('01-structure-architecture.json'),
+      expect.stringContaining('automation'),
+    );
+  });
 });

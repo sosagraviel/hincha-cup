@@ -249,12 +249,23 @@ You will receive:
 
 The Phase 2 consolidation contains comprehensive information from 4 specialized analyzers:
 
-1. **Structure-Architecture**: Services, file placement, directory structure
-2. **Tech-Stack-Dependencies**: Technologies, versions, frameworks
+1. **Structure-Architecture**: Services, file placement, directory structure, automation files (Makefiles, shell scripts)
+2. **Tech-Stack-Dependencies**: Technologies, versions, frameworks, documented commands
 3. **Code-Patterns-Testing**: Testing patterns, code conventions
 4. **Data-Flows-Integrations**: External integrations, data flows
 
 **This data is 95% complete.** Use it as your primary source. Only use tools for the 5% of gaps.
+
+**Command Priority Logic for Essential Commands:**
+
+When generating the Essential Commands section in CLAUDE.md, use this priority order:
+
+1. **Documented commands** (from Tech-Stack `findings.documented_commands.by_task`)
+2. **Makefile targets** (from Structure `findings.automation.makefiles[].targets`)
+3. **Shell scripts** (from Structure `findings.automation.shell_scripts[].name`)
+4. **package.json scripts** (fallback from package manager analysis)
+
+For monorepos: prefer root-level automation over service-specific commands. Include command descriptions when available from automation analysis.
 
 **When to use tools (only these scenarios):**
 

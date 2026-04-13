@@ -4,6 +4,7 @@ description: Create detailed implementation plans for feature work. Use for comp
 model: opus
 tools: Read, Grep, Glob
 skills:
+  - playwright-e2e-automation
   - mastering-typescript
   - mastering-python-skill
   - mastering-vitest

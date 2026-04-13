@@ -103,6 +103,42 @@ export const StructureAnalyzerOutputSchema = z
           .passthrough()
           .optional()
           .describe('Monorepo layout if applicable'),
+        automation: z
+          .object({
+            makefiles: z
+              .array(
+                z.object({
+                  path: z.string().describe('Path to Makefile relative to repo root'),
+                  targets: z.array(z.string()).describe('List of make targets found in the file'),
+                }),
+              )
+              .optional()
+              .describe('Makefiles found in the project'),
+            shell_scripts: z
+              .array(
+                z.object({
+                  path: z.string().describe('Path to shell script relative to repo root'),
+                  name: z.string().describe('Script name (filename without path)'),
+                  purpose: z
+                    .string()
+                    .optional()
+                    .describe('Script purpose inferred from comments or usage'),
+                }),
+              )
+              .optional()
+              .describe('Shell scripts found in the project'),
+            justfiles: z
+              .array(
+                z.object({
+                  path: z.string().describe('Path to justfile relative to repo root'),
+                  targets: z.array(z.string()).describe('List of just targets found in the file'),
+                }),
+              )
+              .optional()
+              .describe('Justfiles found in the project'),
+          })
+          .optional()
+          .describe('Project automation scripts and build files'),
       })
       .passthrough(), // Allow languages[], runtimes{}, architecture_pattern, file_placement{}, path_aliases{}, database{} (multi_stack merged into services)
     needs_verification: z
@@ -207,6 +243,37 @@ export const TechStackAnalyzerOutputSchema = z
           .passthrough()
           .optional()
           .describe('Monorepo-level configuration if applicable'),
+        documented_commands: z
+          .object({
+            by_task: z
+              .object({
+                dev: z.string().optional().describe('Development server command'),
+                test: z.string().optional().describe('Test execution command'),
+                build: z.string().optional().describe('Build command'),
+                lint: z.string().optional().describe('Linting command'),
+                typecheck: z.string().optional().describe('Type checking command'),
+                deploy: z.string().optional().describe('Deployment command'),
+              })
+              .passthrough()
+              .optional()
+              .describe('Commands organized by common development tasks'),
+            source: z
+              .enum(['documented', 'makefile', 'scripts', 'package_json'])
+              .optional()
+              .describe('Primary source where commands were found'),
+            conflicts: z
+              .array(
+                z.object({
+                  task: z.string().describe('Task name that has conflicting commands'),
+                  documented: z.string().describe('Command from documentation'),
+                  discovered: z.string().describe('Command from other sources'),
+                }),
+              )
+              .optional()
+              .describe('Conflicts between documented and discovered commands'),
+          })
+          .optional()
+          .describe('Commands documented in project README, CONTRIBUTING, etc.'),
       })
       .passthrough(), // Allow infrastructure[], ci_cd{}, deployment{}, environment{}, databases[], external_services[], build_tools{}
     needs_verification: z

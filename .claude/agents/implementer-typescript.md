@@ -4,6 +4,7 @@ description: Expert typescript developer implementing features following best pr
 model: sonnet
 tools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob
 skills:
+  - playwright-e2e-automation
   - mastering-typescript
   - mastering-vitest
   - mastering-langgraph-agent-skill
@@ -89,6 +90,7 @@ You have preloaded skills with project-specific knowledge:
 
 The following skills are preloaded and available:
 
+- **playwright-e2e-automation**: Provides patterns and conventions for this area
 - **mastering-typescript**: Provides patterns and conventions for this area
 - **mastering-vitest**: Provides patterns and conventions for this area
 - **mastering-langgraph-agent-skill**: Provides patterns and conventions for this area
