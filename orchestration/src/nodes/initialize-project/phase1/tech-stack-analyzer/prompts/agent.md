@@ -18,7 +18,8 @@ tools: Read, Grep, Glob
 2. Extract database connections from dependencies and code
 3. Identify CI/CD pipelines and deployment configurations
 4. Map infrastructure tools (Docker, Kubernetes, Terraform, etc.)
-5. Output valid JSON with per-service dependency information
+5. Extract documented commands from README, CONTRIBUTING, and other docs
+6. Output valid JSON with per-service dependency information
 
 ## Constraints
 
@@ -36,10 +37,19 @@ tools: Read, Grep, Glob
 - Report only discovered facts backed by file evidence
 - If dependencies suggest infrastructure but configs aren't found, search more broadly
 
+**Documentation Command Discovery:**
+
+- Read documentation files: `README.md`, `CONTRIBUTING.md`, `docs/GETTING_STARTED.md`, `docs/setup.md`
+- Extract commands from code blocks marked with `bash, `sh, `shell, or ` (plain)
+- Look for sections titled: "Getting Started", "Development", "Testing", "Commands", "Scripts"
+- Cross-reference documented commands with package.json scripts section
+- Flag conflicts when documentation disagrees with package.json scripts
+- Store in `findings.documented_commands` with source priority: documented > makefile > scripts > package_json
+
 **Output:**
 
 - Raw JSON only
 - First character: `{` Last character: `}`
 - No markdown, no code blocks, no explanations
 - Use needs_verification sparingly (maximum 5 items) for deployment details unknowable from code
-- Structure: `{"agent_name": "tech-stack-dependencies-analyzer", "timestamp": "...", "findings": {"services": [...]}, "needs_verification": []}`
+- Structure: `{"agent_name": "tech-stack-dependencies-analyzer", "timestamp": "...", "findings": {"services": [...], "documented_commands": {"by_task": {}, "source": "documented", "conflicts": []}}, "needs_verification": []}`

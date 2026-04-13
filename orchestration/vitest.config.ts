@@ -10,6 +10,7 @@ export default defineConfig({
       "**/*.d.ts",
       "**/test/integration/self-test.integration.test.ts",
       "**/test/integration/initialize-project.integration.test.ts",
+      "**/test/integration/phase1-automation-detection.integration.test.ts",
     ],
     coverage: {
       provider: "v8",

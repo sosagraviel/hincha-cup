@@ -340,4 +340,49 @@ describe('techStackDependenciesAnalyzerNode', () => {
     expect(writeCall[0]).toContain('phase1-outputs');
     expect(writeCall[0]).toContain('02-tech-stack-dependencies.json');
   });
+
+  it('should handle agent output with documented commands data', async () => {
+    const mockOutputWithCommands = {
+      agent_name: 'tech-stack-dependencies-analyzer',
+      timestamp: '2024-01-01T00:00:00Z',
+      findings: {
+        dependencies: {
+          by_service: {
+            backend: {
+              production: ['express', 'mongoose'],
+              development: ['jest', 'nodemon'],
+            },
+          },
+        },
+        documented_commands: {
+          by_task: {
+            dev: 'npm run dev',
+            test: 'npm test',
+            build: 'npm run build',
+            lint: 'npm run lint',
+          },
+          source: 'documented',
+          conflicts: [
+            {
+              task: 'test',
+              documented: 'npm test',
+              discovered: 'jest',
+            },
+          ],
+        },
+      },
+    };
+
+    mockAgent.invoke.mockResolvedValue({
+      output: JSON.stringify(mockOutputWithCommands),
+      sessionId: 'test-session-123',
+    });
+
+    const result = await techStackDependenciesAnalyzerNode(mockState);
+    expect(result.temp_dir).toBeDefined();
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('02-tech-stack-dependencies.json'),
+      expect.stringContaining('documented_commands'),
+    );
+  });
 });
