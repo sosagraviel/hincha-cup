@@ -240,7 +240,7 @@ Example GitHub Actions:
 Check your npm version and Node.js version:
 
 ```bash
-node --version  # Should be v18+ or v20+
+node --version  # Should be v20+
 npm --version   # Should be v9+ or v10+
 ```
 
@@ -319,7 +319,7 @@ claudeProcess = spawn(claudePath, [
 If you encounter issues with Claude CLI bundling:
 
 1. Check this documentation first
-2. Verify your Node.js version: `node --version` (should be v18+)
+2. Verify your Node.js version: `node --version` (should be v20+)
 3. Try clean reinstall: `rm -rf node_modules && npm install`
 4. Check GitHub Issues for similar problems
 5. Create a new issue with:

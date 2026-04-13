@@ -38,7 +38,7 @@ Thank you for your interest in contributing to the AI Agentic Framework! This gu
 
 ### Prerequisites
 
-- **Node.js** (v18+ or v20+) and **npm** (for framework dependencies)
+- **Node.js** v20+ (minimum), v22 recommended - for framework dependencies
 - **Git** for version control
 - **Bash** (macOS/Linux) or WSL (Windows)
 

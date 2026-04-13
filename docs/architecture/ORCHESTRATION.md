@@ -1,344 +1,264 @@
-# AI Agentic Framework - TypeScript Orchestration
+# TypeScript Orchestration
 
-TypeScript-based orchestration layer using [DeepAgents.js](https://github.com/langchain-ai/deepagentsjs) and [LangGraph](https://langchain-ai.github.io/langgraphjs/).
+LangGraph state machines and DeepAgents coordination for TypeScript-based workflows.
+
+---
 
 ## Overview
 
-This module provides a type-safe, provider-agnostic orchestration layer for the AI Agentic Framework workflows. It replaces complex bash scripts with TypeScript state machines while preserving backward compatibility.
+TypeScript orchestration provides type safety and deterministic workflow execution.
 
-## Features
+**Benefits**:
+1. **Type Safety** - Compile-time validation
+2. **Deterministic Execution** - Same input → same workflow
+3. **Built-in Checkpointing** - Resume from failures
+4. **Maintainability** - TypeScript vs bash scripts
 
-- ✅ **Type-safe orchestration** with Zod schemas
-- ✅ **Multi-provider LLM support** (Anthropic, OpenAI, Google)
-- ✅ **Model alias system** - no hardcoded versions
-- ✅ **State machine architecture** with LangGraph
-- ✅ **Checkpointing & resumption** with SQLite/PostgreSQL
-- ✅ **Incremental migration** - bash fallback support
-- ✅ **CLI overrides** for models and configuration
+---
 
-## Installation
+## LangGraph State Machines
 
-```bash
-cd orchestration
-npm install
-```
-
-## Usage
-
-### Via Bash Wrapper (Recommended)
-
-The existing bash scripts automatically call TypeScript implementations:
-
-```bash
-# Uses TypeScript orchestration by default
-./scripts/initialize-project.sh
-
-# Force bash orchestration
-ORCHESTRATION_MODE=bash ./scripts/initialize-project.sh
-```
-
-### Direct CLI Usage
-
-```bash
-# Initialize project
-node orchestration/src/cli/initialize.ts \
-  --project-path /path/to/project \
-  --framework-path /path/to/framework
-
-# List available model aliases
-node orchestration/src/cli/initialize.ts --list-models
-
-# Override planner model
-node orchestration/src/cli/initialize.ts \
-  --project-path /path/to/project \
-  --model-planner opus-latest
-```
-
-### NPM Scripts
-
-```bash
-# Run TypeScript directly (from orchestration directory)
-npm run initialize -- --project-path /path/to/project
-
-# Build TypeScript
-npm run build
-
-# Run tests
-npm test
-npm run test:unit
-npm run test:integration
-```
-
-## Configuration
-
-### Model Configuration
-
-Models are configured via `config/model-config.json`:
-
-```json
-{
-  "modelAliases": {
-    "sonnet-latest": {
-      "provider": "anthropic",
-      "modelId": "claude-sonnet-4-6-20250514",
-      "description": "Latest Sonnet model for production use"
-    },
-    "gpt4-latest": {
-      "provider": "openai",
-      "modelId": "gpt-4o-2025-05-13",
-      "description": "Latest GPT-4o model"
-    }
-  },
-  "agentModelMapping": {
-    "planner": "sonnet-latest",
-    "implementer": "sonnet-latest"
-  }
-}
-```
-
-### Environment Variables
-
-```bash
-# API Keys
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-GOOGLE_API_KEY=...
-
-# Model Overrides
-MODEL_PLANNER=opus-latest
-MODEL_IMPLEMENTER=haiku-latest
-
-# Execution Mode
-NODE_ENV=development  # Uses cheaper models
-ORCHESTRATION_MODE=typescript  # typescript or bash
-```
-
-## Architecture
-
-### State Machine Flow (Initialize Project)
-
-```
-┌─────────────┐
-│ Start       │
-└──────┬──────┘
-       │
-       v
-┌─────────────┐
-│ Detect      │  Analyzes project stack (languages, frameworks)
-│ Stack       │  Output: stack_profile
-└──────┬──────┘
-       │
-       v
-┌─────────────┐
-│ Resolve     │  Maps stack to required skills
-│ Skills      │  Output: skills[]
-└──────┬──────┘
-       │
-       v
-┌─────────────┐
-│ Generate    │  Creates agents from templates
-│ Agents      │  Output: agents_generated[]
-└──────┬──────┘
-       │
-       v
-┌─────────────┐
-│ Create      │  Writes framework-config.json
-│ Config      │  Output: config_path
-└──────┬──────┘
-       │
-       v
-┌─────────────┐
-│ Complete    │
-└─────────────┘
-```
-
-### Directory Structure
-
-```
-orchestration/
-├── src/
-│   ├── graphs/          # LangGraph state machines
-│   │   └── initialize-project.graph.ts
-│   ├── nodes/           # Individual workflow nodes
-│   │   ├── detect-stack.node.ts
-│   │   ├── resolve-skills.node.ts
-│   │   ├── generate-agents.node.ts
-│   │   └── create-config.node.ts
-│   ├── state/           # State schemas and checkpointers
-│   │   ├── schemas/
-│   │   │   └── initialize-project.schema.ts
-│   │   └── checkpointers/
-│   │       └── sqlite.checkpointer.ts
-│   ├── llm/             # LLM factory (multi-provider)
-│   │   └── llm-factory.ts
-│   └── cli/             # CLI entry points
-│       └── initialize.ts
-├── config/              # Configuration files
-│   ├── model-config.json
-│   └── model-config.schema.json
-├── test/                # Tests
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-└── package.json
-```
-
-## Multi-Provider Support
-
-The LLM factory supports multiple providers through model aliases:
-
+**Core Pattern**:
 ```typescript
-import { getLLMFactory } from './llm/llm-factory';
-
-const factory = getLLMFactory();
-
-// Create Anthropic model
-const sonnet = await factory.createModel('sonnet-latest', {
-  agent: 'planner',
-  phase: 'planning'
+export const ImplementTicketAnnotation = Annotation.Root({
+  ticketId: Annotation<string>,
+  projectPath: Annotation<string>,
+  currentPhase: Annotation<number>,
+  phaseResults: Annotation<PhaseResult[]>,
+  errors: Annotation<WorkflowError[]>
 });
 
-// Create OpenAI model
-const gpt4 = await factory.createModel('gpt4-latest', {
-  agent: 'implementer',
-  phase: 'implementation'
-});
-
-// Create Google model
-const gemini = await factory.createModel('gemini-latest');
+const graph = new StateGraph(ImplementTicketAnnotation)
+  .addNode("phase0", phase0ContextNode)
+  .addNode("phase1", phase1PlanningNode)
+  .addEdge(START, "phase0")
+  .addEdge("phase0", "phase1");
 ```
 
-### Priority Resolution
+**State Transitions**: Explicit edges define phase order, ensuring predictable execution.
 
-Model aliases resolve with the following priority:
+---
 
-1. **CLI override**: `--model-planner opus-latest`
-2. **Environment variable**: `MODEL_PLANNER=opus-latest`
-3. **Phase mapping**: `phaseModelMapping.planning`
-4. **Agent mapping**: `agentModelMapping.planner`
-5. **Default alias**: `sonnet-latest`
+## Phase Node Architecture
 
-## Testing
-
-```bash
-# Unit tests
-npm run test:unit
-
-# Integration tests
-npm run test:integration
-
-# E2E tests (requires project setup)
-npm test -- orchestration/test/e2e/
-```
-
-## Migration Status
-
-### ✅ Phase 1: Initialize Project (COMPLETE)
-- [x] LLM factory with multi-provider support
-- [x] State schemas with Zod validation
-- [x] Graph implementation with 4 nodes
-- [x] CLI entry point
-- [x] Bash wrapper with fallback
-- [ ] End-to-end testing
-
-### 🚧 Phase 2: Create SDD Ticket (PLANNED)
-- [ ] MCP integration (Jira, Confluence)
-- [ ] SDD generation workflow
-- [ ] Human-in-the-loop approval
-
-### 🚧 Phase 3: Implement Ticket (PLANNED)
-- [ ] 10-phase implementation workflow
-- [ ] Parallel implementers
-- [ ] 4-tier resilience testing
-- [ ] PR creation and review
-
-## Development
-
-### Adding a New Node
-
+**Structure**:
 ```typescript
-// src/nodes/my-node.node.ts
-import { InitializeProjectState } from '../state/schemas/initialize-project.schema';
+export async function phase1Planning(
+  state: ImplementTicketState
+): Promise<Partial<ImplementTicketState>> {
+  // 1. Load context
+  const context = state.ticketContext;
 
-export async function myNode(
-  state: InitializeProjectState
-): Promise<Partial<InitializeProjectState>> {
-  // Node logic here
+  // 2. Invoke agent
+  const result = await invokeAgent('planner', {
+    ticketContext: context,
+    projectProfile: await loadProjectProfile(state.projectPath)
+  });
+
+  // 3. Validate output
+  const validated = await validateAndParseAgentOutput(
+    result,
+    implementationPlanSchema
+  );
+
+  // 4. Return state update
   return {
-    current_phase: 'next_phase',
-    // ... state updates
+    currentPhase: 2,
+    implementationPlan: validated,
+    phaseResults: [...state.phaseResults, { phase: 1, completed: true }]
   };
 }
 ```
 
-### Adding to Graph
+**Pattern**: Load → Invoke → Validate → Update
+
+---
+
+## State Management
+
+**Annotations**:
+```typescript
+// Initialize Project
+export const InitializeProjectAnnotation = Annotation.Root({
+  projectPath: Annotation<string>,
+  frameworkPath: Annotation<string>,
+  currentPhase: Annotation<number>,
+  analysisResults: Annotation<AnalysisResults>().optional(),
+  errors: Annotation<WorkflowError[]>
+});
+
+// Implement Ticket
+export const ImplementTicketAnnotation = Annotation.Root({
+  ticketId: Annotation<string>,
+  projectPath: Annotation<string>,
+  currentPhase: Annotation<number>,
+  ticketContext: Annotation<TicketContext>().optional(),
+  implementationPlan: Annotation<ImplementationPlan>().optional(),
+  errors: Annotation<WorkflowError[]>
+});
+```
+
+**Immutability**: State updates return partial state; LangGraph merges with existing state.
+
+---
+
+## Agent Coordination
+
+**DeepAgents Integration**:
+```typescript
+import { invokeAgent } from '../services/deep-agents.service.js';
+
+const result = await invokeAgent('implementer-typescript', {
+  implementationPlan: plan,
+  projectProfile: profile,
+  skills: ['mastering-typescript', 'react-frontend']
+});
+```
+
+**Validation**:
+```typescript
+const validated = await validateAndParseAgentOutput(
+  agentOutput,
+  schema
+);
+```
+
+**Disk Artifacts**: Agents read/write to `.claude-temp/tickets/{TICKET_ID}/artifacts/`
+
+---
+
+## Checkpoint System
+
+**Automatic Checkpoints**:
+```typescript
+// Phase completion writes checkpoint
+return {
+  currentPhase: nextPhase,
+  phaseResults: [
+    ...state.phaseResults,
+    { phase: currentPhase, completed: true, timestamp: new Date().toISOString() }
+  ]
+};
+```
+
+**Resume Logic**:
+```typescript
+// Detect last complete phase
+const lastPhase = Math.max(...state.phaseResults.filter(r => r.completed).map(r => r.phase));
+graph.resume(lastPhase + 1);
+```
+
+---
+
+## Error Handling
+
+**Auto-Retry**:
+```typescript
+async function executeWithRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3
+): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      await sleep(2 ** i * 1000);  // Exponential backoff
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+```
+
+**Error State**:
+```typescript
+return {
+  errors: [
+    ...state.errors,
+    {
+      phase: currentPhase,
+      message: error.message,
+      timestamp: new Date().toISOString()
+    }
+  ]
+};
+```
+
+---
+
+## Development Patterns
+
+### Node Implementation
+
+**File**: `orchestration/src/nodes/implement-ticket/phase4-implementation.node.ts`
 
 ```typescript
-// src/graphs/initialize-project.graph.ts
-import { myNode } from '../nodes/my-node.node';
+export async function phase4Implementation(
+  state: ImplementTicketState
+): Promise<Partial<ImplementTicketState>> {
+  const plan = state.implementationPlan;
 
-export const initializeProjectGraph = new StateGraph(InitializeProjectStateSchema)
-  .addNode("my_node", myNode)
-  .addEdge("previous_node", "my_node")
-  .addEdge("my_node", "next_node");
+  // Determine implementer type
+  const implementerType = determineImplementer(plan.fileChanges);
+
+  // Invoke agent
+  const result = await invokeAgent(`implementer-${implementerType}`, {
+    implementationPlan: plan,
+    skills: await getSkills(state.projectPath, implementerType)
+  });
+
+  // Validate
+  const validated = await validateAndParseAgentOutput(
+    result,
+    implementationResultSchema
+  );
+
+  return {
+    currentPhase: 5,
+    implementationResult: validated,
+    phaseResults: [...state.phaseResults, { phase: 4, completed: true }]
+  };
+}
 ```
 
-## Troubleshooting
+### Graph Definition
 
-### TypeScript Orchestration Fails
+**File**: `orchestration/src/graphs/implement-ticket.graph.ts`
 
-If you see "Falling back to bash implementation":
+```typescript
+import { StateGraph, START, END } from '@langchain/langgraph';
+import { ImplementTicketAnnotation } from '../state/schemas/implement-ticket.schema.js';
 
-1. **Check dependencies**:
-   ```bash
-   cd orchestration
-   npm install
-   ```
-
-2. **Verify CLI exists**:
-   ```bash
-   ls -la orchestration/src/cli/initialize.ts
-   ```
-
-3. **Test directly**:
-   ```bash
-   node orchestration/src/cli/initialize.ts --list-models
-   ```
-
-4. **Force bash mode**:
-   ```bash
-   ORCHESTRATION_MODE=bash ./scripts/initialize-project.sh
-   ```
-
-### Missing API Keys
-
-Ensure you have the required API keys set:
-
-```bash
-# Anthropic (required for default configuration)
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# Optional: OpenAI
-export OPENAI_API_KEY=sk-...
-
-# Optional: Google
-export GOOGLE_API_KEY=...
+export function createImplementTicketGraph() {
+  return new StateGraph(ImplementTicketAnnotation)
+    .addNode("phase0", phase0Context)
+    .addNode("phase1", phase1Planning)
+    .addNode("phase4", phase4Implementation)
+    .addEdge(START, "phase0")
+    .addEdge("phase0", "phase1")
+    .addEdge("phase1", "phase4")
+    .addEdge("phase10", END);
+}
 ```
 
-### Checkpointer Database Locked
+---
 
-If SQLite database is locked:
+## Performance Optimizations
 
-```bash
-rm orchestration/.checkpoints/orchestration.db
+**Parallel Execution** (Initialize Project Phase 1):
+```typescript
+const [structure, stack, patterns, context] = await Promise.all([
+  analyzeStructure(projectPath),
+  analyzeStack(projectPath),
+  analyzePatterns(projectPath),
+  analyzeContext(projectPath)
+]);
 ```
 
-## Contributing
+**Smart Caching**: Artifact files cached between phases
 
-See the main migration plan at `.claude/plans/idempotent-drifting-moth.md` for architecture details and future phases.
+**Incremental Reads**: Large files read in chunks
 
-## References
+---
 
-- [DeepAgents.js Documentation](https://docs.langchain.com/oss/javascript/deepagents/overview)
-- [LangGraph.js Documentation](https://docs.langchain.com/oss/javascript/langgraph/overview)
-- [Zod Schema Validation](https://zod.dev/)
+**See Also**: [Architecture](ARCHITECTURE.md), [Initialize Project](../workflows/INITIALIZE_PROJECT.md), [Implement Ticket](../workflows/IMPLEMENT_TICKET.md)
