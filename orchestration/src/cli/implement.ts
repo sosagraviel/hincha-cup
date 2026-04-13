@@ -45,12 +45,19 @@ program
   .requiredOption('-p, --project-path <path>', 'Path to the project to implement in')
   .requiredOption('-f, --framework-path <path>', 'Path to the Claude Code framework')
   .option('--ticket-id <id>', 'Ticket ID (e.g., PROJ-123) - optional if using --from-jira with URL')
-  .option('--from-jira [url]', 'Fetch ticket context from Jira + Confluence (optionally provide full URL)')
+  .option(
+    '--from-jira [url]',
+    'Fetch ticket context from Jira + Confluence (optionally provide full URL)',
+  )
   .option('--from-markdown <path>', 'Read ticket context from markdown file')
   .option('--from-input', 'Read ticket context from stdin')
   .option('--start-phase <phase>', 'Start from specific phase (0-10)', parseInt)
   .option('--resume', 'Auto-detect last completed phase and resume from next')
-  .option('--model-tier <tier>', 'Model tier to use (standard, fast, advanced, openai, gemini)', 'standard')
+  .option(
+    '--model-tier <tier>',
+    'Model tier to use (standard, fast, advanced, openai, gemini)',
+    'standard',
+  )
   .parse(process.argv);
 
 const options = program.opts();
@@ -105,9 +112,13 @@ if (options.fromJira) {
     // Ticket ID provided separately, construct URL (requires JIRA_DOMAIN env var)
     const jiraDomain = process.env.JIRA_DOMAIN;
     if (!jiraDomain) {
-      logger.error('When using --from-jira without a URL, JIRA_DOMAIN environment variable must be set');
+      logger.error(
+        'When using --from-jira without a URL, JIRA_DOMAIN environment variable must be set',
+      );
       logger.error('Example: export JIRA_DOMAIN=your-company.atlassian.net');
-      logger.error('Or provide the full URL: --from-jira https://your-company.atlassian.net/browse/PROJ-123');
+      logger.error(
+        'Or provide the full URL: --from-jira https://your-company.atlassian.net/browse/PROJ-123',
+      );
       process.exit(1);
     }
     inputValue = `https://${jiraDomain}/browse/${ticketId}`;
@@ -116,20 +127,16 @@ if (options.fromJira) {
     logger.error('Example: --from-jira https://your-company.atlassian.net/browse/PROJ-123');
     process.exit(1);
   }
-}
-
-if (!inputSource) {
-  if (options.fromMarkdown) {
-    inputSource = 'markdown';
-    const markdownPath = resolve(options.fromMarkdown);
-    if (!existsSync(markdownPath)) {
-      logger.error(`Markdown file does not exist: ${markdownPath}`);
-      process.exit(1);
-    }
-    inputValue = markdownPath;
-  } else {
-    inputSource = 'input';
+} else if (options.fromMarkdown) {
+  inputSource = 'markdown';
+  const markdownPath = resolve(options.fromMarkdown);
+  if (!existsSync(markdownPath)) {
+    logger.error(`Markdown file does not exist: ${markdownPath}`);
+    process.exit(1);
   }
+  inputValue = markdownPath;
+} else {
+  inputSource = 'input';
 }
 
 // Validate ticketId is set after processing
