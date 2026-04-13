@@ -44,8 +44,8 @@ program
   .version('1.0.0')
   .requiredOption('-p, --project-path <path>', 'Path to the project to implement in')
   .requiredOption('-f, --framework-path <path>', 'Path to the Claude Code framework')
-  .requiredOption('--ticket-id <id>', 'Ticket ID (e.g., PROJ-123)')
-  .option('--from-jira', 'Fetch ticket context from Jira + Confluence')
+  .option('--ticket-id <id>', 'Ticket ID (e.g., PROJ-123) - optional if using --from-jira with URL')
+  .option('--from-jira [url]', 'Fetch ticket context from Jira + Confluence (optionally provide full URL)')
   .option('--from-markdown <path>', 'Read ticket context from markdown file')
   .option('--from-input', 'Read ticket context from stdin')
   .option('--start-phase <phase>', 'Start from specific phase (0-10)', parseInt)
@@ -68,11 +68,7 @@ if (!existsSync(frameworkPath)) {
   process.exit(1);
 }
 
-const ticketId = options.ticketId;
-if (!ticketId || ticketId.trim() === '') {
-  logger.error('Ticket ID is required');
-  process.exit(1);
-}
+let ticketId = options.ticketId;
 
 const inputSourceCount = [options.fromJira, options.fromMarkdown, options.fromInput].filter(
   Boolean,
@@ -91,17 +87,55 @@ let inputValue = '';
 
 if (options.fromJira) {
   inputSource = 'jira';
-  inputValue = ticketId;
-} else if (options.fromMarkdown) {
-  inputSource = 'markdown';
-  const markdownPath = resolve(options.fromMarkdown);
-  if (!existsSync(markdownPath)) {
-    logger.error(`Markdown file does not exist: ${markdownPath}`);
+
+  // Check if a Jira URL was provided
+  if (typeof options.fromJira === 'string' && options.fromJira.includes('atlassian.net')) {
+    // Extract ticket ID from URL
+    const urlMatch = options.fromJira.match(/\/browse\/([A-Z]+-\d+)/i);
+    if (urlMatch) {
+      ticketId = urlMatch[1];
+      inputValue = options.fromJira;
+      logger.info(`Extracted ticket ID ${ticketId} from Jira URL`);
+    } else {
+      logger.error(`Invalid Jira URL format: ${options.fromJira}`);
+      logger.error('Expected format: https://{domain}.atlassian.net/browse/{TICKET-123}');
+      process.exit(1);
+    }
+  } else if (ticketId) {
+    // Ticket ID provided separately, construct URL (requires JIRA_DOMAIN env var)
+    const jiraDomain = process.env.JIRA_DOMAIN;
+    if (!jiraDomain) {
+      logger.error('When using --from-jira without a URL, JIRA_DOMAIN environment variable must be set');
+      logger.error('Example: export JIRA_DOMAIN=your-company.atlassian.net');
+      logger.error('Or provide the full URL: --from-jira https://your-company.atlassian.net/browse/PROJ-123');
+      process.exit(1);
+    }
+    inputValue = `https://${jiraDomain}/browse/${ticketId}`;
+  } else {
+    logger.error('Either provide --ticket-id or include the ticket in the Jira URL');
+    logger.error('Example: --from-jira https://your-company.atlassian.net/browse/PROJ-123');
     process.exit(1);
   }
-  inputValue = markdownPath;
-} else {
-  inputSource = 'input';
+}
+
+if (!inputSource) {
+  if (options.fromMarkdown) {
+    inputSource = 'markdown';
+    const markdownPath = resolve(options.fromMarkdown);
+    if (!existsSync(markdownPath)) {
+      logger.error(`Markdown file does not exist: ${markdownPath}`);
+      process.exit(1);
+    }
+    inputValue = markdownPath;
+  } else {
+    inputSource = 'input';
+  }
+}
+
+// Validate ticketId is set after processing
+if (!ticketId || ticketId.trim() === '') {
+  logger.error('Ticket ID is required');
+  process.exit(1);
 }
 
 const tempDir = join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
