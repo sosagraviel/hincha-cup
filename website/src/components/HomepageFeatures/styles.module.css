@@ -1,0 +1,125 @@
+/**
+ * Feature Cards Styles
+ * Professional card design with brand-aligned icons and hover effects
+ */
+
+.features {
+  padding: var(--qaf-space-6xl) var(--qaf-space-xl);
+  background: var(--qaf-gray-bg);
+}
+
+.feature {
+  margin-bottom: var(--qaf-space-2xl);
+}
+
+.featureCard {
+  background: var(--qaf-white);
+  border-radius: var(--qaf-radius-lg);
+  padding: var(--qaf-space-2xl);
+  height: 100%;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  transition: all var(--qaf-transition-base);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.featureCard:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--qaf-shadow-card-hover);
+}
+
+.featureIcon {
+  width: 80px;
+  height: 80px;
+  margin-bottom: var(--qaf-space-xl);
+  flex-shrink: 0;
+  animation: qaf-fade-in 0.6s ease-out;
+}
+
+.featureIcon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.featureContent {
+  flex-grow: 1;
+}
+
+.featureTitle {
+  font-size: var(--qaf-font-2xl);
+  font-weight: var(--qaf-weight-bold);
+  margin-bottom: var(--qaf-space-md);
+  color: var(--qaf-black);
+  line-height: var(--qaf-leading-tight);
+}
+
+.featureDescription {
+  font-size: var(--qaf-font-base);
+  line-height: var(--qaf-leading-relaxed);
+  color: var(--qaf-gray-medium);
+  margin: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 996px) {
+  .features {
+    padding: var(--qaf-space-5xl) var(--qaf-space-lg);
+  }
+
+  .feature {
+    margin-bottom: var(--qaf-space-xl);
+  }
+
+  .featureCard {
+    padding: var(--qaf-space-xl);
+  }
+
+  .featureIcon {
+    width: 64px;
+    height: 64px;
+  }
+}
+
+@media (max-width: 768px) {
+  .features {
+    padding: var(--qaf-space-4xl) var(--qaf-space-lg);
+  }
+
+  .featureCard {
+    padding: var(--qaf-space-lg);
+    margin-bottom: var(--qaf-space-lg);
+  }
+
+  .featureTitle {
+    font-size: var(--qaf-font-xl);
+  }
+
+  .featureDescription {
+    font-size: var(--qaf-font-sm);
+  }
+}
+
+/* Dark mode adjustments */
+[data-theme='dark'] .features {
+  background: #1b1b1d;
+}
+
+[data-theme='dark'] .featureCard {
+  background: #242526;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .featureCard:hover {
+  box-shadow:
+    0 20px 25px -5px rgba(6, 147, 227, 0.25),
+    0 10px 10px -5px rgba(155, 81, 224, 0.15);
+}
+
+[data-theme='dark'] .featureTitle {
+  color: var(--qaf-white);
+}
+
+[data-theme='dark'] .featureDescription {
+  color: rgba(255, 255, 255, 0.7);
+}

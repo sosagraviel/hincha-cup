@@ -1,0 +1,8 @@
+{
+  "label": "User Guides",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Comprehensive guides for writing effective tickets, running pilots, and extending the framework with custom skills."
+  }
+}
