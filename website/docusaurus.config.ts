@@ -67,7 +67,6 @@ const config: Config = {
       logo: {
         alt: 'Qubika Agentic Framework Logo',
         src: 'img/qubika-logo.png',
-        rounded: true,
       },
       items: [
         {
