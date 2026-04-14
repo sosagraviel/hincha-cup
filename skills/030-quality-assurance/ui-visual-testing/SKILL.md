@@ -5,22 +5,9 @@ description: >
   regression. Compares implementation against Figma designs or baseline
   screenshots with iterative fix loop. Loads framework-specific renderer
   timing via specializations. Supports configurable thresholds and region masking.
-version: 2.0.0
-category: quality-assurance
-keywords: [visual-testing, figma, screenshot, regression, pixelmatch, playwright]
 user-invocable: true
-argument-hint: "[--ticket KEY] [--base-url URL] [--max-iterations N] [--mapping PATH] [--mode figma|screenshot|both]"
-triggers: [react, next, nextjs, vue, angular, nuxt, svelte, sveltekit]
-compatible_languages: [typescript, javascript]
-last_updated: 2026-03-26
-allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
-  - Edit
-  - Skill
+argument-hint: '[--ticket KEY] [--base-url URL] [--max-iterations N] [--mapping PATH] [--mode figma|screenshot|both]'
+allowed-tools: Read, Write, Bash, Glob, Grep, Edit, Skill
 ---
 
 # UI Visual Testing
@@ -31,11 +18,11 @@ This skill is **stack-agnostic**. The visual testing pipeline (configuration, ca
 
 ## Modes
 
-| Mode | Purpose | Reference source | Default threshold |
-|------|---------|-----------------|-------------------|
-| **Figma** | Verify implementation matches design specifications | Figma design exports via `figma-design-fetcher` skill | 2% mismatch |
-| **Screenshot** | Detect unintended visual regressions | Previously captured baseline screenshots | 5% mismatch |
-| **Both** | Run Figma fidelity + screenshot regression in sequence | Both sources | Per-mode thresholds |
+| Mode           | Purpose                                                | Reference source                                      | Default threshold   |
+| -------------- | ------------------------------------------------------ | ----------------------------------------------------- | ------------------- |
+| **Figma**      | Verify implementation matches design specifications    | Figma design exports via `figma-design-fetcher` skill | 2% mismatch         |
+| **Screenshot** | Detect unintended visual regressions                   | Previously captured baseline screenshots              | 5% mismatch         |
+| **Both**       | Run Figma fidelity + screenshot regression in sequence | Both sources                                          | Per-mode thresholds |
 
 ## CLI Interface
 
@@ -81,6 +68,7 @@ Read and validate the configuration:
 ```
 
 Validate required fields:
+
 - `screens` array must have at least one entry.
 - Each screen must have `label`, `route`, and `viewport`.
 - Figma mode requires `figmaNodeId` and `figma.fileKey`.
@@ -151,6 +139,7 @@ For screens running in screenshot mode:
 4. If no baselines exist and this is a new screen, screenshot mode is not applicable — skip and log.
 
 Capture parameters:
+
 - Use the viewport dimensions from the screen config.
 - Wait for network idle and framework-specific readiness (see [`references/renderer-adapters.md`](references/renderer-adapters.md)).
 - Disable CSS animations and transitions for deterministic captures.
@@ -172,7 +161,8 @@ Capture screenshots of the current implementation state:
    - Disable animations:
      ```javascript
      await page.addStyleTag({
-       content: '*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }'
+       content:
+         '*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }',
      });
      ```
    - Capture full-page or element-specific screenshot.
@@ -219,7 +209,7 @@ const mismatchedPixels = pixelmatch(
   diff.data,
   reference.width,
   reference.height,
-  { threshold: 0.1, alpha: 0.5 }
+  { threshold: 0.1, alpha: 0.5 },
 );
 
 const totalPixels = reference.width * reference.height;
@@ -354,21 +344,21 @@ Baseline updates should never happen automatically for failing comparisons. Alwa
 
 ## Error Handling
 
-| Error | Recovery |
-|-------|----------|
-| Dev server not running | Attempt `pnpm dev`, wait 30s, retry |
-| Figma export fails | Skip Figma mode, warn user, continue with screenshot mode |
-| Viewport mismatch (reference vs actual) | Resize reference to match, log warning |
-| Page load timeout | Retry once with extended timeout (60s), then SKIP |
-| pixelmatch dimension mismatch | Crop to smallest common dimensions, log warning |
-| Git stash conflict (Step 4) | Skip before-capture, use existing baselines only |
+| Error                                   | Recovery                                                  |
+| --------------------------------------- | --------------------------------------------------------- |
+| Dev server not running                  | Attempt `pnpm dev`, wait 30s, retry                       |
+| Figma export fails                      | Skip Figma mode, warn user, continue with screenshot mode |
+| Viewport mismatch (reference vs actual) | Resize reference to match, log warning                    |
+| Page load timeout                       | Retry once with extended timeout (60s), then SKIP         |
+| pixelmatch dimension mismatch           | Crop to smallest common dimensions, log warning           |
+| Git stash conflict (Step 4)             | Skip before-capture, use existing baselines only          |
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | All screens passed in all active modes |
-| 1 | One or more screens failed visual comparison |
-| 2 | Configuration error (missing config, invalid schema) |
-| 3 | Infrastructure error (server not starting, browser not installed) |
-| 4 | Skipped — no screens to test (all modes deactivated) |
+| Code | Meaning                                                           |
+| ---- | ----------------------------------------------------------------- |
+| 0    | All screens passed in all active modes                            |
+| 1    | One or more screens failed visual comparison                      |
+| 2    | Configuration error (missing config, invalid schema)              |
+| 3    | Infrastructure error (server not starting, browser not installed) |
+| 4    | Skipped — no screens to test (all modes deactivated)              |
