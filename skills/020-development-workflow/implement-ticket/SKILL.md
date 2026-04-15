@@ -58,7 +58,7 @@ Complete SDLC workflow with:
 ### Option 2: From Markdown Spec
 
 ```bash
-# Markdown SDD ticket (created by the `create-sdd-ticket` skill)
+# Markdown SDD ticket (created by /create-sdd-ticket)
 /implement-ticket --from-markdown ./specs/PROJ-123.md
 ```
 
@@ -299,7 +299,7 @@ elif [[ "$INPUT_SOURCE" == "--from-markdown" ]]; then
     # Validate markdown file has required sections
     if ! grep -q "## Summary" "$INPUT_VALUE" || ! grep -q "## Acceptance Criteria" "$INPUT_VALUE"; then
         echo "❌ Invalid markdown spec. Must contain '## Summary' and '## Acceptance Criteria' sections."
-        echo "   Invoke the 'create-sdd-ticket' skill to generate a valid spec."
+        echo "   Run '/create-sdd-ticket' to generate a valid spec."
         exit 1
     fi
 
@@ -2013,7 +2013,7 @@ For complex features, create markdown specs with:
 - API contracts and data models
 - UI mockups or Figma links
 
-Use the `create-sdd-ticket` skill to generate spec templates.
+Use `/create-sdd-ticket` to generate spec templates.
 
 ## 3. Monitor Parallel Tickets
 
