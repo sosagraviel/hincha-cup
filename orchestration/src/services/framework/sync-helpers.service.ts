@@ -212,10 +212,7 @@ export async function pruneStaleManagedCommands(params: {
   projectPath: string;
   commandState: Record<string, Partial<ResourceInfo>>;
   expectedCommandNames: Set<string>;
-  removeResourceFromState: (
-    resourceType: 'commands',
-    resourceName: string,
-  ) => Promise<boolean>;
+  removeResourceFromState: (resourceType: 'commands', resourceName: string) => Promise<boolean>;
 }): Promise<{ removed: number }> {
   const { projectPath, commandState, expectedCommandNames, removeResourceFromState } = params;
   let removed = 0;

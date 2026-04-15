@@ -168,10 +168,9 @@ describe('sync-helpers.service', () => {
       });
 
       expect(result.removed).toBe(1);
-      expect(fsPromises.rm).toHaveBeenCalledWith(
-        '/project/.claude/commands/create-sdd-ticket.md',
-        { force: true },
-      );
+      expect(fsPromises.rm).toHaveBeenCalledWith('/project/.claude/commands/create-sdd-ticket.md', {
+        force: true,
+      });
       expect(removeResourceFromState).toHaveBeenCalledWith('commands', 'create-sdd-ticket');
     });
 
