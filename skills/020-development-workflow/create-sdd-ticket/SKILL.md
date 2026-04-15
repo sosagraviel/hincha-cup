@@ -1,514 +1,187 @@
 ---
 name: create-sdd-ticket
-description: Generate specification-driven development (SDD) tickets with intelligent gap detection and multiple input/output formats
+description: Generate specification-driven development (SDD) tickets directly from ideas, Jira tickets, or markdown drafts. Use when creating implementation-ready tickets with gap detection, INVEST validation, and BDD scenarios.
 model: sonnet
+user-invokable: true
+argument-hint: '[--from-input "..." | --from-jira JIRA-URL-OR-KEY | --from-markdown PATH] [--save-to-jira BOARD-URL | --save-to-markdown [PATH]]'
 ---
 
-# Create SDD Ticket Skill
+# Create SDD Ticket
 
-**Purpose**: Generate comprehensive, assumption-free tickets following Specification-Driven Development (SDD) principles with intelligent gap detection from multiple sources.
+Input: `$ARGUMENTS`
 
-**Version**: 2.0.0
-**Last Updated**: 2026-03-08
+Generate a complete, implementation-ready SDD ticket from plain text, Jira, or markdown input while keeping ticket creation behavior in one skill.
 
----
+## Purpose
 
-## ⚠️ Migration Notice
+This skill must:
 
-> **This functionality has been migrated to the TypeScript orchestration module.**
->
-> ### New Approach (Orchestration CLI)
->
-> ```bash
-> # From project root
-> cd orchestration
-> npm run create-sdd-ticket -- --source jira PROJ-123
-> ```
->
-> ### Orchestration Implementation
->
-> The utilities referenced in this skill have been migrated to:
->
-> - **Ticket Parsing**: `orchestration/src/nodes/implement-ticket/phase1-context.node.ts`
-> - **Gap Detection**: `orchestration/src/services/gap-questions.service.ts`
-> - **Validation**: `orchestration/src/utils/validator.ts`
-> - **Formatting**: `orchestration/src/nodes/implement-ticket/phase8-pr.node.ts`
->
-> ### Direct API Usage (TypeScript)
->
-> ```typescript
-> import { validateTicket } from './orchestration/src/utils/validator.js';
-> import { GapQuestionsService } from './orchestration/src/services/gap-questions.service.js';
->
-> // Use orchestration services directly in TypeScript
-> ```
->
-> **The examples below reference the deprecated `utils/` folder for historical context.**
+- support text, Jira, and markdown as inputs
+- support Jira, markdown, or display-only as outputs
+- inject project context before gap detection
+- infer as much as possible from the codebase before asking questions
+- validate the final ticket against INVEST criteria
+- produce BDD scenarios in Given-When-Then form
+- respect explicit markdown output paths and use `.claude-temp/tickets/<ticket-id>/<ticket-id>.md` only as the default when no markdown path is provided
 
----
+## Invocation
 
-## Overview
+Invoke the `create-sdd-ticket` skill directly with arguments such as:
 
-This skill produces gap-free, implementation-ready tickets by:
-
-1. **Supporting multiple input sources** (text, Jira, markdown)
-2. **Intelligent gap detection** (deep codebase inference before asking questions)
-3. **Multiple output formats** (Jira, markdown)
-4. **Applying INVEST criteria** (Independent, Negotiable, Valuable, Estimable, Small, Testable)
-5. **Using BDD format** (Given-When-Then scenarios)
-6. **Minimizing engineer interruption** (maximum autonomous inference)
-
-**Critical Principle**: The skill performs deep codebase research to infer missing information before asking ANY questions. Only unresolvable gaps require engineer input.
-
----
-
-## Input/Output Modes
-
-### Input Modes
-
-#### 1. Text Input (`--from-input "text"`)
-
-Free-form text describing the requirement:
-
-```bash
-/create-sdd-ticket --from-input "Add user authentication with JWT tokens" --save-to-markdown "./specs/AUTH-001.md"
+```text
+--from-input "Add user authentication with JWT tokens" --save-to-markdown "./specs/AUTH-001.md"
 ```
 
-#### 2. Jira Input (`--from-jira <JIRA-URL-OR-KEY>`)
-
-Import existing Jira ticket and enhance it:
-
-```bash
-/create-sdd-ticket --from-jira "https://company.atlassian.net/browse/PROJ-123" --save-to-markdown "./specs/PROJ-123.md"
-/create-sdd-ticket --from-jira "PROJ-123" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+```text
+--from-jira "PROJ-123" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
 ```
 
-#### 3. Markdown Input (`--from-markdown <PATH>`)
-
-Import existing markdown ticket and complete gaps:
-
-```bash
-/create-sdd-ticket --from-markdown "./specs/DRAFT-001.md" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+```text
+--from-markdown "./specs/DRAFT-001.md" --save-to-markdown "./specs/FEAT-001.md"
 ```
 
-### Output Modes
+Optional flags:
 
-#### 1. Markdown Output (`--save-to-markdown <PATH>`)
+- `--project-key <KEY>`
+- `--issue-type <TYPE>` where supported values are `Story`, `Task`, `Bug`
+- `--priority <PRIORITY>` where supported values are `High`, `Medium`, `Low`
 
-Save as markdown file following SDD template:
+If no output flag is provided, display the completed canonical ticket without saving.
 
-```bash
---save-to-markdown "./specs/PROJ-123.md"
-```
+## Input And Output Modes
 
-#### 2. Jira Output (`--save-to-jira <BOARD-URL>`)
+### Inputs
 
-Create/update Jira ticket:
+- `--from-input "description"`: create a ticket from a plain-language idea
+- `--from-jira <JIRA-URL-OR-KEY>`: refine an existing Jira ticket
+- `--from-markdown <PATH>`: refine an existing markdown draft
 
-```bash
---save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
-```
+Exactly one input mode is required.
 
-#### 3. Display Only (no output flag)
+### Outputs
 
-Display canonical ticket in console without saving.
+- `--save-to-jira <BOARD-URL>`: create or update the ticket in Jira
+- `--save-to-markdown <PATH>`: save the ticket exactly to the path provided by the user
+- `--save-to-markdown` with no path: default markdown output to `.claude-temp/tickets/<ticket-id>/<ticket-id>.md`
+- no output flag: print the completed canonical ticket for review
 
-### All Valid Combinations
+## Workflow
 
-```bash
-# Text → Markdown
-/create-sdd-ticket --from-input "..." --save-to-markdown "./specs/ticket.md"
+### Phase 0: Inject Project Context
 
-# Text → Jira
-/create-sdd-ticket --from-input "..." --save-to-jira "<board-url>"
+Before ticket analysis, invoke the `project-context` skill so the workflow has deep architectural context for:
 
-# Jira → Markdown (enhance Jira ticket)
-/create-sdd-ticket --from-jira "PROJ-123" --save-to-markdown "./specs/PROJ-123.md"
+- conventions and patterns already used in the codebase
+- integration points and known constraints
+- naming, testing, and deployment expectations
+- project-specific gotchas that should influence gap detection
 
-# Jira → Jira (update Jira ticket with enhancements)
-/create-sdd-ticket --from-jira "PROJ-123" --save-to-jira "<board-url>"
-
-# Markdown → Jira (complete draft and publish)
-/create-sdd-ticket --from-markdown "./specs/DRAFT-001.md" --save-to-jira "<board-url>"
-
-# Markdown → Markdown (complete draft and save)
-/create-sdd-ticket --from-markdown "./specs/DRAFT-001.md" --save-to-markdown "./specs/FEAT-001.md"
-```
-
----
-
-## Execution Workflow (7 Phases)
+If the generated project-context skill is missing, fall back to `.claude/CLAUDE.md` and explicit codebase inspection, but still treat project context collection as required work before continuing.
 
 ### Phase 1: Parse Input Source
 
-**Actions**:
+- detect which input mode is active
+- load the source data from plain text, Jira, or markdown
+- validate accessibility and basic structure
+- normalize the raw source into a working internal representation
 
-1. **Detect input mode** from arguments (`--from-input`, `--from-jira`, `--from-markdown`)
-2. **Load input data**:
-   - **Text mode**: Use provided string directly
-   - **Jira mode**: Fetch ticket via MCP, extract all fields
-   - **Markdown mode**: Read file, parse sections
-3. **Validate input**: Ensure required data is accessible
+### Phase 2: Intelligent Gap Detection
 
-**Tools**:
+Validate the canonical ticket against the SDD requirements and, for every missing or weak field, exhaust inference before asking the engineer.
 
-```javascript
-const { parseCreateSddTicketArgs } = require('../../utils/argument-parser');
-const args = parseCreateSddTicketArgs(process.argv.slice(2));
-```
+Required inference order:
 
-**Output**: Raw input data ready for conversion
+1. search project context and `.claude/CLAUDE.md`
+2. search the codebase for similar features, patterns, validation rules, and architectural precedents
+3. inspect related files and integration points
+4. inspect existing tickets or drafts for precedents
+5. only if inference still fails, add the item to the question batch
 
----
+UI-specific handling must remain available:
 
-### Phase 2: Convert to Canonical Format
+- classify whether the work is UI-related
+- if UI work is detected, check for existing UI or visual testing configuration
+- if configuration is missing, ask one targeted batch question about whether visual UI testing against designs is required
+- if UI testing is required, inject the relevant Definition of Done items, technical tasks, and BDD coverage expectations
 
-**Actions**:
+### Phase 3: Batch Question Generation
 
-1. **Select appropriate parser** based on input mode
-2. **Parse input into canonical ticket structure** (see `schemas/sdd-ticket.schema.json`)
-3. **Extract all available information**:
-   - User story components (role, goal, benefit)
-   - Stakeholders
-   - Success criteria
-   - Acceptance criteria (BDD scenarios)
-   - Technical context
-   - Dependencies
-   - Metadata
+- generate the minimum number of questions required to finish the ticket
+- include what was searched so the engineer understands the missing context
+- ask all unresolved questions at once
+- avoid asking for information that could have been inferred from the repository
 
-**Tools**:
-
-```javascript
-const {
-  parseJiraTicket,
-} = require('../../utils/ticket-io/parsers/jira-parser');
-const {
-  parseMarkdownTicket,
-} = require('../../utils/ticket-io/parsers/markdown-parser');
-
-// For text input
-const canonical = {
-  id: generateDraftId(),
-  source: 'input',
-  title: inputText.slice(0, 100),
-  userStory: { role: null, goal: inputText, benefit: null },
-  // ... rest with nulls/empty arrays
-};
-
-// For Jira input
-const canonical = parseJiraTicket(jiraData, jiraBaseUrl);
-
-// For markdown input
-const canonical = parseMarkdownTicket(filePath);
-```
-
-**Output**: Canonical ticket object (may have gaps)
-
----
-
-### Phase 3: Validate & Detect Gaps (CRITICAL)
-
-**Actions**:
-
-1. **Validate ticket completeness**:
-   - Check required fields (user story, stakeholders, success criteria, etc.)
-   - Validate BDD scenario quality
-   - Check for placeholder text
-   - Identify all gaps
-
-2. **Intelligent Gap Detection** (5-strategy approach):
-
-   **Strategy 1: Search Project Context**
-   - Read `.claude/CLAUDE.md` for project standards
-   - Search project-context skill for patterns
-   - Check for documented conventions
-
-   **Strategy 2: Deep Codebase Pattern Search**
-   - Grep for similar feature implementations
-   - Find authentication patterns, validation rules, error handling
-   - Extract technical context from existing code
-
-   **Strategy 3: Find Similar Implementations**
-   - Search for files with similar names/purposes
-   - Analyze implementation patterns
-   - Infer architecture decisions
-
-   **Strategy 4: Analyze Existing Tickets**
-   - Search `.claude/tickets/` for similar tickets
-   - Extract common patterns for stakeholders, DoD, testing
-   - Learn from precedents
-
-   **Strategy 5: UI Task Detection**
-   - Run `classifyUITask()` (from `orchestration/src/utils/ui-task-detector.ts`) against canonical ticket content
-   - IF `isUI == false` → skip (no UI work detected)
-   - IF `isUI == true`:
-     a. Check if project already has ui_testing configuration:
-        - Search `.claude/CLAUDE.md` for "ui_testing", "visual testing", "ui-visual-testing"
-        - Check for `ui-visual-testing.json` in project root
-     b. IF config NOT found → add batch question:
-        "UI Testing: This ticket involves UI components ({detected keywords}).
-         Should visual UI testing against Figma designs be required as part of
-         the Definition of Done? (yes / no / not applicable)"
-     c. IF config found OR engineer answers "yes":
-        - Inject UI Testing DoD items based on Test Level Decision Matrix (see `skills/030-quality-assurance/ui-testing/references/test-level-matrix.md`)
-        - Inject UI testing acceptance criteria (BDD scenarios for visual fidelity)
-        - Inject technical tasks (write tests, create ui-visual-testing.json mapping)
-        - IF Figma URLs detected: extract fileKey + nodeIds, pre-populate config mapping
-     d. IF engineer answers "no" or "not applicable" → no changes
-
-3. **Apply inferred values** to canonical ticket
-
-4. **Generate questions** only for unresolvable gaps
-
-**Tools**:
-
-```javascript
-const {
-  validateTicket,
-} = require('../../utils/ticket-io/validators/ticket-validator');
-const { detectAndFillGaps } = require('../../utils/ticket-io/gap-detector');
-
-console.log('🔍 Validating ticket...');
-const validation = validateTicket(canonical);
-
-if (validation.gaps.length > 0) {
-  console.log('\n🧠 Starting intelligent gap detection...');
-  console.log(
-    `   Found ${validation.gaps.length} gaps, attempting autonomous inference...\n`,
-  );
-
-  const gapAnalysis = await detectAndFillGaps(
-    canonical,
-    validation,
-    process.cwd(),
-  );
-
-  console.log(`\n📈 Gap Detection Results:`);
-  console.log(`   Total Gaps: ${gapAnalysis.summary.totalGaps}`);
-  console.log(
-    `   Inferred: ${gapAnalysis.summary.inferred} (${gapAnalysis.summary.inferenceRate}%)`,
-  );
-  console.log(`   Unresolved: ${gapAnalysis.summary.unresolved}`);
-
-  // Apply inferred values
-  Object.entries(gapAnalysis.inferredValues).forEach(([field, value]) => {
-    setNestedValue(canonical, field, value);
-  });
-}
-```
-
-**Output**: Validated ticket with inference results and unresolved gaps
-
----
-
-### Phase 4: Ask Engineer (Only If Needed)
-
-**Actions**:
-
-1. **Check if questions are needed**: `gapAnalysis.unresolvedGaps.length > 0`
-2. **If autonomous** (no unresolved gaps): Skip this phase entirely
-3. **If questions needed**:
-   - Display minimal, focused questions
-   - Provide context from inference attempts
-   - Show examples
-   - Collect answers
-   - Apply answers to canonical ticket
-
-**Question Format**:
+Preferred question format:
 
 ```markdown
-I need clarification on ${unresolvedGaps.length} item(s) that couldn't be inferred:
+I need clarification on ${unresolvedGaps.length} item(s) that could not be inferred:
 
 ## ${category}
 
-${gap.field}:
+${gap.field}
 Question: ${gap.message}
-Context: Searched ${attemptedSources.join(', ')} - no definitive answer found
+Context: Searched ${attemptedSources.join(', ')} and did not find a definitive answer
 Example: ${gap.example}
 
-Your answer: **\_**
+Your answer: **_**
 ```
 
-**Output**: Complete canonical ticket with all gaps filled
+### Phase 4: Process Answers And Fill Gaps
 
----
+- parse the engineer's answers
+- apply them back into the canonical ticket
+- re-run completeness validation
+- ensure no unresolved placeholder content remains
 
 ### Phase 5: Apply INVEST Criteria
 
-**Actions**:
+Validate the ticket across all INVEST dimensions:
 
-1. **Validate ticket meets INVEST standards**:
-   - **Independent**: Check blocking dependencies
-   - **Negotiable**: Verify implementation flexibility
-   - **Valuable**: Confirm business value articulated
-   - **Estimable**: Ensure sufficient technical detail
-   - **Small**: Estimate complexity (days), suggest splits if > 5 days
-   - **Testable**: Verify BDD scenarios are verifiable
+- `Independent`
+- `Negotiable`
+- `Valuable`
+- `Estimable`
+- `Small`
+- `Testable`
 
-2. **Display INVEST results** with scores and recommendations
+If the ticket looks larger than a 1-5 day implementation, provide a concrete split recommendation before finalizing.
 
-3. **Handle split recommendations**:
-   - If ticket estimated > 5 days, show split suggestion
-   - Ask engineer if they want to split
-   - If yes, generate multiple tickets
+### Phase 6: Generate BDD Scenarios
 
-**Tools**:
-
-```javascript
-const validation = validateTicket(canonical);
-
-console.log('\n📊 INVEST Criteria:');
-Object.entries(validation.invest).forEach(([criterion, result]) => {
-  console.log(
-    `   ${result.passed ? '✅' : '❌'} ${criterion.toUpperCase()} (${result.score}%)`,
-  );
-  console.log(`      ${result.message}`);
-  if (result.recommendation) {
-    console.log(`      💡 ${result.recommendation}`);
-  }
-});
-
-if (validation.invest.small.estimatedDays > 5) {
-  console.log('\n⚠️  Ticket complexity suggests splitting');
-  console.log(validation.invest.small.recommendation);
-  // Ask engineer if they want to split
-}
-```
-
-**Output**: INVEST-validated ticket (potentially split into multiple)
-
----
-
-### Phase 6: Generate/Enhance BDD Scenarios
-
-**Actions**:
-
-1. **Ensure minimum 3 BDD scenarios**:
-   - Happy path (primary use case)
-   - Edge cases (boundary conditions, unusual inputs)
-   - Error scenarios (failures, invalid states)
-
-2. **Validate scenario quality**:
-   - All scenarios have Given-When-Then structure
-   - Use concrete examples (not "some users" but "50 users")
-   - Include And clauses where needed
-   - Scenarios are independently verifiable
-
-3. **Enhance scenarios if needed**:
-   - Add missing Given clauses for context
-   - Add Then clauses for complete validation
-   - Ensure error messages specified
-
-**Scenario Template**:
-
-```gherkin
-Scenario: [Clear, specific scenario name]
-  Given [initial context/state]
-  And [additional context if needed]
-  When [action/trigger]
-  Then [expected outcome]
-  And [additional outcome/validation]
-  And [system state/side effects]
-```
-
-**Example**:
-
-```gherkin
-Scenario: User successfully resets forgotten password
-  Given I am on the login page
-  And I click "Forgot Password"
-  And I enter email "user@example.com" that exists in the system
-  When I click "Send Reset Link"
-  Then I see message "Password reset link sent to user@example.com"
-  And an email is sent within 60 seconds
-  And the email contains a reset link valid for 1 hour
-  And the link format is https://app.com/reset-password?token=<uuid>
-```
-
-**Output**: Ticket with high-quality BDD scenarios ready for automated testing
-
----
+- ensure there are at least 3 high-quality scenarios
+- use Given-When-Then structure
+- cover happy path, edge cases, and failure scenarios
+- use concrete, verifiable examples instead of vague wording
 
 ### Phase 7: Output Ticket
 
-**Actions**:
+- format the completed canonical ticket for the chosen destination
+- if a markdown path is provided, save exactly there
+- if markdown output is requested without a path, default to `.claude-temp/tickets/<ticket-id>/<ticket-id>.md`
+- create parent directories when needed
+- if saving to Jira, preserve priority, issue type, and project key when provided
+- return the saved path or Jira key plus a short quality summary
 
-1. **Update metadata**:
-   - Set `investValidated: true`
-   - Set `bddScenarioCount`
-   - Add timestamp
+## Canonical Expectations
 
-2. **Format based on output mode**:
+The completed ticket should include, when applicable:
 
-   **Markdown Output**:
-
-   ```javascript
-   const {
-     writeMarkdownFile,
-   } = require('../../utils/ticket-io/formatters/markdown-formatter');
-   const writtenPath = writeMarkdownFile(canonical, outputPath);
-   console.log(`✅ Markdown written to: ${writtenPath}`);
-   ```
-
-   **Jira Output**:
-
-   ```javascript
-   const {
-     formatToJira,
-   } = require('../../utils/ticket-io/formatters/jira-formatter');
-   const jiraPayload = formatToJira(canonical, projectKey, 'Story');
-
-   // Use MCP to create/update
-   const result = await mcp__atlassian__createJiraIssue({
-     cloudId: cloudId,
-     projectKey: projectKey,
-     issueTypeName: 'Story',
-     summary: canonical.title,
-     description: jiraPayload.fields.description,
-     additional_fields: {
-       priority: { name: canonical.metadata.priority || 'Medium' },
-       labels: canonical.metadata.labels || [],
-     },
-   });
-
-   console.log(`✅ Jira ticket created: ${result.key}`);
-   console.log(`   URL: ${jiraBaseUrl}/browse/${result.key}`);
-   ```
-
-   **Display Only**:
-
-   ```javascript
-   console.log('\n📄 Canonical Ticket:');
-   console.log(JSON.stringify(canonical, null, 2));
-   ```
-
-3. **Provide success summary**:
-
-   ```markdown
-   ✨ Ticket Creation Complete!
-
-   Summary:
-   Title: ${canonical.title}
-   Output: ${outputPath or jiraKey}
-   INVEST: ✅ ${passedCount}/6 criteria passed
-   BDD Scenarios: ${scenarioCount}
-   Autonomous Inference: ${inferenceRate}%
-   Questions Asked: ${questionsAsked}
-
-   Next Steps:
-
-   - Review the ticket for accuracy
-   - Assign to sprint/epic if using Jira
-   - Use /implement-ticket ${ticketId} to begin implementation
-   ```
-
-**Output**: Final ticket saved/created, engineer notified
-
----
+- title and user story
+- stakeholders
+- success criteria and metrics
+- acceptance criteria with BDD scenarios
+- technical context
+- dependencies and integration points
+- out of scope and future considerations
+- edge cases and error scenarios
+- validation rules
+- Definition of Done
+- implementation notes and references
+- metadata indicating INVEST validation and BDD scenario count
 
 ## Canonical Ticket Structure
 
-All tickets follow this schema (see `schemas/sdd-ticket.schema.json`):
+Use this structure as the mental model for completeness checks:
 
 ```json
 {
@@ -579,7 +252,7 @@ All tickets follow this schema (see `schemas/sdd-ticket.schema.json`):
   "implementationNotes": "Additional context for implementer",
   "references": ["Design mockups URL"],
   "metadata": {
-    "createdAt": "2026-03-08T10:00:00Z",
+    "createdAt": "2026-04-15T10:00:00Z",
     "investValidated": true,
     "bddScenarioCount": 5,
     "priority": "High",
@@ -588,255 +261,158 @@ All tickets follow this schema (see `schemas/sdd-ticket.schema.json`):
 }
 ```
 
----
+## Markdown Output Rule
+
+Default markdown output path:
+
+```text
+.claude-temp/tickets/<ticket-id>/<ticket-id>.md
+```
+
+If the user supplies `--save-to-markdown <PATH>`, save the ticket to that exact path instead of rewriting it into `.claude-temp/tickets/`.
 
 ## Markdown Template Structure
 
-Output follows `./templates/sdd-ticket-template.md`:
+Markdown output should align with [`templates/sdd-ticket-template.md`](./templates/sdd-ticket-template.md) and include these sections:
 
 ````markdown
 # PROJ-123: [Title]
 
-## 📋 User Story
-
+## User Story
 **As a** [role]
 **I want** [goal]
 **So that** [benefit]
 
----
+## Stakeholders
+- Role / name / responsibility
 
-## 👥 Stakeholders
-
-| Role          | Name     | Responsibility             |
-| ------------- | -------- | -------------------------- |
-| Product Owner | Jane Doe | Acceptance, prioritization |
-
----
-
-## 🎯 Success Criteria
-
+## Success Criteria
 1. [Measurable outcome 1]
 2. [Measurable outcome 2]
 
-**Metrics**: [How we'll measure success]
-
----
-
-## ✅ Acceptance Criteria
-
+## Acceptance Criteria
 ### Scenario 1: [Happy Path]
-
-```gherkin
-Given [context]
-When [action]
-Then [outcome]
-```
-````
-
-### Scenario 2: [Edge Case]
-
 ```gherkin
 Given [context]
 When [action]
 Then [outcome]
 ```
 
----
+## Technical Context
+- Current state
+- Proposed changes
+- Technical constraints
+- Integration points
+- Architecture decisions
 
-## 🔧 Technical Context
+## Out Of Scope
+- [Item]
 
-### Current State
+## Edge Cases And Error Handling
+- Edge cases
+- Error scenarios
+- Validation rules
 
-- [What exists today]
+## Dependencies
+- Blocking
+- Related
 
-### Proposed Changes
+## Definition Of Done
+- Code quality
+- Testing
+- Documentation
+- Review and deployment
 
-- [What will be built/modified]
+## Implementation Notes
 
-### Technical Constraints
+## References
 
-- [Performance, security requirements]
-
-### Integration Points
-
-- [Systems to integrate with]
-
-### Architecture Decisions
-
-- **[Decision]**: [Rationale]
-
----
-
-## 🚫 Out of Scope
-
-1. [Item 1]
-2. [Item 2]
-
-**Future Considerations**: [What might be addressed later]
-
----
-
-## ⚠️ Edge Cases & Error Handling
-
-### Edge Cases
-
-1. **[Edge case]**: [Handling]
-
-### Error Scenarios
-
-1. **[Error]**: [User message, system behavior]
-
-### Data Validation Rules
-
-- [Rule 1]
-
----
-
-## 📦 Dependencies
-
-### Blocking
-
-- [ ] [Ticket that must complete first]
-
-### Related
-
-- [Ticket] - [Relationship]
-
----
-
-## 🎓 Definition of Done
-
-### Code Quality
-
-- [ ] All acceptance criteria implemented
-- [ ] Unit test coverage ≥ 80%
-
-### Testing
-
-- [ ] All BDD scenarios automated
-
-### Documentation
-
-- [ ] API endpoints documented
-
-### Review & Deployment
-
-- [ ] Code reviewed and approved
-- [ ] PR merged to main
-
----
-
-## 📝 Implementation Notes
-
-[Additional context for implementer]
-
----
-
-## 🔗 References
-
-- [Design mockups URL]
-- [Related documentation]
-
----
-
-**Created**: 2026-03-08
-**Created By**: Claude (create-sdd-ticket skill)
 **INVEST Validated**: ✅
 **BDD Scenarios**: 5
-**Priority**: High
-
 ````
 
----
+## Question Policy
+
+Ask questions only when the answer cannot be reliably inferred from:
+
+- the `project-context` skill
+- `.claude/CLAUDE.md`
+- repository structure and nearby implementations
+- existing tickets or drafts
+- visible integration and testing patterns
+
+Questions should be:
+
+- batched
+- specific
+- contextualized with what was searched
+- phrased to unblock implementation, not to outsource architecture decisions
+
+## Quality Bar
+
+Before finalizing, ensure:
+
+- no required section is missing
+- no placeholder markers remain
+- INVEST validation has been applied
+- BDD scenarios are concrete and testable
+- markdown output guidance uses `.claude-temp/tickets/`
+- the ticket remains ready for `implement-ticket`
 
 ## Usage Examples
 
-### Example 1: Text → Markdown
+### Text To Markdown
 
-```bash
-/create-sdd-ticket \
-  --from-input "Add user authentication with JWT tokens" \
-  --save-to-markdown "./specs/AUTH-001.md"
-````
+Invoke the `create-sdd-ticket` skill with:
 
-**Process**:
-
-1. Parses text input
-2. Creates minimal canonical ticket
-3. Runs gap detection:
-   - Searches codebase for existing auth patterns
-   - Finds JWT implementation in backend
-   - Infers technical stack, error handling patterns
-   - Finds similar features for stakeholder patterns
-4. Asks 3-5 questions for unresolvable gaps
-5. Generates complete ticket with 5 BDD scenarios
-6. Saves to markdown
-
----
-
-### Example 2: Jira → Markdown (Enhance)
-
-```bash
-/create-sdd-ticket \
-  --from-jira "PROJ-123" \
-  --save-to-markdown "./specs/PROJ-123.md"
+```text
+--from-input "Admin users report taking too long to find specific users in the 500+ user list. Add search filtering by name and email, similar to the existing product search." --save-to-markdown "./specs/user-search.md"
 ```
 
-**Process**:
+### Text To Jira
 
-1. Fetches PROJ-123 from Jira via MCP
-2. Parses Jira description, extracts all fields
-3. Validates completeness (likely has gaps)
-4. Runs gap detection on missing fields
-5. Asks minimal questions
-6. Enhances ticket with full SDD structure
-7. Saves to markdown (local spec file)
+Invoke the `create-sdd-ticket` skill with:
 
----
-
-### Example 3: Markdown → Jira (Complete Draft)
-
-```bash
-/create-sdd-ticket \
-  --from-markdown "./specs/DRAFT-20260308.md" \
-  --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+```text
+--from-input "Add user export feature for admins to download CSV reports" --save-to-jira "https://acme.atlassian.net/jira/software/projects/PROJ/boards/1" --project-key PROJ --priority High
 ```
 
-**Process**:
+### Jira To Markdown
 
-1. Reads draft markdown file
-2. Parses all sections
-3. Validates and detects gaps
-4. Completes missing sections autonomously
-5. Applies INVEST criteria
-6. Creates Jira ticket via MCP
-7. Returns PROJ-124 ticket key
+Invoke the `create-sdd-ticket` skill with:
 
----
-
-### Example 4: Jira → Jira (Update)
-
-```bash
-/create-sdd-ticket \
-  --from-jira "PROJ-123" \
-  --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+```text
+--from-jira "PROJ-100" --save-to-markdown "./specs/refined-PROJ-100.md"
 ```
 
-**Process**:
+### Markdown To Jira
 
-1. Fetches PROJ-123
-2. Enhances with SDD structure
-3. Updates PROJ-123 in Jira with complete spec
+Invoke the `create-sdd-ticket` skill with:
 
----
+```text
+--from-markdown "./specs/draft-feature.md" --save-to-jira "https://acme.atlassian.net/jira/software/projects/PROJ/boards/1" --project-key PROJ
+```
 
 ## Error Handling
 
-### Gap Detection Fails
+### Input Source Unavailable
 
-**Scenario**: Cannot infer critical information
+Report which input could not be loaded and why, for example:
 
-**Handling**:
+- Jira ticket not found
+- markdown path missing or unreadable
+- empty plain-text description
+
+### Inference Could Not Resolve All Gaps
+
+Summarize:
+
+- how many gaps were found
+- how many were inferred
+- which searches were attempted
+- the exact remaining questions
+
+Example:
 
 ```markdown
 🧠 Gap Detection Summary:
@@ -847,61 +423,51 @@ I need clarification on 4 items that couldn't be inferred from the codebase:
 
 ## Technical Context
 
-1. proposedChanges:
-   Question: What specific components will be modified?
-   Context: Searched codebase but found multiple auth implementations
-   Example: "Modify UserController, add AuthService, update User model"
+proposedChanges
+Question: What specific components will be modified?
+Context: Searched the codebase but found multiple possible implementations
+Example: "Modify UserController, add AuthService, update User model"
 
-Your answer: **\_**
+Your answer: **_**
 ```
 
----
+### INVEST Validation Failed
 
-### INVEST Validation Fails
+If the ticket is too large or not testable enough, do not silently continue. Provide the failure reason and a split or refinement recommendation.
 
-**Scenario**: Ticket too large (> 5 days)
-
-**Handling**:
+Example:
 
 ```markdown
 ⚠️ INVEST Validation: Small criterion failed
 
-Estimated: 8 days (complexity score: 42)
+Estimated: 8 days
 Recommendation: Split into 2 tickets
 
 Suggested Split:
-Ticket 1: User Authentication - Basic Login - JWT token generation - Login endpoint - Token validation middleware
+Ticket 1: Basic login and token generation
 Estimate: 3 days
 
-Ticket 2: User Authentication - Advanced Features - Refresh tokens - Token revocation - Session management
+Ticket 2: Refresh tokens and session management
 Estimate: 4 days
-
-Would you like to split this ticket? (y/n): **\_**
 ```
 
----
+### Jira Output Unavailable
 
-### Jira MCP Unavailable
+If Jira creation fails, recommend either saving to the user-requested markdown path or, if no path was provided, falling back to `.claude-temp/tickets/`.
 
-**Scenario**: MCP not configured or failing
-
-**Handling**:
+Example:
 
 ```markdown
-❌ Jira MCP not available
+❌ Jira output unavailable
 
-Ticket saved locally: .claude/tickets/DRAFT-20260308-143022.md
+Fallback:
+.claude-temp/tickets/DRAFT-20260415-143022/DRAFT-20260415-143022.md
 
 Options:
-
-1. Configure Jira MCP (see .claude/mcp.json)
-2. Use --save-to-markdown instead
-3. Copy ticket content and create manually in Jira UI
-
-Would you like to save as markdown instead? (y/n): **\_**
+1. Save to markdown now
+2. Re-run later when Jira access is available
+3. Copy the generated content into Jira manually
 ```
-
----
 
 ## Quality Checks
 
@@ -909,91 +475,43 @@ Before finalizing, validate:
 
 ### Completeness
 
-- [ ] User story has WHO + WHAT + WHY
-- [ ] All 7 main sections present
-- [ ] No `[NEEDS_CLARIFICATION]` markers
-- [ ] No placeholder text
+- [ ] user story includes who, what, and why
+- [ ] all main sections are present
+- [ ] no `[NEEDS_CLARIFICATION]` markers remain
+- [ ] no placeholder text remains
 
-### INVEST Criteria
+### INVEST
 
-- [ ] Independent (score >= 60%)
-- [ ] Negotiable (score >= 60%)
-- [ ] Valuable (score >= 60%)
-- [ ] Estimable (score >= 60%)
-- [ ] Small (estimated <= 5 days)
-- [ ] Testable (score >= 70%)
+- [ ] Independent passes
+- [ ] Negotiable passes
+- [ ] Valuable passes
+- [ ] Estimable passes
+- [ ] Small is within expected scope or split recommendation is provided
+- [ ] Testable passes
 
-### BDD Scenarios
+### BDD
 
-- [ ] At least 3 scenarios
-- [ ] All have Given-When-Then
-- [ ] Use concrete examples
-- [ ] Cover happy path, edge cases, errors
+- [ ] at least 3 scenarios exist
+- [ ] all scenarios use Given-When-Then
+- [ ] scenarios use concrete examples
+- [ ] happy path, edge cases, and failures are covered
 
 ### Technical Clarity
 
-- [ ] Integration points documented
-- [ ] Constraints specified
-- [ ] Architecture decisions explained
-- [ ] Error handling defined
+- [ ] integration points are documented
+- [ ] constraints are documented
+- [ ] architecture decisions are explained where needed
+- [ ] error handling is defined
 
----
+## Integration Notes
 
-## Best Practices
-
-### Do's ✅
-
-- **Maximize autonomous inference** - search codebase deeply before asking
-- **Ask minimal, focused questions** - only for truly unresolvable gaps
-- **Use concrete examples** in scenarios
-- **Define measurable success criteria**
-- **Document edge cases explicitly**
-- **Include test coverage requirements**
-- **Reference existing patterns**
-
-### Don'ts ❌
-
-- **Don't ask questions** that can be inferred from code
-- **Don't assume** - mark `[NEEDS_CLARIFICATION]` if truly unknown
-- **Don't skip INVEST validation**
-- **Don't write vague scenarios**
-- **Don't forget error scenarios**
-- **Don't make architectural decisions** without input
-
----
-
-## Integration with Other Skills
-
-### With `/implement-ticket`
-
-- SDD tickets are ready for implementation
-- BDD scenarios become automated tests
-- Use: `/implement-ticket --from-markdown "./specs/AUTH-001.md"`
-
-### With `/fetch-ticket-context`
-
-- Gather context for related tickets
-- Cross-reference implementations
-
----
+- `project-context`: required in Phase 0
+- `fetch-ticket-context`: useful when Jira input needs enrichment
+- `implement-ticket`: the resulting markdown or Jira ticket should be directly implementable
+- `ui-testing` and `ui-visual-testing`: used when UI work is detected and testing expectations need to be injected
 
 ## Version History
 
-- **2.0.0** (2026-03-08):
-  - Added multiple input sources (text, Jira, markdown)
-  - Added multiple output formats (Jira, markdown)
-  - Implemented intelligent gap detection with 4-strategy inference
-  - Added canonical ticket format
-  - Removed backward compatibility (explicit flags required)
-- **1.0.0** (2026-03-02): Initial release with dual input modes
-
----
-
-## References
-
-- `schemas/sdd-ticket.schema.json` - Canonical ticket schema
-- `./templates/sdd-ticket-template.md` - Markdown template
-- `utils/ticket-io/` - All parsers, formatters, validators
-- SPECIFICATION_DRIVEN_DEVELOPMENT_GUIDE.md
-- INVEST criteria: https://en.wikipedia.org/wiki/INVEST_(mnemonic)
-- BDD/Gherkin: https://cucumber.io/docs/gherkin/reference/
+- **3.0.0** (2026-04-15): unified command and skill behavior into one directly invokable skill, restored Phase 0 project-context injection, and removed slash-command duplication
+- **2.0.0** (2026-03-08): added multiple input and output modes plus intelligent gap detection
+- **1.0.0** (2026-03-02): initial release

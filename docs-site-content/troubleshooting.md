@@ -24,7 +24,12 @@ ls .claude/  # Should show CLAUDE.md, skills/, agents/
 # Check .claude directory
 ls .claude/commands/
 
-# Should show: implement-ticket.md, create-sdd-ticket.md
+# Should show: implement-ticket.md
+
+# Check available skills
+ls .claude/skills/
+
+# Should include: create-sdd-ticket
 
 # Re-initialize if missing
 ./qubika-agentic-framework/scripts/initialize-project.sh
@@ -113,14 +118,14 @@ ls .claude-temp/tickets/PROJ-123/artifacts/
 
 **"Too many gap questions"**:
 ```bash
-# Provide more detailed input
-/create-sdd-ticket --from-input "Add CSV export button with async processing and email notification" --save-to-markdown ./specs/export.md
+# Provide more detailed input to the create-sdd-ticket skill
+--from-input "Add CSV export button with async processing and email notification" --save-to-markdown "./specs/export.md"
 ```
 
 **"Generic ticket"**:
 ```bash
-# Add context and constraints
-/create-sdd-ticket --from-input "Users can't find specific users in 500+ list. Add search by name/email using existing patterns" --save-to-markdown ./specs/search.md
+# Add context and constraints to the create-sdd-ticket skill
+--from-input "Users can't find specific users in 500+ list. Add search by name/email using existing patterns" --save-to-markdown "./specs/search.md"
 ```
 
 ### Quality Gates

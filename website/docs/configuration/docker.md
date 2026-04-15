@@ -76,8 +76,7 @@ claude-code run
 # Implement a Jira ticket
 /implement-ticket PROJ-123
 
-# Create an SDD ticket
-/create-sdd-ticket
+# Create an SDD ticket by invoking the create-sdd-ticket skill
 ```
 
 ### 5. Stop Runtime

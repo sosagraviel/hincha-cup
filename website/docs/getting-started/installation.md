@@ -97,12 +97,12 @@ source ~/.bashrc
 ├── framework-config.json - Configuration
 ├── skills/ - AI skills
 │   ├── project-context/
+│   ├── create-sdd-ticket/
 │   └── mastering-[language]/
 ├── agents/ - AI agents
 │   └── implementer-[language].md
 └── commands/ - Workflows
-    ├── implement-ticket.md
-    └── create-sdd-ticket.md
+    └── implement-ticket.md
 ```
 
 ### Environment Variables (Optional)

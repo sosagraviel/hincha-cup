@@ -59,8 +59,8 @@ ls .claude/
 **Create ticket**:
 
 ```bash
-# In Claude Code:
-/create-sdd-ticket --from-input "Add dark mode toggle to settings page" --save-to-markdown .claude-temp/tickets/dark-mode/ticket.md
+# In Claude Code, invoke the create-sdd-ticket skill with:
+--from-input "Add dark mode toggle to settings page" --save-to-markdown "./specs/dark-mode.md"
 ```
 
 **What happens**:
@@ -172,9 +172,9 @@ graph LR
 ### Try More Workflows
 
 ```bash
-# Create multiple tickets
-/create-sdd-ticket --from-input "Add CSV export" --save-to-markdown ./specs/export.md
-/create-sdd-ticket --from-input "Add search filtering" --save-to-markdown ./specs/search.md
+# Create multiple tickets by invoking the create-sdd-ticket skill with:
+--from-input "Add CSV export" --save-to-markdown "./specs/export.md"
+--from-input "Add search filtering" --save-to-markdown "./specs/search.md"
 
 # Implement them
 /implement-ticket --from-markdown ./specs/export.md
