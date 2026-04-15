@@ -205,7 +205,7 @@ function getManagedCommandRelativePath(
     return commandInfo.source_path.slice('commands/'.length);
   }
 
-  return `${commandName.replace(/-/g, '/')}.md`;
+  return `${commandName}.md`;
 }
 
 export async function pruneStaleManagedCommands(params: {
@@ -229,12 +229,18 @@ export async function pruneStaleManagedCommands(params: {
     const relativePath = getManagedCommandRelativePath(commandName, commandInfo);
     const targetPath = join(projectPath, '.claude', 'commands', relativePath);
 
-    if (existsSync(targetPath)) {
-      await rm(targetPath, { force: true });
-    }
+    try {
+      if (existsSync(targetPath)) {
+        await rm(targetPath, { force: true });
+      }
 
-    await removeResourceFromState('commands', commandName);
-    removed++;
+      const stateRemoved = await removeResourceFromState('commands', commandName);
+      if (stateRemoved) {
+        removed++;
+      }
+    } catch {
+      continue;
+    }
   }
 
   return { removed };

@@ -387,7 +387,7 @@ Sent via Slack bot after each `/implement-ticket` completion:
 If you have an idea but no ticket yet:
 
 ```bash
---from-input "Add dark mode toggle to settings" \
+/create-sdd-ticket --from-input "Add dark mode toggle to settings" \
   --save-to-jira <BOARD_URL> \
   --project-key PROJ
 ```

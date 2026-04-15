@@ -286,7 +286,7 @@ cd -
 ### Create Ticket and Implement
 ```bash
 # 1. Invoke the create-sdd-ticket skill with:
---from-input "Add CSV export for users" \
+/create-sdd-ticket --from-input "Add CSV export for users" \
   --save-to-jira <board-url> \
   --project-key PROJ
 

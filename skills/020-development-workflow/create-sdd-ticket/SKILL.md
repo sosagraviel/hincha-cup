@@ -26,18 +26,18 @@ This skill must:
 
 ## Invocation
 
-Invoke the `create-sdd-ticket` skill directly with arguments such as:
+Invoke the skill directly with arguments such as:
 
 ```text
---from-input "Add user authentication with JWT tokens" --save-to-markdown "./specs/AUTH-001.md"
+/create-sdd-ticket --from-input "Add user authentication with JWT tokens" --save-to-markdown "./specs/AUTH-001.md"
 ```
 
 ```text
---from-jira "PROJ-123" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+/create-sdd-ticket --from-jira "PROJ-123" --save-to-jira "https://company.atlassian.net/jira/software/c/projects/PROJ/boards/1"
 ```
 
 ```text
---from-markdown "./specs/DRAFT-001.md" --save-to-markdown "./specs/FEAT-001.md"
+/create-sdd-ticket --from-markdown "./specs/DRAFT-001.md" --save-to-markdown "./specs/FEAT-001.md"
 ```
 
 Optional flags:

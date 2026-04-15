@@ -19,7 +19,7 @@ The framework offers two approaches for ticket creation:
 Use the `create-sdd-ticket` skill to generate implementation-ready tickets from ideas:
 
 ```bash
---from-input "Add OAuth login with Google" \
+/create-sdd-ticket --from-input "Add OAuth login with Google" \
   --save-to-jira https://company.atlassian.net/projects/PROJ/boards/1
 ```
 
@@ -360,20 +360,20 @@ The framework can create tickets from various sources:
 
 **From a simple idea**:
 ```bash
---from-input "Users should be able to export their data as CSV" \
+/create-sdd-ticket --from-input "Users should be able to export their data as CSV" \
   --save-to-jira <BOARD_URL> \
   --project-key PROJ
 ```
 
 **Refine existing Jira ticket**:
 ```bash
---from-jira PROJ-100 \
+/create-sdd-ticket --from-jira PROJ-100 \
   --save-to-markdown "./specs/refined-PROJ-100.md"
 ```
 
 **From existing markdown**:
 ```bash
---from-markdown ./specs/draft-spec.md \
+/create-sdd-ticket --from-markdown ./specs/draft-spec.md \
   --save-to-jira <BOARD_URL>
 ```
 
