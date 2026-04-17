@@ -97,6 +97,14 @@ You can:
 
 ### Markdown File
 
+If the user provides `--save-to-markdown <PATH>`, the skill saves exactly there.
+
+If markdown output is requested without a path, the default is:
+
+```text
+.claude-temp/tickets/<ticket-id>/<ticket-id>.md
+```
+
 ```markdown
 # Feature Title
 

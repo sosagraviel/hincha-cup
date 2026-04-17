@@ -411,6 +411,27 @@ describe('ConfigUpdaterService', () => {
       expect(fsPromises.writeFile).toHaveBeenCalled();
     });
 
+    it('should remove command from resource state', async () => {
+      const mockConfig = createMockConfig({
+        resource_state: {
+          skills: {},
+          agents: {},
+          commands: {
+            'create-sdd-ticket': { managed_by_framework: true },
+          },
+          last_sync: '2024-01-01T00:00:00Z',
+        },
+      });
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
+      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
+
+      const result = await service.removeResourceFromState('commands', 'create-sdd-ticket');
+
+      expect(result).toBe(true);
+      expect(fsPromises.writeFile).toHaveBeenCalled();
+    });
+
     it('should return false if resource does not exist', async () => {
       const mockConfig = createMockConfig();
       vi.mocked(fs.existsSync).mockReturnValue(true);
