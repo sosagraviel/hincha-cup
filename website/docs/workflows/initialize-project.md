@@ -344,11 +344,11 @@ After initialization:
 2. **Customize** `CLAUDE.md` with project-specific notes (optional)
 3. **Start using** the framework:
    - [Implement Ticket](./implement-ticket.md) - Implement features
-   - [Create SDD Ticket](./create-sdd-ticket.md) - Generate tickets with the `create-sdd-ticket` skill
+   - [Create SDD Ticket](./create-sdd-ticket.md) - Generate tickets
 
 ## See Also
 
 - [Implement Ticket](./implement-ticket.md) - Feature implementation workflow
-- [Create SDD Ticket](./create-sdd-ticket.md) - Ticket generation workflow for the `create-sdd-ticket` skill
+- [Create SDD Ticket](./create-sdd-ticket.md) - Ticket generation workflow
 - [Project Structure Reference](/docs/reference/project-structure.md) - `.claude/` directory structure
 - [Skills Catalog](/docs/reference/skills-catalog.md) - Available skills

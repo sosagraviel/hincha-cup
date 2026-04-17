@@ -6,108 +6,96 @@ Transform ideas into detailed, actionable tickets with AI-powered analysis.
 
 ## What It Does
 
-The `create-sdd-ticket` skill creates complete tickets with:
+Creates complete tickets with:
+- ✅ Clear user stories
+- ✅ Step-by-step acceptance criteria
+- ✅ Edge cases and error scenarios
+- ✅ Definition of done checklist
+- ✅ Technical implementation notes (for developers)
 
-- clear user stories
-- measurable success criteria
-- edge cases and error scenarios
-- Definition of Done checklists
-- technical implementation notes
-- INVEST validation
-- Given-When-Then scenarios
-
-**Result**: a ticket ready for developers to implement immediately.
+**Result**: A ticket ready for developers to implement immediately
 
 ---
 
-## How To Use
+## How to Use
 
-Run this in Claude Code by invoking the `create-sdd-ticket` skill directly.
+**Note**: Run this in Claude Code, not in terminal.
 
-### Basic Usage
+### Basic Command
 
-Invoke the skill with `/create-sdd-ticket`:
-
-```text
-/create-sdd-ticket --from-input "Add CSV export to user list" --save-to-markdown "./specs/export.md"
+```bash
+/create-sdd-ticket --from-input "<your idea>" --save-to-markdown <file>
 ```
 
 ### Examples
 
 **From an idea**:
-
-```text
-/create-sdd-ticket --from-input "Add CSV export to user list" --save-to-markdown "./specs/export.md"
+```bash
+/create-sdd-ticket --from-input "Add CSV export to user list" --save-to-markdown ./specs/export.md
 ```
 
-**From an existing Jira ticket**:
-
-```text
-/create-sdd-ticket --from-jira "https://company.atlassian.net/browse/PROJ-123" --save-to-markdown "./specs/PROJ-123.md"
+**From existing Jira ticket** (to add more detail):
+```bash
+/create-sdd-ticket --from-jira https://company.atlassian.net/browse/PROJ-123 --save-to-markdown ./refined.md
 ```
 
 **Save directly to Jira**:
-
-```text
-/create-sdd-ticket --from-input "Add dark mode toggle to settings" --save-to-jira "https://company.atlassian.net/projects/PROJ"
+```bash
+/create-sdd-ticket --from-input "Add dark mode toggle to settings" --save-to-jira https://company.atlassian.net/projects/PROJ
 ```
 
 ---
 
-## What Information To Provide
+## What Information to Provide
 
-### Good Example
-
-```text
-/create-sdd-ticket --from-input "Users can't find specific users in our 500+ user list. Add search by name and email." --save-to-markdown "./specs/search.md"
+### Good Example ✅
+```bash
+/create-sdd-ticket --from-input "Users can't find specific users in our 500+ user list. Add search by name and email" --save-to-markdown ./specs/search.md
 ```
 
-This works well because it gives a clear problem, context, and desired outcome.
+**Why this works**: Clear problem, context (500+ users), specific solution (search by name/email)
 
-### Better Example
-
-```text
-/create-sdd-ticket --from-input "Admin users report taking too long to find specific users in the 500+ user list. Add search filtering by name and email, similar to the existing product search." --save-to-markdown "./specs/search.md"
+### Better Example ✅✅
+```bash
+/create-sdd-ticket --from-input "Admin users report taking too long to find specific users in the 500+ user list. Add search filtering by name and email, similar to the existing product search" --save-to-markdown ./specs/search.md
 ```
 
-This is stronger because it adds user type, pain point, context, and a reference pattern.
+**Why even better**: User type (admins), pain point (too slow), context (500+ users), solution (search), reference (like product search)
 
-### Avoid
-
-```text
-/create-sdd-ticket --from-input "Make the app better" --save-to-markdown "./specs/feature.md"
+### Avoid ❌
+```bash
+/create-sdd-ticket --from-input "Make the app better" --save-to-markdown ./specs/feature.md
 ```
 
-Too vague to produce a strong implementation-ready ticket.
+**Why**: Too vague, no clear problem or solution
 
 ---
 
 ## AI Analysis Process
 
-The skill automatically:
+The AI automatically:
 
-1. loads project context before ticket analysis
-2. searches the codebase for similar features and conventions
-3. expands requirements into a structured SDD ticket
-4. asks only the minimum clarification questions still needed
-5. validates the result against INVEST
-6. generates Given-When-Then scenarios
+1. **Understands Context** - Analyzes codebase for similar features
+2. **Expands Requirements** - Creates detailed user stories and acceptance criteria
+3. **Identifies Gaps** - Asks clarifying questions if needed
+4. **Structures Output** - Formats for developers
 
 ### Gap Analysis
 
-If more information is needed, the skill asks focused questions such as:
+If the AI needs more information, it asks questions like:
+- "Should this work for all user roles or just admins?"
+- "What happens if the export takes more than 5 seconds?"
+- "Should users filter by date range?"
 
-- Should this work for all user roles or just admins?
-- What should happen if the export takes more than 5 seconds?
-- Should users be able to filter by date range?
-
-Questions are only asked after project context and codebase inference have been exhausted.
+You can:
+- **Answer questions** for a complete ticket
+- **Skip for now** and add details later
 
 ---
 
 ## Output Format
 
-### Markdown
+### Markdown File
 
 If the user provides `--save-to-markdown <PATH>`, the skill saves exactly there.
 
@@ -117,94 +105,114 @@ If markdown output is requested without a path, the default is:
 .claude-temp/tickets/<ticket-id>/<ticket-id>.md
 ```
 
-### Jira
+```markdown
+# Feature Title
 
-The skill can create or refine Jira tickets with the same SDD content:
+## Summary
+Brief description
 
-- user story
-- acceptance criteria
-- technical context
-- INVEST-ready scope
-- BDD scenarios
+## User Stories
+- As an admin, I want to search users so I can find them quickly
+
+## Acceptance Criteria
+**Scenario: Search by name**
+- Given a list of 500 users
+- When I type "John" in the search box
+- Then only users with "John" in their name appear
+
+## Technical Requirements
+- Implementation details (for developers)
+
+## Definition of Done
+- [ ] Search works for name and email
+- [ ] Results appear within 1 second
+- [ ] All tests passing
+```
+
+### Jira Ticket
+
+Creates Jira ticket with same information.
 
 ---
 
 ## Best Practices
 
-### Do
+### Do ✅
+- **Describe user pain point**: "Users struggle to..."
+- **Provide context**: "In our 500+ user list..."
+- **Mention similar features**: "Like existing product search..."
+- **Specify who needs it**: "Admin users need..."
+- **Include success metrics**: "Should load in under 1 second..."
 
-- describe the user pain point
-- provide context like scale, limits, or business rules
-- mention similar features or implementation patterns
-- specify who needs the feature
-- include success metrics when known
-
-### Don't
-
-- use vague prompts like "make it better"
-- omit the underlying problem
-- force architectural decisions into clarifying answers
-- bypass the skill's gap detection process
+### Don't ❌
+- Be vague: "Make it better"
+- Skip the problem: Just "Add feature X"
+- Use overly technical language
+- Try to define every detail (AI handles that)
 
 ---
 
-## Tips For Complex Features
+## Tips for Complex Features
 
-Large initiatives should usually be split into multiple tickets.
+**Break down large features**:
 
-Instead of one broad prompt like:
-
-```text
-/create-sdd-ticket --from-input "Improve user management page" --save-to-markdown "./specs/user-mgmt.md"
+Instead of:
+```bash
+/create-sdd-ticket --from-input "Improve user management page" --save-to-markdown ./specs/user-mgmt.md
 ```
 
-Create several focused tickets:
-
-```text
-/create-sdd-ticket --from-input "Add search to user management page" --save-to-markdown "./specs/search.md"
-/create-sdd-ticket --from-input "Add CSV export to user management page" --save-to-markdown "./specs/export.md"
-/create-sdd-ticket --from-input "Add bulk actions to user management page" --save-to-markdown "./specs/bulk-actions.md"
+Do:
+```bash
+# Separate tickets
+/create-sdd-ticket --from-input "Add search to user management page" --save-to-markdown ./specs/search.md
+/create-sdd-ticket --from-input "Add CSV export to user management page" --save-to-markdown ./specs/export.md
+/create-sdd-ticket --from-input "Add bulk actions to user management page" --save-to-markdown ./specs/bulk-actions.md
 ```
 
-This keeps each ticket easier to estimate, implement, and test.
+**Why**: Smaller tickets are easier to implement and test.
 
 ---
 
 ## Troubleshooting
 
-### Generated Ticket Is Too Generic
+### "Generated ticket is too generic"
+**Fix**: Provide more specific details.
 
-Provide more specific context:
+```bash
+# Instead of:
+/create-sdd-ticket --from-input "Add user search" --save-to-markdown ./specs/search.md
 
-```text
-/create-sdd-ticket --from-input "Admin users report difficulty finding specific users in our 500+ user list. Add search by name and email." --save-to-markdown "./specs/search.md"
+# Do:
+/create-sdd-ticket --from-input "Admin users report difficulty finding specific users in our 500+ user list. Add search by name and email" --save-to-markdown ./specs/search.md
 ```
 
-### Too Many Clarifying Questions
+### "Too many clarifying questions"
+**Fix**: Include more details upfront:
 
-Include more operational detail up front:
-
-```text
-/create-sdd-ticket --from-input "Add CSV export for user data. Export name, email, and role. Limit 10,000 records max. Send email when complete." --save-to-markdown "./specs/export.md"
+```bash
+/create-sdd-ticket --from-input "Add CSV export for user data. Export name, email, and role. Limit 10,000 records max. Send email when complete" --save-to-markdown ./specs/export.md
 ```
 
-### Can't Create Jira Ticket
+### "Can't create Jira ticket"
+**Fix**: Save to markdown first:
 
-Save to markdown first:
-
-```text
-/create-sdd-ticket --from-input "Add feature" --save-to-markdown "./specs/feature.md"
+```bash
+/create-sdd-ticket --from-input "Add feature" --save-to-markdown ./temp.md
 ```
 
 ---
 
-## What Happens Next
+## What Happens Next?
 
 Once you have a ticket:
 
-1. review the generated SDD ticket
-2. refine any remaining product details
-3. assign it in Jira or keep it as a markdown spec
-4. implement it with `/implement-ticket`
+1. **Review** - Check generated ticket
+2. **Refine** - Add missing details if needed
+3. **Assign** - Give to development team
+4. **Implement** - Developers use `/implement-ticket` to build it
 
-**Full cycle**: idea -> detailed ticket -> working code -> pull request.
+**Full cycle**: Idea → Detailed Ticket → Working Code → Pull Request
+
+---
+
+**Ready to create better tickets?** Start with a clear description of the user problem and desired outcome.

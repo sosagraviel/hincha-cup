@@ -176,7 +176,7 @@ cd npm-check-updates
 1. **Introduction** (10 min): Framework overview, pilot goals, success criteria
 2. **Demo: Full SDLC Cycle** (30 min):
    - Initialize project (2 min)
-   - Create ticket from idea with the `create-sdd-ticket` skill (3 min)
+   - Create ticket from idea with `/create-sdd-ticket` (3 min)
    - Implement ticket with `/implement-ticket` (12 min)
    - Review generated PR (3 min)
 3. **Q&A** (15 min): Answer questions, address concerns
@@ -387,7 +387,8 @@ Sent via Slack bot after each `/implement-ticket` completion:
 If you have an idea but no ticket yet:
 
 ```bash
-/create-sdd-ticket --from-input "Add dark mode toggle to settings" \
+/create-sdd-ticket \
+  --from-input "Add dark mode toggle to settings" \
   --save-to-jira <BOARD_URL> \
   --project-key PROJ
 ```
