@@ -96,10 +96,10 @@ git clone https://github.com/thisisqubika/qubika-agentic-framework.git
 
 ## Stack Support
 
-**Automatically Detected**: TypeScript, Python, Go, Java, Rust, Ruby, PHP, C#, Elixir
-**Frameworks**: React, Vue, Angular, NestJS, Django, FastAPI, Flask, Spring Boot, Gin, Phoenix
-**Build Tools**: Vite, Webpack, npm, Yarn, pnpm, Poetry, Go modules
-**Test Frameworks**: Jest, Vitest, Pytest, Go testing, JUnit, ExUnit, RSpec
+**Automatically Detected**: TypeScript, Python, Go, Java, Scala, Rust, Ruby, PHP, C#, Elixir
+**Frameworks**: React, Vue, Angular, NestJS, Django, FastAPI, Flask, Spring Boot, http4s, Gin, Phoenix
+**Build Tools**: Vite, Webpack, npm, Yarn, pnpm, Poetry, sbt, Go modules
+**Test Frameworks**: Jest, Vitest, Pytest, ScalaTest, MUnit, Go testing, JUnit, ExUnit, RSpec
 **Monorepos**: Nx, Lerna, Turborepo, pnpm workspaces, Yarn workspaces
 
 No configuration required — just run initialization once.
