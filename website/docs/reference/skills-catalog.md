@@ -85,13 +85,13 @@ Skills that orchestrate development workflows and automate processes.
 4. Testing - Verify functionality
 5. PR Creation - Submit for review
 
-**Command**: `/implement-ticket <TICKET_ID>`
+**Invocation**: `/implement-ticket <TICKET_ID>` (user-invokable skill)
 
 **Time**: 5-15 minutes per ticket
 
 **Used by**: All implementation agents during ticket workflow
 
-**Auto-loads**: When `/implement-ticket` command is invoked
+**Auto-loads**: When the `/implement-ticket` skill is invoked
 
 ---
 
