@@ -26,6 +26,7 @@ import {
   addSingleSkill,
   regenerateSingleAgent,
   syncSingleCommand,
+  pruneStaleManagedCommands,
 } from '../services/framework/sync-helpers.service.js';
 import { resolveSkills } from '../nodes/initialize-project/phase5/skill-resolver.js';
 import { generateAgents } from '../nodes/initialize-project/phase5/agent-generator.js';
@@ -474,6 +475,7 @@ async function findCommandFiles(commandsDir: string): Promise<string[]> {
 async function syncCommands(config: SyncConfig): Promise<{
   updated: number;
   added: number;
+  removed: number;
   skipped: number;
 }> {
   logger.info('Step 7: Syncing commands...');
@@ -481,7 +483,7 @@ async function syncCommands(config: SyncConfig): Promise<{
   const configUpdater = new ConfigUpdaterService(config.projectPath, config.frameworkPath);
   const frameworkConfig = await configUpdater.readConfig();
 
-  const result = { updated: 0, added: 0, skipped: 0 };
+  const result = { updated: 0, added: 0, removed: 0, skipped: 0 };
 
   const commandsSourcePath = join(config.frameworkPath, 'commands');
   if (!existsSync(commandsSourcePath)) {
@@ -491,11 +493,13 @@ async function syncCommands(config: SyncConfig): Promise<{
 
   // Recursively find all .md files in commands/
   const commandFiles = await findCommandFiles(commandsSourcePath);
+  const expectedCommandNames = new Set<string>();
 
   for (const commandFile of commandFiles) {
     const relativePath = commandFile.replace(commandsSourcePath + '/', '');
     // Convert path to command name: task-management/create.md -> task-management-create
     const commandName = relativePath.replace('.md', '').replace(/\//g, '-');
+    expectedCommandNames.add(commandName);
 
     const existingCommandInfo = frameworkConfig.resource_state.commands[commandName];
 
@@ -533,8 +537,18 @@ async function syncCommands(config: SyncConfig): Promise<{
     }
   }
 
+  const pruneResult = await pruneStaleManagedCommands({
+    projectPath: config.projectPath,
+    commandState: frameworkConfig.resource_state.commands || {},
+    expectedCommandNames,
+    removeResourceFromState: (resourceType, resourceName) =>
+      configUpdater.removeResourceFromState(resourceType, resourceName),
+  });
+  result.removed = pruneResult.removed;
+
   logger.success(`  ✓ Commands updated: ${result.updated}`);
   logger.success(`  ✓ Commands added:   ${result.added}`);
+  logger.success(`  ✓ Commands removed: ${result.removed}`);
   logger.info(`  ℹ️  Commands skipped: ${result.skipped}\n`);
 
   return result;
@@ -591,7 +605,7 @@ async function main() {
       `  Agents:   ${agentsResult.updated} updated, ${agentsResult.added} added, ${agentsResult.regenerated} regenerated, ${agentsResult.skipped} skipped`,
     );
     logger.info(
-      `  Commands: ${commandsResult.updated} updated, ${commandsResult.added} added, ${commandsResult.skipped} skipped`,
+      `  Commands: ${commandsResult.updated} updated, ${commandsResult.added} added, ${commandsResult.removed} removed, ${commandsResult.skipped} skipped`,
     );
     logger.info(`  Backup:   ${backupPath}\n`);
 
@@ -602,7 +616,8 @@ async function main() {
       agentsResult.added +
       agentsResult.regenerated +
       commandsResult.updated +
-      commandsResult.added;
+      commandsResult.added +
+      commandsResult.removed;
 
     if (totalChanges === 0) {
       logger.info('ℹ️  No changes needed - all resources are up to date');
