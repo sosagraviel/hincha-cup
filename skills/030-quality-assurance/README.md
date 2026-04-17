@@ -4,11 +4,16 @@ Skills for code quality checks, security reviews, automated testing, and pull re
 
 ## Skills in this group
 
-- **code-quality-check**: Perform comprehensive code quality checks
-- **create-pr**: Create well-formatted pull requests with proper context
-- **jest-coverage-automation**: AI-powered automated Jest test generation and coverage improvement
-- **pr-reviewer-skill**: Comprehensive GitHub Pull Request code review
-- **security-review**: Security vulnerability analysis and best practices review
+- **code-quality-check**: Automated quality verification with linters, type checkers, and test coverage (80%+ threshold)
+- **create-pr**: Create production-ready GitHub Pull Requests with artifacts (screenshots, videos, coverage)
+- **doc-updater**: Maintain `.claude/CLAUDE.md` and `project-context` accuracy after code changes
+- **jest-coverage-automation**: AI-powered Jest test generation and coverage improvement until thresholds are met
+- **playwright-e2e-automation**: Multi-step Playwright E2E test automation using Planner, Implementer, and Healer agents
+- **pr-reviewer**: Comprehensive GitHub Pull Request code review with structured feedback for review-loop integration
+- **pytest-patterns**: Pytest expertise covering fixtures, parametrization, mocking, coverage, and plugins
+- **security-review**: OWASP Top 10 scanning, secrets detection, and vulnerability analysis
+- **ui-testing**: Stack-agnostic UI testing orchestration across unit, component, E2E, and visual levels
+- **ui-visual-testing**: Dual-mode visual testing — Figma design fidelity and screenshot regression with an iterative fix loop
 
 ## Featured Skill: Jest Coverage Automation
 
