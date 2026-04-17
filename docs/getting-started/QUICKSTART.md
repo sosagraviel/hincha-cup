@@ -169,9 +169,9 @@ If you want to create tickets for later:
 
 ## Key Commands
 
-### Full SDLC Commands
+### Full SDLC Skills
 
-| Command | Purpose | Time |
+| Skill | Purpose | Time |
 |---------|---------|------|
 | `/create-sdd-ticket` | Create ticket from idea | 3-5 min |
 | `/implement-ticket <ID>` | Implement ticket → PR | 10-15 min |
