@@ -164,6 +164,8 @@ export class CommandResolverService {
         fallbacks.push('cargo test', 'cargo test --all');
       } else if (language === 'java') {
         fallbacks.push('mvn test', 'gradle test');
+      } else if (language === 'csharp') {
+        fallbacks.push('dotnet test');
       }
     } else if (type === 'e2e') {
       if (language === 'typescript' || language === 'javascript') {
@@ -192,6 +194,8 @@ export class CommandResolverService {
       commands.push('cargo build', 'cargo build --release');
     } else if (primaryLang === 'java') {
       commands.push('mvn compile', 'gradle build');
+    } else if (primaryLang === 'csharp') {
+      commands.push('dotnet build', 'dotnet publish -c Release');
     }
 
     return commands.filter(Boolean);
@@ -212,6 +216,8 @@ export class CommandResolverService {
       commands.push('golangci-lint run', 'go vet ./...');
     } else if (primaryLang === 'rust') {
       commands.push('cargo clippy', 'cargo clippy --all-targets');
+    } else if (primaryLang === 'csharp') {
+      commands.push('dotnet format --verify-no-changes');
     }
 
     return commands.filter(Boolean);
@@ -232,6 +238,8 @@ export class CommandResolverService {
       commands.push('gofmt -w .', 'go fmt ./...');
     } else if (primaryLang === 'rust') {
       commands.push('cargo fmt', 'rustfmt **/*.rs');
+    } else if (primaryLang === 'csharp') {
+      commands.push('dotnet format');
     }
 
     return commands.filter(Boolean);
@@ -397,6 +405,8 @@ export class CommandResolverService {
       return 'go';
     } else if (primaryLang === 'rust') {
       return 'cargo';
+    } else if (primaryLang === 'csharp') {
+      return 'dotnet';
     }
 
     return 'npm'; // Safe default
@@ -421,6 +431,8 @@ export class CommandResolverService {
         return 'go mod download';
       case 'cargo':
         return 'cargo build';
+      case 'dotnet':
+        return 'dotnet restore';
       default:
         return 'npm install';
     }

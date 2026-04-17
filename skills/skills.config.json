@@ -247,6 +247,14 @@
       "compatible_languages": ["rust"]
     },
     {
+      "name": "mastering-dotnet-skill",
+      "path": "050-language-frameworks/mastering-dotnet-skill",
+      "description": "C# and .NET development patterns, ASP.NET Core, Entity Framework Core, clean architecture, and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["csharp", "dotnet"],
+      "compatible_languages": ["csharp"]
+    },
+    {
       "name": "react-frontend",
       "path": "050-language-frameworks/react-frontend",
       "description": "React frontend development patterns",

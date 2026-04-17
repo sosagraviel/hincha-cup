@@ -194,6 +194,9 @@ export class ProjectConfigReaderService {
     } else if (primaryLang === 'rust') {
       if (!commands.build.length) commands.build.push('cargo build');
       if (!commands.start.length) commands.start.push('cargo run');
+    } else if (primaryLang === 'csharp') {
+      if (!commands.build.length) commands.build.push('dotnet build');
+      if (!commands.start.length) commands.start.push('dotnet run');
     }
 
     return commands;
@@ -380,6 +383,7 @@ export class ProjectConfigReaderService {
     if (fw.includes('pytest')) return ['pytest', 'python -m pytest'];
     if (fw.includes('go test')) return ['go test ./...'];
     if (fw.includes('cargo')) return ['cargo test'];
+    if (fw.includes('xunit') || fw.includes('nunit') || fw.includes('mstest')) return ['dotnet test'];
     if (fw.includes('playwright')) return ['npx playwright test'];
     if (fw.includes('cypress')) return ['npx cypress run'];
     if (fw.includes('mocha')) return ['npx mocha'];
