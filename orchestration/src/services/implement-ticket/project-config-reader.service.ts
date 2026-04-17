@@ -383,7 +383,8 @@ export class ProjectConfigReaderService {
     if (fw.includes('pytest')) return ['pytest', 'python -m pytest'];
     if (fw.includes('go test')) return ['go test ./...'];
     if (fw.includes('cargo')) return ['cargo test'];
-    if (fw.includes('xunit') || fw.includes('nunit') || fw.includes('mstest')) return ['dotnet test'];
+    if (fw.includes('xunit') || fw.includes('nunit') || fw.includes('mstest'))
+      return ['dotnet test'];
     if (fw.includes('playwright')) return ['npx playwright test'];
     if (fw.includes('cypress')) return ['npx cypress run'];
     if (fw.includes('mocha')) return ['npx mocha'];
