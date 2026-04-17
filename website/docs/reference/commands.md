@@ -96,57 +96,6 @@ Full feature implementation workflow from planning to pull request.
 
 ---
 
-### `/create-sdd-ticket`
-
-Generate specification-driven development (SDD) tickets with intelligent gap detection.
-
-**Purpose**: Creates implementation-ready tickets following INVEST criteria and BDD format, with minimal engineer questions.
-
-**Usage**:
-```bash
-/create-sdd-ticket [INPUT] [OUTPUT] [OPTIONS]
-```
-
-**Required Flags** (Input - one required):
-
-| Flag | Description | Example |
-|------|-------------|---------|
-| `--from-input "description"` | Create from plain text | `--from-input "Add CSV export"` |
-| `--from-jira <URL>` | Refine existing Jira ticket | `--from-jira https://company.atlassian.net/browse/PROJ-100` |
-| `--from-markdown <PATH>` | Refine existing markdown ticket | `--from-markdown ./specs/draft.md` |
-
-**Required Flags** (Output - one required):
-
-| Flag | Description | Example |
-|------|-------------|---------|
-| `--save-to-jira <BOARD-URL>` | Create ticket in Jira board | `--save-to-jira https://company.atlassian.net/...` |
-| `--save-to-markdown <PATH>` | Save as markdown file | `--save-to-markdown ./specs/feature.md` |
-
-**Optional Flags**:
-
-| Flag | Description | Default | Example |
-|------|-------------|---------|---------|
-| `--project-key <KEY>` | Jira project key | - | `--project-key PROJ` |
-| `--issue-type <TYPE>` | Issue type | Story | `--issue-type Task` |
-| `--priority <PRIORITY>` | Priority level | Medium | `--priority High` |
-
-**Examples**:
-```bash
-# Plain text to Jira
-/create-sdd-ticket \
-  --from-input "Add user export feature for admins" \
-  --save-to-jira https://company.atlassian.net/jira/software/projects/PROJ/boards/1 \
-  --project-key PROJ \
-  --priority High
-
-# Refine Jira ticket to Markdown
-/create-sdd-ticket \
-  --from-jira PROJ-100 \
-  --save-to-markdown ./specs/refined-PROJ-100.md
-```
-
----
-
 ## Quality Assurance
 
 ### `/code-quality-check`

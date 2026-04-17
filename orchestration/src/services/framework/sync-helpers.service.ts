@@ -13,7 +13,9 @@ import {
 import type { ResolvedSkill, GeneratedAgent } from '../../nodes/initialize-project/phase5/types.js';
 import type { StackProfile } from '../../schemas/index.js';
 import { copyFileSync, mkdirSync, readdirSync, statSync, existsSync, readFileSync } from 'fs';
+import { rm } from 'fs/promises';
 import { join, dirname } from 'path';
+import type { ResourceInfo } from './config-updater.service.js';
 
 /**
  * Copy a skill directory recursively (extracted from skill-resolver.ts internal function)
@@ -193,4 +195,53 @@ export async function syncSingleCommand(sourcePath: string, targetPath: string):
   const targetDir = dirname(targetPath);
   mkdirSync(targetDir, { recursive: true });
   copyFileSync(sourcePath, targetPath);
+}
+
+function getManagedCommandRelativePath(
+  commandName: string,
+  commandInfo: Partial<ResourceInfo>,
+): string {
+  if (commandInfo.source_path?.startsWith('commands/')) {
+    return commandInfo.source_path.slice('commands/'.length);
+  }
+
+  return `${commandName}.md`;
+}
+
+export async function pruneStaleManagedCommands(params: {
+  projectPath: string;
+  commandState: Record<string, Partial<ResourceInfo>>;
+  expectedCommandNames: Set<string>;
+  removeResourceFromState: (resourceType: 'commands', resourceName: string) => Promise<boolean>;
+}): Promise<{ removed: number }> {
+  const { projectPath, commandState, expectedCommandNames, removeResourceFromState } = params;
+  let removed = 0;
+
+  for (const [commandName, commandInfo] of Object.entries(commandState)) {
+    if (!commandInfo.managed_by_framework) {
+      continue;
+    }
+
+    if (expectedCommandNames.has(commandName)) {
+      continue;
+    }
+
+    const relativePath = getManagedCommandRelativePath(commandName, commandInfo);
+    const targetPath = join(projectPath, '.claude', 'commands', relativePath);
+
+    try {
+      if (existsSync(targetPath)) {
+        await rm(targetPath, { force: true });
+      }
+
+      const stateRemoved = await removeResourceFromState('commands', commandName);
+      if (stateRemoved) {
+        removed++;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return { removed };
 }

@@ -54,7 +54,7 @@ ls .claude/
 
 ```bash
 # In Claude Code:
-/create-sdd-ticket --from-input "Add dark mode toggle to settings page" --save-to-markdown .claude-temp/tickets/dark-mode/ticket.md
+/create-sdd-ticket --from-input "Add dark mode toggle to settings page" --save-to-markdown "./specs/dark-mode.md"
 ```
 
 **What happens**:

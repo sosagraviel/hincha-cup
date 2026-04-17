@@ -3,11 +3,14 @@ import {
   updateSingleSkill,
   addSingleSkill,
   regenerateSingleAgent,
+  pruneStaleManagedCommands,
 } from '../../../../src/services/framework/sync-helpers.service.js';
 import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 
 // Mock dependencies
 vi.mock('fs');
+vi.mock('fs/promises');
 vi.mock('../../../../src/nodes/initialize-project/phase5/skill-resolver.js', () => ({
   resolveSkills: vi.fn().mockReturnValue([
     {
@@ -142,6 +145,120 @@ describe('sync-helpers.service', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
+    });
+  });
+
+  describe('pruneStaleManagedCommands', () => {
+    it('should remove framework-managed commands that are no longer expected', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fsPromises.rm).mockResolvedValue(undefined);
+
+      const removeResourceFromState = vi.fn().mockResolvedValue(true);
+
+      const result = await pruneStaleManagedCommands({
+        projectPath: '/project',
+        commandState: {
+          'create-sdd-ticket': {
+            managed_by_framework: true,
+            source_path: 'commands/create-sdd-ticket.md',
+          },
+        },
+        expectedCommandNames: new Set(['implement-ticket']),
+        removeResourceFromState,
+      });
+
+      expect(result.removed).toBe(1);
+      expect(fsPromises.rm).toHaveBeenCalledWith('/project/.claude/commands/create-sdd-ticket.md', {
+        force: true,
+      });
+      expect(removeResourceFromState).toHaveBeenCalledWith('commands', 'create-sdd-ticket');
+    });
+
+    it('should keep existing framework-managed commands', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      const removeResourceFromState = vi.fn().mockResolvedValue(true);
+
+      const result = await pruneStaleManagedCommands({
+        projectPath: '/project',
+        commandState: {
+          'implement-ticket': {
+            managed_by_framework: true,
+            source_path: 'commands/implement-ticket.md',
+          },
+        },
+        expectedCommandNames: new Set(['implement-ticket']),
+        removeResourceFromState,
+      });
+
+      expect(result.removed).toBe(0);
+      expect(fsPromises.rm).not.toHaveBeenCalled();
+      expect(removeResourceFromState).not.toHaveBeenCalled();
+    });
+
+    it('should not remove user-managed commands', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      const removeResourceFromState = vi.fn().mockResolvedValue(true);
+
+      const result = await pruneStaleManagedCommands({
+        projectPath: '/project',
+        commandState: {
+          'create-sdd-ticket': {
+            managed_by_framework: false,
+            source_path: 'commands/create-sdd-ticket.md',
+          },
+        },
+        expectedCommandNames: new Set(),
+        removeResourceFromState,
+      });
+
+      expect(result.removed).toBe(0);
+      expect(fsPromises.rm).not.toHaveBeenCalled();
+      expect(removeResourceFromState).not.toHaveBeenCalled();
+    });
+
+    it('should not increment removed when state cleanup returns false', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fsPromises.rm).mockResolvedValue(undefined);
+      const removeResourceFromState = vi.fn().mockResolvedValue(false);
+
+      const result = await pruneStaleManagedCommands({
+        projectPath: '/project',
+        commandState: {
+          'create-sdd-ticket': {
+            managed_by_framework: true,
+            source_path: 'commands/create-sdd-ticket.md',
+          },
+        },
+        expectedCommandNames: new Set(),
+        removeResourceFromState,
+      });
+
+      expect(result.removed).toBe(0);
+      expect(fsPromises.rm).toHaveBeenCalledWith('/project/.claude/commands/create-sdd-ticket.md', {
+        force: true,
+      });
+      expect(removeResourceFromState).toHaveBeenCalledWith('commands', 'create-sdd-ticket');
+    });
+
+    it('should continue when file deletion throws', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fsPromises.rm).mockRejectedValue(new Error('permission denied'));
+      const removeResourceFromState = vi.fn().mockResolvedValue(true);
+
+      const result = await pruneStaleManagedCommands({
+        projectPath: '/project',
+        commandState: {
+          'create-sdd-ticket': {
+            managed_by_framework: true,
+            source_path: 'commands/create-sdd-ticket.md',
+          },
+        },
+        expectedCommandNames: new Set(),
+        removeResourceFromState,
+      });
+
+      expect(result.removed).toBe(0);
+      expect(removeResourceFromState).not.toHaveBeenCalled();
     });
   });
 });

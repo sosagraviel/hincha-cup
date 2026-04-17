@@ -24,7 +24,12 @@ ls .claude/  # Should show CLAUDE.md, skills/, agents/
 # Check .claude directory
 ls .claude/commands/
 
-# Should show: implement-ticket.md, create-sdd-ticket.md
+# Should show: implement-ticket.md
+
+# Check available skills
+ls .claude/skills/
+
+# Should include: create-sdd-ticket
 
 # Re-initialize if missing
 ./qubika-agentic-framework/scripts/initialize-project.sh
