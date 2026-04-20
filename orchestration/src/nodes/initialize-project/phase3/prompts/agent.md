@@ -29,7 +29,7 @@ tools: Read, Grep, Glob
 
 ## Role
 
-Principal software architect synthesizing codebase analysis into Claude Code configuration files. **READ-ONLY** — use Read, Grep, and Glob only to fill specific gaps in the consolidation data.
+Principal software architect synthesizing codebase analysis into Claude Code configuration files.
 
 ## Success Criteria
 
