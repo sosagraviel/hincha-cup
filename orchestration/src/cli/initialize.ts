@@ -12,6 +12,8 @@ import { getLLMFactory } from '../llm/llm-factory.js';
 import { logger } from '../utils/logger.js';
 import { AgentFactory } from '../utils/shared/agent-factory/index.js';
 import { runPreflightChecks } from '../utils/preflight-checks.js';
+import { Provider } from '../providers/types.js';
+import { setActiveProvider } from '../utils/provider-paths.js';
 
 // Get the directory where this CLI script is located
 // This file is at: <framework>/orchestration/dist/cli/initialize.js
@@ -40,6 +42,7 @@ program
   )
   .option('--list-models', 'List available model aliases and exit')
   .option('--list-tiers', 'List available tiers and exit')
+  .option('--provider <provider>', 'Target provider: claude or codex (auto-detected if omitted)')
   .option('--resume <thread-id>', 'Resume from checkpoint using thread ID')
   .option('--start-phase <number>', 'Start from specific phase (1-6)', '1')
   .option('--stream', 'Stream real-time progress (not yet implemented)', false)
@@ -115,6 +118,23 @@ program
         process.env.MODEL_TIER = options.modelTier;
       }
 
+      // Set provider based on --provider flag or auto-detect from preflight
+      if (options.provider) {
+        const providerLower = options.provider.toLowerCase();
+        if (providerLower === 'codex' || providerLower === 'openai') {
+          setActiveProvider(Provider.CODEX);
+          // Auto-select openai tier if no explicit tier set
+          if (!options.modelTier) {
+            process.env.MODEL_TIER = 'openai';
+          }
+        } else if (providerLower === 'claude' || providerLower === 'anthropic') {
+          setActiveProvider(Provider.CLAUDE);
+        } else {
+          logger.error(`Unknown provider: ${options.provider}. Use 'claude' or 'codex'.`);
+          process.exit(1);
+        }
+      }
+
       const projectPath = path.resolve(options.projectPath);
       const frameworkPath = path.resolve(options.frameworkPath);
 
@@ -173,12 +193,30 @@ program
       if (preflightResult.claudeVersion) {
         logger.success(`✓ Claude CLI ${preflightResult.claudeVersion}`);
       }
+      if (preflightResult.codexVersion) {
+        logger.success(`✓ Codex CLI ${preflightResult.codexVersion}`);
+      }
+
+      // Auto-detect provider from preflight if not explicitly set
+      if (!options.provider) {
+        if (preflightResult.authMode === 'codex_cli') {
+          setActiveProvider(Provider.CODEX);
+          if (!options.modelTier) {
+            process.env.MODEL_TIER = 'openai';
+          }
+        }
+        // claude is already the default
+      }
 
       // Show auth mode
       if (preflightResult.authMode === 'api_key') {
-        logger.success('✓ Authentication: API Keys detected');
+        logger.success(
+          `✓ Authentication: API Keys detected (${preflightResult.provider || 'unknown'})`,
+        );
       } else if (preflightResult.authMode === 'claude_cli') {
         logger.success('✓ Authentication: Claude CLI (subscription)');
+      } else if (preflightResult.authMode === 'codex_cli') {
+        logger.success('✓ Authentication: Codex CLI (subscription)');
       }
 
       if (preflightResult.gitignoreUpdated) {

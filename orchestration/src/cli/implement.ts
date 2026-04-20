@@ -9,6 +9,8 @@ import { Logger } from '../utils/logger.js';
 import { compileImplementTicketGraph } from '../graphs/implement-ticket.graph.js';
 import { MemorySaver } from '@langchain/langgraph';
 import type { ImplementTicketState } from '../state/schemas/implement-ticket.schema.js';
+import { Provider } from '../providers/types.js';
+import { setActiveProvider } from '../utils/provider-paths.js';
 
 const logger = new Logger('implement-ticket');
 
@@ -53,6 +55,7 @@ program
   .option('--from-input', 'Read ticket context from stdin')
   .option('--start-phase <phase>', 'Start from specific phase (0-10)', parseInt)
   .option('--resume', 'Auto-detect last completed phase and resume from next')
+  .option('--provider <provider>', 'Target provider: claude or codex (auto-detected if omitted)')
   .option(
     '--model-tier <tier>',
     'Model tier to use (standard, fast, advanced, openai, gemini)',
@@ -61,6 +64,19 @@ program
   .parse(process.argv);
 
 const options = program.opts();
+
+// Set provider based on --provider flag
+if (options.provider) {
+  const providerLower = options.provider.toLowerCase();
+  if (providerLower === 'codex' || providerLower === 'openai') {
+    setActiveProvider(Provider.CODEX);
+    if (options.modelTier === 'standard') {
+      process.env.MODEL_TIER = 'openai';
+    }
+  } else if (providerLower === 'claude' || providerLower === 'anthropic') {
+    setActiveProvider(Provider.CLAUDE);
+  }
+}
 
 const projectPath = resolve(options.projectPath);
 const frameworkPath = resolve(options.frameworkPath);
