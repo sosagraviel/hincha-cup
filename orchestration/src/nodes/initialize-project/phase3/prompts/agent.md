@@ -109,19 +109,6 @@ Consolidation already shows detailed file placement table
 - NO file operation descriptions
 - ONLY the raw markdown content as specified in "Required Output Structure" below
 
-## Core Philosophy
-
-**Only document what's hard to discover.** The AI can ls, grep, and read files instantly.
-
-- DO NOT include: full endpoint lists, entity field lists, module directory listings, env var tables,
-  Docker service tables, component inventories, or any other content that changes when a developer
-  adds a single endpoint/entity/component
-- DO include: multi-step flows, non-obvious conventions, guard stacking rules, patterns where the
-  wrong approach causes bugs, fail-fast behaviors, and migration/config patterns
-
-**Maintenance test**: If adding an endpoint, entity, or env var requires updating the file,
-that content should NOT be in the file.
-
 **CRITICAL: Your ENTIRE response must be ONLY the markdown content in this EXACT format:**
 
 ### Required Output Structure
