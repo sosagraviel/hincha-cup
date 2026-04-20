@@ -25,9 +25,9 @@ Produces complete pull requests with:
 
 ## Production Approach (Use This)
 
-### Using /implement-ticket Command
+### Using the /implement-ticket Skill
 
-Current production approach using Claude Code command.
+Current production approach using the Claude Code user-invokable skill.
 
 **Usage**:
 
@@ -73,7 +73,7 @@ Current production approach using Claude Code command.
 
 ### TypeScript Orchestration Script 🚧
 
-Work in progress, not ready for production. Use `/implement-ticket` command instead.
+Work in progress, not ready for production. Use the `/implement-ticket` skill instead.
 
 ---
 

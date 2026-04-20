@@ -132,7 +132,7 @@ ls .claude-temp/tickets/PROJ-123/artifacts/
 
 **Linting/Type Checking**:
 ```bash
-# Auto-handled by /implement-ticket command
+# Auto-handled by the /implement-ticket skill
 # Manual check if needed:
 npm run lint:fix
 npx tsc --noEmit

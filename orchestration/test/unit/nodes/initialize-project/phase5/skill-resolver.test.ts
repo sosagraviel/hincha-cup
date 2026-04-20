@@ -104,6 +104,31 @@ describe('skill-resolver', () => {
       expect(alwaysSkill?.trigger_mode).toBe('always');
     });
 
+    it('should always include fetch-ticket-context regardless of detected stack', () => {
+      const stackProfile = createMockStackProfile();
+      const skillsConfig = createSkillsConfig([
+        {
+          name: 'fetch-ticket-context',
+          path: '040-integrations/fetch-ticket-context',
+          description: 'Fetch ticket context from external systems',
+          trigger_mode: 'always',
+          triggers: [],
+          compatible_languages: [],
+          is_linkable_to_agents: false,
+        },
+      ]);
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(skillsConfig));
+
+      const resolved = resolveSkills(stackProfile, '/test/framework');
+
+      const fetchSkill = resolved.find((s) => s.name === 'fetch-ticket-context');
+      expect(fetchSkill).toBeDefined();
+      expect(fetchSkill?.reason).toBe('Always included');
+      expect(fetchSkill?.trigger_mode).toBe('always');
+    });
+
     it('should skip generated-mode skills', () => {
       const stackProfile = createMockStackProfile();
       const skillsConfig = createSkillsConfig([
