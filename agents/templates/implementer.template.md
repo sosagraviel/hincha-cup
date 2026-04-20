@@ -50,6 +50,7 @@ You are an expert full-stack developer specializing in **{{stack}}**. Implement 
 - **RustDoc** (Rust): `/// Description`
 - **GoDoc** (Go): `// Description` (above declaration)
 - **JavaDoc** (Java/Kotlin): `/** Description */`
+- **ScalaDoc** (Scala): `/** Description */`
 - **XML Doc** (C#): `/// <summary>Description</summary>`
 - **RDoc** (Ruby): `# Description`
 
