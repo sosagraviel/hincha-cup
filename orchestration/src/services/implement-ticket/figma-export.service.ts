@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { resolveConfigPath } from '../../utils/provider-paths.js';
 
 /**
  * Figma Export Service
@@ -212,7 +213,7 @@ export class FigmaExportService {
   // -------------------------------------------------------------------------
 
   private hasMcpAccess(): boolean {
-    const mcpConfigPath = join(this.projectPath, '.claude', 'mcp.json');
+    const mcpConfigPath = resolveConfigPath(this.projectPath, 'mcp.json');
     if (!existsSync(mcpConfigPath)) return false;
     try {
       const config = JSON.parse(readFileSync(mcpConfigPath, 'utf-8'));
