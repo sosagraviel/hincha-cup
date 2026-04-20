@@ -189,7 +189,7 @@ export async function runPreflightChecks(
         codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
 
         // Verify local Codex CLI is authenticated
-        const isAuthenticated = await checkCodexAuthentication();
+        const isAuthenticated = await checkCodexAuthentication(localCodexPath);
 
         if (!isAuthenticated) {
           console.log('\n⚠️  Local Codex CLI is not authenticated.');
@@ -239,7 +239,7 @@ export async function runPreflightChecks(
         }).trim();
         codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
 
-        const isAuthenticated = await checkCodexAuthentication();
+        const isAuthenticated = await checkCodexAuthentication('codex');
         if (!isAuthenticated) {
           errors.push(
             `Codex CLI is not authenticated.\n` +
@@ -336,15 +336,28 @@ export async function runPreflightChecks(
           encoding: 'utf-8',
           stdio: 'pipe',
         }).trim();
-        claudeVersion = claudeVersionOutput.split('\n')[0] || 'unknown';
-        authMode = 'claude_cli';
-        provider = 'anthropic';
+        const isAuthenticated = await checkClaudeAuthentication('claude');
+        if (!isAuthenticated) {
+          errors.push(
+            `Claude CLI is not authenticated.\n` +
+              `\n` +
+              `Please authenticate:\n` +
+              `  claude login\n` +
+              `\n` +
+              `Or use API key mode instead:\n` +
+              `  export ANTHROPIC_API_KEY="your-api-key-here"`,
+          );
+        } else {
+          claudeVersion = claudeVersionOutput.split('\n')[0] || 'unknown';
+          authMode = 'claude_cli';
+          provider = 'anthropic';
 
-        warnings.push(
-          `Using global Claude CLI instead of framework's bundled version.\n` +
-            `For consistency, ensure framework dependencies are installed:\n` +
-            `  cd orchestration && npm install`,
-        );
+          warnings.push(
+            `Using global Claude CLI instead of framework's bundled version.\n` +
+              `For consistency, ensure framework dependencies are installed:\n` +
+              `  cd orchestration && npm install`,
+          );
+        }
       } catch {
         // No Claude CLI at all
       }
@@ -517,18 +530,17 @@ async function checkClaudeAuthentication(claudePath: string): Promise<boolean> {
 }
 
 /**
- * Check if Codex CLI is authenticated
- * Codex stores credentials in ~/.codex/auth.json or OS keyring
+ * Check if Codex CLI is authenticated by running `codex login --verify`
+ * Exits 0 when logged in, non-zero otherwise.
  */
-async function checkCodexAuthentication(): Promise<boolean> {
+async function checkCodexAuthentication(codexPath: string): Promise<boolean> {
   try {
-    const os = await import('os');
-    const authPath = join(os.homedir(), '.codex', 'auth.json');
-    if (existsSync(authPath)) {
-      const authData = JSON.parse(readFileSync(authPath, 'utf-8'));
-      return !!(authData.access_token || authData.api_key || authData.refresh_token);
-    }
-    return false;
+    execSync(`"${codexPath}" login --verify`, {
+      encoding: 'utf-8',
+      timeout: 10000,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return true;
   } catch {
     return false;
   }

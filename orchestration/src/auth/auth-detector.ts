@@ -320,23 +320,22 @@ export async function getCodexCLIVersion(): Promise<string | undefined> {
 }
 
 /**
- * Check if Codex CLI is authenticated
- * Codex stores credentials in ~/.codex/auth.json or OS keyring
+ * Check if Codex CLI is authenticated using `codex login --verify`
+ * Exits 0 when logged in, non-zero otherwise.
+ * Also accepts OPENAI_API_KEY as valid auth.
  */
 export async function isCodexCLIAuthenticated(): Promise<boolean> {
+  // API key is always valid auth for Codex
+  if (process.env.OPENAI_API_KEY) return true;
+
   try {
-    const os = await import('os');
-    const path = await import('path');
-    const fs = await import('fs');
-
-    const authPath = path.join(os.homedir(), '.codex', 'auth.json');
-    if (fs.existsSync(authPath)) {
-      const authData = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
-      return !!(authData.access_token || authData.api_key || authData.refresh_token);
-    }
-
-    // Fallback: OPENAI_API_KEY is also valid auth for Codex
-    return !!process.env.OPENAI_API_KEY;
+    const localPath = resolveLocalCLIPath('codex');
+    const cmd = localPath ? `"${localPath}" login --verify` : 'codex login --verify';
+    execSync(cmd, {
+      timeout: 10000,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return true;
   } catch {
     return false;
   }
