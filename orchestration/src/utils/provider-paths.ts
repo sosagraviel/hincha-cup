@@ -1,0 +1,107 @@
+/**
+ * Provider-aware path resolution utility.
+ *
+ * Replaces all hardcoded '.claude/' directory references with provider-aware
+ * path resolution. Call setActiveProvider() once during initialization, then
+ * use the resolve functions throughout the codebase.
+ */
+
+import { join } from 'path';
+import { Provider, type ProviderPaths } from '../providers/types.js';
+
+const PROVIDER_PATHS: Record<Provider, ProviderPaths> = {
+  [Provider.CLAUDE]: {
+    configDir: '.claude',
+    instructionFile: 'CLAUDE.md',
+    tempDir: '.claude-temp',
+    backupDir: '.claude-backups',
+    homeConfigDir: '.claude',
+    hooksFile: 'settings.json',
+    credentialsPath: '.claude/.credentials.json',
+  },
+  [Provider.CODEX]: {
+    configDir: '.codex',
+    instructionFile: 'AGENTS.md',
+    tempDir: '.codex-temp',
+    backupDir: '.codex-backups',
+    homeConfigDir: '.codex',
+    hooksFile: 'hooks.json',
+    credentialsPath: '.codex/auth.json',
+  },
+};
+
+// Module-level active provider (set during initialization)
+let activeProvider: Provider = Provider.CLAUDE;
+
+/**
+ * Set the active provider for path resolution.
+ * Called once during framework initialization.
+ */
+export function setActiveProvider(provider: Provider): void {
+  activeProvider = provider;
+}
+
+/**
+ * Get the active provider
+ */
+export function getActiveProvider(): Provider {
+  return activeProvider;
+}
+
+/**
+ * Get provider paths for a specific or the active provider
+ */
+export function getProviderPaths(provider?: Provider): ProviderPaths {
+  return PROVIDER_PATHS[provider || activeProvider];
+}
+
+/**
+ * Resolve a project-relative path using the provider's config directory.
+ *
+ * Examples:
+ *   resolveConfigPath('/project') -> "/project/.claude"
+ *   resolveConfigPath('/project', 'skills', 'my-skill') -> "/project/.claude/skills/my-skill"
+ */
+export function resolveConfigPath(projectPath: string, ...segments: string[]): string {
+  const paths = getProviderPaths();
+  return join(projectPath, paths.configDir, ...segments);
+}
+
+/**
+ * Get the instruction file path for the active provider.
+ * Returns: "/project/.claude/CLAUDE.md" or "/project/.codex/AGENTS.md"
+ */
+export function resolveInstructionFilePath(projectPath: string): string {
+  const paths = getProviderPaths();
+  return join(projectPath, paths.configDir, paths.instructionFile);
+}
+
+/**
+ * Get the temp directory path for the active provider.
+ */
+export function resolveTempPath(projectPath: string, ...segments: string[]): string {
+  const paths = getProviderPaths();
+  return join(projectPath, paths.tempDir, ...segments);
+}
+
+/**
+ * Get the backup directory path.
+ */
+export function resolveBackupPath(projectPath: string, ...segments: string[]): string {
+  const paths = getProviderPaths();
+  return join(projectPath, paths.backupDir, ...segments);
+}
+
+/**
+ * Get the framework config path (framework-config.json in provider dir).
+ */
+export function resolveFrameworkConfigPath(projectPath: string): string {
+  return resolveConfigPath(projectPath, 'framework-config.json');
+}
+
+/**
+ * Get the instruction file name for display purposes.
+ */
+export function getInstructionFileName(provider?: Provider): string {
+  return getProviderPaths(provider).instructionFile;
+}

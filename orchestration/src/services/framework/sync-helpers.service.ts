@@ -16,6 +16,7 @@ import { copyFileSync, mkdirSync, readdirSync, statSync, existsSync, readFileSyn
 import { rm } from 'fs/promises';
 import { join, dirname } from 'path';
 import type { ResourceInfo } from './config-updater.service.js';
+import { resolveConfigPath, resolveFrameworkConfigPath } from '../../utils/provider-paths.js';
 
 /**
  * Copy a skill directory recursively (extracted from skill-resolver.ts internal function)
@@ -67,7 +68,7 @@ export async function updateSingleSkill(
   }
 
   // Use flat structure (skill name only, not nested path)
-  const targetPath = join(projectPath, '.claude', 'skills', skillName);
+  const targetPath = resolveConfigPath(projectPath, 'skills', skillName);
 
   // Copy the skill
   const filesChanged = copySkillDirectory(skillPath, targetPath);
@@ -106,7 +107,7 @@ export async function regenerateSingleAgent(
 ): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
   try {
     // Read framework-config.json to get stack profile
-    const configPath = join(projectPath, '.claude', 'framework-config.json');
+    const configPath = resolveFrameworkConfigPath(projectPath);
     if (!existsSync(configPath)) {
       return {
         success: false,
@@ -227,7 +228,7 @@ export async function pruneStaleManagedCommands(params: {
     }
 
     const relativePath = getManagedCommandRelativePath(commandName, commandInfo);
-    const targetPath = join(projectPath, '.claude', 'commands', relativePath);
+    const targetPath = resolveConfigPath(projectPath, 'commands', relativePath);
 
     try {
       if (existsSync(targetPath)) {

@@ -30,6 +30,11 @@ import {
 } from '../services/framework/sync-helpers.service.js';
 import { resolveSkills } from '../nodes/initialize-project/phase5/skill-resolver.js';
 import { generateAgents } from '../nodes/initialize-project/phase5/agent-generator.js';
+import {
+  resolveConfigPath,
+  resolveFrameworkConfigPath,
+  resolveBackupPath,
+} from '../utils/provider-paths.js';
 
 interface SyncConfig {
   projectPath: string;
@@ -90,7 +95,7 @@ async function validatePrerequisites(config: SyncConfig): Promise<void> {
   logger.info('Step 1: Validating prerequisites...');
 
   // Check for framework-config.json
-  const configFile = join(config.projectPath, '.claude/framework-config.json');
+  const configFile = resolveFrameworkConfigPath(config.projectPath);
   if (!existsSync(configFile)) {
     throw new Error(
       `framework-config.json not found at ${configFile}. Run initialize-project first.`,
@@ -150,12 +155,12 @@ async function createBackup(config: SyncConfig): Promise<string> {
   logger.info('Step 4: Creating backup...');
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('.')[0] + 'Z';
-  const backupDir = join(config.projectPath, '.claude-backups', timestamp);
+  const backupDir = resolveBackupPath(config.projectPath, timestamp);
 
   await mkdir(backupDir, { recursive: true });
 
   // Backup skills (excluding project-context)
-  const skillsPath = join(config.projectPath, '.claude/skills');
+  const skillsPath = resolveConfigPath(config.projectPath, 'skills');
   if (existsSync(skillsPath)) {
     const backupSkillsPath = join(backupDir, 'skills');
     await mkdir(backupSkillsPath, { recursive: true });
@@ -170,7 +175,7 @@ async function createBackup(config: SyncConfig): Promise<string> {
   }
 
   // Backup agents
-  const agentsPath = join(config.projectPath, '.claude/agents');
+  const agentsPath = resolveConfigPath(config.projectPath, 'agents');
   if (existsSync(agentsPath)) {
     try {
       await cp(agentsPath, join(backupDir, 'agents'), { recursive: true });
@@ -289,7 +294,7 @@ async function syncSkills(config: SyncConfig): Promise<{
     // If skill no longer exists in resolved skills, remove it
     if (!expectedSkillNames.has(existingSkillName)) {
       try {
-        const skillPath = join(config.projectPath, '.claude', 'skills', existingSkillName);
+        const skillPath = resolveConfigPath(config.projectPath, 'skills', existingSkillName);
 
         if (existsSync(skillPath)) {
           await rm(skillPath, { recursive: true, force: true });
@@ -398,7 +403,7 @@ async function syncAgents(
             template_path: relativeTemplatePath,
             template_hash: currentTemplateHash,
             file_hash: configUpdater.hashFile(
-              join(config.projectPath, '.claude/agents', `${agentName}.md`),
+              resolveConfigPath(config.projectPath, 'agents', `${agentName}.md`),
             ),
           });
         }
@@ -423,7 +428,7 @@ async function syncAgents(
           await configUpdater.updateResourceState('agents', agentName, {
             template_hash: currentTemplateHash,
             file_hash: configUpdater.hashFile(
-              join(config.projectPath, '.claude/agents', `${agentName}.md`),
+              resolveConfigPath(config.projectPath, 'agents', `${agentName}.md`),
             ),
           });
         } else if (regenerateResult.skipped) {
@@ -514,7 +519,7 @@ async function syncCommands(config: SyncConfig): Promise<{
     // If command doesn't exist or hash changed, sync it
     if (!existingCommandInfo || currentSourceHash !== existingCommandInfo.source_hash) {
       try {
-        const targetPath = join(config.projectPath, '.claude', 'commands', relativePath);
+        const targetPath = resolveConfigPath(config.projectPath, 'commands', relativePath);
         await syncSingleCommand(commandFile, targetPath);
 
         if (!existingCommandInfo) {

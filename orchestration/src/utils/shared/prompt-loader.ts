@@ -39,6 +39,9 @@ export const STANDARD_IGNORE_DIRS = [
   '.claude',
   '.claude-temp',
   '.claude-backups',
+  '.codex',
+  '.codex-temp',
+  '.codex-backups',
 ];
 
 /**

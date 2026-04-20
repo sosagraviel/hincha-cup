@@ -21,6 +21,7 @@ import { extractFrameworks } from './helpers/framework-extractor.js';
 import { extractInfrastructure } from './helpers/infrastructure-extractor.js';
 import { extractServicesFromPhase1Analyzers } from './helpers/service-extractor.js';
 import { validateStackProfile } from './helpers/stack-profile-validator.js';
+import { resolveConfigPath } from '../../../utils/provider-paths.js';
 
 /**
  * Phase 4: Context Generation Node
@@ -305,7 +306,7 @@ export async function contextGenerationNode(
       state.framework_path,
     );
 
-    const configPath = join(state.project_path, '.claude', 'framework-config.json');
+    const configPath = resolveConfigPath(state.project_path, 'framework-config.json');
     writeFileSync(configPath, JSON.stringify(frameworkConfig, null, 2));
     phaseLogger.success(`✓ Written: ${configPath}`);
 

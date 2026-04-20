@@ -8,6 +8,11 @@
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { extractSynthesisMarkdown } from '../../../../utils/validator.js';
+import {
+  resolveConfigPath,
+  resolveInstructionFilePath,
+  getInstructionFileName,
+} from '../../../../utils/provider-paths.js';
 
 /**
  * Result of synthesis extraction and file writing
@@ -58,14 +63,14 @@ export function extractAndWriteSynthesis(
   const projectContextLines = projectContextContent.split('\n').length;
   logger.success(`✓ Extracted project-context/SKILL.md (${projectContextLines} lines)`);
 
-  // Write CLAUDE.md
-  const claudeMdPath = join(projectPath, '.claude', 'CLAUDE.md');
-  mkdirSync(join(projectPath, '.claude'), { recursive: true });
+  // Write instruction file (CLAUDE.md or AGENTS.md based on active provider)
+  const claudeMdPath = resolveInstructionFilePath(projectPath);
+  mkdirSync(resolveConfigPath(projectPath), { recursive: true });
   writeFileSync(claudeMdPath, claudeMdContent);
   logger.success(`✓ Written: ${claudeMdPath}`);
 
   // Write project-context/SKILL.md
-  const projectContextDir = join(projectPath, '.claude', 'skills', 'project-context');
+  const projectContextDir = resolveConfigPath(projectPath, 'skills', 'project-context');
   mkdirSync(projectContextDir, { recursive: true });
   const projectContextPath = join(projectContextDir, 'SKILL.md');
 
