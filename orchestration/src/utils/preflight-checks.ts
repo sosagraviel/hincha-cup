@@ -259,29 +259,62 @@ export async function runPreflightChecks(
           codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
 
           const isCodexAuth = await checkCodexAuthentication();
-          if (isCodexAuth) {
+
+          if (!isCodexAuth) {
+            console.log('\n⚠️  Local Codex CLI is not authenticated.');
+            console.log(`📍 CLI Location: ${localCodexPath}`);
+            console.log(
+              `Codex CLI authentication failed.\n` +
+                `\n` +
+                `The framework uses a local bundled Codex CLI at:\n` +
+                `  ${localCodexPath}\n` +
+                `\n` +
+                `Please authenticate it manually:\n` +
+                `  "${localCodexPath}" login\n` +
+                `\n`,
+            );
+
+            errors.push(
+              `Codex CLI authentication failed.\n` +
+                `\n` +
+                `The framework uses a local bundled Codex CLI at:\n` +
+                `  ${localCodexPath}\n` +
+                `\n` +
+                `Please authenticate it manually:\n` +
+                `  ${localCodexPath} login\n` +
+                `\n` +
+                `Or use API key mode instead:\n` +
+                `  export OPENAI_API_KEY="your-api-key-here"`,
+            );
+          } else {
             authMode = 'codex_cli';
             provider = 'openai';
           }
-        } catch {
-          // Local Codex CLI failed
+        } catch (error) {
+          warnings.push(
+            `Local Codex CLI found but failed to execute: ${(error as Error).message}\n` +
+              `Path: ${localCodexPath}\n` +
+              `Trying global Codex CLI...`,
+          );
         }
       }
 
       // Fallback to global Codex CLI
-      if (authMode === 'none') {
+      if (authMode === 'none' && errors.length === 0) {
         try {
           const codexVersionOutput = execSync('codex --version', {
             encoding: 'utf-8',
             stdio: 'pipe',
           }).trim();
           codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
+          authMode = 'codex_cli';
+          provider = 'openai';
 
-          const isCodexAuth = await checkCodexAuthentication();
-          if (isCodexAuth) {
-            authMode = 'codex_cli';
-            provider = 'openai';
-          }
+          warnings.push(
+            `Using global Codex CLI instead of framework's bundled version.\n` +
+              `For consistency, ensure framework dependencies are installed:\n` +
+              `  cd orchestration && pnpm install`,
+          );
         } catch {
           // No Codex CLI either
         }
