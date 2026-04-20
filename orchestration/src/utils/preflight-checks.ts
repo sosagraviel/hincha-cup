@@ -12,8 +12,10 @@ export interface PreflightResult {
   nodeVersion?: string;
   npmVersion?: string;
   claudeVersion?: string;
+  codexVersion?: string;
   gitignoreUpdated?: boolean;
-  authMode?: 'api_key' | 'claude_cli' | 'none';
+  authMode?: 'api_key' | 'claude_cli' | 'codex_cli' | 'none';
+  provider?: string;
 }
 
 /**
@@ -43,8 +45,10 @@ export async function runPreflightChecks(
   let nodeVersion: string | undefined;
   let npmVersion: string | undefined;
   let claudeVersion: string | undefined;
+  let codexVersion: string | undefined;
   let gitignoreUpdated = false;
-  let authMode: 'api_key' | 'claude_cli' | 'none' = 'none';
+  let authMode: 'api_key' | 'claude_cli' | 'codex_cli' | 'none' = 'none';
+  let provider: string | undefined;
 
   // ============================================================================
   // CHECK 1: Project Path Exists
@@ -149,6 +153,7 @@ export async function runPreflightChecks(
 
   if (hasAnthropicKey || hasOpenAIKey || hasGoogleKey) {
     authMode = 'api_key';
+    provider = hasAnthropicKey ? 'anthropic' : hasOpenAIKey ? 'openai' : 'google';
     try {
       const claudeVersionOutput = execSync('claude --version', {
         encoding: 'utf-8',
@@ -157,6 +162,15 @@ export async function runPreflightChecks(
       claudeVersion = claudeVersionOutput.split('\n')[0] || 'unknown';
     } catch {
       // Ignore - API key mode doesn't need Claude CLI
+    }
+    try {
+      const codexVersionOutput = execSync('codex --version', {
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      }).trim();
+      codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
+    } catch {
+      // Ignore - API key mode doesn't need Codex CLI
     }
   } else {
     const localClaudePath = join(frameworkPath, 'orchestration/node_modules/.bin/claude');
@@ -220,27 +234,76 @@ export async function runPreflightChecks(
         }).trim();
         claudeVersion = claudeVersionOutput.split('\n')[0] || 'unknown';
         authMode = 'claude_cli';
+        provider = 'anthropic';
 
         warnings.push(
           `Using global Claude CLI instead of framework's bundled version.\n` +
             `For consistency, ensure framework dependencies are installed:\n` +
             `  cd orchestration && npm install`,
         );
-      } catch (error) {
-        // No Claude CLI at all
-        authMode = 'none';
-        errors.push(
-          `No authentication method found.\n` +
-            `\n` +
-            `Option 1: Use API Keys (recommended for production)\n` +
-            `  Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY\n` +
-            `  export ANTHROPIC_API_KEY="your-api-key-here"\n` +
-            `\n` +
-            `Option 2: Use Claude CLI (requires Claude Pro/Max subscription)\n` +
-            `  Install framework dependencies: cd orchestration && npm install\n` +
-            `  Or install globally: npm install -g @anthropic-ai/claude-code`,
-        );
+      } catch {
+        // No Claude CLI - try Codex CLI
       }
+    }
+
+    // Try Codex CLI if no Claude CLI found
+    if (authMode === 'none') {
+      const localCodexPath = join(frameworkPath, 'orchestration/node_modules/.bin/codex');
+
+      if (existsSync(localCodexPath)) {
+        try {
+          const codexVersionOutput = execSync(`"${localCodexPath}" --version`, {
+            encoding: 'utf-8',
+            stdio: 'pipe',
+          }).trim();
+          codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
+
+          const isCodexAuth = await checkCodexAuthentication();
+          if (isCodexAuth) {
+            authMode = 'codex_cli';
+            provider = 'openai';
+          }
+        } catch {
+          // Local Codex CLI failed
+        }
+      }
+
+      // Fallback to global Codex CLI
+      if (authMode === 'none') {
+        try {
+          const codexVersionOutput = execSync('codex --version', {
+            encoding: 'utf-8',
+            stdio: 'pipe',
+          }).trim();
+          codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
+
+          const isCodexAuth = await checkCodexAuthentication();
+          if (isCodexAuth) {
+            authMode = 'codex_cli';
+            provider = 'openai';
+          }
+        } catch {
+          // No Codex CLI either
+        }
+      }
+    }
+
+    // No CLI found at all
+    if (authMode === 'none') {
+      errors.push(
+        `No authentication method found.\n` +
+          `\n` +
+          `Option 1: Use API Keys (recommended for production)\n` +
+          `  Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY\n` +
+          `  export ANTHROPIC_API_KEY="your-api-key-here"\n` +
+          `\n` +
+          `Option 2: Use Codex CLI (uses ChatGPT subscription)\n` +
+          `  npm install -g @openai/codex && codex login\n` +
+          `\n` +
+          `Option 3: Use Claude CLI (requires Claude Pro/Max subscription)\n` +
+          `  Install framework dependencies: cd orchestration && npm install\n` +
+          `  Or install globally: npm install -g @anthropic-ai/claude-code`,
+      );
     }
   }
 
@@ -274,7 +337,13 @@ export async function runPreflightChecks(
   // Framework is ALWAYS at project root: <project>/<framework-name>/
   const frameworkDirName = basename(frameworkPath);
 
-  const requiredEntries = ['.claude-temp', '.claude-backups', frameworkDirName];
+  const requiredEntries = [
+    '.claude-temp',
+    '.claude-backups',
+    '.codex-temp',
+    '.codex-backups',
+    frameworkDirName,
+  ];
 
   // Check if project has a .gitignore file
   if (!existsSync(gitignorePath)) {
@@ -284,6 +353,8 @@ export async function runPreflightChecks(
         '# AI Agentic Framework files',
         '.claude-temp/',
         '.claude-backups/',
+        '.codex-temp/',
+        '.codex-backups/',
         `${frameworkDirName}/`,
         '',
       ].join('\n');
@@ -355,8 +426,10 @@ export async function runPreflightChecks(
     nodeVersion,
     npmVersion,
     claudeVersion,
+    codexVersion,
     gitignoreUpdated,
     authMode,
+    provider,
   };
 }
 
@@ -376,7 +449,25 @@ async function checkClaudeAuthentication(claudePath: string): Promise<boolean> {
     // Parse the JSON output to check login status
     const authStatus = JSON.parse(testResult.trim());
     return authStatus.loggedIn === true;
-  } catch (error: any) {
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if Codex CLI is authenticated
+ * Codex stores credentials in ~/.codex/auth.json or OS keyring
+ */
+async function checkCodexAuthentication(): Promise<boolean> {
+  try {
+    const os = await import('os');
+    const authPath = join(os.homedir(), '.codex', 'auth.json');
+    if (existsSync(authPath)) {
+      const authData = JSON.parse(readFileSync(authPath, 'utf-8'));
+      return !!(authData.access_token || authData.api_key || authData.refresh_token);
+    }
+    return false;
+  } catch {
     return false;
   }
 }

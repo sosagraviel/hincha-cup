@@ -10,6 +10,9 @@ export enum AuthMode {
   /** Use Claude CLI with subscription auth (Claude Pro/Max, TOS-compliant) */
   CLAUDE_CLI = 'claude_cli',
 
+  /** Use Codex CLI with subscription auth (ChatGPT Plus/Pro/Enterprise) */
+  CODEX_CLI = 'codex_cli',
+
   /** No authentication available */
   NONE = 'none',
 }
@@ -27,11 +30,17 @@ export interface AuthConfig {
   /** Whether Claude CLI is available on the system */
   hasClaudeCLI: boolean;
 
+  /** Whether Codex CLI is available on the system */
+  hasCodexCLI: boolean;
+
   /** Whether an API key is set */
   hasAPIKey: boolean;
 
   /** Version of Claude CLI if available */
   claudeCLIVersion?: string;
+
+  /** Version of Codex CLI if available */
+  codexCLIVersion?: string;
 }
 
 /**
@@ -58,9 +67,13 @@ export interface AuthConfig {
  * ```
  */
 export async function detectAuthMode(): Promise<AuthConfig> {
-  // Check for Claude CLI availability first (used for both modes)
+  // Check CLI availability for both providers
   const hasClaudeCLI = await isClaudeCLIAvailable();
   const claudeCLIVersion = hasClaudeCLI ? await getClaudeCLIVersion() : undefined;
+  const hasCodexCLI = await isCodexCLIAvailable();
+  const codexCLIVersion = hasCodexCLI ? await getCodexCLIVersion() : undefined;
+
+  const baseConfig = { hasClaudeCLI, hasCodexCLI, claudeCLIVersion, codexCLIVersion };
 
   // Priority 1: Check for API keys
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -68,56 +81,63 @@ export async function detectAuthMode(): Promise<AuthConfig> {
   const googleKey = process.env.GOOGLE_API_KEY;
 
   if (anthropicKey) {
-    return {
-      mode: AuthMode.API_KEY,
-      provider: 'anthropic',
-      hasClaudeCLI,
-      hasAPIKey: true,
-      claudeCLIVersion,
-    };
+    return { mode: AuthMode.API_KEY, provider: 'anthropic', hasAPIKey: true, ...baseConfig };
   }
 
   if (openaiKey) {
-    return {
-      mode: AuthMode.API_KEY,
-      provider: 'openai',
-      hasClaudeCLI,
-      hasAPIKey: true,
-      claudeCLIVersion,
-    };
+    return { mode: AuthMode.API_KEY, provider: 'openai', hasAPIKey: true, ...baseConfig };
   }
 
   if (googleKey) {
-    return {
-      mode: AuthMode.API_KEY,
-      provider: 'google',
-      hasClaudeCLI,
-      hasAPIKey: true,
-      claudeCLIVersion,
-    };
+    return { mode: AuthMode.API_KEY, provider: 'google', hasAPIKey: true, ...baseConfig };
   }
 
-  // Priority 2: Check for Claude CLI with subscription auth
-  if (hasClaudeCLI) {
-    const isAuthenticated = await isClaudeCLIAuthenticated();
-    if (isAuthenticated) {
+  // Priority 2: Check explicit PROVIDER env var preference
+  const explicitProvider = process.env.PROVIDER?.toLowerCase();
+
+  if (explicitProvider === 'codex' || explicitProvider === 'openai') {
+    if (hasCodexCLI && (await isCodexCLIAuthenticated())) {
       return {
-        mode: AuthMode.CLAUDE_CLI,
-        provider: 'anthropic',
-        hasClaudeCLI: true,
+        mode: AuthMode.CODEX_CLI,
+        provider: 'openai',
         hasAPIKey: false,
-        claudeCLIVersion,
+        ...baseConfig,
       };
     }
   }
 
-  // Priority 3: No authentication available
-  return {
-    mode: AuthMode.NONE,
-    hasClaudeCLI,
-    hasAPIKey: false,
-    claudeCLIVersion,
-  };
+  if (explicitProvider === 'claude' || explicitProvider === 'anthropic') {
+    if (hasClaudeCLI && (await isClaudeCLIAuthenticated())) {
+      return {
+        mode: AuthMode.CLAUDE_CLI,
+        provider: 'anthropic',
+        hasAPIKey: false,
+        ...baseConfig,
+      };
+    }
+  }
+
+  // Priority 3: Auto-detect CLI (check both, prefer whichever is authenticated)
+  if (hasCodexCLI && (await isCodexCLIAuthenticated())) {
+    return {
+      mode: AuthMode.CODEX_CLI,
+      provider: 'openai',
+      hasAPIKey: false,
+      ...baseConfig,
+    };
+  }
+
+  if (hasClaudeCLI && (await isClaudeCLIAuthenticated())) {
+    return {
+      mode: AuthMode.CLAUDE_CLI,
+      provider: 'anthropic',
+      hasAPIKey: false,
+      ...baseConfig,
+    };
+  }
+
+  // Priority 4: No authentication available
+  return { mode: AuthMode.NONE, hasAPIKey: false, ...baseConfig };
 }
 
 /**
@@ -202,6 +222,57 @@ async function hasClaudeCredentials(): Promise<boolean> {
 }
 
 /**
+ * Check if Codex CLI is installed and available in PATH
+ */
+export async function isCodexCLIAvailable(): Promise<boolean> {
+  try {
+    execSync('which codex', { stdio: 'ignore', timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get Codex CLI version string
+ */
+export async function getCodexCLIVersion(): Promise<string | undefined> {
+  try {
+    const output = execSync('codex --version', {
+      encoding: 'utf-8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return output.trim();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Check if Codex CLI is authenticated
+ * Codex stores credentials in ~/.codex/auth.json or OS keyring
+ */
+export async function isCodexCLIAuthenticated(): Promise<boolean> {
+  try {
+    const os = await import('os');
+    const path = await import('path');
+    const fs = await import('fs');
+
+    const authPath = path.join(os.homedir(), '.codex', 'auth.json');
+    if (fs.existsSync(authPath)) {
+      const authData = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
+      return !!(authData.access_token || authData.api_key || authData.refresh_token);
+    }
+
+    // Fallback: OPENAI_API_KEY is also valid auth for Codex
+    return !!process.env.OPENAI_API_KEY;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Get a user-friendly error message for missing authentication
  */
 export function getAuthErrorMessage(authConfig: AuthConfig): string {
@@ -220,21 +291,34 @@ export function getAuthErrorMessage(authConfig: AuthConfig): string {
   lines.push('  export GOOGLE_API_KEY=...');
   lines.push('');
 
-  // Option 2: Claude CLI
+  // Option 2: Codex CLI
+  if (authConfig.hasCodexCLI) {
+    lines.push('Option 2: Authenticate Codex CLI (uses your ChatGPT subscription)');
+    lines.push('  codex login');
+    lines.push('');
+  } else {
+    lines.push('Option 2: Install and authenticate Codex CLI');
+    lines.push('  npm install -g @openai/codex');
+    lines.push('  codex login');
+    lines.push('');
+  }
+
+  // Option 3: Claude CLI
   if (authConfig.hasClaudeCLI) {
-    lines.push('Option 2: Authenticate Claude CLI (uses your Claude Pro/Max subscription)');
+    lines.push('Option 3: Authenticate Claude CLI (uses your Claude Pro/Max subscription)');
     lines.push('  claude setup-token');
     lines.push('');
   } else {
-    lines.push('Option 2: Install and authenticate Claude CLI');
+    lines.push('Option 3: Install and authenticate Claude CLI');
     lines.push('  Visit: https://code.claude.com');
     lines.push('  Then run: claude setup-token');
     lines.push('');
   }
 
   lines.push('For more information, see:');
-  lines.push('  - API Keys: https://platform.claude.com');
+  lines.push('  - API Keys: https://platform.claude.com or https://platform.openai.com');
   lines.push('  - Claude CLI: https://code.claude.com/docs/en/authentication');
+  lines.push('  - Codex CLI: https://developers.openai.com/codex/cli');
 
   return lines.join('\n');
 }
