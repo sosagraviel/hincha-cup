@@ -39,7 +39,8 @@ Skills are reusable knowledge modules that provide context and patterns to AI ag
 **implement-ticket**
 - **Purpose**: Full feature implementation workflow
 - **Phases**: Analysis → Planning → Implementation → Testing → PR
-- **Command**: `/implement-ticket <TICKET_ID>`
+- **Type**: User-invokable skill
+- **Invocation**: `/implement-ticket <TICKET_ID>`
 - **Time**: 5-15 minutes per ticket
 - **Used by**: All implementation agents
 
@@ -224,7 +225,7 @@ Agents are AI assistants specialized for specific tasks.
 
 ## Commands
 
-Commands are slash commands available in Claude Code.
+Slash invocations available in Claude Code. This includes both native commands and user-invokable skills (such as `implement-ticket`).
 
 ### Project Setup
 
@@ -244,7 +245,7 @@ Commands are slash commands available in Claude Code.
 
 ### Feature Development
 
-**`/implement-ticket <TICKET_ID>`**
+**`/implement-ticket <TICKET_ID>`** *(user-invokable skill)*
 - **Purpose**: Full feature implementation
 - **Phases**:
   1. Fetch ticket context

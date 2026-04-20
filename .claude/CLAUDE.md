@@ -30,7 +30,7 @@ Agents run as Claude CLI subprocesses (`cli-agent-impl.ts`) in CLI auth mode, or
 
 All phase outputs are persisted to `.claude-temp/initialize-project/phase1-outputs/` before being returned to LangGraph state (disk-first idempotency pattern).
 
-**Note**: The orchestration `implement-ticket` workflow is work-in-progress and not currently in use. The `/implement-ticket` command is the active implementation (though it needs improvements). Unless explicitly specified otherwise, "implement-ticket" refers to the command.
+**Note**: The orchestration `implement-ticket` workflow is work-in-progress and not currently in use. The active implementation is the `implement-ticket` skill at `skills/020-development-workflow/implement-ticket/SKILL.md`, which is directly invokable via the Skill tool (frontmatter `user-invokable: true` + `disable-model-invocation: true`). Unless explicitly specified otherwise, "implement-ticket" refers to this skill.
 
 ## File Placement Guide
 
