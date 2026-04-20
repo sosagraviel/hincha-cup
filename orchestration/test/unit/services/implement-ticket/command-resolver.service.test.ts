@@ -237,6 +237,28 @@ describe('CommandResolverService', () => {
       expect(result.some((cmd) => cmd.includes('mvn') || cmd.includes('gradle'))).toBe(true);
     });
 
+    it('should handle scala test fallbacks', () => {
+      const scalaConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'scala',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const scalaService = new CommandResolverService(scalaConfig as any);
+      const result = scalaService.getTestCommand('unit');
+      expect(result.some((cmd) => cmd.includes('sbt test'))).toBe(true);
+    });
+
     it('should handle playwright for e2e', () => {
       const playwrightConfig = {
         project_name: 'test',
@@ -438,6 +460,28 @@ describe('CommandResolverService', () => {
       const javaService = new CommandResolverService(javaConfig as any);
       const result = javaService.getBuildCommand();
       expect(result.some((cmd) => cmd.includes('mvn') || cmd.includes('gradle'))).toBe(true);
+    });
+
+    it('should handle scala build', () => {
+      const scalaConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'scala',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const scalaService = new CommandResolverService(scalaConfig as any);
+      const result = scalaService.getBuildCommand();
+      expect(result.some((cmd) => cmd.includes('sbt'))).toBe(true);
     });
   });
 
@@ -670,6 +714,28 @@ describe('CommandResolverService', () => {
       const result = rustService.getLintCommand();
       expect(result.some((cmd) => cmd.includes('cargo clippy'))).toBe(true);
     });
+
+    it('should get lint command for scala', () => {
+      const scalaConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'scala',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const scalaService = new CommandResolverService(scalaConfig as any);
+      const result = scalaService.getLintCommand();
+      expect(result.some((cmd) => cmd.includes('sbt'))).toBe(true);
+    });
   });
 
   describe('getFormatCommand', () => {
@@ -746,6 +812,28 @@ describe('CommandResolverService', () => {
       const rustService = new CommandResolverService(rustConfig as any);
       const result = rustService.getFormatCommand();
       expect(result.some((cmd) => cmd.includes('cargo fmt') || cmd.includes('rustfmt'))).toBe(true);
+    });
+
+    it('should get format command for scala', () => {
+      const scalaConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'scala',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const scalaService = new CommandResolverService(scalaConfig as any);
+      const result = scalaService.getFormatCommand();
+      expect(result.some((cmd) => cmd.includes('sbt scalafmtAll'))).toBe(true);
     });
   });
 
@@ -884,6 +972,28 @@ describe('CommandResolverService', () => {
       const rustService = new CommandResolverService(rustConfig as any);
       const result = rustService.getPackageManager();
       expect(result).toBe('cargo');
+    });
+
+    it('should return sbt for scala', () => {
+      const scalaConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'scala',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const scalaService = new CommandResolverService(scalaConfig as any);
+      const result = scalaService.getPackageManager();
+      expect(result).toBe('sbt');
     });
 
     it('should default to npm for unknown language', () => {
