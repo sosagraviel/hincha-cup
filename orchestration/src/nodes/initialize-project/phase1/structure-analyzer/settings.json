@@ -1,10 +1,4 @@
 {
-  "mcpServers": {
-    "code_graph": {
-      "command": "${FRAMEWORK_PATH}/scripts/code-review-graph-mcp.sh",
-      "args": ["serve", "--repo", "."]
-    }
-  },
   "hooks": {
     "Stop": [
       {

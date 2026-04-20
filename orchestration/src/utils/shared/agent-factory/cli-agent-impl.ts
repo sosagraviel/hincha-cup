@@ -210,7 +210,20 @@ async function invokeCLI(
     const cliArgs = ['--agent', agentFilePath, '--model', model, '--debug-file', debugFile];
 
     if (toolsRestriction) {
-      cliArgs.push('--tools', toolsRestriction);
+      // Split frontmatter list into built-in tools vs MCP permission patterns.
+      // --tools gates the built-in set (Read/Grep/Glob/Bash/etc.)
+      // --allowedTools is the permission allowlist (required for mcp__<server> entries
+      // to be auto-approved; otherwise they hit the permission prompt and get denied
+      // in non-interactive mode).
+      const entries = toolsRestriction
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+      const builtIns = entries.filter((t) => !t.startsWith('mcp__'));
+      if (builtIns.length > 0) {
+        cliArgs.push('--tools', builtIns.join(','));
+      }
+      cliArgs.push('--allowedTools', entries.join(','));
     } else {
       cliArgs.push('--dangerously-skip-permissions');
     }
@@ -235,6 +248,22 @@ async function invokeCLI(
         fs.writeFileSync(tempSettingsFile, resolvedSettings, 'utf-8');
 
         cliArgs.push('--settings', tempSettingsFile);
+
+        // Claude CLI's settings.json schema does not include `mcpServers`, so
+        // MCP servers must be passed separately via --mcp-config. Convention:
+        // co-locate an `mcp.json` file next to settings.json; if present, resolve
+        // ${FRAMEWORK_PATH} and forward it.
+        const mcpConfigSource = path.join(path.dirname(settingsPath), 'mcp.json');
+        if (fs.existsSync(mcpConfigSource)) {
+          const originalMcp = fs.readFileSync(mcpConfigSource, 'utf-8');
+          const resolvedMcp = originalMcp.replace(
+            /\$\{FRAMEWORK_PATH\}|\$FRAMEWORK_PATH/g,
+            frameworkPath,
+          );
+          const tempMcpConfigFile = path.join(tempDir, 'mcp-config.json');
+          fs.writeFileSync(tempMcpConfigFile, resolvedMcp, 'utf-8');
+          cliArgs.push('--mcp-config', tempMcpConfigFile);
+        }
       } catch (error) {
         // If settings file processing fails, log and continue without settings
         console.warn(
