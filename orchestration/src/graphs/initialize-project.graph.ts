@@ -2,6 +2,7 @@ import { StateGraph, END, START } from '@langchain/langgraph';
 import type { InitializeProjectState } from '../state/schemas/initialize-project.schema.js';
 import { InitializeProjectAnnotation } from '../state/schemas/initialize-project.schema.js';
 
+import { graphFoundationNode } from '../nodes/initialize-project/phase0/graph-foundation.node.js';
 import { structureArchitectureAnalyzerNode } from '../nodes/initialize-project/phase1/structure-analyzer/structure-architecture-analyzer.node.js';
 import { techStackDependenciesAnalyzerNode } from '../nodes/initialize-project/phase1/tech-stack-analyzer/tech-stack-dependencies-analyzer.node.js';
 import { codePatternsTestingAnalyzerNode } from '../nodes/initialize-project/phase1/code-patterns-analyzer/code-patterns-testing-analyzer.node.js';
@@ -15,17 +16,12 @@ import { validationNode } from '../nodes/initialize-project/phase6/validation.no
 /**
  * Router function to determine which phase to start from
  */
-function routeToPhase(state: InitializeProjectState): string | string[] {
+export function routeToPhase(state: InitializeProjectState): string | string[] {
   const startPhase = (state as any).start_phase || 1;
 
   switch (startPhase) {
     case 1:
-      return [
-        'structure_architecture_analyzer',
-        'tech_stack_dependencies_analyzer',
-        'code_patterns_testing_analyzer',
-        'data_flows_integrations_analyzer',
-      ];
+      return 'graph_foundation';
     case 2:
       return 'consolidation';
     case 3:
@@ -41,6 +37,19 @@ function routeToPhase(state: InitializeProjectState): string | string[] {
   }
 }
 
+export function routeAfterGraphFoundation(state: InitializeProjectState): string | string[] {
+  if (state.current_phase === 'failed') {
+    return END;
+  }
+
+  return [
+    'structure_architecture_analyzer',
+    'tech_stack_dependencies_analyzer',
+    'code_patterns_testing_analyzer',
+    'data_flows_integrations_analyzer',
+  ];
+}
+
 /**
  * Initialize Project Graph - 6-Phase Workflow
  *
@@ -54,6 +63,7 @@ function routeToPhase(state: InitializeProjectState): string | string[] {
  * Supports starting from any phase using the start_phase parameter in state.
  */
 export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation)
+  .addNode('graph_foundation', graphFoundationNode)
   .addNode('structure_architecture_analyzer', structureArchitectureAnalyzerNode)
   .addNode('tech_stack_dependencies_analyzer', techStackDependenciesAnalyzerNode)
   .addNode('code_patterns_testing_analyzer', codePatternsTestingAnalyzerNode)
@@ -65,6 +75,8 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addNode('validation', validationNode)
   // Conditional routing from START based on start_phase
   .addConditionalEdges(START, routeToPhase)
+  // Phase 0 → Phase 1 edges
+  .addConditionalEdges('graph_foundation', routeAfterGraphFoundation)
   // Phase 1 → Phase 2 edges
   .addEdge('structure_architecture_analyzer', 'consolidation')
   .addEdge('tech_stack_dependencies_analyzer', 'consolidation')

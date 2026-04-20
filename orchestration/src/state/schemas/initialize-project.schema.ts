@@ -31,6 +31,15 @@ export const AnalyzerOutputSchema = z.object({
   confidence_level: z.enum(['high', 'medium', 'low']).optional(),
 });
 
+export const CodeGraphStatsSchema = z.object({
+  files: z.number().optional(),
+  functions: z.number().optional(),
+  classes: z.number().optional(),
+  edges: z.number().optional(),
+  languages: z.array(z.string()).optional(),
+  build_time_ms: z.number().optional(),
+});
+
 // Phase 1 Complete State
 export const Phase1AnalysisSchema = z.object({
   structure_architecture: AnalyzerOutputSchema.optional(),
@@ -118,10 +127,18 @@ export const InitializeProjectStateSchema = z.object({
   // Phase control
   start_phase: z.number().min(1).max(6).default(1).optional(),
 
+  // Code graph foundation (Phase 0 POC)
+  code_graph_available: z.boolean().optional(),
+  code_graph_path: z.string().optional(),
+  code_graph_mcp_port: z.number().optional(),
+  code_graph_stats: CodeGraphStatsSchema.optional(),
+  code_graph_error: z.string().optional(),
+
   // Current phase tracking
   current_phase: z
     .enum([
       'init',
+      'phase0_graph',
       'phase1_analysis',
       'phase2_consolidation',
       'phase3_synthesis',
@@ -171,6 +188,7 @@ export const InitializeProjectStateSchema = z.object({
 // ============================================================================
 
 export type AnalyzerOutput = z.infer<typeof AnalyzerOutputSchema>;
+export type CodeGraphStats = z.infer<typeof CodeGraphStatsSchema>;
 export type Phase1Analysis = z.infer<typeof Phase1AnalysisSchema>;
 export type Phase2Consolidation = z.infer<typeof Phase2ConsolidationSchema>;
 export type Phase3Synthesis = z.infer<typeof Phase3SynthesisSchema>;
@@ -220,12 +238,25 @@ export const InitializeProjectAnnotation = Annotation.Root({
   start_phase: Annotation<number | undefined>,
 
   // ============================================================================
+  // CODE GRAPH FOUNDATION (Phase 0 POC)
+  // ============================================================================
+  code_graph_available: Annotation<boolean>({
+    reducer: (_left, right) => right,
+    default: () => false,
+  }),
+  code_graph_path: Annotation<string | undefined>,
+  code_graph_mcp_port: Annotation<number | undefined>,
+  code_graph_stats: Annotation<CodeGraphStats | undefined>,
+  code_graph_error: Annotation<string | undefined>,
+
+  // ============================================================================
   // PHASE TRACKING (use custom reducer for parallel phase updates)
   // ============================================================================
   // Note: Phase 1 has 4 parallel nodes that may all fail simultaneously
   // We need a reducer that can handle multiple "failed" updates
   current_phase: Annotation<
     | 'init'
+    | 'phase0_graph'
     | 'phase1_analysis'
     | 'phase2_consolidation'
     | 'phase3_synthesis'
@@ -247,6 +278,7 @@ export const InitializeProjectAnnotation = Annotation.Root({
         phase3_synthesis: 30,
         phase2_consolidation: 20,
         phase1_analysis: 10,
+        phase0_graph: 5,
         init: 0,
       };
 

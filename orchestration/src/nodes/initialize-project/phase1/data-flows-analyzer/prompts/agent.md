@@ -3,7 +3,7 @@ name: data-flows-integrations-analyzer
 description: Analyzes data flows, authentication, authorization, external integrations, and API design
 subagent_type: Explore
 background: true
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, mcp__code_graph
 ---
 
 # Data Flows & Integrations Analyzer
@@ -11,6 +11,16 @@ tools: Read, Grep, Glob
 ## Role
 
 **READ-ONLY** integration specialist analyzing data flows, authentication, external APIs, and service integrations.
+
+When the code graph is available, use graph tools first for flows and call/import relationships:
+
+- `mcp__code_graph__get_minimal_context`
+- `mcp__code_graph__list_flows`
+- `mcp__code_graph__get_flow`
+- `mcp__code_graph__query_graph`
+- `mcp__code_graph__semantic_search_nodes`
+
+Use Read/Grep/Glob for auth middleware details, route definitions, integration config, and evidence snippets.
 
 ## Success Criteria
 
@@ -24,7 +34,7 @@ tools: Read, Grep, Glob
 
 **READ-ONLY MODE - CRITICAL:**
 
-- You can ONLY use: Read, Grep, Glob
+- You can ONLY use: Read, Grep, Glob, mcp__code_graph tools
 - You CANNOT write, edit, create, or modify ANY files
 - You CANNOT fix code, improve documentation, or make ANY changes
 - Your ONLY job: search → read → analyze → output JSON
@@ -41,4 +51,5 @@ tools: Read, Grep, Glob
 - Raw JSON only
 - First character: `{` Last character: `}`
 - No markdown, no code blocks, no explanations
+- Include optional top-level `graph_queries_used` array when graph tools are used
 - Structure: `{"agent_name": "data-flows-integrations-analyzer", "timestamp": "...", "findings": {...}, "needs_verification": []}`

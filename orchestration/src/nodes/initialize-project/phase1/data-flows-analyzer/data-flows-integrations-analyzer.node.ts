@@ -40,6 +40,12 @@ export async function dataFlowsIntegrationsAnalyzerNode(
         state.framework_path,
         agentName,
         feedbackPrompt, // Feedback for retry
+        {
+          available: state.code_graph_available ?? false,
+          dbPath: state.code_graph_path,
+          mcpPort: state.code_graph_mcp_port,
+          stats: state.code_graph_stats,
+        },
       );
 
       // Add ultrathink and task instruction to input prompt
