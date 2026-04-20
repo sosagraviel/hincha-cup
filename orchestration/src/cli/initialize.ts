@@ -14,6 +14,7 @@ import { AgentFactory } from '../utils/shared/agent-factory/index.js';
 import { runPreflightChecks } from '../utils/preflight-checks.js';
 import { Provider } from '../providers/types.js';
 import { setActiveProvider } from '../utils/provider-paths.js';
+import { resetLLMFactory } from '../llm/llm-factory.js';
 
 // Get the directory where this CLI script is located
 // This file is at: <framework>/orchestration/dist/cli/initialize.js
@@ -88,6 +89,32 @@ program
     });
 
     try {
+      // ================================================================
+      // PROVIDER & TIER SETUP (must happen BEFORE getLLMFactory singleton)
+      // ================================================================
+      if (options.modelTier) {
+        process.env.MODEL_TIER = options.modelTier;
+      }
+
+      if (options.provider) {
+        const providerLower = options.provider.toLowerCase();
+        if (providerLower === 'codex' || providerLower === 'openai') {
+          setActiveProvider(Provider.CODEX);
+          process.env.PROVIDER = 'codex';
+          if (!options.modelTier) {
+            process.env.MODEL_TIER = 'openai';
+          }
+        } else if (providerLower === 'claude' || providerLower === 'anthropic') {
+          setActiveProvider(Provider.CLAUDE);
+          process.env.PROVIDER = 'claude';
+        } else {
+          logger.error(`Unknown provider: ${options.provider}. Use 'claude' or 'codex'.`);
+          process.exit(1);
+        }
+      }
+
+      // Reset factory in case it was created with wrong tier before
+      resetLLMFactory();
       const llmFactory = getLLMFactory();
 
       if (options.listModels) {
@@ -112,27 +139,6 @@ program
         logger.keyValue('Usage', 'npm run initialize -- --model-tier fast', 'gray');
         logger.decreaseIndent();
         process.exit(0);
-      }
-
-      if (options.modelTier) {
-        process.env.MODEL_TIER = options.modelTier;
-      }
-
-      // Set provider based on --provider flag or auto-detect from preflight
-      if (options.provider) {
-        const providerLower = options.provider.toLowerCase();
-        if (providerLower === 'codex' || providerLower === 'openai') {
-          setActiveProvider(Provider.CODEX);
-          // Auto-select openai tier if no explicit tier set
-          if (!options.modelTier) {
-            process.env.MODEL_TIER = 'openai';
-          }
-        } else if (providerLower === 'claude' || providerLower === 'anthropic') {
-          setActiveProvider(Provider.CLAUDE);
-        } else {
-          logger.error(`Unknown provider: ${options.provider}. Use 'claude' or 'codex'.`);
-          process.exit(1);
-        }
       }
 
       const projectPath = path.resolve(options.projectPath);
@@ -201,8 +207,10 @@ program
       if (!options.provider) {
         if (preflightResult.authMode === 'codex_cli') {
           setActiveProvider(Provider.CODEX);
+          process.env.PROVIDER = 'codex';
           if (!options.modelTier) {
             process.env.MODEL_TIER = 'openai';
+            resetLLMFactory(); // Tier changed, need to re-create factory
           }
         }
         // claude is already the default

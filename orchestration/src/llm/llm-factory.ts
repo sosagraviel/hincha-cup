@@ -221,3 +221,10 @@ export function getLLMFactory(configPath?: string): LLMFactory {
   }
   return factoryInstance;
 }
+
+/**
+ * Reset the singleton instance (needed when MODEL_TIER changes after initial creation)
+ */
+export function resetLLMFactory(): void {
+  factoryInstance = null;
+}

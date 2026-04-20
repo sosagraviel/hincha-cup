@@ -75,11 +75,25 @@ export async function detectAuthMode(): Promise<AuthConfig> {
 
   const baseConfig = { hasClaudeCLI, hasCodexCLI, claudeCLIVersion, codexCLIVersion };
 
-  // Priority 1: Check for API keys
+  // Priority 1: Check for API keys (respect PROVIDER preference for ordering)
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
   const googleKey = process.env.GOOGLE_API_KEY;
+  const providerHint = process.env.PROVIDER?.toLowerCase();
 
+  // If explicit provider is set and matching API key exists, prefer that
+  if (providerHint === 'codex' || providerHint === 'openai') {
+    if (openaiKey) {
+      return { mode: AuthMode.API_KEY, provider: 'openai', hasAPIKey: true, ...baseConfig };
+    }
+  }
+  if (providerHint === 'claude' || providerHint === 'anthropic') {
+    if (anthropicKey) {
+      return { mode: AuthMode.API_KEY, provider: 'anthropic', hasAPIKey: true, ...baseConfig };
+    }
+  }
+
+  // Default API key priority (no explicit provider)
   if (anthropicKey) {
     return { mode: AuthMode.API_KEY, provider: 'anthropic', hasAPIKey: true, ...baseConfig };
   }
@@ -92,29 +106,57 @@ export async function detectAuthMode(): Promise<AuthConfig> {
     return { mode: AuthMode.API_KEY, provider: 'google', hasAPIKey: true, ...baseConfig };
   }
 
-  // Priority 2: Check explicit PROVIDER env var preference
+  // Priority 2: Explicit PROVIDER env var — STRICT (no fallback)
   const explicitProvider = process.env.PROVIDER?.toLowerCase();
 
   if (explicitProvider === 'codex' || explicitProvider === 'openai') {
-    if (hasCodexCLI && (await isCodexCLIAuthenticated())) {
-      return {
-        mode: AuthMode.CODEX_CLI,
-        provider: 'openai',
-        hasAPIKey: false,
-        ...baseConfig,
-      };
+    if (!hasCodexCLI) {
+      throw new Error(
+        `Provider 'codex' was requested but Codex CLI is not installed.\n\n` +
+          `Install with: npm install -g @openai/codex\n` +
+          `Or run: cd orchestration && pnpm install\n\n` +
+          `Then authenticate: codex login`,
+      );
     }
+    if (!(await isCodexCLIAuthenticated())) {
+      throw new Error(
+        `Provider 'codex' was requested but Codex CLI is not authenticated.\n\n` +
+          `Please authenticate: codex login\n\n` +
+          `Or use API key mode instead:\n` +
+          `  export OPENAI_API_KEY="your-api-key-here"`,
+      );
+    }
+    return {
+      mode: AuthMode.CODEX_CLI,
+      provider: 'openai',
+      hasAPIKey: false,
+      ...baseConfig,
+    };
   }
 
   if (explicitProvider === 'claude' || explicitProvider === 'anthropic') {
-    if (hasClaudeCLI && (await isClaudeCLIAuthenticated())) {
-      return {
-        mode: AuthMode.CLAUDE_CLI,
-        provider: 'anthropic',
-        hasAPIKey: false,
-        ...baseConfig,
-      };
+    if (!hasClaudeCLI) {
+      throw new Error(
+        `Provider 'claude' was requested but Claude CLI is not installed.\n\n` +
+          `Install with: npm install -g @anthropic-ai/claude-code\n` +
+          `Or run: cd orchestration && pnpm install\n\n` +
+          `Then authenticate: claude setup-token`,
+      );
     }
+    if (!(await isClaudeCLIAuthenticated())) {
+      throw new Error(
+        `Provider 'claude' was requested but Claude CLI is not authenticated.\n\n` +
+          `Please authenticate: claude setup-token\n\n` +
+          `Or use API key mode instead:\n` +
+          `  export ANTHROPIC_API_KEY="your-api-key-here"`,
+      );
+    }
+    return {
+      mode: AuthMode.CLAUDE_CLI,
+      provider: 'anthropic',
+      hasAPIKey: false,
+      ...baseConfig,
+    };
   }
 
   // Priority 3: Auto-detect CLI (check both, prefer whichever is authenticated)
