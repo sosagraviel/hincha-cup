@@ -535,7 +535,7 @@ async function checkClaudeAuthentication(claudePath: string): Promise<boolean> {
  */
 async function checkCodexAuthentication(codexPath: string): Promise<boolean> {
   try {
-    execSync(`"${codexPath}" login --verify`, {
+    execSync(`"${codexPath}" login status`, {
       encoding: 'utf-8',
       timeout: 10000,
       stdio: ['ignore', 'pipe', 'pipe'],

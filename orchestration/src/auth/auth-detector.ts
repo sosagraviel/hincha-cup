@@ -330,7 +330,7 @@ export async function isCodexCLIAuthenticated(): Promise<boolean> {
 
   try {
     const localPath = resolveLocalCLIPath('codex');
-    const cmd = localPath ? `"${localPath}" login --verify` : 'codex login --verify';
+    const cmd = localPath ? `"${localPath}" login status` : 'codex login status';
     execSync(cmd, {
       timeout: 10000,
       stdio: ['ignore', 'pipe', 'pipe'],
