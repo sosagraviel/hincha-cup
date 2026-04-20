@@ -26,6 +26,7 @@ export const AnalyzerOutputSchema = z.object({
     'data-flows-integrations-analyzer',
   ]),
   timestamp: z.string(),
+  graph_queries_used: z.array(z.string()).default([]).optional(),
   findings: z.any(), // Flexible structure - accepts anything (avoids Zod v4 beta bugs)
   needs_verification: z.array(z.any()).max(5).optional(), // Accept any structure for needs_verification (max 5 items)
   confidence_level: z.enum(['high', 'medium', 'low']).optional(),

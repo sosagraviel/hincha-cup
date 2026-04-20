@@ -78,6 +78,7 @@ export const StructureAnalyzerOutputSchema = z
   .object({
     agent_name: z.literal('structure-architecture-analyzer'),
     timestamp: z.string(),
+    graph_queries_used: z.array(z.string()).default([]),
     findings: z
       .object({
         services: z
@@ -204,6 +205,7 @@ export const TechStackAnalyzerOutputSchema = z
   .object({
     agent_name: z.literal('tech-stack-dependencies-analyzer'),
     timestamp: z.string(),
+    graph_queries_used: z.array(z.string()).default([]),
     findings: z
       .object({
         // CHANGED: services is now optional - use by_service map with service IDs as keys instead
@@ -331,6 +333,7 @@ export const CodePatternsAnalyzerOutputSchema = z
   .object({
     agent_name: z.literal('code-patterns-testing-analyzer'),
     timestamp: z.string(),
+    graph_queries_used: z.array(z.string()).default([]),
     findings: z
       .object({
         // CHANGED: services is now optional - use service IDs as keys in testing{}, api_patterns{}, etc. instead
@@ -398,6 +401,7 @@ export const InfrastructureServiceSchema = z
 export const DataFlowsAnalyzerOutputSchema = z.object({
   agent_name: z.literal('data-flows-integrations-analyzer'),
   timestamp: z.string(),
+  graph_queries_used: z.array(z.string()).default([]),
   findings: z
     .object({
       // IMPORTANT: Focus ONLY on infrastructure services (redis, postgres, message queues, email servers)

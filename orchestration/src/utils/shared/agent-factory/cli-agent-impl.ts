@@ -167,6 +167,10 @@ async function invokeCLI(
         recursive: true,
       })) || `${projectPath}/.claude-temp/${agentName}/${sessionId}`;
     const promptFile = path.join(tempDir, 'prompt.txt');
+    const stdoutFile = path.join(tempDir, 'stdout.txt');
+    const stderrFile = path.join(tempDir, 'stderr.txt');
+    const argsFile = path.join(tempDir, 'claude-command.json');
+    const debugFile = path.join(tempDir, 'claude-debug.log');
 
     try {
       // Write input prompt to file (no ultrathink - that's in the prompt if needed)
@@ -203,7 +207,7 @@ async function invokeCLI(
 
     // Get the appropriate model for this agent from model-config.json
     const model = getCLIModelForAgent(agentName, frameworkPath);
-    const cliArgs = ['--agent', agentFilePath, '--model', model];
+    const cliArgs = ['--agent', agentFilePath, '--model', model, '--debug-file', debugFile];
 
     if (toolsRestriction) {
       cliArgs.push('--tools', toolsRestriction);
@@ -238,6 +242,27 @@ async function invokeCLI(
         );
       }
     }
+
+    try {
+      await writeFile(
+        argsFile,
+        JSON.stringify(
+          {
+            command: claudeCLI.path,
+            args: cliArgs,
+            cwd: projectPath,
+            sessionId,
+            isRetry,
+            agentName,
+            agentFilePath,
+            settingsPath,
+          },
+          null,
+          2,
+        ),
+        'utf-8',
+      );
+    } catch {}
 
     claudeProcess = spawn(claudeCLI.path, cliArgs, {
       cwd: projectPath,
@@ -282,6 +307,11 @@ async function invokeCLI(
 
       const { close } = await import('fs');
       close(promptFd, () => {});
+
+      try {
+        await writeFile(stdoutFile, stdout, 'utf-8');
+        await writeFile(stderrFile, stderr, 'utf-8');
+      } catch {}
 
       if (code === 0) {
         // Return raw output and the session ID we control
