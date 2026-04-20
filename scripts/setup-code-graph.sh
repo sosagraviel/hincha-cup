@@ -132,6 +132,25 @@ copy_graph_db_if_needed() {
   fi
 }
 
+write_local_launcher() {
+  mkdir -p "$PROJECT_PATH/.code-review-graph"
+
+  local launcher="$PROJECT_PATH/.code-review-graph/code-review-graph"
+  {
+    echo '#!/bin/bash'
+    echo 'set -euo pipefail'
+    if [ "${#CODE_GRAPH_CMD[@]}" -eq 1 ] && [ "${CODE_GRAPH_CMD[0]}" = "code-review-graph" ]; then
+      local command_path
+      command_path="$(command -v code-review-graph)"
+      printf 'exec %q "$@"\n' "$command_path"
+    else
+      echo 'exec uvx code-review-graph "$@"'
+    fi
+  } > "$launcher"
+
+  chmod +x "$launcher"
+}
+
 main() {
   if [ ! -d "$PROJECT_PATH" ]; then
     log_error "Project path does not exist: $PROJECT_PATH"
@@ -140,6 +159,7 @@ main() {
 
   ensure_code_review_graph
   build_graph
+  write_local_launcher
 
   if [ ! -f "$CODE_GRAPH_DB_PATH" ]; then
     log_error "Expected graph database was not created: $CODE_GRAPH_DB_PATH"

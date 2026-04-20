@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+if [ -x ".code-review-graph/code-review-graph" ]; then
+  exec ".code-review-graph/code-review-graph" "$@"
+fi
+
 if command -v code-review-graph >/dev/null 2>&1; then
   exec code-review-graph "$@"
 fi
