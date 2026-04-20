@@ -131,7 +131,7 @@ Use when:
 8. Build artifacts
 
    ```bash
-   sbt assembly
+   sbt package
    sbt Docker/publishLocal
    ```
 

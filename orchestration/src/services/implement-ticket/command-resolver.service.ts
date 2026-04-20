@@ -165,7 +165,7 @@ export class CommandResolverService {
       } else if (language === 'java') {
         fallbacks.push('mvn test', 'gradle test');
       } else if (language === 'scala') {
-        fallbacks.push('sbt test', 'sbt "testOnly *"');
+        fallbacks.push('sbt test');
       }
     } else if (type === 'e2e') {
       if (language === 'typescript' || language === 'javascript') {
@@ -195,7 +195,7 @@ export class CommandResolverService {
     } else if (primaryLang === 'java') {
       commands.push('mvn compile', 'gradle build');
     } else if (primaryLang === 'scala') {
-      commands.push('sbt compile', 'sbt assembly');
+      commands.push('sbt compile', 'sbt package');
     }
 
     return commands.filter(Boolean);

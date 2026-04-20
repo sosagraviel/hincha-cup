@@ -69,7 +69,7 @@ export const COMMAND_DEFAULTS: Record<string, CommandSet> = {
     format: 'sbt scalafmtAll',
     typecheck: 'sbt compile',
     test: 'sbt test',
-    build: 'sbt assembly',
+    build: 'sbt package',
   },
   php: {
     lint: 'composer run-script phpcs',
