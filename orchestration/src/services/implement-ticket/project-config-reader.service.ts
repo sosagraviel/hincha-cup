@@ -194,6 +194,12 @@ export class ProjectConfigReaderService {
     } else if (primaryLang === 'rust') {
       if (!commands.build.length) commands.build.push('cargo build');
       if (!commands.start.length) commands.start.push('cargo run');
+    } else if (primaryLang === 'scala') {
+      if (!commands.build.length) commands.build.push('sbt compile');
+      if (!commands.start.length) commands.start.push('sbt run');
+    } else if (primaryLang === 'java') {
+      if (!commands.build.length) commands.build.push('mvn compile');
+      if (!commands.start.length) commands.start.push('mvn spring-boot:run');
     }
 
     return commands;
@@ -380,9 +386,11 @@ export class ProjectConfigReaderService {
     if (fw.includes('pytest')) return ['pytest', 'python -m pytest'];
     if (fw.includes('go test')) return ['go test ./...'];
     if (fw.includes('cargo')) return ['cargo test'];
+    if (fw.includes('scalatest') || fw.includes('munit')) return ['sbt test'];
     if (fw.includes('playwright')) return ['npx playwright test'];
     if (fw.includes('cypress')) return ['npx cypress run'];
     if (fw.includes('mocha')) return ['npx mocha'];
+    if (fw.includes('junit')) return ['mvn test', 'gradle test'];
 
     return [];
   }
