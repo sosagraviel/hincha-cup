@@ -1,4 +1,6 @@
 import { execSync } from 'child_process';
+import { existsSync } from 'fs';
+import { join } from 'path';
 
 /**
  * Authentication modes supported by the framework
@@ -111,17 +113,22 @@ export async function detectAuthMode(): Promise<AuthConfig> {
 
   if (explicitProvider === 'codex' || explicitProvider === 'openai') {
     if (!hasCodexCLI) {
+      const frameworkPath = process.env.FRAMEWORK_PATH || '.';
       throw new Error(
         `Provider 'codex' was requested but Codex CLI is not installed.\n\n` +
-          `Install with: npm install -g @openai/codex\n` +
-          `Or run: cd orchestration && pnpm install\n\n` +
-          `Then authenticate: codex login`,
+          `The framework bundles Codex CLI locally. Install dependencies:\n` +
+          `  cd ${frameworkPath}/orchestration && pnpm install\n\n` +
+          `Then authenticate the local CLI:\n` +
+          `  "${frameworkPath}/orchestration/node_modules/.bin/codex" login`,
       );
     }
     if (!(await isCodexCLIAuthenticated())) {
+      const localPath = resolveLocalCLIPath('codex');
+      const codexCmd = localPath ? `"${localPath}"` : 'codex';
       throw new Error(
         `Provider 'codex' was requested but Codex CLI is not authenticated.\n\n` +
-          `Please authenticate: codex login\n\n` +
+          `Please authenticate:\n` +
+          `  ${codexCmd} login\n\n` +
           `Or use API key mode instead:\n` +
           `  export OPENAI_API_KEY="your-api-key-here"`,
       );
@@ -180,6 +187,21 @@ export async function detectAuthMode(): Promise<AuthConfig> {
 
   // Priority 4: No authentication available
   return { mode: AuthMode.NONE, hasAPIKey: false, ...baseConfig };
+}
+
+/**
+ * Get the resolved path to a CLI binary, checking local bundled first, then global.
+ * Returns the path if found, null if not.
+ */
+function resolveLocalCLIPath(binaryName: string): string | null {
+  const frameworkPath = process.env.FRAMEWORK_PATH;
+  if (frameworkPath) {
+    const localPath = join(frameworkPath, 'orchestration/node_modules/.bin', binaryName);
+    if (existsSync(localPath)) {
+      return localPath;
+    }
+  }
+  return null;
 }
 
 /**
@@ -264,9 +286,13 @@ async function hasClaudeCredentials(): Promise<boolean> {
 }
 
 /**
- * Check if Codex CLI is installed and available in PATH
+ * Check if Codex CLI is installed (local bundled or global)
  */
 export async function isCodexCLIAvailable(): Promise<boolean> {
+  // Check local bundled first
+  if (resolveLocalCLIPath('codex')) return true;
+
+  // Check global
   try {
     execSync('which codex', { stdio: 'ignore', timeout: 5000 });
     return true;
@@ -280,7 +306,9 @@ export async function isCodexCLIAvailable(): Promise<boolean> {
  */
 export async function getCodexCLIVersion(): Promise<string | undefined> {
   try {
-    const output = execSync('codex --version', {
+    const localPath = resolveLocalCLIPath('codex');
+    const cmd = localPath ? `"${localPath}" --version` : 'codex --version';
+    const output = execSync(cmd, {
       encoding: 'utf-8',
       timeout: 5000,
       stdio: ['ignore', 'pipe', 'ignore'],
