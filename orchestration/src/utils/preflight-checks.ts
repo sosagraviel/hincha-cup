@@ -142,16 +142,18 @@ export async function runPreflightChecks(
   }
 
   // ============================================================================
-  // CHECK 5: Claude CLI detection (determines auth mode)
+  // CHECK 5: CLI detection and authentication (determines auth mode)
   // ============================================================================
-  // NOTE: This is optional - framework can work with API keys OR Claude CLI
+  // Provider-aware: if PROVIDER is set, validate ONLY that provider's CLI.
+  // Otherwise, auto-detect (Claude first, then Codex).
 
-  // Check if we have API keys first (takes precedence)
   const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
   const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
   const hasGoogleKey = !!process.env.GOOGLE_API_KEY;
+  const requestedProvider = process.env.PROVIDER?.toLowerCase();
 
   if (hasAnthropicKey || hasOpenAIKey || hasGoogleKey) {
+    // API key mode - no CLI validation needed
     authMode = 'api_key';
     provider = hasAnthropicKey ? 'anthropic' : hasOpenAIKey ? 'openai' : 'google';
     try {
@@ -172,7 +174,109 @@ export async function runPreflightChecks(
     } catch {
       // Ignore - API key mode doesn't need Codex CLI
     }
+  } else if (requestedProvider === 'codex' || requestedProvider === 'openai') {
+    // ========================================================================
+    // CODEX PROVIDER REQUESTED — validate Codex CLI exactly like Claude does
+    // ========================================================================
+    const localCodexPath = join(frameworkPath, 'orchestration/node_modules/.bin/codex');
+
+    if (existsSync(localCodexPath)) {
+      try {
+        const codexVersionOutput = execSync(`"${localCodexPath}" --version`, {
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        }).trim();
+        codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
+
+        // Verify local Codex CLI is authenticated
+        const isAuthenticated = await checkCodexAuthentication();
+
+        if (!isAuthenticated) {
+          console.log('\n⚠️  Local Codex CLI is not authenticated.');
+          console.log(`📍 CLI Location: ${localCodexPath}`);
+          console.log(
+            `Codex CLI authentication failed.\n` +
+              `\n` +
+              `The framework uses a local bundled Codex CLI at:\n` +
+              `  ${localCodexPath}\n` +
+              `\n` +
+              `Please authenticate it manually:\n` +
+              `  "${localCodexPath}" login\n` +
+              `\n`,
+          );
+
+          errors.push(
+            `Codex CLI authentication failed.\n` +
+              `\n` +
+              `The framework uses a local bundled Codex CLI at:\n` +
+              `  ${localCodexPath}\n` +
+              `\n` +
+              `Please authenticate it manually:\n` +
+              `  ${localCodexPath} login\n` +
+              `\n` +
+              `Or use API key mode instead:\n` +
+              `  export OPENAI_API_KEY="your-api-key-here"`,
+          );
+        } else {
+          authMode = 'codex_cli';
+          provider = 'openai';
+        }
+      } catch (error) {
+        warnings.push(
+          `Local Codex CLI found but failed to execute: ${(error as Error).message}\n` +
+            `Path: ${localCodexPath}\n` +
+            `Trying global Codex CLI...`,
+        );
+      }
+    }
+
+    // Fallback to global Codex CLI if local not found or failed
+    if (authMode === 'none' && errors.length === 0) {
+      try {
+        const codexVersionOutput = execSync('codex --version', {
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        }).trim();
+        codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
+
+        const isAuthenticated = await checkCodexAuthentication();
+        if (!isAuthenticated) {
+          errors.push(
+            `Codex CLI is not authenticated.\n` +
+              `\n` +
+              `Please authenticate:\n` +
+              `  codex login\n` +
+              `\n` +
+              `Or use API key mode instead:\n` +
+              `  export OPENAI_API_KEY="your-api-key-here"`,
+          );
+        } else {
+          authMode = 'codex_cli';
+          provider = 'openai';
+
+          warnings.push(
+            `Using global Codex CLI instead of framework's bundled version.\n` +
+              `For consistency, ensure framework dependencies are installed:\n` +
+              `  cd orchestration && pnpm install`,
+          );
+        }
+      } catch {
+        // No Codex CLI at all
+        errors.push(
+          `Provider 'codex' was requested but Codex CLI is not installed.\n` +
+            `\n` +
+            `Install framework dependencies:\n` +
+            `  cd ${frameworkPath}/orchestration && pnpm install\n` +
+            `\n` +
+            `Then authenticate:\n` +
+            `  ${frameworkPath}/orchestration/node_modules/.bin/codex login`,
+        );
+      }
+    }
   } else {
+    // ========================================================================
+    // CLAUDE PROVIDER (default) — original Claude CLI validation, unchanged
+    // ========================================================================
     const localClaudePath = join(frameworkPath, 'orchestration/node_modules/.bin/claude');
 
     if (existsSync(localClaudePath)) {
@@ -242,82 +346,7 @@ export async function runPreflightChecks(
             `  cd orchestration && npm install`,
         );
       } catch {
-        // No Claude CLI - try Codex CLI
-      }
-    }
-
-    // Try Codex CLI if no Claude CLI found
-    if (authMode === 'none') {
-      const localCodexPath = join(frameworkPath, 'orchestration/node_modules/.bin/codex');
-
-      if (existsSync(localCodexPath)) {
-        try {
-          const codexVersionOutput = execSync(`"${localCodexPath}" --version`, {
-            encoding: 'utf-8',
-            stdio: 'pipe',
-          }).trim();
-          codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
-
-          const isCodexAuth = await checkCodexAuthentication();
-
-          if (!isCodexAuth) {
-            console.log('\n⚠️  Local Codex CLI is not authenticated.');
-            console.log(`📍 CLI Location: ${localCodexPath}`);
-            console.log(
-              `Codex CLI authentication failed.\n` +
-                `\n` +
-                `The framework uses a local bundled Codex CLI at:\n` +
-                `  ${localCodexPath}\n` +
-                `\n` +
-                `Please authenticate it manually:\n` +
-                `  "${localCodexPath}" login\n` +
-                `\n`,
-            );
-
-            errors.push(
-              `Codex CLI authentication failed.\n` +
-                `\n` +
-                `The framework uses a local bundled Codex CLI at:\n` +
-                `  ${localCodexPath}\n` +
-                `\n` +
-                `Please authenticate it manually:\n` +
-                `  ${localCodexPath} login\n` +
-                `\n` +
-                `Or use API key mode instead:\n` +
-                `  export OPENAI_API_KEY="your-api-key-here"`,
-            );
-          } else {
-            authMode = 'codex_cli';
-            provider = 'openai';
-          }
-        } catch (error) {
-          warnings.push(
-            `Local Codex CLI found but failed to execute: ${(error as Error).message}\n` +
-              `Path: ${localCodexPath}\n` +
-              `Trying global Codex CLI...`,
-          );
-        }
-      }
-
-      // Fallback to global Codex CLI
-      if (authMode === 'none' && errors.length === 0) {
-        try {
-          const codexVersionOutput = execSync('codex --version', {
-            encoding: 'utf-8',
-            stdio: 'pipe',
-          }).trim();
-          codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
-          authMode = 'codex_cli';
-          provider = 'openai';
-
-          warnings.push(
-            `Using global Codex CLI instead of framework's bundled version.\n` +
-              `For consistency, ensure framework dependencies are installed:\n` +
-              `  cd orchestration && pnpm install`,
-          );
-        } catch {
-          // No Codex CLI either
-        }
+        // No Claude CLI at all
       }
     }
 
