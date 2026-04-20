@@ -12,8 +12,16 @@ export function extractSynthesisMarkdown(output: string): {
   claudemd: string;
   projectContext: string;
 } | null {
-  // Find "# CLAUDE.md Content" anywhere in the output (skip preamble)
-  const claudeHeaderIndex = output.indexOf(SECTION_MARKERS.CLAUDE_MD_HEADER);
+  // Find instruction file header anywhere in the output (skip preamble)
+  // Accept both "# CLAUDE.md Content" and "# AGENTS.md Content"
+  let claudeHeaderIndex = output.indexOf(SECTION_MARKERS.CLAUDE_MD_HEADER);
+  let headerLength = SECTION_MARKERS.CLAUDE_MD_HEADER.length;
+
+  if (claudeHeaderIndex === -1) {
+    claudeHeaderIndex = output.indexOf(SECTION_MARKERS.AGENTS_MD_HEADER);
+    headerLength = SECTION_MARKERS.AGENTS_MD_HEADER.length;
+  }
+
   if (claudeHeaderIndex === -1) {
     return null;
   }
@@ -35,8 +43,8 @@ export function extractSynthesisMarkdown(output: string): {
     return null;
   }
 
-  // Extract CLAUDE.md content (from header to separator)
-  const claudeStartIndex = claudeHeaderIndex + SECTION_MARKERS.CLAUDE_MD_HEADER.length;
+  // Extract instruction file content (from header to separator)
+  const claudeStartIndex = claudeHeaderIndex + headerLength;
   const claudeEndIndex = claudeHeaderIndex + separatorMatch.index;
   const claudemd = output.slice(claudeStartIndex, claudeEndIndex).trim();
 
