@@ -1,0 +1,7 @@
+[
+  {
+    "type": "command",
+    "event": "Stop",
+    "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/src/nodes/initialize-project/phase1/shared/hooks/codex-validate-analyzer-json.hook.ts"
+  }
+]

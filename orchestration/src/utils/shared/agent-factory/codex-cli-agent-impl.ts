@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { mkdir, writeFile, readFile } from 'fs/promises';
+import { mkdir, writeFile, readFile, rm } from 'fs/promises';
 import { AuthMode } from '../../../auth/auth-detector.js';
 import { getLLMFactory } from '../../../llm/llm-factory.js';
 import { logger } from '../../logger.js';
@@ -97,6 +97,7 @@ export async function createCodexCLIAgentImpl(
           config.frameworkPath,
           config.timeout,
           sessionId,
+          config.settingsPath,
         );
 
         const executionTimeMs = Date.now() - startTime;
@@ -133,11 +134,60 @@ export async function createCodexCLIAgentImpl(
 }
 
 /**
+ * Set up Codex hooks from a Claude settings.json file.
+ *
+ * Reads the Claude settings.json, finds the corresponding codex-hooks.json
+ * in the same directory, resolves ${FRAMEWORK_PATH}, and writes it to
+ * a temporary .codex/hooks.json in the project directory.
+ *
+ * Returns the path to clean up, or null if no hooks were set up.
+ */
+async function setupCodexHooks(
+  settingsPath: string,
+  projectPath: string,
+  frameworkPath: string,
+  tempDir: string,
+): Promise<string | null> {
+  try {
+    // Find the codex-hooks.json alongside the Claude settings.json
+    const settingsDir = path.dirname(settingsPath);
+    const codexHooksPath = path.join(settingsDir, 'codex-hooks.json');
+
+    if (!fs.existsSync(codexHooksPath)) {
+      return null;
+    }
+
+    // Read and resolve ${FRAMEWORK_PATH} placeholders
+    let hooksContent = fs.readFileSync(codexHooksPath, 'utf-8');
+    hooksContent = hooksContent.replace(/\$\{FRAMEWORK_PATH\}|\$FRAMEWORK_PATH/g, frameworkPath);
+
+    // Write resolved hooks to the project's .codex/ directory
+    const codexConfigDir = path.join(projectPath, '.codex');
+    await mkdir(codexConfigDir, { recursive: true });
+    const targetHooksPath = path.join(codexConfigDir, 'hooks.json');
+    await writeFile(targetHooksPath, hooksContent, 'utf-8');
+
+    // Also write a config.toml to enable hooks feature
+    const configTomlPath = path.join(codexConfigDir, 'config.toml');
+    if (!fs.existsSync(configTomlPath)) {
+      await writeFile(configTomlPath, '[features]\ncodex_hooks = true\n', 'utf-8');
+    }
+
+    return targetHooksPath;
+  } catch (error) {
+    logger.warn(
+      `Warning: Failed to setup Codex hooks: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
+}
+
+/**
  * Invoke Codex CLI with input prompt
  *
  * Since Codex doesn't have a --agent flag, agent instructions are
- * prepended to the prompt. The prompt is written to a file and
- * piped via stdin to avoid shell argument length limits.
+ * prepended to the prompt. If settingsPath is provided, Codex hooks
+ * are set up for inline validation (same behavior as Claude's stop hooks).
  */
 async function invokeCodexCLI(
   agentName: string,
@@ -147,6 +197,7 @@ async function invokeCodexCLI(
   frameworkPath: string,
   timeout: number = 300000,
   sessionId: string,
+  settingsPath?: string,
 ): Promise<{ output: string; sessionId: string }> {
   if (isCodexAborting) {
     throw new Error('SIGINT: Workflow interrupted by user (CTRL+C)');
@@ -159,6 +210,12 @@ async function invokeCodexCLI(
     // Create temp directory for this invocation
     const tempDir = path.join(projectPath, '.codex-temp', agentName, sessionId);
     await mkdir(tempDir, { recursive: true });
+
+    // Set up Codex hooks if settings provided (for inline validation)
+    let hooksCleanupPath: string | null = null;
+    if (settingsPath) {
+      hooksCleanupPath = await setupCodexHooks(settingsPath, projectPath, frameworkPath, tempDir);
+    }
 
     // Read agent file and strip frontmatter (Codex doesn't understand it)
     const agentContent = fs.readFileSync(agentFilePath, 'utf-8');
@@ -178,9 +235,6 @@ async function invokeCodexCLI(
     const model = getCodexCLIModelForAgent(agentName, frameworkPath);
 
     // Build Codex CLI arguments
-    // Use shell to pipe prompt via stdin: cat prompt.txt | codex exec - --model ...
-    // However codex exec takes prompt as argument, so we pass it directly
-    // For very long prompts, we read from file
     const cliArgs = [
       'exec',
       fullPrompt,
@@ -206,13 +260,22 @@ async function invokeCodexCLI(
 
     activeCodexProcesses.add(codexProcess);
 
-    const cleanup = () => {
+    const cleanup = async () => {
       activeCodexInvocations.delete(invocationId);
       clearTimeout(timeoutId);
+
+      // Clean up temporary hooks file
+      if (hooksCleanupPath) {
+        try {
+          await rm(hooksCleanupPath, { force: true });
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
     };
 
-    timeoutId = setTimeout(() => {
-      cleanup();
+    timeoutId = setTimeout(async () => {
+      await cleanup();
       codexProcess.kill('SIGTERM');
       reject(new Error(`Codex CLI timeout after ${timeout}ms`));
     }, timeout);
@@ -237,7 +300,7 @@ async function invokeCodexCLI(
     }
 
     codexProcess.on('close', async (code) => {
-      cleanup();
+      await cleanup();
 
       if (code === 0) {
         // Read output from file (more reliable than parsing JSON stream)
