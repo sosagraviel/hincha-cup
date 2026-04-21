@@ -1,7 +1,8 @@
 import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../../../utils/logger.js';
-import { validateMarkdownFile } from './helpers/file-validator.js';
+import { validateMarkdownFile, validateWikiMarkdownFile } from './helpers/file-validator.js';
 import { validateFrameworkConfig } from './helpers/config-validator.js';
 import {
   validateDirectoryExists,
@@ -10,7 +11,7 @@ import {
 } from './helpers/directory-validator.js';
 import { validateAgentCoverage } from './helpers/agent-coverage-validator.js';
 import { validatePhaseCompletion } from './helpers/phase-completion-validator.js';
-import { AI_KNOWLEDGE_FILE_NAMES } from '../../../services/graph-wiki/wiki-generator.service.js';
+import { getExpectedAiKnowledgeFiles } from '../../../services/graph-wiki/wiki-generator.service.js';
 
 /**
  * Phase 6: Validation Node
@@ -81,10 +82,14 @@ export async function validationNode(
     // 4. Validate AI knowledge wiki when this workflow generated it
     if (shouldValidateWiki) {
       const wikiErrors: string[] = [];
-      for (const fileName of AI_KNOWLEDGE_FILE_NAMES) {
-        const wikiFileResult = validateMarkdownFile(
+      const wikiStackProfile = readStackProfileForWiki(state, frameworkConfigPath);
+      const expectedWikiFiles = getExpectedAiKnowledgeFiles(wikiStackProfile);
+
+      for (const fileName of expectedWikiFiles) {
+        const wikiFileResult = validateWikiMarkdownFile(
           join(aiKnowledgePath, fileName),
           `docs/ai-knowledge/${fileName}`,
+          { serviceDoc: fileName.startsWith('services/') },
         );
         wikiErrors.push(...wikiFileResult.errors);
         validationWarnings.push(...wikiFileResult.warnings);
@@ -185,7 +190,9 @@ export async function validationNode(
       framework_config_path: frameworkConfigPath,
       ai_knowledge_path: shouldValidateWiki ? aiKnowledgePath : state.ai_knowledge_path,
       ai_knowledge_files: shouldValidateWiki
-        ? AI_KNOWLEDGE_FILE_NAMES.map((fileName) => join(aiKnowledgePath, fileName))
+        ? getExpectedAiKnowledgeFiles(readStackProfileForWiki(state, frameworkConfigPath)).map(
+            (fileName) => join(aiKnowledgePath, fileName),
+          )
         : state.ai_knowledge_files,
     };
   } catch (error) {
@@ -196,5 +203,23 @@ export async function validationNode(
       errors: [...state.errors, errorMessage],
       current_phase: 'failed',
     };
+  }
+}
+
+function readStackProfileForWiki(
+  state: InitializeProjectState,
+  frameworkConfigPath: string,
+): unknown {
+  if (state.phase4_context?.stack_profile) {
+    return state.phase4_context.stack_profile;
+  }
+
+  try {
+    const config = JSON.parse(readFileSync(frameworkConfigPath, 'utf-8')) as {
+      stack_profile?: unknown;
+    };
+    return config.stack_profile;
+  } catch {
+    return undefined;
   }
 }

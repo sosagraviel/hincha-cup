@@ -25,6 +25,21 @@ vi.mock('../../../../../src/utils/logger.js', () => ({
   },
 }));
 
+vi.mock('../../../../../src/utils/shared/agent-factory/index.js', () => ({
+  AgentFactory: {
+    create: vi.fn(async () => ({
+      createAgent: vi.fn(async () => ({
+        invoke: vi.fn(async ({ inputPrompt }) => ({
+          output: `# Generated\n\n${inputPrompt.includes('services/api.md') ? 'Service' : 'Core'} body.`,
+          sessionId: 'test-session',
+          mode: 'claude_cli',
+          executionTimeMs: 1,
+        })),
+      })),
+    })),
+  },
+}));
+
 describe('wikiGenerationNode', () => {
   let state: InitializeProjectState;
 
@@ -120,9 +135,13 @@ describe('wikiGenerationNode', () => {
         expect.any(String),
       );
     }
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      '/test/project/docs/ai-knowledge/services/api.md',
+      expect.any(String),
+    );
     expect(result.current_phase).toBe('phase4_wiki_generation');
     expect(result.ai_knowledge_path).toBe('/test/project/docs/ai-knowledge');
-    expect(result.ai_knowledge_files).toHaveLength(5);
+    expect(result.ai_knowledge_files).toHaveLength(6);
     expect(result.phase4_wiki_generation?.ai_knowledge_written).toBe(true);
   });
 
@@ -172,5 +191,18 @@ describe('wikiGenerationNode', () => {
 
     expect(result.current_phase).toBe('failed');
     expect(result.errors?.some((error) => error.includes('CLAUDE.md not found'))).toBe(true);
+  });
+
+  it('fails fast when a required Phase 1 analyzer output is missing', async () => {
+    vi.mocked(fs.existsSync).mockImplementation(
+      (path: any) => !String(path).includes('04-data-flows-integrations.json'),
+    );
+
+    const result = await wikiGenerationNode(state);
+
+    expect(result.current_phase).toBe('failed');
+    expect(result.errors?.some((error) => error.includes('Required Phase 1 analyzer output'))).toBe(
+      true,
+    );
   });
 });

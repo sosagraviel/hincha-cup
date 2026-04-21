@@ -1,9 +1,9 @@
 import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { logger } from '../../../utils/logger.js';
 import {
-  generateAiKnowledgeWiki,
+  WikiGeneratorService,
   upsertAiKnowledgeContextSection,
   type AnalyzerDocument,
   type WikiAnalyzerOutputs,
@@ -45,8 +45,9 @@ export async function wikiGenerationNode(
     const analyzers = readAnalyzerOutputs(phase1Dir);
     const stackProfile = readStackProfile(tempDir, state);
 
-    const wiki = generateAiKnowledgeWiki({
+    const wikiGenerator = new WikiGeneratorService({
       projectPath: state.project_path,
+      frameworkPath: state.framework_path,
       analyzers,
       stackProfile,
       graph: {
@@ -57,12 +58,14 @@ export async function wikiGenerationNode(
         error: state.code_graph_error,
       },
     });
+    const wiki = await wikiGenerator.generateAll();
 
     const aiKnowledgePath = join(state.project_path, 'docs', 'ai-knowledge');
     mkdirSync(aiKnowledgePath, { recursive: true });
 
     const writtenFiles = wiki.files.map((file) => {
       const filePath = join(aiKnowledgePath, file.filename);
+      mkdirSync(dirname(filePath), { recursive: true });
       writeFileSync(filePath, file.content);
       return filePath;
     });
@@ -111,7 +114,7 @@ function readAnalyzerOutputs(phase1Dir: string): WikiAnalyzerOutputs {
   for (const [key, fileName] of Object.entries(PHASE1_ANALYZER_FILES)) {
     const filePath = join(phase1Dir, fileName);
     if (!existsSync(filePath)) {
-      continue;
+      throw new Error(`Required Phase 1 analyzer output not found: ${filePath}`);
     }
 
     analyzers[key as keyof WikiAnalyzerOutputs] = JSON.parse(

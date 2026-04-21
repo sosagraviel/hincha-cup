@@ -24,6 +24,8 @@ export function getFrameworkAgentPath(frameworkPath: string, agentFile: string):
       'orchestration/src/nodes/initialize-project/phase3/prompts/agent.md',
     '06-question-consolidator.md':
       'orchestration/src/nodes/initialize-project/phase2/question-consolidator/prompts/agent.md',
+    '07-wiki-generator.md':
+      'orchestration/src/nodes/initialize-project/phase4/wiki-generator/prompts/agent.md',
   };
 
   const newPath = agentPathMap[agentFile];

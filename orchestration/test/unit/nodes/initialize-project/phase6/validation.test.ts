@@ -62,6 +62,33 @@ describe('validationNode', () => {
     // Mock successful validation scenario
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('docs/ai-knowledge/services/main.md')) {
+        return [
+          '---',
+          'document_type: service',
+          'generated_at: 2026-04-21T00:00:00.000Z',
+          'generated_by: ai-agentic-framework',
+          'graph_version: abc123',
+          'graph_queries_used:',
+          '  - mcp__code_graph__semantic_search_nodes',
+          'service_id: main',
+          '---',
+          '# Main Service',
+        ].join('\n');
+      }
+      if (path.includes('docs/ai-knowledge')) {
+        return [
+          '---',
+          'document_type: architecture',
+          'generated_at: 2026-04-21T00:00:00.000Z',
+          'generated_by: ai-agentic-framework',
+          'graph_version: abc123',
+          'graph_queries_used:',
+          '  - mcp__code_graph__list_communities',
+          '---',
+          '# Wiki Document',
+        ].join('\n');
+      }
       if (path.includes('CLAUDE.md')) return 'x'.repeat(200);
       if (path.includes('SKILL.md')) return 'x'.repeat(200);
       if (path.includes('framework-config.json')) {
@@ -114,7 +141,7 @@ describe('validationNode', () => {
 
     expect(result.current_phase).toBe('complete');
     expect(result.ai_knowledge_path).toBe('/test/project/docs/ai-knowledge');
-    expect(result.ai_knowledge_files).toHaveLength(5);
+    expect(result.ai_knowledge_files).toHaveLength(6);
   });
 
   it('should fail if wiki state is present but a core wiki file is missing', async () => {

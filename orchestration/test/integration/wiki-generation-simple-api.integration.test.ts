@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import matter from 'gray-matter';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   cpSync,
   existsSync,
@@ -13,6 +14,21 @@ import { tmpdir } from 'os';
 import { wikiGenerationNode } from '../../src/nodes/initialize-project/phase4/wiki-generation.node.js';
 import type { InitializeProjectState } from '../../src/state/schemas/initialize-project.schema.js';
 
+vi.mock('../../src/utils/shared/agent-factory/index.js', () => ({
+  AgentFactory: {
+    create: vi.fn(async () => ({
+      createAgent: vi.fn(async () => ({
+        invoke: vi.fn(async ({ inputPrompt }) => ({
+          output: `# Generated Wiki\n\n${inputPrompt.includes('services/api.md') ? 'Service body.' : 'Core body.'}`,
+          sessionId: 'integration-test-session',
+          mode: 'claude_cli',
+          executionTimeMs: 1,
+        })),
+      })),
+    })),
+  },
+}));
+
 describe('wiki generation smoke on simple-api fixture', () => {
   let projectPath: string | undefined;
 
@@ -22,7 +38,7 @@ describe('wiki generation smoke on simple-api fixture', () => {
     }
   });
 
-  it('creates the five core AI knowledge docs without breaking context outputs', async () => {
+  it('creates graph-backed AI knowledge docs without breaking context outputs', async () => {
     const sourceProject = resolve(
       process.cwd(),
       '..',
@@ -110,12 +126,22 @@ describe('wiki generation smoke on simple-api fixture', () => {
     ]) {
       expect(existsSync(join(projectPath, 'docs', 'ai-knowledge', fileName))).toBe(true);
     }
-    expect(readFileSync(join(projectPath, 'docs', 'ai-knowledge', 'index.md'), 'utf-8')).toContain(
-      'list_communities',
+    expect(existsSync(join(projectPath, 'docs', 'ai-knowledge', 'services', 'api.md'))).toBe(true);
+    const architecture = matter(
+      readFileSync(join(projectPath, 'docs', 'ai-knowledge', 'ARCHITECTURE.md'), 'utf-8'),
     );
+    const serviceDoc = matter(
+      readFileSync(join(projectPath, 'docs', 'ai-knowledge', 'services', 'api.md'), 'utf-8'),
+    );
+    expect(architecture.data.generated_by).toBe('ai-agentic-framework');
+    expect(architecture.data.graph_version).toBeDefined();
+    expect(serviceDoc.data.service_id).toBe('api');
     expect(readFileSync(join(projectPath, '.claude', 'CLAUDE.md'), 'utf-8')).toContain(
       'docs/ai-knowledge/index.md',
     );
+    expect(
+      readFileSync(join(projectPath, '.claude', 'skills', 'project-context', 'SKILL.md'), 'utf-8'),
+    ).toContain('docs/ai-knowledge/index.md');
     expect(existsSync(join(projectPath, '.claude', 'skills', 'project-context', 'SKILL.md'))).toBe(
       true,
     );

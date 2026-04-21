@@ -5,11 +5,11 @@
  * (NEVER uses state - always validates file existence)
  */
 
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import type { InitializeProjectState } from '../../../../state/schemas/initialize-project.schema.js';
 import type { PhaseCompletionResult } from '../types.js';
-import { AI_KNOWLEDGE_FILE_NAMES } from '../../../../services/graph-wiki/wiki-generator.service.js';
+import { getExpectedAiKnowledgeFiles } from '../../../../services/graph-wiki/wiki-generator.service.js';
 
 /**
  * Validate all phases completed by checking output files exist
@@ -47,9 +47,12 @@ export function validatePhaseCompletion(state: InitializeProjectState): PhaseCom
   const shouldValidateWiki = Boolean(state.ai_knowledge_path || state.phase4_wiki_generation);
   const aiKnowledgePath =
     state.ai_knowledge_path || join(state.project_path, 'docs', 'ai-knowledge');
+  const expectedWikiFiles = getExpectedAiKnowledgeFiles(
+    readStackProfileForWiki(state, frameworkConfigPath),
+  );
   const phase4WikiComplete =
     !shouldValidateWiki ||
-    AI_KNOWLEDGE_FILE_NAMES.every((fileName) => existsSync(join(aiKnowledgePath, fileName)));
+    expectedWikiFiles.every((fileName) => existsSync(join(aiKnowledgePath, fileName)));
 
   if (!phase1Complete) {
     errors.push('Phase 1 analysis outputs not found');
@@ -77,4 +80,22 @@ export function validatePhaseCompletion(state: InitializeProjectState): PhaseCom
     phase4Complete,
     phase4WikiComplete,
   };
+}
+
+function readStackProfileForWiki(
+  state: InitializeProjectState,
+  frameworkConfigPath: string,
+): unknown {
+  if (state.phase4_context?.stack_profile) {
+    return state.phase4_context.stack_profile;
+  }
+
+  try {
+    const config = JSON.parse(readFileSync(frameworkConfigPath, 'utf-8')) as {
+      stack_profile?: unknown;
+    };
+    return config.stack_profile;
+  } catch {
+    return undefined;
+  }
 }
