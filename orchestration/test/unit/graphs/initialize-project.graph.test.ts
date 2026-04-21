@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  initializeProjectGraph,
   routeAfterGraphFoundation,
   routeToPhase,
 } from '../../../src/graphs/initialize-project.graph.js';
@@ -21,6 +22,20 @@ describe('initializeProjectGraph routing', () => {
 
   it('preserves start_phase 2 routing to consolidation', () => {
     expect(routeToPhase({ ...baseState, start_phase: 2 })).toBe('consolidation');
+  });
+
+  it('preserves start_phase 4 routing to context generation', () => {
+    expect(routeToPhase({ ...baseState, start_phase: 4 })).toBe('context_generation');
+  });
+
+  it('places wiki_generation between context_generation and resources', () => {
+    const graph = initializeProjectGraph as any;
+    const edges = Array.from(graph.allEdges).map((edge) => (edge as string[]).join('->'));
+
+    expect(Object.keys(graph.nodes)).toContain('wiki_generation');
+    expect(edges).toContain('context_generation->wiki_generation');
+    expect(edges).toContain('wiki_generation->resources');
+    expect(edges).not.toContain('context_generation->resources');
   });
 
   it('routes successful graph foundation to all phase 1 analyzers', () => {

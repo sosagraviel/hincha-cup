@@ -10,6 +10,7 @@ import { dataFlowsIntegrationsAnalyzerNode } from '../nodes/initialize-project/p
 import { consolidationNode } from '../nodes/initialize-project/phase2/question-consolidator/question-consolidator.node.js';
 import { synthesisNode } from '../nodes/initialize-project/phase3/synthesis.node.js';
 import { contextGenerationNode } from '../nodes/initialize-project/phase4/context-generation.node.js';
+import { wikiGenerationNode } from '../nodes/initialize-project/phase4/wiki-generation.node.js';
 import { resourcesNode } from '../nodes/initialize-project/phase5/resources.node.js';
 import { validationNode } from '../nodes/initialize-project/phase6/validation.node.js';
 
@@ -57,6 +58,7 @@ export function routeAfterGraphFoundation(state: InitializeProjectState): string
  * PHASE 2: Consolidate findings and identify gaps
  * PHASE 3: Run Opus synthesis agent for comprehensive analysis
  * PHASE 4: Generate CLAUDE.md and project-context/SKILL.md
+ * PHASE 4b: Generate docs/ai-knowledge wiki from graph-backed analysis
  * PHASE 5: Copy skills and resources
  * PHASE 6: Final validation
  *
@@ -71,6 +73,7 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addNode('consolidation', consolidationNode)
   .addNode('synthesis', synthesisNode)
   .addNode('context_generation', contextGenerationNode)
+  .addNode('wiki_generation', wikiGenerationNode)
   .addNode('resources', resourcesNode)
   .addNode('validation', validationNode)
   // Conditional routing from START based on start_phase
@@ -85,7 +88,8 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   // Linear flow from Phase 2 onwards
   .addEdge('consolidation', 'synthesis')
   .addEdge('synthesis', 'context_generation')
-  .addEdge('context_generation', 'resources')
+  .addEdge('context_generation', 'wiki_generation')
+  .addEdge('wiki_generation', 'resources')
   .addEdge('resources', 'validation')
   .addEdge('validation', END);
 

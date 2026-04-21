@@ -90,6 +90,12 @@ export const Phase4ContextSchema = z.object({
   timestamp: z.string(),
 });
 
+export const PhaseWikiGenerationSchema = z.object({
+  ai_knowledge_written: z.boolean().default(false),
+  files: z.array(z.string()).default([]),
+  timestamp: z.string(),
+});
+
 // ============================================================================
 // RETRY AND ERROR TRACKING
 // ============================================================================
@@ -144,6 +150,7 @@ export const InitializeProjectStateSchema = z.object({
       'phase2_consolidation',
       'phase3_synthesis',
       'phase4_context',
+      'phase4_wiki_generation',
       'phase5_resources',
       'phase6_validation',
       'complete',
@@ -156,6 +163,7 @@ export const InitializeProjectStateSchema = z.object({
   phase2_consolidation: Phase2ConsolidationSchema.optional(),
   phase3_synthesis: Phase3SynthesisSchema.optional(),
   phase4_context: Phase4ContextSchema.optional(),
+  phase4_wiki_generation: PhaseWikiGenerationSchema.optional(),
 
   // Temp directory for intermediate files
   temp_dir: z.string().optional(),
@@ -174,6 +182,8 @@ export const InitializeProjectStateSchema = z.object({
   framework_config_path: z.string().optional(),
   claude_md_path: z.string().optional(),
   project_context_path: z.string().optional(),
+  ai_knowledge_path: z.string().optional(),
+  ai_knowledge_files: z.array(z.string()).optional(),
 
   // Workflow metadata
   started_at: z.string().optional(),
@@ -194,6 +204,7 @@ export type Phase1Analysis = z.infer<typeof Phase1AnalysisSchema>;
 export type Phase2Consolidation = z.infer<typeof Phase2ConsolidationSchema>;
 export type Phase3Synthesis = z.infer<typeof Phase3SynthesisSchema>;
 export type Phase4Context = z.infer<typeof Phase4ContextSchema>;
+export type PhaseWikiGeneration = z.infer<typeof PhaseWikiGenerationSchema>;
 export type RetryState = z.infer<typeof RetryStateSchema>;
 export type Phase1RetryTracking = z.infer<typeof Phase1RetryTrackingSchema>;
 export type InitializeProjectState = z.infer<typeof InitializeProjectStateSchema>;
@@ -262,6 +273,7 @@ export const InitializeProjectAnnotation = Annotation.Root({
     | 'phase2_consolidation'
     | 'phase3_synthesis'
     | 'phase4_context'
+    | 'phase4_wiki_generation'
     | 'phase5_resources'
     | 'phase6_validation'
     | 'complete'
@@ -275,6 +287,7 @@ export const InitializeProjectAnnotation = Annotation.Root({
         complete: 90,
         phase6_validation: 60,
         phase5_resources: 50,
+        phase4_wiki_generation: 45,
         phase4_context: 40,
         phase3_synthesis: 30,
         phase2_consolidation: 20,
@@ -308,6 +321,7 @@ export const InitializeProjectAnnotation = Annotation.Root({
   phase2_consolidation: Annotation<Phase2Consolidation | undefined>,
   phase3_synthesis: Annotation<Phase3Synthesis | undefined>,
   phase4_context: Annotation<Phase4Context | undefined>,
+  phase4_wiki_generation: Annotation<PhaseWikiGeneration | undefined>,
 
   // ============================================================================
   // TEMP DIRECTORY (use custom reducer for parallel updates from Phase 1)
@@ -361,6 +375,8 @@ export const InitializeProjectAnnotation = Annotation.Root({
   framework_config_path: Annotation<string | undefined>,
   claude_md_path: Annotation<string | undefined>,
   project_context_path: Annotation<string | undefined>,
+  ai_knowledge_path: Annotation<string | undefined>,
+  ai_knowledge_files: Annotation<string[] | undefined>,
 
   // ============================================================================
   // METADATA (use default LastValue reducer)

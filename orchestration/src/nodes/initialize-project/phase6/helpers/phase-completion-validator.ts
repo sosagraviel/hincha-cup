@@ -9,6 +9,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import type { InitializeProjectState } from '../../../../state/schemas/initialize-project.schema.js';
 import type { PhaseCompletionResult } from '../types.js';
+import { AI_KNOWLEDGE_FILE_NAMES } from '../../../../services/graph-wiki/wiki-generator.service.js';
 
 /**
  * Validate all phases completed by checking output files exist
@@ -43,6 +44,13 @@ export function validatePhaseCompletion(state: InitializeProjectState): PhaseCom
   const claudeMdPath = join(projectClaudeDir, 'CLAUDE.md');
   const phase4Complete = existsSync(frameworkConfigPath) && existsSync(claudeMdPath);
 
+  const shouldValidateWiki = Boolean(state.ai_knowledge_path || state.phase4_wiki_generation);
+  const aiKnowledgePath =
+    state.ai_knowledge_path || join(state.project_path, 'docs', 'ai-knowledge');
+  const phase4WikiComplete =
+    !shouldValidateWiki ||
+    AI_KNOWLEDGE_FILE_NAMES.every((fileName) => existsSync(join(aiKnowledgePath, fileName)));
+
   if (!phase1Complete) {
     errors.push('Phase 1 analysis outputs not found');
   }
@@ -55,6 +63,9 @@ export function validatePhaseCompletion(state: InitializeProjectState): PhaseCom
   if (!phase4Complete) {
     errors.push('Phase 4 context generation files not found');
   }
+  if (!phase4WikiComplete) {
+    errors.push('Phase 4 wiki generation files not found');
+  }
 
   return {
     valid: errors.length === 0,
@@ -64,5 +75,6 @@ export function validatePhaseCompletion(state: InitializeProjectState): PhaseCom
     phase2Complete,
     phase3Complete,
     phase4Complete,
+    phase4WikiComplete,
   };
 }

@@ -53,6 +53,7 @@ export interface PhaseCompletionResult extends ValidationResult {
   phase2Complete: boolean;
   phase3Complete: boolean;
   phase4Complete: boolean;
+  phase4WikiComplete?: boolean;
 }
 
 /**

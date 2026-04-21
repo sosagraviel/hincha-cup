@@ -10,6 +10,7 @@ import {
 } from './helpers/directory-validator.js';
 import { validateAgentCoverage } from './helpers/agent-coverage-validator.js';
 import { validatePhaseCompletion } from './helpers/phase-completion-validator.js';
+import { AI_KNOWLEDGE_FILE_NAMES } from '../../../services/graph-wiki/wiki-generator.service.js';
 
 /**
  * Phase 6: Validation Node
@@ -43,6 +44,9 @@ export async function validationNode(
       join(state.project_path, '.claude', 'skills', 'project-context', 'SKILL.md');
     const frameworkConfigPath =
       state.framework_config_path || join(state.project_path, '.claude', 'framework-config.json');
+    const shouldValidateWiki = Boolean(state.ai_knowledge_path || state.phase4_wiki_generation);
+    const aiKnowledgePath =
+      state.ai_knowledge_path || join(state.project_path, 'docs', 'ai-knowledge');
 
     // Get standard directory paths
     const directories = getClaudeDirectories(state.project_path);
@@ -74,14 +78,32 @@ export async function validationNode(
       phaseLogger.success(' ✓ framework-config.json validated');
     }
 
-    // 4. Validate skills directory exists
+    // 4. Validate AI knowledge wiki when this workflow generated it
+    if (shouldValidateWiki) {
+      const wikiErrors: string[] = [];
+      for (const fileName of AI_KNOWLEDGE_FILE_NAMES) {
+        const wikiFileResult = validateMarkdownFile(
+          join(aiKnowledgePath, fileName),
+          `docs/ai-knowledge/${fileName}`,
+        );
+        wikiErrors.push(...wikiFileResult.errors);
+        validationWarnings.push(...wikiFileResult.warnings);
+      }
+
+      validationErrors.push(...wikiErrors);
+      if (wikiErrors.length === 0) {
+        phaseLogger.success(' ✓ AI knowledge wiki validated');
+      }
+    }
+
+    // 5. Validate skills directory exists
     const skillsResult = validateDirectoryExists(directories.skills, 'Skills');
     validationErrors.push(...skillsResult.errors);
     if (skillsResult.valid) {
       phaseLogger.success(' ✓ Skills directory exists');
     }
 
-    // 5. Validate agents directory exists and has minimum agents
+    // 6. Validate agents directory exists and has minimum agents
     const agentsResult = validateDirectoryWithFiles(directories.agents, 'Agents');
     validationErrors.push(...agentsResult.errors);
 
@@ -104,14 +126,14 @@ export async function validationNode(
       }
     }
 
-    // 6. Validate commands directory exists
+    // 7. Validate commands directory exists
     const commandsResult = validateDirectoryWithFiles(directories.commands, 'Commands');
     validationErrors.push(...commandsResult.errors);
     if (commandsResult.valid) {
       phaseLogger.success(` ✓ Commands directory exists with ${commandsResult.fileCount} commands`);
     }
 
-    // 7. Validate all phases completed
+    // 8. Validate all phases completed
     const phaseCompletionResult = validatePhaseCompletion(state);
     validationErrors.push(...phaseCompletionResult.errors);
     validationWarnings.push(...phaseCompletionResult.warnings);
@@ -145,6 +167,9 @@ export async function validationNode(
     phaseLogger.info(`Project: ${state.project_path}`);
     phaseLogger.info(`CLAUDE.md: ${claudeMdPath}`);
     phaseLogger.info(`Config: ${frameworkConfigPath}`);
+    if (shouldValidateWiki) {
+      phaseLogger.info(`AI Knowledge: ${aiKnowledgePath}`);
+    }
     if (totalDuration) {
       phaseLogger.info(`Duration: ${(totalDuration / 1000).toFixed(2)}s`);
     }
@@ -158,6 +183,10 @@ export async function validationNode(
       claude_md_path: claudeMdPath,
       project_context_path: projectContextPath,
       framework_config_path: frameworkConfigPath,
+      ai_knowledge_path: shouldValidateWiki ? aiKnowledgePath : state.ai_knowledge_path,
+      ai_knowledge_files: shouldValidateWiki
+        ? AI_KNOWLEDGE_FILE_NAMES.map((fileName) => join(aiKnowledgePath, fileName))
+        : state.ai_knowledge_files,
     };
   } catch (error) {
     const errorMessage = `Validation failed: ${(error as Error).message}`;

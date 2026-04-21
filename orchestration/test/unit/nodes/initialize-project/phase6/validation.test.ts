@@ -96,6 +96,46 @@ describe('validationNode', () => {
     expect(result.completed_at).toBeDefined();
   });
 
+  it('should validate wiki files when wiki state is present', async () => {
+    mockState.ai_knowledge_path = '/test/project/docs/ai-knowledge';
+    mockState.phase4_wiki_generation = {
+      ai_knowledge_written: true,
+      files: [
+        '/test/project/docs/ai-knowledge/index.md',
+        '/test/project/docs/ai-knowledge/ARCHITECTURE.md',
+        '/test/project/docs/ai-knowledge/SERVICES.md',
+        '/test/project/docs/ai-knowledge/DATA-FLOWS.md',
+        '/test/project/docs/ai-knowledge/PATTERNS.md',
+      ],
+      timestamp: '2024-01-01T00:00:00Z',
+    };
+
+    const result = await validationNode(mockState);
+
+    expect(result.current_phase).toBe('complete');
+    expect(result.ai_knowledge_path).toBe('/test/project/docs/ai-knowledge');
+    expect(result.ai_knowledge_files).toHaveLength(5);
+  });
+
+  it('should fail if wiki state is present but a core wiki file is missing', async () => {
+    mockState.ai_knowledge_path = '/test/project/docs/ai-knowledge';
+    mockState.phase4_wiki_generation = {
+      ai_knowledge_written: true,
+      files: [],
+      timestamp: '2024-01-01T00:00:00Z',
+    };
+    vi.mocked(fs.existsSync).mockImplementation(
+      (path: any) => !String(path).includes('PATTERNS.md'),
+    );
+
+    const result = await validationNode(mockState);
+
+    expect(result.current_phase).toBe('failed');
+    expect(result.errors?.some((error) => error.includes('docs/ai-knowledge/PATTERNS.md'))).toBe(
+      true,
+    );
+  });
+
   it('should fail if CLAUDE.md path not set', async () => {
     mockState.claude_md_path = undefined;
     // Mock existsSync to return false for CLAUDE.md
