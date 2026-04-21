@@ -7,6 +7,11 @@ import {
   buildImplementerPrompt,
   getProjectAgentPath,
 } from '../../services/implement-ticket/shared/index.js';
+import {
+  assertAgentHasCodeGraphTool,
+  assertCodeGraphReady,
+  loadAiKnowledgeContext,
+} from '../../services/implement-ticket/graph-context.service.js';
 
 /**
  * Phase 4: Implementation Node
@@ -100,25 +105,45 @@ export async function phase4ImplementationNode(
       throw new Error('framework_path not set in state');
     }
 
+    const graphPath = assertCodeGraphReady(projectPath);
+    console.log(`[Phase 4: Implementation] ✓ Code graph available (${graphPath})`);
+
+    const aiKnowledgeContext = loadAiKnowledgeContext(projectPath);
+    if (aiKnowledgeContext) {
+      console.log('[Phase 4: Implementation] ✓ AI knowledge context loaded');
+    } else {
+      console.log(
+        '[Phase 4: Implementation] AI knowledge context not found; continuing with graph only',
+      );
+    }
+
     // 7. Invoke implementer agent
     console.log('[Phase 4: Implementation] Invoking implementer agent...');
 
     let implementerOutput: string;
     try {
       // Build implementer prompt
-      const inputPrompt = buildImplementerPrompt(implementationPlan, fullContext);
+      const inputPrompt = buildImplementerPrompt(
+        implementationPlan,
+        fullContext,
+        aiKnowledgeContext,
+      );
 
       // Determine agent file based on primary language
       const agentFile = `implementer-${primaryLanguage.toLowerCase()}.md`;
+      const implementerAgentPath = getProjectAgentPath(projectPath, agentFile);
+      assertAgentHasCodeGraphTool(implementerAgentPath);
+      console.log('[Phase 4: Implementation] ✓ Implementer agent is graph-aware');
 
       // Create and invoke implementer agent
       const factory = await AgentFactory.create();
       const agent = await factory.createAgent({
         agentName: `implementer-${primaryLanguage}`,
-        agentFilePath: getProjectAgentPath(projectPath, agentFile),
+        agentFilePath: implementerAgentPath,
         projectPath,
         frameworkPath,
         timeout: 900000, // 15 minutes
+        settingsPath: join(frameworkPath, 'orchestration/src/nodes/implement-ticket/settings.json'),
       });
 
       const result = await agent.invoke({ inputPrompt });

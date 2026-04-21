@@ -1,8 +1,8 @@
 ---
 name: implement-ticket
-version: 3.0.0
-last-updated: 2026-04-15
-description: Implements a ticket end-to-end through 11 phases from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
+version: 3.1.0
+last-updated: 2026-04-21
+description: Implements a ticket end-to-end through a graph-aware 11-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 user-invokable: true
 disable-model-invocation: true
@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 Input: $ARGUMENTS
 
-Implement the ticket described above through the full 11-phase SDLC workflow.
+Implement the ticket described above through the full graph-aware 11-phase SDLC workflow.
 
 ## Flags
 
@@ -24,6 +24,16 @@ Parse the input for these flags:
 - `--skip-visual` - skip visual verification phase
 - `--skip-pr` - skip PR creation (commit only)
 - `--branch <NAME>` - custom branch name (default: auto-generated)
+
+## CRITICAL: Graph-Aware POC Requirements
+
+This workflow is a graph-aware POC. The graph path must be active so results can be measured.
+
+- `code-review-graph` MUST be built and MCP-accessible before planning starts.
+- This framework uses `.code-graph.db` as the compatibility graph DB. Upstream `code-review-graph` defaults to `.code-review-graph/graph.db`.
+- Generated `.claude/agents/planner.md` and `.claude/agents/implementer-*.md` MUST expose `mcp__code_graph`.
+
+If the graph DB, MCP config, or graph-aware agents are missing, STOP immediately and tell the user to rerun `/initialize-project` or resource sync before using `/implement-ticket`.
 
 ## CRITICAL: Artifact Path Enforcement
 
@@ -60,8 +70,8 @@ Create each task using TaskCreate with these exact values:
 1. Phase 0: Preflight Validation
    subject: "Phase 0: Preflight Validation"
    activeForm: "Validating environment"
-   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack
-   Expected outputs: git is clean, tests pass, build succeeds
+   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack, verify `.code-graph.db` exists, verify graph MCP can be started through framework config, verify generated planner/implementer agents expose `mcp__code_graph`
+   Expected outputs: git is clean, tests pass, build succeeds, graph DB exists, graph MCP is available, graph-aware agents are present
    Constraint: If any check fails, STOP and report. Do not proceed to Phase 1.
 
 2. Phase 1: Context Gathering
@@ -74,9 +84,9 @@ Create each task using TaskCreate with these exact values:
 3. Phase 2: Planning
    subject: "Phase 2: Planning"
    activeForm: "Creating implementation plan"
-   Steps: MUST invoke /analyze-requirements skill, MUST spawn planner agent, generate implementation strategy, identify files to create/modify, create test strategy
-   Expected outputs: planner agent was spawned, implementation plan exists, test strategy defined, files to modify identified
-   Constraint: Do not proceed if planner agent was not spawned or plan does not exist.
+   Steps: MUST invoke /analyze-requirements skill to produce structured requirements analysis input, MUST spawn graph-aware planner agent, planner consumes the requirements analysis input and synthesizes the only Phase 2 planning artifact named `Implementation Plan`, planner includes implementation strategy/files to create or modify/test strategy/Graph Evidence in that artifact, save Graph Evidence under the normal artifact path
+   Expected outputs: requirements analysis input exists, graph-aware planner agent was spawned, planner-authored `Implementation Plan` exists as the only Phase 2 planning artifact, Graph Evidence exists, test strategy defined, files to create/modify identified
+   Constraint: Do not proceed if planner agent was not spawned, graph evidence is absent, the planner-authored `Implementation Plan` does not exist, or Phase 2 produced competing planning artifacts.
 
 4. Phase 3: Environment Setup
    subject: "Phase 3: Environment Setup"
@@ -88,9 +98,9 @@ Create each task using TaskCreate with these exact values:
 5. Phase 4: Implementation
    subject: "Phase 4: Implementation"
    activeForm: "Implementing code changes"
-   Steps: MUST spawn implementer-{lang} agent with the plan from Phase 2, implement code following plan, follow project conventions from CLAUDE.md, create/modify files as needed
-   Expected outputs: implementer agent was spawned, code changes exist, new files created as planned
-   Constraint: Do not proceed if implementer agent was not spawned or no code changes exist.
+   Steps: MUST spawn graph-aware implementer-{lang} agent with the planner-authored `Implementation Plan` from Phase 2, query graph before editing planned target areas, check callers/imports/similar implementations/tests where relevant, implement code following that plan, follow project conventions from CLAUDE.md, create/modify files as needed, include graph queries used in final implementation summary
+   Expected outputs: graph-aware implementer agent was spawned, graph checks were performed, code changes exist, new files created as planned
+   Constraint: Do not proceed if implementer agent was not spawned, no graph checks were performed, or no code changes exist.
 
 6. Phase 5: Testing
    subject: "Phase 5: Testing"
@@ -163,8 +173,13 @@ Execute each phase sequentially. Do not proceed to the next phase until the curr
 - Verify tests pass in current state
 - Validate build succeeds
 - Detect primary language and stack
+- Verify `.code-graph.db` exists at the project root
+- Verify the framework graph MCP config can start `code-review-graph`
+- Verify generated planner and implementer agents expose `mcp__code_graph`
 
 CRITICAL: If any check fails, STOP. Report the failure. Do not continue.
+
+For graph failures, tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db` and graph-aware `.claude/agents/*` files are regenerated.
 
 CONTINUE WITH Phase 1.
 
@@ -180,13 +195,17 @@ CONTINUE WITH Phase 2.
 ### Phase 2: Planning
 
 CRITICAL: You MUST do both of these. Do not skip either one.
-1. Invoke `/analyze-requirements` skill to create implementation plan
-2. Spawn `planner` agent for architecture-aware planning
+1. Invoke `/analyze-requirements` skill to produce structured requirements analysis input.
+2. Spawn `planner` agent for graph-aware architecture planning. The planner MUST consume the ticket context and requirements analysis input, then synthesize the only Phase 2 planning artifact named `Implementation Plan`.
 
 After both complete, verify:
-- Implementation plan exists
+- Requirements analysis input exists
+- Planner-authored `Implementation Plan` exists as the only Phase 2 planning artifact
+- Graph Evidence is included in the planner-authored `Implementation Plan` and saved under `$ARTIFACTS_DIR`
 - Test strategy is defined
 - Files to create/modify are identified
+
+Do not create, save, or hand off any competing implementation plan from `/analyze-requirements`. Its output is input to the planner only.
 
 CONTINUE WITH Phase 3.
 
@@ -201,9 +220,11 @@ CONTINUE WITH Phase 4.
 
 ### Phase 4: Implementation
 
-CRITICAL: You MUST spawn the stack-specific `implementer-{lang}` agent with the plan from Phase 2. Do not implement code directly without spawning the agent.
+CRITICAL: You MUST spawn the stack-specific graph-aware `implementer-{lang}` agent with the planner-authored `Implementation Plan` from Phase 2. Do not hand off any `/analyze-requirements` output as the implementation plan, and do not implement code directly without spawning the agent.
 
 After agent completes, verify:
+- Graph queries used are included in the implementation summary
+- Any inconclusive graph evidence is called out
 - Code changes exist
 - New files created as planned
 
@@ -283,15 +304,16 @@ If a phase fails:
 - Do NOT mark the task as completed
 - Report which phase failed and why
 - If Phase 0 fails: stop immediately
+- If graph DB, graph MCP, or graph-aware agents are unavailable: stop immediately and instruct the user to rerun `/initialize-project` or resource sync
 - If Phase 5 fails after 3 fix iterations: stop and report
 - For other phases: attempt to recover once, then stop if still failing
 
 ## Skills and Agents Used
 
 - `/fetch-ticket-context`: Phase 1 (Jira tickets only)
-- `/analyze-requirements`: Phase 2
-- `planner` agent: Phase 2
-- `implementer-{lang}` agent: Phase 4, Phase 5 (fixes), Phase 9 (fixes)
+- `/analyze-requirements`: Phase 2 structured requirements analysis input provider
+- `planner` agent: Phase 2 sole `Implementation Plan` author and Graph Evidence owner
+- `implementer-{lang}` agent: Phase 4, Phase 5 (fixes), Phase 9 (fixes), with graph checks before edits
 - `visual-verifier` agent: Phase 6
 - `/doc-updater`: Phase 7
 - `/pr-reviewer`: Phase 9
@@ -300,6 +322,9 @@ If a phase fails:
 ## Prerequisites
 
 - Project initialized with `/initialize-project`
+- `code-review-graph` built and MCP-accessible
+- `.code-graph.db` exists at the project root (framework compatibility DB; upstream default is `.code-review-graph/graph.db`)
+- Generated planner and implementer agents expose `mcp__code_graph`
 - Git repository with remote configured
 - Tests passing in current state
 - For `--from-jira`: Jira MCP configured

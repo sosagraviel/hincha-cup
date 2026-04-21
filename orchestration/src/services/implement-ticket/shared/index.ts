@@ -9,12 +9,19 @@ import { buildContentSection } from '../../../utils/shared/context-tags.js';
 /**
  * Build input prompt for planner agent (Phase 2)
  */
-export function buildPlannerPrompt(ticketId: string, context: string, stackProfile: any): string {
+export function buildPlannerPrompt(
+  ticketId: string,
+  context: string,
+  stackProfile: any,
+  graphContext = '',
+): string {
   const parts: string[] = [
     buildContentSection('Ticket ID', ticketId),
     '',
     buildContentSection('Context', context),
     '',
+    graphContext ? buildContentSection('Graph and AI Knowledge Context', graphContext) : '',
+    graphContext ? '' : '',
     buildContentSection(
       'Stack Profile',
       [
@@ -30,37 +37,44 @@ export function buildPlannerPrompt(ticketId: string, context: string, stackProfi
       'Requirements',
       [
         'Create a comprehensive implementation plan:',
+        '0. Graph Evidence - Graph queries used and findings that justify the plan',
         '1. Implementation Steps - Detailed step-by-step instructions',
         '2. Test Plan - Unit, integration, and E2E test requirements',
         '3. Environment Requirements - Docker, services, env vars',
         '4. Risk Assessment - Potential risks and mitigation',
+        'Use mcp__code_graph before broad Grep/Glob exploration and include graph-backed blast radius.',
       ].join('\n'),
     ),
   ];
 
-  return parts.join('\n');
+  return parts.filter((part) => part !== '').join('\n');
 }
 
 /**
  * Build input prompt for implementer agent (Phase 4)
  */
-export function buildImplementerPrompt(plan: string, context: string): string {
+export function buildImplementerPrompt(plan: string, context: string, graphContext = ''): string {
   const parts: string[] = [
     buildContentSection('Implementation Plan', plan),
     '',
     buildContentSection('Context', context),
     '',
+    graphContext ? buildContentSection('Graph and AI Knowledge Context', graphContext) : '',
+    graphContext ? '' : '',
     buildContentSection(
       'Instructions',
       [
         'Follow the plan exactly.',
+        'Use mcp__code_graph before editing planned target areas.',
+        'Check callers, imports, similar implementations, and related tests where relevant.',
         'Make the necessary code changes to implement the required functionality.',
         'Ensure all code follows team conventions and patterns from project-context.',
+        'At completion, summarize graph queries used and any graph evidence that affected implementation decisions.',
       ].join('\n'),
     ),
   ];
 
-  return parts.join('\n');
+  return parts.filter((part) => part !== '').join('\n');
 }
 
 /**

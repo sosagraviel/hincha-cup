@@ -40,6 +40,10 @@ ${BLUE}PREREQUISITE:${NC}
     Project must be initialized first:
     ./ai-agentic-framework/scripts/initialize-project.sh
 
+    Graph-aware POC requires:
+    - .code-graph.db in the project root
+    - regenerated .claude/agents/* with mcp__code_graph tools
+
 ${BLUE}USAGE:${NC}
     $0 --ticket-id TICKET-123 [INPUT SOURCE] [OPTIONS]
 
@@ -131,6 +135,8 @@ ${BLUE}OUTPUT:${NC}
 
 ${BLUE}REQUIREMENTS:${NC}
     - Project initialized (run initialize-project.sh first)
+    - Code graph initialized (.code-graph.db must exist)
+    - Generated agents refreshed after this graph-aware POC update
     - node (v14+)
     - npm
     - git
@@ -286,6 +292,18 @@ if [ ! -f "$PROJECT_PATH/.claude/framework-config.json" ]; then
 fi
 
 echo -e "${GREEN}✓ Project is initialized${NC}"
+
+if [ ! -f "$PROJECT_PATH/.code-graph.db" ]; then
+    echo -e "${RED}Error: Code graph database not found: $PROJECT_PATH/.code-graph.db${NC}"
+    echo ""
+    echo "This graph-aware POC requires initialize-project to build the code graph."
+    echo "Run:"
+    echo "  ./ai-agentic-framework/scripts/initialize-project.sh"
+    echo ""
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Code graph database found${NC}"
 echo ""
 
 # ============================================================================

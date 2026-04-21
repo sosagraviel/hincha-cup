@@ -6,6 +6,11 @@ import {
   buildPlannerPrompt,
   getProjectAgentPath,
 } from '../../services/implement-ticket/shared/index.js';
+import {
+  assertAgentHasCodeGraphTool,
+  assertCodeGraphReady,
+  loadAiKnowledgeContext,
+} from '../../services/implement-ticket/graph-context.service.js';
 
 /**
  * Phase 2: Planning & Architecture Node
@@ -80,6 +85,20 @@ export async function phase2PlanningNode(
       throw new Error('framework_path not set in state');
     }
 
+    const graphPath = assertCodeGraphReady(projectPath);
+    console.log(`[Phase 2: Planning] ✓ Code graph available (${graphPath})`);
+
+    const plannerAgentPath = getProjectAgentPath(projectPath, 'planner.md');
+    assertAgentHasCodeGraphTool(plannerAgentPath);
+    console.log('[Phase 2: Planning] ✓ Planner agent is graph-aware');
+
+    const aiKnowledgeContext = loadAiKnowledgeContext(projectPath);
+    if (aiKnowledgeContext) {
+      console.log('[Phase 2: Planning] ✓ AI knowledge context loaded');
+    } else {
+      console.log('[Phase 2: Planning] AI knowledge context not found; continuing with graph only');
+    }
+
     // Declare variables outside try block so they're in scope for file writes
     let implementationPlan = '';
     let testPlan: any = {};
@@ -87,16 +106,22 @@ export async function phase2PlanningNode(
 
     try {
       // Build planner prompt
-      const inputPrompt = buildPlannerPrompt(ticketId, fullContext, stackProfile);
+      const inputPrompt = buildPlannerPrompt(
+        ticketId,
+        fullContext,
+        stackProfile,
+        aiKnowledgeContext,
+      );
 
       // Create and invoke planner agent (Opus)
       const factory = await AgentFactory.create();
       const agent = await factory.createAgent({
         agentName: 'planner',
-        agentFilePath: getProjectAgentPath(projectPath, 'planner.md'),
+        agentFilePath: plannerAgentPath,
         projectPath,
         frameworkPath,
         timeout: 600000, // 10 minutes
+        settingsPath: join(frameworkPath, 'orchestration/src/nodes/implement-ticket/settings.json'),
       });
 
       const result = await agent.invoke({ inputPrompt });

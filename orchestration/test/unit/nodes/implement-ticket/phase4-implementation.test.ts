@@ -52,6 +52,8 @@ describe('phase4ImplementationNode', () => {
       if (path.includes('implementation-plan.md')) return true;
       if (path.includes('full-context.md')) return true;
       if (path.includes('stack-profile.json')) return true;
+      if (path.includes('.code-graph.db')) return true;
+      if (path.includes('implementer-typescript.md')) return true;
       return false;
     });
 
@@ -60,6 +62,9 @@ describe('phase4ImplementationNode', () => {
       if (path.includes('full-context.md')) return '# Context\nFull context here...';
       if (path.includes('stack-profile.json')) {
         return JSON.stringify({ primary_language: 'typescript' });
+      }
+      if (path.includes('implementer-typescript.md')) {
+        return 'tools: Read, Write, Edit, mcp__code_graph';
       }
       return '';
     });
@@ -210,9 +215,22 @@ describe('phase4ImplementationNode', () => {
         if (path.includes('stack-profile.json')) {
           return JSON.stringify({ primary_language: 'python' });
         }
+        if (path.includes('implementer-python.md')) {
+          return 'tools: Read, Write, Edit, mcp__code_graph';
+        }
         if (path.includes('implementation-plan.md')) return 'Plan';
         if (path.includes('full-context.md')) return 'Context';
         return '';
+      });
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('implementation-complete.json')) return false;
+        if (path.includes('environment-complete.json')) return true;
+        if (path.includes('implementation-plan.md')) return true;
+        if (path.includes('full-context.md')) return true;
+        if (path.includes('stack-profile.json')) return true;
+        if (path.includes('.code-graph.db')) return true;
+        if (path.includes('implementer-python.md')) return true;
+        return false;
       });
 
       const mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
@@ -226,6 +244,7 @@ describe('phase4ImplementationNode', () => {
         projectPath: '/test/project',
         frameworkPath: '/test/framework',
         timeout: 900000,
+        settingsPath: expect.stringContaining('settings.json'),
       });
     });
 
@@ -234,9 +253,22 @@ describe('phase4ImplementationNode', () => {
         if (path.includes('stack-profile.json')) {
           return JSON.stringify({});
         }
+        if (path.includes('implementer-generic.md')) {
+          return 'tools: Read, Write, Edit, mcp__code_graph';
+        }
         if (path.includes('implementation-plan.md')) return 'Plan';
         if (path.includes('full-context.md')) return 'Context';
         return '';
+      });
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('implementation-complete.json')) return false;
+        if (path.includes('environment-complete.json')) return true;
+        if (path.includes('implementation-plan.md')) return true;
+        if (path.includes('full-context.md')) return true;
+        if (path.includes('stack-profile.json')) return true;
+        if (path.includes('.code-graph.db')) return true;
+        if (path.includes('implementer-generic.md')) return true;
+        return false;
       });
 
       const mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
@@ -250,6 +282,7 @@ describe('phase4ImplementationNode', () => {
         projectPath: '/test/project',
         frameworkPath: '/test/framework',
         timeout: 900000,
+        settingsPath: expect.stringContaining('settings.json'),
       });
     });
   });
@@ -278,6 +311,7 @@ describe('phase4ImplementationNode', () => {
         projectPath: '/test/project',
         frameworkPath: '/test/framework',
         timeout: 900000,
+        settingsPath: expect.stringContaining('settings.json'),
       });
     });
 
@@ -286,6 +320,16 @@ describe('phase4ImplementationNode', () => {
 
       expect(mockAgent.invoke).toHaveBeenCalledWith({
         inputPrompt: expect.stringContaining('Implementation Plan'),
+      });
+    });
+
+    it('should include graph instructions in implementer prompt', async () => {
+      await phase4ImplementationNode(mockState);
+
+      expect(mockAgent.invoke).toHaveBeenCalledWith({
+        inputPrompt: expect.stringContaining(
+          'Use mcp__code_graph before editing planned target areas',
+        ),
       });
     });
 
@@ -298,6 +342,51 @@ describe('phase4ImplementationNode', () => {
       expect(result.errors?.some((e) => e.includes('Implementer agent invocation failed'))).toBe(
         true,
       );
+    });
+
+    it('should fail before invoking agent when code graph is missing', async () => {
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('implementation-complete.json')) return false;
+        if (path.includes('environment-complete.json')) return true;
+        if (path.includes('implementation-plan.md')) return true;
+        if (path.includes('full-context.md')) return true;
+        if (path.includes('stack-profile.json')) return true;
+        if (path.includes('.code-graph.db')) return false;
+        return false;
+      });
+
+      const result = await phase4ImplementationNode(mockState);
+
+      expect(result.current_phase).toBe('failed');
+      expect(result.errors?.[0]).toContain('Code graph database not found');
+      expect(mockAgent.invoke).not.toHaveBeenCalled();
+    });
+
+    it('should fail before invoking agent when implementer is not graph-aware', async () => {
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('implementation-complete.json')) return false;
+        if (path.includes('environment-complete.json')) return true;
+        if (path.includes('implementation-plan.md')) return true;
+        if (path.includes('full-context.md')) return true;
+        if (path.includes('stack-profile.json')) return true;
+        if (path.includes('.code-graph.db')) return true;
+        if (path.includes('implementer-typescript.md')) return true;
+        return false;
+      });
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('implementation-plan.md')) return '# Implementation Plan\nSteps here...';
+        if (path.includes('full-context.md')) return '# Context\nFull context here...';
+        if (path.includes('stack-profile.json'))
+          return JSON.stringify({ primary_language: 'typescript' });
+        if (path.includes('implementer-typescript.md')) return 'tools: Read, Write, Edit';
+        return '';
+      });
+
+      const result = await phase4ImplementationNode(mockState);
+
+      expect(result.current_phase).toBe('failed');
+      expect(result.errors?.[0]).toContain('Generated agent is not graph-aware');
+      expect(mockAgent.invoke).not.toHaveBeenCalled();
     });
   });
 

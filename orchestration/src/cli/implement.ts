@@ -40,7 +40,7 @@ const program = new Command();
 
 program
   .name('implement-ticket')
-  .description('Implement a ticket using the Claude Code framework')
+  .description('Implement a ticket using the graph-aware Claude Code framework')
   .version('1.0.0')
   .requiredOption('-p, --project-path <path>', 'Path to the project to implement in')
   .requiredOption('-f, --framework-path <path>', 'Path to the Claude Code framework')

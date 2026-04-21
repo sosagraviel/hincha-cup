@@ -63,6 +63,8 @@ Environment variables: DATABASE_URL=postgres://...
       if (path.includes('context-complete.json')) return true;
       if (path.includes('full-context.md')) return true;
       if (path.includes('stack-profile.json')) return true;
+      if (path.includes('.code-graph.db')) return true;
+      if (path.includes('planner.md')) return true;
       return false;
     });
 
@@ -74,6 +76,7 @@ Environment variables: DATABASE_URL=postgres://...
           testing_frameworks: { typescript: ['vitest'] },
         });
       }
+      if (path.includes('planner.md')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       return '';
     });
   });
@@ -167,6 +170,7 @@ Environment variables: DATABASE_URL=postgres://...
         projectPath: '/test/project',
         frameworkPath: '/test/framework',
         timeout: 600000,
+        settingsPath: expect.stringContaining('settings.json'),
       });
     });
 
@@ -178,6 +182,14 @@ Environment variables: DATABASE_URL=postgres://...
       });
     });
 
+    it('should include graph instructions in planner prompt', async () => {
+      await phase2PlanningNode(mockState);
+
+      expect(mockAgent.invoke).toHaveBeenCalledWith({
+        inputPrompt: expect.stringContaining('Use mcp__code_graph before broad Grep/Glob'),
+      });
+    });
+
     it('should handle agent errors gracefully', async () => {
       mockAgent.invoke.mockRejectedValue(new Error('Agent failed'));
 
@@ -186,6 +198,48 @@ Environment variables: DATABASE_URL=postgres://...
       expect(result.current_phase).toBe('failed');
       expect(result.errors).toBeDefined();
       expect(result.errors?.[0]).toContain('Planning failed');
+    });
+
+    it('should fail before invoking agent when code graph is missing', async () => {
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('planning-complete.json')) return false;
+        if (path.includes('context-complete.json')) return true;
+        if (path.includes('full-context.md')) return true;
+        if (path.includes('stack-profile.json')) return true;
+        if (path.includes('.code-graph.db')) return false;
+        return false;
+      });
+
+      const result = await phase2PlanningNode(mockState);
+
+      expect(result.current_phase).toBe('failed');
+      expect(result.errors?.[0]).toContain('Code graph database not found');
+      expect(mockAgent.invoke).not.toHaveBeenCalled();
+    });
+
+    it('should fail before invoking agent when planner is not graph-aware', async () => {
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('planning-complete.json')) return false;
+        if (path.includes('context-complete.json')) return true;
+        if (path.includes('full-context.md')) return true;
+        if (path.includes('stack-profile.json')) return true;
+        if (path.includes('.code-graph.db')) return true;
+        if (path.includes('planner.md')) return true;
+        return false;
+      });
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('full-context.md')) return '# Full Context\n\nContext here...';
+        if (path.includes('stack-profile.json'))
+          return JSON.stringify({ primary_language: 'typescript' });
+        if (path.includes('planner.md')) return 'tools: Read, Grep, Glob';
+        return '';
+      });
+
+      const result = await phase2PlanningNode(mockState);
+
+      expect(result.current_phase).toBe('failed');
+      expect(result.errors?.[0]).toContain('Generated agent is not graph-aware');
+      expect(mockAgent.invoke).not.toHaveBeenCalled();
     });
   });
 
