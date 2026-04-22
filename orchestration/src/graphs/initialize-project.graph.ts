@@ -10,6 +10,11 @@ import { dataFlowsIntegrationsAnalyzerNode } from '../nodes/initialize-project/p
 import { consolidationNode } from '../nodes/initialize-project/phase2/question-consolidator/question-consolidator.node.js';
 import { synthesisNode } from '../nodes/initialize-project/phase3/synthesis.node.js';
 import { contextGenerationNode } from '../nodes/initialize-project/phase4/context-generation.node.js';
+import { wikiPreparationNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-preparation.node.js';
+import { wikiArchitectureDocNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-architecture.node.js';
+import { wikiDataflowsDocNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-dataflows.node.js';
+import { wikiPatternsDocNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-patterns.node.js';
+import { wikiServiceDocsNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-service-docs.node.js';
 import { wikiGenerationNode } from '../nodes/initialize-project/phase4/wiki-generation.node.js';
 import { resourcesNode } from '../nodes/initialize-project/phase5/resources.node.js';
 import { validationNode } from '../nodes/initialize-project/phase6/validation.node.js';
@@ -51,6 +56,14 @@ export function routeAfterGraphFoundation(state: InitializeProjectState): string
   ];
 }
 
+export function routeAfterWikiPreparation(state: InitializeProjectState): string | string[] {
+  if (state.current_phase === 'failed') {
+    return END;
+  }
+
+  return ['wiki_architecture_doc', 'wiki_dataflows_doc', 'wiki_patterns_doc'];
+}
+
 /**
  * Initialize Project Graph - 6-Phase Workflow
  *
@@ -58,7 +71,10 @@ export function routeAfterGraphFoundation(state: InitializeProjectState): string
  * PHASE 2: Consolidate findings and identify gaps
  * PHASE 3: Run Opus synthesis agent for comprehensive analysis
  * PHASE 4: Generate CLAUDE.md and project-context/SKILL.md
- * PHASE 4b: Generate docs/ai-knowledge wiki from graph-backed analysis
+ * PHASE 4b: Generate docs/ai-knowledge wiki via parallel subgraph:
+ *   wiki_preparation → [architecture, data-flow, pattern] in parallel →
+ *   wiki_service_docs (N concurrent per-service LLM calls) →
+ *   wiki_generation (deterministic SERVICES.md catalog + index + disk writes)
  * PHASE 5: Copy skills and resources
  * PHASE 6: Final validation
  *
@@ -73,6 +89,11 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addNode('consolidation', consolidationNode)
   .addNode('synthesis', synthesisNode)
   .addNode('context_generation', contextGenerationNode)
+  .addNode('wiki_preparation', wikiPreparationNode)
+  .addNode('wiki_architecture_doc', wikiArchitectureDocNode)
+  .addNode('wiki_dataflows_doc', wikiDataflowsDocNode)
+  .addNode('wiki_patterns_doc', wikiPatternsDocNode)
+  .addNode('wiki_service_docs', wikiServiceDocsNode)
   .addNode('wiki_generation', wikiGenerationNode)
   .addNode('resources', resourcesNode)
   .addNode('validation', validationNode)
@@ -85,10 +106,18 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addEdge('tech_stack_dependencies_analyzer', 'consolidation')
   .addEdge('code_patterns_testing_analyzer', 'consolidation')
   .addEdge('data_flows_integrations_analyzer', 'consolidation')
-  // Linear flow from Phase 2 onwards
+  // Linear flow from Phase 2 through Phase 4 context generation
   .addEdge('consolidation', 'synthesis')
   .addEdge('synthesis', 'context_generation')
-  .addEdge('context_generation', 'wiki_generation')
+  // Phase 4b: wiki preparation fans out to 3 parallel core-doc nodes
+  .addEdge('context_generation', 'wiki_preparation')
+  .addConditionalEdges('wiki_preparation', routeAfterWikiPreparation)
+  // Core-doc nodes converge on the service-docs node
+  .addEdge('wiki_architecture_doc', 'wiki_service_docs')
+  .addEdge('wiki_dataflows_doc', 'wiki_service_docs')
+  .addEdge('wiki_patterns_doc', 'wiki_service_docs')
+  // Service docs → finalization → resources
+  .addEdge('wiki_service_docs', 'wiki_generation')
   .addEdge('wiki_generation', 'resources')
   .addEdge('resources', 'validation')
   .addEdge('validation', END);

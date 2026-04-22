@@ -8,12 +8,15 @@ export const AI_KNOWLEDGE_FILE_NAMES = [
   'PATTERNS.md',
 ] as const;
 
+// Core docs that are LLM-generated in parallel. SERVICES.md is intentionally
+// excluded — it is now a deterministic catalog assembled in the finalization step.
 export const AI_KNOWLEDGE_CORE_GENERATION_ORDER = [
   'ARCHITECTURE.md',
-  'SERVICES.md',
   'DATA-FLOWS.md',
   'PATTERNS.md',
 ] as const;
+
+export type CoreLlmDocumentType = 'architecture' | 'data-flow' | 'pattern';
 
 export const AI_KNOWLEDGE_CONTEXT_START = '<!-- AI_KNOWLEDGE_WIKI_START -->';
 export const AI_KNOWLEDGE_CONTEXT_END = '<!-- AI_KNOWLEDGE_WIKI_END -->';

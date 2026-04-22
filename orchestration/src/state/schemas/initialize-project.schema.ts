@@ -96,6 +96,24 @@ export const PhaseWikiGenerationSchema = z.object({
   timestamp: z.string(),
 });
 
+// Phase 4b internal work-area — populated across the wiki-generation subgraph.
+// Each parallel core-doc node writes exactly one slot; the merge reducer on the
+// Annotation prevents last-write-wins overwrites. Not persisted as a final output.
+export const Phase4WikiDocsSchema = z.object({
+  context: z
+    .object({
+      analyzers: z.any(),
+      stackProfile: z.any().optional(),
+      generatedAt: z.string(),
+      graphVersion: z.string(),
+    })
+    .optional(),
+  architecture: z.any().optional(),
+  data_flows: z.any().optional(),
+  patterns: z.any().optional(),
+  service_docs: z.array(z.any()).optional(),
+});
+
 // ============================================================================
 // RETRY AND ERROR TRACKING
 // ============================================================================
@@ -164,6 +182,7 @@ export const InitializeProjectStateSchema = z.object({
   phase3_synthesis: Phase3SynthesisSchema.optional(),
   phase4_context: Phase4ContextSchema.optional(),
   phase4_wiki_generation: PhaseWikiGenerationSchema.optional(),
+  phase4_wiki_docs: Phase4WikiDocsSchema.optional(),
 
   // Temp directory for intermediate files
   temp_dir: z.string().optional(),
@@ -205,6 +224,7 @@ export type Phase2Consolidation = z.infer<typeof Phase2ConsolidationSchema>;
 export type Phase3Synthesis = z.infer<typeof Phase3SynthesisSchema>;
 export type Phase4Context = z.infer<typeof Phase4ContextSchema>;
 export type PhaseWikiGeneration = z.infer<typeof PhaseWikiGenerationSchema>;
+export type Phase4WikiDocs = z.infer<typeof Phase4WikiDocsSchema>;
 export type RetryState = z.infer<typeof RetryStateSchema>;
 export type Phase1RetryTracking = z.infer<typeof Phase1RetryTrackingSchema>;
 export type InitializeProjectState = z.infer<typeof InitializeProjectStateSchema>;
@@ -322,6 +342,14 @@ export const InitializeProjectAnnotation = Annotation.Root({
   phase3_synthesis: Annotation<Phase3Synthesis | undefined>,
   phase4_context: Annotation<Phase4Context | undefined>,
   phase4_wiki_generation: Annotation<PhaseWikiGeneration | undefined>,
+
+  // Phase 4b internal work-area: merged across wiki subgraph nodes.
+  // Mirrors the phase1_analysis merge-reducer pattern so the 3 parallel core-doc
+  // nodes can each set a distinct slot without "INVALID_CONCURRENT_GRAPH_UPDATE".
+  phase4_wiki_docs: Annotation<Phase4WikiDocs>({
+    reducer: (left, right) => ({ ...left, ...right }),
+    default: () => ({}),
+  }),
 
   // ============================================================================
   // TEMP DIRECTORY (use custom reducer for parallel updates from Phase 1)

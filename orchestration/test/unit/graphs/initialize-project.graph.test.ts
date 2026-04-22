@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   initializeProjectGraph,
   routeAfterGraphFoundation,
+  routeAfterWikiPreparation,
   routeToPhase,
 } from '../../../src/graphs/initialize-project.graph.js';
 import type { InitializeProjectState } from '../../../src/state/schemas/initialize-project.schema.js';
@@ -28,14 +29,41 @@ describe('initializeProjectGraph routing', () => {
     expect(routeToPhase({ ...baseState, start_phase: 4 })).toBe('context_generation');
   });
 
-  it('places wiki_generation between context_generation and resources', () => {
+  it('routes context_generation through the parallel wiki subgraph into resources', () => {
     const graph = initializeProjectGraph as any;
     const edges = Array.from(graph.allEdges).map((edge) => (edge as string[]).join('->'));
 
-    expect(Object.keys(graph.nodes)).toContain('wiki_generation');
-    expect(edges).toContain('context_generation->wiki_generation');
+    // All wiki subgraph nodes are registered.
+    for (const name of [
+      'wiki_preparation',
+      'wiki_architecture_doc',
+      'wiki_dataflows_doc',
+      'wiki_patterns_doc',
+      'wiki_service_docs',
+      'wiki_generation',
+    ]) {
+      expect(Object.keys(graph.nodes)).toContain(name);
+    }
+
+    // Phase 4 chains: context_generation → wiki_preparation → (3 core docs) → service docs → finalization → resources.
+    expect(edges).toContain('context_generation->wiki_preparation');
+    expect(edges).toContain('wiki_architecture_doc->wiki_service_docs');
+    expect(edges).toContain('wiki_dataflows_doc->wiki_service_docs');
+    expect(edges).toContain('wiki_patterns_doc->wiki_service_docs');
+    expect(edges).toContain('wiki_service_docs->wiki_generation');
     expect(edges).toContain('wiki_generation->resources');
     expect(edges).not.toContain('context_generation->resources');
+    expect(edges).not.toContain('context_generation->wiki_generation');
+  });
+
+  it('fans wiki_preparation out to the 3 core-doc nodes', () => {
+    expect(
+      routeAfterWikiPreparation({ ...baseState, current_phase: 'phase4_context' }),
+    ).toEqual(['wiki_architecture_doc', 'wiki_dataflows_doc', 'wiki_patterns_doc']);
+  });
+
+  it('stops the wiki subgraph when preparation fails', () => {
+    expect(routeAfterWikiPreparation({ ...baseState, current_phase: 'failed' })).toBe('__end__');
   });
 
   it('routes successful graph foundation to all phase 1 analyzers', () => {

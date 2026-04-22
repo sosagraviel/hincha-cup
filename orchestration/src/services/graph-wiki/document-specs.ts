@@ -15,7 +15,6 @@ export function buildCoreSpecs(options: WikiGeneratorServiceOptions): WikiDocume
   const { analyzers, stackProfile, graph } = options;
   return [
     architectureSpec(analyzers, stackProfile, graph),
-    servicesSpec(analyzers, stackProfile),
     dataFlowsSpec(analyzers, stackProfile),
     patternsSpec(analyzers, stackProfile),
   ];
@@ -122,36 +121,6 @@ function architectureSpec(
       graph,
       stack_profile: stackProfile,
       structure_architecture: analyzers.structure_architecture,
-    },
-  };
-}
-
-function servicesSpec(analyzers: WikiAnalyzerOutputs, stackProfile: unknown): WikiDocumentSpec {
-  return {
-    filename: 'SERVICES.md',
-    documentType: 'services',
-    title: 'Services',
-    graphTools: [
-      'mcp__code_graph__list_communities',
-      'mcp__code_graph__get_community',
-      'mcp__code_graph__semantic_search_nodes',
-      'mcp__code_graph__query_graph',
-    ],
-    graphQueriesUsed: uniqueStrings([
-      'mcp__code_graph__list_communities',
-      'mcp__code_graph__semantic_search_nodes',
-      ...(analyzers.tech_stack_dependencies?.graph_queries_used ?? []),
-      ...(analyzers.structure_architecture?.graph_queries_used ?? []),
-    ]),
-    promptFocus: [
-      'Use stack profile services as the service inventory.',
-      'Use graph community and search context to explain service boundaries.',
-      'Describe service responsibilities, entry points, and relationships when evidence exists.',
-    ],
-    sourceContext: {
-      stack_profile: stackProfile,
-      structure_architecture: analyzers.structure_architecture,
-      tech_stack_dependencies: analyzers.tech_stack_dependencies,
     },
   };
 }

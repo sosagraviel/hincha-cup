@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { wikiGenerationNode } from '../../../../../src/nodes/initialize-project/phase4/wiki-generation.node.js';
-import {
-  AI_KNOWLEDGE_CONTEXT_START,
-  AI_KNOWLEDGE_FILE_NAMES,
-} from '../../../../../src/services/graph-wiki/wiki-generator.service.js';
+import { AI_KNOWLEDGE_CONTEXT_START } from '../../../../../src/services/graph-wiki/wiki-generator.service.js';
 import type { InitializeProjectState } from '../../../../../src/state/schemas/initialize-project.schema.js';
 import * as fs from 'fs';
 
@@ -25,22 +22,16 @@ vi.mock('../../../../../src/utils/logger.js', () => ({
   },
 }));
 
-vi.mock('../../../../../src/utils/shared/agent-factory/index.js', () => ({
-  AgentFactory: {
-    create: vi.fn(async () => ({
-      createAgent: vi.fn(async () => ({
-        invoke: vi.fn(async ({ inputPrompt }) => ({
-          output: `# Generated\n\n${inputPrompt.includes('services/api.md') ? 'Service' : 'Core'} body.`,
-          sessionId: 'test-session',
-          mode: 'claude_cli',
-          executionTimeMs: 1,
-        })),
-      })),
-    })),
-  },
-}));
+function buildCoreDoc(filename: string, documentType: string) {
+  return {
+    filename,
+    content: [`---`, `document_type: ${documentType}`, `---`, '', `# ${filename}`, '', 'Body.'].join(
+      '\n',
+    ),
+  };
+}
 
-describe('wikiGenerationNode', () => {
+describe('wikiGenerationNode (finalization)', () => {
   let state: InitializeProjectState;
 
   beforeEach(() => {
@@ -63,23 +54,35 @@ describe('wikiGenerationNode', () => {
         languages: ['typescript'],
         build_time_ms: 1000,
       },
-      phase4_context: {
-        claude_md_written: true,
-        project_context_written: true,
-        framework_config_generated: true,
-        stack_profile: {
-          package_manager: 'npm',
-          services: [
-            {
-              id: 'api',
-              path: 'src',
-              type: 'backend',
-              language: 'typescript',
-              frameworks: { main: 'Express', testing: 'Jest' },
+      phase4_wiki_docs: {
+        context: {
+          analyzers: {
+            structure_architecture: { graph_queries_used: ['list_communities'], findings: {} },
+            tech_stack_dependencies: {
+              graph_queries_used: ['semantic_search_nodes'],
+              findings: {},
             },
-          ],
+            code_patterns_testing: { graph_queries_used: ['find_large_functions'], findings: {} },
+            data_flows_integrations: { graph_queries_used: ['list_flows'], findings: {} },
+          },
+          stackProfile: {
+            services: [
+              {
+                id: 'api',
+                path: 'src',
+                type: 'backend',
+                language: 'typescript',
+                frameworks: { main: 'Express' },
+              },
+            ],
+          },
+          generatedAt: '2026-04-21T00:00:00.000Z',
+          graphVersion: 'deadbeef',
         },
-        timestamp: '2026-04-21T00:00:00.000Z',
+        architecture: buildCoreDoc('ARCHITECTURE.md', 'architecture'),
+        data_flows: buildCoreDoc('DATA-FLOWS.md', 'data-flow'),
+        patterns: buildCoreDoc('PATTERNS.md', 'pattern'),
+        service_docs: [buildCoreDoc('services/api.md', 'service')],
       },
       phase1_retry_tracking: {},
       errors: [],
@@ -89,47 +92,26 @@ describe('wikiGenerationNode', () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
       const pathString = String(path);
-      if (pathString.includes('01-structure-architecture.json')) {
-        return JSON.stringify({
-          graph_queries_used: ['list_communities'],
-          findings: { architecture_patterns: ['Layered API'] },
-        });
-      }
-      if (pathString.includes('02-tech-stack-dependencies.json')) {
-        return JSON.stringify({ graph_queries_used: ['semantic_search_nodes'], findings: {} });
-      }
-      if (pathString.includes('03-code-patterns-testing.json')) {
-        return JSON.stringify({
-          graph_queries_used: ['find_large_functions'],
-          findings: { patterns: ['service/controller split'] },
-        });
-      }
-      if (pathString.includes('04-data-flows-integrations.json')) {
-        return JSON.stringify({
-          graph_queries_used: ['list_flows'],
-          findings: { routes: [{ method: 'GET', route: '/users' }] },
-        });
-      }
-      if (pathString.includes('stack-profile.json')) {
-        return JSON.stringify(state.phase4_context?.stack_profile);
-      }
-      if (pathString.includes('CLAUDE.md')) {
-        return '# Existing Claude\n';
-      }
-      if (pathString.includes('SKILL.md')) {
-        return '# Existing Skill\n';
-      }
+      if (pathString.includes('CLAUDE.md')) return '# Existing Claude\n';
+      if (pathString.includes('SKILL.md')) return '# Existing Skill\n';
       return '{}';
     });
   });
 
-  it('writes docs/ai-knowledge and returns wiki state', async () => {
+  it('writes ARCHITECTURE, SERVICES (catalog), DATA-FLOWS, PATTERNS, service docs, and index', async () => {
     const result = await wikiGenerationNode(state);
 
     expect(fs.mkdirSync).toHaveBeenCalledWith('/test/project/docs/ai-knowledge', {
       recursive: true,
     });
-    for (const fileName of AI_KNOWLEDGE_FILE_NAMES) {
+
+    for (const fileName of [
+      'ARCHITECTURE.md',
+      'SERVICES.md',
+      'DATA-FLOWS.md',
+      'PATTERNS.md',
+      'index.md',
+    ]) {
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         `/test/project/docs/ai-knowledge/${fileName}`,
         expect.any(String),
@@ -143,6 +125,21 @@ describe('wikiGenerationNode', () => {
     expect(result.ai_knowledge_path).toBe('/test/project/docs/ai-knowledge');
     expect(result.ai_knowledge_files).toHaveLength(6);
     expect(result.phase4_wiki_generation?.ai_knowledge_written).toBe(true);
+  });
+
+  it('SERVICES.md written by finalization is a deterministic catalog', async () => {
+    await wikiGenerationNode(state);
+
+    const servicesWrite = vi
+      .mocked(fs.writeFileSync)
+      .mock.calls.find(([path]) => String(path).endsWith('SERVICES.md'));
+    const content = String(servicesWrite?.[1]);
+
+    expect(content).toContain('document_type: services');
+    expect(content).toContain('[**api**](services/api.md)');
+    // Should reference other core docs for cross-navigation.
+    expect(content).toContain('[ARCHITECTURE.md](ARCHITECTURE.md)');
+    expect(content).toContain('[DATA-FLOWS.md](DATA-FLOWS.md)');
   });
 
   it('appends context guidance to CLAUDE.md and project-context', async () => {
@@ -170,10 +167,7 @@ describe('wikiGenerationNode', () => {
           '<!-- AI_KNOWLEDGE_WIKI_END -->',
         ].join('\n');
       }
-      if (pathString.includes('stack-profile.json')) {
-        return JSON.stringify(state.phase4_context?.stack_profile);
-      }
-      return JSON.stringify({ graph_queries_used: [], findings: {} });
+      return '{}';
     });
 
     await wikiGenerationNode(state);
@@ -184,25 +178,19 @@ describe('wikiGenerationNode', () => {
     expect(String(claudeWrite?.[1]).match(/AI Knowledge Wiki/g)).toHaveLength(1);
   });
 
-  it('fails when required context files are missing', async () => {
-    vi.mocked(fs.existsSync).mockImplementation((path: any) => !String(path).includes('CLAUDE.md'));
+  it('fails fast when a core doc is missing from state', async () => {
+    // Simulate upstream failure: architecture slot never populated.
+    const broken = {
+      ...state,
+      phase4_wiki_docs: {
+        ...state.phase4_wiki_docs!,
+        architecture: undefined,
+      },
+    };
 
-    const result = await wikiGenerationNode(state);
-
-    expect(result.current_phase).toBe('failed');
-    expect(result.errors?.some((error) => error.includes('CLAUDE.md not found'))).toBe(true);
-  });
-
-  it('fails fast when a required Phase 1 analyzer output is missing', async () => {
-    vi.mocked(fs.existsSync).mockImplementation(
-      (path: any) => !String(path).includes('04-data-flows-integrations.json'),
-    );
-
-    const result = await wikiGenerationNode(state);
+    const result = await wikiGenerationNode(broken);
 
     expect(result.current_phase).toBe('failed');
-    expect(result.errors?.some((error) => error.includes('Required Phase 1 analyzer output'))).toBe(
-      true,
-    );
+    expect(result.errors?.some((e) => e.includes('core wiki docs are missing'))).toBe(true);
   });
 });
