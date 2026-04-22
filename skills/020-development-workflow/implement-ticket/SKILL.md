@@ -32,8 +32,8 @@ This workflow is a graph-aware POC. The graph path must be active so results can
 - `code-review-graph` MUST be built and MCP-accessible before planning starts.
 - This framework uses `.code-graph.db` as the compatibility graph DB. Upstream `code-review-graph` defaults to `.code-review-graph/graph.db`.
 - Project root `.mcp.json` MUST define `mcpServers.code_graph` so native Claude Code `/implement-ticket` sessions can load graph tools.
-- Generated `.claude/agents/planner.md` and `.claude/agents/implementer-*.md` MUST expose `mcp__code_graph`.
-- The actual active Claude Code session MUST expose `mcp__code_graph__*` tools. Agent frontmatter alone is only an allowlist; it does not register the MCP server.
+- Generated `.claude/agents/planner.md` and `.claude/agents/implementer-*.md` MUST expose exact `mcp__code_graph__*_tool` entries, not only the broad `mcp__code_graph` server alias.
+- The actual active Claude Code session MUST expose `mcp__code_graph__*` tools. Agent frontmatter is only a subagent allowlist; it does not register the MCP server.
 
 If the graph DB, MCP config, graph-aware agents, or active graph tools are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync, restart Claude Code in the project, approve the project MCP server if prompted, and verify `code_graph` with `/mcp` before using `/implement-ticket`.
 
@@ -72,7 +72,7 @@ Create each task using TaskCreate with these exact values:
 1. Phase 0: Preflight Validation
    subject: "Phase 0: Preflight Validation"
    activeForm: "Validating environment"
-   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack, verify `.code-graph.db` exists, verify project `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible, verify generated planner/implementer agents expose `mcp__code_graph`
+   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack, verify `.code-graph.db` exists, verify project `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible, verify generated planner/implementer agents expose exact `mcp__code_graph__*_tool` entries
    Expected outputs: git is clean, tests pass, build succeeds, graph DB exists, project MCP config exists, graph tools are visible in the active Claude Code session, graph-aware agents are present
    Constraint: If any check fails, STOP and report. Do not proceed to Phase 1.
 
@@ -86,8 +86,8 @@ Create each task using TaskCreate with these exact values:
 3. Phase 2: Planning
    subject: "Phase 2: Planning"
    activeForm: "Creating implementation plan"
-   Steps: MUST invoke /analyze-requirements skill to produce structured requirements analysis input, MUST spawn graph-aware planner agent, planner consumes the requirements analysis input and synthesizes the only Phase 2 planning artifact named `Implementation Plan`, planner includes implementation strategy/files to create or modify/test strategy/Graph Evidence in that artifact, save Graph Evidence under the normal artifact path
-   Expected outputs: requirements analysis input exists, graph-aware planner agent was spawned, planner-authored `Implementation Plan` exists as the only Phase 2 planning artifact, Graph Evidence exists, test strategy defined, files to create/modify identified
+   Steps: MUST invoke /analyze-requirements skill to produce structured requirements analysis input, MUST spawn graph-aware planner agent, planner consumes the requirements analysis input and returns the only Phase 2 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Graph Evidence in that artifact
+   Expected outputs: requirements analysis input exists, graph-aware planner agent was spawned, parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 2 planning artifact, Graph Evidence exists, test strategy defined, files to create/modify identified
    Constraint: Do not proceed if planner agent was not spawned, graph evidence is absent, the planner-authored `Implementation Plan` does not exist, or Phase 2 produced competing planning artifacts.
 
 4. Phase 3: Environment Setup
@@ -178,11 +178,11 @@ Execute each phase sequentially. Do not proceed to the next phase until the curr
 - Verify `.code-graph.db` exists at the project root
 - Verify project root `.mcp.json` has `mcpServers.code_graph`
 - Verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible in this Claude Code session
-- Verify generated planner and implementer agents expose `mcp__code_graph`
+- Verify generated planner and implementer agents expose exact `mcp__code_graph__*_tool` entries in their frontmatter, not only the broad `mcp__code_graph` server alias
 
 CRITICAL: If any check fails, STOP. Report the failure. Do not continue.
 
-For graph failures, tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, project `.mcp.json`, and graph-aware `.claude/agents/*` files are regenerated. Then restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`.
+For graph failures, tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, project `.mcp.json`, and graph-aware `.claude/agents/*` files are regenerated with exact MCP tool allowlists. Then restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`.
 
 CONTINUE WITH Phase 1.
 
@@ -199,16 +199,16 @@ CONTINUE WITH Phase 2.
 
 CRITICAL: You MUST do both of these. Do not skip either one.
 1. Invoke `/analyze-requirements` skill to produce structured requirements analysis input.
-2. Spawn `planner` agent for graph-aware architecture planning. The planner MUST consume the ticket context and requirements analysis input, then synthesize the only Phase 2 planning artifact named `Implementation Plan`.
+2. Spawn `planner` agent for graph-aware architecture planning. The planner MUST consume the ticket context and requirements analysis input, then return the only Phase 2 planning artifact named `Implementation Plan`.
 
 After both complete, verify:
 - Requirements analysis input exists
-- Planner-authored `Implementation Plan` exists as the only Phase 2 planning artifact
+- Parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 2 planning artifact
 - Graph Evidence is included in the planner-authored `Implementation Plan` and saved under `$ARTIFACTS_DIR`
 - Test strategy is defined
 - Files to create/modify are identified
 
-Do not create, save, or hand off any competing implementation plan from `/analyze-requirements`. Its output is input to the planner only.
+Do not create, save, or hand off any competing implementation plan from `/analyze-requirements`. Its output is input to the planner only. The planner subagent returns markdown; the parent/main agent persists `implementation-plan.md` and related artifacts.
 
 CONTINUE WITH Phase 3.
 
@@ -307,7 +307,7 @@ If a phase fails:
 - Do NOT mark the task as completed
 - Report which phase failed and why
 - If Phase 0 fails: stop immediately
-- If graph DB, project MCP config, active graph tools, or graph-aware agents are unavailable: stop immediately and instruct the user to rerun `/initialize-project` or resource sync, restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`
+- If graph DB, project MCP config, active graph tools, or exact graph-aware subagent allowlists are unavailable: stop immediately and instruct the user to rerun `/initialize-project` or resource sync, restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`
 - If Phase 5 fails after 3 fix iterations: stop and report
 - For other phases: attempt to recover once, then stop if still failing
 
@@ -329,7 +329,7 @@ If a phase fails:
 - `.code-graph.db` exists at the project root (framework compatibility DB; upstream default is `.code-review-graph/graph.db`)
 - Project root `.mcp.json` defines `mcpServers.code_graph`
 - Claude Code has been restarted after MCP config changes and `/mcp` shows `code_graph` connected
-- Generated planner and implementer agents expose `mcp__code_graph`
+- Generated planner and implementer agents expose exact `mcp__code_graph__*_tool` entries
 - Git repository with remote configured
 - Tests passing in current state
 - For `--from-jira`: Jira MCP configured
