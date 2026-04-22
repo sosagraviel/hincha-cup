@@ -4,6 +4,7 @@ import type { InitializeProjectState } from '../../../../../src/state/schemas/in
 import * as fs from 'fs';
 import * as skillResolver from '../../../../../src/nodes/initialize-project/phase5/skill-resolver.js';
 import * as agentGenerator from '../../../../../src/nodes/initialize-project/phase5/agent-generator.js';
+import * as mcpConfigService from '../../../../../src/services/framework/mcp-config.service.js';
 
 vi.mock('fs', () => ({
   mkdirSync: vi.fn(),
@@ -39,6 +40,10 @@ vi.mock('../../../../../src/nodes/initialize-project/phase5/skill-resolver.js', 
 vi.mock('../../../../../src/nodes/initialize-project/phase5/agent-generator.js', () => ({
   generateAgents: vi.fn(),
   writeAgents: vi.fn(),
+}));
+
+vi.mock('../../../../../src/services/framework/mcp-config.service.js', () => ({
+  upsertCodeGraphMcpConfig: vi.fn(),
 }));
 
 describe('resourcesNode', () => {
@@ -117,6 +122,12 @@ describe('resourcesNode', () => {
       { name: 'planner', content: 'agent content' },
       { name: 'implementer', content: 'agent content' },
     ] as any);
+
+    vi.mocked(mcpConfigService.upsertCodeGraphMcpConfig).mockReturnValue({
+      configPath: '/test/project/.mcp.json',
+      changed: true,
+      backedUp: false,
+    });
 
     // Mock command files
     vi.mocked(fs.readdirSync).mockReturnValue([
@@ -250,6 +261,15 @@ describe('resourcesNode', () => {
     // Should only copy .md files
     const copyFileCalls = vi.mocked(fs.copyFileSync).mock.calls;
     expect(copyFileCalls.length).toBe(2); // implement.md and review.md
+  });
+
+  it('should configure project MCP for native Claude Code sessions', async () => {
+    await resourcesNode(mockState);
+
+    expect(mcpConfigService.upsertCodeGraphMcpConfig).toHaveBeenCalledWith({
+      projectPath: '/test/project',
+      frameworkPath: '/test/framework',
+    });
   });
 
   it('should handle errors gracefully', async () => {

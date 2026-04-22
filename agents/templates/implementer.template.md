@@ -116,10 +116,11 @@ You have preloaded skills with project-specific knowledge:
 
 Before writing code:
 
-1. Use `mcp__code_graph__query_graph` or `mcp__code_graph__semantic_search_nodes` to find nearby patterns and similar implementations.
-2. Use graph relationships to check callers/imports before changing public functions, exported types, APIs, or shared modules.
-3. Use graph results to find related tests or test patterns before adding or updating tests.
-4. Use `Read`, `Grep`, and `Glob` to inspect exact source after the graph has narrowed the search.
+1. Use `mcp__code_graph__semantic_search_nodes_tool({ query, kind?, limit, detail_level })` to find nearby patterns and similar implementations.
+2. Use `mcp__code_graph__query_graph_tool({ pattern, target, detail_level })` to check callers/imports before changing public functions, exported types, APIs, or shared modules.
+3. Use `mcp__code_graph__get_impact_radius_tool({ changed_files, max_depth, detail_level })` for shared files or public interfaces before modifying them.
+4. Use graph results to find related tests or test patterns before adding or updating tests.
+5. Use `Read`, `Grep`, and `Glob` to inspect exact source after the graph has narrowed the search.
 
 At completion, include a short summary with:
 - Files changed

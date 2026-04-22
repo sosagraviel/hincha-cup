@@ -155,9 +155,9 @@ port: 5432
 
 Before writing code or configuration:
 
-1. Use `mcp__code_graph__semantic_search_nodes` to find similar modules, configuration files, scripts, or docs.
-2. Use `mcp__code_graph__query_graph` to check imports, callers, exports, or related tests where those relationships matter.
-3. Use `mcp__code_graph__get_impact_radius` for shared files or public interfaces before modifying them.
+1. Use `mcp__code_graph__semantic_search_nodes_tool({ query, kind?, limit, detail_level })` to find similar modules, configuration files, scripts, or docs.
+2. Use `mcp__code_graph__query_graph_tool({ pattern, target, detail_level })` to check imports, callers, exports, or related tests where those relationships matter.
+3. Use `mcp__code_graph__get_impact_radius_tool({ changed_files, max_depth, detail_level })` for shared files or public interfaces before modifying them.
 4. Use `Read`, `Grep`, and `Glob` only after graph queries narrow the target area.
 
 At completion, include a short summary with:

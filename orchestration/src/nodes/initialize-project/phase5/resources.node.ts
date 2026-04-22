@@ -5,6 +5,7 @@ import { resolveSkills, copyResolvedSkills } from './skill-resolver.js';
 import { generateAgents, writeAgents } from './agent-generator.js';
 import type { StackProfile } from '../../../schemas/index.js';
 import { logger } from '../../../utils/logger.js';
+import { upsertCodeGraphMcpConfig } from '../../../services/framework/mcp-config.service.js';
 
 /**
  * Phase 5: Resources Node
@@ -166,6 +167,19 @@ export async function resourcesNode(
     }
 
     phaseLogger.success(`✓ Copied ${commandFiles.length} commands`);
+
+    // Step 4: Write project-scoped MCP config for native Claude Code sessions
+    phaseLogger.info(' Configuring project MCP...');
+    const mcpResult = upsertCodeGraphMcpConfig({
+      projectPath: state.project_path,
+      frameworkPath: state.framework_path,
+    });
+
+    if (mcpResult.changed) {
+      phaseLogger.success(`✓ Configured code graph MCP (${mcpResult.configPath})`);
+    } else {
+      phaseLogger.success('✓ Code graph MCP already configured');
+    }
 
     phaseLogger.success(' ✓ Resource copying complete');
 

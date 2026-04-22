@@ -18,7 +18,8 @@
 
 import { mkdir, cp, readdir, rm } from 'fs/promises';
 import { existsSync, readdirSync, statSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
 import { ConfigUpdaterService } from '../services/framework/config-updater.service.js';
 import {
@@ -30,6 +31,7 @@ import {
 } from '../services/framework/sync-helpers.service.js';
 import { resolveSkills } from '../nodes/initialize-project/phase5/skill-resolver.js';
 import { generateAgents } from '../nodes/initialize-project/phase5/agent-generator.js';
+import { upsertCodeGraphMcpConfig } from '../services/framework/mcp-config.service.js';
 
 interface SyncConfig {
   projectPath: string;
@@ -555,6 +557,36 @@ async function syncCommands(config: SyncConfig): Promise<{
 }
 
 /**
+ * Sync project MCP config used by native Claude Code sessions.
+ */
+export async function syncMcpConfig(config: SyncConfig): Promise<{
+  updated: boolean;
+  backupPath?: string;
+}> {
+  logger.info('Step 8: Syncing MCP config...');
+
+  const result = upsertCodeGraphMcpConfig({
+    projectPath: config.projectPath,
+    frameworkPath: config.frameworkPath,
+  });
+
+  if (result.changed) {
+    logger.success(`  ✓ Code graph MCP configured: ${result.configPath}`);
+    if (result.backupPath) {
+      logger.info(`  ℹ️  Previous code_graph MCP config backed up: ${result.backupPath}`);
+    }
+  } else {
+    logger.info('  ℹ️  Code graph MCP already configured');
+  }
+  logger.info('');
+
+  return {
+    updated: result.changed,
+    backupPath: result.backupPath,
+  };
+}
+
+/**
  * Main sync function
  */
 async function main() {
@@ -592,6 +624,9 @@ async function main() {
     // Sync commands
     const commandsResult = await syncCommands(config);
 
+    // Sync project MCP config
+    const mcpResult = await syncMcpConfig(config);
+
     // Summary
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     logger.info('  SYNC COMPLETE');
@@ -617,7 +652,8 @@ async function main() {
       agentsResult.regenerated +
       commandsResult.updated +
       commandsResult.added +
-      commandsResult.removed;
+      commandsResult.removed +
+      (mcpResult.updated ? 1 : 0);
 
     if (totalChanges === 0) {
       logger.info('ℹ️  No changes needed - all resources are up to date');
@@ -628,6 +664,7 @@ async function main() {
     logger.info('\nNotes:');
     logger.info('  - User-modified resources were preserved');
     logger.info('  - Backup created before any changes');
+    logger.info('  - Restart Claude Code after MCP config changes so /mcp picks up code_graph');
     logger.info('  - Run this script again anytime to sync updates\n');
 
     process.exit(0);
@@ -637,4 +674,6 @@ async function main() {
   }
 }
 
-main();
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main();
+}

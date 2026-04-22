@@ -12,6 +12,7 @@ import {
 import { validateAgentCoverage } from './helpers/agent-coverage-validator.js';
 import { validatePhaseCompletion } from './helpers/phase-completion-validator.js';
 import { getExpectedAiKnowledgeFiles } from '../../../services/graph-wiki/wiki-generator.service.js';
+import { validateCodeGraphMcpConfig } from '../../../services/framework/mcp-config.service.js';
 
 /**
  * Phase 6: Validation Node
@@ -129,6 +130,12 @@ export async function validationNode(
           ` ✓ Multi-stack coverage validated for ${coverageResult.significantLanguages.length} languages`,
         );
       }
+
+      const graphAgentErrors = validateGraphAwareAgents(directories.agents, agentsResult.files);
+      validationErrors.push(...graphAgentErrors);
+      if (graphAgentErrors.length === 0) {
+        phaseLogger.success(' ✓ Graph-aware planner and implementer agents validated');
+      }
     }
 
     // 7. Validate commands directory exists
@@ -138,7 +145,18 @@ export async function validationNode(
       phaseLogger.success(` ✓ Commands directory exists with ${commandsResult.fileCount} commands`);
     }
 
-    // 8. Validate all phases completed
+    // 8. Validate code graph MCP for native Claude Code sessions
+    const graphMcpResult = validateCodeGraphMcpConfig({
+      projectPath: state.project_path,
+      frameworkPath: state.framework_path,
+    });
+    validationErrors.push(...graphMcpResult.errors);
+    validationWarnings.push(...graphMcpResult.warnings);
+    if (graphMcpResult.valid) {
+      phaseLogger.success(' ✓ Code graph MCP config validated');
+    }
+
+    // 9. Validate all phases completed
     const phaseCompletionResult = validatePhaseCompletion(state);
     validationErrors.push(...phaseCompletionResult.errors);
     validationWarnings.push(...phaseCompletionResult.warnings);
@@ -204,6 +222,28 @@ export async function validationNode(
       current_phase: 'failed',
     };
   }
+}
+
+function validateGraphAwareAgents(agentsDir: string, agentFiles: string[]): string[] {
+  const requiredGraphAgents = agentFiles.filter(
+    (file) => file === 'planner.md' || file.startsWith('implementer-'),
+  );
+  const errors: string[] = [];
+
+  for (const agentFile of requiredGraphAgents) {
+    const agentPath = join(agentsDir, agentFile);
+    try {
+      const content = readFileSync(agentPath, 'utf-8');
+      if (!content.includes('mcp__code_graph')) {
+        errors.push(`${agentFile} missing mcp__code_graph tool allowlist`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`Could not validate ${agentFile} graph tools: ${message}`);
+    }
+  }
+
+  return errors;
 }
 
 function readStackProfileForWiki(

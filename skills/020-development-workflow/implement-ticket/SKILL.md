@@ -31,9 +31,11 @@ This workflow is a graph-aware POC. The graph path must be active so results can
 
 - `code-review-graph` MUST be built and MCP-accessible before planning starts.
 - This framework uses `.code-graph.db` as the compatibility graph DB. Upstream `code-review-graph` defaults to `.code-review-graph/graph.db`.
+- Project root `.mcp.json` MUST define `mcpServers.code_graph` so native Claude Code `/implement-ticket` sessions can load graph tools.
 - Generated `.claude/agents/planner.md` and `.claude/agents/implementer-*.md` MUST expose `mcp__code_graph`.
+- The actual active Claude Code session MUST expose `mcp__code_graph__*` tools. Agent frontmatter alone is only an allowlist; it does not register the MCP server.
 
-If the graph DB, MCP config, or graph-aware agents are missing, STOP immediately and tell the user to rerun `/initialize-project` or resource sync before using `/implement-ticket`.
+If the graph DB, MCP config, graph-aware agents, or active graph tools are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync, restart Claude Code in the project, approve the project MCP server if prompted, and verify `code_graph` with `/mcp` before using `/implement-ticket`.
 
 ## CRITICAL: Artifact Path Enforcement
 
@@ -70,8 +72,8 @@ Create each task using TaskCreate with these exact values:
 1. Phase 0: Preflight Validation
    subject: "Phase 0: Preflight Validation"
    activeForm: "Validating environment"
-   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack, verify `.code-graph.db` exists, verify graph MCP can be started through framework config, verify generated planner/implementer agents expose `mcp__code_graph`
-   Expected outputs: git is clean, tests pass, build succeeds, graph DB exists, graph MCP is available, graph-aware agents are present
+   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack, verify `.code-graph.db` exists, verify project `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible, verify generated planner/implementer agents expose `mcp__code_graph`
+   Expected outputs: git is clean, tests pass, build succeeds, graph DB exists, project MCP config exists, graph tools are visible in the active Claude Code session, graph-aware agents are present
    Constraint: If any check fails, STOP and report. Do not proceed to Phase 1.
 
 2. Phase 1: Context Gathering
@@ -174,12 +176,13 @@ Execute each phase sequentially. Do not proceed to the next phase until the curr
 - Validate build succeeds
 - Detect primary language and stack
 - Verify `.code-graph.db` exists at the project root
-- Verify the framework graph MCP config can start `code-review-graph`
+- Verify project root `.mcp.json` has `mcpServers.code_graph`
+- Verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible in this Claude Code session
 - Verify generated planner and implementer agents expose `mcp__code_graph`
 
 CRITICAL: If any check fails, STOP. Report the failure. Do not continue.
 
-For graph failures, tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db` and graph-aware `.claude/agents/*` files are regenerated.
+For graph failures, tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, project `.mcp.json`, and graph-aware `.claude/agents/*` files are regenerated. Then restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`.
 
 CONTINUE WITH Phase 1.
 
@@ -304,7 +307,7 @@ If a phase fails:
 - Do NOT mark the task as completed
 - Report which phase failed and why
 - If Phase 0 fails: stop immediately
-- If graph DB, graph MCP, or graph-aware agents are unavailable: stop immediately and instruct the user to rerun `/initialize-project` or resource sync
+- If graph DB, project MCP config, active graph tools, or graph-aware agents are unavailable: stop immediately and instruct the user to rerun `/initialize-project` or resource sync, restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`
 - If Phase 5 fails after 3 fix iterations: stop and report
 - For other phases: attempt to recover once, then stop if still failing
 
@@ -324,6 +327,8 @@ If a phase fails:
 - Project initialized with `/initialize-project`
 - `code-review-graph` built and MCP-accessible
 - `.code-graph.db` exists at the project root (framework compatibility DB; upstream default is `.code-review-graph/graph.db`)
+- Project root `.mcp.json` defines `mcpServers.code_graph`
+- Claude Code has been restarted after MCP config changes and `/mcp` shows `code_graph` connected
 - Generated planner and implementer agents expose `mcp__code_graph`
 - Git repository with remote configured
 - Tests passing in current state
