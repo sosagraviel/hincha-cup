@@ -82,7 +82,7 @@ Based on the user interview, fill in these components:
 
 ### Framework Registration & Sync
 
-Skills created through this framework follow a **framework-first** approach: the skill lives in the framework source tree, gets registered in the config, and is synced to the project's `.claude/skills/`. This makes the skill PR-able and shareable across all projects using the framework.
+Skills created through this framework follow a **framework-first** approach: the skill lives in the framework source tree, gets registered in the config, and is synced to the project's `{{CONFIG_DIR}}/skills/`. This makes the skill PR-able and shareable across all projects using the framework.
 
 After writing the SKILL.md draft, execute these steps before moving on to testing.
 
@@ -101,7 +101,7 @@ Choose the appropriate Johnny Decimal category:
 | `070-infrastructure` | DevOps and containers |
 | `080-cloud-platforms` | Cloud services (AWS, GCP, Firebase) |
 
-Create the directory and write the SKILL.md there — never directly in `.claude/`:
+Create the directory and write the SKILL.md there — never directly in `{{CONFIG_DIR}}/`:
 
 ```bash
 mkdir -p skills/{NNN-category}/{skill-name}
@@ -173,7 +173,7 @@ jq empty skills/skills.config.json && echo "✓ Valid JSON" || echo "✗ Invalid
 
 #### Step 4: Run the sync
 
-Sync the skill from the framework to the project's `.claude/skills/`:
+Sync the skill from the framework to the project's `{{CONFIG_DIR}}/skills/`:
 
 ```bash
 ./scripts/sync-framework-resources.sh
@@ -190,7 +190,7 @@ bash skills/020-development-workflow/skill-creator/scripts/validate-skill-sync.s
   "<skill-name>" "<framework-path>" "<project-path>"
 ```
 
-The script checks that the framework source exists, the skill is registered, `skills.config.json` is valid JSON, the skill was synced to `.claude/skills/`, and the content matches. If any check fails, it provides troubleshooting guidance.
+The script checks that the framework source exists, the skill is registered, `skills.config.json` is valid JSON, the skill was synced to `{{CONFIG_DIR}}/skills/`, and the content matches. If any check fails, it provides troubleshooting guidance.
 
 If the skill uses `trigger_mode: "triggered"` and the current project's stack doesn't match, a warning (not failure) is expected — the skill will sync to projects that do match.
 

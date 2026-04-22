@@ -240,10 +240,7 @@ export function extractSynthesisMarkdown(output: string): {
 
   // Find project-context header AFTER the separator so a stray marker inside
   // the instruction-file body can't be mistaken for the skill section.
-  const contextHeaderIndex = output.indexOf(
-    CONTEXT_HEADER,
-    headerIndex + separatorMatch.index,
-  );
+  const contextHeaderIndex = output.indexOf(CONTEXT_HEADER, headerIndex + separatorMatch.index);
   if (contextHeaderIndex === -1) {
     return null;
   }

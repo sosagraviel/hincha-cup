@@ -23,17 +23,26 @@ QAF orchestrates context gathering, planning, implementation, validation, and pu
 # 1. Setup (one-time)
 git clone https://github.com/thisisqubika/qubika-agentic-framework.git
 ./qubika-agentic-framework/scripts/initialize-project.sh
+# → writes .claude/ (Claude Code) or .codex/ (Codex CLI)
 
 # 2. Create ticket from idea
+# Claude Code
 /create-sdd-ticket --from-input "Add dark mode toggle to settings page"
+# Codex CLI
+$create-sdd-ticket --from-input "Add dark mode toggle to settings page"
 
 # 3. Implement ticket
+# Claude Code
 /implement-ticket PROJ-456
+# Codex CLI
+$implement-ticket PROJ-456
 
 # Result: Production-ready pull request
 ```
 
-For full setup instructions see [Installation](https://thisisqubika.github.io/qubika-agentic-framework/docs/getting-started/installation).
+The framework supports **Claude Code** (`/skill [args]`) and **Codex CLI** (`$skill [args]`, with `/skills` to list available skills). Initialize for either provider with `--provider claude|codex` (auto-detects from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` when omitted).
+
+For full setup instructions, provider details, workflows, and guides see the [documentation site](https://thisisqubika.github.io/qubika-agentic-framework/).
 
 ---
 

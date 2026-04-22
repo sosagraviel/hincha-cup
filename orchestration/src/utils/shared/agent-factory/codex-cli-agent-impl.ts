@@ -469,10 +469,7 @@ async function invokeCodexCLI(
     });
 
     if (resumeRun.code !== 0) {
-      await saveFailureDiagnostics(
-        { ...diagnosticsCtx, fullPrompt: feedbackPrompt },
-        resumeRun,
-      );
+      await saveFailureDiagnostics({ ...diagnosticsCtx, fullPrompt: feedbackPrompt }, resumeRun);
       throw new Error(buildFailureMessage(resumeRun));
     }
 
@@ -719,11 +716,7 @@ async function saveFailureDiagnostics(
   });
 }
 
-function buildFailureMessage(run: {
-  code: number | null;
-  stdout: string;
-  stderr: string;
-}): string {
+function buildFailureMessage(run: { code: number | null; stdout: string; stderr: string }): string {
   const isRateLimit =
     run.stderr.includes('429') ||
     run.stdout.includes('rate limit') ||

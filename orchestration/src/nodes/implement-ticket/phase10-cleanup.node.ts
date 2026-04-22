@@ -30,8 +30,7 @@ export async function phase10CleanupNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir =
-    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
+  const tempDir = state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase10Dir = join(tempDir, 'phase10');
 
   console.log('\n[Phase 10: Cleanup] Starting cleanup...');

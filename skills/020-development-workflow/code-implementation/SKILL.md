@@ -340,7 +340,7 @@ Resolution:
 Error: Implementer agent 'implementer-{stack}' not found
 
 Resolution:
-1. Check .claude/agents/ directory
+1. Check {{CONFIG_DIR}}/agents/ directory
 2. Verify agent file exists: implementer-{stack}.md
 3. If missing, project may not be initialized
 4. Run: /initialize-project to set up agents
@@ -540,8 +540,8 @@ Next: /tester-unit API-456
 
 ## References
 
-- Planner Agent: `.claude/agents/planner.md`
-- Implementer Agents: `.claude/agents/implementer-*.md`
-- Stack Detection: `.claude/skills/initialize-project/SKILL.md`
-- Analyze Requirements: `.claude/skills/analyze-requirements/SKILL.md`
-- Code Quality: `.claude/skills/code-quality-check/SKILL.md`
+- Planner Agent: `{{CONFIG_DIR}}/agents/planner.md`
+- Implementer Agents: `{{CONFIG_DIR}}/agents/implementer-*.md`
+- Stack Detection: `{{CONFIG_DIR}}/skills/initialize-project/SKILL.md`
+- Analyze Requirements: `{{CONFIG_DIR}}/skills/analyze-requirements/SKILL.md`
+- Code Quality: `{{CONFIG_DIR}}/skills/code-quality-check/SKILL.md`

@@ -937,7 +937,7 @@ For custom workflows:
 
 ## References
 
-- Fetch Ticket Context: `.claude/skills/fetch-ticket-context/SKILL.md`
-- Code Implementation: `.claude/skills/code-implementation/SKILL.md`
-- Python Patterns: `.claude/skills/mastering-python-skill/SKILL.md`
-- TypeScript Patterns: `.claude/skills/mastering-typescript/SKILL.md`
+- Fetch Ticket Context: `{{CONFIG_DIR}}/skills/fetch-ticket-context/SKILL.md`
+- Code Implementation: `{{CONFIG_DIR}}/skills/code-implementation/SKILL.md`
+- Python Patterns: `{{CONFIG_DIR}}/skills/mastering-python-skill/SKILL.md`
+- TypeScript Patterns: `{{CONFIG_DIR}}/skills/mastering-typescript/SKILL.md`

@@ -1,12 +1,25 @@
 ---
 sidebar_position: 1
 title: Commands Reference
-description: Complete reference for all available slash commands in the Qubika Agentic Framework
+description: Complete reference for all available user-invokable skills in the Qubika Agentic Framework
 ---
 
 # Commands Reference
 
-Slash commands are the primary interface for interacting with the Qubika Agentic Framework. All commands are available in Claude Code after project initialization.
+The framework exposes its workflows as user-invokable skills. After project initialization, invoke them via the Skill tool. Native Claude/Codex slash-commands are no longer shipped by the framework — all workflows are now skills.
+
+## Invoking Skills
+
+Each provider uses a different prefix to invoke a skill:
+
+| Provider      | Invocation syntax       | List available skills |
+| ------------- | ----------------------- | --------------------- |
+| Claude Code   | `/skill-name [args]`    | Auto-discovered       |
+| Codex CLI     | `$skill-name [args]`    | `/skills`             |
+
+In Codex, run `/skills` at any time to see the skills currently available in the session — useful when troubleshooting why a skill isn't firing.
+
+All examples below show the Claude form first and the Codex equivalent alongside. The arguments and behavior are identical — only the prefix changes.
 
 ---
 
@@ -29,14 +42,17 @@ One-time project setup that analyzes your codebase and generates framework confi
 
 **Usage**:
 ```bash
+# Claude Code
 /initialize-project
+
+# Codex CLI
+$initialize-project
 ```
 
 **Output**: Creates `.claude/` directory with:
 - `CLAUDE.md` - Quick reference guide
 - `skills/` - Stack-specific skills
 - `agents/` - Custom AI agents
-- `commands/` - Available commands
 
 **Run**: Once per project (or when stack changes significantly)
 
@@ -67,14 +83,15 @@ Full feature implementation workflow from planning to pull request.
 
 **Usage**:
 ```bash
-# From Jira ticket
+# Claude Code
 /implement-ticket --from-jira PROJ-123
-
-# From markdown spec
 /implement-ticket --from-markdown ./specs/feature.md
-
-# From plain text
 /implement-ticket --from-input "Add user export feature"
+
+# Codex CLI
+$implement-ticket --from-jira PROJ-123
+$implement-ticket --from-markdown ./specs/feature.md
+$implement-ticket --from-input "Add user export feature"
 ```
 
 **Available Flags**:
@@ -91,7 +108,11 @@ Full feature implementation workflow from planning to pull request.
 
 **Example**:
 ```bash
+# Claude Code
 /implement-ticket --from-jira PROJ-123 --skip-visual
+
+# Codex CLI
+$implement-ticket --from-jira PROJ-123 --skip-visual
 ```
 
 ---
@@ -114,7 +135,11 @@ Run all quality checks including linting, type checking, tests, and coverage.
 
 **Usage**:
 ```bash
+# Claude Code
 /code-quality-check
+
+# Codex CLI
+$code-quality-check
 ```
 
 **Output**: Pass/fail status with detailed error messages if any checks fail.
@@ -131,7 +156,11 @@ Create GitHub pull request with comprehensive artifacts.
 
 **Usage**:
 ```bash
+# Claude Code
 /create-pr
+
+# Codex CLI
+$create-pr
 ```
 
 **Requirements**:
@@ -162,12 +191,21 @@ Create isolated git worktree for parallel task development.
 
 **Usage**:
 ```bash
+# Claude Code
 /start-task <TASK-ID> [branch-name]
+
+# Codex CLI
+$start-task <TASK-ID> [branch-name]
 ```
 
 **Example**:
 ```bash
+# Claude Code
 /start-task PROJ-123
+
+# Codex CLI
+$start-task PROJ-123
+
 # Creates worktree at: ../<project>-tasks/PROJ-123
 # Branch: task/PROJ-123
 ```
@@ -191,12 +229,20 @@ Clean up worktree after task completion.
 
 **Usage**:
 ```bash
+# Claude Code
 /end-task <TASK-ID>
+
+# Codex CLI
+$end-task <TASK-ID>
 ```
 
 **Example**:
 ```bash
+# Claude Code
 /end-task PROJ-123
+
+# Codex CLI
+$end-task PROJ-123
 ```
 
 **Requirements**: Changes must be committed or PR created before cleanup.
@@ -211,7 +257,11 @@ View all active worktrees.
 
 **Usage**:
 ```bash
+# Claude Code
 /list-tasks
+
+# Codex CLI
+$list-tasks
 ```
 
 **Output**: Lists all active tasks with:
@@ -232,12 +282,21 @@ Navigate to task worktree.
 
 **Usage**:
 ```bash
+# Claude Code
 /switch-task <TASK-ID>
+
+# Codex CLI
+$switch-task <TASK-ID>
 ```
 
 **Example**:
 ```bash
+# Claude Code
 /switch-task PROJ-123
+
+# Codex CLI
+$switch-task PROJ-123
+
 # Changes directory to: ../<project>-tasks/PROJ-123
 ```
 
@@ -246,7 +305,7 @@ Navigate to task worktree.
 ## Prerequisites
 
 ### All Commands
-- Project initialized with `/initialize-project`
+- Project initialized with `/initialize-project` (Claude) / `$initialize-project` (Codex)
 - Git repository configured
 
 ### Jira Commands
@@ -266,53 +325,63 @@ Navigate to task worktree.
 ## Common Workflows
 
 ### Start New Feature
+
 ```bash
-# 1. Create task worktree
-/start-task PROJ-123
+# Claude Code
+/start-task PROJ-123                     # 1. Create task worktree
+cd ../<project>-tasks/PROJ-123           # 2. Navigate to worktree
+/implement-ticket --from-jira PROJ-123   # 3. Implement ticket
+cd -                                     # 4. Return to main project
+/end-task PROJ-123                       # 5. Clean up when done
 
-# 2. Navigate to worktree
+# Codex CLI
+$start-task PROJ-123
 cd ../<project>-tasks/PROJ-123
-
-# 3. Implement ticket
-/implement-ticket --from-jira PROJ-123
-
-# 4. Return to main project
+$implement-ticket --from-jira PROJ-123
 cd -
-
-# 5. Clean up when done
-/end-task PROJ-123
+$end-task PROJ-123
 ```
 
 ### Create Ticket and Implement
+
 ```bash
-# 1. Create SDD ticket
+# Claude Code
 /create-sdd-ticket \
   --from-input "Add CSV export for users" \
   --save-to-jira <board-url> \
   --project-key PROJ
-
-# 2. Implement the ticket (returns PROJ-124)
 /implement-ticket --from-jira PROJ-124
+
+# Codex CLI
+$create-sdd-ticket \
+  --from-input "Add CSV export for users" \
+  --save-to-jira <board-url> \
+  --project-key PROJ
+$implement-ticket --from-jira PROJ-124
 ```
 
 ### Quality Check Before Merge
-```bash
-# Run all quality checks
-/code-quality-check
 
-# If passing, create PR
-/create-pr
+```bash
+# Claude Code
+/code-quality-check   # Run all quality checks
+/create-pr            # If passing, create PR
+
+# Codex CLI
+$code-quality-check
+$create-pr
 ```
 
 ---
 
 ## Error Handling
 
-### Command Not Found
+### Skill Not Found
 ```
-❌ Error: Command not available
+❌ Error: Skill not available
 
-Run /initialize-project first to set up the framework.
+Run /initialize-project (Claude) or $initialize-project (Codex) first to set up the framework.
+In Codex, run /skills to list the skills currently available in the session.
 ```
 
 ### Missing Prerequisites
@@ -327,19 +396,20 @@ See: docs/configuration/jira-integration.md
 ```
 ❌ Preflight validation failed: Uncommitted changes
 
-Commit or stash changes before running /implement-ticket
+Commit or stash changes before running /implement-ticket (Claude) or $implement-ticket (Codex)
 ```
 
 ---
 
 ## Best Practices
 
-1. **Always initialize first**: Run `/initialize-project` once per project
-2. **Use worktrees for parallel work**: Leverage `/start-task` for multiple tickets
-3. **Let the framework plan**: Don't skip planning phases in `/implement-ticket`
-4. **Create SDD tickets**: Use `/create-sdd-ticket` for clear specifications
-5. **Run quality checks**: Always use `/code-quality-check` before creating PRs
-6. **Clean up worktrees**: Use `/end-task` when done to free resources
+1. **Always initialize first**: Run `/initialize-project` (Claude) or `$initialize-project` (Codex) once per project
+2. **Use worktrees for parallel work**: Leverage `/start-task` / `$start-task` for multiple tickets
+3. **Let the framework plan**: Don't skip planning phases in `/implement-ticket` / `$implement-ticket`
+4. **Create SDD tickets**: Use `/create-sdd-ticket` / `$create-sdd-ticket` for clear specifications
+5. **Run quality checks**: Always use `/code-quality-check` / `$code-quality-check` before creating PRs
+6. **Clean up worktrees**: Use `/end-task` / `$end-task` when done to free resources
+7. **Troubleshoot in Codex**: Run `/skills` to see which skills are active in the current session
 
 ---
 

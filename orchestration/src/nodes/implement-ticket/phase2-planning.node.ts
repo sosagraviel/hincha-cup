@@ -31,8 +31,7 @@ export async function phase2PlanningNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir =
-    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
+  const tempDir = state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase2Dir = join(tempDir, 'phase2');
 
   console.log('\n[Phase 2: Planning] Starting planning...');

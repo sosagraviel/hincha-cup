@@ -60,7 +60,6 @@ export function generateFrameworkConfig(
     resource_state: {
       skills: {},
       agents: {},
-      commands: {},
       last_sync: new Date().toISOString(),
     },
   };

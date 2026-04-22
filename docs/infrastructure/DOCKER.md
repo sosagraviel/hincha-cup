@@ -2,6 +2,8 @@
 
 **Purpose**: Isolated Docker environment for running Claude Code across multiple projects with pre-configured MCP servers and development tools.
 
+> **Provider note**: the shipped runtime targets Claude Code. To run Codex CLI in the same pattern, install the `codex` binary in the Dockerfile and mount `OPENAI_API_KEY` / `~/.codex` in place of the Claude equivalents — everything else (project mount, MCP servers, host networking) works unchanged. The framework itself is provider-agnostic.
+
 **Version**: 1.0.0
 **Last Updated**: 2026-03-02
 
@@ -27,7 +29,7 @@ This Docker runtime provides:
 
 - Docker 20.10+
 - Docker Compose 2.0+
-- Project already initialized with `.claude/` directory
+- Project already initialized with `.claude/` directory (or `.codex/` if using Codex)
 
 ### 2. Setup Credentials
 
@@ -38,8 +40,10 @@ cp .env.example .env
 
 Edit `.env` with your actual credentials:
 ```bash
-# Required
-CLAUDE_API_KEY=sk-ant-api03-...
+# Required — pick one depending on provider
+CLAUDE_API_KEY=sk-ant-api03-...        # Claude Code
+# OPENAI_API_KEY=sk-...                # Codex CLI
+
 PROJECT_PATH=/absolute/path/to/your/project
 
 # For Jira/Confluence integration
@@ -67,20 +71,20 @@ This will:
 Inside the container:
 
 ```bash
-# Start Claude Code interactive session
-claude-code run
+# Start your provider's interactive session
+claude-code run   # Claude Code
+# codex           # Codex CLI (if installed in the image)
 
-# Initialize a new project (if needed)
-/initialize-project
+# Initialize a new project (shell script, not a skill)
+./qubika-agentic-framework/scripts/initialize-project.sh
 
 # Implement a Jira ticket
-/implement-ticket PROJ-123
+/implement-ticket PROJ-123    # Claude Code
+$implement-ticket PROJ-123    # Codex CLI
 
 # Create an SDD ticket
-/create-sdd-ticket
-
-# Run code quality check
-/code-quality-check
+/create-sdd-ticket            # Claude Code
+$create-sdd-ticket            # Codex CLI
 ```
 
 ### 5. Stop Runtime
@@ -237,15 +241,15 @@ deploy:
 ./scripts/run-claude.sh ~/projects/new-app
 
 # Inside container
-claude-code run
+claude-code run   # or `codex`
 
-# User: /initialize-project
-# Claude will:
+# Run: ./qubika-agentic-framework/scripts/initialize-project.sh
+# The framework will:
 # 1. Detect tech stack
 # 2. Copy relevant skills
 # 3. Generate agents
 # 4. Configure MCPs
-# 5. Create CLAUDE.md and project-context
+# 5. Create CLAUDE.md (or AGENTS.md) and project-context
 ```
 
 ### Example 2: Implement Jira Ticket
@@ -255,10 +259,11 @@ claude-code run
 ./scripts/run-claude.sh ~/projects/existing-app
 
 # Inside container
-claude-code run
+claude-code run   # or `codex`
 
-# User: /implement-ticket EV-456
-# Claude will:
+# User: /implement-ticket EV-456    (Claude)
+# User: $implement-ticket EV-456    (Codex)
+# The agent will:
 # 1. Fetch ticket from Jira
 # 2. Analyze requirements
 # 3. Create implementation plan
@@ -271,15 +276,16 @@ claude-code run
 
 ```bash
 # Inside container
-claude-code run
+claude-code run   # or `codex`
 
-# User: /create-sdd-ticket
+# User: /create-sdd-ticket    (Claude)
+# User: $create-sdd-ticket    (Codex)
 # User: "We need password reset for users"
-# Claude:
-# - Asks 15 clarifying questions
-# - User answers all
-# - Claude generates complete ticket
-# - Claude creates ticket in Jira
+# The agent:
+# - Asks clarifying questions
+# - User answers
+# - Generates a complete INVEST ticket
+# - Creates the ticket in Jira
 ```
 
 ### Example 4: Multi-Project Workflow
@@ -350,7 +356,7 @@ claude-code run
    curl -H "Authorization: token $GITHUB_PERSONAL_ACCESS_TOKEN" \
      https://api.github.com/user
    ```
-3. Check MCP configuration in project's `.claude/mcp.json`
+3. Check MCP configuration in project's `.claude/mcp.json` (or `.codex/mcp.json` on Codex)
 
 ---
 

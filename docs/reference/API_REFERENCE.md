@@ -2,6 +2,8 @@
 
 Complete reference for skills, agents, and utilities in the AI Agentic Framework.
 
+> **Invocation**: user-invokable skills use `/skill-name` in Claude Code and `$skill-name` in Codex CLI. In Codex, run `/skills` to list the skills loaded in the current session. Skill definitions are identical between providers — only the prefix and the generated config directory (`.claude/` vs `.codex/`) differ.
+
 ---
 
 ## Table of Contents
@@ -40,7 +42,9 @@ Skills are reusable knowledge modules that provide context and patterns to AI ag
 - **Purpose**: Full feature implementation workflow
 - **Phases**: Analysis → Planning → Implementation → Testing → PR
 - **Type**: User-invokable skill
-- **Invocation**: `/implement-ticket <TICKET_ID>`
+- **Invocation**:
+  - Claude Code: `/implement-ticket <TICKET_ID>`
+  - Codex CLI: `$implement-ticket <TICKET_ID>`
 - **Time**: 5-15 minutes per ticket
 - **Used by**: All implementation agents
 
@@ -225,7 +229,7 @@ Agents are AI assistants specialized for specific tasks.
 
 ## Commands
 
-Slash invocations available in Claude Code. This includes both native commands and user-invokable skills (such as `implement-ticket`).
+Invocations available through the Skill tool (e.g., `/implement-ticket`). All framework workflows are user-invokable skills — native slash commands are no longer shipped by the framework.
 
 ### Project Setup
 
@@ -318,17 +322,11 @@ Understanding the `.claude/` directory created by initialization.
 │   ├── react-frontend/        # React patterns
 │   └── jest-coverage-automation/  # Jest testing
 │
-├── agents/                    # Custom AI agents
-│   ├── planner.md            # Medium-risk planning
-│   ├── implementer-typescript.md  # TypeScript implementation
-│   ├── tester-unit-typescript.md  # TypeScript testing
-│   └── security-reviewer-typescript.md  # Security review
-│
-└── commands/                  # Available slash commands
-    ├── initialize-project.md
-    ├── implement-ticket.md
-    ├── fetch-ticket-context.md
-    └── code-quality-check.md
+└── agents/                    # Custom AI agents
+    ├── planner.md            # Medium-risk planning
+    ├── implementer-typescript.md  # TypeScript implementation
+    ├── tester-unit-typescript.md  # TypeScript testing
+    └── security-reviewer-typescript.md  # Security review
 ```
 
 ### Generated Files

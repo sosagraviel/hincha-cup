@@ -501,6 +501,6 @@ Context ready (~15,000 tokens)
 
 ## References
 
-- Jira Skill: `.claude/skills/jira/SKILL.md`
-- Notion Manager: `.claude/skills/notion-document-manager/SKILL.md`
-- Confluence Skill: `.claude/skills/mastering-confluence/SKILL.md`
+- Jira Skill: `{{CONFIG_DIR}}/skills/jira/SKILL.md`
+- Notion Manager: `{{CONFIG_DIR}}/skills/notion-document-manager/SKILL.md`
+- Confluence Skill: `{{CONFIG_DIR}}/skills/mastering-confluence/SKILL.md`

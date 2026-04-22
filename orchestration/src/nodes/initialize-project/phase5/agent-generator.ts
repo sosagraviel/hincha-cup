@@ -5,7 +5,8 @@ import type { ResolvedSkill, GeneratedAgent } from './types.js';
 import { registerHandlebarsHelpers } from './helpers/handlebars-helpers.js';
 import { getLanguagesFromStackProfile } from './helpers/stack-extractor.js';
 import { assignSkillsToAgents } from './helpers/skill-assigner.js';
-import { resolveConfigPath } from '../../../utils/provider-paths.js';
+import { resolveConfigPath, getActiveProvider } from '../../../utils/provider-paths.js';
+import { rewriteAgentFrontmatter } from './helpers/agent-frontmatter.js';
 import {
   generatePlannerAgent,
   generateImplementerAgent,
@@ -81,15 +82,20 @@ export function generateAgents(
 }
 
 /**
- * Write agents to project
+ * Write agents to project.
+ *
+ * Rewrites the frontmatter per provider before writing — Claude passes
+ * through unchanged; Codex gets `model:` remapped to GPT-5 and `tools:` removed.
  */
 export function writeAgents(agents: GeneratedAgent[], projectPath: string): void {
   const agentsDir = resolveConfigPath(projectPath, 'agents');
   mkdirSync(agentsDir, { recursive: true });
 
+  const provider = getActiveProvider();
   for (const agent of agents) {
     const agentPath = join(agentsDir, agent.filename);
-    writeFileSync(agentPath, agent.content);
+    const content = rewriteAgentFrontmatter(agent.content, provider);
+    writeFileSync(agentPath, content);
     agent.path = agentPath;
   }
 }

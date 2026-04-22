@@ -6,7 +6,7 @@ Update the implement-ticket skill and its supporting services to work with both 
 
 ## Why This Phase Exists
 
-The implement-ticket is the primary development workflow. Per CLAUDE.md, the active implementation is the skill at `skills/020-development-workflow/implement-ticket/SKILL.md` (not the orchestration workflow). This skill:
+The implement-ticket is the primary development workflow. Per CLAUDE.md, the active implementation is the skill at `skills/020-development-workflow/implement-ticket/` — now split into `SKILL.claude.md` and `SKILL.codex.md` (see `plans/codex-integration/phase-11-skill-split.md`). This skill:
 - Reads from `.claude/framework-config.json` and `.claude/CLAUDE.md`
 - Spawns planner and implementer agents from `.claude/agents/`
 - Saves artifacts to `.claude-temp/tickets/`
@@ -22,7 +22,7 @@ All these paths and references must be provider-aware.
 
 ### Step 8.1: Update Implement-Ticket Skill
 
-**File to modify:** `skills/020-development-workflow/implement-ticket/SKILL.md`
+**Files to modify:** `skills/020-development-workflow/implement-ticket/SKILL.claude.md` (Claude) and `SKILL.codex.md` (Codex) — see phase 11 for the split rationale.
 
 **Why:** This skill is the user-facing workflow definition. It contains:
 - Hardcoded `.claude-temp/` artifact paths
@@ -147,7 +147,7 @@ For each, replace hardcoded `.claude/` with provider-agnostic language.
 
 | Action | File | Why |
 |--------|------|-----|
-| MODIFY | `skills/020-development-workflow/implement-ticket/SKILL.md` | Provider-agnostic tool/path references |
+| SPLIT  | `skills/020-development-workflow/implement-ticket/SKILL.claude.md` + `SKILL.codex.md` | Provider-specific execution models (see phase 11) |
 | MODIFY | `orchestration/src/services/implement-ticket/project-config-reader.service.ts` | Provider-aware paths |
 | MODIFY | `orchestration/src/services/implement-ticket/shared/index.ts` | Provider-aware agent paths |
 | MODIFY | `orchestration/src/state/schemas/implement-ticket.schema.ts` | Add provider field |
@@ -170,7 +170,7 @@ For each, replace hardcoded `.claude/` with provider-agnostic language.
 
 ## Notes for Implementer
 
-- The SKILL.md at `skills/020-development-workflow/implement-ticket/SKILL.md` is the user-invokable skill, NOT the orchestration workflow. It's read directly by Claude Code / Codex CLI.
+- The user-invokable skill at `skills/020-development-workflow/implement-ticket/SKILL.<provider>.md` (selected at sync time by `skill-copier.ts`) is NOT the orchestration workflow. It's read directly by Claude Code / Codex CLI.
 - Tool names differ: Claude has `Read`, `Write`, `Edit`, `Bash`, `Grep`, `Glob`. Codex has `shell` for most operations. The skill should use natural language descriptions of actions rather than specific tool names where possible.
 - The `project-config-reader.service.ts` is the service that reads `.claude/framework-config.json` at runtime. It needs the most changes.
 - The Figma MCP integration (figma-export.service.ts) needs special handling because Claude and Codex configure MCP differently.

@@ -2,10 +2,7 @@ import { execSync } from 'child_process';
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
-import {
-  resolveTempPath,
-  resolveInstructionFilePath,
-} from '../../utils/provider-paths.js';
+import { resolveTempPath, resolveInstructionFilePath } from '../../utils/provider-paths.js';
 
 /**
  * Phase 7: Documentation Node
@@ -31,8 +28,7 @@ export async function phase7DocumentationNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir =
-    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
+  const tempDir = state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase7Dir = join(tempDir, 'phase7');
 
   console.log('\n[Phase 7: Documentation] Starting documentation update...');

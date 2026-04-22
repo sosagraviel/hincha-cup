@@ -51,8 +51,7 @@ export async function phase6VisualNode(
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
   const frameworkPath = state.framework_path;
-  const tempDir =
-    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
+  const tempDir = state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase6Dir = join(tempDir, 'phase6');
 
   console.log('\n[Phase 6: Visual Verification] Starting visual regression testing...');

@@ -28,8 +28,7 @@ export async function phase5TestingNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir =
-    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
+  const tempDir = state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase5Dir = join(tempDir, 'phase5');
 
   const phaseLogger = logger.child('Phase 5: Testing');

@@ -1,7 +1,7 @@
 ---
 name: implement-ticket
 version: 3.0.0
-last-updated: 2026-04-15
+last-updated: 2026-04-22
 description: Implements a ticket end-to-end through 11 phases from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 user-invokable: true
@@ -30,19 +30,19 @@ Parse the input for these flags:
 **ALL artifacts MUST be saved to the following deterministic structure:**
 
 ```
-.claude-temp/tickets/<TICKET_ID>/artifacts/
+{{TEMP_DIR}}/tickets/<TICKET_ID>/artifacts/
 ```
 
 **NEVER save artifacts to:**
-- `.claude/artifacts/`
-- `.claude/screenshots/`
-- `.claude/decisions/`
+- `{{CONFIG_DIR}}/artifacts/`
+- `{{CONFIG_DIR}}/screenshots/`
+- `{{CONFIG_DIR}}/decisions/`
 - `orchestration/artifacts/`
 - Any other location
 
 When spawning agents or invoking skills, ALWAYS pass the ARTIFACTS_DIR variable:
 ```bash
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"
 export ARTIFACTS_DIR
 ```
 
@@ -88,7 +88,7 @@ Create each task using TaskCreate with these exact values:
 5. Phase 4: Implementation
    subject: "Phase 4: Implementation"
    activeForm: "Implementing code changes"
-   Steps: MUST spawn implementer-{lang} agent with the plan from Phase 2, implement code following plan, follow project conventions from CLAUDE.md, create/modify files as needed
+   Steps: MUST spawn implementer-{lang} agent with the plan from Phase 2, implement code following plan, follow project conventions from {{INSTRUCTION_FILE}}, create/modify files as needed
    Expected outputs: implementer agent was spawned, code changes exist, new files created as planned
    Constraint: Do not proceed if implementer agent was not spawned or no code changes exist.
 
@@ -109,7 +109,7 @@ Create each task using TaskCreate with these exact values:
 8. Phase 7: Documentation Update
    subject: "Phase 7: Documentation Update"
    activeForm: "Updating documentation"
-   Steps: MUST invoke /doc-updater skill, analyze changed files for doc impact, apply maintenance test, update CLAUDE.md and project-context if needed
+   Steps: MUST invoke /doc-updater skill, analyze changed files for doc impact, apply maintenance test, update {{INSTRUCTION_FILE}} and project-context if needed
    Expected outputs: doc-updater skill was invoked and analysis completed
    Constraint: Do not proceed if doc-updater was not invoked.
 
@@ -240,7 +240,7 @@ CRITICAL: You MUST invoke `/doc-updater` skill. Do not skip this even if you thi
 
 - Analyze changed files for doc impact
 - Apply maintenance test (only update if truly needed)
-- Update CLAUDE.md and project-context surgically if needed
+- Update {{INSTRUCTION_FILE}} and project-context surgically if needed
 
 CONTINUE WITH Phase 8.
 

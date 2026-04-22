@@ -3,10 +3,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { ProjectConfigReaderService } from '../../services/implement-ticket/project-config-reader.service.js';
-import {
-  resolveTempPath,
-  resolveFrameworkConfigPath,
-} from '../../utils/provider-paths.js';
+import { resolveTempPath, resolveFrameworkConfigPath } from '../../utils/provider-paths.js';
 
 /**
  * Phase 0: Preflight Validation Node
@@ -34,8 +31,7 @@ export async function phase0PreflightNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir =
-    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
+  const tempDir = state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase0Dir = join(tempDir, 'phase0');
 
   console.log('\n[Phase 0: Preflight] Starting validation...');

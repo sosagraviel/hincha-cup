@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Maintain `.claude/CLAUDE.md` and `.claude/skills/project-context/SKILL.md` accuracy after code changes by analyzing changed files and updating only necessary documentation sections.
+Maintain `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` and `{{CONFIG_DIR}}/skills/project-context/SKILL.md` accuracy after code changes by analyzing changed files and updating only necessary documentation sections.
 
 ## When to Use
 
@@ -35,7 +35,7 @@ This skill expects to be called from implement-ticket Phase 7 with:
 {
   "todos": [
     {
-      "content": "Read current CLAUDE.md and project-context",
+      "content": "Read current {{INSTRUCTION_FILE}} and project-context",
       "status": "in_progress",
       "activeForm": "Reading current documentation"
     }
@@ -47,12 +47,12 @@ This skill expects to be called from implement-ticket Phase 7 with:
 Read existing documentation:
 
 ```bash
-echo "=== Current CLAUDE.md ==="
-cat .claude/CLAUDE.md
+echo "=== Current {{INSTRUCTION_FILE}} ==="
+cat {{CONFIG_DIR}}/{{INSTRUCTION_FILE}}
 
 echo ""
 echo "=== Current project-context/SKILL.md ==="
-cat .claude/skills/project-context/SKILL.md
+cat {{CONFIG_DIR}}/skills/project-context/SKILL.md
 ```
 
 <TodoWrite>
@@ -60,7 +60,7 @@ cat .claude/skills/project-context/SKILL.md
 {
   "todos": [
     {
-      "content": "Read current CLAUDE.md and project-context",
+      "content": "Read current {{INSTRUCTION_FILE}} and project-context",
       "status": "completed",
       "activeForm": "Reading current documentation"
     }
@@ -135,7 +135,7 @@ Categorize changes:
 ```
 </TodoWrite>
 
-#### CLAUDE.md Updates Needed When:
+#### {{INSTRUCTION_FILE}} Updates Needed When:
 
 1. **New Technology Added**:
    - New framework/library in package.json
@@ -314,14 +314,14 @@ Generate a JSON structure with your analysis:
 ```
 </TodoWrite>
 
-#### Update CLAUDE.md
+#### Update {{INSTRUCTION_FILE}}
 
 For each update in `updates.claudeMd`:
 
 1. Use the Edit tool to apply changes:
    ```
    Edit({
-     file_path: '.claude/CLAUDE.md',
+     file_path: '{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}',
      old_string: update.before,
      new_string: update.after
    })
@@ -367,7 +367,7 @@ For each update in `updates.projectContext`:
 1. Use the Edit tool to apply changes:
    ```
    Edit({
-     file_path: '.claude/skills/project-context/SKILL.md',
+     file_path: '{{CONFIG_DIR}}/skills/project-context/SKILL.md',
      old_string: update.before,
      new_string: update.after
    })
@@ -441,12 +441,12 @@ For each update in `updates.projectContext`:
 Read updated files to confirm correctness:
 
 ```bash
-echo "=== Updated CLAUDE.md ==="
-cat .claude/CLAUDE.md
+echo "=== Updated {{INSTRUCTION_FILE}} ==="
+cat {{CONFIG_DIR}}/{{INSTRUCTION_FILE}}
 
 echo ""
 echo "=== Updated project-context/SKILL.md ==="
-cat .claude/skills/project-context/SKILL.md
+cat {{CONFIG_DIR}}/skills/project-context/SKILL.md
 ```
 
 Verify:
@@ -455,7 +455,7 @@ Verify:
 - ✅ No exhaustive lists added
 - ✅ All referenced paths exist (use Glob to verify)
 - ✅ Changes pass maintenance test
-- ✅ CLAUDE.md remains concise (<300 lines)
+- ✅ {{INSTRUCTION_FILE}} remains concise (<300 lines)
 - ✅ project-context remains concise (<250 lines)
 
 <TodoWrite>
@@ -599,7 +599,7 @@ Your documentation update is successful if:
 - ✅ No exhaustive lists added
 - ✅ All referenced paths exist in codebase
 - ✅ Changes pass the maintenance test
-- ✅ Documentation remains concise (CLAUDE.md <300 lines, project-context <250 lines)
+- ✅ Documentation remains concise ({{INSTRUCTION_FILE}} <300 lines, project-context <250 lines)
 - ✅ Updates accurately reflect code changes
 - ✅ Hard-to-discover knowledge is preserved
 

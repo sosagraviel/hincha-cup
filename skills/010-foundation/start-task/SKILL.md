@@ -39,7 +39,7 @@ This skill enables engineers to work on multiple tickets in parallel without:
 
 **How It Works**:
 
-1. Reads `.claude/CLAUDE.md` to understand project structure
+1. Reads `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` to understand project structure
 2. Creates git worktree in `../<project-name>-tasks/<task-id>/`
 3. Auto-detects ports from project config (docker-compose, package.json, etc.)
 4. Assigns unique ports to avoid conflicts (slot-based system)
@@ -52,7 +52,7 @@ This skill enables engineers to work on multiple tickets in parallel without:
 
 **Required**:
 
-- Project must have run `/initialize-project` (needs `.claude/CLAUDE.md`)
+- Project must have run `/initialize-project` (needs `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`)
 - Git repository
 
 **Optional** (auto-detected):
@@ -105,7 +105,7 @@ Creates worktree with auto-generated branch `task/PROJ-123`
 
 ```bash
 # Check if initialize-project has run
-if [[ ! -f ".claude/CLAUDE.md" ]]; then
+if [[ ! -f "{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}" ]]; then
     echo "Error: Project not initialized. Run /initialize-project first."
     exit 1
 fi
@@ -125,15 +125,15 @@ fi
 
 ### Step 2: Load Project Configuration
 
-Read `.claude/CLAUDE.md` to extract:
+Read `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` to extract:
 
 ```python
 import re
 
 def load_project_config():
-    """Extract project configuration from CLAUDE.md"""
+    """Extract project configuration from {{INSTRUCTION_FILE}}"""
 
-    with open('.claude/CLAUDE.md', 'r') as f:
+    with open('{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}', 'r') as f:
         content = f.read()
 
     config = {
@@ -147,7 +147,7 @@ def load_project_config():
     return config
 
 def extract_ports(content):
-    """Extract port numbers from CLAUDE.md"""
+    """Extract port numbers from {{INSTRUCTION_FILE}}"""
     ports = []
 
     # Common patterns
@@ -328,13 +328,12 @@ def setup_env_files(worktree_path, env_files, port_mappings):
 ### Step 7: Copy .claude Configuration
 
 ```bash
-# Copy .claude directory to worktree
-cp -r .claude "$WORKTREE_PATH/"
+# Copy config directory to worktree
+cp -r {{CONFIG_DIR}} "$WORKTREE_PATH/"
 
 # This preserves:
-# - CLAUDE.md (project knowledge)
+# - {{INSTRUCTION_FILE}} (project knowledge)
 # - skills/ (project-specific skills)
-# - commands/ (custom slash commands)
 ```
 
 ### Step 8: Register Task
@@ -569,14 +568,14 @@ if git worktree list | grep -q "$WORKTREE_PATH"; then
 fi
 ```
 
-### No CLAUDE.md Found
+### No Project Instruction File Found
 
 ```bash
-if [[ ! -f ".claude/CLAUDE.md" ]]; then
+if [[ ! -f "{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}" ]]; then
     echo "Error: Project not initialized"
     echo ""
     echo "Run /initialize-project first to analyze this project"
-    echo "This creates .claude/CLAUDE.md with project knowledge needed for task isolation"
+    echo "This creates {{CONFIG_DIR}}/{{INSTRUCTION_FILE}} with project knowledge needed for task isolation"
     exit 1
 fi
 ```
@@ -666,7 +665,7 @@ git checkout origin/teammate-branch
 - **Task Creation**: < 10 seconds for new worktree
 - **Port Conflicts**: 0% (auto-detected and resolved)
 - **AI Integration**: 100% compatible with /implement-ticket
-- **Project Coverage**: Works with any project that has `.claude/CLAUDE.md`
+- **Project Coverage**: Works with any project that has `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`
 - **Concurrent Limit**: 10 tasks simultaneously
 
 ---

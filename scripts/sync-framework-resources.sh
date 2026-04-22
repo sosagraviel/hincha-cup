@@ -23,7 +23,11 @@
 #   git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework
 #
 # Usage:
-#   ./qubika-agentic-framework/scripts/sync-framework-resources.sh
+#   ./qubika-agentic-framework/scripts/sync-framework-resources.sh [--provider claude|codex]
+#
+# If --provider is omitted, the script auto-detects from the existing
+# config dir in the project (`.claude/` or `.codex/`). Pass --provider
+# explicitly when both dirs exist or when neither exists yet.
 #
 # ============================================================================
 
@@ -54,9 +58,9 @@ if [ "$FRAMEWORK_REAL_PATH" = "$(dirname "$FRAMEWORK_PATH")" ]; then
   # FRAMEWORK_PATH stays as the symlink path for proper file operations
   export PROJECT_PATH="$FRAMEWORK_REAL_PATH"
   export FRAMEWORK_PATH="$FRAMEWORK_PATH"
-  cd "$FRAMEWORK_REAL_PATH/orchestration" && npm run sync-framework-resources
+  cd "$FRAMEWORK_REAL_PATH/orchestration" && npm run sync-framework-resources -- "$@"
   exit $?
 fi
 
 # Normal mode: Navigate to orchestration module and run TypeScript script
-cd "$FRAMEWORK_PATH/orchestration" && npm run sync-framework-resources
+cd "$FRAMEWORK_PATH/orchestration" && npm run sync-framework-resources -- "$@"

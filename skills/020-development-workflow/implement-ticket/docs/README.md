@@ -38,7 +38,20 @@ Flags are space-separated in a single argument string.
 
 ## What happens when you invoke it
 
-See [`SKILL.md`](./SKILL.md) for the authoritative phase definitions. Summary:
+The skill ships as two provider-specific files — `SKILL.claude.md` and
+`SKILL.codex.md` — because the execution model differs materially between
+providers. The sync pipeline picks the right one and writes it to the target
+project as `SKILL.md`:
+
+- **Claude Code**: `TaskCreate` tracks the 11 phases (Ctrl+T visibility) and
+  each phase spawns the relevant subagent via the `Task` tool.
+- **Codex CLI**: no programmatic subagent spawning — progress is tracked by
+  appending JSONL events to `.codex-temp/tickets/<id>/progress.jsonl`, and the
+  agent switches personas by reading the corresponding role prompt from
+  `.codex/agents/` inline.
+
+See the provider-specific SKILL file for the authoritative phase definitions.
+Summary (identical in both):
 
 | Phase | Work | Key agents/skills |
 |---|---|---|
@@ -54,7 +67,9 @@ See [`SKILL.md`](./SKILL.md) for the authoritative phase definitions. Summary:
 | 9 | Review loop (up to 3 iterations) | `/pr-reviewer`, `/security-review`, `implementer-{lang}` |
 | 10 | Cleanup (teardown env, archive artifacts) | — |
 
-Each phase creates a TaskCreate entry for Ctrl+T progress visibility.
+On Claude, each phase creates a `TaskCreate` entry for Ctrl+T progress
+visibility. On Codex, each phase appends an `in_progress` / `completed`
+/ `failed` JSONL record to `progress.jsonl` under the temp directory.
 
 ## Prerequisites
 
@@ -66,10 +81,11 @@ Each phase creates a TaskCreate entry for Ctrl+T progress visibility.
 
 ## Artifacts
 
-All artifacts for a ticket live under:
+All artifacts for a ticket live under the provider's temp dir
+(`.claude-temp/` for Claude, `.codex-temp/` for Codex):
 
 ```
-.claude-temp/tickets/<TICKET_ID>/artifacts/
+<TEMP_DIR>/tickets/<TICKET_ID>/artifacts/
 ├── checkpoints/          # phase{0-10}-*.json — disk-first idempotency markers
 ├── context/              # ticket context gathered in Phase 1
 ├── plans/                # Phase 2 implementation plan + test plan

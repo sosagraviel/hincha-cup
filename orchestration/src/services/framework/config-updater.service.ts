@@ -180,7 +180,7 @@ export class ConfigUpdaterService {
   }
 
   async updateResourceState(
-    resourceType: 'skills' | 'agents' | 'commands',
+    resourceType: 'skills' | 'agents',
     resourceName: string,
     metadata: Partial<ResourceInfo>,
   ): Promise<FrameworkConfig> {
@@ -204,7 +204,7 @@ export class ConfigUpdaterService {
   }
 
   async removeResourceFromState(
-    resourceType: 'skills' | 'agents' | 'commands',
+    resourceType: 'skills' | 'agents',
     resourceName: string,
   ): Promise<boolean> {
     const config = await this.readConfig();

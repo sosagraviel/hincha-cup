@@ -34,8 +34,7 @@ export async function phase4ImplementationNode(
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
   const frameworkPath = state.framework_path;
-  const tempDir =
-    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
+  const tempDir = state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase4Dir = join(tempDir, 'phase4');
 
   console.log('\n[Phase 4: Implementation] Starting implementation...');

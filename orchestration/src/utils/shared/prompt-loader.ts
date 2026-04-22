@@ -44,10 +44,7 @@ const NON_PROVIDER_IGNORE_DIRS = [
  * Standard directories to ignore during analysis.
  * Composed from static build-artifact list + provider-managed dirs registry.
  */
-export const STANDARD_IGNORE_DIRS = [
-  ...NON_PROVIDER_IGNORE_DIRS,
-  ...getAllProviderManagedDirs(),
-];
+export const STANDARD_IGNORE_DIRS = [...NON_PROVIDER_IGNORE_DIRS, ...getAllProviderManagedDirs()];
 
 /**
  * Parse .gitignore and extract directory patterns

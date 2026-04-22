@@ -1,5 +1,4 @@
 import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
-import { join } from 'path';
 import { logger } from '../../../utils/logger.js';
 import {
   resolveInstructionFilePath,
@@ -110,14 +109,7 @@ export async function validationNode(
       }
     }
 
-    // 6. Validate commands directory exists
-    const commandsResult = validateDirectoryWithFiles(directories.commands, 'Commands');
-    validationErrors.push(...commandsResult.errors);
-    if (commandsResult.valid) {
-      phaseLogger.success(` ✓ Commands directory exists with ${commandsResult.fileCount} commands`);
-    }
-
-    // 7. Validate all phases completed
+    // 6. Validate all phases completed
     const phaseCompletionResult = validatePhaseCompletion(state);
     validationErrors.push(...phaseCompletionResult.errors);
     validationWarnings.push(...phaseCompletionResult.warnings);

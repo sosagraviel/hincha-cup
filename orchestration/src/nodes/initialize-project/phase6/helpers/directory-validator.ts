@@ -5,7 +5,6 @@
  */
 
 import { existsSync, readdirSync } from 'fs';
-import { join } from 'path';
 import { FILE_EXTENSIONS } from '../constants.js';
 import type { DirectoryValidationResult } from '../types.js';
 import { resolveConfigPath } from '../../../../utils/provider-paths.js';
@@ -78,6 +77,5 @@ export function getClaudeDirectories(projectPath: string) {
   return {
     skills: resolveConfigPath(projectPath, 'skills'),
     agents: resolveConfigPath(projectPath, 'agents'),
-    commands: resolveConfigPath(projectPath, 'commands'),
   };
 }

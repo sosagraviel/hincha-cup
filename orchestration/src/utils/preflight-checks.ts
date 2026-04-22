@@ -436,9 +436,7 @@ export async function runPreflightChecks(
 
       writeFileSync(gitignorePath, gitignoreContent, 'utf-8');
       gitignoreUpdated = true;
-      warnings.push(
-        `Created .gitignore with framework entries: ${requiredEntries.join(', ')}`,
-      );
+      warnings.push(`Created .gitignore with framework entries: ${requiredEntries.join(', ')}`);
     } catch (error) {
       warnings.push(
         `Unable to create .gitignore file: ${(error as Error).message}\n` +
