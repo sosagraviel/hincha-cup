@@ -3,6 +3,7 @@ import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { ReviewLoopService } from '../../services/implement-ticket/review-loop.service.js';
 import { TestOrchestratorService } from '../../services/implement-ticket/test-orchestrator.service.js';
+import { resolveTempPath } from '../../utils/provider-paths.js';
 
 /**
  * Phase 9: Review Loop Node
@@ -34,7 +35,7 @@ export async function phase9ReviewNode(
   const projectPath = state.project_path;
   const frameworkPath = state.framework_path;
   const tempDir =
-    state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase9Dir = join(tempDir, 'phase9');
 
   console.log('\n[Phase 9: Review Loop] Starting automated PR review...');

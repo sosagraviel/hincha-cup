@@ -17,7 +17,11 @@ import {
   type ResourceInfo,
 } from '../../schemas/index.js';
 import { type Service } from '../../schemas/stack-profile.schema.js';
-import { resolveFrameworkConfigPath, resolveConfigPath } from '../../utils/provider-paths.js';
+import {
+  resolveFrameworkConfigPath,
+  resolveConfigPath,
+  getAllProviderManagedDirs,
+} from '../../utils/provider-paths.js';
 
 // Re-export types for backward compatibility
 export type { FrameworkConfig, ResourceInfo };
@@ -220,12 +224,7 @@ export class ConfigUpdaterService {
     const excludes = [
       'node_modules',
       '.git',
-      '.claude',
-      '.claude-temp',
-      '.claude-backups',
-      '.codex',
-      '.codex-temp',
-      '.codex-backups',
+      ...getAllProviderManagedDirs(),
       'dist',
       'build',
       '__pycache__',

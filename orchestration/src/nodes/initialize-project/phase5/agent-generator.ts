@@ -5,6 +5,7 @@ import type { ResolvedSkill, GeneratedAgent } from './types.js';
 import { registerHandlebarsHelpers } from './helpers/handlebars-helpers.js';
 import { getLanguagesFromStackProfile } from './helpers/stack-extractor.js';
 import { assignSkillsToAgents } from './helpers/skill-assigner.js';
+import { resolveConfigPath } from '../../../utils/provider-paths.js';
 import {
   generatePlannerAgent,
   generateImplementerAgent,
@@ -83,7 +84,7 @@ export function generateAgents(
  * Write agents to project
  */
 export function writeAgents(agents: GeneratedAgent[], projectPath: string): void {
-  const agentsDir = join(projectPath, '.claude', 'agents');
+  const agentsDir = resolveConfigPath(projectPath, 'agents');
   mkdirSync(agentsDir, { recursive: true });
 
   for (const agent of agents) {

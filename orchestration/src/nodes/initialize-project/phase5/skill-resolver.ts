@@ -5,6 +5,7 @@ import { SkillsConfigFileSchema } from './types.js';
 import type { SkillConfig, ResolvedSkill } from './types.js';
 import { extractDetectedStack } from './helpers/stack-detector.js';
 import { matchesTriggers } from './helpers/trigger-matcher.js';
+import { resolveConfigPath } from '../../../utils/provider-paths.js';
 
 /**
  * Load skills configuration
@@ -104,12 +105,12 @@ function copySkillDirectory(srcPath: string, destPath: string): number {
 }
 
 /**
- * Copy resolved skills to project
- * Flattens the directory structure - all skills are copied directly to .claude/skills/
- * (e.g., skills/050-language-frameworks/mastering-javascript -> .claude/skills/mastering-javascript)
+ * Copy resolved skills to project.
+ * Flattens the directory structure — all skills are copied directly to the
+ * provider-specific skills/ dir (e.g., `.claude/skills/` or `.codex/skills/`).
  */
 export function copyResolvedSkills(resolvedSkills: ResolvedSkill[], projectPath: string): number {
-  const skillsTargetDir = join(projectPath, '.claude', 'skills');
+  const skillsTargetDir = resolveConfigPath(projectPath, 'skills');
   mkdirSync(skillsTargetDir, { recursive: true });
 
   let totalFiles = 0;

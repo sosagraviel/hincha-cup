@@ -40,22 +40,21 @@ describe('ClaudeProvider', () => {
   });
 
   describe('mapModelToCLI', () => {
-    it('should map sonnet aliases to sonnet', () => {
-      expect(provider.mapModelToCLI('sonnet-latest')).toBe('sonnet');
-      expect(provider.mapModelToCLI('claude-sonnet-4')).toBe('sonnet');
+    it('should derive sonnet from modelId', () => {
+      expect(provider.mapModelToCLI('claude-sonnet-4-6')).toBe('sonnet');
+      expect(provider.mapModelToCLI('claude-sonnet-4-5-20251022')).toBe('sonnet');
     });
 
-    it('should map opus aliases to opus', () => {
-      expect(provider.mapModelToCLI('opus-latest')).toBe('opus');
-      expect(provider.mapModelToCLI('claude-opus-4')).toBe('opus');
+    it('should derive opus from modelId', () => {
+      expect(provider.mapModelToCLI('claude-opus-4-6')).toBe('opus');
     });
 
-    it('should map haiku aliases to haiku', () => {
-      expect(provider.mapModelToCLI('haiku-latest')).toBe('haiku');
+    it('should derive haiku from modelId', () => {
+      expect(provider.mapModelToCLI('claude-haiku-4-5-20251001')).toBe('haiku');
     });
 
-    it('should default to sonnet for unknown aliases', () => {
-      expect(provider.mapModelToCLI('gpt5-latest')).toBe('sonnet');
+    it('should default to sonnet for non-Anthropic modelIds', () => {
+      expect(provider.mapModelToCLI('gpt-5.4')).toBe('sonnet');
       expect(provider.mapModelToCLI('unknown')).toBe('sonnet');
     });
   });

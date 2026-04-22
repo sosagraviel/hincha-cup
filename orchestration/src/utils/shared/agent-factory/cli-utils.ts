@@ -5,8 +5,9 @@ import { getLLMFactory } from '../../../llm/llm-factory.js';
 import { logger } from '../../logger.js';
 
 /**
- * Get the Claude CLI model name from the agent name based on model-config.json
- * Maps from model aliases (e.g., "sonnet-latest") to CLI model names (e.g., "sonnet")
+ * Get the Claude CLI model name from the agent name based on model-config.json.
+ * Claude CLI accepts short names ("sonnet", "opus", "haiku"), so we derive
+ * the short name from the modelId in config (e.g., "claude-sonnet-4-6" -> "sonnet").
  */
 export function getCLIModelForAgent(agentName: string, frameworkPath: string): string {
   try {
@@ -14,19 +15,16 @@ export function getCLIModelForAgent(agentName: string, frameworkPath: string): s
     const factory = getLLMFactory(configPath);
     const modelInfo = factory.getModelInfo(agentName);
 
-    // Map from alias to CLI model name
-    // Claude CLI accepts: "sonnet", "opus", "haiku"
-    if (modelInfo.alias.includes('sonnet')) {
-      return 'sonnet';
-    } else if (modelInfo.alias.includes('opus')) {
-      return 'opus';
-    } else if (modelInfo.alias.includes('haiku')) {
-      return 'haiku';
-    }
+    // Claude CLI accepts short names derived from modelId
+    // e.g., "claude-sonnet-4-6" -> "sonnet", "claude-opus-4-6" -> "opus"
+    const modelId = modelInfo.modelId.toLowerCase();
+    if (modelId.includes('sonnet')) return 'sonnet';
+    if (modelId.includes('opus')) return 'opus';
+    if (modelId.includes('haiku')) return 'haiku';
 
-    // Default to sonnet for non-Anthropic models or unknown aliases
+    // Default to sonnet for non-Anthropic models or unknown modelIds
     console.warn(
-      `Warning: Unable to map alias '${modelInfo.alias}' to CLI model name for agent '${agentName}'. Defaulting to 'sonnet'.`,
+      `Warning: Unable to derive CLI model name from modelId '${modelInfo.modelId}' for agent '${agentName}'. Defaulting to 'sonnet'.`,
     );
     return 'sonnet';
   } catch (error) {

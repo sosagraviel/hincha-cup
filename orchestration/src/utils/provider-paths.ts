@@ -105,3 +105,47 @@ export function resolveFrameworkConfigPath(projectPath: string): string {
 export function getInstructionFileName(provider?: Provider): string {
   return getProviderPaths(provider).instructionFile;
 }
+
+/**
+ * All registered providers — single source of truth for "which providers does
+ * the framework know about". Any code that needs to enumerate per-provider
+ * directory names should derive from this, not hardcode provider variants.
+ */
+const ALL_PROVIDERS = Object.keys(PROVIDER_PATHS) as Provider[];
+
+/**
+ * Config dir names for every provider (e.g., `['.claude', '.codex']`).
+ */
+export function getAllProviderConfigDirs(): string[] {
+  return ALL_PROVIDERS.map((p) => PROVIDER_PATHS[p].configDir);
+}
+
+/**
+ * Temp dir names for every provider (e.g., `['.claude-temp', '.codex-temp']`).
+ */
+export function getAllProviderTempDirs(): string[] {
+  return ALL_PROVIDERS.map((p) => PROVIDER_PATHS[p].tempDir);
+}
+
+/**
+ * Backup dir names for every provider (e.g., `['.claude-backups', '.codex-backups']`).
+ */
+export function getAllProviderBackupDirs(): string[] {
+  return ALL_PROVIDERS.map((p) => PROVIDER_PATHS[p].backupDir);
+}
+
+/**
+ * All framework-managed directory names across every registered provider.
+ * Use this for gitignore entries, file scanners, excluded-dirs lists —
+ * anywhere you'd otherwise hardcode both `.claude*` and `.codex*` variants.
+ *
+ * Always returns both variants so projects that switch providers don't need
+ * preflight re-runs.
+ */
+export function getAllProviderManagedDirs(): string[] {
+  return [
+    ...getAllProviderConfigDirs(),
+    ...getAllProviderTempDirs(),
+    ...getAllProviderBackupDirs(),
+  ];
+}

@@ -10,7 +10,7 @@ import { compileImplementTicketGraph } from '../graphs/implement-ticket.graph.js
 import { MemorySaver } from '@langchain/langgraph';
 import type { ImplementTicketState } from '../state/schemas/implement-ticket.schema.js';
 import { Provider } from '../providers/types.js';
-import { setActiveProvider } from '../utils/provider-paths.js';
+import { setActiveProvider, resolveTempPath } from '../utils/provider-paths.js';
 
 const logger = new Logger('implement-ticket');
 
@@ -161,7 +161,7 @@ if (!ticketId || ticketId.trim() === '') {
   process.exit(1);
 }
 
-const tempDir = join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+const tempDir = resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
 let startPhase = 0;
 
 if (options.resume) {

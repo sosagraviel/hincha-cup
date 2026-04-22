@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, appendFileSync, writeFileSync } from 'fs';
 import { join, basename } from 'path';
 import { execSync } from 'child_process';
+import { getAllProviderTempDirs, getAllProviderBackupDirs } from './provider-paths.js';
 
 /**
  * Preflight validation results
@@ -28,7 +29,10 @@ export interface PreflightResult {
  * 1. Node.js version >= 20
  * 2. npm is available
  * 3. Claude CLI detection (optional, determines auth mode)
- * 4. .gitignore contains .claude-temp and .claude-backups (auto-adds if missing)
+ * 4. .gitignore contains per-provider temp/backup dirs — .claude-temp, .claude-backups,
+ *    .codex-temp, .codex-backups — and the framework directory (auto-adds if missing).
+ *    All provider variants are added up front so switching between claude and codex
+ *    doesn't require re-running preflight.
  * 5. Project path exists and is accessible
  * 6. Framework path exists and is accessible
  *
@@ -412,11 +416,11 @@ export async function runPreflightChecks(
   // Framework is ALWAYS at project root: <project>/<framework-name>/
   const frameworkDirName = basename(frameworkPath);
 
+  // All provider-managed temp/backup dirs come from the central provider-paths
+  // registry so we don't have to update this list when a new provider is added.
   const requiredEntries = [
-    '.claude-temp',
-    '.claude-backups',
-    '.codex-temp',
-    '.codex-backups',
+    ...getAllProviderTempDirs(),
+    ...getAllProviderBackupDirs(),
     frameworkDirName,
   ];
 
@@ -426,26 +430,20 @@ export async function runPreflightChecks(
     try {
       const gitignoreContent = [
         '# AI Agentic Framework files',
-        '.claude-temp/',
-        '.claude-backups/',
-        '.codex-temp/',
-        '.codex-backups/',
-        `${frameworkDirName}/`,
+        ...requiredEntries.map((entry) => `${entry}/`),
         '',
       ].join('\n');
 
       writeFileSync(gitignorePath, gitignoreContent, 'utf-8');
       gitignoreUpdated = true;
       warnings.push(
-        `Created .gitignore with framework entries: .claude-temp, .claude-backups, ${frameworkDirName}`,
+        `Created .gitignore with framework entries: ${requiredEntries.join(', ')}`,
       );
     } catch (error) {
       warnings.push(
         `Unable to create .gitignore file: ${(error as Error).message}\n` +
           `Please manually create .gitignore with:\n` +
-          `  .claude-temp/\n` +
-          `  .claude-backups/\n` +
-          `  ${frameworkDirName}/`,
+          requiredEntries.map((e) => `  ${e}/`).join('\n'),
       );
     }
   } else {
@@ -487,9 +485,7 @@ export async function runPreflightChecks(
       warnings.push(
         `Unable to read .gitignore: ${(error as Error).message}\n` +
           `Please ensure .gitignore contains:\n` +
-          `  .claude-temp/\n` +
-          `  .claude-backups/\n` +
-          `  ${frameworkDirName}/`,
+          requiredEntries.map((e) => `  ${e}/`).join('\n'),
       );
     }
   }

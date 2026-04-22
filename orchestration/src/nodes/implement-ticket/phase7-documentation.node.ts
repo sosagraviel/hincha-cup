@@ -2,6 +2,10 @@ import { execSync } from 'child_process';
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
+import {
+  resolveTempPath,
+  resolveInstructionFilePath,
+} from '../../utils/provider-paths.js';
 
 /**
  * Phase 7: Documentation Node
@@ -28,7 +32,7 @@ export async function phase7DocumentationNode(
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
   const tempDir =
-    state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase7Dir = join(tempDir, 'phase7');
 
   console.log('\n[Phase 7: Documentation] Starting documentation update...');
@@ -96,7 +100,7 @@ export async function phase7DocumentationNode(
 
     console.log(`[Phase 7: Documentation] Found ${docUpdates.length} documentation updates needed`);
 
-    const claudeMdPath = join(projectPath, '.claude', 'CLAUDE.md');
+    const claudeMdPath = resolveInstructionFilePath(projectPath);
     let claudeMdContent = '';
     let claudeMdUpdated = false;
 

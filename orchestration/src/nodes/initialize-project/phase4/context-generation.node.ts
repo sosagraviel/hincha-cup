@@ -21,7 +21,7 @@ import { extractFrameworks } from './helpers/framework-extractor.js';
 import { extractInfrastructure } from './helpers/infrastructure-extractor.js';
 import { extractServicesFromPhase1Analyzers } from './helpers/service-extractor.js';
 import { validateStackProfile } from './helpers/stack-profile-validator.js';
-import { resolveConfigPath } from '../../../utils/provider-paths.js';
+import { resolveConfigPath, resolveTempPath } from '../../../utils/provider-paths.js';
 
 /**
  * Phase 4: Context Generation Node
@@ -48,7 +48,7 @@ export async function contextGenerationNode(
   phaseLogger.info(' Starting file extraction...');
 
   // Read Phase 3 synthesis from disk (not from state)
-  const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
+  const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   const synthesisPath = join(tempDir, 'synthesis-raw.md');
 
   if (!existsSync(synthesisPath)) {

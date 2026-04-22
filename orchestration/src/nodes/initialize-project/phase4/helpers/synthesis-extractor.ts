@@ -51,7 +51,8 @@ export function extractAndWriteSynthesis(
   if (!extracted) {
     throw new Error(
       'Could not find required sections in synthesis output. ' +
-        "Expected '# CLAUDE.md Content', '---', and '# project-context/SKILL.md Content'",
+        "Expected '# CLAUDE.md Content' or '# AGENTS.md Content', '---', " +
+        "and '# project-context/SKILL.md Content'",
     );
   }
 

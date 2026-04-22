@@ -56,12 +56,12 @@ export class CodexProvider implements ProviderAdapter {
     return {
       agentFileFlag: null, // Codex reads AGENTS.md from directory hierarchy
       modelFlag: '--model',
-      bypassPermissionsFlag: '--yolo',
+      bypassPermissionsFlag: '--full-auto',
       toolsFlag: null, // Codex manages tools internally
       sessionFlag: null, // Codex manages sessions internally
       resumeFlag: 'resume', // codex resume <id>
       settingsFlag: '--config',
-      skipConfirmationsEnvVar: null, // Use --yolo instead
+      skipConfirmationsEnvVar: null, // Use --full-auto instead
       nonInteractiveMode: 'exec',
       jsonOutputFlag: '--json',
     };
@@ -70,10 +70,10 @@ export class CodexProvider implements ProviderAdapter {
   buildCLIArgs(params: BuildCLIArgsParams): string[] {
     const args = [
       'exec',
-      params.inputPrompt,
+      '-', // Read prompt from stdin
       '--model',
       params.model,
-      '--yolo', // Bypass all approvals and sandboxing
+      '--full-auto', // Sandboxed auto-execution
       '--skip-git-repo-check',
     ];
 
@@ -86,13 +86,9 @@ export class CodexProvider implements ProviderAdapter {
     };
   }
 
-  mapModelToCLI(modelAlias: string): string {
-    if (modelAlias.includes('gpt5-latest') || modelAlias === 'gpt5-latest') return 'gpt-5.4';
-    if (modelAlias.includes('gpt5-mini') || modelAlias === 'gpt5-mini') return 'gpt-5.4-mini';
-    if (modelAlias.includes('codex')) return 'gpt-5.3-codex';
-    if (modelAlias.includes('o3')) return 'o3';
-    if (modelAlias.includes('o4-mini')) return 'o4-mini';
-    return 'gpt-5.4';
+  mapModelToCLI(modelId: string): string {
+    // Codex CLI accepts full model IDs directly — no mapping needed
+    return modelId;
   }
 
   async isCLIAvailable(): Promise<boolean> {

@@ -5,6 +5,10 @@ import { resolveSkills, copyResolvedSkills } from './skill-resolver.js';
 import { generateAgents, writeAgents } from './agent-generator.js';
 import type { StackProfile } from '../../../schemas/index.js';
 import { logger } from '../../../utils/logger.js';
+import {
+  resolveConfigPath,
+  resolveFrameworkConfigPath,
+} from '../../../utils/provider-paths.js';
 
 /**
  * Phase 5: Resources Node
@@ -26,8 +30,8 @@ export async function resourcesNode(
   phaseLogger.info(' Copying resources...');
 
   try {
-    const projectClaudeDir = join(state.project_path, '.claude');
-    const frameworkConfigPath = join(projectClaudeDir, 'framework-config.json');
+    const projectConfigDir = resolveConfigPath(state.project_path);
+    const frameworkConfigPath = resolveFrameworkConfigPath(state.project_path);
 
     // Verify Phase 4 completed by checking file exists (never use state)
     if (!existsSync(frameworkConfigPath)) {
@@ -152,7 +156,7 @@ export async function resourcesNode(
 
     // Step 3: Copy commands
     phaseLogger.info(' Copying commands...');
-    const commandsTargetDir = join(projectClaudeDir, 'commands');
+    const commandsTargetDir = join(projectConfigDir, 'commands');
     const frameworkCommandsDir = join(state.framework_path, 'commands');
 
     mkdirSync(commandsTargetDir, { recursive: true });

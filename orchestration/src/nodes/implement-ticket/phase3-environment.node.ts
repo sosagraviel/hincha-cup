@@ -3,6 +3,7 @@ import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { EnvironmentManagerService } from '../../services/implement-ticket/environment-manager.service.js';
 import { ScreenshotService } from '../../services/implement-ticket/screenshot.service.js';
+import { resolveTempPath } from '../../utils/provider-paths.js';
 
 /**
  * Phase 3: Environment Setup Node
@@ -28,7 +29,7 @@ export async function phase3EnvironmentNode(
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
   const tempDir =
-    state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase3Dir = join(tempDir, 'phase3');
 
   console.log('\n[Phase 3: Environment] Starting environment setup...');

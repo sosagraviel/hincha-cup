@@ -12,6 +12,33 @@ export interface ValidationResult {
 }
 
 /**
+ * Recursively strip null values from object keys.
+ *
+ * OpenAI Structured Outputs requires every property to be listed in `required`,
+ * so optional fields are emitted as `{"foo": null}` (our schema transformer wraps
+ * them as `anyOf: [T, null]`). Zod's `.optional()` validator accepts `undefined`
+ * or absent keys but rejects explicit `null`.
+ *
+ * We treat a null value as "field absent" and remove the key before validation.
+ * Arrays are left intact — null elements are a semantic error worth surfacing.
+ */
+function stripNullValues<T>(value: T): T {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => stripNullValues(item)) as unknown as T;
+  }
+  if (typeof value === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      if (val === null) continue;
+      result[key] = stripNullValues(val);
+    }
+    return result as unknown as T;
+  }
+  return value;
+}
+
+/**
  * Validate analyzer output against Zod schema
  *
  * Uses centralized schema registry with automatic schema selection based on agent_name.
@@ -42,6 +69,10 @@ export function validateAnalyzerOutput(
     } else {
       data = output;
     }
+
+    // Treat explicit nulls as absent keys so OpenAI Structured Outputs (which
+    // emits `null` for optional fields) round-trips through Zod's `.optional()`.
+    data = stripNullValues(data);
 
     // Use centralized validator with automatic schema selection
     const result = validateAgentOutput(data);
@@ -183,34 +214,45 @@ export function extractSynthesisMarkdown(output: string): {
   claudemd: string;
   projectContext: string;
 } | null {
-  // Find "# CLAUDE.md Content" anywhere in the output (skip preamble)
-  const claudeHeaderIndex = output.indexOf('# CLAUDE.md Content');
-  if (claudeHeaderIndex === -1) {
+  // Accept both providers' instruction-file headers: Claude emits
+  // "# CLAUDE.md Content", Codex emits "# AGENTS.md Content".
+  const CLAUDE_HEADER = '# CLAUDE.md Content';
+  const AGENTS_HEADER = '# AGENTS.md Content';
+  const CONTEXT_HEADER = '# project-context/SKILL.md Content';
+
+  let headerIndex = output.indexOf(CLAUDE_HEADER);
+  let headerLength = CLAUDE_HEADER.length;
+
+  if (headerIndex === -1) {
+    headerIndex = output.indexOf(AGENTS_HEADER);
+    headerLength = AGENTS_HEADER.length;
+  }
+
+  if (headerIndex === -1) {
     return null;
   }
 
-  // Find "---" separator after CLAUDE.md content
-  const separatorMatch = output.slice(claudeHeaderIndex).match(/\n---\s*\n/);
+  // Find "---" separator on its own line after the instruction-file content
+  const separatorMatch = output.slice(headerIndex).match(/\n---\s*\n/);
   if (!separatorMatch || separatorMatch.index === undefined) {
     return null;
   }
 
-  // Find "# project-context/SKILL.md Content" after separator
+  // Find project-context header AFTER the separator so a stray marker inside
+  // the instruction-file body can't be mistaken for the skill section.
   const contextHeaderIndex = output.indexOf(
-    '# project-context/SKILL.md Content',
-    claudeHeaderIndex,
+    CONTEXT_HEADER,
+    headerIndex + separatorMatch.index,
   );
   if (contextHeaderIndex === -1) {
     return null;
   }
 
-  // Extract CLAUDE.md content (from header to separator)
-  const claudeStartIndex = claudeHeaderIndex + '# CLAUDE.md Content'.length;
-  const claudeEndIndex = claudeHeaderIndex + separatorMatch.index;
+  const claudeStartIndex = headerIndex + headerLength;
+  const claudeEndIndex = headerIndex + separatorMatch.index;
   const claudemd = output.slice(claudeStartIndex, claudeEndIndex).trim();
 
-  // Extract project-context content (from header to end)
-  const contextStartIndex = contextHeaderIndex + '# project-context/SKILL.md Content'.length;
+  const contextStartIndex = contextHeaderIndex + CONTEXT_HEADER.length;
   const projectContext = output.slice(contextStartIndex).trim();
 
   return { claudemd, projectContext };

@@ -48,7 +48,15 @@ describe('codePatternsTestingAnalyzerNode', () => {
         sessionId: 'test-session-123',
       }),
     };
-    mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    mockFactory = {
+      createAgent: vi.fn().mockResolvedValue(mockAgent),
+      getAuthConfig: vi.fn().mockReturnValue({
+        mode: 'claude_cli',
+        hasClaudeCLI: true,
+        hasCodexCLI: false,
+        hasAPIKey: false,
+      }),
+    };
     vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
@@ -70,7 +78,7 @@ describe('codePatternsTestingAnalyzerNode', () => {
       agentFilePath: expect.stringContaining('code-patterns-analyzer/prompts/agent.md'),
       projectPath: '/test/project',
       frameworkPath: '/test/framework',
-      timeout: 600000,
+      timeout: 1800000,
       resumeSessionId: undefined,
       settingsPath: expect.stringContaining('code-patterns-analyzer/settings.json'),
     });

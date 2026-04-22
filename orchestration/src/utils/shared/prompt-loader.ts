@@ -6,12 +6,14 @@
 import { readFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
 import matter from 'gray-matter';
+import { getAllProviderManagedDirs } from '../provider-paths.js';
 
 /**
- * Standard directories to ignore during analysis
- * These are build artifacts, dependencies, and temporary files
+ * Non-provider-specific directories ignored during analysis — build artifacts,
+ * dependencies, and tool caches. Provider-managed dirs (.claude*, .codex*) are
+ * appended from provider-paths so the list stays in sync with the registry.
  */
-export const STANDARD_IGNORE_DIRS = [
+const NON_PROVIDER_IGNORE_DIRS = [
   'node_modules',
   '.git',
   'dist',
@@ -36,12 +38,15 @@ export const STANDARD_IGNORE_DIRS = [
   '.maven',
   'bin',
   'obj',
-  '.claude',
-  '.claude-temp',
-  '.claude-backups',
-  '.codex',
-  '.codex-temp',
-  '.codex-backups',
+];
+
+/**
+ * Standard directories to ignore during analysis.
+ * Composed from static build-artifact list + provider-managed dirs registry.
+ */
+export const STANDARD_IGNORE_DIRS = [
+  ...NON_PROVIDER_IGNORE_DIRS,
+  ...getAllProviderManagedDirs(),
 ];
 
 /**

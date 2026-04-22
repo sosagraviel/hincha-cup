@@ -3,6 +3,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { EnvironmentManagerService } from '../../services/implement-ticket/environment-manager.service.js';
+import { resolveTempPath } from '../../utils/provider-paths.js';
 
 /**
  * Phase 10: Cleanup Node
@@ -30,7 +31,7 @@ export async function phase10CleanupNode(
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
   const tempDir =
-    state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase10Dir = join(tempDir, 'phase10');
 
   console.log('\n[Phase 10: Cleanup] Starting cleanup...');

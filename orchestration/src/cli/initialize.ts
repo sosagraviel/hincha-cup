@@ -13,7 +13,7 @@ import { logger } from '../utils/logger.js';
 import { AgentFactory } from '../utils/shared/agent-factory/index.js';
 import { runPreflightChecks } from '../utils/preflight-checks.js';
 import { Provider } from '../providers/types.js';
-import { setActiveProvider } from '../utils/provider-paths.js';
+import { setActiveProvider, resolveTempPath } from '../utils/provider-paths.js';
 import { resetLLMFactory } from '../llm/llm-factory.js';
 
 // Get the directory where this CLI script is located
@@ -47,7 +47,15 @@ program
   .option('--resume <thread-id>', 'Resume from checkpoint using thread ID')
   .option('--start-phase <number>', 'Start from specific phase (1-6)', '1')
   .option('--stream', 'Stream real-time progress (not yet implemented)', false)
+  .option(
+    '--debug',
+    'Persist per-attempt transcripts/prompts/outputs under the provider temp dir even on successful runs',
+    false,
+  )
   .action(async (options) => {
+    if (options.debug) {
+      process.env.FRAMEWORK_DEBUG = '1';
+    }
     let isShuttingDown = false;
 
     const cleanup = (signal: string) => {
@@ -286,7 +294,7 @@ program
       logger.decreaseIndent();
       logger.blank();
 
-      const tempDir = path.join(projectPath, '.claude-temp/initialize-project');
+      const tempDir = resolveTempPath(projectPath, 'initialize-project');
 
       let previousPhaseData = {};
       if (startPhase > 1) {

@@ -30,7 +30,7 @@ describe('CodexProvider', () => {
       const config = provider.getCLIConfig();
       expect(config.agentFileFlag).toBeNull(); // Codex reads AGENTS.md from dir
       expect(config.modelFlag).toBe('--model');
-      expect(config.bypassPermissionsFlag).toBe('--yolo');
+      expect(config.bypassPermissionsFlag).toBe('--full-auto');
       expect(config.toolsFlag).toBeNull(); // Codex manages tools internally
       expect(config.sessionFlag).toBeNull(); // Codex manages sessions internally
       expect(config.nonInteractiveMode).toBe('exec');
@@ -38,21 +38,11 @@ describe('CodexProvider', () => {
   });
 
   describe('mapModelToCLI', () => {
-    it('should map gpt5-latest to gpt-5.4', () => {
-      expect(provider.mapModelToCLI('gpt5-latest')).toBe('gpt-5.4');
-    });
-
-    it('should map gpt5-mini to gpt-5.4-mini', () => {
-      expect(provider.mapModelToCLI('gpt5-mini')).toBe('gpt-5.4-mini');
-    });
-
-    it('should map codex aliases to gpt-5.3-codex', () => {
+    it('should return modelId as-is (Codex accepts full IDs)', () => {
+      expect(provider.mapModelToCLI('gpt-5.4')).toBe('gpt-5.4');
+      expect(provider.mapModelToCLI('gpt-5.4-mini-2026-03-17')).toBe('gpt-5.4-mini-2026-03-17');
       expect(provider.mapModelToCLI('gpt-5.3-codex')).toBe('gpt-5.3-codex');
-    });
-
-    it('should default to gpt-5.4 for unknown aliases', () => {
-      expect(provider.mapModelToCLI('sonnet-latest')).toBe('gpt-5.4');
-      expect(provider.mapModelToCLI('unknown')).toBe('gpt-5.4');
+      expect(provider.mapModelToCLI('o4-mini')).toBe('o4-mini');
     });
   });
 
@@ -70,14 +60,14 @@ describe('CodexProvider', () => {
       expect(args[0]).toBe('exec');
     });
 
-    it('should include prompt as argument', () => {
+    it('should use stdin marker for prompt delivery', () => {
       const args = provider.buildCLIArgs(baseParams);
-      expect(args).toContain('test prompt');
+      expect(args).toContain('-');
     });
 
-    it('should include --yolo flag', () => {
+    it('should include --full-auto flag', () => {
       const args = provider.buildCLIArgs(baseParams);
-      expect(args).toContain('--yolo');
+      expect(args).toContain('--full-auto');
     });
 
     it('should include --model flag', () => {

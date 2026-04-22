@@ -47,7 +47,12 @@ ${BLUE}OPTIONS:${NC}
                          Example: --start-phase 4 (skip phases 1-3)
 
     --timeout SECONDS    Maximum execution time in seconds
-                         Default: 1800 (30 minutes)
+                         Default: 3600 (60 minutes)
+                         Sum of per-phase max timeouts:
+                           Phase 1 parallel analyzers: 30 min
+                           Phase 2 question consolidator: 10 min
+                           Phase 3 synthesis: 15 min
+                           Phase 4-6 generation/validation: 5 min buffer
 
     --clean              Remove temporary files after completion
                          Default: false (keeps .claude-temp/initialize-project for re-running phases)
@@ -82,8 +87,8 @@ ${BLUE}EXAMPLES:${NC}
     # Re-run from phase 4 (skip AI analysis phases 1-3)
     ./qubika-agentic-framework/scripts/initialize-project.sh --start-phase 4
 
-    # With custom timeout (60 minutes)
-    ./qubika-agentic-framework/scripts/initialize-project.sh --timeout 3600
+    # With custom timeout (90 minutes)
+    ./qubika-agentic-framework/scripts/initialize-project.sh --timeout 5400
 
 ${BLUE}WHAT THIS DOES:${NC}
     1. Phase 1: Parallel analysis (4 agents with retry/feedback)
@@ -126,7 +131,7 @@ EOF
 
 SKIP_GAP_QUESTIONS="false"
 START_PHASE=1
-TIMEOUT=1800
+TIMEOUT=3600
 CLEAN_TEMP="false"
 PROVIDER=""
 

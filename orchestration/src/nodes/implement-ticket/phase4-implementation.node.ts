@@ -7,6 +7,7 @@ import {
   buildImplementerPrompt,
   getProjectAgentPath,
 } from '../../services/implement-ticket/shared/index.js';
+import { resolveTempPath } from '../../utils/provider-paths.js';
 
 /**
  * Phase 4: Implementation Node
@@ -34,7 +35,7 @@ export async function phase4ImplementationNode(
   const projectPath = state.project_path;
   const frameworkPath = state.framework_path;
   const tempDir =
-    state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+    state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase4Dir = join(tempDir, 'phase4');
 
   console.log('\n[Phase 4: Implementation] Starting implementation...');

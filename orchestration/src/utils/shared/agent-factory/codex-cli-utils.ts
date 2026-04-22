@@ -5,28 +5,48 @@ import { getLLMFactory } from '../../../llm/llm-factory.js';
 import { logger } from '../../logger.js';
 
 /**
- * Get the Codex CLI model name from the agent name based on model-config.json
- * Maps from model aliases (e.g., "gpt5-latest") to CLI model names (e.g., "gpt-5.4")
+ * Get the Codex CLI model ID for an agent from model-config.json.
+ * Codex CLI accepts full model IDs directly (e.g., "gpt-5.4"),
+ * so we just return the modelId from config — no mapping needed.
  */
 export function getCodexCLIModelForAgent(agentName: string, frameworkPath: string): string {
   try {
     const configPath = path.join(frameworkPath, 'orchestration/config/model-config.json');
     const factory = getLLMFactory(configPath);
     const modelInfo = factory.getModelInfo(agentName);
-
-    const alias = modelInfo.alias;
-    if (alias.includes('gpt5-latest') || alias === 'gpt5-latest') return 'gpt-5.4';
-    if (alias.includes('gpt5-mini') || alias === 'gpt5-mini') return 'gpt-5.4-mini';
-
-    console.warn(
-      `Warning: Unable to map alias '${alias}' to Codex CLI model name for agent '${agentName}'. Defaulting to 'gpt-5.4'.`,
-    );
-    return 'gpt-5.4';
+    return modelInfo.modelId;
   } catch (error) {
     console.warn(
       `Warning: Failed to get model for agent '${agentName}': ${error instanceof Error ? error.message : String(error)}. Defaulting to 'gpt-5.4'.`,
     );
     return 'gpt-5.4';
+  }
+}
+
+/**
+ * Get the configured `model_reasoning_effort` for an agent from
+ * model-config.json, or `undefined` when the tier leaves it to the user's
+ * `~/.codex/config.toml`. Returned verbatim so the caller can decide how to
+ * encode it for the Codex CLI.
+ *
+ * Lookup failures are treated as "no override" — we never want a missing
+ * config entry to block an invocation.
+ */
+export function getCodexReasoningEffortForAgent(
+  agentName: string,
+  frameworkPath: string,
+): string | undefined {
+  try {
+    const configPath = path.join(frameworkPath, 'orchestration/config/model-config.json');
+    const factory = getLLMFactory(configPath);
+    return factory.getReasoningEffort(agentName);
+  } catch (error) {
+    logger.warn(
+      `Failed to resolve reasoning effort for agent '${agentName}': ${
+        error instanceof Error ? error.message : String(error)
+      }. Falling back to Codex CLI default.`,
+    );
+    return undefined;
   }
 }
 

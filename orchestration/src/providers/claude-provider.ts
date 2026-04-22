@@ -89,10 +89,12 @@ export class ClaudeProvider implements ProviderAdapter {
     };
   }
 
-  mapModelToCLI(modelAlias: string): string {
-    if (modelAlias.includes('sonnet')) return 'sonnet';
-    if (modelAlias.includes('opus')) return 'opus';
-    if (modelAlias.includes('haiku')) return 'haiku';
+  mapModelToCLI(modelId: string): string {
+    // Claude CLI accepts short names derived from modelId
+    const id = modelId.toLowerCase();
+    if (id.includes('sonnet')) return 'sonnet';
+    if (id.includes('opus')) return 'opus';
+    if (id.includes('haiku')) return 'haiku';
     return 'sonnet';
   }
 

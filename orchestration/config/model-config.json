@@ -5,13 +5,7 @@
       "provider": "anthropic",
       "modelId": "claude-sonnet-4-6",
       "description": "Latest Sonnet model - best combination of speed and intelligence (Feb 2026)",
-      "capabilities": [
-        "code",
-        "planning",
-        "reasoning",
-        "extended-thinking",
-        "adaptive-thinking"
-      ],
+      "capabilities": ["code", "planning", "reasoning", "extended-thinking", "adaptive-thinking"],
       "contextWindow": 1000000,
       "maxOutput": 64000,
       "knowledgeCutoff": "2025-08"
@@ -43,10 +37,10 @@
     },
     "gpt5-latest": {
       "provider": "openai",
-      "modelId": "gpt-5.4-2026-03-05",
+      "modelId": "gpt-5.4",
       "description": "Latest GPT-5.4 flagship model for complex reasoning (Mar 2026)",
       "capabilities": ["code", "planning", "reasoning", "advanced"],
-      "contextWindow": 200000,
+      "contextWindow": 1000000,
       "maxOutput": 16384
     },
     "gpt5-mini": {
@@ -155,12 +149,30 @@
         "implementer-rust": "gpt5-latest",
         "reviewer": "gpt5-latest",
         "visual-verifier": "gpt5-latest",
-        "structure-architecture-analyzer": "gpt5-latest",
-        "tech-stack-dependencies-analyzer": "gpt5-latest",
-        "code-patterns-testing-analyzer": "gpt5-latest",
-        "data-flows-integrations-analyzer": "gpt5-latest",
-        "architect-synthesizer": "gpt5-latest",
-        "question-consolidator": "gpt5-latest"
+        "structure-architecture-analyzer": {
+          "alias": "gpt5-latest",
+          "reasoningEffort": "high"
+        },
+        "tech-stack-dependencies-analyzer": {
+          "alias": "gpt5-latest",
+          "reasoningEffort": "high"
+        },
+        "code-patterns-testing-analyzer": {
+          "alias": "gpt5-latest",
+          "reasoningEffort": "high"
+        },
+        "data-flows-integrations-analyzer": {
+          "alias": "gpt5-latest",
+          "reasoningEffort": "high"
+        },
+        "architect-synthesizer": {
+          "alias": "gpt5-latest",
+          "reasoningEffort": "high"
+        },
+        "question-consolidator": {
+          "alias": "gpt5-latest",
+          "reasoningEffort": "high"
+        }
       }
     },
     "gemini": {

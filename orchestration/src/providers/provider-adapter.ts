@@ -45,9 +45,11 @@ export interface ProviderAdapter {
   buildEnvVars(frameworkPath: string): Record<string, string>;
 
   /**
-   * Map model alias to CLI-compatible model name
+   * Map modelId from model-config.json to CLI-compatible model name.
+   * Codex: returns modelId as-is (accepts full IDs like "gpt-5.4").
+   * Claude: derives short name from modelId (e.g., "claude-sonnet-4-6" -> "sonnet").
    */
-  mapModelToCLI(modelAlias: string): string;
+  mapModelToCLI(modelId: string): string;
 
   /**
    * Check if the CLI binary is installed and available

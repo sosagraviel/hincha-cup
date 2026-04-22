@@ -5,6 +5,7 @@
  */
 
 import type { ManifestInfo } from './types.js';
+import { getAllProviderManagedDirs } from '../../../utils/provider-paths.js';
 
 // ============================================================================
 // LANGUAGE EXTENSIONS
@@ -94,7 +95,9 @@ export const PRIMARY_MANIFESTS = new Set([
 // ============================================================================
 
 /**
- * Directories to ignore during workspace detection and file counting
+ * Directories to ignore during workspace detection and file counting.
+ * Provider-managed framework dirs (.claude*, .codex*) are sourced from the
+ * central provider-paths registry so the list stays in sync.
  */
 export const IGNORE_DIRS = new Set([
   'node_modules',
@@ -124,10 +127,7 @@ export const IGNORE_DIRS = new Set([
   '.terraform',
   'site-packages',
   'pkg',
-  // Claude framework directories - these are generated/copied by the framework
-  '.claude',
-  '.claude-temp',
-  '.claude-backups',
+  ...getAllProviderManagedDirs(),
 ]);
 
 // ============================================================================
