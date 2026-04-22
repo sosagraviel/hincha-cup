@@ -41,9 +41,12 @@ export async function createDeepAgentImpl(
       const action = getAgentAction(config.agentName);
       const authInfo = `Auth: API Key, Provider: ${authProvider}, Model: ${modelInfo.alias}`;
 
+      const trackerId = config.trackerId ?? config.agentName;
+      const trackerDisplayName = config.trackerDisplayName ?? config.agentName;
+
       logger.trackConcurrentAgentStart(
-        config.agentName,
-        config.agentName,
+        trackerId,
+        trackerDisplayName,
         `${action} (${authInfo})`,
       );
 
@@ -69,7 +72,7 @@ export async function createDeepAgentImpl(
 
         // Update tracker to success
         logger.trackConcurrentAgentSucceed(
-          config.agentName,
+          trackerId,
           `Completed in ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
         );
 
@@ -90,7 +93,7 @@ export async function createDeepAgentImpl(
         const errorMessage = error instanceof Error ? error.message : String(error);
 
         logger.trackConcurrentAgentFail(
-          config.agentName,
+          trackerId,
           `Failed after ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
         );
 

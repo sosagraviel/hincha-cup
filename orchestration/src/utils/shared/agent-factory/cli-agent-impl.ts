@@ -83,9 +83,12 @@ export async function createCLIAgentImpl(
       const sessionInfo = isRetry ? `resume:${sessionId}` : sessionId;
       const authInfo = `Auth: Subscription, Provider: anthropic, Model: ${modelInfo.alias}, Cli: claude, CliVersion: v${claudeCLI.version}, Session: ${sessionInfo}`;
 
+      const trackerId = config.trackerId ?? config.agentName;
+      const trackerDisplayName = config.trackerDisplayName ?? config.agentName;
+
       logger.trackConcurrentAgentStart(
-        config.agentName,
-        config.agentName,
+        trackerId,
+        trackerDisplayName,
         `${action} (${authInfo})`,
       );
 
@@ -108,7 +111,7 @@ export async function createCLIAgentImpl(
 
         // Update tracker to success
         logger.trackConcurrentAgentSucceed(
-          config.agentName,
+          trackerId,
           `Completed in ${(executionTimeMs / 1000).toFixed(1)}s`,
         );
 
@@ -123,7 +126,7 @@ export async function createCLIAgentImpl(
         const errorMessage = error instanceof Error ? error.message : String(error);
 
         logger.trackConcurrentAgentFail(
-          config.agentName,
+          trackerId,
           `Failed after ${(executionTimeMs / 1000).toFixed(1)}s`,
         );
 

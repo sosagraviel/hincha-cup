@@ -21,6 +21,11 @@ export async function invokeWikiAgent(
   prompt: string,
 ): Promise<string> {
   const factory = await AgentFactory.create();
+  // Per-invocation tracker id — the wiki-generator agent is invoked in parallel
+  // (3 core docs + N service docs), so we need a unique key per call to avoid
+  // Spinnies collisions. `agentName` stays `wiki-generator` so model/settings
+  // lookup is unchanged.
+  const trackerId = `${WIKI_AGENT_NAME}:${filename}`;
   const agent = await factory.createAgent({
     agentName: WIKI_AGENT_NAME,
     agentFilePath: getFrameworkAgentPath(options.frameworkPath, WIKI_AGENT_FILE),
@@ -28,6 +33,8 @@ export async function invokeWikiAgent(
     frameworkPath: options.frameworkPath,
     timeout: AGENT_TIMEOUT_MS,
     settingsPath: join(options.frameworkPath, SETTINGS_SUBPATH),
+    trackerId,
+    trackerDisplayName: trackerId,
   });
 
   const result = await agent.invoke({
