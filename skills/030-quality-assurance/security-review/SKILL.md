@@ -1389,4 +1389,4 @@ npm install next@latest
 - Bandit Documentation: https://bandit.readthedocs.io/
 - npm audit: https://docs.npmjs.com/cli/v8/commands/npm-audit
 - OWASP Top 10: https://owasp.org/www-project-top-ten/
-- Python Security Best Practices: `.claude/skills/mastering-python-skill/references/production/security.md`
+- Python Security Best Practices: `{{CONFIG_DIR}}/skills/mastering-python-skill/references/production/security.md`

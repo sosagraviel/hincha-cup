@@ -13,6 +13,7 @@ import {
   getProjectAgentPath,
 } from '../../services/implement-ticket/shared/index.js';
 import { TestOrchestratorService } from '../../services/implement-ticket/test-orchestrator.service.js';
+import { resolveTempPath } from '../../utils/provider-paths.js';
 import { FigmaExportService } from '../../services/implement-ticket/figma-export.service.js';
 import {
   UIVisualTestingConfigSchema,
@@ -50,8 +51,7 @@ export async function phase6VisualNode(
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
   const frameworkPath = state.framework_path;
-  const tempDir =
-    state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+  const tempDir = state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase6Dir = join(tempDir, 'phase6');
 
   console.log('\n[Phase 6: Visual Verification] Starting visual regression testing...');

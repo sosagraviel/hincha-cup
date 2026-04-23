@@ -26,6 +26,7 @@ describe('auth-detector', () => {
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.OPENAI_API_KEY;
     delete process.env.GOOGLE_API_KEY;
+    delete process.env.PROVIDER;
 
     vi.clearAllMocks();
   });
@@ -189,19 +190,21 @@ describe('auth-detector', () => {
       const authConfig = {
         mode: AuthMode.NONE,
         hasClaudeCLI: true,
+        hasCodexCLI: false,
         hasAPIKey: false,
       };
 
       const message = getAuthErrorMessage(authConfig);
 
       expect(message).toContain('claude setup-token');
-      expect(message).toContain('Option 2: Authenticate Claude CLI');
+      expect(message).toContain('Option 3: Authenticate Claude CLI');
     });
 
     it('should include CLI installation instructions when CLI is not available', () => {
       const authConfig = {
         mode: AuthMode.NONE,
         hasClaudeCLI: false,
+        hasCodexCLI: false,
         hasAPIKey: false,
       };
 
@@ -215,6 +218,7 @@ describe('auth-detector', () => {
       const authConfig = {
         mode: AuthMode.NONE,
         hasClaudeCLI: false,
+        hasCodexCLI: false,
         hasAPIKey: false,
       };
 

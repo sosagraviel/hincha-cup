@@ -25,17 +25,11 @@ After running `/initialize-project`, the framework creates a `.claude/` director
 │   ├── react-frontend/        # React patterns
 │   └── jest-coverage-automation/  # Jest testing
 │
-├── agents/                    # Custom AI agents
-│   ├── planner.md            # Medium-risk planning
-│   ├── implementer-typescript.md  # TypeScript implementation
-│   ├── tester-unit-typescript.md  # TypeScript testing
-│   └── security-reviewer-typescript.md  # Security review
-│
-└── commands/                  # Available slash commands
-    ├── initialize-project.md
-    ├── implement-ticket.md
-    ├── fetch-ticket-context.md
-    └── code-quality-check.md
+└── agents/                    # Custom AI agents
+    ├── planner.md            # Medium-risk planning
+    ├── implementer-typescript.md  # TypeScript implementation
+    ├── tester-unit-typescript.md  # TypeScript testing
+    └── security-reviewer-typescript.md  # Security review
 ```
 
 ---
@@ -246,21 +240,6 @@ Output code changes as JSON.
 
 ---
 
-### Command Files
-
-**Purpose**: Slash command definitions
-
-**Location**: `.claude/commands/{command-name}.md`
-
-**Examples**:
-- `initialize-project.md`
-- `implement-ticket.md`
-- `code-quality-check.md`
-
-**Updated**: Copied from framework during initialization
-
----
-
 ## Skill Selection Logic
 
 The framework intelligently selects which skills to copy based on project detection.
@@ -406,7 +385,6 @@ Understanding what should be tracked in version control.
 .claude/skills/*-patterns/
 .claude/skills/*-automation/
 .claude/skills/developing-with-*/
-.claude/commands/
 
 # Runtime artifacts (always temporary)
 .claude-temp/

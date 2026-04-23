@@ -1,4 +1,6 @@
 import { execSync } from 'child_process';
+import { existsSync } from 'fs';
+import { join } from 'path';
 
 /**
  * Authentication modes supported by the framework
@@ -9,6 +11,9 @@ export enum AuthMode {
 
   /** Use Claude CLI with subscription auth (Claude Pro/Max, TOS-compliant) */
   CLAUDE_CLI = 'claude_cli',
+
+  /** Use Codex CLI with subscription auth (ChatGPT Plus/Pro/Enterprise) */
+  CODEX_CLI = 'codex_cli',
 
   /** No authentication available */
   NONE = 'none',
@@ -27,11 +32,17 @@ export interface AuthConfig {
   /** Whether Claude CLI is available on the system */
   hasClaudeCLI: boolean;
 
+  /** Whether Codex CLI is available on the system */
+  hasCodexCLI: boolean;
+
   /** Whether an API key is set */
   hasAPIKey: boolean;
 
   /** Version of Claude CLI if available */
   claudeCLIVersion?: string;
+
+  /** Version of Codex CLI if available */
+  codexCLIVersion?: string;
 }
 
 /**
@@ -58,66 +69,139 @@ export interface AuthConfig {
  * ```
  */
 export async function detectAuthMode(): Promise<AuthConfig> {
-  // Check for Claude CLI availability first (used for both modes)
+  // Check CLI availability for both providers
   const hasClaudeCLI = await isClaudeCLIAvailable();
   const claudeCLIVersion = hasClaudeCLI ? await getClaudeCLIVersion() : undefined;
+  const hasCodexCLI = await isCodexCLIAvailable();
+  const codexCLIVersion = hasCodexCLI ? await getCodexCLIVersion() : undefined;
 
-  // Priority 1: Check for API keys
+  const baseConfig = { hasClaudeCLI, hasCodexCLI, claudeCLIVersion, codexCLIVersion };
+
+  // Priority 1: Check for API keys (respect PROVIDER preference for ordering)
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
   const googleKey = process.env.GOOGLE_API_KEY;
+  const providerHint = process.env.PROVIDER?.toLowerCase();
 
-  if (anthropicKey) {
-    return {
-      mode: AuthMode.API_KEY,
-      provider: 'anthropic',
-      hasClaudeCLI,
-      hasAPIKey: true,
-      claudeCLIVersion,
-    };
+  // If explicit provider is set and matching API key exists, prefer that
+  if (providerHint === 'codex' || providerHint === 'openai') {
+    if (openaiKey) {
+      return { mode: AuthMode.API_KEY, provider: 'openai', hasAPIKey: true, ...baseConfig };
+    }
   }
-
-  if (openaiKey) {
-    return {
-      mode: AuthMode.API_KEY,
-      provider: 'openai',
-      hasClaudeCLI,
-      hasAPIKey: true,
-      claudeCLIVersion,
-    };
-  }
-
-  if (googleKey) {
-    return {
-      mode: AuthMode.API_KEY,
-      provider: 'google',
-      hasClaudeCLI,
-      hasAPIKey: true,
-      claudeCLIVersion,
-    };
-  }
-
-  // Priority 2: Check for Claude CLI with subscription auth
-  if (hasClaudeCLI) {
-    const isAuthenticated = await isClaudeCLIAuthenticated();
-    if (isAuthenticated) {
-      return {
-        mode: AuthMode.CLAUDE_CLI,
-        provider: 'anthropic',
-        hasClaudeCLI: true,
-        hasAPIKey: false,
-        claudeCLIVersion,
-      };
+  if (providerHint === 'claude' || providerHint === 'anthropic') {
+    if (anthropicKey) {
+      return { mode: AuthMode.API_KEY, provider: 'anthropic', hasAPIKey: true, ...baseConfig };
     }
   }
 
-  // Priority 3: No authentication available
-  return {
-    mode: AuthMode.NONE,
-    hasClaudeCLI,
-    hasAPIKey: false,
-    claudeCLIVersion,
-  };
+  // Default API key priority (no explicit provider)
+  if (anthropicKey) {
+    return { mode: AuthMode.API_KEY, provider: 'anthropic', hasAPIKey: true, ...baseConfig };
+  }
+
+  if (openaiKey) {
+    return { mode: AuthMode.API_KEY, provider: 'openai', hasAPIKey: true, ...baseConfig };
+  }
+
+  if (googleKey) {
+    return { mode: AuthMode.API_KEY, provider: 'google', hasAPIKey: true, ...baseConfig };
+  }
+
+  // Priority 2: Explicit PROVIDER env var — STRICT (no fallback)
+  const explicitProvider = process.env.PROVIDER?.toLowerCase();
+
+  if (explicitProvider === 'codex' || explicitProvider === 'openai') {
+    if (!hasCodexCLI) {
+      const frameworkPath = process.env.FRAMEWORK_PATH || '.';
+      throw new Error(
+        `Provider 'codex' was requested but Codex CLI is not installed.\n\n` +
+          `The framework bundles Codex CLI locally. Install dependencies:\n` +
+          `  cd ${frameworkPath}/orchestration && pnpm install\n\n` +
+          `Then authenticate the local CLI:\n` +
+          `  "${frameworkPath}/orchestration/node_modules/.bin/codex" login`,
+      );
+    }
+    if (!(await isCodexCLIAuthenticated())) {
+      const localPath = resolveLocalCLIPath('codex');
+      const codexCmd = localPath ? `"${localPath}"` : 'codex';
+      throw new Error(
+        `Provider 'codex' was requested but Codex CLI is not authenticated.\n\n` +
+          `Please authenticate:\n` +
+          `  ${codexCmd} login\n\n` +
+          `Or use API key mode instead:\n` +
+          `  export OPENAI_API_KEY="your-api-key-here"`,
+      );
+    }
+    return {
+      mode: AuthMode.CODEX_CLI,
+      provider: 'openai',
+      hasAPIKey: false,
+      ...baseConfig,
+    };
+  }
+
+  if (explicitProvider === 'claude' || explicitProvider === 'anthropic') {
+    if (!hasClaudeCLI) {
+      throw new Error(
+        `Provider 'claude' was requested but Claude CLI is not installed.\n\n` +
+          `Install with: npm install -g @anthropic-ai/claude-code\n` +
+          `Or run: cd orchestration && pnpm install\n\n` +
+          `Then authenticate: claude setup-token`,
+      );
+    }
+    if (!(await isClaudeCLIAuthenticated())) {
+      throw new Error(
+        `Provider 'claude' was requested but Claude CLI is not authenticated.\n\n` +
+          `Please authenticate: claude setup-token\n\n` +
+          `Or use API key mode instead:\n` +
+          `  export ANTHROPIC_API_KEY="your-api-key-here"`,
+      );
+    }
+    return {
+      mode: AuthMode.CLAUDE_CLI,
+      provider: 'anthropic',
+      hasAPIKey: false,
+      ...baseConfig,
+    };
+  }
+
+  // Priority 3: Auto-detect CLI (check both, prefer whichever is authenticated)
+  if (hasCodexCLI && (await isCodexCLIAuthenticated())) {
+    return {
+      mode: AuthMode.CODEX_CLI,
+      provider: 'openai',
+      hasAPIKey: false,
+      ...baseConfig,
+    };
+  }
+
+  if (hasClaudeCLI && (await isClaudeCLIAuthenticated())) {
+    return {
+      mode: AuthMode.CLAUDE_CLI,
+      provider: 'anthropic',
+      hasAPIKey: false,
+      ...baseConfig,
+    };
+  }
+
+  // Priority 4: No authentication available
+  return { mode: AuthMode.NONE, hasAPIKey: false, ...baseConfig };
+}
+
+/**
+ * Get the resolved path to a CLI binary, checking local bundled first, then global.
+ * Returns the path if found, null if not.
+ */
+function resolveLocalCLIPath(binaryName: string): string | null {
+  const frameworkPath = process.env.FRAMEWORK_PATH;
+  if (frameworkPath) {
+    const localPath = join(frameworkPath, 'orchestration/node_modules/.bin', binaryName);
+    if (existsSync(localPath)) {
+      return localPath;
+    }
+  }
+  return null;
 }
 
 /**
@@ -202,6 +286,62 @@ async function hasClaudeCredentials(): Promise<boolean> {
 }
 
 /**
+ * Check if Codex CLI is installed (local bundled or global)
+ */
+export async function isCodexCLIAvailable(): Promise<boolean> {
+  // Check local bundled first
+  if (resolveLocalCLIPath('codex')) return true;
+
+  // Check global
+  try {
+    execSync('which codex', { stdio: 'ignore', timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get Codex CLI version string
+ */
+export async function getCodexCLIVersion(): Promise<string | undefined> {
+  try {
+    const localPath = resolveLocalCLIPath('codex');
+    const cmd = localPath ? `"${localPath}" --version` : 'codex --version';
+    const output = execSync(cmd, {
+      encoding: 'utf-8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return output.trim();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Check if Codex CLI is authenticated using `codex login --verify`
+ * Exits 0 when logged in, non-zero otherwise.
+ * Also accepts OPENAI_API_KEY as valid auth.
+ */
+export async function isCodexCLIAuthenticated(): Promise<boolean> {
+  // API key is always valid auth for Codex
+  if (process.env.OPENAI_API_KEY) return true;
+
+  try {
+    const localPath = resolveLocalCLIPath('codex');
+    const cmd = localPath ? `"${localPath}" login status` : 'codex login status';
+    execSync(cmd, {
+      timeout: 10000,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Get a user-friendly error message for missing authentication
  */
 export function getAuthErrorMessage(authConfig: AuthConfig): string {
@@ -220,21 +360,34 @@ export function getAuthErrorMessage(authConfig: AuthConfig): string {
   lines.push('  export GOOGLE_API_KEY=...');
   lines.push('');
 
-  // Option 2: Claude CLI
+  // Option 2: Codex CLI
+  if (authConfig.hasCodexCLI) {
+    lines.push('Option 2: Authenticate Codex CLI (uses your ChatGPT subscription)');
+    lines.push('  codex login');
+    lines.push('');
+  } else {
+    lines.push('Option 2: Install and authenticate Codex CLI');
+    lines.push('  npm install -g @openai/codex');
+    lines.push('  codex login');
+    lines.push('');
+  }
+
+  // Option 3: Claude CLI
   if (authConfig.hasClaudeCLI) {
-    lines.push('Option 2: Authenticate Claude CLI (uses your Claude Pro/Max subscription)');
+    lines.push('Option 3: Authenticate Claude CLI (uses your Claude Pro/Max subscription)');
     lines.push('  claude setup-token');
     lines.push('');
   } else {
-    lines.push('Option 2: Install and authenticate Claude CLI');
+    lines.push('Option 3: Install and authenticate Claude CLI');
     lines.push('  Visit: https://code.claude.com');
     lines.push('  Then run: claude setup-token');
     lines.push('');
   }
 
   lines.push('For more information, see:');
-  lines.push('  - API Keys: https://platform.claude.com');
+  lines.push('  - API Keys: https://platform.claude.com or https://platform.openai.com');
   lines.push('  - Claude CLI: https://code.claude.com/docs/en/authentication');
+  lines.push('  - Codex CLI: https://developers.openai.com/codex/cli');
 
   return lines.join('\n');
 }

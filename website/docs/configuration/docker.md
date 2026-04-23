@@ -8,10 +8,12 @@ description: Isolated Docker environment with pre-configured MCP servers and dev
 
 Isolated Docker environment for running the framework across multiple projects with pre-configured MCP servers and development tools.
 
+> **Provider note**: the shipped runtime image targets Claude Code. To run Codex CLI inside the same container you must either (a) install the Codex CLI binary in the Dockerfile and mount `OPENAI_API_KEY` / `~/.codex` in place of Claude's equivalents, or (b) build a sibling `codex-runtime` image following the same pattern. The framework itself is provider-agnostic — only the CLI binary and credentials change.
+
 ## Overview
 
 The Docker runtime provides:
-- ✅ **Claude Code CLI** pre-installed
+- ✅ **Claude Code CLI** pre-installed (swap in Codex CLI for a Codex runtime — see note above)
 - ✅ **All MCP servers** (Jira, GitHub, Confluence, Notion, PostgreSQL, Playwright)
 - ✅ **Development tools** (Node.js, pnpm, Python, git, PostgreSQL client)
 - ✅ **Project mounting** (your codebase as volume)
@@ -26,7 +28,7 @@ The Docker runtime provides:
 
 - Docker 20.10+
 - Docker Compose 2.0+
-- Project already initialized with `.claude/` directory
+- Project already initialized with `.claude/` directory (or `.codex/` if using Codex)
 
 ### 2. Setup Credentials
 
@@ -38,8 +40,10 @@ cp .env.example .env
 Edit `.env` with your actual credentials:
 
 ```bash
-# Required
-CLAUDE_API_KEY=sk-ant-api03-...
+# Required — pick one depending on provider
+CLAUDE_API_KEY=sk-ant-api03-...        # Claude Code
+# OPENAI_API_KEY=sk-...                # Codex CLI
+
 PROJECT_PATH=/absolute/path/to/your/project
 
 # For Jira/Confluence integration
@@ -67,17 +71,20 @@ This will:
 Inside the container:
 
 ```bash
-# Start Claude Code interactive session
-claude-code run
+# Start your provider's interactive session
+claude-code run   # Claude Code
+# codex           # Codex CLI (if installed in the image)
 
-# Initialize a new project
-/initialize-project
+# Initialize a new project (via shell script — not a skill)
+./qubika-agentic-framework/scripts/initialize-project.sh
 
 # Implement a Jira ticket
-/implement-ticket PROJ-123
+/implement-ticket PROJ-123    # Claude Code
+$implement-ticket PROJ-123    # Codex CLI
 
 # Create an SDD ticket
-/create-sdd-ticket
+/create-sdd-ticket            # Claude Code
+$create-sdd-ticket            # Codex CLI
 ```
 
 ### 5. Stop Runtime
@@ -99,8 +106,9 @@ All credentials are loaded from `.env` file.
 #### Required Variables
 
 ```bash
-# Claude API
-CLAUDE_API_KEY=sk-ant-api03-...
+# Pick one API key depending on provider
+CLAUDE_API_KEY=sk-ant-api03-...    # Claude Code
+# OPENAI_API_KEY=sk-...            # Codex CLI
 
 # Project path (absolute)
 PROJECT_PATH=/Users/you/projects/your-app
@@ -158,6 +166,7 @@ deploy:
 |-----------|----------------|---------|------|
 | `${PROJECT_PATH}` | `/workspace` | Project codebase | Read-write |
 | `~/.claude` | `/root/.claude` | Global Claude config | Read-only |
+| `~/.codex` (optional) | `/root/.codex` | Global Codex config (for Codex runtimes) | Read-only |
 | `~/.gitconfig` | `/root/.gitconfig` | Git configuration | Read-only |
 | `~/.ssh` | `/root/.ssh` | SSH keys for git | Read-only |
 
@@ -182,15 +191,15 @@ deploy:
 ./scripts/run-claude.sh ~/projects/new-app
 
 # Inside container
-claude-code run
+claude-code run   # or `codex` for Codex runtimes
 
-# User: /initialize-project
+# Run: ./qubika-agentic-framework/scripts/initialize-project.sh
 # Framework will:
 # 1. Detect tech stack
 # 2. Copy relevant skills
 # 3. Generate agents
 # 4. Configure MCPs
-# 5. Create CLAUDE.md and project-context
+# 5. Create CLAUDE.md (or AGENTS.md) and project-context
 ```
 
 ### Example 2: Implement Jira Ticket
@@ -200,9 +209,10 @@ claude-code run
 ./scripts/run-claude.sh ~/projects/existing-app
 
 # Inside container
-claude-code run
+claude-code run   # or `codex`
 
-# User: /implement-ticket EV-456
+# User: /implement-ticket EV-456    (Claude)
+# User: $implement-ticket EV-456    (Codex)
 # Framework will:
 # 1. Fetch ticket from Jira
 # 2. Analyze requirements
@@ -270,7 +280,7 @@ claude-code run
    curl -H "Authorization: token $GITHUB_PERSONAL_ACCESS_TOKEN" \
      https://api.github.com/user
    ```
-3. Check MCP configuration in project's `.claude/mcp.json`
+3. Check MCP configuration in project's `.claude/mcp.json` (or `.codex/mcp.json` on Codex)
 
 ## Security Considerations
 

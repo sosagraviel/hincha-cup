@@ -879,7 +879,7 @@ jobs:
 
 ## References
 
-- implement-ticket V2: `skills/020-development-workflow/implement-ticket/SKILL.md`
+- implement-ticket V2: `skills/020-development-workflow/implement-ticket/SKILL.claude.md` (Claude) or `SKILL.codex.md` (Codex)
 - ArtifactCollector utility: `utils/artifact-collector.js`
 - GitHub CLI: https://cli.github.com/
 - Conventional Commits: https://www.conventionalcommits.org/

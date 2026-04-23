@@ -1,0 +1,3 @@
+pnpm --filter orchestration lint
+pnpm --filter orchestration format:check
+pnpm --filter orchestration typecheck

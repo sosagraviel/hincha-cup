@@ -10,6 +10,8 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { buildPhase1AnalyzerPrompt } from '../shared/prompt-builder.js';
 import { getFrameworkAgentPath } from '../../shared/index.js';
+import { reasoningPrefix } from '../../../../utils/shared/context-tags.js';
+import { resolveTempPath } from '../../../../utils/provider-paths.js';
 
 /**
  * Data Flows & Integrations Analyzer Node
@@ -26,13 +28,14 @@ export async function dataFlowsIntegrationsAnalyzerNode(
   const agentName = 'data-flows-integrations-analyzer';
   const agentFile = '04-data-flows-integrations.md';
 
-  const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
+  const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   mkdirSync(join(tempDir, 'phase1-outputs'), { recursive: true });
 
   try {
     const agentInvoke = async (
       feedbackPrompt: string,
       resumeSessionId?: string,
+      attemptNumber?: number,
     ): Promise<{ output: string; sessionId: string }> => {
       // Build input prompt using shared utility
       const contextPrompt = buildPhase1AnalyzerPrompt(
@@ -42,17 +45,18 @@ export async function dataFlowsIntegrationsAnalyzerNode(
         feedbackPrompt, // Feedback for retry
       );
 
-      // Add ultrathink and task instruction to input prompt
-      const inputPrompt = `ultrathink\n\n${contextPrompt}\n\nAnalyze the data flows and integrations at: ${state.project_path}`;
-
       // Create agent using new interface
       const factory = await AgentFactory.create();
+
+      // Provider-aware reasoning prefix (ultrathink for Claude, empty for Codex)
+      const inputPrompt = `${reasoningPrefix(factory.getAuthConfig())}${contextPrompt}\n\nAnalyze the data flows and integrations at: ${state.project_path}`;
+
       const agent = await factory.createAgent({
         agentName,
         agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
-        timeout: 600000, // 10 minutes
+        timeout: 1800000, // 30 minutes
         resumeSessionId, // Pass session ID for context-preserving retry
         settingsPath: join(
           state.framework_path,
@@ -60,7 +64,7 @@ export async function dataFlowsIntegrationsAnalyzerNode(
         ),
       });
 
-      const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()
+      const result = await agent.invoke({ inputPrompt, attemptNumber });
 
       return {
         output: result.output,
@@ -72,14 +76,13 @@ export async function dataFlowsIntegrationsAnalyzerNode(
       return validateAndParseAgentOutput(output, agentName);
     };
 
-    // Define output path for saving both successful and failed attempts
     const outputPath = join(tempDir, 'phase1-outputs', '04-data-flows-integrations.json');
 
     const validatedData = await retryWithEnhancedFeedback(
       agentInvoke,
       validator,
       DEFAULT_RETRY_CONFIG,
-      outputPath, // Pass output path for attempt logging
+      { projectPath: state.project_path, agentName },
     );
 
     writeFileSync(outputPath, JSON.stringify(validatedData, null, 2));

@@ -1,8 +1,10 @@
 import type { RetryState } from '../state/schemas/initialize-project.schema.js';
 import type { ValidationResult } from './validator.js';
 import { logger } from './logger.js';
-import { writeFileSync } from 'fs';
-import { dirname, basename, extname } from 'path';
+import {
+  cleanupAttemptDir,
+  saveAttemptDiagnostics,
+} from './shared/agent-factory/diagnostics-store.js';
 import {
   RetryConfig,
   DEFAULT_RETRY_CONFIG,
@@ -12,6 +14,11 @@ import {
   completeRetryState,
   shouldRetry,
 } from './retry.js';
+
+export interface RetryDiagnosticsContext {
+  projectPath: string;
+  agentName: string;
+}
 
 /**
  * Detect recurring error patterns from history
@@ -139,34 +146,36 @@ function generateContextualGuidance(validation: ValidationResult, attemptNumber:
 }
 
 /**
- * Save failed attempt output to disk for troubleshooting
+ * Persist per-attempt validation-failure diagnostics to disk.
  *
- * Saves failed output to a file with .attempt-N extension.
- * Example: synthesis-raw.md -> synthesis-raw.attempt-1.md
- *
- * @param outputFilePath - Path to the expected output file
- * @param attemptNumber - Current attempt number (1-based)
- * @param failedOutput - The output that failed validation
+ * Writes to `.claude-temp/<agent>/<sessionId>/attempt-<N>/` so diagnostics for
+ * the same attempt (prompt/stdout/stderr from the agent impl + output and
+ * validation errors from the retry layer) land in the same directory.
  */
-function saveFailedAttempt(
-  outputFilePath: string,
+async function persistValidationFailure(
+  diagnostics: RetryDiagnosticsContext,
+  sessionId: string,
   attemptNumber: number,
-  failedOutput: string,
-): void {
+  output: string,
+  validation: ValidationResult,
+): Promise<void> {
   try {
-    const dir = dirname(outputFilePath);
-    const base = basename(outputFilePath);
-    const ext = extname(base);
-    const nameWithoutExt = base.slice(0, -ext.length);
-
-    const attemptFilePath = `${dir}/${nameWithoutExt}.attempt-${attemptNumber}${ext}`;
-
-    writeFileSync(attemptFilePath, failedOutput, 'utf-8');
-
-    logger.info(`💾 Failed attempt saved to: ${attemptFilePath}`);
+    const dir = await saveAttemptDiagnostics({
+      projectPath: diagnostics.projectPath,
+      agentName: diagnostics.agentName,
+      sessionId,
+      attemptNumber,
+      outcome: 'failure',
+      output,
+      validationErrors: validation.errors,
+      errorMessage: `Validation failed (attempt ${attemptNumber}): ${validation.errors.join('; ')}`,
+      meta: { failureReason: 'validation' },
+    });
+    if (dir) {
+      logger.info(`💾 Attempt diagnostics saved to: ${dir}`);
+    }
   } catch (error) {
-    // Don't fail the retry just because we couldn't save the attempt
-    logger.warn(`Failed to save attempt file: ${(error as Error).message}`);
+    logger.warn(`Failed to save attempt diagnostics: ${(error as Error).message}`);
   }
 }
 
@@ -303,10 +312,11 @@ export async function retryWithEnhancedFeedback<T>(
   agentInvoke: (
     feedbackPrompt: string,
     resumeSessionId?: string,
+    attemptNumber?: number,
   ) => Promise<{ output: string; sessionId: string }>,
   validator: (output: string) => ValidationResult,
   config: RetryConfig = DEFAULT_RETRY_CONFIG,
-  outputFilePath?: string,
+  diagnostics?: RetryDiagnosticsContext,
 ): Promise<T> {
   let retryState = initRetryState(config.maxAttempts);
   let validation: ValidationResult | null = null;
@@ -315,6 +325,7 @@ export async function retryWithEnhancedFeedback<T>(
   while (shouldRetry(retryState)) {
     // Build enhanced feedback from previous attempt
     const feedbackPrompt = validation ? buildEnhancedFeedback(retryState, validation) : '';
+    const attemptNumber = retryState.attempt + 1; // 1-based for diagnostics/disk layout
 
     try {
       // Log external retry attempt start (skip first attempt - that's initial invocation)
@@ -334,6 +345,7 @@ export async function retryWithEnhancedFeedback<T>(
       const { output, sessionId } = await agentInvoke(
         feedbackPrompt,
         retryState.attempt > 0 ? lastSessionId : undefined,
+        attemptNumber,
       );
       lastSessionId = sessionId; // Store for next retry
 
@@ -349,6 +361,18 @@ export async function retryWithEnhancedFeedback<T>(
           logger.success(`✓ External retry succeeded after ${retryState.attempt} attempts`);
         }
 
+        // Remove this attempt's diagnostics dir (unless debug mode) — the run
+        // succeeded, so prompt/stdout/stderr for this attempt aren't useful.
+        // Previously-failed attempt dirs are preserved for troubleshooting.
+        if (diagnostics && lastSessionId) {
+          await cleanupAttemptDir(
+            diagnostics.projectPath,
+            diagnostics.agentName,
+            lastSessionId,
+            attemptNumber,
+          );
+        }
+
         return validation.data as T;
       }
 
@@ -356,9 +380,15 @@ export async function retryWithEnhancedFeedback<T>(
       const errorMessage = validation.errors.join('; ');
       retryState = updateRetryState(retryState, errorMessage, config, output); // Store failed output
 
-      // Save failed attempt to disk for troubleshooting
-      if (outputFilePath) {
-        saveFailedAttempt(outputFilePath, retryState.attempt, output);
+      // Persist validation-failure artifacts alongside the agent-impl attempt dir
+      if (diagnostics && lastSessionId) {
+        await persistValidationFailure(
+          diagnostics,
+          lastSessionId,
+          attemptNumber,
+          output,
+          validation,
+        );
       }
 
       // Log validation failure details

@@ -19,8 +19,11 @@ skills/030-quality-assurance/ui-visual-testing/
 
 ## CLI Interface
 
+Invoke the skill with `/ui-visual-testing` in Claude Code or `$ui-visual-testing` in Codex CLI (Codex users can list active skills with `/skills`):
+
 ```
 /ui-visual-testing [--ticket KEY] [--base-url URL] [--max-iterations N] [--mapping PATH] [--mode figma|screenshot|both]
+$ui-visual-testing [--ticket KEY] [--base-url URL] [--max-iterations N] [--mapping PATH] [--mode figma|screenshot|both]
 ```
 
 | Flag | Default | Description |

@@ -95,7 +95,7 @@ Human instructions must enable manual execution when code agents are unavailable
 For fastest setup, use templates:
 
 ```bash
-cd ~/.claude/skills/architect-agent/templates/
+cd ~/{{CONFIG_DIR}}/skills/architect-agent/templates/
 
 # Create code agent workspace
 ./setup-workspace.sh code-agent ~/projects/my-code-agent

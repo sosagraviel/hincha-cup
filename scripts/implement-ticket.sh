@@ -61,7 +61,10 @@ ${BLUE}OPTIONS:${NC}
 
     --model-tier TIER        Model tier to use for all agents
                              Default: sonnet
-                             Options: haiku, sonnet, opus
+                             Options: haiku, sonnet, opus, openai, gemini
+
+    --provider PROVIDER      AI provider: claude or codex
+                             Default: auto-detect from project config dir
 
     --help, -h               Show this help message
 
@@ -153,6 +156,7 @@ INPUT_VALUE=""
 START_PHASE=""
 RESUME="false"
 MODEL_TIER="${MODEL_TIER:-sonnet}"
+PROVIDER="${PROVIDER:-}"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -183,6 +187,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --model-tier)
             MODEL_TIER="$2"
+            shift 2
+            ;;
+        --provider)
+            PROVIDER="$2"
             shift 2
             ;;
         --help|-h)
@@ -233,13 +241,19 @@ fi
 
 # Validate model tier
 case "$MODEL_TIER" in
-    haiku|sonnet|opus) ;;
+    haiku|sonnet|opus|openai|gemini) ;;
     *)
         echo -e "${RED}Error: Invalid model tier: $MODEL_TIER${NC}"
-        echo "Valid options: haiku, sonnet, opus"
+        echo "Valid options: haiku, sonnet, opus, openai, gemini"
         exit 1
         ;;
 esac
+
+# Validate provider if explicitly set
+if [ -n "$PROVIDER" ] && [ "$PROVIDER" != "claude" ] && [ "$PROVIDER" != "codex" ]; then
+    echo -e "${RED}Error: --provider must be 'claude' or 'codex'${NC}"
+    exit 1
+fi
 
 # ============================================================================
 # VALIDATION
@@ -275,17 +289,53 @@ echo -e "${BLUE}ℹ Framework location: $FRAMEWORK_PATH${NC}"
 echo -e "${BLUE}ℹ Project location:   $PROJECT_PATH${NC}"
 echo ""
 
-# Validate project is initialized
-if [ ! -f "$PROJECT_PATH/.claude/framework-config.json" ]; then
-    echo -e "${RED}Error: Project not initialized${NC}"
+# Auto-detect provider from existing config dir if not explicitly set
+if [ -z "$PROVIDER" ]; then
+    claude_initialized=false
+    codex_initialized=false
+    [ -f "$PROJECT_PATH/.claude/framework-config.json" ] && claude_initialized=true
+    [ -f "$PROJECT_PATH/.codex/framework-config.json" ] && codex_initialized=true
+
+    if $claude_initialized && $codex_initialized; then
+        echo -e "${RED}Error: Both .claude/ and .codex/ config dirs are initialized.${NC}"
+        echo "Pass --provider <claude|codex> to disambiguate."
+        exit 1
+    elif $claude_initialized; then
+        PROVIDER="claude"
+    elif $codex_initialized; then
+        PROVIDER="codex"
+    else
+        echo -e "${RED}Error: Project not initialized (no framework-config.json found)${NC}"
+        echo ""
+        echo "You must run initialize-project first:"
+        echo "  ./ai-agentic-framework/scripts/initialize-project.sh"
+        echo ""
+        exit 1
+    fi
+fi
+
+# Resolve provider-specific paths
+if [ "$PROVIDER" = "codex" ]; then
+    CONFIG_DIR=".codex"
+    TEMP_DIR=".codex-temp"
+    INSTRUCTION_FILE="AGENTS.md"
+else
+    CONFIG_DIR=".claude"
+    TEMP_DIR=".claude-temp"
+    INSTRUCTION_FILE="CLAUDE.md"
+fi
+
+# Validate project is initialized for the requested provider
+if [ ! -f "$PROJECT_PATH/$CONFIG_DIR/framework-config.json" ]; then
+    echo -e "${RED}Error: Project not initialized for provider '$PROVIDER'${NC}"
+    echo "  Expected: $PROJECT_PATH/$CONFIG_DIR/framework-config.json"
     echo ""
-    echo "You must run initialize-project first:"
-    echo "  ./ai-agentic-framework/scripts/initialize-project.sh"
+    echo "Run: ./ai-agentic-framework/scripts/initialize-project.sh --provider $PROVIDER"
     echo ""
     exit 1
 fi
 
-echo -e "${GREEN}✓ Project is initialized${NC}"
+echo -e "${GREEN}✓ Project is initialized ($PROVIDER)${NC}"
 echo ""
 
 # ============================================================================
@@ -358,6 +408,7 @@ echo ""
 echo -e "${BLUE}Configuration:${NC}"
 echo "  Project Path:       $PROJECT_PATH"
 echo "  Framework Path:     $FRAMEWORK_PATH"
+echo "  Provider:           $PROVIDER ($CONFIG_DIR)"
 echo "  Ticket ID:          $TICKET_ID"
 echo "  Input Source:       $INPUT_SOURCE"
 if [ "$INPUT_SOURCE" = "markdown" ]; then
@@ -456,6 +507,7 @@ echo ""
 export MODEL_TIER
 export PROJECT_PATH
 export FRAMEWORK_PATH
+export PROVIDER
 
 # Build tsx command
 TSX_BIN="$FRAMEWORK_PATH/orchestration/node_modules/.bin/tsx"
@@ -473,6 +525,7 @@ CMD_ARGS=(
     --framework-path "$FRAMEWORK_PATH"
     --ticket-id "$TICKET_ID"
     --model-tier "$MODEL_TIER"
+    --provider "$PROVIDER"
 )
 
 # Add input source
@@ -538,7 +591,7 @@ if [ $TSX_EXIT_CODE -eq 0 ]; then
     echo "  2. Address any manual review comments"
     echo "  3. Merge when ready"
     echo ""
-    echo "Outputs saved to: $PROJECT_PATH/.claude-temp/implement-ticket/$TICKET_ID"
+    echo "Outputs saved to: $PROJECT_PATH/$TEMP_DIR/implement-ticket/$TICKET_ID"
     echo ""
     exit 0
 else
@@ -551,7 +604,7 @@ else
     echo "Exit code: $TSX_EXIT_CODE"
     echo ""
     echo -e "${YELLOW}Troubleshooting:${NC}"
-    echo "  1. Check outputs: $PROJECT_PATH/.claude-temp/implement-ticket/$TICKET_ID"
+    echo "  1. Check outputs: $PROJECT_PATH/$TEMP_DIR/implement-ticket/$TICKET_ID"
     echo "  2. Review phase outputs: phase*/"
     echo "  3. Resume from last successful phase: --resume"
     echo ""

@@ -11,6 +11,11 @@ import {
   abortAllInvocations,
   killAllActiveProcesses,
 } from './cli-agent-impl.js';
+import {
+  createCodexCLIAgentImpl,
+  abortAllCodexInvocations,
+  killAllActiveCodexProcesses,
+} from './codex-cli-agent-impl.js';
 
 /**
  * Creates agents using DeepAgents.js (API key) or Claude CLI (subscription)
@@ -23,14 +28,20 @@ export class AgentFactory {
   }
 
   /**
-   * Abort all active invocations immediately
+   * Abort all active invocations immediately (both Claude and Codex)
    */
-  static abortAllInvocations = abortAllInvocations;
+  static abortAllInvocations = () => {
+    abortAllInvocations();
+    abortAllCodexInvocations();
+  };
 
   /**
-   * Kill all active Claude CLI processes
+   * Kill all active CLI processes (both Claude and Codex)
    */
-  static killAllActiveProcesses = killAllActiveProcesses;
+  static killAllActiveProcesses = () => {
+    killAllActiveProcesses();
+    killAllActiveCodexProcesses();
+  };
 
   /**
    * Create factory instance with automatic auth detection
@@ -63,6 +74,11 @@ export class AgentFactory {
         throw new Error('Claude CLI version is required for CLAUDE_CLI mode');
       }
       return createCLIAgentImpl(config, this.authConfig.claudeCLIVersion);
+    } else if (this.authConfig.mode === AuthMode.CODEX_CLI) {
+      if (!this.authConfig.codexCLIVersion) {
+        throw new Error('Codex CLI version is required for CODEX_CLI mode');
+      }
+      return createCodexCLIAgentImpl(config, this.authConfig.codexCLIVersion);
     } else {
       throw new Error(getAuthErrorMessage(this.authConfig));
     }

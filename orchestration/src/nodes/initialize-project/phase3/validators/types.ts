@@ -41,6 +41,7 @@ export const LIMITS = {
 
 export const SECTION_MARKERS = {
   CLAUDE_MD_HEADER: '# CLAUDE.md Content',
+  AGENTS_MD_HEADER: '# AGENTS.md Content',
   PROJECT_CONTEXT_HEADER: '# project-context/SKILL.md Content',
   SEPARATOR: '---',
 } as const;
