@@ -33,6 +33,18 @@ Follow this order:
 3. Do NOT re-issue `mcp__code_graph__get_minimal_context_tool` — its result is already in your prompt context. Reusing it is wasted tokens.
 4. Treat wiki claims as high-quality hypotheses, not ground truth. Verify a claim with a graph query or `Read` only when the plan hinges on that specific claim.
 
+## Context Parsing
+
+The parent agent passes the ticket context as a file on disk. Before you touch the wiki or the graph, open that file and extract:
+
+- Ticket ID and one-line summary
+- Full description and acceptance criteria
+- Priority and labels
+- Linked external docs (Notion pages, Confluence pages, design links)
+- Blocking tickets ("Blocked by") and dependent tickets ("Blocks")
+
+Hold these in mind while reading the wiki and deciding what to verify via the graph. Surface missing acceptance criteria, unresolved blockers, or ambiguous requirements in the plan's `Assumptions And Open Questions` section — do not silently paper over them.
+
 ## Graph-First Approach
 
 You have access to `mcp__code_graph`, which provides parsed structural relationships, conservative impact analysis, semantic search, communities, flows, and test relationship hints. It is not a substitute for reading source code, but it should narrow where you read and what you change.
@@ -151,10 +163,16 @@ For each step, specify:
 
 ### 3. Risk Assessment
 
-- Breaking change risks.
-- Performance implications.
-- Security considerations.
-- Rollback or mitigation strategy.
+Scan the ticket context and your drafted plan for these categories. Flag every one that applies, with a concrete reason — do not produce boilerplate:
+
+- **Schema / data** — database migrations, schema changes, data backfills, column renames.
+- **API / contract** — public endpoints, request/response shape changes, client compatibility.
+- **Auth / security** — authentication, authorization, tokens, secrets, PII, input validation.
+- **Performance** — hot paths, N+1, large reads/writes, synchronous work on request threads.
+- **Breaking changes** — removed or renamed exports, deprecations, required config additions.
+- **Cross-service** — changes that ripple through services identified by the wiki's `community_id` / `dependencies` metadata.
+
+For each flagged risk, give: severity (High / Medium / Low), a specific reason, and a mitigation or rollback strategy.
 
 ### 4. Recommended Implementer
 
@@ -163,6 +181,13 @@ Recommend the best implementer agent based on the affected files:
 - `implementer-typescript` for primarily `.ts` or `.tsx` changes.
 - `implementer-python` for primarily `.py` changes.
 - `implementer-generic` for mixed stacks, config, docs, scripts, or unsupported file types.
+
+### 5. Quality Guidelines
+
+- **Be specific about files.** "Modify `src/auth/oauth.py` — add `GoogleOAuthProvider` class" beats "update auth files".
+- **Prioritize risks.** Explicit High / Medium / Low, not a flat list.
+- **Concrete steps.** Each step names the file (and ideally the function or symbol) it touches; reads "implement X in `path/to/file.ts`", not "implement X".
+- **Link to patterns.** When the wiki's `PATTERNS.md` or a `services/*.md` page already covers the shape you're about to build, reference it in the step's `Patterns` field instead of describing the shape from scratch.
 
 ## Output Format
 

@@ -95,8 +95,8 @@ Create each task using TaskCreate with these exact values:
 4. Phase 3: Planning
    subject: "Phase 3: Planning"
    activeForm: "Creating implementation plan"
-   Steps: MUST invoke /analyze-requirements skill to produce structured requirements analysis input, MUST spawn graph-aware planner agent, planner consumes the requirements analysis input, the ticket context from Phase 1, and the Phase 2 wiki context (`WIKI_CORE`, `WIKI_SERVICES`, preserved `get_minimal_context_tool` payload), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact
-   Expected outputs: requirements analysis input exists, graph-aware planner agent was spawned with the Phase 2 wiki context injected, parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 3 planning artifact, Wiki Evidence exists and cites the wiki paths actually used, Graph Evidence exists, test strategy defined, files to create/modify identified
+   Steps: MUST spawn planner agent, planner consumes the ticket context from Phase 1 and the Phase 2 wiki context (`WIKI_CORE`, `WIKI_SERVICES`, preserved `get_minimal_context_tool` payload), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact
+   Expected outputs: planner agent was spawned with the Phase 2 wiki context injected, parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 3 planning artifact, Wiki Evidence exists and cites the wiki paths actually used, Graph Evidence exists, test strategy defined, files to create/modify identified
    Constraint: Do not proceed if planner agent was not spawned, Wiki Evidence or Graph Evidence is absent, the planner-authored `Implementation Plan` does not exist, or Phase 3 produced competing planning artifacts.
 
 5. Phase 4: Environment Setup
@@ -233,14 +233,12 @@ CONTINUE WITH Phase 3.
 
 ### Phase 3: Planning
 
-1. Invoke `/analyze-requirements` to produce the requirements analysis input.
+Spawn `planner` via `Task(subagent_type: "planner", prompt: ...)`. Keep the prompt short — the planner's system prompt already covers methodology. Include only:
+- Ticket ID and one-line summary
+- Input paths: Phase 1 ticket context, `$ARTIFACTS_DIR/context/wiki-context.md`
+- Reminder: use the wikis to plan, use `mcp__code_graph` to verify impacts and explore intelligently; do not re-run `get_minimal_context_tool` (already in wiki-context.md).
 
-2. Spawn `planner` via `Task(subagent_type: "planner", prompt: ...)`. Keep the prompt short — the planner's system prompt already covers methodology. Include only:
-   - Ticket ID and one-line summary
-   - Input paths: Phase 1 context, `/analyze-requirements` output, `$ARTIFACTS_DIR/context/wiki-context.md`
-   - Reminder: use the wikis to plan, use `mcp__code_graph` to verify impacts and explore intelligently; do not re-run `get_minimal_context_tool` (already in wiki-context.md).
-
-3. Persist the planner's returned markdown verbatim to `$ARTIFACTS_DIR/plans/implementation-plan.md`.
+Persist the planner's returned markdown verbatim to `$ARTIFACTS_DIR/plans/implementation-plan.md`.
 
 Verify: plan file exists, contains `Wiki Evidence` and `Graph Evidence`, test strategy and target files are named.
 
@@ -349,8 +347,7 @@ If a phase fails:
 
 - `/fetch-ticket-context`: Phase 1 (Jira tickets only)
 - `mcp__code_graph__get_minimal_context_tool`: Phase 2 (called exactly once; result reused by planner)
-- `/analyze-requirements`: Phase 3 structured requirements analysis input provider
-- `planner` agent: Phase 3 sole `Implementation Plan` author, Wiki Evidence and Graph Evidence owner
+- `planner` agent: Phase 3 sole `Implementation Plan` author, context parser, Wiki Evidence and Graph Evidence owner
 - `implementer-{lang}` agent: Phase 5, Phase 6 (fixes), Phase 10 (fixes); consumes planner's Wiki+Graph evidence before any fresh discovery
 - `visual-verifier` agent: Phase 7
 - `/doc-updater`: Phase 8

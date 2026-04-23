@@ -45,7 +45,7 @@ See [`SKILL.md`](./SKILL.md) for the authoritative phase definitions. Summary:
 | 0 | Preflight validation (git clean, tests pass, build succeeds, graph + wiki present) | — |
 | 1 | Context gathering | `/fetch-ticket-context` (Jira only) |
 | 2 | Wiki context preload (read `docs/ai-knowledge/`, one `get_minimal_context_tool` call, persist `wiki-context.md`) | `mcp__code_graph__get_minimal_context_tool` |
-| 3 | Planning | `/analyze-requirements`, `planner` agent |
+| 3 | Planning | `planner` agent |
 | 4 | Environment setup (branch, ports, seed data, BEFORE screenshots) | — |
 | 5 | Implementation | `implementer-{lang}` agent |
 | 6 | Testing (unit, integration, E2E with up to 3 fix iterations) | `implementer-{lang}` on failure |
