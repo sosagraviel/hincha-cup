@@ -14,6 +14,61 @@ import { setActiveProvider, resolveTempPath } from '../utils/provider-paths.js';
 
 const logger = new Logger('implement-ticket');
 
+function parseProvider(providerValue?: string): Provider | undefined {
+  if (!providerValue) {
+    return undefined;
+  }
+
+  const providerLower = providerValue.toLowerCase();
+  if (providerLower === 'codex' || providerLower === 'openai') {
+    return Provider.CODEX;
+  }
+
+  if (providerLower === 'claude' || providerLower === 'anthropic') {
+    return Provider.CLAUDE;
+  }
+
+  return undefined;
+}
+
+function detectProvider(projectPathOption?: string, frameworkPathOption?: string): Provider {
+  const envProvider = parseProvider(
+    process.env.LLM_PROVIDER ??
+      process.env.ACTIVE_PROVIDER ??
+      process.env.PROVIDER ??
+      process.env.MODEL_PROVIDER,
+  );
+  if (envProvider) {
+    return envProvider;
+  }
+
+  if (process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+    return Provider.CODEX;
+  }
+
+  if (process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
+    return Provider.CLAUDE;
+  }
+
+  const candidateRoots = [projectPathOption, frameworkPathOption, process.cwd()]
+    .filter((candidate): candidate is string => Boolean(candidate))
+    .map((candidate) => resolve(candidate));
+
+  for (const root of candidateRoots) {
+    if (existsSync(join(root, '.codex'))) {
+      return Provider.CODEX;
+    }
+  }
+
+  for (const root of candidateRoots) {
+    if (existsSync(join(root, '.claude'))) {
+      return Provider.CLAUDE;
+    }
+  }
+
+  return Provider.CLAUDE;
+}
+
 /**
  * CLI Entry Point for Implement-Ticket Workflow
  *
@@ -65,17 +120,13 @@ program
 
 const options = program.opts();
 
-// Set provider based on --provider flag
-if (options.provider) {
-  const providerLower = options.provider.toLowerCase();
-  if (providerLower === 'codex' || providerLower === 'openai') {
-    setActiveProvider(Provider.CODEX);
-    if (options.modelTier === 'standard') {
-      process.env.MODEL_TIER = 'openai';
-    }
-  } else if (providerLower === 'claude' || providerLower === 'anthropic') {
-    setActiveProvider(Provider.CLAUDE);
-  }
+const activeProvider =
+  parseProvider(options.provider) ?? detectProvider(options.projectPath, options.frameworkPath);
+
+setActiveProvider(activeProvider);
+
+if (activeProvider === Provider.CODEX && options.modelTier === 'standard') {
+  process.env.MODEL_TIER = 'openai';
 }
 
 const projectPath = resolve(options.projectPath);
