@@ -51,6 +51,7 @@ describe('sync-framework-resources script', () => {
     expect(mcpConfigService.upsertCodeGraphMcpConfig).toHaveBeenCalledWith({
       projectPath: '/project',
       frameworkPath: '/framework',
+      provider: 'claude',
     });
   });
 });

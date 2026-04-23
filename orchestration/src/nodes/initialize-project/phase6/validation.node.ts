@@ -8,6 +8,7 @@ import {
   resolveFrameworkConfigPath,
   resolveConfigPath,
   getInstructionFileName,
+  getActiveProvider,
 } from '../../../utils/provider-paths.js';
 import { validateFrameworkConfig } from './helpers/config-validator.js';
 import {
@@ -144,10 +145,11 @@ export async function validationNode(
       }
     }
 
-    // 7. Validate code graph MCP for native Claude Code sessions
+    // 7. Validate code graph MCP for the active provider's native config format
     const graphMcpResult = validateCodeGraphMcpConfig({
       projectPath: state.project_path,
       frameworkPath: state.framework_path,
+      provider: getActiveProvider(),
     });
     validationErrors.push(...graphMcpResult.errors);
     validationWarnings.push(...graphMcpResult.warnings);

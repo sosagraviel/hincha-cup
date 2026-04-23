@@ -35,6 +35,7 @@ import {
   resolveFrameworkConfigPath,
   resolveBackupPath,
   setActiveProvider,
+  getActiveProvider,
   getProviderPaths,
   getAllProviderConfigDirs,
 } from '../utils/provider-paths.js';
@@ -520,10 +521,12 @@ export async function syncMcpConfig(config: SyncConfig): Promise<{
   backupPath?: string;
 }> {
   logger.info('Step 8: Syncing MCP config...');
+  const provider = getActiveProvider();
 
   const result = upsertCodeGraphMcpConfig({
     projectPath: config.projectPath,
     frameworkPath: config.frameworkPath,
+    provider,
   });
 
   if (result.changed) {

@@ -1,5 +1,12 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { Provider } from '../../providers/types.js';
+import { getActiveProvider, getProviderPaths } from '../../utils/provider-paths.js';
+import {
+  codexMcpServerMatches,
+  extractCodeGraphMcpTomlServer,
+  upsertCodeGraphMcpTomlBlock,
+} from './codex-mcp-toml.js';
 
 interface McpConfig {
   mcpServers?: Record<string, unknown>;
@@ -20,6 +27,7 @@ export interface CodeGraphMcpValidationResult {
 }
 
 const CODE_GRAPH_SERVER_NAME = 'code_graph';
+const CODEX_CONFIG_FILE = 'config.toml';
 
 export function getCodeGraphMcpServer(projectPath: string, frameworkPath: string) {
   return {
@@ -34,6 +42,19 @@ export function getCodeGraphMcpServer(projectPath: string, frameworkPath: string
 }
 
 export function upsertCodeGraphMcpConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+  provider?: Provider;
+}): CodeGraphMcpConfigResult {
+  const { projectPath, frameworkPath, provider = getActiveProvider() } = params;
+  if (provider === Provider.CODEX) {
+    return upsertCodexCodeGraphMcpConfig({ projectPath, frameworkPath });
+  }
+
+  return upsertClaudeCodeGraphMcpConfig({ projectPath, frameworkPath });
+}
+
+function upsertClaudeCodeGraphMcpConfig(params: {
   projectPath: string;
   frameworkPath: string;
 }): CodeGraphMcpConfigResult {
@@ -84,6 +105,19 @@ export function upsertCodeGraphMcpConfig(params: {
 }
 
 export function validateCodeGraphMcpConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+  provider?: Provider;
+}): CodeGraphMcpValidationResult {
+  const { projectPath, frameworkPath, provider = getActiveProvider() } = params;
+  if (provider === Provider.CODEX) {
+    return validateCodexCodeGraphMcpConfig({ projectPath, frameworkPath });
+  }
+
+  return validateClaudeCodeGraphMcpConfig({ projectPath, frameworkPath });
+}
+
+function validateClaudeCodeGraphMcpConfig(params: {
   projectPath: string;
   frameworkPath: string;
 }): CodeGraphMcpValidationResult {
@@ -144,6 +178,97 @@ export function validateCodeGraphMcpConfig(params: {
   };
 }
 
+function upsertCodexCodeGraphMcpConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+}): CodeGraphMcpConfigResult {
+  const { projectPath, frameworkPath } = params;
+  const configDir = join(projectPath, getProviderPaths(Provider.CODEX).configDir);
+  const configPath = join(configDir, CODEX_CONFIG_FILE);
+  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath);
+  const existingContent = existsSync(configPath) ? readFileSync(configPath, 'utf-8') : '';
+  const existingServer = extractCodeGraphMcpTomlServer(existingContent);
+  const changed = !codexMcpServerMatches(existingServer, expectedServer);
+
+  if (!changed) {
+    return {
+      configPath,
+      changed: false,
+      backedUp: false,
+    };
+  }
+
+  let backedUp = false;
+  let backupPath: string | undefined;
+  if (existingServer !== undefined && existsSync(configPath)) {
+    backupPath = backupMcpConfig(projectPath, configPath, Provider.CODEX);
+    backedUp = true;
+  }
+
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(configPath, upsertCodeGraphMcpTomlBlock(existingContent, expectedServer));
+
+  return {
+    configPath,
+    changed: true,
+    backedUp,
+    backupPath,
+  };
+}
+
+function validateCodexCodeGraphMcpConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+}): CodeGraphMcpValidationResult {
+  const { projectPath, frameworkPath } = params;
+  const configPath = join(
+    projectPath,
+    getProviderPaths(Provider.CODEX).configDir,
+    CODEX_CONFIG_FILE,
+  );
+  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath);
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!existsSync(join(projectPath, '.code-graph.db'))) {
+    errors.push('Code graph database not found: .code-graph.db');
+  }
+
+  if (!existsSync(configPath)) {
+    errors.push('Codex MCP config not found: .codex/config.toml');
+    return { valid: errors.length === 0, errors, warnings };
+  }
+
+  const configContent = readFileSync(configPath, 'utf-8');
+  const codeGraphServer = extractCodeGraphMcpTomlServer(configContent);
+  if (!codeGraphServer) {
+    errors.push('Codex MCP config .codex/config.toml is missing [mcp_servers.code_graph]');
+    return { valid: false, errors, warnings };
+  }
+
+  if (codeGraphServer.command !== expectedServer.command) {
+    errors.push('mcp_servers.code_graph.command must be "bash"');
+  }
+
+  const args = codeGraphServer.args;
+  if (!Array.isArray(args)) {
+    errors.push('mcp_servers.code_graph.args must be an array');
+  } else {
+    const expectedArgs = expectedServer.args;
+    for (const expectedArg of expectedArgs) {
+      if (!args.includes(expectedArg)) {
+        errors.push(`mcp_servers.code_graph.args missing required value: ${expectedArg}`);
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+  };
+}
+
 function readMcpConfig(configPath: string): McpConfig {
   const raw = readFileSync(configPath, 'utf-8');
 
@@ -159,12 +284,21 @@ function readMcpConfig(configPath: string): McpConfig {
   }
 }
 
-function backupMcpConfig(projectPath: string, configPath: string): string {
+function backupMcpConfig(
+  projectPath: string,
+  configPath: string,
+  provider: Provider = Provider.CLAUDE,
+): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupDir = join(projectPath, '.claude-backups', 'mcp-config', timestamp);
+  const backupDir = join(
+    projectPath,
+    getProviderPaths(provider).backupDir,
+    'mcp-config',
+    timestamp,
+  );
   mkdirSync(backupDir, { recursive: true });
 
-  const backupPath = join(backupDir, '.mcp.json');
+  const backupPath = join(backupDir, provider === Provider.CODEX ? CODEX_CONFIG_FILE : '.mcp.json');
   copyFileSync(configPath, backupPath);
   return backupPath;
 }

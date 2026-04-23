@@ -6,7 +6,7 @@ import { generateAgents, writeAgents } from './agent-generator.js';
 import type { StackProfile } from '../../../schemas/index.js';
 import { logger } from '../../../utils/logger.js';
 import { upsertCodeGraphMcpConfig } from '../../../services/framework/mcp-config.service.js';
-import { resolveFrameworkConfigPath } from '../../../utils/provider-paths.js';
+import { getActiveProvider, resolveFrameworkConfigPath } from '../../../utils/provider-paths.js';
 
 /**
  * Phase 5: Resources Node
@@ -155,6 +155,7 @@ export async function resourcesNode(
     const mcpResult = upsertCodeGraphMcpConfig({
       projectPath: state.project_path,
       frameworkPath: state.framework_path,
+      provider: getActiveProvider(),
     });
 
     if (mcpResult.changed) {

@@ -221,6 +221,7 @@ describe('resourcesNode', () => {
     expect(mcpConfigService.upsertCodeGraphMcpConfig).toHaveBeenCalledWith({
       projectPath: '/test/project',
       frameworkPath: '/test/framework',
+      provider: 'claude',
     });
   });
 
