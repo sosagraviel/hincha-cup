@@ -1,8 +1,6 @@
 ---
 name: doc-updater
-description: Maintains CLAUDE.md and project-context/SKILL.md accuracy after code changes by analyzing changed files and updating only necessary documentation sections. Applies a maintenance test to avoid over-documentation. Invoked automatically from implement-ticket Phase 7 — do not call directly for simple bug fixes or new endpoints/entities.
-user-invocable: false
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+description: Maintain project documentation accuracy after code changes by analyzing changed files and updating only necessary sections of the project instruction file and project-context skill. Use after implementing a ticket, after significant code changes, or when architectural patterns, file placement conventions, or technologies change.
 ---
 
 # Documentation Updater Skill
