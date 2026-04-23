@@ -12,6 +12,7 @@ Maintain `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` and `{{CONFIG_DIR}}/skills/projec
 ## When to Use
 
 Invoke `/doc-updater` when:
+
 - ✅ After implementing a ticket (Phase 7 of implement-ticket)
 - ✅ After significant code changes
 - ✅ When architectural patterns change
@@ -19,6 +20,7 @@ Invoke `/doc-updater` when:
 - ✅ When new technology is added
 
 **Do NOT use** for:
+
 - ❌ Simple bug fixes
 - ❌ New endpoints (endpoints shouldn't be listed in docs)
 - ❌ New entities (entity fields shouldn't be listed in docs)
@@ -27,6 +29,7 @@ Invoke `/doc-updater` when:
 ## Inputs
 
 This skill expects to be called from implement-ticket Phase 7 with:
+
 1. **Changed files list**: From `git diff --name-only`
 2. **Implementation summary**: Brief description of changes
 3. **Ticket ID**: For tracking purposes
@@ -103,6 +106,7 @@ done
 ```
 
 Categorize changes:
+
 - Backend code (controllers, services, guards, middleware)
 - Frontend code (components, pages, hooks)
 - Configuration (package.json, docker-compose.yml, tsconfig.json)
@@ -202,12 +206,14 @@ Categorize changes:
 #### Apply the Maintenance Test
 
 **CRITICAL**: Only update documentation if:
+
 - ✅ Changes affect hard-to-discover knowledge
 - ✅ Changes introduce new patterns
 - ✅ Changes modify architectural conventions
 - ✅ Changes affect developer workflow
 
 **DO NOT update if**:
+
 - ❌ Changes are simple bug fixes
 - ❌ Changes add new endpoints (endpoints shouldn't be listed)
 - ❌ Changes add new entities (entity fields shouldn't be listed)
@@ -324,6 +330,7 @@ Generate a JSON structure with your analysis:
 For each update in `updates.claudeMd`:
 
 1. Use the Edit tool to apply changes:
+
    ```
    Edit({
      file_path: '{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}',
@@ -370,6 +377,7 @@ For each update in `updates.claudeMd`:
 For each update in `updates.projectContext`:
 
 1. Use the Edit tool to apply changes:
+
    ```
    Edit({
      file_path: '{{CONFIG_DIR}}/skills/project-context/SKILL.md',
@@ -455,6 +463,7 @@ cat {{CONFIG_DIR}}/skills/project-context/SKILL.md
 ```
 
 Verify:
+
 - ✅ Only necessary sections updated
 - ✅ Existing structure preserved
 - ✅ No exhaustive lists added
@@ -599,6 +608,7 @@ Verify:
 ## Success Criteria
 
 Your documentation update is successful if:
+
 - ✅ Only necessary sections are updated
 - ✅ Updates maintain existing structure and formatting
 - ✅ No exhaustive lists added
@@ -627,6 +637,7 @@ echo "Ticket ID: $TICKET_ID"
 ```
 
 The skill will:
+
 1. Detect changed files automatically via git
 2. Analyze each file for documentation impact
 3. Apply maintenance test

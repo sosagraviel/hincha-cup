@@ -6,22 +6,9 @@ description: >
   specializations, suggests setup when missing, and coordinates test
   generation for UI tasks. Use when implementing UI components, pages,
   or features that need testing.
-version: 2.0.0
-category: quality-assurance
-keywords: [ui-testing, unit-test, component-test, e2e, visual-testing, playwright, vitest]
 user-invocable: true
-argument-hint: "[--ticket KEY] [--levels unit,component,e2e,visual]"
-triggers: [react, next, nextjs, vue, angular, nuxt, svelte, sveltekit]
-compatible_languages: [typescript, javascript]
-last_updated: 2026-03-26
-allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
-  - Edit
-  - Skill
+argument-hint: '[--ticket KEY] [--levels unit,component,e2e,visual]'
+allowed-tools: Read, Write, Bash, Glob, Grep, Edit, Skill
 ---
 
 # UI Testing Orchestration
@@ -147,12 +134,12 @@ If any required tool is missing, ask the user whether to install it or skip that
 
 For each active level, delegate to the appropriate mastery skill:
 
-| Level | Skill | Notes |
-|-------|-------|-------|
-| Unit | `mastering-vitest` or `jest-coverage-automation` | Based on detected tool from Step 4 |
-| Component | (inline generation) | Generate Playwright CT test files directly |
-| E2E | `playwright-e2e-automation` | Pass route paths and user flows |
-| Visual | `ui-visual-testing` | Pass Figma mapping and screenshot config |
+| Level     | Skill                                            | Notes                                      |
+| --------- | ------------------------------------------------ | ------------------------------------------ |
+| Unit      | `mastering-vitest` or `jest-coverage-automation` | Based on detected tool from Step 4         |
+| Component | (inline generation)                              | Generate Playwright CT test files directly |
+| E2E       | `playwright-e2e-automation`                      | Pass route paths and user flows            |
+| Visual    | `ui-visual-testing`                              | Pass Figma mapping and screenshot config   |
 
 #### Unit test generation
 
@@ -171,6 +158,7 @@ or
 #### Component test generation
 
 Generate Playwright Component Test files that:
+
 - Mount the component in isolation with representative props
 - Test interactive states (hover, focus, disabled, loading, error)
 - Capture screenshots at each viewport breakpoint
@@ -197,16 +185,19 @@ Invoke the visual testing skill:
 Execute all generated tests and produce a summary report:
 
 1. **Run unit tests:**
+
    ```bash
    pnpm vitest run --reporter=verbose <test-files>
    ```
 
 2. **Run component tests:**
+
    ```bash
    pnpm playwright test --config=playwright-ct.config.ts <test-files>
    ```
 
 3. **Run E2E tests:**
+
    ```bash
    pnpm playwright test <test-files>
    ```
@@ -230,6 +221,7 @@ Overall: PASS
 ```
 
 If any level fails, provide actionable diagnostics:
+
 - For unit failures: show the failing assertion and the component code in question.
 - For component failures: include the screenshot diff if available.
 - For E2E failures: include the trace file path and the step that failed.
@@ -244,9 +236,9 @@ If any level fails, provide actionable diagnostics:
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | All requested levels passed |
-| 1 | One or more test failures |
-| 2 | Tool detection failed and user declined setup |
-| 3 | Configuration error (invalid arguments, missing ticket) |
+| Code | Meaning                                                 |
+| ---- | ------------------------------------------------------- |
+| 0    | All requested levels passed                             |
+| 1    | One or more test failures                               |
+| 2    | Tool detection failed and user declined setup           |
+| 3    | Configuration error (invalid arguments, missing ticket) |
