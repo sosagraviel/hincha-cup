@@ -23,6 +23,7 @@ export interface ClaudeHookConfig {
       matcher: string;
       hooks: Array<{
         type: 'command';
+        if?: string;
         command: string;
       }>;
     }>;
