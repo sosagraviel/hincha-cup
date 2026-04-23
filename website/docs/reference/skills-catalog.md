@@ -8,6 +8,8 @@ description: Complete catalog of skills available in the Qubika Agentic Framewor
 
 Skills are reusable knowledge modules that provide context and patterns to AI agents. The framework automatically copies only the skills relevant to your tech stack.
 
+> **Invocation**: user-invokable skills are called with `/skill-name` in Claude Code and `$skill-name` in Codex CLI. In Codex, run `/skills` to list the skills loaded in the current session. Skills themselves are identical between providers — only the prefix and the generated config directory (`.claude/` vs `.codex/`) differ.
+
 ---
 
 ## What Are Skills?
@@ -44,7 +46,7 @@ Core skills that provide project understanding and initialization capabilities.
 
 **Used by**: All agents (universal skill)
 
-**Location**: `.claude/skills/project-context/SKILL.md`
+**Location**: `.claude/skills/project-context/SKILL.md` (or `.codex/skills/project-context/SKILL.md`)
 
 **Auto-loads**: Always (for all agents)
 
@@ -64,7 +66,7 @@ Core skills that provide project understanding and initialization capabilities.
 
 **Command**: `/initialize-project`
 
-**Output**: Complete `.claude/` directory with project-specific configuration
+**Output**: Complete `.claude/` (or `.codex/`) directory with project-specific configuration
 
 **Auto-loads**: During initialization workflow only
 
@@ -85,13 +87,15 @@ Skills that orchestrate development workflows and automate processes.
 4. Testing - Verify functionality
 5. PR Creation - Submit for review
 
-**Command**: `/implement-ticket <TICKET_ID>`
+**Invocation** (user-invokable skill):
+- Claude Code: `/implement-ticket <TICKET_ID>`
+- Codex CLI: `$implement-ticket <TICKET_ID>`
 
 **Time**: 5-15 minutes per ticket
 
 **Used by**: All implementation agents during ticket workflow
 
-**Auto-loads**: When `/implement-ticket` command is invoked
+**Auto-loads**: When the `implement-ticket` skill is invoked
 
 ---
 
@@ -588,9 +592,9 @@ skills:
 
 You can add custom skills to your project:
 
-1. Create skill file: `.claude/skills/custom-skill/SKILL.md`
-2. Add skill to agent's skill list in `.claude/agents/`
-3. Re-run `/initialize-project` to regenerate configuration
+1. Create skill file: `.claude/skills/custom-skill/SKILL.md` (or `.codex/skills/custom-skill/SKILL.md` on Codex)
+2. Add skill to agent's skill list in `.claude/agents/` (or `.codex/agents/`)
+3. Re-run `./qubika-agentic-framework/scripts/initialize-project.sh` to regenerate configuration
 
 **Note**: Custom skills should focus on project-specific patterns not covered by framework skills.
 
@@ -599,9 +603,9 @@ You can add custom skills to your project:
 ## Best Practices
 
 1. **Trust the detection**: Let the framework select skills automatically
-2. **Keep project-context updated**: Re-run `/initialize-project` after major changes
+2. **Keep project-context updated**: Re-run `./qubika-agentic-framework/scripts/initialize-project.sh` after major changes
 3. **Don't duplicate framework skills**: Use custom skills only for unique patterns
-4. **Review generated skills**: Check `.claude/skills/` to see what was copied
+4. **Review generated skills**: Check `.claude/skills/` (or `.codex/skills/`) to see what was copied
 5. **Leverage auto-loading**: Skills load automatically based on context
 
 ---

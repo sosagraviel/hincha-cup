@@ -20,16 +20,16 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 
 ## Skill Group Hierarchy
 
-### 010 - Foundation (Bootstrap & Project Setup)
-**Priority**: HIGHEST - These skills establish the project foundation
+### 010 - Foundation (Bootstrap & Task Isolation)
+**Priority**: HIGHEST - These skills establish the project and task foundation
 
 | Skill | Purpose |
 |-------|---------|
-| initialize-project | Deep codebase analysis → generates CLAUDE.md + project-context skill |
-| project-context | Hard-to-discover architectural knowledge (auth flows, real-time, guard stacking) |
-| analyze-requirements | Jira ticket analysis → implementation planning with file changes & risks |
+| start-task | Isolated git worktree per task with auto port detection and `.claude` config copy |
 
-**When to use**: Starting new projects, onboarding to codebases, understanding complex flows
+**Related artifacts (not static skills)**: `initialize-project` is implemented as the TypeScript orchestration CLI; `project-context` is generated per target project by that pipeline.
+
+**When to use**: Starting a new ticket in parallel with other work, keeping experiments isolated
 
 ---
 
@@ -38,8 +38,13 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 
 | Skill | Purpose |
 |-------|---------|
-| code-implementation | Language-aware implementation (auto-detects Python/TypeScript) |
+| analyze-requirements | Jira ticket analysis → implementation plan with file changes, risks, and steps |
+| architect-agent | Coordinate planning, delegation, and evaluation across architect and code agent workspaces |
+| code-implementation | Language-aware implementation orchestrator (auto-detects Python/TypeScript) |
+| create-sdd-ticket | Generate specification-driven development (SDD) tickets with gap detection |
 | implement-ticket | End-to-end ticket orchestrator: analyze → implement → quality → security → PR |
+| mastering-git-cli | Git expertise — branches, commits, merges, rebases, worktrees, conflict resolution |
+| skill-creator | Create, modify, improve, and eval skills |
 
 **When to use**: Implementing features, fixing bugs, daily coding tasks
 
@@ -51,8 +56,15 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 | Skill | Purpose |
 |-------|---------|
 | code-quality-check | Linting, type checking, test coverage (80%+ threshold) |
+| create-pr | GitHub PR with conventional commits, descriptions, artifacts |
+| doc-updater | Maintain `CLAUDE.md` and `project-context` accuracy after code changes |
+| jest-coverage-automation | AI-powered Jest test generation and coverage improvement |
+| playwright-e2e-automation | Multi-step Playwright E2E automation with Planner/Implementer/Healer agents |
+| pr-reviewer | Comprehensive GitHub PR code review with structured feedback |
+| pytest-patterns | Pytest fixtures, parametrization, mocking, coverage, plugins |
 | security-review | OWASP Top 10 scanning, secrets detection, vulnerability analysis |
-| create-pr | GitHub PR with conventional commits, descriptions, Jira links |
+| ui-testing | Stack-agnostic UI testing across unit, component, E2E, and visual levels |
+| ui-visual-testing | Dual-mode visual testing — Figma fidelity + screenshot regression with fix loop |
 
 **When to use**: Before merging code, pre-PR validation, security audits
 
@@ -63,11 +75,12 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 
 | Skill | Purpose |
 |-------|---------|
+| fetch-ticket-context | Fetch complete Jira context + external docs (Notion, Confluence) |
+| figma-design-fetcher | Fetch Figma designs, export frames at 2x, extract design constraints |
 | jira | Jira operations (create, update, transition, search with JQL) |
-| mastering-github-cli | GitHub operations (PRs, issues, repos, code search) |
 | mastering-confluence | Confluence pages, CQL search, ADF/markdown conversion |
+| mastering-github-cli | GitHub Actions logs + `gh` CLI operations (PRs, issues, workflows) |
 | notion-document-manager | Notion operations with smart chunking for large pages |
-| fetch-ticket-context | Fetch complete Jira context + external docs (Notion/Confluence) |
 
 **When to use**: Managing tickets, documentation, cross-platform workflows
 
@@ -78,11 +91,20 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 
 | Skill | Purpose |
 |-------|---------|
-| mastering-typescript | TypeScript patterns, strict mode, NestJS/React integration |
-| react-frontend | React 19, TanStack Router/Query, Tailwind v4, Radix UI |
-| atomic-design-react | Atomic Design methodology for component architecture |
+| atomic-design-react | Atomic design patterns for React (TypeScript, Tailwind v4, shadcn/ui) |
+| mastering-go-skill | Go idioms, concurrency, testing, standard library |
+| mastering-java-skill | Java with Spring Boot, JPA/Hibernate, Maven/Gradle |
+| mastering-langgraph-agent-skill | Stateful AI agents and agentic workflows with LangGraph in Python |
+| mastering-nextjs | Next.js 13+ App Router — RSC, Server Actions, streaming, performance |
+| mastering-python-skill | Modern Python — Poetry/PDM, pytest, FastAPI, Pydantic, async |
+| mastering-ruby-skill | Ruby with Rails, idioms, metaprogramming, RSpec |
+| mastering-rust-skill | Rust ownership, lifetimes, traits, async, ecosystem |
+| mastering-typescript | Enterprise TypeScript 5.9+ — generics, Zod, NestJS, React, LangChain.js |
+| mastering-vitest | Vitest testing patterns and configuration for TS/JS projects |
+| react-frontend | React engineering — architecture, atomic design, state, forms, testing |
+| vue-frontend | Vue.js 3 with Composition API, Pinia, Vue Router |
 
-**When to use**: Complex TypeScript challenges, React patterns, component design
+**When to use**: Complex TypeScript challenges, React patterns, framework-specific work
 
 ---
 
@@ -91,20 +113,98 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 
 | Skill | Purpose |
 |-------|---------|
-| design-doc-mermaid | Generate Mermaid diagrams (activity, sequence, architecture) from code/text |
+| design-doc-mermaid | Generate Mermaid diagrams (activity, sequence, architecture, ER) from code/text |
 
 **When to use**: Creating technical documentation, visualizing architectures
 
 ---
 
+### 070 - Infrastructure (Containers & DevOps)
+**Priority**: MEDIUM - Container orchestration and runtime debugging
+
+| Skill | Purpose |
+|-------|---------|
+| developing-with-docker | Debugging-first Docker across CLI, Compose, Docker Desktop, Rancher Desktop |
+
+**When to use**: Debugging containers, fixing networking/volume issues, cross-platform Docker runtime behavior
+
+---
+
+### 080 - Cloud Platforms
+**Priority**: MEDIUM - Cloud-specific CLIs and SDKs
+
+| Skill | Purpose |
+|-------|---------|
+| mastering-aws-cdk | AWS CDK v2 infrastructure-as-code in TypeScript |
+| mastering-aws-cli | AWS CLI v2 — Lambda, ECS, EKS, S3, IAM, Secrets Manager |
+| mastering-gcloud-commands | GCP gcloud CLI — Cloud Run, IAM, VPC, AlloyDB, Secret Manager |
+| using-firebase | Firebase — Firestore, Cloud Functions, auth, rules, hosting |
+
+**When to use**: Deploying to AWS/GCP, writing IaC, configuring cloud CI/CD
+
+---
+
+## Authoring Skills for Multiple Providers
+
+Skills are authored once in this source tree and adapted at sync time for the
+active provider (Claude Code or Codex CLI). Two patterns are supported.
+
+### Pattern A — Placeholder Substitution (light divergence)
+
+Use a single `SKILL.md` with provider-neutral placeholders. The sync pipeline
+substitutes them at copy time based on the active provider.
+
+| Placeholder             | Claude                | Codex              |
+| ----------------------- | --------------------- | ------------------ |
+| `{{CONFIG_DIR}}`        | `.claude`             | `.codex`           |
+| `{{INSTRUCTION_FILE}}`  | `CLAUDE.md`           | `AGENTS.md`        |
+| `{{TEMP_DIR}}`          | `.claude-temp`        | `.codex-temp`      |
+| `{{PROVIDER_NAME}}`     | `Claude Code`         | `Codex CLI`        |
+
+Rules:
+
+- Unknown `{{TOKEN}}` references fail the sync — fail-closed by design.
+- Only `.md` files get substitution; binary assets are copied verbatim.
+- Prefer Pattern A whenever the provider-specific differences are just paths,
+  file names, or provider display strings.
+
+### Pattern B — Dual Source Files (heavy divergence)
+
+Use two files side-by-side when the skill's *semantics* differ per provider
+(for example: one provider can spawn subagents via `Task`, the other cannot):
+
+```
+skills/<category>/<skill>/
+├── SKILL.claude.md        # Claude-specific version
+└── SKILL.codex.md         # Codex-specific version
+```
+
+The sync picks the file matching the active provider and writes it to the
+target project as `SKILL.md`. Placeholder substitution still runs on whichever
+variant was selected.
+
+Rules:
+
+- **Never** keep a plain `SKILL.md` alongside `SKILL.<provider>.md` files —
+  the sync fails on ambiguous source layouts.
+- At least one recognised variant must exist, or the skill is skipped.
+- Use Pattern B sparingly: the two files drift over time, so only split when
+  placeholder substitution can't express the difference.
+
+The canonical example is `020-development-workflow/implement-ticket/` — see
+`SKILL.claude.md` (which uses `TaskCreate` and spawns subagents) and
+`SKILL.codex.md` (which uses file-based JSONL progress tracking and inline
+role prompts instead).
+
 ## Adding New Skills
 
-1. **Determine the correct group** (010-060) based on primary purpose
+1. **Determine the correct group** (010-080) based on primary purpose
 2. **Add to group folder**: Create skill in appropriate numbered folder
-3. **Update group README**: Add entry to the table above
-4. **Consider new group**: If none fit, use next available (070, 080, etc.)
+3. **Decide the authoring pattern** (A or B above)
+4. **Update group README**: Add entry to the table above
+5. **Consider new group**: If none fit, use next available (090, etc.)
 
-### Adding a New Group (070, 080...)
+### Adding a New Group (090, 100...)
 
 Only create new groups when:
 - Existing groups don't fit (resist creating too many!)
@@ -112,43 +212,51 @@ Only create new groups when:
 - Group will contain 2+ skills (avoid single-skill groups)
 
 **Example future groups**:
-- `070-deployment` (CI/CD, infrastructure)
-- `080-monitoring` (observability, alerting)
+- `090-monitoring` (observability, alerting, tracing)
+- `100-data-platforms` (data warehousing, analytics, streaming)
 
 ## Skill Priority Matrix
 
 | Group | Priority | Usage Frequency | Examples |
 |-------|----------|----------------|----------|
-| 010 Foundation | ⭐⭐⭐⭐⭐ | Once per project | Onboarding, setup |
+| 010 Foundation | ⭐⭐⭐⭐⭐ | Per ticket | Parallel task setup |
 | 020 Workflow | ⭐⭐⭐⭐⭐ | Daily | Feature dev, bug fixes |
 | 030 Quality | ⭐⭐⭐⭐ | Pre-merge | PR creation, reviews |
-| 040 Integrations | ⭐⭐⭐ | As needed | Ticket management |
+| 040 Integrations | ⭐⭐⭐ | As needed | Ticket/doc management |
 | 050 Languages | ⭐⭐⭐ | Complex tasks | Type errors, patterns |
 | 060 Documentation | ⭐⭐ | Occasional | Design docs |
+| 070 Infrastructure | ⭐⭐⭐ | DevOps tasks | Docker/Compose debugging |
+| 080 Cloud Platforms | ⭐⭐⭐ | Deploys | IaC, CLI operations |
 
 ## Workflow Examples
 
 ### New Feature Implementation
 ```
 1. 040/fetch-ticket-context  → Get full context
-2. 010/analyze-requirements  → Plan implementation
+2. 020/analyze-requirements  → Plan implementation
 3. 020/code-implementation   → Write code
 4. 030/code-quality-check    → Verify quality
 5. 030/security-review       → Check security
 6. 030/create-pr             → Submit for review
 ```
 
-### New Project Onboarding
+### Parallel Ticket Kickoff
 ```
-1. 010/initialize-project    → Generate CLAUDE.md
-2. 010/project-context       → Load architectural knowledge
-3. 050/mastering-typescript  → Review tech patterns
+1. 010/start-task            → Create isolated worktree + ports
+2. 020/implement-ticket      → End-to-end orchestration inside the worktree
+```
+
+### Cloud Deployment Task
+```
+1. 080/mastering-aws-cdk     → Review CDK patterns
+2. 070/developing-with-docker → Debug container issues
+3. 040/mastering-github-cli  → Trigger/inspect CI workflows
 ```
 
 ## Naming Conventions
 
 - **Folder names**: `{number}-{kebab-case}` (e.g., `010-foundation`)
-- **Skill names**: Match their identifier (e.g., `initialize-project`)
+- **Skill names**: Match their identifier (e.g., `start-task`)
 - **Numbers**: Increments of 10 with room for insertion (010, 020, 030...)
 
 ## Sources

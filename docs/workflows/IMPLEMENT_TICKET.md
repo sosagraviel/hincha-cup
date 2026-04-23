@@ -4,7 +4,7 @@
 
 **Status**: Work-in-progress, not production-ready
 
-**Production Approach**: Use `/implement-ticket` Claude Code command (95%+ success rate)
+**Production Approach**: Use the `implement-ticket` skill — invoked as `/implement-ticket` in Claude Code or `$implement-ticket` in Codex CLI (95%+ success rate). In Codex, run `/skills` to list available skills.
 
 **This Document**: For framework contributors understanding experimental TypeScript orchestration
 
@@ -52,7 +52,7 @@ const graph = new StateGraph(ImplementTicketAnnotation)
 ### Artifact Communication
 
 ```
-.claude-temp/tickets/{TICKET_ID}/artifacts/
+.claude-temp/tickets/{TICKET_ID}/artifacts/   # Claude Code (use .codex-temp/ in Codex)
 ├── phase0-context.json
 ├── phase1-planning.json
 ├── phase4-implementation-complete.json

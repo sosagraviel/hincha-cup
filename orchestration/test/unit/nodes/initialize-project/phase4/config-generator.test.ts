@@ -351,7 +351,6 @@ describe('config-generator', () => {
       expect(config.resource_state).toBeDefined();
       expect(config.resource_state.skills).toEqual({});
       expect(config.resource_state.agents).toEqual({});
-      expect(config.resource_state.commands).toEqual({});
       expect(config.resource_state.last_sync).toBeDefined();
     });
 

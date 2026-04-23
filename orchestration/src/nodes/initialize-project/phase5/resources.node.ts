@@ -1,10 +1,11 @@
 import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
-import { mkdirSync, copyFileSync, readdirSync, readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { resolveSkills, copyResolvedSkills } from './skill-resolver.js';
 import { generateAgents, writeAgents } from './agent-generator.js';
 import type { StackProfile } from '../../../schemas/index.js';
 import { logger } from '../../../utils/logger.js';
+import { resolveFrameworkConfigPath } from '../../../utils/provider-paths.js';
 
 /**
  * Phase 5: Resources Node
@@ -12,7 +13,6 @@ import { logger } from '../../../utils/logger.js';
  * This node:
  * - Resolves and copies filtered skills based on detected stack
  * - Generates agents (planner, implementers, visual-verifier)
- * - Copies commands from framework
  * - Sets up project directory structure
  *
  * @param state - Current workflow state
@@ -26,8 +26,7 @@ export async function resourcesNode(
   phaseLogger.info(' Copying resources...');
 
   try {
-    const projectClaudeDir = join(state.project_path, '.claude');
-    const frameworkConfigPath = join(projectClaudeDir, 'framework-config.json');
+    const frameworkConfigPath = resolveFrameworkConfigPath(state.project_path);
 
     // Verify Phase 4 completed by checking file exists (never use state)
     if (!existsSync(frameworkConfigPath)) {
@@ -149,23 +148,6 @@ export async function resourcesNode(
     writeAgents(agents, state.project_path);
 
     phaseLogger.success(`✓ Generated ${agents.length} agents`);
-
-    // Step 3: Copy commands
-    phaseLogger.info(' Copying commands...');
-    const commandsTargetDir = join(projectClaudeDir, 'commands');
-    const frameworkCommandsDir = join(state.framework_path, 'commands');
-
-    mkdirSync(commandsTargetDir, { recursive: true });
-
-    const commandFiles = readdirSync(frameworkCommandsDir).filter(
-      (file) => file.endsWith('.md') && file !== 'initialize-project.md',
-    );
-
-    for (const cmdFile of commandFiles) {
-      copyFileSync(join(frameworkCommandsDir, cmdFile), join(commandsTargetDir, cmdFile));
-    }
-
-    phaseLogger.success(`✓ Copied ${commandFiles.length} commands`);
 
     phaseLogger.success(' ✓ Resource copying complete');
 

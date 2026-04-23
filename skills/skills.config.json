@@ -142,8 +142,8 @@
       "name": "fetch-ticket-context",
       "path": "040-integrations/fetch-ticket-context",
       "description": "Fetch ticket context from external systems",
-      "trigger_mode": "triggered",
-      "triggers": ["jira"],
+      "trigger_mode": "always",
+      "triggers": [],
       "compatible_languages": [],
       "is_linkable_to_agents": false
     },
@@ -245,6 +245,14 @@
       "trigger_mode": "triggered",
       "triggers": ["rust"],
       "compatible_languages": ["rust"]
+    },
+    {
+      "name": "mastering-scala-skill",
+      "path": "050-language-frameworks/mastering-scala-skill",
+      "description": "Scala 3 development patterns, functional programming, effect systems (Cats Effect, ZIO), and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["scala"],
+      "compatible_languages": ["scala"]
     },
     {
       "name": "react-frontend",

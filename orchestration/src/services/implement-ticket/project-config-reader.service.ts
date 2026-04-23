@@ -3,6 +3,12 @@ import { join } from 'path';
 import { z } from 'zod';
 import { type FrameworkConfig, type StackProfile } from '../../schemas/index.js';
 import { type Service, type ServiceType } from '../../schemas/stack-profile.schema.js';
+import {
+  resolveConfigPath,
+  resolveFrameworkConfigPath,
+  resolveInstructionFilePath,
+  getProviderPaths,
+} from '../../utils/provider-paths.js';
 
 /**
  * Project Config Reader Service
@@ -41,8 +47,8 @@ export interface BuildCommands {
  * Project Config Reader Service
  *
  * Reads configuration from initialize-project outputs:
- * - .claude/framework-config.json
- * - .claude/CLAUDE.md
+ * - .claude/framework-config.json or .codex/framework-config.json
+ * - .claude/CLAUDE.md or .codex/CLAUDE.md
  *
  * Throws errors if files are missing (user must run initialize-project first)
  */
@@ -58,7 +64,7 @@ export class ProjectConfigReaderService {
    * Throws if file doesn't exist
    */
   readFrameworkConfig(): FrameworkConfig {
-    const configPath = join(this.projectPath, '.claude', 'framework-config.json');
+    const configPath = resolveFrameworkConfigPath(this.projectPath);
 
     if (!existsSync(configPath)) {
       throw new Error(
@@ -103,7 +109,7 @@ export class ProjectConfigReaderService {
     testCommandsSection?: string;
     buildCommandsSection?: string;
   } {
-    const claudeMdPath = join(this.projectPath, '.claude', 'CLAUDE.md');
+    const claudeMdPath = resolveInstructionFilePath(this.projectPath);
 
     if (!existsSync(claudeMdPath)) {
       throw new Error(
@@ -194,6 +200,12 @@ export class ProjectConfigReaderService {
     } else if (primaryLang === 'rust') {
       if (!commands.build.length) commands.build.push('cargo build');
       if (!commands.start.length) commands.start.push('cargo run');
+    } else if (primaryLang === 'scala') {
+      if (!commands.build.length) commands.build.push('sbt compile');
+      if (!commands.start.length) commands.start.push('sbt run');
+    } else if (primaryLang === 'java') {
+      if (!commands.build.length) commands.build.push('mvn compile');
+      if (!commands.start.length) commands.start.push('mvn spring-boot:run');
     }
 
     return commands;
@@ -380,9 +392,11 @@ export class ProjectConfigReaderService {
     if (fw.includes('pytest')) return ['pytest', 'python -m pytest'];
     if (fw.includes('go test')) return ['go test ./...'];
     if (fw.includes('cargo')) return ['cargo test'];
+    if (fw.includes('scalatest') || fw.includes('munit')) return ['sbt test'];
     if (fw.includes('playwright')) return ['npx playwright test'];
     if (fw.includes('cypress')) return ['npx cypress run'];
     if (fw.includes('mocha')) return ['npx mocha'];
+    if (fw.includes('junit')) return ['mvn test', 'gradle test'];
 
     return [];
   }
@@ -415,7 +429,7 @@ export class ProjectConfigReaderService {
    * Check if project has been initialized
    */
   static isProjectInitialized(projectPath: string): boolean {
-    const configPath = join(projectPath, '.claude', 'framework-config.json');
+    const configPath = resolveFrameworkConfigPath(projectPath);
     return existsSync(configPath);
   }
 
@@ -423,10 +437,11 @@ export class ProjectConfigReaderService {
    * Validate that all required files exist
    */
   validateInitialization(): { valid: boolean; missing: string[] } {
+    const paths = getProviderPaths();
     const requiredFiles = [
-      '.claude/framework-config.json',
-      '.claude/CLAUDE.md',
-      '.claude/project-context/SKILL.md',
+      `${paths.configDir}/framework-config.json`,
+      `${paths.configDir}/${paths.instructionFile}`,
+      `${paths.configDir}/project-context/SKILL.md`,
     ];
 
     const missing: string[] = [];

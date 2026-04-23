@@ -64,6 +64,13 @@ export const COMMAND_DEFAULTS: Record<string, CommandSet> = {
     test: 'mvn test',
     build: 'mvn package',
   },
+  scala: {
+    lint: 'sbt scalafmtCheckAll',
+    format: 'sbt scalafmtAll',
+    typecheck: 'sbt compile',
+    test: 'sbt test',
+    build: 'sbt package',
+  },
   php: {
     lint: 'composer run-script phpcs',
     format: 'composer run-script phpcbf',
@@ -95,6 +102,7 @@ export const SUPPORTED_IMPLEMENTER_LANGUAGES = [
   'go',
   'rust',
   'java',
+  'scala',
   'csharp',
   'php',
   'ruby',

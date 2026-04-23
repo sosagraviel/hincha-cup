@@ -94,7 +94,6 @@ describe('ConfigUpdaterService', () => {
     resource_state: {
       skills: {},
       agents: {},
-      commands: {},
       last_sync: '2024-01-01T00:00:00Z',
     },
     ...overrides,
@@ -370,7 +369,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -397,7 +395,6 @@ describe('ConfigUpdaterService', () => {
             'skill-to-remove': { managed_by_framework: true },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -504,7 +501,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -532,7 +528,6 @@ describe('ConfigUpdaterService', () => {
               file_hash: 'original-hash',
             },
           },
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -557,7 +552,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -579,7 +573,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -603,7 +596,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });

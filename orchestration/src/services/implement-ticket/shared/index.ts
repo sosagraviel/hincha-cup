@@ -5,6 +5,7 @@
 
 import { join } from 'path';
 import { buildContentSection } from '../../../utils/shared/context-tags.js';
+import { resolveConfigPath } from '../../../utils/provider-paths.js';
 
 /**
  * Build input prompt for planner agent (Phase 2)
@@ -97,5 +98,5 @@ export function buildVisualVerifierPrompt(
  * Get path to project-specific agent file
  */
 export function getProjectAgentPath(projectPath: string, agentFile: string): string {
-  return join(projectPath, '.claude/agents', agentFile);
+  return resolveConfigPath(projectPath, 'agents', agentFile);
 }

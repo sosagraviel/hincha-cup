@@ -7,6 +7,7 @@ import type { Gap, ConsolidatedGap } from './types.js';
 import { extractStructuredGaps } from './helpers/extract-structured-gaps.js';
 import { consolidateQuestions } from './helpers/consolidate-questions.js';
 import { askGapQuestions } from './helpers/ask-gap-questions.js';
+import { resolveTempPath } from '../../../../utils/provider-paths.js';
 
 /**
  * Consolidates outputs from all 4 Phase 1 analyzer agents
@@ -20,7 +21,7 @@ export async function consolidationNode(
   phaseLogger.info(' Starting...');
 
   // Read Phase 1 outputs from disk (not from state)
-  const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
+  const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   const phase1Dir = join(tempDir, 'phase1-outputs');
 
   if (!existsSync(phase1Dir)) {

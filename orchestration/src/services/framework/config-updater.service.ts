@@ -17,6 +17,11 @@ import {
   type ResourceInfo,
 } from '../../schemas/index.js';
 import { type Service } from '../../schemas/stack-profile.schema.js';
+import {
+  resolveFrameworkConfigPath,
+  resolveConfigPath,
+  getAllProviderManagedDirs,
+} from '../../utils/provider-paths.js';
 
 // Re-export types for backward compatibility
 export type { FrameworkConfig, ResourceInfo };
@@ -52,7 +57,7 @@ export class ConfigUpdaterService {
   constructor(projectPath: string, frameworkPath: string) {
     this.projectPath = projectPath;
     this.frameworkPath = frameworkPath;
-    this.configPath = join(projectPath, '.claude', 'framework-config.json');
+    this.configPath = resolveFrameworkConfigPath(projectPath);
   }
 
   async readConfig(): Promise<FrameworkConfig> {
@@ -175,7 +180,7 @@ export class ConfigUpdaterService {
   }
 
   async updateResourceState(
-    resourceType: 'skills' | 'agents' | 'commands',
+    resourceType: 'skills' | 'agents',
     resourceName: string,
     metadata: Partial<ResourceInfo>,
   ): Promise<FrameworkConfig> {
@@ -199,7 +204,7 @@ export class ConfigUpdaterService {
   }
 
   async removeResourceFromState(
-    resourceType: 'skills' | 'agents' | 'commands',
+    resourceType: 'skills' | 'agents',
     resourceName: string,
   ): Promise<boolean> {
     const config = await this.readConfig();
@@ -219,9 +224,7 @@ export class ConfigUpdaterService {
     const excludes = [
       'node_modules',
       '.git',
-      '.claude',
-      '.claude-temp',
-      '.claude-backups',
+      ...getAllProviderManagedDirs(),
       'dist',
       'build',
       '__pycache__',
@@ -335,7 +338,7 @@ export class ConfigUpdaterService {
         return;
       }
 
-      const skillPath = join(this.projectPath, '.claude', 'skills', skillName);
+      const skillPath = resolveConfigPath(this.projectPath, 'skills', skillName);
 
       if (existsSync(skillPath)) {
         const currentHash = this.hashDirectory(skillPath);
@@ -358,7 +361,7 @@ export class ConfigUpdaterService {
         return;
       }
 
-      const agentPath = join(this.projectPath, '.claude', 'agents', `${agentName}.md`);
+      const agentPath = resolveConfigPath(this.projectPath, 'agents', `${agentName}.md`);
 
       if (existsSync(agentPath)) {
         const currentHash = this.hashFile(agentPath);

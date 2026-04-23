@@ -19,21 +19,24 @@ Produces complete pull requests with:
 
 ## Production Approach (Use This)
 
-### Using /implement-ticket Command
+### Using the implement-ticket Skill
 
-Current production approach using Claude Code command.
+Current production approach using the user-invokable skill. Works in both
+Claude Code and Codex CLI — only the prefix changes (`/` vs `$`). In Codex,
+run `/skills` to confirm the skill is registered in the current session.
 
 **Usage**:
 
 ```bash
-# Jira ticket
+# Claude Code — Jira ticket / markdown / plain text
 /implement-ticket --from-jira PROJ-123
-
-# Markdown file
 /implement-ticket --from-markdown ./specs/feature-spec.md
-
-# Plain text
 /implement-ticket --from-input "Add dark mode toggle to settings page"
+
+# Codex CLI — same flags, '$' prefix
+$implement-ticket --from-jira PROJ-123
+$implement-ticket --from-markdown ./specs/feature-spec.md
+$implement-ticket --from-input "Add dark mode toggle to settings page"
 ```
 
 **Options**:
@@ -51,14 +54,15 @@ Current production approach using Claude Code command.
 **Examples**:
 
 ```bash
-# Jira ticket
-/implement-ticket --from-jira PROJ-123
+# Claude Code
+/implement-ticket --from-jira PROJ-123                            # Jira ticket
+/implement-ticket --from-jira PROJ-456 --skip-visual              # Skip visual tests for backend
+/implement-ticket --from-jira PROJ-789 --branch feature/custom-name  # Custom branch
 
-# Skip visual tests for backend
-/implement-ticket --from-jira PROJ-456 --skip-visual
-
-# Custom branch
-/implement-ticket --from-jira PROJ-789 --branch feature/custom-name
+# Codex CLI
+$implement-ticket --from-jira PROJ-123
+$implement-ticket --from-jira PROJ-456 --skip-visual
+$implement-ticket --from-jira PROJ-789 --branch feature/custom-name
 ```
 
 ---
@@ -67,7 +71,7 @@ Current production approach using Claude Code command.
 
 ### TypeScript Orchestration Script 🚧
 
-Work in progress, not ready for production. Use `/implement-ticket` command instead.
+Work in progress, not ready for production. Use the `/implement-ticket` skill in Claude Code (or `$implement-ticket` in Codex) instead.
 
 ---
 
@@ -80,7 +84,8 @@ export MODEL_TIER=sonnet   # Default
 export MODEL_TIER=haiku    # Simple fixes
 
 # Authentication
-export ANTHROPIC_API_KEY=sk-ant-your-key  # If not using Claude Code auth
+export ANTHROPIC_API_KEY=sk-ant-your-key  # Claude: if not using Claude Code auth
+export OPENAI_API_KEY=sk-...              # Codex: if not using Codex CLI auth
 
 # Debug
 export DEBUG=true  # Verbose logging
@@ -124,7 +129,10 @@ graph LR
 ### Jira Tickets
 
 ```bash
+# Claude Code
 /implement-ticket --from-jira PROJ-123
+# Codex CLI
+$implement-ticket --from-jira PROJ-123
 ```
 
 **Requirements**:
@@ -135,7 +143,10 @@ graph LR
 ### Markdown Specifications
 
 ```bash
+# Claude Code
 /implement-ticket --from-markdown ./specs/feature.md
+# Codex CLI
+$implement-ticket --from-markdown ./specs/feature.md
 ```
 
 **Format**:
@@ -231,9 +242,13 @@ AI verifier checks:
 
 ```bash
 export DEBUG=true
-/implement-ticket --from-jira PROJ-123
 
-# Check artifacts
+# Claude Code
+/implement-ticket --from-jira PROJ-123
+# Codex CLI
+$implement-ticket --from-jira PROJ-123
+
+# Check artifacts (.claude-temp/ in Claude, .codex-temp/ in Codex)
 ls .claude-temp/tickets/PROJ-123/artifacts/
 ```
 
@@ -244,32 +259,41 @@ ls .claude-temp/tickets/PROJ-123/artifacts/
 ### Custom Model Selection
 
 ```bash
-# Simple fixes
-MODEL_TIER=haiku /implement-ticket --from-jira PROJ-123
+# Claude Code
+MODEL_TIER=haiku /implement-ticket --from-jira PROJ-123     # Simple fixes
+MODEL_TIER=opus  /implement-ticket --from-jira PROJ-123     # Complex changes
 
-# Complex changes
-MODEL_TIER=opus /implement-ticket --from-jira PROJ-123
+# Codex CLI
+MODEL_TIER=haiku $implement-ticket --from-jira PROJ-123
+MODEL_TIER=opus  $implement-ticket --from-jira PROJ-123
 ```
 
 ### Batch Processing
 
 ```bash
+# Claude Code
 /implement-ticket --from-jira PROJ-123
 /implement-ticket --from-jira PROJ-124
 /implement-ticket --from-jira PROJ-125
+
+# Codex CLI
+$implement-ticket --from-jira PROJ-123
+$implement-ticket --from-jira PROJ-124
+$implement-ticket --from-jira PROJ-125
 ```
 
 ### Custom Workflows
 
 ```bash
-# Custom branch
-/implement-ticket --from-jira PROJ-123 --branch feature/urgent
+# Claude Code
+/implement-ticket --from-jira PROJ-123 --branch feature/urgent   # Custom branch
+/implement-ticket --from-jira PROJ-123 --skip-pr                 # Skip PR for local testing
+/implement-ticket --from-jira PROJ-123 --skip-visual             # Backend only
 
-# Skip PR for local testing
-/implement-ticket --from-jira PROJ-123 --skip-pr
-
-# Backend only
-/implement-ticket --from-jira PROJ-123 --skip-visual
+# Codex CLI
+$implement-ticket --from-jira PROJ-123 --branch feature/urgent
+$implement-ticket --from-jira PROJ-123 --skip-pr
+$implement-ticket --from-jira PROJ-123 --skip-visual
 ```
 
 ---

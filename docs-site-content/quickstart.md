@@ -11,7 +11,20 @@ Automate the full cycle: **Idea → Ticket → Implementation → Pull Request**
 **Prerequisites**:
 - Node.js v20+ (v22 recommended)
 - Git repository
-- Claude Code CLI installed
+- Claude Code CLI **or** Codex CLI installed
+
+### Invoking Skills
+
+The framework exposes its workflows as user-invokable skills. The prefix
+differs per provider — the arguments and behavior are identical:
+
+| Provider     | Invoke a skill     | List available skills |
+| ------------ | ------------------ | --------------------- |
+| Claude Code  | `/skill [args]`    | Auto-discovered       |
+| Codex CLI    | `$skill [args]`    | `/skills`             |
+
+In Codex, run `/skills` to see the skills currently active in the session —
+useful when troubleshooting why a skill isn't firing.
 
 ---
 
@@ -37,10 +50,9 @@ cd ..  # Back to project root
 ls .claude/
 
 # Should see:
-# CLAUDE.md - Project AI guide
-# skills/ - AI knowledge
+# CLAUDE.md - Project AI guide (or AGENTS.md in Codex)
+# skills/ - AI knowledge (now the invocation surface)
 # agents/ - AI agents
-# commands/ - Workflows
 # framework-config.json - Config
 ```
 
@@ -53,8 +65,11 @@ ls .claude/
 **Create ticket**:
 
 ```bash
-# In Claude Code:
-/create-sdd-ticket --from-input "Add dark mode toggle to settings page" --save-to-markdown .claude-temp/tickets/dark-mode/ticket.md
+# Claude Code
+/create-sdd-ticket --from-input "Add dark mode toggle to settings page" --save-to-markdown "./specs/dark-mode.md"
+
+# Codex CLI
+$create-sdd-ticket --from-input "Add dark mode toggle to settings page" --save-to-markdown "./specs/dark-mode.md"
 ```
 
 **What happens**:
@@ -65,7 +80,11 @@ ls .claude/
 **Implement**:
 
 ```bash
+# Claude Code
 /implement-ticket --from-jira PROJ-123
+
+# Codex CLI
+$implement-ticket --from-jira PROJ-123
 ```
 
 **What happens**:
@@ -79,11 +98,13 @@ ls .claude/
 ### Option B: Just Implementation (Ticket → PR)
 
 ```bash
-# Jira ticket
-/implement-ticket --from-jira PROJ-456
+# Claude Code
+/implement-ticket --from-jira PROJ-456           # Jira ticket
+/implement-ticket --from-markdown ./specs/feature.md  # Markdown spec
 
-# Markdown spec
-/implement-ticket --from-markdown ./specs/feature.md
+# Codex CLI
+$implement-ticket --from-jira PROJ-456
+$implement-ticket --from-markdown ./specs/feature.md
 ```
 
 ---
@@ -152,11 +173,10 @@ graph LR
 ### Generated Files
 
 ```
-.claude/
-├── CLAUDE.md - Project AI reference
-├── skills/ - Codebase knowledge
-├── agents/ - AI agents
-└── commands/ - Available workflows
+.claude/        # or .codex/ when initialized for Codex
+├── CLAUDE.md   # or AGENTS.md — project AI reference
+├── skills/     # codebase knowledge (also the invocation surface)
+└── agents/     # AI agents
 ```
 
 ---
@@ -166,13 +186,17 @@ graph LR
 ### Try More Workflows
 
 ```bash
-# Create multiple tickets
+# Claude Code
 /create-sdd-ticket --from-input "Add CSV export" --save-to-markdown ./specs/export.md
 /create-sdd-ticket --from-input "Add search filtering" --save-to-markdown ./specs/search.md
-
-# Implement them
 /implement-ticket --from-markdown ./specs/export.md
 /implement-ticket --from-markdown ./specs/search.md
+
+# Codex CLI
+$create-sdd-ticket --from-input "Add CSV export" --save-to-markdown ./specs/export.md
+$create-sdd-ticket --from-input "Add search filtering" --save-to-markdown ./specs/search.md
+$implement-ticket --from-markdown ./specs/export.md
+$implement-ticket --from-markdown ./specs/search.md
 ```
 
 ### Explore Advanced Features

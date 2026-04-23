@@ -10,10 +10,16 @@ The framework offers two approaches for ticket creation:
 
 ### Option 1: Autonomous Ticket Generation (Recommended)
 
-Use `/create-sdd-ticket` to generate implementation-ready tickets from ideas:
+Use the `create-sdd-ticket` skill to generate implementation-ready tickets from ideas. Prefix the skill with `/` in Claude Code or `$` in Codex CLI (use `/skills` in Codex to confirm it is active):
 
 ```bash
+# Claude Code
 /create-sdd-ticket \
+  --from-input "Add OAuth login with Google" \
+  --save-to-jira https://company.atlassian.net/projects/PROJ/boards/1
+
+# Codex CLI
+$create-sdd-ticket \
   --from-input "Add OAuth login with Google" \
   --save-to-jira https://company.atlassian.net/projects/PROJ/boards/1
 ```
@@ -23,7 +29,7 @@ Use `/create-sdd-ticket` to generate implementation-ready tickets from ideas:
 - Infers technical approach from existing code
 - Asks 2-5 clarifying questions (not 20+)
 - Generates INVEST-compliant ticket with BDD scenarios
-- Creates ticket in Jira ready for `/implement-ticket`
+- Creates ticket ready for `implement-ticket`
 
 **Time**: 3-5 minutes (vs 30-60 minutes manually)
 
@@ -363,7 +369,14 @@ The framework can create tickets from various sources:
 
 **From a simple idea**:
 ```bash
+# Claude Code
 /create-sdd-ticket \
+  --from-input "Users should be able to export their data as CSV" \
+  --save-to-jira <BOARD_URL> \
+  --project-key PROJ
+
+# Codex CLI
+$create-sdd-ticket \
   --from-input "Users should be able to export their data as CSV" \
   --save-to-jira <BOARD_URL> \
   --project-key PROJ
@@ -371,16 +384,18 @@ The framework can create tickets from various sources:
 
 **Refine existing Jira ticket**:
 ```bash
-/create-sdd-ticket \
-  --from-jira PROJ-100 \
-  --save-to-markdown ./specs/refined-spec.md
+# Claude Code
+/create-sdd-ticket --from-jira PROJ-100 --save-to-markdown ./specs/refined-spec.md
+# Codex CLI
+$create-sdd-ticket --from-jira PROJ-100 --save-to-markdown ./specs/refined-spec.md
 ```
 
 **From existing markdown**:
 ```bash
-/create-sdd-ticket \
-  --from-markdown ./specs/draft-spec.md \
-  --save-to-jira <BOARD_URL>
+# Claude Code
+/create-sdd-ticket --from-markdown ./specs/draft-spec.md --save-to-jira <BOARD_URL>
+# Codex CLI
+$create-sdd-ticket --from-markdown ./specs/draft-spec.md --save-to-jira <BOARD_URL>
 ```
 
 ### Manual Implementation
