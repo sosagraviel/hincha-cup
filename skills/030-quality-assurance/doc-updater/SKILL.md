@@ -1,3 +1,8 @@
+---
+name: doc-updater
+description: Maintain project documentation accuracy after code changes by analyzing changed files and updating only necessary sections of the project instruction file and project-context skill. Use after implementing a ticket, after significant code changes, or when architectural patterns, file placement conventions, or technologies change.
+---
+
 # Documentation Updater Skill
 
 ## Purpose
