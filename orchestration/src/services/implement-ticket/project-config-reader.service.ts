@@ -47,8 +47,8 @@ export interface BuildCommands {
  * Project Config Reader Service
  *
  * Reads configuration from initialize-project outputs:
- * - .claude/framework-config.json
- * - .claude/CLAUDE.md
+ * - .claude/framework-config.json or .codex/framework-config.json
+ * - .claude/CLAUDE.md or .codex/CLAUDE.md
  *
  * Throws errors if files are missing (user must run initialize-project first)
  */
