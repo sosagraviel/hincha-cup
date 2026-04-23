@@ -6,7 +6,6 @@ description: Implements a ticket end-to-end through a wiki-aware and graph-aware
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 user-invokable: true
 disable-model-invocation: true
-allowed-tools: Read Write Edit Bash Grep Glob Task TaskCreate TaskUpdate mcp__code_graph__get_minimal_context_tool
 ---
 
 # Implement Ticket
