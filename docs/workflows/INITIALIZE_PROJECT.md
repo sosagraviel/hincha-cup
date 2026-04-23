@@ -8,13 +8,12 @@ TypeScript-orchestrated project initialization using LangGraph state machines.
 
 Analyzes codebase and generates AI configuration via 6-phase workflow.
 
-**Output**:
+**Output** (Claude Code layout shown — Codex uses `.codex/` + `AGENTS.md`):
 ```
-.claude/
-├── CLAUDE.md                    # Quick reference
-├── skills/                      # Tech-specific knowledge
+.claude/                         # or .codex/ when provider=codex
+├── CLAUDE.md                    # Quick reference (AGENTS.md in Codex)
+├── skills/                      # Tech-specific knowledge (also the invocation surface)
 ├── agents/                      # AI agents
-├── commands/                    # Workflows
 └── framework-config.json        # Config registry
 ```
 
@@ -48,7 +47,7 @@ const graph = new StateGraph(InitializeProjectAnnotation)
 | 2 | 30-60s | Consolidate analysis results | Sequential |
 | 3 | 1-2min | Synthesize project understanding | Sequential |
 | 4 | 30-60s | Write CLAUDE.md and project-context | Sequential |
-| 5 | 1-2min | Sync skills, agents, commands | Sequential |
+| 5 | 1-2min | Sync skills and agents | Sequential |
 | 6 | 30-60s | Validate configuration | Sequential |
 
 **Total**: 5-10 minutes
@@ -82,8 +81,8 @@ Generates human-readable project understanding from consolidated analysis.
 
 ### Phase 4: File Writing
 
-**Creates**:
-- `.claude/CLAUDE.md` - Quick reference for Claude
+**Creates** (Claude Code layout — Codex writes to `.codex/` with `AGENTS.md` instead):
+- `.claude/CLAUDE.md` - Quick reference for Claude (`.codex/AGENTS.md` for Codex)
 - `.claude/skills/project-context/SKILL.md` - Deep project knowledge
 
 ### Phase 5: Resource Sync
@@ -91,7 +90,6 @@ Generates human-readable project understanding from consolidated analysis.
 **Syncs** (based on detected stack):
 - Skills (`skills.config.json` → `.claude/skills/`)
 - Agents (`agents/templates/` → `.claude/agents/`)
-- Commands (`commands/` → `.claude/commands/`)
 
 **Updates**: `framework-config.json`
 

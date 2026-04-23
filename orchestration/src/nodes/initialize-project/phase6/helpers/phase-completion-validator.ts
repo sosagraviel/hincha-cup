@@ -10,6 +10,11 @@ import { join } from 'path';
 import type { InitializeProjectState } from '../../../../state/schemas/initialize-project.schema.js';
 import type { PhaseCompletionResult } from '../types.js';
 import { getExpectedAiKnowledgeFiles } from '../../../../services/graph-wiki/wiki-generator.service.js';
+import {
+  resolveConfigPath,
+  resolveTempPath,
+  getInstructionFileName,
+} from '../../../../utils/provider-paths.js';
 
 /**
  * Validate all phases completed by checking output files exist
@@ -18,8 +23,8 @@ export function validatePhaseCompletion(state: InitializeProjectState): PhaseCom
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
-  const projectClaudeDir = join(state.project_path, '.claude');
+  const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
+  const projectConfigDir = resolveConfigPath(state.project_path);
 
   // Phase 1: Check analyzer output files exist
   const phase1Dir = join(tempDir, 'phase1-outputs');
@@ -39,9 +44,9 @@ export function validatePhaseCompletion(state: InitializeProjectState): PhaseCom
   const phase3Path = join(tempDir, 'synthesis-raw.md');
   const phase3Complete = existsSync(phase3Path);
 
-  // Phase 4: Check framework-config.json and CLAUDE.md exist
-  const frameworkConfigPath = join(projectClaudeDir, 'framework-config.json');
-  const claudeMdPath = join(projectClaudeDir, 'CLAUDE.md');
+  // Phase 4: Check framework-config.json and instruction file exist
+  const frameworkConfigPath = join(projectConfigDir, 'framework-config.json');
+  const claudeMdPath = join(projectConfigDir, getInstructionFileName());
   const phase4Complete = existsSync(frameworkConfigPath) && existsSync(claudeMdPath);
 
   const shouldValidateWiki = Boolean(state.ai_knowledge_path || state.phase4_wiki_generation);

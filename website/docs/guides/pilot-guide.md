@@ -28,6 +28,8 @@ How to roll out the AI Agentic Framework to your team with a structured 3-week p
 
 ## Overview
 
+> **Provider prefixes**: all skill examples use Claude Code's `/skill` syntax. Codex CLI users should substitute `$skill` (e.g., `$implement-ticket` instead of `/implement-ticket`) and use `/skills` inside Codex to list the active skills in a session. Everything else — flags, arguments, behaviour — is identical.
+
 ### Pilot Structure
 
 - **Participants**: 7 pilot teams, 21 developers
@@ -66,7 +68,7 @@ How to roll out the AI Agentic Framework to your team with a structured 3-week p
 ```bash
 git clone https://github.com/fastapi/full-stack-fastapi-template.git
 cd full-stack-fastapi-template
-/initialize-project
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
 **Validate**:
@@ -86,7 +88,7 @@ cd full-stack-fastapi-template
 ```bash
 git clone https://github.com/laudspeaker/laudspeaker.git
 cd laudspeaker
-/initialize-project
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
 **Validate**:
@@ -105,7 +107,7 @@ cd laudspeaker
 ```bash
 git clone https://github.com/raineorshine/npm-check-updates.git
 cd npm-check-updates
-/initialize-project
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
 **Validate**:
@@ -176,8 +178,8 @@ cd npm-check-updates
 1. **Introduction** (10 min): Framework overview, pilot goals, success criteria
 2. **Demo: Full SDLC Cycle** (30 min):
    - Initialize project (2 min)
-   - Create ticket from idea with `/create-sdd-ticket` (3 min)
-   - Implement ticket with `/implement-ticket` (12 min)
+   - Create ticket from idea with `create-sdd-ticket` — `/` prefix in Claude, `$` in Codex (3 min)
+   - Implement ticket with `implement-ticket` — `/` prefix in Claude, `$` in Codex (12 min)
    - Review generated PR (3 min)
 3. **Q&A** (15 min): Answer questions, address concerns
 4. **Next Steps** (5 min): Share Quick Start Guide, add to Slack channel, set expectations
@@ -376,18 +378,27 @@ Sent via Slack bot after each `/implement-ticket` completion:
 ### Step 1: Initialize Your Project (First time only)
 
 ```bash
-/initialize-project
+./qubika-agentic-framework/scripts/initialize-project.sh
+# Force a provider explicitly if needed:
+./qubika-agentic-framework/scripts/initialize-project.sh --provider codex
 ```
 
 **Time**: ~2 minutes
-**Output**: `.claude/` directory with project context and custom agents
+**Output**: `.claude/` (or `.codex/`) directory with project context and custom agents
 
 ### Step 2: Create a Ticket (Optional)
 
 If you have an idea but no ticket yet:
 
 ```bash
+# Claude Code
 /create-sdd-ticket \
+  --from-input "Add dark mode toggle to settings" \
+  --save-to-jira <BOARD_URL> \
+  --project-key PROJ
+
+# Codex CLI
+$create-sdd-ticket \
   --from-input "Add dark mode toggle to settings" \
   --save-to-jira <BOARD_URL> \
   --project-key PROJ
@@ -399,7 +410,10 @@ If you have an idea but no ticket yet:
 ### Step 3: Implement a Ticket
 
 ```bash
+# Claude Code
 /implement-ticket PROJ-123
+# Codex CLI
+$implement-ticket PROJ-123
 ```
 
 **Time**: 10-15 minutes
@@ -424,7 +438,7 @@ If you have an idea but no ticket yet:
 
 | Issue | Solution |
 |-------|----------|
-| Stack detection missed X framework | Manually add to `.claude/CLAUDE.md`, report in Slack |
+| Stack detection missed X framework | Manually add to `.claude/CLAUDE.md` (or `.codex/AGENTS.md`), report in Slack |
 | Coverage gate failing repeatedly | Use rollback option 2 (WIP PR), fix tests manually |
 | Infinite retry loop detected | Framework halts automatically, suggests manual intervention |
 | Checkpoint corrupted | Should not happen (fixed), report immediately as P0 |

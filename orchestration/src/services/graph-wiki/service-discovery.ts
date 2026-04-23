@@ -44,10 +44,7 @@ export function discoverDependencies(
     return service.dependencies;
   }
 
-  const byService = findValueByKey(
-    analyzers.tech_stack_dependencies?.findings,
-    'by_service',
-  );
+  const byService = findValueByKey(analyzers.tech_stack_dependencies?.findings, 'by_service');
   if (isRecord(byService) && !isEmptyValue(byService[serviceId])) {
     return byService[serviceId];
   }

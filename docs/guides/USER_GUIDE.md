@@ -19,17 +19,30 @@ Complete workflows and best practices for using the AI Agentic Framework in your
 
 ## Getting Started
 
+### Invoking Skills
+
+The framework works with two providers — skills are invoked the same way, but the prefix differs:
+
+| Provider    | Prefix | Example                      | List active skills |
+|-------------|--------|------------------------------|--------------------|
+| Claude Code | `/`    | `/implement-ticket PROJ-123` | auto-discovered    |
+| Codex CLI   | `$`    | `$implement-ticket PROJ-123` | `/skills`          |
+
+All examples in this guide show both forms — use whichever matches your provider.
+
 ### First Time Setup
 
 **1. Initialize Your Project**
 ```bash
 cd /path/to/your-project
 git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework
+
+# Auto-detects provider (defaults to claude); pass --provider codex to force Codex.
 ./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
-This analyzes your codebase and generates:
-- `CLAUDE.md` - Quick reference guide
+This analyzes your codebase and generates (Claude layout shown — Codex writes to `.codex/` with `AGENTS.md`):
+- `CLAUDE.md` (or `AGENTS.md`) - Quick reference guide
 - `project-context/SKILL.md` - Deep context
 - Stack-specific skills
 - Custom AI agents
@@ -58,8 +71,10 @@ graph LR
 **Step by Step**:
 
 ```bash
-# In Claude Code
+# Claude Code
 /implement-ticket PROJ-123
+# Codex CLI
+$implement-ticket PROJ-123
 ```
 
 **What happens**:
@@ -83,8 +98,10 @@ graph LR
 Faster workflow for bug fixes with known root cause.
 
 ```bash
-# In Claude Code
+# Claude Code
 /implement-ticket BUG-456
+# Codex CLI
+$implement-ticket BUG-456
 ```
 
 **What's different**:
@@ -126,7 +143,7 @@ Get AI review before human review.
 Generate tests for existing code.
 
 ```bash
-# In Claude Code
+# In Claude Code or Codex CLI (plain chat request, no skill prefix)
 Generate comprehensive tests for src/auth/oauth.service.ts
 ```
 
@@ -149,10 +166,13 @@ Generate comprehensive tests for src/auth/oauth.service.ts
 **1. Check what's available**
 
 ```bash
+# Claude Code
 claude code
+# Codex CLI
+codex
 ```
 
-Type `/` to see all available commands.
+In Claude, type `/` to browse skills. In Codex, run `/skills` to list the active skills in the session.
 
 **2. Review overnight PRs** (if applicable)
 
@@ -169,85 +189,66 @@ Choose from backlog based on priority.
 **Implementing Features**:
 
 ```bash
-# High-confidence tickets
+# Claude Code
 /implement-ticket PROJ-123
 
-# Need to understand context first
-/fetch-ticket-context PROJ-123
-# Read the context, then:
-/implement-ticket PROJ-123
+# Codex CLI
+$implement-ticket PROJ-123
 ```
+
+Need to understand the ticket context first? Ask the CLI in plain text (`Summarise ticket PROJ-123`) before invoking the skill.
 
 **Checking Quality**:
 
-```bash
-# Before committing
-/code-quality-check
-
-# If changes are extensive
-/create-pr
-```
+Quality gates (lint, typecheck, coverage, PR creation) run automatically inside `/implement-ticket`. For manual checks, use your project's native commands (`npm run lint`, `npx tsc --noEmit`, `gh pr create`, etc.).
 
 **Getting Unstuck**:
 
 ```bash
-# If implementation fails
+# Claude Code — resume after a failure
 /implement-ticket PROJ-123 --resume
+# Codex CLI
+$implement-ticket PROJ-123 --resume
 
-# If tests fail repeatedly
-# Check the logs and run tests manually to understand the issue
+# If tests fail repeatedly, inspect the artifacts:
+#   .claude-temp/tickets/PROJ-123/artifacts/   (Claude)
+#   .codex-temp/tickets/PROJ-123/artifacts/    (Codex)
 ```
 
 ---
 
 ### End of Day
 
-**1. Create PR for completed work**
+**1. Review completed work**
 
-```bash
-/create-pr
-```
+`/implement-ticket` creates the PR as part of its run. Check `git log` and the PR description for what was shipped.
 
-**2. Review what was accomplished**
-
-Check git log and PR description.
-
-**3. Update ticket status**
+**2. Update ticket status**
 
 Mark tickets as "In Review" or "Done".
 
 ---
 
-## Commands Reference
+## Skills Reference
 
-### Project Setup Commands
+> Prefix skills with `/` in Claude Code and `$` in Codex CLI. In Codex, run `/skills` to list the skills loaded in the current session.
 
-| Command | Purpose | Time |
-|---------|---------|------|
-| `initialize-project.sh` | One-time setup | 10-15 min |
+### Project Setup
 
-### Feature Development Commands
+| Skill | Purpose | Time |
+|-------|---------|------|
+| `initialize-project.sh` (shell script) | One-time setup | 10-15 min |
 
-| Command | Purpose | Time |
-|---------|---------|------|
-| `/implement-ticket <ID>` | Full feature implementation | 5-15 min |
-| `/fetch-ticket-context <ID>` | Get ticket details | 10 sec |
-| `/create-pr` | Create GitHub pull request | 30 sec |
+### Feature Development
 
-### Quality Assurance Commands
+| Skill | Purpose | Time |
+|-------|---------|------|
+| `implement-ticket <ID>` | Full feature implementation (includes tests, quality gates, PR) | 5-15 min |
+| `create-sdd-ticket` | Turn an idea or Jira ticket into a spec-driven ticket | 3-5 min |
 
-| Command | Purpose | Time |
-|---------|---------|------|
-| `/code-quality-check` | Run all quality checks | 1-3 min |
-
-### Utility Commands
-
-| Command | Purpose |
-|---------|---------|
-| `/start-task <ID>` | Create isolated worktree |
-| `/end-task <ID>` | Clean up worktree |
-
-**See all commands**: Type `/` in Claude Code
+**See all skills**:
+- Claude Code — type `/` to browse.
+- Codex CLI — run `/skills`.
 
 ---
 
@@ -301,9 +302,10 @@ Description: Make login better
 
 **Before Creating PR**:
 
-1. **Run quality checks**
+1. **Let `implement-ticket` run its built-in quality gates** (lint, typecheck, coverage). If you need to re-run any manually:
    ```bash
-   /code-quality-check
+   npm run lint:fix
+   npx tsc --noEmit
    ```
 
 2. **Verify all tests pass**
@@ -383,9 +385,9 @@ If tests fail after 3 attempts:
    # Run tests to see failures
    npm test
 
-   # Fix the issue
-   # Then continue
-   /implement-ticket PROJ-123 --resume
+   # Fix the issue, then resume:
+   /implement-ticket PROJ-123 --resume    # Claude Code
+   $implement-ticket PROJ-123 --resume    # Codex CLI
    ```
 
 3. **Report patterns**
@@ -400,10 +402,7 @@ If implementation gets stuck:
    - Are requirements clear?
    - Is context sufficient?
 
-2. **Fetch more context**
-   ```bash
-   /fetch-ticket-context PROJ-123
-   ```
+2. **Fetch more context** — ask the CLI in plain text to summarise the ticket or inspect related files before re-invoking the skill.
 
 3. **Try again with more detail**
    - Add clarifying comments to ticket
@@ -419,7 +418,8 @@ If implementation gets stuck:
 **Daily Usage**:
 ```bash
 # Morning: Pick ticket
-/implement-ticket PROJ-123
+/implement-ticket PROJ-123    # Claude Code
+$implement-ticket PROJ-123    # Codex CLI
 
 # Afternoon: Review and merge
 # Check PR, test locally, merge
@@ -501,7 +501,7 @@ cat .claude-temp/initialization.log
 1. Run tests manually to understand failure
 2. Check if baseline is clean (`npm test` on main branch)
 3. Fix environment issues (DB, ports, env vars)
-4. Resume implementation: `/implement-ticket PROJ-123 --resume`
+4. Resume implementation: `/implement-ticket PROJ-123 --resume` (Claude) / `$implement-ticket PROJ-123 --resume` (Codex)
 
 ---
 

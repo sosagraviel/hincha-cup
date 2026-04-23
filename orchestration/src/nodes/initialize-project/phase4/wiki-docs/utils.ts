@@ -45,8 +45,7 @@ export function resolveWikiPaths(state: InitializeProjectState): {
   phase1Dir: string;
 } {
   const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
-  const claudeMdPath =
-    state.claude_md_path || join(state.project_path, '.claude', 'CLAUDE.md');
+  const claudeMdPath = state.claude_md_path || join(state.project_path, '.claude', 'CLAUDE.md');
   const projectContextPath =
     state.project_context_path ||
     join(state.project_path, '.claude', 'skills', 'project-context', 'SKILL.md');

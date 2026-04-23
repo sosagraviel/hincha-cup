@@ -677,7 +677,7 @@ describe('skill-resolver', () => {
       expect(fileCount).toBe(2);
     });
 
-    it('should use copyFileSync for individual files', () => {
+    it('writes SKILL.md through placeholder substitution (writeFileSync) so tokens resolve', () => {
       const skills: ResolvedSkill[] = [
         {
           name: 'test-skill',
@@ -691,10 +691,100 @@ describe('skill-resolver', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readdirSync).mockReturnValue(['SKILL.md' as any]);
       vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => false } as any);
+      vi.mocked(fs.readFileSync).mockReturnValue('# Skill body');
 
       copyResolvedSkills(skills, '/test/project');
 
-      expect(fs.copyFileSync).toHaveBeenCalled();
+      // .md files go through readFileSync + writeFileSync so placeholder
+      // substitution runs. copyFileSync is only for non-md assets.
+      expect(fs.writeFileSync).toHaveBeenCalled();
+    });
+
+    it('substitutes placeholders in SKILL.md with provider values', () => {
+      const skills: ResolvedSkill[] = [
+        {
+          name: 'templated-skill',
+          path: '/framework/skills/templated-skill',
+          relative_path: 'templated-skill',
+          reason: 'Test',
+          description: 'Test',
+        },
+      ];
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue(['SKILL.md' as any]);
+      vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => false } as any);
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        'Temp: {{TEMP_DIR}} Config: {{CONFIG_DIR}} File: {{INSTRUCTION_FILE}}',
+      );
+
+      copyResolvedSkills(skills, '/test/project');
+
+      const writeCalls = vi.mocked(fs.writeFileSync).mock.calls;
+      const skillWrite = writeCalls.find((call) => String(call[0]).endsWith('SKILL.md'));
+      expect(skillWrite).toBeDefined();
+      expect(skillWrite![1]).toBe('Temp: .claude-temp Config: .claude File: CLAUDE.md');
+    });
+
+    it('selects SKILL.<provider>.md over the plain SKILL.md is rejected (ambiguous source)', () => {
+      const skills: ResolvedSkill[] = [
+        {
+          name: 'ambiguous-skill',
+          path: '/framework/skills/ambiguous-skill',
+          relative_path: 'ambiguous-skill',
+          reason: 'Test',
+          description: 'Test',
+        },
+      ];
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue(['SKILL.md' as any, 'SKILL.claude.md' as any]);
+      vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => false } as any);
+
+      expect(() => copyResolvedSkills(skills, '/test/project')).toThrow(/Ambiguous skill source/);
+    });
+
+    it('copies only SKILL.<provider>.md when variant is present (other provider skipped)', () => {
+      const skills: ResolvedSkill[] = [
+        {
+          name: 'dual-skill',
+          path: '/framework/skills/dual-skill',
+          relative_path: 'dual-skill',
+          reason: 'Test',
+          description: 'Test',
+        },
+      ];
+
+      // Source dir exists, but a plain SKILL.md does NOT exist — only variants.
+      vi.mocked(fs.existsSync).mockImplementation((p: any) => !String(p).endsWith('/SKILL.md'));
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        'SKILL.claude.md' as any,
+        'SKILL.codex.md' as any,
+      ]);
+      vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => false } as any);
+      vi.mocked(fs.readFileSync).mockImplementation((p: any) => {
+        const s = String(p);
+        if (s.endsWith('SKILL.claude.md')) return 'Claude variant';
+        if (s.endsWith('SKILL.codex.md')) return 'Codex variant';
+        return '';
+      });
+
+      const fileCount = copyResolvedSkills(skills, '/test/project');
+
+      const writes = vi.mocked(fs.writeFileSync).mock.calls;
+      const skillMdWrite = writes.find((c) => String(c[0]).endsWith('SKILL.md'));
+      expect(skillMdWrite).toBeDefined();
+      expect(skillMdWrite![1]).toBe('Claude variant');
+
+      // The codex variant must not have leaked into the output tree.
+      const codexWrite = writes.find((c) => String(c[0]).endsWith('SKILL.codex.md'));
+      const codexCopy = vi
+        .mocked(fs.copyFileSync)
+        .mock.calls.find((c) => String(c[1]).endsWith('SKILL.codex.md'));
+      expect(codexWrite).toBeUndefined();
+      expect(codexCopy).toBeUndefined();
+
+      expect(fileCount).toBe(1);
     });
   });
 });

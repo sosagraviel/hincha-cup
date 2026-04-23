@@ -25,29 +25,51 @@ Creates complete tickets with:
 
 ## How to Use
 
-**Note**: Run this in Claude Code, not in terminal.
+**Note**: Run this as a skill inside the AI CLI (Claude Code or Codex), not in a plain terminal.
+
+### Invoking Skills
+
+| Provider     | Invoke             | List active skills |
+| ------------ | ------------------ | ------------------ |
+| Claude Code  | `/skill [args]`    | Auto-discovered    |
+| Codex CLI    | `$skill [args]`    | `/skills`          |
+
+In Codex, run `/skills` to confirm `create-sdd-ticket` is available in the session.
 
 ### Basic Command
 
 ```bash
+# Claude Code
 /create-sdd-ticket --from-input "<your idea>" --save-to-markdown <file>
+
+# Codex CLI
+$create-sdd-ticket --from-input "<your idea>" --save-to-markdown <file>
 ```
 
 ### Examples
 
 **From an idea**:
 ```bash
+# Claude Code
 /create-sdd-ticket --from-input "Add CSV export to user list" --save-to-markdown ./specs/export.md
+# Codex CLI
+$create-sdd-ticket --from-input "Add CSV export to user list" --save-to-markdown ./specs/export.md
 ```
 
 **From existing Jira ticket** (to add more detail):
 ```bash
+# Claude Code
 /create-sdd-ticket --from-jira https://company.atlassian.net/browse/PROJ-123 --save-to-markdown ./refined.md
+# Codex CLI
+$create-sdd-ticket --from-jira https://company.atlassian.net/browse/PROJ-123 --save-to-markdown ./refined.md
 ```
 
 **Save directly to Jira**:
 ```bash
+# Claude Code
 /create-sdd-ticket --from-input "Add dark mode toggle to settings" --save-to-jira https://company.atlassian.net/projects/PROJ
+# Codex CLI
+$create-sdd-ticket --from-input "Add dark mode toggle to settings" --save-to-jira https://company.atlassian.net/projects/PROJ
 ```
 
 ---
@@ -56,21 +78,29 @@ Creates complete tickets with:
 
 ### Good Example ✅
 ```bash
+# Claude Code
 /create-sdd-ticket --from-input "Users can't find specific users in our 500+ user list. Add search by name and email" --save-to-markdown ./specs/search.md
+# Codex CLI
+$create-sdd-ticket --from-input "Users can't find specific users in our 500+ user list. Add search by name and email" --save-to-markdown ./specs/search.md
 ```
 
 **Why this works**: Clear problem, context (500+ users), specific solution (search by name/email)
 
 ### Better Example ✅✅
 ```bash
+# Claude Code
 /create-sdd-ticket --from-input "Admin users report taking too long to find specific users in the 500+ user list. Add search filtering by name and email, similar to the existing product search" --save-to-markdown ./specs/search.md
+# Codex CLI
+$create-sdd-ticket --from-input "Admin users report taking too long to find specific users in the 500+ user list. Add search filtering by name and email, similar to the existing product search" --save-to-markdown ./specs/search.md
 ```
 
 **Why even better**: User type (admins), pain point (too slow), context (500+ users), solution (search), reference (like product search)
 
 ### Avoid ❌
 ```bash
+# Claude Code / Codex CLI
 /create-sdd-ticket --from-input "Make the app better" --save-to-markdown ./specs/feature.md
+$create-sdd-ticket --from-input "Make the app better" --save-to-markdown ./specs/feature.md
 ```
 
 **Why**: Too vague, no clear problem or solution
@@ -156,15 +186,23 @@ Creates Jira ticket with same information.
 
 Instead of:
 ```bash
+# Claude Code
 /create-sdd-ticket --from-input "Improve user management page" --save-to-markdown ./specs/user-mgmt.md
+# Codex CLI
+$create-sdd-ticket --from-input "Improve user management page" --save-to-markdown ./specs/user-mgmt.md
 ```
 
 Do:
 ```bash
-# Separate tickets
+# Claude Code — separate tickets
 /create-sdd-ticket --from-input "Add search to user management page" --save-to-markdown ./specs/search.md
 /create-sdd-ticket --from-input "Add CSV export to user management page" --save-to-markdown ./specs/export.md
 /create-sdd-ticket --from-input "Add bulk actions to user management page" --save-to-markdown ./specs/bulk-actions.md
+
+# Codex CLI — same flags, '$' prefix
+$create-sdd-ticket --from-input "Add search to user management page" --save-to-markdown ./specs/search.md
+$create-sdd-ticket --from-input "Add CSV export to user management page" --save-to-markdown ./specs/export.md
+$create-sdd-ticket --from-input "Add bulk actions to user management page" --save-to-markdown ./specs/bulk-actions.md
 ```
 
 **Why**: Smaller tickets are easier to implement and test.
@@ -174,18 +212,17 @@ Do:
 ## Troubleshooting
 
 ### "Generated ticket is too generic"
-**Fix**: Provide more specific details.
+**Fix**: Provide more specific details. Use `$` instead of `/` in Codex.
 
 ```bash
 # Instead of:
 /create-sdd-ticket --from-input "Add user search" --save-to-markdown ./specs/search.md
-
 # Do:
 /create-sdd-ticket --from-input "Admin users report difficulty finding specific users in our 500+ user list. Add search by name and email" --save-to-markdown ./specs/search.md
 ```
 
 ### "Too many clarifying questions"
-**Fix**: Include more details upfront:
+**Fix**: Include more details upfront (works identically in Codex with `$`):
 
 ```bash
 /create-sdd-ticket --from-input "Add CSV export for user data. Export name, email, and role. Limit 10,000 records max. Send email when complete" --save-to-markdown ./specs/export.md
@@ -195,8 +232,14 @@ Do:
 **Fix**: Save to markdown first:
 
 ```bash
-/create-sdd-ticket --from-input "Add feature" --save-to-markdown ./temp.md
+/create-sdd-ticket --from-input "Add feature" --save-to-markdown ./temp.md   # Claude Code
+$create-sdd-ticket --from-input "Add feature" --save-to-markdown ./temp.md   # Codex CLI
 ```
+
+### "Skill not recognized in Codex"
+**Fix**: Run `/skills` in the Codex session to list available skills. If
+`create-sdd-ticket` isn't listed, re-sync the framework resources and restart
+the session.
 
 ---
 
@@ -207,7 +250,7 @@ Once you have a ticket:
 1. **Review** - Check generated ticket
 2. **Refine** - Add missing details if needed
 3. **Assign** - Give to development team
-4. **Implement** - Developers use `/implement-ticket` to build it
+4. **Implement** - Developers use `/implement-ticket` (Claude) or `$implement-ticket` (Codex) to build it
 
 **Full cycle**: Idea → Detailed Ticket → Working Code → Pull Request
 

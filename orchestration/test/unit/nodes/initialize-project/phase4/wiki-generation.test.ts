@@ -25,9 +25,15 @@ vi.mock('../../../../../src/utils/logger.js', () => ({
 function buildCoreDoc(filename: string, documentType: string) {
   return {
     filename,
-    content: [`---`, `document_type: ${documentType}`, `---`, '', `# ${filename}`, '', 'Body.'].join(
-      '\n',
-    ),
+    content: [
+      `---`,
+      `document_type: ${documentType}`,
+      `---`,
+      '',
+      `# ${filename}`,
+      '',
+      'Body.',
+    ].join('\n'),
   };
 }
 

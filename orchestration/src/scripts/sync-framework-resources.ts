@@ -16,22 +16,29 @@
  *   npm run sync-framework-resources
  */
 
-import { mkdir, cp, readdir, rm } from 'fs/promises';
-import { existsSync, readdirSync, statSync } from 'fs';
-import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { mkdir, cp, rm } from 'fs/promises';
+import { existsSync } from 'fs';
+import { join, resolve } from 'path';
 import { logger } from '../utils/logger.js';
 import { ConfigUpdaterService } from '../services/framework/config-updater.service.js';
 import {
   updateSingleSkill,
   addSingleSkill,
   regenerateSingleAgent,
-  syncSingleCommand,
-  pruneStaleManagedCommands,
 } from '../services/framework/sync-helpers.service.js';
 import { resolveSkills } from '../nodes/initialize-project/phase5/skill-resolver.js';
 import { generateAgents } from '../nodes/initialize-project/phase5/agent-generator.js';
 import { upsertCodeGraphMcpConfig } from '../services/framework/mcp-config.service.js';
+import {
+  resolveConfigPath,
+  resolveFrameworkConfigPath,
+  resolveBackupPath,
+  setActiveProvider,
+  getProviderPaths,
+  getAllProviderConfigDirs,
+} from '../utils/provider-paths.js';
+import { Provider } from '../providers/types.js';
 
 interface SyncConfig {
   projectPath: string;
@@ -52,6 +59,46 @@ interface SyncResult {
   };
   backupPath: string;
 }
+
+/**
+ * Resolve the provider this sync run should use.
+ *
+ * Precedence:
+ *   1. `--provider claude|codex` CLI flag
+ *   2. `$PROVIDER` env var
+ *   3. Auto-detect from existing config dir in `projectPath`
+ *      (e.g., `.claude/` present → Provider.CLAUDE)
+ *   4. Default: Provider.CLAUDE
+ *
+ * Fails when both provider dirs are present (ambiguous project state).
+ */
+function resolveProviderFromEnvOrDisk(projectPath: string): Provider {
+  const argIdx = process.argv.indexOf('--provider');
+  const cliValue =
+    argIdx >= 0 && argIdx + 1 < process.argv.length ? process.argv[argIdx + 1] : undefined;
+  const raw = (cliValue ?? process.env.PROVIDER ?? '').toLowerCase();
+
+  if (raw === 'codex' || raw === 'openai') return Provider.CODEX;
+  if (raw === 'claude' || raw === 'anthropic') return Provider.CLAUDE;
+  if (raw && raw !== '') {
+    throw new Error(`Unknown provider: ${raw}. Use 'claude' or 'codex'.`);
+  }
+
+  const configDirs = getAllProviderConfigDirs();
+  const present = configDirs.filter((d) => existsSync(join(projectPath, d)));
+  if (present.length > 1) {
+    throw new Error(
+      `Ambiguous project state: multiple provider config dirs present (${present.join(', ')}). ` +
+        `Pass --provider <claude|codex> to disambiguate.`,
+    );
+  }
+  if (present.length === 1) {
+    return present[0] === PROVIDER_DIR_CLAUDE ? Provider.CLAUDE : Provider.CODEX;
+  }
+  return Provider.CLAUDE;
+}
+
+const PROVIDER_DIR_CLAUDE = getProviderPaths(Provider.CLAUDE).configDir;
 
 /**
  * Auto-detect paths from script location
@@ -92,7 +139,7 @@ async function validatePrerequisites(config: SyncConfig): Promise<void> {
   logger.info('Step 1: Validating prerequisites...');
 
   // Check for framework-config.json
-  const configFile = join(config.projectPath, '.claude/framework-config.json');
+  const configFile = resolveFrameworkConfigPath(config.projectPath);
   if (!existsSync(configFile)) {
     throw new Error(
       `framework-config.json not found at ${configFile}. Run initialize-project first.`,
@@ -152,12 +199,12 @@ async function createBackup(config: SyncConfig): Promise<string> {
   logger.info('Step 4: Creating backup...');
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('.')[0] + 'Z';
-  const backupDir = join(config.projectPath, '.claude-backups', timestamp);
+  const backupDir = resolveBackupPath(config.projectPath, timestamp);
 
   await mkdir(backupDir, { recursive: true });
 
   // Backup skills (excluding project-context)
-  const skillsPath = join(config.projectPath, '.claude/skills');
+  const skillsPath = resolveConfigPath(config.projectPath, 'skills');
   if (existsSync(skillsPath)) {
     const backupSkillsPath = join(backupDir, 'skills');
     await mkdir(backupSkillsPath, { recursive: true });
@@ -172,7 +219,7 @@ async function createBackup(config: SyncConfig): Promise<string> {
   }
 
   // Backup agents
-  const agentsPath = join(config.projectPath, '.claude/agents');
+  const agentsPath = resolveConfigPath(config.projectPath, 'agents');
   if (existsSync(agentsPath)) {
     try {
       await cp(agentsPath, join(backupDir, 'agents'), { recursive: true });
@@ -291,7 +338,7 @@ async function syncSkills(config: SyncConfig): Promise<{
     // If skill no longer exists in resolved skills, remove it
     if (!expectedSkillNames.has(existingSkillName)) {
       try {
-        const skillPath = join(config.projectPath, '.claude', 'skills', existingSkillName);
+        const skillPath = resolveConfigPath(config.projectPath, 'skills', existingSkillName);
 
         if (existsSync(skillPath)) {
           await rm(skillPath, { recursive: true, force: true });
@@ -400,7 +447,7 @@ async function syncAgents(
             template_path: relativeTemplatePath,
             template_hash: currentTemplateHash,
             file_hash: configUpdater.hashFile(
-              join(config.projectPath, '.claude/agents', `${agentName}.md`),
+              resolveConfigPath(config.projectPath, 'agents', `${agentName}.md`),
             ),
           });
         }
@@ -425,7 +472,7 @@ async function syncAgents(
           await configUpdater.updateResourceState('agents', agentName, {
             template_hash: currentTemplateHash,
             file_hash: configUpdater.hashFile(
-              join(config.projectPath, '.claude/agents', `${agentName}.md`),
+              resolveConfigPath(config.projectPath, 'agents', `${agentName}.md`),
             ),
           });
         } else if (regenerateResult.skipped) {
@@ -447,113 +494,22 @@ async function syncAgents(
 }
 
 /**
- * Recursively find all .md files in commands directory
+ * Remove any legacy `<config-dir>/commands/` directory left over from previous
+ * framework versions. Slash-commands have been deprecated in favour of direct
+ * skill invocation, so we clean up after older projects on first sync.
  */
-async function findCommandFiles(commandsDir: string): Promise<string[]> {
-  const commandFiles: string[] = [];
+async function removeLegacyCommandsDir(config: SyncConfig): Promise<void> {
+  const legacyCommandsDir = resolveConfigPath(config.projectPath, 'commands');
+  if (!existsSync(legacyCommandsDir)) return;
 
-  const scanDirectory = (dir: string): void => {
-    const entries = readdirSync(dir);
-
-    for (const entry of entries) {
-      const fullPath = join(dir, entry);
-      const stat = statSync(fullPath);
-
-      if (stat.isDirectory()) {
-        scanDirectory(fullPath);
-      } else if (stat.isFile() && entry.endsWith('.md')) {
-        commandFiles.push(fullPath);
-      }
-    }
-  };
-
-  scanDirectory(commandsDir);
-  return commandFiles;
-}
-
-/**
- * Sync commands from framework
- */
-async function syncCommands(config: SyncConfig): Promise<{
-  updated: number;
-  added: number;
-  removed: number;
-  skipped: number;
-}> {
-  logger.info('Step 7: Syncing commands...');
-
-  const configUpdater = new ConfigUpdaterService(config.projectPath, config.frameworkPath);
-  const frameworkConfig = await configUpdater.readConfig();
-
-  const result = { updated: 0, added: 0, removed: 0, skipped: 0 };
-
-  const commandsSourcePath = join(config.frameworkPath, 'commands');
-  if (!existsSync(commandsSourcePath)) {
-    logger.info('  ℹ️  No commands directory in framework\n');
-    return result;
+  try {
+    await rm(legacyCommandsDir, { recursive: true, force: true });
+    logger.info(`  ℹ️  Removed legacy commands directory: ${legacyCommandsDir}\n`);
+  } catch (error) {
+    logger.warn(
+      `  Warning: Could not remove legacy commands dir: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
   }
-
-  // Recursively find all .md files in commands/
-  const commandFiles = await findCommandFiles(commandsSourcePath);
-  const expectedCommandNames = new Set<string>();
-
-  for (const commandFile of commandFiles) {
-    const relativePath = commandFile.replace(commandsSourcePath + '/', '');
-    // Convert path to command name: task-management/create.md -> task-management-create
-    const commandName = relativePath.replace('.md', '').replace(/\//g, '-');
-    expectedCommandNames.add(commandName);
-
-    const existingCommandInfo = frameworkConfig.resource_state.commands[commandName];
-
-    // Skip if command is user-managed
-    if (existingCommandInfo && !existingCommandInfo.managed_by_framework) {
-      result.skipped++;
-      continue;
-    }
-
-    const currentSourceHash = configUpdater.hashFile(commandFile);
-
-    // If command doesn't exist or hash changed, sync it
-    if (!existingCommandInfo || currentSourceHash !== existingCommandInfo.source_hash) {
-      try {
-        const targetPath = join(config.projectPath, '.claude', 'commands', relativePath);
-        await syncSingleCommand(commandFile, targetPath);
-
-        if (!existingCommandInfo) {
-          result.added++;
-        } else {
-          result.updated++;
-        }
-
-        await configUpdater.updateResourceState('commands', commandName, {
-          managed_by_framework: true,
-          source_path: `commands/${relativePath}`,
-          source_hash: currentSourceHash,
-          file_hash: currentSourceHash,
-        });
-      } catch (error) {
-        logger.error(
-          `  Failed to sync command ${commandName}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
-  }
-
-  const pruneResult = await pruneStaleManagedCommands({
-    projectPath: config.projectPath,
-    commandState: frameworkConfig.resource_state.commands || {},
-    expectedCommandNames,
-    removeResourceFromState: (resourceType, resourceName) =>
-      configUpdater.removeResourceFromState(resourceType, resourceName),
-  });
-  result.removed = pruneResult.removed;
-
-  logger.success(`  ✓ Commands updated: ${result.updated}`);
-  logger.success(`  ✓ Commands added:   ${result.added}`);
-  logger.success(`  ✓ Commands removed: ${result.removed}`);
-  logger.info(`  ℹ️  Commands skipped: ${result.skipped}\n`);
-
-  return result;
 }
 
 /**
@@ -597,8 +553,16 @@ async function main() {
     // Detect paths
     const config = detectPaths();
 
+    // Resolve and activate the provider before any path resolution occurs.
+    // This must happen before validatePrerequisites(), which uses
+    // resolveFrameworkConfigPath().
+    const provider = resolveProviderFromEnvOrDisk(config.projectPath);
+    setActiveProvider(provider);
+    const providerPaths = getProviderPaths();
+
     logger.info(`  Project:   ${config.projectPath}`);
-    logger.info(`  Framework: ${config.frameworkPath}\n`);
+    logger.info(`  Framework: ${config.frameworkPath}`);
+    logger.info(`  Provider:  ${provider} (config: ${providerPaths.configDir})\n`);
 
     // Validate prerequisites
     await validatePrerequisites(config);
@@ -621,8 +585,8 @@ async function main() {
       skillsResult.added > 0 || skillsResult.updated > 0,
     );
 
-    // Sync commands
-    const commandsResult = await syncCommands(config);
+    // Clean up legacy commands directory (slash-commands were deprecated in favour of direct skill invocation)
+    await removeLegacyCommandsDir(config);
 
     // Sync project MCP config
     const mcpResult = await syncMcpConfig(config);
@@ -639,9 +603,6 @@ async function main() {
     logger.info(
       `  Agents:   ${agentsResult.updated} updated, ${agentsResult.added} added, ${agentsResult.regenerated} regenerated, ${agentsResult.skipped} skipped`,
     );
-    logger.info(
-      `  Commands: ${commandsResult.updated} updated, ${commandsResult.added} added, ${commandsResult.removed} removed, ${commandsResult.skipped} skipped`,
-    );
     logger.info(`  Backup:   ${backupPath}\n`);
 
     const totalChanges =
@@ -650,9 +611,6 @@ async function main() {
       agentsResult.updated +
       agentsResult.added +
       agentsResult.regenerated +
-      commandsResult.updated +
-      commandsResult.added +
-      commandsResult.removed +
       (mcpResult.updated ? 1 : 0);
 
     if (totalChanges === 0) {

@@ -26,10 +26,41 @@ const ProviderConfigSchema = z.object({
   baseURL: z.string().optional(),
 });
 
+/**
+ * Valid reasoning-effort levels for OpenAI / Codex models. Kept in sync with
+ * the `ReasoningEffort` type in the openai SDK (`minimal | low | medium | high
+ * | xhigh`).
+ */
+export const REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh'] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+
+/**
+ * Per-agent tier entry. Supports two forms:
+ *   - `"gpt5-latest"` — plain alias string, provider defaults apply
+ *   - `{ alias: "gpt5-latest", reasoningEffort: "high" }` — explicit override
+ *
+ * The object form lets the openai/codex tier pin `reasoningEffort` per agent
+ * without touching unrelated tiers. Omitting `reasoningEffort` means "use the
+ * provider default" (for Codex CLI, that's whatever `~/.codex/config.toml`
+ * configures globally).
+ */
+const AgentEntrySchema = z.union([
+  z.string(),
+  z.object({
+    alias: z.string(),
+    reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
+  }),
+]);
+
+export interface AgentTierEntry {
+  alias: string;
+  reasoningEffort?: ReasoningEffort;
+}
+
 const TierConfigSchema = z.object({
   description: z.string(),
   provider: z.enum(['anthropic', 'openai', 'google']),
-  agents: z.record(z.string(), z.string()),
+  agents: z.record(z.string(), AgentEntrySchema),
 });
 
 const ModelConfigSchema = z.object({
@@ -62,15 +93,35 @@ export class LLMFactory {
     }
   }
 
-  private resolveAlias(agentName: string): string {
+  /**
+   * Resolve the full tier entry for an agent, normalizing string and object
+   * forms. Used by anything that cares about more than just the alias.
+   */
+  private resolveAgentEntry(agentName: string): AgentTierEntry {
     const tierConfig = this.config.tiers[this.currentTier];
-    const alias = tierConfig.agents[agentName];
+    const entry = tierConfig.agents[agentName];
 
-    if (!alias) {
+    if (entry === undefined) {
       throw new Error(`No model configured for agent '${agentName}' in tier '${this.currentTier}'`);
     }
 
-    return alias;
+    if (typeof entry === 'string') {
+      return { alias: entry };
+    }
+    return { alias: entry.alias, reasoningEffort: entry.reasoningEffort };
+  }
+
+  private resolveAlias(agentName: string): string {
+    return this.resolveAgentEntry(agentName).alias;
+  }
+
+  /**
+   * Get the configured reasoning effort for an agent, or `undefined` if the
+   * current tier leaves it to provider defaults. Only meaningful for OpenAI /
+   * Codex invocations — Anthropic and Google models ignore it.
+   */
+  getReasoningEffort(agentName: string): ReasoningEffort | undefined {
+    return this.resolveAgentEntry(agentName).reasoningEffort;
   }
 
   /**
@@ -203,10 +254,20 @@ export class LLMFactory {
   }
 
   /**
-   * Get agent-to-alias mapping for current tier
+   * Get agent-to-alias mapping for current tier.
+   *
+   * Always returns the plain alias string per agent, normalizing the object
+   * form used for per-agent overrides (see `AgentEntrySchema`). Intended for
+   * display and diagnostics — callers that need reasoning effort should use
+   * `getReasoningEffort()` instead.
    */
   getTierMapping(): Record<string, string> {
-    return this.config.tiers[this.currentTier].agents;
+    const entries = this.config.tiers[this.currentTier].agents;
+    const out: Record<string, string> = {};
+    for (const [agent, entry] of Object.entries(entries)) {
+      out[agent] = typeof entry === 'string' ? entry : entry.alias;
+    }
+    return out;
   }
 }
 
@@ -220,4 +281,11 @@ export function getLLMFactory(configPath?: string): LLMFactory {
     factoryInstance = new LLMFactory(configPath);
   }
   return factoryInstance;
+}
+
+/**
+ * Reset the singleton instance (needed when MODEL_TIER changes after initial creation)
+ */
+export function resetLLMFactory(): void {
+  factoryInstance = null;
 }

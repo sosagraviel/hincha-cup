@@ -3,11 +3,7 @@ import { basename } from 'path';
 import matter from 'gray-matter';
 import { computeGraphVersion, invokeWikiAgent } from './agent-invoker.js';
 import { buildCoreSpecs, buildPrompt, buildServiceSpec } from './document-specs.js';
-import {
-  buildContextSection,
-  stripMarkdownFrontmatter,
-  withFrontmatter,
-} from './frontmatter.js';
+import { buildContextSection, stripMarkdownFrontmatter, withFrontmatter } from './frontmatter.js';
 import { collectAnalyzerGraphQueries, getServices } from './service-discovery.js';
 import {
   AI_KNOWLEDGE_FILE_NAMES,
@@ -152,7 +148,11 @@ export class WikiGeneratorService {
    * Deterministic navigation index. Same behavior as before.
    */
   buildIndex(generatedAt: string, graphVersion: string): GeneratedWikiFile {
-    return this.generateIndexDocument(generatedAt, graphVersion, getServices(this.options.stackProfile));
+    return this.generateIndexDocument(
+      generatedAt,
+      graphVersion,
+      getServices(this.options.stackProfile),
+    );
   }
 
   /**

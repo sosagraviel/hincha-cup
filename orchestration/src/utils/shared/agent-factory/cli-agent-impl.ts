@@ -9,6 +9,8 @@ import { assertAgentFileValid } from './agent-validator.js';
 import type { Agent, AgentConfig, AgentInvokeInput, AgentInvokeResult } from './types.js';
 import { getAgentAction } from './agent-utils.js';
 import { getClaudeCLIPath, getCLIModelForAgent, parseToolsFromFrontmatter } from './cli-utils.js';
+import { saveAttemptDiagnostics, summarizeCliError, getAttemptDir } from './diagnostics-store.js';
+import { resolveTempPath } from '../../provider-paths.js';
 
 // Track active processes and invocations for cleanup
 const activeProcesses: Set<ChildProcess> = new Set();
@@ -78,6 +80,7 @@ export async function createCLIAgentImpl(
       const { randomUUID } = await import('crypto');
       const sessionId = config.resumeSessionId || randomUUID();
       const isRetry = !!config.resumeSessionId;
+      const attemptNumber = input.attemptNumber ?? 1;
 
       const action = getAgentAction(config.agentName);
       const sessionInfo = isRetry ? `resume:${sessionId}` : sessionId;
@@ -86,11 +89,7 @@ export async function createCLIAgentImpl(
       const trackerId = config.trackerId ?? config.agentName;
       const trackerDisplayName = config.trackerDisplayName ?? config.agentName;
 
-      logger.trackConcurrentAgentStart(
-        trackerId,
-        trackerDisplayName,
-        `${action} (${authInfo})`,
-      );
+      logger.trackConcurrentAgentStart(trackerId, trackerDisplayName, `${action} (${authInfo})`);
 
       const startTime = Date.now();
 
@@ -105,6 +104,7 @@ export async function createCLIAgentImpl(
           sessionId, // Pass our generated/existing session ID
           isRetry, // Tell CLI whether to use --session-id or --resume
           config.settingsPath, // Path to settings.json with hooks
+          attemptNumber,
         );
 
         const executionTimeMs = Date.now() - startTime;
@@ -154,6 +154,7 @@ async function invokeCLI(
   sessionId: string, // Session ID - either new (first attempt) or existing (retry)
   isRetry: boolean = false, // Whether this is a retry (use --resume instead of --session-id)
   settingsPath?: string, // Optional path to settings.json file
+  attemptNumber: number = 1,
 ): Promise<{ output: string; sessionId: string }> {
   if (isAborting) {
     throw new Error('SIGINT: Workflow interrupted by user (CTRL+C)');
@@ -165,10 +166,13 @@ async function invokeCLI(
 
     const { writeFile } = await import('fs/promises');
 
+    const sessionTempDir = resolveTempPath(projectPath, agentName, sessionId);
     const tempDir =
-      (await mkdir(path.join(projectPath, '.claude-temp', agentName, sessionId), {
+      (await mkdir(sessionTempDir, {
         recursive: true,
-      })) || `${projectPath}/.claude-temp/${agentName}/${sessionId}`;
+      })) || sessionTempDir;
+    const attemptDir = getAttemptDir(projectPath, agentName, sessionId, attemptNumber);
+    await mkdir(attemptDir, { recursive: true });
     const promptFile = path.join(tempDir, 'prompt.txt');
     const stdoutFile = path.join(tempDir, 'stdout.txt');
     const stderrFile = path.join(tempDir, 'stderr.txt');
@@ -184,7 +188,7 @@ async function invokeCLI(
       return;
     }
 
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     let claudeProcess: ChildProcess;
 
     const cleanup = async () => {
@@ -346,6 +350,18 @@ async function invokeCLI(
       } catch {}
 
       if (code === 0) {
+        await saveAttemptDiagnostics({
+          projectPath,
+          agentName,
+          sessionId,
+          attemptNumber,
+          outcome: 'success',
+          prompt: inputPrompt,
+          stdout,
+          stderr,
+          output: stdout,
+          meta: { code, model, cli: 'claude' },
+        });
         // Return raw output and the session ID we control
         // No JSON parsing needed - we generated the session ID upfront
         resolve({ output: stdout, sessionId });
@@ -355,7 +371,8 @@ async function invokeCLI(
           stdout.includes('resets') ||
           stdout.includes('/upgrade to Max');
 
-        let errorMessage = `Claude CLI exited with code ${code}`;
+        const summary = summarizeCliError(stdout, stderr);
+        let errorMessage: string;
 
         if (isRateLimit) {
           const resetMatch = stdout.match(/resets (\d+(?:am|pm)) \(([^)]+)\)/);
@@ -370,9 +387,26 @@ async function invokeCLI(
             `To switch to API key mode:\n` +
             `  export ANTHROPIC_API_KEY="your-api-key"\n` +
             `  # Framework will automatically detect and use API key mode`;
+        } else {
+          errorMessage = `Claude CLI exited with code ${code}: ${summary}`;
         }
 
-        errorMessage += `\n\n=== STDOUT ===\n${stdout}\n\n=== STDERR ===\n${stderr}`;
+        const diagDir = await saveAttemptDiagnostics({
+          projectPath,
+          agentName,
+          sessionId,
+          attemptNumber,
+          outcome: 'failure',
+          prompt: inputPrompt,
+          stdout,
+          stderr,
+          errorMessage,
+          meta: { code, model, cli: 'claude', rateLimit: isRateLimit },
+        });
+
+        if (diagDir) {
+          errorMessage += `\n(diagnostics: ${diagDir})`;
+        }
 
         reject(new Error(errorMessage));
       }

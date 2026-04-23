@@ -3,6 +3,7 @@ import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { TestOrchestratorService } from '../../services/implement-ticket/test-orchestrator.service.js';
 import { logger } from '../../utils/logger.js';
+import { resolveTempPath } from '../../utils/provider-paths.js';
 
 /**
  * Phase 5: Testing Node
@@ -27,8 +28,7 @@ export async function phase5TestingNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir =
-    state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+  const tempDir = state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase5Dir = join(tempDir, 'phase5');
 
   const phaseLogger = logger.child('Phase 5: Testing');

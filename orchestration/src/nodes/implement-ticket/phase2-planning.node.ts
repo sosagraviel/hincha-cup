@@ -11,6 +11,7 @@ import {
   assertCodeGraphReady,
   loadAiKnowledgeContext,
 } from '../../services/implement-ticket/graph-context.service.js';
+import { resolveTempPath, resolveConfigPath } from '../../utils/provider-paths.js';
 
 /**
  * Phase 2: Planning & Architecture Node
@@ -35,8 +36,7 @@ export async function phase2PlanningNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir =
-    state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+  const tempDir = state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase2Dir = join(tempDir, 'phase2');
 
   console.log('\n[Phase 2: Planning] Starting planning...');
@@ -194,7 +194,7 @@ export async function phase2PlanningNode(
       throw new Error(
         `Planner agent invocation failed: ${error.message}\n` +
           `Make sure initialize-project has generated the planner agent at:\n` +
-          `${projectPath}/.claude/agents/planner.md`,
+          resolveConfigPath(projectPath, 'agents/planner.md'),
       );
     }
 

@@ -288,7 +288,7 @@ describe('enhanced-retry', () => {
 
       expect(result).toBeDefined();
       expect(agentInvoke).toHaveBeenCalledTimes(1);
-      expect(agentInvoke).toHaveBeenCalledWith('', undefined); // No feedback on first attempt, no session ID
+      expect(agentInvoke).toHaveBeenCalledWith('', undefined, 1); // No feedback on first attempt, no session ID, attempt 1
     });
 
     it('should retry with feedback on validation failure', async () => {

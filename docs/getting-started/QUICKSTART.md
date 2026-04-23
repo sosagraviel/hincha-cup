@@ -6,9 +6,23 @@ From idea to production-ready pull request in **under 30 minutes** with autonomo
 
 ## Prerequisites
 
-- **Claude Code** installed ([Get it here](https://claude.ai/code))
+- **Claude Code** or **Codex CLI** installed ([Claude Code](https://claude.ai/code))
 - **Git repository** with your project code
 - **Jira or GitHub** for ticket management (optional but recommended)
+
+### Invoking Skills
+
+The framework exposes its workflows as user-invokable skills. The prefix
+differs per provider — the arguments and behavior are identical:
+
+| Provider     | Invoke a skill     | List available skills |
+| ------------ | ------------------ | --------------------- |
+| Claude Code  | `/skill [args]`    | Auto-discovered       |
+| Codex CLI    | `$skill [args]`    | `/skills`             |
+
+In Codex, run `/skills` to see the skills currently active in the session —
+useful when troubleshooting why a skill isn't firing. All the examples below
+show the Claude form first with the Codex equivalent beneath.
 
 ---
 
@@ -27,7 +41,6 @@ git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-ag
 - Analyzes your codebase patterns and conventions
 - Generates `CLAUDE.md` and `project-context/`
 - Creates custom AI agents and skills for YOUR stack
-- Sets up slash commands for your workflows
 
 **Time**: ~10-15 minutes (fully automated)
 
@@ -40,7 +53,14 @@ git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-ag
 **1. Create a ticket from an idea** (3 minutes)
 
 ```bash
+# Claude Code
 /create-sdd-ticket \
+  --from-input "Add OAuth login with Google to the login page" \
+  --save-to-jira https://company.atlassian.net/projects/PROJ/boards/1 \
+  --project-key PROJ
+
+# Codex CLI
+$create-sdd-ticket \
   --from-input "Add OAuth login with Google to the login page" \
   --save-to-jira https://company.atlassian.net/projects/PROJ/boards/1 \
   --project-key PROJ
@@ -57,7 +77,11 @@ git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-ag
 **2. Implement the ticket** (12 minutes)
 
 ```bash
+# Claude Code
 /implement-ticket PROJ-456
+
+# Codex CLI
+$implement-ticket PROJ-456
 ```
 
 **What happens**:
@@ -85,7 +109,11 @@ git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-ag
 If you already have a ticket:
 
 ```bash
+# Claude Code
 /implement-ticket PROJ-123
+
+# Codex CLI
+$implement-ticket PROJ-123
 ```
 
 **Time**: 10-15 minutes
@@ -99,7 +127,13 @@ If you already have a ticket:
 If you want to create tickets for later:
 
 ```bash
+# Claude Code
 /create-sdd-ticket \
+  --from-input "Users should be able to export their data as CSV" \
+  --save-to-markdown ./specs/data-export.md
+
+# Codex CLI
+$create-sdd-ticket \
   --from-input "Users should be able to export their data as CSV" \
   --save-to-markdown ./specs/data-export.md
 ```
@@ -115,16 +149,23 @@ If you want to create tickets for later:
 ### Workflow 1: Bug Fix
 
 ```bash
-# Create bug ticket
+# Claude Code
 /create-sdd-ticket \
   --from-input "Login fails when email contains + character" \
   --save-to-jira <BOARD_URL> \
   --project-key PROJ \
   --issue-type Bug \
   --priority High
-
-# Fix it
 /implement-ticket PROJ-789
+
+# Codex CLI
+$create-sdd-ticket \
+  --from-input "Login fails when email contains + character" \
+  --save-to-jira <BOARD_URL> \
+  --project-key PROJ \
+  --issue-type Bug \
+  --priority High
+$implement-ticket PROJ-789
 
 # Total: 8-12 minutes
 ```
@@ -134,35 +175,31 @@ If you want to create tickets for later:
 ### Workflow 2: Refine Existing Ticket
 
 ```bash
-# Refine incomplete Jira ticket
-/create-sdd-ticket \
-  --from-jira PROJ-100 \
-  --save-to-markdown ./specs/refined-spec.md
-
-# Review and implement
+# Claude Code
+/create-sdd-ticket --from-jira PROJ-100 --save-to-markdown ./specs/refined-spec.md
 /implement-ticket --from-markdown ./specs/refined-spec.md
+
+# Codex CLI
+$create-sdd-ticket --from-jira PROJ-100 --save-to-markdown ./specs/refined-spec.md
+$implement-ticket --from-markdown ./specs/refined-spec.md
 ```
 
 ---
 
 ### Workflow 3: Batch Ticket Creation
 
+Same flags in both providers — swap the prefix:
+
 ```bash
-# Create multiple tickets for sprint planning
-/create-sdd-ticket \
-  --from-input "Add pagination to user list" \
-  --save-to-jira <BOARD_URL> \
-  --project-key PROJ
+# Claude Code
+/create-sdd-ticket --from-input "Add pagination to user list" --save-to-jira <BOARD_URL> --project-key PROJ
+/create-sdd-ticket --from-input "Add search filter to user list" --save-to-jira <BOARD_URL> --project-key PROJ
+/create-sdd-ticket --from-input "Add sort by name/email to user list" --save-to-jira <BOARD_URL> --project-key PROJ
 
-/create-sdd-ticket \
-  --from-input "Add search filter to user list" \
-  --save-to-jira <BOARD_URL> \
-  --project-key PROJ
-
-/create-sdd-ticket \
-  --from-input "Add sort by name/email to user list" \
-  --save-to-jira <BOARD_URL> \
-  --project-key PROJ
+# Codex CLI
+$create-sdd-ticket --from-input "Add pagination to user list" --save-to-jira <BOARD_URL> --project-key PROJ
+$create-sdd-ticket --from-input "Add search filter to user list" --save-to-jira <BOARD_URL> --project-key PROJ
+$create-sdd-ticket --from-input "Add sort by name/email to user list" --save-to-jira <BOARD_URL> --project-key PROJ
 ```
 
 ---
@@ -171,19 +208,19 @@ If you want to create tickets for later:
 
 ### Full SDLC Skills
 
-| Skill | Purpose | Time |
-|---------|---------|------|
-| `/create-sdd-ticket` | Create ticket from idea | 3-5 min |
-| `/implement-ticket <ID>` | Implement ticket → PR | 10-15 min |
+| Skill                      | Codex form                 | Purpose                 | Time      |
+|----------------------------|----------------------------|-------------------------|-----------|
+| `/create-sdd-ticket`       | `$create-sdd-ticket`       | Create ticket from idea | 3-5 min   |
+| `/implement-ticket <ID>`   | `$implement-ticket <ID>`   | Implement ticket → PR   | 10-15 min |
 
 ### Utility Commands
 
-| Command | Purpose | Time |
-|---------|---------|------|
-| `./qubika-agentic-framework/scripts/initialize-project.sh` | One-time setup | 2 min |
-| `/fetch-ticket-context <ID>` | Get ticket details | 10 sec |
-| `/code-quality-check` | Run quality checks | 1-3 min |
-| `/create-pr` | Create PR manually | 30 sec |
+| Command                                                    | Codex form                  | Purpose             | Time    |
+|------------------------------------------------------------|-----------------------------|---------------------|---------|
+| `./qubika-agentic-framework/scripts/initialize-project.sh` | *(same — shell script)*     | One-time setup      | 2 min   |
+| `/fetch-ticket-context <ID>`                               | `$fetch-ticket-context <ID>`| Get ticket details  | 10 sec  |
+| `/code-quality-check`                                      | `$code-quality-check`       | Run quality checks  | 1-3 min |
+| `/create-pr`                                               | `$create-pr`                | Create PR manually  | 30 sec  |
 
 ---
 
@@ -210,9 +247,9 @@ If you want to create tickets for later:
 ### Tests failing after implementation
 
 **Solution**: Framework auto-retries 3 times. If still failing:
-1. Check the error in Claude Code output
+1. Check the error in the CLI output (Claude Code or Codex)
 2. Fix manually if needed
-3. Resume: `/implement-ticket PROJ-123 --resume`
+3. Resume: `/implement-ticket PROJ-123 --resume` (Claude) or `$implement-ticket PROJ-123 --resume` (Codex)
 
 ---
 
@@ -255,7 +292,13 @@ Common issues:
 
 ```bash
 # 9:00 AM - Create ticket
+# Claude Code
 /create-sdd-ticket \
+  --from-input "Add dark mode toggle to user settings" \
+  --save-to-jira https://company.atlassian.net/projects/PROJ/boards/1 \
+  --project-key PROJ
+# Codex CLI
+$create-sdd-ticket \
   --from-input "Add dark mode toggle to user settings" \
   --save-to-jira https://company.atlassian.net/projects/PROJ/boards/1 \
   --project-key PROJ
@@ -263,10 +306,10 @@ Common issues:
 # Output: PROJ-567 created
 
 # 9:05 AM - Implement ticket
-/implement-ticket PROJ-567
+/implement-ticket PROJ-567    # Claude Code
+$implement-ticket PROJ-567    # Codex CLI
 
 # 9:20 AM - PR #234 created and ready for review
-
 # 9:25 AM - Reviewed, tested locally, merged
 
 # Total time: 25 minutes (vs 3-4 hours manually)
@@ -288,7 +331,7 @@ For complex features, save to markdown first, review with team, then create Jira
 
 ### Tip 3: Refine existing tickets
 
-If a ticket is vague, use `/create-sdd-ticket --from-jira` to refine it before implementation.
+If a ticket is vague, use `/create-sdd-ticket --from-jira` (Claude) or `$create-sdd-ticket --from-jira` (Codex) to refine it before implementation.
 
 ### Tip 4: Test locally before merging
 

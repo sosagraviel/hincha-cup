@@ -57,9 +57,11 @@ describe('initializeProjectGraph routing', () => {
   });
 
   it('fans wiki_preparation out to the 3 core-doc nodes', () => {
-    expect(
-      routeAfterWikiPreparation({ ...baseState, current_phase: 'phase4_context' }),
-    ).toEqual(['wiki_architecture_doc', 'wiki_dataflows_doc', 'wiki_patterns_doc']);
+    expect(routeAfterWikiPreparation({ ...baseState, current_phase: 'phase4_context' })).toEqual([
+      'wiki_architecture_doc',
+      'wiki_dataflows_doc',
+      'wiki_patterns_doc',
+    ]);
   });
 
   it('stops the wiki subgraph when preparation fails', () => {

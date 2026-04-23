@@ -3,6 +3,12 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../../../utils/logger.js';
 import { validateMarkdownFile, validateWikiMarkdownFile } from './helpers/file-validator.js';
+import {
+  resolveInstructionFilePath,
+  resolveFrameworkConfigPath,
+  resolveConfigPath,
+  getInstructionFileName,
+} from '../../../utils/provider-paths.js';
 import { validateFrameworkConfig } from './helpers/config-validator.js';
 import {
   validateDirectoryExists,
@@ -39,13 +45,13 @@ export async function validationNode(
   const validationWarnings: string[] = [];
 
   try {
-    const projectClaudeDir = join(state.project_path, '.claude');
-    const claudeMdPath = join(projectClaudeDir, 'CLAUDE.md');
+    const instructionFilePath = resolveInstructionFilePath(state.project_path);
+    const instructionFileName = getInstructionFileName();
     const projectContextPath =
       state.project_context_path ||
-      join(state.project_path, '.claude', 'skills', 'project-context', 'SKILL.md');
+      resolveConfigPath(state.project_path, 'skills', 'project-context', 'SKILL.md');
     const frameworkConfigPath =
-      state.framework_config_path || join(state.project_path, '.claude', 'framework-config.json');
+      state.framework_config_path || resolveFrameworkConfigPath(state.project_path);
     const shouldValidateWiki = Boolean(state.ai_knowledge_path || state.phase4_wiki_generation);
     const aiKnowledgePath =
       state.ai_knowledge_path || join(state.project_path, 'docs', 'ai-knowledge');
@@ -53,12 +59,12 @@ export async function validationNode(
     // Get standard directory paths
     const directories = getClaudeDirectories(state.project_path);
 
-    // 1. Validate CLAUDE.md exists and is valid
-    const claudeMdResult = validateMarkdownFile(claudeMdPath, 'CLAUDE.md');
+    // 1. Validate instruction file (CLAUDE.md or AGENTS.md) exists and is valid
+    const claudeMdResult = validateMarkdownFile(instructionFilePath, instructionFileName);
     validationErrors.push(...claudeMdResult.errors);
     validationWarnings.push(...claudeMdResult.warnings);
     if (claudeMdResult.valid) {
-      phaseLogger.success(' ✓ CLAUDE.md validated');
+      phaseLogger.success(` ✓ ${instructionFileName} validated`);
     }
 
     // 2. Validate project-context/SKILL.md exists and is valid
@@ -138,14 +144,7 @@ export async function validationNode(
       }
     }
 
-    // 7. Validate commands directory exists
-    const commandsResult = validateDirectoryWithFiles(directories.commands, 'Commands');
-    validationErrors.push(...commandsResult.errors);
-    if (commandsResult.valid) {
-      phaseLogger.success(` ✓ Commands directory exists with ${commandsResult.fileCount} commands`);
-    }
-
-    // 8. Validate code graph MCP for native Claude Code sessions
+    // 7. Validate code graph MCP for native Claude Code sessions
     const graphMcpResult = validateCodeGraphMcpConfig({
       projectPath: state.project_path,
       frameworkPath: state.framework_path,
@@ -156,7 +155,7 @@ export async function validationNode(
       phaseLogger.success(' ✓ Code graph MCP config validated');
     }
 
-    // 9. Validate all phases completed
+    // 8. Validate all phases completed
     const phaseCompletionResult = validatePhaseCompletion(state);
     validationErrors.push(...phaseCompletionResult.errors);
     validationWarnings.push(...phaseCompletionResult.warnings);
@@ -188,7 +187,7 @@ export async function validationNode(
     phaseLogger.blank();
     phaseLogger.success('=== INITIALIZATION COMPLETE ===');
     phaseLogger.info(`Project: ${state.project_path}`);
-    phaseLogger.info(`CLAUDE.md: ${claudeMdPath}`);
+    phaseLogger.info(`${instructionFileName}: ${instructionFilePath}`);
     phaseLogger.info(`Config: ${frameworkConfigPath}`);
     if (shouldValidateWiki) {
       phaseLogger.info(`AI Knowledge: ${aiKnowledgePath}`);
@@ -203,7 +202,7 @@ export async function validationNode(
       total_duration_ms: totalDuration,
       warnings: [...state.warnings, ...validationWarnings],
       // Set paths in state if they weren't already set (for --start-phase 6)
-      claude_md_path: claudeMdPath,
+      claude_md_path: instructionFilePath,
       project_context_path: projectContextPath,
       framework_config_path: frameworkConfigPath,
       ai_knowledge_path: shouldValidateWiki ? aiKnowledgePath : state.ai_knowledge_path,

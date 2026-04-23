@@ -128,13 +128,6 @@ describe('resourcesNode', () => {
       changed: true,
       backedUp: false,
     });
-
-    // Mock command files
-    vi.mocked(fs.readdirSync).mockReturnValue([
-      'implement.md',
-      'review.md',
-      'initialize-project.md',
-    ] as any);
   });
 
   it('should throw error if phase4_context not completed', async () => {
@@ -222,47 +215,6 @@ describe('resourcesNode', () => {
     expect(agentGenerator.writeAgents).toHaveBeenCalledWith(expect.any(Array), '/test/project');
   });
 
-  it('should create commands directory', async () => {
-    await resourcesNode(mockState);
-
-    expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('.claude/commands'), {
-      recursive: true,
-    });
-  });
-
-  it('should copy command files except initialize-project.md', async () => {
-    await resourcesNode(mockState);
-
-    expect(fs.copyFileSync).toHaveBeenCalledWith(
-      expect.stringContaining('implement.md'),
-      expect.any(String),
-    );
-    expect(fs.copyFileSync).toHaveBeenCalledWith(
-      expect.stringContaining('review.md'),
-      expect.any(String),
-    );
-    // Should not copy initialize-project.md
-    expect(fs.copyFileSync).not.toHaveBeenCalledWith(
-      expect.stringContaining('initialize-project.md'),
-      expect.any(String),
-    );
-  });
-
-  it('should filter command files to only .md files', async () => {
-    vi.mocked(fs.readdirSync).mockReturnValue([
-      'implement.md',
-      'test.txt',
-      'review.md',
-      'data.json',
-    ] as any);
-
-    await resourcesNode(mockState);
-
-    // Should only copy .md files
-    const copyFileCalls = vi.mocked(fs.copyFileSync).mock.calls;
-    expect(copyFileCalls.length).toBe(2); // implement.md and review.md
-  });
-
   it('should configure project MCP for native Claude Code sessions', async () => {
     await resourcesNode(mockState);
 
@@ -315,14 +267,6 @@ describe('resourcesNode', () => {
 
   it('should handle empty agents array', async () => {
     vi.mocked(agentGenerator.generateAgents).mockReturnValue([]);
-
-    const result = await resourcesNode(mockState);
-
-    expect(result.current_phase).toBe('phase5_resources');
-  });
-
-  it('should handle empty command files', async () => {
-    vi.mocked(fs.readdirSync).mockReturnValue([]);
 
     const result = await resourcesNode(mockState);
 

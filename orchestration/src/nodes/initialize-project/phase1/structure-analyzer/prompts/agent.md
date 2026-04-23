@@ -35,7 +35,7 @@ Use Read/Grep/Glob only for manifest/config details and automation files that th
 
 **READ-ONLY MODE - CRITICAL:**
 
-- You can ONLY use: Read, Grep, Glob, mcp__code_graph tools
+- You can ONLY use: Read, Grep, Glob, mcp\_\_code_graph tools
 - You CANNOT write, edit, create, or modify ANY files
 - You CANNOT fix code, improve documentation, or make ANY changes
 - Your ONLY job: search → read → analyze → output JSON

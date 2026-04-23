@@ -1,4 +1,7 @@
-import type { InitializeProjectState, Phase4WikiDocs } from '../../../../state/schemas/initialize-project.schema.js';
+import type {
+  InitializeProjectState,
+  Phase4WikiDocs,
+} from '../../../../state/schemas/initialize-project.schema.js';
 import { logger } from '../../../../utils/logger.js';
 import {
   WikiGeneratorService,
@@ -41,7 +44,11 @@ export async function runCoreDocNode(
       },
     });
 
-    const file = await wiki.generateCoreDoc(documentType, context.generatedAt, context.graphVersion);
+    const file = await wiki.generateCoreDoc(
+      documentType,
+      context.generatedAt,
+      context.graphVersion,
+    );
 
     phaseLogger.success(`✓ Generated ${SLOT_LABEL[slot]}`);
 

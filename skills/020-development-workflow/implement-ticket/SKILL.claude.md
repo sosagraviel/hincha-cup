@@ -2,7 +2,7 @@
 name: implement-ticket
 version: 3.3.0
 last-updated: 2026-04-23
-description: Implements a ticket end-to-end through a wiki-aware and graph-aware 12-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
+description: Implements a ticket end-to-end through 12-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 user-invokable: true
 disable-model-invocation: true
@@ -44,19 +44,19 @@ If the graph DB, MCP config, graph-aware agents, active graph tools, or the AI K
 **ALL artifacts MUST be saved to the following deterministic structure:**
 
 ```
-.claude-temp/tickets/<TICKET_ID>/artifacts/
+{{TEMP_DIR}}/tickets/<TICKET_ID>/artifacts/
 ```
 
 **NEVER save artifacts to:**
-- `.claude/artifacts/`
-- `.claude/screenshots/`
-- `.claude/decisions/`
+- `{{CONFIG_DIR}}/artifacts/`
+- `{{CONFIG_DIR}}/screenshots/`
+- `{{CONFIG_DIR}}/decisions/`
 - `orchestration/artifacts/`
 - Any other location
 
 When spawning agents or invoking skills, ALWAYS pass the ARTIFACTS_DIR variable:
 ```bash
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"
 export ARTIFACTS_DIR
 ```
 
@@ -109,7 +109,7 @@ Create each task using TaskCreate with these exact values:
 6. Phase 5: Implementation
    subject: "Phase 5: Implementation"
    activeForm: "Implementing code changes"
-   Steps: MUST spawn graph-aware implementer-{lang} agent with the planner-authored `Implementation Plan` from Phase 3, pass the same `WIKI_SERVICES` paths the planner cited plus the plan's `Wiki Evidence` and `Graph Evidence`, implementer absorbs those artifacts before any fresh discovery, implementer runs targeted graph checks only for high-risk edits flagged by the plan, implements code following the plan, follows project conventions from CLAUDE.md, creates/modifies files as needed, includes wiki pages consulted and any fresh graph queries in the final implementation summary
+   Steps: MUST spawn graph-aware implementer-{lang} agent with the planner-authored `Implementation Plan` from Phase 3, pass the same `WIKI_SERVICES` paths the planner cited plus the plan's `Wiki Evidence` and `Graph Evidence`, implementer absorbs those artifacts before any fresh discovery, implementer runs targeted graph checks only for high-risk edits flagged by the plan, implements code following the plan, follows project conventions from {{INSTRUCTION_FILE}}, creates/modifies files as needed, includes wiki pages consulted and any fresh graph queries in the final implementation summary
    Expected outputs: graph-aware implementer agent was spawned, implementer confirmed it consumed the plan's Wiki Evidence and Graph Evidence, code changes exist, new files created as planned
    Constraint: Do not proceed if implementer agent was not spawned, the plan's Wiki Evidence / Graph Evidence were not consumed, or no code changes exist.
 
@@ -130,7 +130,7 @@ Create each task using TaskCreate with these exact values:
 9. Phase 8: Documentation Update
    subject: "Phase 8: Documentation Update"
    activeForm: "Updating documentation"
-   Steps: MUST invoke /doc-updater skill, analyze changed files for doc impact, apply maintenance test, update CLAUDE.md and project-context if needed
+   Steps: MUST invoke /doc-updater skill, analyze changed files for doc impact, apply maintenance test, update {{INSTRUCTION_FILE}} and project-context if needed
    Expected outputs: doc-updater skill was invoked and analysis completed
    Constraint: Do not proceed if doc-updater was not invoked.
 
@@ -295,7 +295,7 @@ CRITICAL: You MUST invoke `/doc-updater` skill. Do not skip this even if you thi
 
 - Analyze changed files for doc impact
 - Apply maintenance test (only update if truly needed)
-- Update CLAUDE.md and project-context surgically if needed
+- Update {{INSTRUCTION_FILE}} and project-context surgically if needed
 
 CONTINUE WITH Phase 9.
 

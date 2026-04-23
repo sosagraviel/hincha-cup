@@ -1,22 +1,9 @@
 ---
 name: figma-design-fetcher
-description: >
-  Fetches Figma designs, exports frame images at 2x, and extracts structured design constraints
-  (layout, colors, typography, dimensions). Supports MCP, API token, and manual fallback.
-version: 1.0.0
-category: integrations
-keywords: [figma, design, visual-testing, design-tokens, ui]
+description: Fetches Figma designs, exports frame images at 2x, and extracts structured design constraints (layout, colors, typography, dimensions). Supports MCP, API token, and manual fallback.
 user-invocable: true
-argument-hint: "[--file-key KEY] [--node-ids ID1,ID2] [--output-dir DIR]"
-triggers: [figma]
-compatible_languages: [typescript, javascript]
-last_updated: 2026-03-25
-allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
+argument-hint: '[--file-key KEY] [--node-ids ID1,ID2] [--output-dir DIR]'
+allowed-tools: Read, Write, Bash, Glob, Grep
 ---
 
 # Figma Design Fetcher
@@ -26,6 +13,7 @@ Fetches Figma designs and extracts structured design constraints for UI implemen
 ## Prerequisites
 
 Access to Figma designs via one of:
+
 - **Figma MCP server** (preferred) -- provides tool-based access
 - **FIGMA_ACCESS_TOKEN** environment variable -- personal access token
 - **Manual export** -- user-provided screenshot fallback
@@ -58,13 +46,14 @@ Access to Figma designs via one of:
 
 Extract parameters from the invocation arguments:
 
-| Argument       | Flag            | Default                                        |
-| -------------- | --------------- | ---------------------------------------------- |
-| File key       | `--file-key`    | Prompt user if not provided                    |
-| Node IDs       | `--node-ids`    | Prompt user if not provided                    |
-| Output dir     | `--output-dir`  | `.claude-tmp/ui-validation/default/figma`      |
+| Argument   | Flag           | Default                                   |
+| ---------- | -------------- | ----------------------------------------- |
+| File key   | `--file-key`   | Prompt user if not provided               |
+| Node IDs   | `--node-ids`   | Prompt user if not provided               |
+| Output dir | `--output-dir` | `.claude-tmp/ui-validation/default/figma` |
 
 **Parsing rules:**
+
 - File key can be extracted from a full Figma URL: `https://www.figma.com/design/{fileKey}/...`
 - Node IDs are comma-separated, in Figma's `X:Y` format
 - Sanitize the label from the node name (replace spaces/special chars with hyphens, lowercase)
@@ -115,12 +104,14 @@ Headers:
 ```
 
 **Response handling:**
+
 - Parse the `images` object from the response: `{ "images": { "1:2": "https://..." } }`
 - Download each image URL to `{outputDir}/{label}.png`
 - Retry up to 3 times on transient failures (429, 500, 503)
 - Respect rate limits: wait and retry on 429 with `Retry-After` header
 
 **MCP approach:**
+
 - Use the `figma_get_images` tool with equivalent parameters
 - Download returned URLs to the output directory
 
@@ -139,6 +130,7 @@ Headers:
 ```
 
 **Extract from response:**
+
 - `document.children` -- the node tree for each requested ID
 - Node properties: `name`, `type`, `absoluteBoundingBox`, `fills`, `strokes`, `effects`
 - Text nodes: `style` (fontFamily, fontSize, fontWeight, lineHeightPx, letterSpacing)
@@ -212,6 +204,7 @@ For each node, generate a `{label}-constraints.json`:
 ```
 
 **Extraction rules:**
+
 - Map Figma fill colors to the nearest design token (if a token map is available in the project)
 - Convert `layoutMode` to CSS equivalent: `HORIZONTAL` -> `flex-row`, `VERTICAL` -> `flex-column`
 - Resolve named styles via `GET /v1/files/{fileKey}/styles` when style references are present
@@ -225,11 +218,13 @@ Produce a human-readable `design-context.md` summarizing all fetched frames:
 # Design Context
 
 ## Source
+
 - **Figma file:** {fileKey}
 - **Fetched at:** {ISO timestamp}
 - **Frames:** {count}
 
 ## Frame: {label}
+
 - **Node ID:** {nodeId}
 - **Dimensions:** {width} x {height}
 - **Layout:** {cssEquivalent} with {itemSpacing}px gap
@@ -239,21 +234,22 @@ Produce a human-readable `design-context.md` summarizing all fetched frames:
   - Body: {fontFamily} {fontWeight} {fontSize}px
 
 ### Children
+
 | Name | Type | Dimensions |
-|------|------|------------|
+| ---- | ---- | ---------- |
 | ...  | ...  | ...        |
 ```
 
 ## Error Handling
 
-| Error                     | Action                                                       |
-| ------------------------- | ------------------------------------------------------------ |
-| 403 Forbidden             | Token lacks access. Ask user to verify token permissions.    |
-| 404 Not Found             | File key or node IDs invalid. Ask user to verify.            |
-| 429 Rate Limited          | Wait per `Retry-After` header, retry up to 3 times.         |
-| Network timeout           | Retry with exponential backoff (1s, 2s, 4s).                |
-| MCP tool not available    | Fall through to next access method.                          |
-| Empty node response       | Warn user; generate image-only output without constraints.   |
+| Error                  | Action                                                     |
+| ---------------------- | ---------------------------------------------------------- |
+| 403 Forbidden          | Token lacks access. Ask user to verify token permissions.  |
+| 404 Not Found          | File key or node IDs invalid. Ask user to verify.          |
+| 429 Rate Limited       | Wait per `Retry-After` header, retry up to 3 times.        |
+| Network timeout        | Retry with exponential backoff (1s, 2s, 4s).               |
+| MCP tool not available | Fall through to next access method.                        |
+| Empty node response    | Warn user; generate image-only output without constraints. |
 
 ## References
 

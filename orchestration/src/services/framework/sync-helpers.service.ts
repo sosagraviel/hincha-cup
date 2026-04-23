@@ -10,43 +10,15 @@ import {
   generateAgents,
   writeAgents,
 } from '../../nodes/initialize-project/phase5/agent-generator.js';
-import type { ResolvedSkill, GeneratedAgent } from '../../nodes/initialize-project/phase5/types.js';
+import { copySkillForProvider } from '../../nodes/initialize-project/phase5/helpers/skill-copier.js';
 import type { StackProfile } from '../../schemas/index.js';
-import { copyFileSync, mkdirSync, readdirSync, statSync, existsSync, readFileSync } from 'fs';
-import { rm } from 'fs/promises';
-import { join, dirname } from 'path';
-import type { ResourceInfo } from './config-updater.service.js';
-
-/**
- * Copy a skill directory recursively (extracted from skill-resolver.ts internal function)
- */
-function copySkillDirectory(srcPath: string, destPath: string): number {
-  let fileCount = 0;
-
-  if (!existsSync(srcPath)) {
-    return 0;
-  }
-
-  mkdirSync(destPath, { recursive: true });
-
-  const entries = readdirSync(srcPath);
-
-  for (const entry of entries) {
-    const srcEntryPath = join(srcPath, entry);
-    const destEntryPath = join(destPath, entry);
-
-    const stat = statSync(srcEntryPath);
-
-    if (stat.isDirectory()) {
-      fileCount += copySkillDirectory(srcEntryPath, destEntryPath);
-    } else {
-      copyFileSync(srcEntryPath, destEntryPath);
-      fileCount++;
-    }
-  }
-
-  return fileCount;
-}
+import { readdirSync, statSync, existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+import {
+  resolveConfigPath,
+  resolveFrameworkConfigPath,
+  getActiveProvider,
+} from '../../utils/provider-paths.js';
 
 /**
  * Update a single skill from framework to project
@@ -67,10 +39,10 @@ export async function updateSingleSkill(
   }
 
   // Use flat structure (skill name only, not nested path)
-  const targetPath = join(projectPath, '.claude', 'skills', skillName);
+  const targetPath = resolveConfigPath(projectPath, 'skills', skillName);
 
-  // Copy the skill
-  const filesChanged = copySkillDirectory(skillPath, targetPath);
+  // Copy the skill (provider-aware: selects matching SKILL.<provider>.md and applies placeholder substitution)
+  const filesChanged = copySkillForProvider(skillPath, targetPath, getActiveProvider());
 
   return {
     updated: filesChanged > 0,
@@ -106,7 +78,7 @@ export async function regenerateSingleAgent(
 ): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
   try {
     // Read framework-config.json to get stack profile
-    const configPath = join(projectPath, '.claude', 'framework-config.json');
+    const configPath = resolveFrameworkConfigPath(projectPath);
     if (!existsSync(configPath)) {
       return {
         success: false,
@@ -186,62 +158,4 @@ function findSkillPath(skillsDir: string, skillName: string): string | null {
   };
 
   return searchDir(skillsDir);
-}
-
-/**
- * Sync a single command file from framework to project
- */
-export async function syncSingleCommand(sourcePath: string, targetPath: string): Promise<void> {
-  const targetDir = dirname(targetPath);
-  mkdirSync(targetDir, { recursive: true });
-  copyFileSync(sourcePath, targetPath);
-}
-
-function getManagedCommandRelativePath(
-  commandName: string,
-  commandInfo: Partial<ResourceInfo>,
-): string {
-  if (commandInfo.source_path?.startsWith('commands/')) {
-    return commandInfo.source_path.slice('commands/'.length);
-  }
-
-  return `${commandName}.md`;
-}
-
-export async function pruneStaleManagedCommands(params: {
-  projectPath: string;
-  commandState: Record<string, Partial<ResourceInfo>>;
-  expectedCommandNames: Set<string>;
-  removeResourceFromState: (resourceType: 'commands', resourceName: string) => Promise<boolean>;
-}): Promise<{ removed: number }> {
-  const { projectPath, commandState, expectedCommandNames, removeResourceFromState } = params;
-  let removed = 0;
-
-  for (const [commandName, commandInfo] of Object.entries(commandState)) {
-    if (!commandInfo.managed_by_framework) {
-      continue;
-    }
-
-    if (expectedCommandNames.has(commandName)) {
-      continue;
-    }
-
-    const relativePath = getManagedCommandRelativePath(commandName, commandInfo);
-    const targetPath = join(projectPath, '.claude', 'commands', relativePath);
-
-    try {
-      if (existsSync(targetPath)) {
-        await rm(targetPath, { force: true });
-      }
-
-      const stateRemoved = await removeResourceFromState('commands', commandName);
-      if (stateRemoved) {
-        removed++;
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return { removed };
 }

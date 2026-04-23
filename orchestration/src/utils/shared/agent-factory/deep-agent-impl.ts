@@ -44,11 +44,7 @@ export async function createDeepAgentImpl(
       const trackerId = config.trackerId ?? config.agentName;
       const trackerDisplayName = config.trackerDisplayName ?? config.agentName;
 
-      logger.trackConcurrentAgentStart(
-        trackerId,
-        trackerDisplayName,
-        `${action} (${authInfo})`,
-      );
+      logger.trackConcurrentAgentStart(trackerId, trackerDisplayName, `${action} (${authInfo})`);
 
       const startTime = Date.now();
       const timeout = config.timeout || 300000;

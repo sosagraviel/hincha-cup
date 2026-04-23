@@ -1028,6 +1028,6 @@ Files Below Threshold:
 
 ## References
 
-- Python Quality: `.claude/skills/mastering-python-skill/references/foundations/code-quality.md`
-- TypeScript Setup: `.claude/skills/mastering-typescript/SKILL.md`
-- Testing Guide: `.claude/skills/mastering-python-skill/references/testing/pytest-essentials.md`
+- Python Quality: `{{CONFIG_DIR}}/skills/mastering-python-skill/references/foundations/code-quality.md`
+- TypeScript Setup: `{{CONFIG_DIR}}/skills/mastering-typescript/SKILL.md`
+- Testing Guide: `{{CONFIG_DIR}}/skills/mastering-python-skill/references/testing/pytest-essentials.md`

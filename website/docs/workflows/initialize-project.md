@@ -113,7 +113,6 @@ Generates human-readable project understanding from consolidated analysis.
 **Syncs** (based on detected stack):
 - Skills from `skills.config.json` → `.claude/skills/`
 - Agents from `agents/templates/` → `.claude/agents/`
-- Commands from `commands/` → `.claude/commands/`
 
 **Updates**: `framework-config.json` with sync metadata
 
@@ -340,9 +339,15 @@ cat .claude/CLAUDE.md
 
 After initialization:
 
-1. **Review** generated `.claude/` configuration
-2. **Customize** `CLAUDE.md` with project-specific notes (optional)
-3. **Start using** the framework:
+1. **Review** generated `.claude/` (or `.codex/`) configuration
+2. **Customize** `CLAUDE.md` / `AGENTS.md` with project-specific notes (optional)
+3. **Start using** the framework. Invocation differs per provider:
+
+| Provider     | Invoke skill               | List skills |
+| ------------ | -------------------------- | ----------- |
+| Claude Code  | `/implement-ticket [args]` | Auto        |
+| Codex CLI    | `$implement-ticket [args]` | `/skills`   |
+
    - [Implement Ticket](./implement-ticket.md) - Implement features
    - [Create SDD Ticket](./create-sdd-ticket.md) - Generate tickets
 
