@@ -123,7 +123,7 @@ program
 
       // Reset factory in case it was created with wrong tier before
       resetLLMFactory();
-      const llmFactory = getLLMFactory();
+      let llmFactory = getLLMFactory();
 
       if (options.listModels) {
         logger.section('Available Model Aliases');
