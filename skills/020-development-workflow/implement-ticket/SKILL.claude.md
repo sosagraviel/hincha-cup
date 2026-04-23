@@ -23,7 +23,6 @@ Parse the input for these flags:
 - `--skip-tests` - skip testing phase
 - `--skip-visual` - skip visual verification phase
 - `--skip-pr` - skip PR creation (commit only)
-- `--branch <NAME>` - custom branch name (default: auto-generated)
 
 ## CRITICAL: Graph-Aware and Wiki-Aware Requirements
 
@@ -35,7 +34,6 @@ Both the graph path AND the AI Knowledge wiki must be active.
 - Generated `.claude/agents/planner.md` and `.claude/agents/implementer-*.md` MUST expose exact `mcp__code_graph__*_tool` entries, not only the broad `mcp__code_graph` server alias.
 - The actual active Claude Code session MUST expose `mcp__code_graph__*` tools. Agent frontmatter is only a subagent allowlist; it does not register the MCP server.
 - The AI Knowledge wiki at `docs/ai-knowledge/` MUST exist with all five core documents present: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`. Each MUST contain YAML frontmatter with at least `document_type` and `graph_version` keys.
-- If `framework-config.json > wiki.services` is non-empty, at least one matching file under `docs/ai-knowledge/services/` MUST exist.
 
 If the graph DB, MCP config, graph-aware agents, active graph tools, or the AI Knowledge wiki are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, project `.mcp.json`, graph-aware `.claude/agents/*`, and `docs/ai-knowledge/*` are regenerated. Then restart Claude Code in the project, approve the project MCP server if prompted, and verify `code_graph` with `/mcp` before using `/implement-ticket`.
 
@@ -88,16 +86,16 @@ Create each task using TaskCreate with these exact values:
 3. Phase 2: Wiki Context Preload
    subject: "Phase 2: Wiki Context Preload"
    activeForm: "Preloading AI Knowledge wiki context"
-   Steps: Read the five core wiki docs under `docs/ai-knowledge/` (`index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`) and collect their paths as `WIKI_CORE`, call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` exactly once and keep its full response, extract relevant service IDs from the query and `SERVICES.md`, for each identified service resolve `docs/ai-knowledge/services/<service-id>.md` and collect matches as `WIKI_SERVICES` (cap at 5), read each loaded wiki file's YAML frontmatter and persist `WIKI_CORE`, `WIKI_SERVICES`, and the raw `get_minimal_context_tool` payload to `$ARTIFACTS_DIR/context/wiki-context.md`
+   Steps: Read the five core wiki docs under `docs/ai-knowledge/` (`index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`) and collect their paths as `WIKI_CORE`, call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` exactly once and keep its full response, extract relevant service IDs from the `get_minimal_context_tool` response and `SERVICES.md`, for each identified service resolve `docs/ai-knowledge/services/<service-id>.md` and collect matches as `WIKI_SERVICES` (cap at 5), read each loaded wiki file's YAML frontmatter and persist `WIKI_CORE`, `WIKI_SERVICES`, and the raw `get_minimal_context_tool` payload to `$ARTIFACTS_DIR/context/wiki-context.md`
    Expected outputs: `$ARTIFACTS_DIR/context/wiki-context.md` exists and contains `WIKI_CORE`, `WIKI_SERVICES`, and the preserved `get_minimal_context_tool` payload for reuse by the planner
    Constraint: Do not proceed if `wiki-context.md` is missing, if any `WIKI_CORE` file failed to load, or if `get_minimal_context_tool` failed. `WIKI_SERVICES` may be empty when no service was implicated. The `get_minimal_context_tool` call MUST NOT be re-issued by later phases.
 
 4. Phase 3: Planning
    subject: "Phase 3: Planning"
    activeForm: "Creating implementation plan"
-   Steps: MUST spawn planner agent, planner consumes the ticket context from Phase 1 and the Phase 2 wiki context (`WIKI_CORE`, `WIKI_SERVICES`, preserved `get_minimal_context_tool` payload), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact
-   Expected outputs: planner agent was spawned with the Phase 2 wiki context injected, parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 3 planning artifact, Wiki Evidence exists and cites the wiki paths actually used, Graph Evidence exists, test strategy defined, files to create/modify identified
-   Constraint: Do not proceed if planner agent was not spawned, Wiki Evidence or Graph Evidence is absent, the planner-authored `Implementation Plan` does not exist, or Phase 3 produced competing planning artifacts.
+   Steps: MUST spawn planner agent, planner consumes the ticket context from Phase 1 and the Phase 2 wiki context (`WIKI_CORE`, `WIKI_SERVICES`, preserved `get_minimal_context_tool` payload), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact, planner emits a `Recommended Implementer` section naming exactly one of `implementer-typescript` | `implementer-python` | `implementer-generic` with rationale
+   Expected outputs: planner agent was spawned with the Phase 2 wiki context injected, parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 3 planning artifact, Wiki Evidence exists and cites the wiki paths actually used, Graph Evidence exists, test strategy defined, files to create/modify identified, `Recommended Implementer` present in the plan naming one of `implementer-typescript` | `implementer-python` | `implementer-generic`
+   Constraint: Do not proceed if planner agent was not spawned, Wiki Evidence or Graph Evidence is absent, the planner-authored `Implementation Plan` does not exist, Phase 3 produced competing planning artifacts, or `Recommended Implementer` is missing.
 
 5. Phase 4: Environment Setup
    subject: "Phase 4: Environment Setup"
@@ -116,14 +114,14 @@ Create each task using TaskCreate with these exact values:
 7. Phase 6: Testing
    subject: "Phase 6: Testing"
    activeForm: "Running tests"
-   Steps: Auto-detect testing framework, run unit tests with coverage, run integration tests, run E2E tests (if applicable), collect coverage reports, if tests fail spawn implementer to fix (max 3 iterations)
-   Expected outputs: all tests pass, coverage reports collected
+   Steps: If `--skip-tests` flag is set mark completed as "Skipped via flag" and proceed, otherwise auto-detect testing framework, run unit tests with coverage, run integration tests, run E2E tests (if applicable), collect coverage reports, if tests fail spawn implementer to fix (max 3 iterations)
+   Expected outputs: all tests pass and coverage reports collected, OR phase correctly skipped via `--skip-tests`
    Constraint: If tests fail after 3 fix iterations, STOP and report failure. Do not proceed.
 
 8. Phase 7: Visual Verification
    subject: "Phase 7: Visual Verification"
    activeForm: "Verifying visual changes"
-   Steps: If no frontend changes or --skip-visual flag mark completed as "Skipped" and proceed, otherwise take screenshots, compare with pixelmatch, if diff > 5% MUST spawn visual-verifier agent
+   Steps: If no frontend changes or `--skip-visual` flag mark completed as "Skipped via flag" and proceed, otherwise take screenshots, compare with pixelmatch, if diff > 5% MUST spawn visual-verifier agent
    Expected outputs: screenshots compared OR phase correctly skipped
    Constraint: None.
 
@@ -137,9 +135,9 @@ Create each task using TaskCreate with these exact values:
 10. Phase 9: PR Creation
     subject: "Phase 9: PR Creation"
     activeForm: "Creating pull request"
-    Steps: Commit all changes, push feature branch, create pull request with title/summary/test plan/ticket link, return PR URL
-    Expected outputs: commit exists, branch pushed, PR created with URL
-    Constraint: Do not proceed if PR was not created.
+    Steps: If `--skip-pr` flag is set commit all changes locally and mark completed as "Skipped via flag" (no push, no PR), otherwise commit all changes, push feature branch, create pull request with title/summary/test plan/ticket link, return PR URL
+    Expected outputs: commit exists and branch pushed and PR created with URL, OR commit exists locally and PR was skipped via `--skip-pr`
+    Constraint: Do not proceed if PR was not created, unless `--skip-pr` was set in which case a local commit is sufficient.
 
 11. Phase 10: Review Loop
     subject: "Phase 10: Review Loop"
@@ -240,7 +238,7 @@ Spawn `planner` via `Task(subagent_type: "planner", prompt: ...)`. Keep the prom
 
 Persist the planner's returned markdown verbatim to `$ARTIFACTS_DIR/plans/implementation-plan.md`.
 
-Verify: plan file exists, contains `Wiki Evidence` and `Graph Evidence`, test strategy and target files are named.
+Verify: plan file exists, contains `Wiki Evidence` and `Graph Evidence`, test strategy and target files are named, and contains a `Recommended Implementer` section naming exactly one of `implementer-typescript` | `implementer-python` | `implementer-generic`.
 
 CONTINUE WITH Phase 4.
 
@@ -266,6 +264,9 @@ CONTINUE WITH Phase 6.
 
 ### Phase 6: Testing
 
+If `--skip-tests` flag: mark completed as "Skipped via flag" and continue.
+
+Otherwise:
 - Auto-detect testing framework (Jest, Pytest, Playwright)
 - Run unit tests with coverage
 - Run integration tests
@@ -280,7 +281,7 @@ CONTINUE WITH Phase 7.
 
 ### Phase 7: Visual Verification
 
-If no frontend changes or `--skip-visual` flag: mark completed as "Skipped" and continue.
+If no frontend changes or `--skip-visual` flag: mark completed as "Skipped via flag" and continue.
 
 Otherwise:
 - Take screenshots of affected pages
@@ -301,6 +302,9 @@ CONTINUE WITH Phase 9.
 
 ### Phase 9: PR Creation
 
+If `--skip-pr` flag: commit all changes locally with structured commit message, skip push and PR creation, mark completed as "Skipped via flag" and continue.
+
+Otherwise:
 - Commit all changes with structured commit message
 - Push feature branch to remote
 - Create pull request with:
@@ -310,7 +314,7 @@ CONTINUE WITH Phase 9.
   - Link to original ticket
 - Return PR URL
 
-CRITICAL: Do not proceed if PR was not created.
+CRITICAL: Do not proceed if PR was not created, unless `--skip-pr` was set (in which case a local commit is sufficient).
 
 CONTINUE WITH Phase 10.
 
