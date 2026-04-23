@@ -219,6 +219,7 @@ program
           if (!options.modelTier) {
             process.env.MODEL_TIER = 'openai';
             resetLLMFactory(); // Tier changed, need to re-create factory
+            llmFactory = getLLMFactory();
           }
         }
         // claude is already the default
