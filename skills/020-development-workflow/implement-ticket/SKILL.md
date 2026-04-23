@@ -1,11 +1,12 @@
 ---
 name: implement-ticket
-version: 3.2.0
+version: 3.3.0
 last-updated: 2026-04-23
 description: Implements a ticket end-to-end through a wiki-aware and graph-aware 12-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 user-invokable: true
 disable-model-invocation: true
+allowed-tools: Read Write Edit Bash Grep Glob Task TaskCreate TaskUpdate mcp__code_graph__get_minimal_context_tool
 ---
 
 # Implement Ticket
@@ -211,7 +212,7 @@ CONTINUE WITH Phase 2.
 
 Preload the AI Knowledge wiki so the planner can rely on pre-digested architecture summaries instead of rediscovering them via graph queries. Do ALL of the following in order:
 
-1. Read the four core wiki documents and collect their absolute paths as `WIKI_CORE`:
+1. Read the five core wiki documents and collect their absolute paths as `WIKI_CORE`:
    - `docs/ai-knowledge/index.md`
    - `docs/ai-knowledge/ARCHITECTURE.md`
    - `docs/ai-knowledge/SERVICES.md`
@@ -234,22 +235,34 @@ CONTINUE WITH Phase 3.
 ### Phase 3: Planning
 
 CRITICAL: You MUST do both of these. Do not skip either one.
-1. Invoke `/analyze-requirements` skill to produce structured requirements analysis input.
-2. Spawn `planner` agent for wiki-aware and graph-aware architecture planning. When spawning, explicitly inject:
-   - Ticket context from Phase 1
-   - Requirements analysis input from step 1
-   - Phase 2 wiki context: `WIKI_CORE` paths, `WIKI_SERVICES` paths, and the preserved `get_minimal_context_tool` response
-   The planner MUST return the only Phase 3 planning artifact named `Implementation Plan`, and that plan MUST include a `Wiki Evidence` section citing which wiki pages it used and a `Graph Evidence` section documenting the additional graph calls it made (if any).
 
-After both complete, verify:
+1. Invoke `/analyze-requirements` skill to produce structured requirements analysis input. Capture its output path for step 2.
+
+2. Delegate planning to the `planner` subagent. Use the `Task` tool with `subagent_type: "planner"` and pass ONLY a short task description listing the input paths below. The planner's system prompt lives at `.claude/agents/planner.md` and is authoritative — do NOT restate, paraphrase, or summarize the planner's instructions in your Task call. Pass input paths, not behavior.
+
+   Required Task description template:
+   ```
+   Produce the Phase 3 Implementation Plan for ticket <TICKET_ID>.
+   Inputs (read from disk):
+   - Ticket context: <path from Phase 1>
+   - Requirements analysis: <path from /analyze-requirements step 1>
+   - Wiki context (WIKI_CORE, WIKI_SERVICES, preserved get_minimal_context_tool payload): $ARTIFACTS_DIR/context/wiki-context.md
+   Return the Implementation Plan as markdown following the structure defined in your system prompt.
+   ```
+
+   Do not include tool-use instructions, Wiki-First rules, or Graph Evidence formatting in the Task call — the planner already has those in its `.claude/agents/planner.md` system prompt. Adding them here causes the parent to paraphrase and drift.
+
+3. Persist the planner's returned markdown verbatim to `$ARTIFACTS_DIR/plans/implementation-plan.md`.
+
+After the planner returns, verify:
 - Requirements analysis input exists
-- Parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 3 planning artifact
-- `Wiki Evidence` is included in the plan and names the wiki paths consumed
-- `Graph Evidence` is included in the plan and lists any additional graph calls beyond the Phase 2 preload
+- `$ARTIFACTS_DIR/plans/implementation-plan.md` exists and is the planner's output unmodified
+- `Wiki Evidence` section is present and names the wiki paths consumed
+- `Graph Evidence` section is present and lists any additional graph calls beyond the Phase 2 preload
 - Test strategy is defined
 - Files to create/modify are identified
 
-Do not create, save, or hand off any competing implementation plan from `/analyze-requirements`. Its output is input to the planner only. The planner subagent returns markdown; the parent/main agent persists `implementation-plan.md` and related artifacts.
+Do not create, save, or hand off any competing implementation plan from `/analyze-requirements`. Its output is input to the planner only. The planner subagent returns markdown; the parent/main agent persists it verbatim.
 
 CONTINUE WITH Phase 4.
 
@@ -264,22 +277,26 @@ CONTINUE WITH Phase 5.
 
 ### Phase 5: Implementation
 
-CRITICAL: You MUST spawn the stack-specific graph-aware `implementer-{lang}` agent with the planner-authored `Implementation Plan` from Phase 3. Do not hand off any `/analyze-requirements` output as the implementation plan, and do not implement code directly without spawning the agent.
+Delegate implementation to the stack-specific `implementer-{lang}` subagent. Pick the subagent_type from the planner's `Recommended Implementer` section in the Implementation Plan.
 
-When spawning, explicitly pass:
-- The full `Implementation Plan` (including `Wiki Evidence`, `Graph Evidence`, `Impact Analysis`, `Implementation Steps`)
-- The `WIKI_SERVICES` paths the planner cited as relevant
+Use the `Task` tool with that `subagent_type` and pass ONLY a short task description listing the input paths below. The implementer's system prompt lives at `.claude/agents/implementer-{lang}.md` and is authoritative — do NOT restate, paraphrase, or summarize the implementer's instructions in your Task call. Pass input paths, not behavior.
 
-Instruct the implementer to:
-- Absorb the plan's Wiki and Graph evidence BEFORE any fresh discovery
-- NOT re-run graph queries the plan already documented
-- Only run targeted graph checks for edits the plan flagged as high-risk (public APIs, shared utilities, cross-service boundaries)
+Required Task description template:
+```
+Implement ticket <TICKET_ID> according to the Implementation Plan.
+Inputs (read from disk):
+- Implementation Plan: $ARTIFACTS_DIR/plans/implementation-plan.md
+- Wiki context (same as the planner used): $ARTIFACTS_DIR/context/wiki-context.md
+Follow the plan exactly. Return a short completion summary per your system prompt.
+```
 
-After agent completes, verify:
-- Wiki pages consulted and any fresh graph queries are listed in the implementation summary
+Do not include graph-query rules, wiki-handling guidance, or tool-use instructions in the Task call — the implementer already has those in its `.claude/agents/implementer-{lang}.md` system prompt. Adding them here causes the parent to paraphrase and drift.
+
+After the implementer returns, verify:
+- Wiki pages consulted and any fresh graph queries are listed in the completion summary
 - Any inconclusive evidence is called out
-- Code changes exist
-- New files created as planned
+- Code changes exist in the working tree
+- New files were created as planned
 
 CONTINUE WITH Phase 6.
 
