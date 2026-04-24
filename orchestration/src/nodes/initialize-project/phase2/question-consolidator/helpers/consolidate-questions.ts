@@ -12,6 +12,7 @@ import { logger } from '../../../../../utils/logger.js';
 import { buildConsolidationPrompt } from '../prompt-builder.js';
 import { getFrameworkAgentPath } from '../../../shared/index.js';
 import { reasoningPrefix } from '../../../../../utils/shared/context-tags.js';
+import { getInitializeProjectPhase } from '../../../../../services/framework/debug-store/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -67,6 +68,7 @@ ${consolidationInstructions}`;
         frameworkPath,
         timeout: 600000, // 10 minutes
         resumeSessionId, // Pass session ID for context-preserving retry
+        phase: getInitializeProjectPhase('phase2'),
         settingsPath: join(
           frameworkPath,
           'orchestration/src/nodes/initialize-project/phase2/question-consolidator/settings.json',
@@ -173,7 +175,11 @@ ${consolidationInstructions}`;
       agentInvoke,
       validator,
       DEFAULT_RETRY_CONFIG,
-      { projectPath, agentName: 'question-consolidator' },
+      {
+        projectPath,
+        agentName: 'question-consolidator',
+        phase: getInitializeProjectPhase('phase2'),
+      },
     );
 
     consolidationLogger.info('  ✓ Consolidation successful and validated');

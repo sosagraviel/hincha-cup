@@ -1,6 +1,5 @@
 ---
 name: playwright-healer
-model: sonnet
 description: Analyzes and fixes flaky Playwright tests by identifying race conditions, improving selectors, and stabilizing timing issues
 subagent_type: general-purpose
 ---
