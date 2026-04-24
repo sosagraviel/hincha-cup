@@ -87,6 +87,10 @@ The system automatically selects the best available authentication:
 
 **API keys take priority** because they provide more control over model selection and cost optimization.
 
+:::important
+If `ANTHROPIC_API_KEY` is set, it takes precedence over any existing Claude CLI subscription authentication. Unset `ANTHROPIC_API_KEY` when you specifically want the framework to use your logged-in Claude CLI account.
+:::
+
 ## Switching Between Modes
 
 ```bash
