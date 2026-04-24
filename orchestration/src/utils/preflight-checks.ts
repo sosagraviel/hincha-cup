@@ -267,7 +267,8 @@ export async function runPreflightChecks(
               `  ${localCodexPath}\n` +
               `\n` +
               `Please authenticate it manually:\n` +
-              `  ${localCodexPath} login\n` +
+              `  ${localCodexPath}\n` +
+              `Select "Provide your own API key" and follow the prompts.\n` +
               `\n` +
               (hasOpenAIKey
                 ? `Keep OPENAI_API_KEY in the environment while running login.`
@@ -310,7 +311,8 @@ export async function runPreflightChecks(
           `Codex CLI is not authenticated.\n` +
             `\n` +
             `Please authenticate:\n` +
-            `  codex login\n` +
+            `  codex\n` +
+            `Select "Provide your own API key"\n` +
             `\n` +
             (hasOpenAIKey
               ? `Keep OPENAI_API_KEY in the environment while running login.`
