@@ -488,6 +488,49 @@ export async function runPreflightChecks(
     }
   }
 
+  // ============================================================================
+  // CHECK 8: Existing Claude configuration detection (non-blocking)
+  // ============================================================================
+  // If the project already has ./CLAUDE.md or ./.claude/CLAUDE.md, warn about
+  // the load-order conflict. initialize-project generates a new ./.claude/CLAUDE.md
+  // in Phase 4 and Claude Code loads both files, producing potentially
+  // conflicting instructions. Resolution is a manual merge — see
+  // docs/getting-started/QUICKSTART.md ("Projects with existing Claude configuration").
+  const rootClaudeMdPath = join(projectPath, 'CLAUDE.md');
+  const dotClaudeClaudeMdPath = join(projectPath, '.claude', 'CLAUDE.md');
+
+  if (existsSync(rootClaudeMdPath)) {
+    warnings.push(
+      `Existing CLAUDE.md detected at project root: ${rootClaudeMdPath}\n` +
+        `\n` +
+        `initialize-project will generate .claude/CLAUDE.md in Phase 4.\n` +
+        `Claude Code loads BOTH files, which can produce conflicting instructions.\n` +
+        `\n` +
+        `Recommended: after initialization completes, manually merge the two files.\n` +
+        `Treat the generated .claude/CLAUDE.md as the source of truth for framework\n` +
+        `conventions, and move any project-specific rules from ./CLAUDE.md into it.\n` +
+        `\n` +
+        `See: docs/getting-started/QUICKSTART.md — "Projects with existing Claude configuration"`,
+    );
+  }
+
+  if (existsSync(dotClaudeClaudeMdPath)) {
+    warnings.push(
+      `Existing .claude/CLAUDE.md detected: ${dotClaudeClaudeMdPath}\n` +
+        `\n` +
+        `initialize-project (Phase 4) will OVERWRITE this file with a freshly\n` +
+        `generated version based on the current project analysis.\n` +
+        `\n` +
+        `Recommended: back up the existing file before continuing, e.g.\n` +
+        `  cp "${dotClaudeClaudeMdPath}" "${dotClaudeClaudeMdPath}.bak"\n` +
+        `\n` +
+        `After initialization, diff the backup against the new file and merge any\n` +
+        `custom content you want to preserve.\n` +
+        `\n` +
+        `See: docs/getting-started/QUICKSTART.md — "Projects with existing Claude configuration"`,
+    );
+  }
+
   return {
     success: errors.length === 0,
     errors,
