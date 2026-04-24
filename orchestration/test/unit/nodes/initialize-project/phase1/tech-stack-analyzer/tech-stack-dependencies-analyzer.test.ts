@@ -120,15 +120,21 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
   it('should create agent with correct configuration', async () => {
     await techStackDependenciesAnalyzerNode(mockState);
-    expect(mockFactory.createAgent).toHaveBeenCalledWith({
-      agentName: 'tech-stack-dependencies-analyzer',
-      agentFilePath: expect.stringContaining('tech-stack-analyzer/prompts/agent.md'),
-      projectPath: '/test/project',
-      frameworkPath: '/test/framework',
-      timeout: 1800000,
-      resumeSessionId: undefined,
-      settingsPath: expect.stringContaining('tech-stack-analyzer/settings.json'),
-    });
+    expect(mockFactory.createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: 'tech-stack-dependencies-analyzer',
+        agentFilePath: expect.stringContaining('tech-stack-analyzer/prompts/agent.md'),
+        projectPath: '/test/project',
+        frameworkPath: '/test/framework',
+        timeout: 1800000,
+        resumeSessionId: undefined,
+        settingsPath: expect.stringContaining('tech-stack-analyzer/settings.json'),
+        phase: expect.objectContaining({
+          phaseId: 'phase-1-discovery',
+          phaseNumber: 1,
+        }),
+      }),
+    );
   });
 
   it('should invoke agent with project path', async () => {

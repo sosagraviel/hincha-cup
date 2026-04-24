@@ -1,6 +1,5 @@
 ---
 name: playwright-implementer
-model: sonnet
 description: Implements Playwright E2E tests following best practices, page object patterns, and multi-session testing for real-time features
 subagent_type: general-purpose
 ---

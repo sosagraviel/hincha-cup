@@ -30,6 +30,8 @@ Agents run as Claude CLI subprocesses (`cli-agent-impl.ts`) in CLI auth mode, or
 
 All phase outputs are persisted to `.claude-temp/initialize-project/phase1-outputs/` before being returned to LangGraph state (disk-first idempotency pattern).
 
+Per-attempt debug artifacts (prompts, outputs, stdout/stderr, native transcripts, rendered HTML) are always written under `.<provider>-temp/<workflow>/debug/runs/<runId>/`. See `services/framework/debug-store/` for the store and `services/framework/transcripts/` for transcript capture/rendering. `--debug` is a verbosity knob; capture is always on. `--keep-runs <n>` (default 10) controls retention.
+
 **Note**: The orchestration `implement-ticket` workflow is work-in-progress and not currently in use. The active implementation is the `implement-ticket` skill at `skills/020-development-workflow/implement-ticket/SKILL.md`, which is directly invokable via the Skill tool (frontmatter `user-invokable: true` + `disable-model-invocation: true`). Unless explicitly specified otherwise, "implement-ticket" refers to this skill.
 
 ## File Placement Guide
@@ -48,6 +50,8 @@ All phase outputs are persisted to `.claude-temp/initialize-project/phase1-outpu
 | Stack profile schema | `orchestration/src/schemas/stack-profile.schema.ts` | Service-centric; output to `framework-config.json` by Phase 4 |
 | Business logic services | `orchestration/src/services/**/*.service.ts` | Grouped under `implement-ticket/` and `framework/` |
 | Agent factory | `orchestration/src/utils/shared/agent-factory/` | `cli-agent-impl.ts` vs `deep-agent-impl.ts` selected by auth-detector |
+| Debug store | `orchestration/src/services/framework/debug-store/` | Always-on per-attempt artifact capture: `.<provider>-temp/<workflow>/debug/runs/<runId>/<phaseId>/<agent>/attempt-<N>/<sessionId>/` |
+| Transcript parsers + renderer | `orchestration/src/services/framework/transcripts/` | Claude JSONL + Codex rollout JSONL + DeepAgents synth → normalized events → self-contained HTML |
 | Stop hooks | `orchestration/src/nodes/**/hooks/*.ts` | Inline JSON validation during Claude CLI sessions |
 | Agent templates | `agents/templates/*.template.md` | Handlebars for planner, implementer-\*, visual-verifier |
 | Skills library | `skills/**/*.md` | Copied to target projects; trigger-matched in Phase 5 |

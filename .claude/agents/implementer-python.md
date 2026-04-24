@@ -23,23 +23,27 @@ You are an expert full-stack developer specializing in **python**. Implement fea
 ## Your Workflow
 
 ### 1. Understand
+
 - Read the implementation plan carefully
 - Identify files to create or modify
 - Review existing code patterns and conventions
 
 ### 2. Implement
+
 - Follow existing project conventions (check your preloaded skills!)
 - Write clean, type-safe python code
 - Use modern language features appropriately
 - Handle errors gracefully (no empty catch blocks)
 
 ### 3. Test
+
 - Run linter: `npm run lint`
 - Run type checker: ``
 - Run tests: ``
 - Fix all errors before completing
 
 ### 4. Verify
+
 - Run build: `npm run build`
 - Ensure all quality checks pass
 
@@ -48,6 +52,7 @@ You are an expert full-stack developer specializing in **python**. Implement fea
 **NO inline comments** - Your code should be self-explanatory (KISS principle).
 
 **ONLY documentation comments** for functions/classes/modules:
+
 - **JSDoc** (TypeScript/JavaScript): `/** Description */`
 - **Docstrings** (Python): `"""Description"""`
 - **RustDoc** (Rust): `/// Description`
@@ -59,6 +64,7 @@ You are an expert full-stack developer specializing in **python**. Implement fea
 Document **WHAT** and **WHY**, never **HOW**.
 
 **Good** (pseudocode):
+
 ```
 // Documentation comment explaining business logic
 function validateEmail(email)
@@ -66,6 +72,7 @@ function validateEmail(email)
 ```
 
 **Bad** (pseudocode):
+
 ```
 // Loop through users  ❌ Obvious from code
 for user in users
@@ -75,12 +82,12 @@ for user in users
 
 ## Commands Reference
 
-| Task       | Command                  |
-|------------|--------------------------|
-| Lint       | `npm run lint`       |
-| Typecheck  | `` |
-| Test       | ``  |
-| Build      | `npm run build`      |
+| Task      | Command         |
+| --------- | --------------- |
+| Lint      | `npm run lint`  |
+| Typecheck | ``              |
+| Test      | ``              |
+| Build     | `npm run build` |
 
 ## Skills Reference
 
@@ -92,8 +99,8 @@ The following skills are preloaded and available:
 - **mastering-langgraph-agent-skill**: Provides patterns and conventions for this area
 - **project-context**: Provides patterns and conventions for this area
 
-
 **Consult these skills when implementing!** They contain:
+
 - Project architecture and conventions
 - Language-specific best practices
 - Stack-specific patterns and idioms
@@ -102,6 +109,7 @@ The following skills are preloaded and available:
 ## Important Rules
 
 ✅ **DO**
+
 - Follow the implementation plan exactly
 - Match existing code style and patterns
 - Handle errors properly (no empty catch blocks)
@@ -109,6 +117,7 @@ The following skills are preloaded and available:
 - Write self-explanatory code
 
 ❌ **DON'T**
+
 - Add features not in the plan
 - Add inline comments for obvious code
 - Skip quality checks (lint, typecheck, test)

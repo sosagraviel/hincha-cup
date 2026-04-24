@@ -1,5 +1,6 @@
 import { AuthMode } from '../../../auth/auth-detector.js';
 import type { ValidationResult } from '../../validator.js';
+import type { PhaseSlot } from '../../../services/framework/debug-store/index.js';
 
 export interface AgentConfig {
   agentName: string;
@@ -9,6 +10,13 @@ export interface AgentConfig {
   timeout?: number;
   resumeSessionId?: string; // Session ID to resume (for context-preserving retry)
   settingsPath?: string; // Optional path to settings.json file passed via --settings flag
+  /**
+   * Phase context used by the debug store to place per-attempt artifacts under
+   * `debug/runs/<runId>/<phaseId>/<agentName>/attempt-<N>/<sessionId>/`.
+   * Optional for backwards-compat — code paths that don't set it will fall back
+   * to a phase-less slot (`phase-unknown`).
+   */
+  phase?: PhaseSlot;
   /**
    * Internal validator invoked after each Codex CLI exec completes successfully.
    *

@@ -86,15 +86,21 @@ describe('structureArchitectureAnalyzerNode', () => {
 
   it('should use correct agent configuration', async () => {
     await structureArchitectureAnalyzerNode(mockState);
-    expect(mockFactory.createAgent).toHaveBeenCalledWith({
-      agentName: 'structure-architecture-analyzer',
-      agentFilePath: expect.stringContaining('structure-analyzer/prompts/agent.md'),
-      projectPath: '/test/project',
-      frameworkPath: '/test/framework',
-      timeout: 1800000,
-      resumeSessionId: undefined,
-      settingsPath: expect.stringContaining('structure-analyzer/settings.json'),
-    });
+    expect(mockFactory.createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: 'structure-architecture-analyzer',
+        agentFilePath: expect.stringContaining('structure-analyzer/prompts/agent.md'),
+        projectPath: '/test/project',
+        frameworkPath: '/test/framework',
+        timeout: 1800000,
+        resumeSessionId: undefined,
+        settingsPath: expect.stringContaining('structure-analyzer/settings.json'),
+        phase: expect.objectContaining({
+          phaseId: 'phase-1-discovery',
+          phaseNumber: 1,
+        }),
+      }),
+    );
   });
 
   it('should write to correct output file', async () => {

@@ -10,6 +10,7 @@ import { buildSynthesisPrompt } from './prompt-builder.js';
 import { getFrameworkAgentPath } from '../shared/index.js';
 import { reasoningPrefix } from '../../../utils/shared/context-tags.js';
 import { resolveTempPath } from '../../../utils/provider-paths.js';
+import { getInitializeProjectPhase } from '../../../services/framework/debug-store/index.js';
 
 /**
  * Phase 3: Opus Synthesis Node
@@ -89,6 +90,7 @@ export async function synthesisNode(
         frameworkPath: state.framework_path,
         timeout: 900000, // 15 minutes (agent should use max 10 tool calls, mostly synthesis)
         resumeSessionId, // Pass session ID for context-preserving retry
+        phase: getInitializeProjectPhase('phase3'),
         settingsPath: join(
           state.framework_path,
           'orchestration/src/nodes/initialize-project/phase3/settings.json',
@@ -114,7 +116,11 @@ export async function synthesisNode(
       agentInvoke,
       validator,
       { ...DEFAULT_RETRY_CONFIG, maxAttempts: 10 },
-      { projectPath: state.project_path, agentName },
+      {
+        projectPath: state.project_path,
+        agentName,
+        phase: getInitializeProjectPhase('phase3'),
+      },
     );
     writeFileSync(synthesisPath, synthesisContent);
 
