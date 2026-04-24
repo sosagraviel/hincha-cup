@@ -1,7 +1,8 @@
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { mkdir, writeFile } from 'fs/promises';
+import os from 'os';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { AuthMode } from '../../../auth/auth-detector.js';
 import { getLLMFactory } from '../../../llm/llm-factory.js';
 import { logger } from '../../logger.js';
@@ -11,7 +12,6 @@ import { getAgentAction } from './agent-utils.js';
 import { getClaudeCLIPath, getCLIModelForAgent, parseToolsFromFrontmatter } from './cli-utils.js';
 import { summarizeCliError } from '../../../services/framework/debug-store/index.js';
 import { beginAttemptRecorder } from './attempt-recorder.js';
-import { resolveTempPath } from '../../provider-paths.js';
 
 // Track active processes and invocations for cleanup
 const activeProcesses: Set<ChildProcess> = new Set();
@@ -173,14 +173,19 @@ async function invokeCLI(
     activeInvocations.set(invocationId, reject);
 
     (async () => {
-      const sessionTempDir = resolveTempPath(config.projectPath, config.agentName, run.sessionId);
-      await mkdir(sessionTempDir, { recursive: true });
+      // Transient scratch dir for the subprocess — holds the prompt file that
+      // Claude CLI reads via stdin and (optionally) the resolved settings
+      // file passed via `--settings`. We deliberately keep this OUT of the
+      // project's `.<provider>-temp/` tree: every debug artifact lives under
+      // `debug/runs/<runId>/…` (via the DebugStore). Cleaned up after exit.
+      const sessionTempDir = await mkdtemp(path.join(os.tmpdir(), 'framework-claude-'));
       const promptFile = path.join(sessionTempDir, 'prompt.txt');
 
       try {
         await writeFile(promptFile, run.inputPrompt, 'utf-8');
       } catch (err) {
         activeInvocations.delete(invocationId);
+        await rm(sessionTempDir, { recursive: true, force: true }).catch(() => undefined);
         reject(new Error(`Failed to write prompt file: ${err}`));
         return;
       }
@@ -194,6 +199,10 @@ async function invokeCLI(
       const cleanup = () => {
         activeInvocations.delete(invocationId);
         clearTimeout(timeoutId);
+      };
+
+      const removeScratchDir = async () => {
+        await rm(sessionTempDir, { recursive: true, force: true }).catch(() => undefined);
       };
 
       const promptFd = await new Promise<number>((res, rej) => {
@@ -261,6 +270,7 @@ async function invokeCLI(
           .writeErrorSummary(`Claude CLI timeout after ${timeout}ms`)
           .catch(() => undefined);
         await recorder.finalize('failure', { failureReason: 'timeout' });
+        await removeScratchDir();
         reject(new Error(`Claude CLI timeout after ${timeout}ms`));
       }, timeout);
 
@@ -297,6 +307,7 @@ async function invokeCLI(
           await recorder.mergeMeta({ code, failureReason: undefined });
           await recorder.captureTranscript({ outcome: 'success' });
           await recorder.finalize('success', { code });
+          await removeScratchDir();
           resolve({ output: stdout, sessionId: run.sessionId });
           return;
         }
@@ -329,6 +340,7 @@ async function invokeCLI(
         await recorder.mergeMeta({ code, rateLimit: isRateLimit });
         await recorder.captureTranscript({ outcome: 'failure' });
         await recorder.finalize('failure', { code, rateLimit: isRateLimit });
+        await removeScratchDir();
 
         reject(new Error(errorMessage));
       });
@@ -337,6 +349,7 @@ async function invokeCLI(
         cleanup();
         await recorder.writeErrorSummary(`Failed to spawn Claude CLI: ${error.message}`);
         await recorder.finalize('failure', { failureReason: 'spawn-error' });
+        await removeScratchDir();
         reject(new Error(`Failed to spawn Claude CLI: ${error.message}`));
       });
     })().catch((err) => reject(err as Error));

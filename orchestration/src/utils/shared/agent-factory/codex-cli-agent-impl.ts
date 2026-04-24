@@ -1,7 +1,8 @@
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { mkdir, writeFile, readFile } from 'fs/promises';
+import os from 'os';
+import { mkdtemp, rm, writeFile, readFile } from 'fs/promises';
 import { z } from 'zod';
 import { AuthMode } from '../../../auth/auth-detector.js';
 import { getLLMFactory } from '../../../llm/llm-factory.js';
@@ -17,7 +18,6 @@ import {
 import { getSchemaForAgent } from '../../../schemas/phase1-agent-outputs.schema.js';
 import { summarizeCliError } from '../../../services/framework/debug-store/index.js';
 import { beginAttemptRecorder, type AttemptRecorder } from './attempt-recorder.js';
-import { resolveTempPath } from '../../provider-paths.js';
 
 // Track active processes and invocations for cleanup
 const activeCodexProcesses: Set<ChildProcess> = new Set();
@@ -226,8 +226,17 @@ async function invokeCodexCLI(
   if (isCodexAborting) throw new Error('SIGINT: Workflow interrupted by user (CTRL+C)');
 
   const timeout = config.timeout ?? 300000;
-  const tempDir = resolveTempPath(config.projectPath, config.agentName, run.sessionId);
-  await mkdir(tempDir, { recursive: true });
+  // Transient scratch dir for the subprocess — holds the per-iteration prompt
+  // file (stdin to `codex exec`), the `-o` output capture file, and the
+  // generated JSON Schema passed via `--output-schema`. All of these are
+  // internal to Codex's invocation; debug artifacts live under the
+  // DebugStore's run dir. Keeping scratch out of `.<provider>-temp/<agent>/`
+  // avoids the orphan "agent/<uuid>/prompt.txt" folders the project used to
+  // accumulate after successful runs.
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'framework-codex-'));
+  const removeScratchDir = async () => {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  };
 
   const agentContent = fs.readFileSync(config.agentFilePath, 'utf-8');
   const agentBody = agentContent.replace(/^---[\s\S]*?---\n?/, '');
@@ -283,6 +292,7 @@ async function invokeCodexCLI(
 
   if (first.code !== 0) {
     await finalizeCodexFailure(recorder, first, run.sessionId);
+    await removeScratchDir();
     throw new Error(buildFailureMessage(first));
   }
 
@@ -300,6 +310,7 @@ async function invokeCodexCLI(
       codexSessionIdOverride: codexSessionId ?? undefined,
     });
     await recorder.finalize('success', { code: first.code });
+    await removeScratchDir();
     return { output, sessionId: run.sessionId };
   }
 
@@ -337,6 +348,7 @@ async function invokeCodexCLI(
     });
     if (resumeRun.code !== 0) {
       await finalizeCodexFailure(recorder, resumeRun, run.sessionId, feedbackPrompt);
+      await removeScratchDir();
       throw new Error(buildFailureMessage(resumeRun));
     }
     output = resumeRun.output;
@@ -362,6 +374,7 @@ async function invokeCodexCLI(
       codexSessionIdOverride: codexSessionId ?? undefined,
     });
     await recorder.finalize('success', { code: 0 });
+    await removeScratchDir();
     return { output, sessionId: run.sessionId };
   }
 
@@ -380,6 +393,7 @@ async function invokeCodexCLI(
   });
   // We still return output so the external retry layer can observe the failure.
   await recorder.finalize('success', { code: 0, failureReason: 'internal-validation-exhausted' });
+  await removeScratchDir();
   return { output, sessionId: run.sessionId };
 }
 
