@@ -13,6 +13,7 @@ vi.mock('child_process', () => ({
 
 // Mock fs
 vi.mock('fs', () => ({
+  existsSync: vi.fn(),
   default: {
     existsSync: vi.fn(),
   },
@@ -21,55 +22,96 @@ vi.mock('fs', () => ({
 describe('auth-detector', () => {
   const originalEnv = process.env;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env = { ...originalEnv };
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.OPENAI_API_KEY;
     delete process.env.GOOGLE_API_KEY;
     delete process.env.PROVIDER;
+    delete process.env.FRAMEWORK_PATH;
 
     vi.clearAllMocks();
+
+    const fs = await import('fs');
+    vi.mocked(fs.existsSync).mockReturnValue(false);
   });
 
   describe('detectAuthMode', () => {
-    it('should detect Anthropic API key', async () => {
+    it('should use Claude CLI when ANTHROPIC_API_KEY is set and Claude CLI is available', async () => {
       process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key';
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        if (cmd === 'which claude') return Buffer.from('/usr/local/bin/claude');
+        if (cmd === 'claude --version') return Buffer.from('2.1.0');
+        throw new Error('Command failed');
+      });
 
       const result = await detectAuthMode();
 
-      expect(result.mode).toBe(AuthMode.API_KEY);
+      expect(result.mode).toBe(AuthMode.CLAUDE_CLI);
       expect(result.provider).toBe('anthropic');
       expect(result.hasAPIKey).toBe(true);
     });
 
-    it('should detect OpenAI API key', async () => {
+    it('should not return API_KEY when ANTHROPIC_API_KEY is set without Claude CLI', async () => {
+      process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key';
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('Command not found');
+      });
+
+      await expect(detectAuthMode()).rejects.toThrow(/Claude CLI is not installed/);
+    });
+
+    it('should require Codex CLI login when OPENAI_API_KEY is set', async () => {
       process.env.OPENAI_API_KEY = 'sk-test-key';
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        if (cmd === 'which codex') return Buffer.from('/usr/local/bin/codex');
+        if (cmd === 'codex --version') return Buffer.from('codex 0.121.0');
+        if (cmd === 'codex login status') throw new Error('Not authenticated');
+        throw new Error('Command failed');
+      });
 
-      const result = await detectAuthMode();
-
-      expect(result.mode).toBe(AuthMode.API_KEY);
-      expect(result.provider).toBe('openai');
-      expect(result.hasAPIKey).toBe(true);
+      await expect(detectAuthMode()).rejects.toThrow(/Codex CLI is not authenticated/);
     });
 
-    it('should detect Google API key', async () => {
+    it('should ignore GOOGLE_API_KEY and fall through to Claude CLI detection', async () => {
       process.env.GOOGLE_API_KEY = 'google-test-key';
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        if (cmd === 'which claude' || cmd === 'claude --help') {
+          return Buffer.from('');
+        }
+        if (cmd === 'claude --version') {
+          return Buffer.from('2.1.0');
+        }
+        throw new Error('Command failed');
+      });
 
       const result = await detectAuthMode();
 
-      expect(result.mode).toBe(AuthMode.API_KEY);
-      expect(result.provider).toBe('google');
-      expect(result.hasAPIKey).toBe(true);
+      expect(result.mode).toBe(AuthMode.CLAUDE_CLI);
+      expect(result.provider).toBe('anthropic');
+      expect(result.hasAPIKey).toBe(false);
     });
 
-    it('should prioritize Anthropic over other providers', async () => {
+    it('should prioritize Anthropic API key over other provider keys', async () => {
       process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key';
       process.env.OPENAI_API_KEY = 'sk-test-key';
       process.env.GOOGLE_API_KEY = 'google-test-key';
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        if (cmd === 'which claude') return Buffer.from('/usr/local/bin/claude');
+        if (cmd === 'claude --version') return Buffer.from('2.1.0');
+        if (cmd === 'which codex') return Buffer.from('/usr/local/bin/codex');
+        if (cmd === 'codex --version') return Buffer.from('codex 0.121.0');
+        throw new Error('Command failed');
+      });
 
       const result = await detectAuthMode();
 
-      expect(result.mode).toBe(AuthMode.API_KEY);
+      expect(result.mode).toBe(AuthMode.CLAUDE_CLI);
       expect(result.provider).toBe('anthropic');
     });
 
@@ -79,11 +121,14 @@ describe('auth-detector', () => {
         if (cmd === 'which claude' || cmd === 'claude --help') {
           return Buffer.from('');
         }
+        if (cmd === 'claude --version') {
+          return Buffer.from('2.1.0');
+        }
         throw new Error('Command failed');
       });
 
       const fs = await import('fs');
-      vi.mocked(fs.default.existsSync).mockReturnValue(true);
+      vi.mocked(fs.existsSync).mockReturnValue(true);
 
       const result = await detectAuthMode();
 
@@ -152,7 +197,7 @@ describe('auth-detector', () => {
       vi.mocked(execSync).mockReturnValue(Buffer.from(''));
 
       const fs = await import('fs');
-      vi.mocked(fs.default.existsSync).mockReturnValue(true);
+      vi.mocked(fs.existsSync).mockReturnValue(true);
 
       const result = await isClaudeCLIAuthenticated();
 
@@ -196,7 +241,7 @@ describe('auth-detector', () => {
 
       const message = getAuthErrorMessage(authConfig);
 
-      expect(message).toContain('claude setup-token');
+      expect(message).toContain('claude login');
       expect(message).toContain('Option 3: Authenticate Claude CLI');
     });
 
@@ -226,7 +271,7 @@ describe('auth-detector', () => {
 
       expect(message).toContain('ANTHROPIC_API_KEY');
       expect(message).toContain('OPENAI_API_KEY');
-      expect(message).toContain('GOOGLE_API_KEY');
+      expect(message).not.toContain('GOOGLE_API_KEY');
     });
   });
 });
