@@ -5,6 +5,7 @@ import { logger } from '../../logger.js';
 import { loadMarkdownFile } from '../prompt-loader.js';
 import type { Agent, AgentConfig, AgentInvokeInput, AgentInvokeResult } from './types.js';
 import { getAgentAction } from './agent-utils.js';
+import { beginAttemptRecorder } from './attempt-recorder.js';
 
 /**
  * Create agent using DeepAgents.js (API key mode)
@@ -15,29 +16,43 @@ export async function createDeepAgentImpl(
 ): Promise<Agent> {
   const llmFactory = getLLMFactory();
   const modelInfo = llmFactory.getModelInfo(config.agentName);
-
   const model = await llmFactory.createModel(config.agentName);
-
-  // Read agent file and parse frontmatter (simple file read for DeepAgents workaround)
   const { frontmatter, body } = loadMarkdownFile(config.agentFilePath);
 
   return {
     invoke: async (input: AgentInvokeInput): Promise<AgentInvokeResult> => {
-      // Combine agent + input (DeepAgents limitation - doesn't support file-based subagents)
       const systemPrompt = `${body}\n\n${input.inputPrompt}`;
+      const sessionId =
+        config.resumeSessionId ||
+        `deepagent-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+      const attemptNumber = input.attemptNumber ?? 1;
 
-      // Create subagent with frontmatter as config
+      const recorder = beginAttemptRecorder({
+        agentName: config.agentName,
+        sessionId,
+        attemptNumber,
+        phase: config.phase,
+        provider: 'deepagent',
+        cli: 'deepagent',
+        model: modelInfo.alias,
+        projectPath: config.projectPath,
+      });
+      await recorder.writePromptInput(input.inputPrompt);
+      await recorder.writePromptResolved(systemPrompt);
+      await recorder.snapshotAgentFile(config.agentFilePath);
+
       const agent = await createDeepAgent({
-        model: model,
+        model,
         subagents: [
           {
             name: frontmatter.name || config.agentName,
             description: frontmatter.description || `Agent: ${config.agentName}`,
-            systemPrompt: systemPrompt,
+            systemPrompt,
             tools: [],
           },
         ],
       });
+
       const action = getAgentAction(config.agentName);
       const authInfo = `Auth: API Key, Provider: ${authProvider}, Model: ${modelInfo.alias}`;
 
@@ -50,41 +65,44 @@ export async function createDeepAgentImpl(
       const timeout = config.timeout || 300000;
 
       try {
-        // Input is already in systemPrompt (combined with agent instructions)
-        const agentPromise = (agent as any).invoke({
-          messages: [],
+        const agentPromise = (
+          agent as unknown as {
+            invoke: (payload: { messages: unknown[] }) => Promise<Record<string, unknown>>;
+          }
+        ).invoke({ messages: [] });
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(
+            () => reject(new Error(`DeepAgent execution timeout after ${timeout}ms`)),
+            timeout,
+          );
         });
 
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => {
-            reject(new Error(`DeepAgent execution timeout after ${timeout}ms`));
-          }, timeout);
-        });
-
-        const result = await Promise.race([agentPromise, timeoutPromise]);
+        const result = (await Promise.race([agentPromise, timeoutPromise])) as Record<
+          string,
+          unknown
+        >;
         const executionTimeMs = Date.now() - startTime;
+        const output =
+          (result.output as string | undefined) ??
+          (result.content as string | undefined) ??
+          JSON.stringify(result);
 
-        const output = result.output || result.content || JSON.stringify(result);
-
-        // Update tracker to success
         logger.trackConcurrentAgentSucceed(
           trackerId,
           `Completed in ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
         );
 
-        // Generate session ID for tracking (DeepAgents doesn't use --resume like CLI)
-        const sessionId =
-          config.resumeSessionId ||
-          `deepagent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await recorder.writeOutput(output);
+        await recorder.mergeMeta({ code: null });
+        await recorder.captureTranscript({
+          systemPrompt,
+          deepAgentMessages: result.messages ?? [],
+          outcome: 'success',
+        });
+        await recorder.finalize('success');
 
-        return {
-          output,
-          sessionId,
-          mode: AuthMode.API_KEY,
-          executionTimeMs,
-        };
+        return { output, sessionId, mode: AuthMode.API_KEY, executionTimeMs };
       } catch (error: unknown) {
-        // Update to failure state
         const executionTimeMs = Date.now() - startTime;
         const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -93,13 +111,18 @@ export async function createDeepAgentImpl(
           `Failed after ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
         );
 
+        await recorder.writeErrorSummary(errorMessage);
+        await recorder.captureTranscript({
+          systemPrompt,
+          deepAgentMessages: [],
+          outcome: 'failure',
+        });
+        await recorder.finalize('failure');
+
         throw new Error(`DeepAgent execution failed after ${executionTimeMs}ms: ${errorMessage}`);
       }
     },
 
-    getInfo: () => ({
-      agentName: config.agentName,
-      mode: AuthMode.API_KEY,
-    }),
+    getInfo: () => ({ agentName: config.agentName, mode: AuthMode.API_KEY }),
   };
 }

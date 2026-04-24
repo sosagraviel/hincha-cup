@@ -50,7 +50,6 @@ function generateValidProjectContext(lineCount: number = 100): string {
     '---',
     'name: project-context',
     'description: Deep architectural knowledge',
-    'user-invokable: true',
     '---',
     '',
     '# Project Context: TestProject',

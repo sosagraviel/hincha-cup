@@ -12,6 +12,7 @@ import { buildPhase1AnalyzerPrompt } from '../shared/prompt-builder.js';
 import { getFrameworkAgentPath } from '../../shared/index.js';
 import { reasoningPrefix } from '../../../../utils/shared/context-tags.js';
 import { resolveTempPath } from '../../../../utils/provider-paths.js';
+import { getInitializeProjectPhase } from '../../../../services/framework/debug-store/index.js';
 
 /**
  * Structure & Architecture Analyzer Node
@@ -74,6 +75,7 @@ export async function structureArchitectureAnalyzerNode(
         frameworkPath: state.framework_path,
         timeout: 1800000, // 30 minutes
         resumeSessionId, // Pass session ID for context-preserving retry
+        phase: getInitializeProjectPhase('phase1'),
         settingsPath: join(
           state.framework_path,
           'orchestration/src/nodes/initialize-project/phase1/structure-analyzer/settings.json',
@@ -98,7 +100,11 @@ export async function structureArchitectureAnalyzerNode(
       agentInvoke,
       validator,
       DEFAULT_RETRY_CONFIG,
-      { projectPath: state.project_path, agentName },
+      {
+        projectPath: state.project_path,
+        agentName,
+        phase: getInitializeProjectPhase('phase1'),
+      },
     );
 
     writeFileSync(outputPath, JSON.stringify(validatedData, null, 2));

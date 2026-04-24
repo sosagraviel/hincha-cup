@@ -4,7 +4,6 @@ version: 3.3.0
 last-updated: 2026-04-23
 description: Implements a ticket end-to-end through 12-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
-user-invokable: true
 disable-model-invocation: true
 ---
 

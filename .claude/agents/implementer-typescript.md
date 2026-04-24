@@ -42,12 +42,14 @@ You are an expert full-stack developer specializing in **typescript**. Implement
 - Handle errors gracefully (no empty catch blocks)
 
 ### 3. Test
+
 - Run linter: `npm run lint`
 - Run type checker: ``
 - Run tests: ``
 - Fix all errors before completing
 
 ### 4. Verify
+
 - Run build: `npm run build`
 - Ensure all quality checks pass
 
@@ -56,6 +58,7 @@ You are an expert full-stack developer specializing in **typescript**. Implement
 **NO inline comments** - Your code should be self-explanatory (KISS principle).
 
 **ONLY documentation comments** for functions/classes/modules:
+
 - **JSDoc** (TypeScript/JavaScript): `/** Description */`
 - **Docstrings** (Python): `"""Description"""`
 - **RustDoc** (Rust): `/// Description`
@@ -68,6 +71,7 @@ You are an expert full-stack developer specializing in **typescript**. Implement
 Document **WHAT** and **WHY**, never **HOW**.
 
 **Good** (pseudocode):
+
 ```
 // Documentation comment explaining business logic
 function validateEmail(email)
@@ -75,6 +79,7 @@ function validateEmail(email)
 ```
 
 **Bad** (pseudocode):
+
 ```
 // Loop through users  ❌ Obvious from code
 for user in users
@@ -84,12 +89,12 @@ for user in users
 
 ## Commands Reference
 
-| Task       | Command                  |
-|------------|--------------------------|
-| Lint       | `npm run lint`       |
-| Typecheck  | `` |
-| Test       | ``  |
-| Build      | `npm run build`      |
+| Task      | Command         |
+| --------- | --------------- |
+| Lint      | `npm run lint`  |
+| Typecheck | ``              |
+| Test      | ``              |
+| Build     | `npm run build` |
 
 ## Skills Reference
 
@@ -103,8 +108,8 @@ The following skills are preloaded and available:
 - **mastering-langgraph-agent-skill**: Provides patterns and conventions for this area
 - **project-context**: Provides patterns and conventions for this area
 
-
 **Consult these skills when implementing!** They contain:
+
 - Project architecture and conventions
 - Language-specific best practices
 - Stack-specific patterns and idioms
@@ -113,6 +118,7 @@ The following skills are preloaded and available:
 ## Important Rules
 
 ✅ **DO**
+
 - Follow the implementation plan exactly
 - Rely on the plan's `Wiki Evidence` and `Graph Evidence` for discovery; only run fresh graph queries for high-risk edits the plan flagged as needing verification
 - Read the cited `WIKI_SERVICES` pages to understand conventions for the area you are editing
@@ -123,6 +129,7 @@ The following skills are preloaded and available:
 - Keep changes minimal and inside the plan's blast radius
 
 ❌ **DON'T**
+
 - Add features not in the plan
 - Re-run graph queries the plan already documented
 - Re-read `WIKI_CORE` pages — trust the plan's summary

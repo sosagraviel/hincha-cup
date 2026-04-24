@@ -181,16 +181,22 @@ describe('synthesisNode', () => {
 
     await synthesisNode(mockState);
 
-    expect(localMockFactory.createAgent).toHaveBeenCalledWith({
-      agentName: 'architect-synthesizer',
-      agentFilePath: expect.stringContaining('phase3/prompts/agent.md'),
-      projectPath: '/test/project',
-      frameworkPath: '/test/framework',
-      timeout: 900000,
-      resumeSessionId: undefined,
-      settingsPath: expect.stringContaining('phase3/settings.json'),
-      validator: expect.any(Function),
-    });
+    expect(localMockFactory.createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: 'architect-synthesizer',
+        agentFilePath: expect.stringContaining('phase3/prompts/agent.md'),
+        projectPath: '/test/project',
+        frameworkPath: '/test/framework',
+        timeout: 900000,
+        resumeSessionId: undefined,
+        settingsPath: expect.stringContaining('phase3/settings.json'),
+        validator: expect.any(Function),
+        phase: expect.objectContaining({
+          phaseId: 'phase-3-synthesis',
+          phaseNumber: 3,
+        }),
+      }),
+    );
   });
 
   it('should include phase2 consolidation in context', async () => {
