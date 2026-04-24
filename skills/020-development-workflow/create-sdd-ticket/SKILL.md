@@ -1,8 +1,6 @@
 ---
 name: create-sdd-ticket
 description: Generate specification-driven development (SDD) tickets directly from ideas, Jira tickets, or markdown drafts. Use when creating implementation-ready tickets with gap detection, INVEST validation, and BDD scenarios.
-model: sonnet
-user-invokable: true
 argument-hint: '[--from-input "..." | --from-jira JIRA-URL-OR-KEY | --from-markdown PATH] [--save-to-jira BOARD-URL | --save-to-markdown [PATH]]'
 ---
 
@@ -123,7 +121,7 @@ Question: ${gap.message}
 Context: Searched ${attemptedSources.join(', ')} and did not find a definitive answer
 Example: ${gap.example}
 
-Your answer: **_**
+Your answer: **\_**
 ```
 
 ### Phase 4: Process Answers And Fill Gaps
@@ -279,19 +277,24 @@ Markdown output should align with [`templates/sdd-ticket-template.md`](./templat
 # PROJ-123: [Title]
 
 ## User Story
+
 **As a** [role]
 **I want** [goal]
 **So that** [benefit]
 
 ## Stakeholders
+
 - Role / name / responsibility
 
 ## Success Criteria
+
 1. [Measurable outcome 1]
 2. [Measurable outcome 2]
 
 ## Acceptance Criteria
+
 ### Scenario 1: [Happy Path]
+
 ```gherkin
 Given [context]
 When [action]
@@ -299,6 +302,7 @@ Then [outcome]
 ```
 
 ## Technical Context
+
 - Current state
 - Proposed changes
 - Technical constraints
@@ -306,18 +310,22 @@ Then [outcome]
 - Architecture decisions
 
 ## Out Of Scope
+
 - [Item]
 
 ## Edge Cases And Error Handling
+
 - Edge cases
 - Error scenarios
 - Validation rules
 
 ## Dependencies
+
 - Blocking
 - Related
 
 ## Definition Of Done
+
 - Code quality
 - Testing
 - Documentation
@@ -428,7 +436,7 @@ Question: What specific components will be modified?
 Context: Searched the codebase but found multiple possible implementations
 Example: "Modify UserController, add AuthService, update User model"
 
-Your answer: **_**
+Your answer: **\_**
 ```
 
 ### INVEST Validation Failed
@@ -464,6 +472,7 @@ Fallback:
 {{TEMP_DIR}}/tickets/DRAFT-20260415-143022/DRAFT-20260415-143022.md
 
 Options:
+
 1. Save to markdown now
 2. Re-run later when Jira access is available
 3. Copy the generated content into Jira manually
