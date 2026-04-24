@@ -12,6 +12,7 @@ import { getAgentAction } from './agent-utils.js';
 import { getClaudeCLIPath, getCLIModelForAgent, parseToolsFromFrontmatter } from './cli-utils.js';
 import { summarizeCliError } from '../../../services/framework/debug-store/index.js';
 import { beginAttemptRecorder } from './attempt-recorder.js';
+import { getExcludedDirectories } from '../prompt-loader.js';
 
 // Track active processes and invocations for cleanup
 const activeProcesses: Set<ChildProcess> = new Set();
@@ -250,12 +251,25 @@ async function invokeCLI(
         }
       }
 
+      // Pass project boundary + excluded dirs so the PreToolUse hook
+      // (`restrict-agent-paths.hook.ts`) can hard-block tool calls that leave
+      // the project or enter excluded dirs — which prompt-only guidance
+      // doesn't reliably enforce.
+      const excludedDirs = getExcludedDirectories(config.projectPath, config.frameworkPath);
+
       claudeProcess = spawn(claudeCLI.path, cliArgs, {
         cwd: config.projectPath,
         env: {
           ...process.env,
           CLAUDE_SKIP_CONFIRMATIONS: '1',
           FRAMEWORK_PATH: config.frameworkPath,
+          FRAMEWORK_PROJECT_PATH: config.projectPath,
+          FRAMEWORK_EXCLUDED_DIRS: JSON.stringify(excludedDirs),
+          // FRAMEWORK_ENFORCE=1 tells the PreToolUse hook that path exclusion
+          // is mandatory for this invocation — any internal hook error must
+          // fail closed (block), not fall back to allow. Unset in ad-hoc CLI
+          // usage outside our spawn, where the hook silently no-ops.
+          FRAMEWORK_ENFORCE: '1',
         },
         stdio: [promptFd, 'pipe', 'pipe'],
         detached: false,
