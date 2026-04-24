@@ -191,14 +191,14 @@ fi
 
 # Auto-detect provider if not explicitly set
 if [ -z "$PROVIDER" ]; then
-    if [ -n "$OPENAI_API_KEY" ]; then
-        PROVIDER="codex"
-    elif [ -n "$ANTHROPIC_API_KEY" ]; then
+    if [ -n "$ANTHROPIC_API_KEY" ]; then
         PROVIDER="claude"
-    elif command -v codex &> /dev/null && codex --version &> /dev/null 2>&1; then
+    elif [ -n "$OPENAI_API_KEY" ]; then
         PROVIDER="codex"
     elif command -v claude &> /dev/null && claude --version &> /dev/null 2>&1; then
         PROVIDER="claude"
+    elif command -v codex &> /dev/null && codex --version &> /dev/null 2>&1; then
+        PROVIDER="codex"
     else
         PROVIDER="claude"
     fi
