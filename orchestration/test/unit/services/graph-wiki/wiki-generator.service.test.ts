@@ -317,7 +317,7 @@ describe('wiki-generator.service', () => {
     );
 
     for (const tier of Object.values(config.tiers) as any[]) {
-      expect(tier.agents['wiki-generator']).toBe(tier.agents['architect-synthesizer']);
+      expect(tier.agents['wiki-generator']).toStrictEqual(tier.agents['architect-synthesizer']);
     }
   });
 });
