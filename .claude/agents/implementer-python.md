@@ -1,6 +1,7 @@
 ---
 name: implementer-python
 description: Expert python developer implementing features following best practices
+model: sonnet
 tools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob
 skills:
   - mastering-python-skill

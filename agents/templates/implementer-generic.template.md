@@ -1,6 +1,7 @@
 ---
 name: implementer-generic
 description: Expert full-stack and DevOps specialist implementing any file type following best practices
+model: sonnet
 tools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob
 skills:{{formatSkills skills}}
 ---

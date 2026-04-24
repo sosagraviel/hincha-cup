@@ -1,6 +1,7 @@
 ---
 name: implementer-typescript
 description: Expert typescript developer implementing features following best practices
+model: sonnet
 tools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob
 skills:
   - playwright-e2e-automation

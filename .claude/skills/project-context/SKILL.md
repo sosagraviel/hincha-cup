@@ -1,7 +1,6 @@
 ---
 name: project-context
 description: Deep architectural knowledge of the ai-agentic-framework — LangGraph pipeline internals, Phase 1–6 data flow, agent factory patterns, schema registry, disk-first idempotency, and conventions for adding new analyzers or phases
-user-invokable: true
 ---
 
 # Project Context: AI Agentic Framework

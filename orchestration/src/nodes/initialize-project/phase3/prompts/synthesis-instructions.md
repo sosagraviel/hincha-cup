@@ -135,7 +135,6 @@ You MUST return your response in this EXACT format:
 
 name: project-context
 description: Deep architectural knowledge for [Project Name]
-user-invokable: true
 disable-model-invocation: false
 version: 3.0
 
@@ -396,7 +395,6 @@ project-context answers:
 ---
 name: project-context
 description: Deep architectural knowledge for [Project Name] — request lifecycle, auth flows, data patterns, testing strategy, and non-obvious gotchas. Load when implementing cross-cutting features.
-user-invokable: true
 disable-model-invocation: false
 version: 3.0
 ---

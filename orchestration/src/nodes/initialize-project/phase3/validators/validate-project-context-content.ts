@@ -23,7 +23,6 @@ export function validateProjectContextContent(content: string): string[] {
       '   ---',
       '   name: project-context',
       '   description: Deep architectural knowledge for ProjectName',
-      '   user-invokable: true',
       '   ---',
     );
   } else {

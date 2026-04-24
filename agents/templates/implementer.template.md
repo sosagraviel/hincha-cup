@@ -1,6 +1,7 @@
 ---
 name: implementer-{{stack}}
 description: Expert {{stack}} developer implementing features following best practices
+model: sonnet
 tools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob
 skills:{{formatSkills skills}}
 ---
