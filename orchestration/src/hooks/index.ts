@@ -18,3 +18,4 @@ export {
 } from './base-hook.js';
 
 export { HookRegistry, globalHookRegistry } from './hook-registry.js';
+export { emitBudgetWarning } from './budget-warning.hook.js';

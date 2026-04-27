@@ -268,3 +268,13 @@ Brief summary of what needs to be done.
 - Only request richer detail for critical paths.
 - Avoid redundant queries; summarize what each graph call contributed in `Graph Evidence`.
 - Hard ceilings: `≤3%` of context for overview questions; `4–6%` for per-ticket retrieval; warn (in the plan's `Assumptions And Open Questions`) if any single wiki or graph call exceeds 15% of the prompt budget.
+
+### Mid-Session Budget Warnings
+
+The orchestration framework monitors token consumption in real time and may inject system messages prefixed with `⚠ BUDGET WARNING` into your session via stop hooks. When you receive one, you MUST:
+
+1. Stop issuing exploratory graph queries immediately.
+2. Trim subsequent queries to only those that are load-bearing for the plan's specific risk-flagged edits (i.e., high-risk steps already identified in the plan).
+3. Cite `BUDGET TRIM` in the `Token Efficiency Guidelines` section of your output plan so downstream reviewers know you backed off to stay within budget.
+
+Budget warnings are informational — they do not abort the session. Ignoring them will result in the post-run aggregator flagging the run as a budget breach in the summary report.

@@ -115,9 +115,9 @@ graph LR
 0. Preflight - Validate environment, git status, LLM wiki presence; warn (do not fail) on stale wiki
 1. Context - Gather ticket context from Jira/markdown/input
 2. Wiki Preload - Tiered retrieval: Tier 1 builds a frontmatter summary index for all wiki pages (cheap); Tier 2 runs one `get_minimal_context_tool` call; Tier 3 expands full bodies only for the 1–3 most relevant pages. Saves ~15-20 KB of context versus loading all bodies; planners receive untruncated bodies for relevant docs.
-3. Planning - Create implementation plan with AI planner using wiki + graph context
+3. Planning - Create implementation plan with AI planner using wiki + graph context. Mid-session budget warnings (prefixed `⚠ BUDGET WARNING`) are emitted to the planner via stop hooks when token consumption approaches or exceeds budget thresholds — informational only, non-blocking.
 4. Environment - Create feature branch and setup
-5. Implementation - Generate code with graph-aware AI implementer
+5. Implementation - Generate code with graph-aware AI implementer. The implementer may also receive mid-session `⚠ BUDGET WARNING` messages via stop hooks, directing it to trim exploratory graph queries.
 6. Testing - Run test suite with coverage validation
 7. Visual - Capture and analyze visual changes (UI only)
 8. Documentation - Update project documentation via `/doc-updater`

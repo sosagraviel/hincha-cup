@@ -143,6 +143,16 @@ At completion, include a short summary with:
 - Any fresh graph queries you ran and the implementation decisions they supported
 - Any warnings where the plan's evidence was missing or inconclusive
 
+## Token Efficiency Guidelines
+
+The orchestration framework monitors token consumption in real time and may inject system messages prefixed with `⚠ BUDGET WARNING` into your session via stop hooks. When you receive one, you MUST:
+
+1. Stop issuing exploratory graph queries immediately.
+2. Trim subsequent queries to only those that are load-bearing for the specific high-risk edits already flagged in the implementation plan.
+3. Note `BUDGET TRIM` in your completion summary so reviewers know you backed off.
+
+Budget warnings are informational — they do not abort the session. Continuing to issue broad graph queries after a warning will be flagged in the post-run budget summary report.
+
 ## Wiki Delta Hints
 
 End every completion summary with this section. Emit one JSON object per line inside the fenced block:
