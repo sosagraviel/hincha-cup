@@ -172,6 +172,47 @@ describe('file-counter', () => {
       expect(result.total_files).toBe(1);
     });
 
+    it('should exclude tooling-config files from language counts', async () => {
+      // Application source
+      await writeFile(join(testDir, 'app.ts'), '// real source');
+      // Tooling configs — should be filtered out, not counted as JS/TS source
+      await writeFile(join(testDir, 'eslint.config.mjs'), 'export default {}');
+      await writeFile(join(testDir, 'prettier.config.mjs'), 'export default {}');
+      await writeFile(join(testDir, 'jest.config.js'), 'module.exports = {}');
+      await writeFile(join(testDir, 'commitlint.config.js'), 'module.exports = {}');
+      await writeFile(join(testDir, '.eslintrc.js'), 'module.exports = {}');
+      await writeFile(join(testDir, '.babelrc.cjs'), 'module.exports = {}');
+
+      const result = await countFilesByLanguage(testDir);
+
+      const js = result.by_language.find((l) => l.language === 'javascript');
+      const ts = result.by_language.find((l) => l.language === 'typescript');
+
+      expect(js).toBeUndefined();
+      expect(ts?.count).toBe(1);
+      expect(result.total_files).toBe(1);
+      expect(result.tooling_config_counts?.javascript).toBe(6);
+    });
+
+    it('should honour .gitignore directory entries', async () => {
+      // Custom dir name not in STANDARD_IGNORE_DIRS — only excluded via .gitignore
+      const customIgnored = join(testDir, 'generated-artifacts');
+      await mkdir(customIgnored, { recursive: true });
+      await writeFile(join(customIgnored, 'gen.ts'), '// should be ignored');
+
+      await writeFile(
+        join(testDir, '.gitignore'),
+        ['generated-artifacts/', 'build', '# a comment'].join('\n'),
+      );
+
+      await writeFile(join(testDir, 'app.ts'), '// real source');
+
+      const result = await countFilesByLanguage(testDir);
+
+      expect(result.total_files).toBe(1);
+      expect(result.by_language[0]?.count).toBe(1);
+    });
+
     it('should track directories where files are found', async () => {
       const srcDir = join(testDir, 'src');
       const libDir = join(testDir, 'lib');

@@ -1,7 +1,8 @@
 import { readdir, readFile } from 'fs/promises';
-import { join, basename, relative } from 'path';
+import { join, basename } from 'path';
 import { logger } from '../../../utils/logger.js';
-import { MANIFEST_FILES, PRIMARY_MANIFESTS, IGNORE_DIRS, WORKSPACE_NAMES } from './constants.js';
+import { MANIFEST_FILES, PRIMARY_MANIFESTS, WORKSPACE_NAMES } from './constants.js';
+import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
 import type { ManifestInfo } from './types.js';
 
 /**
@@ -41,13 +42,14 @@ export async function detectWorkspaces(
   const workspaces: Workspace[] = [];
   const errors: string[] = [];
 
-  // Derive the framework directory name (same logic as agent-factory.ts)
-  const frameworkDirName = frameworkPath
-    ? basename(relative(projectPath, frameworkPath).split('/')[0])
-    : 'qubika-agentic-framework';
+  // Single source of truth for exclusions — same set the file-counter and
+  // the analyzer prompts use. Includes STANDARD_IGNORE_DIRS, provider-
+  // managed dirs (`.claude*`, `.codex*`), `.gitignore` entries, and the
+  // framework checkout's basename.
+  const excludedDirSet = new Set(getExcludedDirectories(projectPath, frameworkPath));
 
   // Find all manifest files
-  await findManifestFiles(projectPath, 0, maxDepth, workspaces, errors, frameworkDirName);
+  await findManifestFiles(projectPath, 0, maxDepth, workspaces, errors, excludedDirSet);
 
   // Filter to primary manifests only (remove lock files if primary exists in same dir)
   const primaryWorkspaces = filterToPrimaryWorkspaces(workspaces);
@@ -75,7 +77,7 @@ async function findManifestFiles(
   maxDepth: number,
   found: Workspace[],
   errors: string[],
-  frameworkDirName: string,
+  excludedDirSet: Set<string>,
 ): Promise<void> {
   if (currentDepth > maxDepth) {
     return;
@@ -89,8 +91,9 @@ async function findManifestFiles(
 
       try {
         if (entry.isDirectory()) {
-          // Skip ignored directories and framework directory
-          if (IGNORE_DIRS.has(entry.name) || entry.name === frameworkDirName) {
+          // Skip every excluded dir (framework checkout, gitignore entries,
+          // build artifacts, and provider-managed temp/config dirs).
+          if (excludedDirSet.has(entry.name)) {
             continue;
           }
 
@@ -101,7 +104,7 @@ async function findManifestFiles(
             maxDepth,
             found,
             errors,
-            frameworkDirName,
+            excludedDirSet,
           );
         } else if (entry.isFile()) {
           // Check if this is a known manifest file
