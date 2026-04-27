@@ -161,16 +161,38 @@ Your answer: **\_**
 
 ### Phase 5: Apply INVEST Criteria
 
+#### Phase 5a: Objective Scope Check (informs INVEST "Small")
+
+Before evaluating "Small" subjectively, query the code graph for an objective blast-radius signal.
+
+1. Identify the **primary touched files/services** from the ticket's `technicalContext.proposedChanges` and `wikiEvidence`/`graphEvidence` (already populated in Phases 0.5 and 2). If no concrete file paths can be inferred, skip this sub-step (proceed to subjective Small evaluation).
+
+2. Call exactly once:
+   ```
+   mcp__code_graph__get_impact_radius_tool({
+     changed_files: [<inferred primary files>],
+     max_depth: 2,
+     detail_level: "minimal"
+   })
+   ```
+
+3. Interpret the response:
+   - **`impacted_services > 3` OR `impacted_files > 25`** — flag the ticket as **likely too large for "Small"**. Record the impact radius numbers in `metadata.scope_impact` so Phase 5's split recommendation has objective backing.
+   - **`impacted_services ≤ 3` AND `impacted_files ≤ 25`** — "Small" likely passes; proceed.
+   - On graph unavailable / MCP unreachable: log `graph unavailable for scope check` and fall back to subjective evaluation.
+
+4. Cache the impact-radius result in `technicalContext.graphEvidence[]` so the downstream planner doesn't re-issue it.
+
 Validate the ticket across all INVEST dimensions:
 
 - `Independent`
 - `Negotiable`
 - `Valuable`
 - `Estimable`
-- `Small`
+- `Small`: ticket fits a 1–5 day implementation. **Use Phase 5a's impact-radius signal as objective input.** If `metadata.scope_impact.impacted_services > 3` or `impacted_files > 25`, flag for split — don't pass "Small" silently.
 - `Testable`
 
-If the ticket looks larger than a 1-5 day implementation, provide a concrete split recommendation before finalizing.
+If the ticket fails "Small" (subjectively or via Phase 5a's objective signal), provide a concrete split recommendation. When impact-radius data is available, use it: split along service boundaries surfaced by `impacted_services`, not by guesswork. Cite the actual numbers in the recommendation so reviewers can verify.
 
 ### Phase 6: Generate BDD Scenarios
 
@@ -288,7 +310,13 @@ Use this structure as the mental model for completeness checks:
     "investValidated": true,
     "bddScenarioCount": 5,
     "priority": "High",
-    "labels": ["sdd", "authentication"]
+    "labels": ["sdd", "authentication"],
+    "scope_impact": {
+      "impacted_services": 2,
+      "impacted_files": 14,
+      "max_depth": 2,
+      "tool": "mcp__code_graph__get_impact_radius_tool"
+    }
   }
 }
 ```
@@ -541,6 +569,7 @@ Before finalizing, validate:
 - [ ] Valuable passes
 - [ ] Estimable passes
 - [ ] Small is within expected scope or split recommendation is provided
+- [ ] Phase 5a impact-radius check ran (or was skipped with reason logged)
 - [ ] Testable passes
 
 ### BDD
@@ -569,6 +598,7 @@ Before finalizing, validate:
 
 ## Version History
 
+- **3.3.0** (2026-04-24): objective INVEST "Small" scope check via get_impact_radius_tool (§6) — Phase 5a queries blast radius before subjective evaluation; `metadata.scope_impact` records impacted_services/impacted_files/max_depth; split recommendations cite actual numbers; fallback logs `graph unavailable for scope check`
 - **3.2.0** (2026-04-24): multi-tool graph routing in Phase 2 gap detection (§5 of OPTIMIZATION_REVIEW) — question-class classifier table routes symbol_lookup, relationship, data_flow, boundary, impact, and overview gaps to the correct graph MCP tool; `graphEvidence` reshaped to array of `{tool, params, finding}` entries; 6-query cap enforced
 - **3.1.0** (2026-04-24): wiki + graph aware Phase 0.5, inference-order rewrite, `wikiEvidence`/`graphEvidence` in canonical ticket structure, `--skip-wiki` flag, updated Quality Checks
 - **3.0.0** (2026-04-15): unified command and skill behavior into one directly invokable skill, restored Phase 0 project-context injection, and removed slash-command duplication

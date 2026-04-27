@@ -263,6 +263,66 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
       const v31Idx = content.indexOf('**3.1.0**');
       expect(v32Idx).toBeLessThan(v31Idx);
     });
+
+    it('version 3.3.0 entry exists', () => {
+      expect(content).toContain('**3.3.0**');
+    });
+
+    it('3.3.0 entry is dated 2026-04-24', () => {
+      expect(content).toContain('**3.3.0** (2026-04-24)');
+    });
+
+    it('3.3.0 entry appears before 3.2.0 entry (newest first)', () => {
+      const v33Idx = content.indexOf('**3.3.0**');
+      const v32Idx = content.indexOf('**3.2.0**');
+      expect(v33Idx).toBeLessThan(v32Idx);
+    });
+  });
+
+  describe('Phase 5a objective scope check', () => {
+    it('Phase 5a section heading exists', () => {
+      expect(content).toContain('Phase 5a: Objective Scope Check');
+    });
+
+    it('Phase 5a references get_impact_radius_tool', () => {
+      expect(content).toContain('mcp__code_graph__get_impact_radius_tool');
+    });
+
+    it('Phase 5a includes impacted_services > 3 threshold', () => {
+      const phase5aSection = content.slice(
+        content.indexOf('Phase 5a: Objective Scope Check'),
+        content.indexOf('Validate the ticket across all INVEST dimensions:'),
+      );
+      expect(phase5aSection).toContain('impacted_services > 3');
+    });
+
+    it('Phase 5a includes impacted_files > 25 threshold', () => {
+      const phase5aSection = content.slice(
+        content.indexOf('Phase 5a: Objective Scope Check'),
+        content.indexOf('Validate the ticket across all INVEST dimensions:'),
+      );
+      expect(phase5aSection).toContain('impacted_files > 25');
+    });
+
+    it('Phase 5a documents the fallback path when graph is unavailable', () => {
+      expect(content).toContain('graph unavailable for scope check');
+    });
+
+    it('canonical metadata structure contains scope_impact example', () => {
+      const jsonBlock = content.slice(
+        content.indexOf('```json'),
+        content.indexOf('```', content.indexOf('```json') + 6),
+      );
+      expect(jsonBlock).toContain('"scope_impact"');
+      expect(jsonBlock).toContain('"impacted_services"');
+      expect(jsonBlock).toContain('"impacted_files"');
+    });
+
+    it('Phase 5a impact-radius checkbox exists in INVEST quality checks', () => {
+      expect(content).toContain(
+        '- [ ] Phase 5a impact-radius check ran (or was skipped with reason logged)',
+      );
+    });
   });
 
   describe('Phase 2 multi-tool graph routing', () => {
