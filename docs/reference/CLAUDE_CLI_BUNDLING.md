@@ -51,8 +51,8 @@ The framework declares Claude CLI as a dependency:
 The framework automatically finds and uses the local Claude CLI:
 
 ```typescript
-// orchestration/src/agents/agent-factory-hybrid.ts
-function getClaudeCLIPath(): string {
+// orchestration/src/utils/shared/agent-factory/cli-utils.ts
+function getClaudeCLIPath(frameworkPath: string): string {
   const localPath = path.resolve(__dirname, '../../node_modules/.bin/claude');
 
   if (fs.existsSync(localPath)) {

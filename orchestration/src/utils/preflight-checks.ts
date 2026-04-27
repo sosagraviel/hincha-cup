@@ -2,6 +2,7 @@ import { existsSync, readFileSync, appendFileSync, writeFileSync } from 'fs';
 import { join, basename } from 'path';
 import { execSync } from 'child_process';
 import { getAllProviderTempDirs, getAllProviderBackupDirs } from './provider-paths.js';
+import { ensureCodexAuthentication } from '../auth/codex-auth.js';
 
 /**
  * Preflight validation results
@@ -15,7 +16,7 @@ export interface PreflightResult {
   claudeVersion?: string;
   codexVersion?: string;
   gitignoreUpdated?: boolean;
-  authMode?: 'api_key' | 'claude_cli' | 'codex_cli' | 'none';
+  authMode?: 'claude_cli' | 'codex_cli' | 'none';
   provider?: string;
 }
 
@@ -51,7 +52,7 @@ export async function runPreflightChecks(
   let claudeVersion: string | undefined;
   let codexVersion: string | undefined;
   let gitignoreUpdated = false;
-  let authMode: 'api_key' | 'claude_cli' | 'codex_cli' | 'none' = 'none';
+  let authMode: 'claude_cli' | 'codex_cli' | 'none' = 'none';
   let provider: string | undefined;
 
   // ============================================================================
@@ -153,134 +154,9 @@ export async function runPreflightChecks(
 
   const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
   const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
-  const hasGoogleKey = !!process.env.GOOGLE_API_KEY;
   const requestedProvider = process.env.PROVIDER?.toLowerCase();
 
-  if (hasAnthropicKey || hasOpenAIKey || hasGoogleKey) {
-    // API key mode - no CLI validation needed
-    authMode = 'api_key';
-    provider = hasAnthropicKey ? 'anthropic' : hasOpenAIKey ? 'openai' : 'google';
-    try {
-      const claudeVersionOutput = execSync('claude --version', {
-        encoding: 'utf-8',
-        stdio: 'pipe',
-      }).trim();
-      claudeVersion = claudeVersionOutput.split('\n')[0] || 'unknown';
-    } catch {
-      // Ignore - API key mode doesn't need Claude CLI
-    }
-    try {
-      const codexVersionOutput = execSync('codex --version', {
-        encoding: 'utf-8',
-        stdio: 'pipe',
-      }).trim();
-      codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
-    } catch {
-      // Ignore - API key mode doesn't need Codex CLI
-    }
-  } else if (requestedProvider === 'codex' || requestedProvider === 'openai') {
-    // ========================================================================
-    // CODEX PROVIDER REQUESTED — validate Codex CLI exactly like Claude does
-    // ========================================================================
-    const localCodexPath = join(frameworkPath, 'orchestration/node_modules/.bin/codex');
-
-    if (existsSync(localCodexPath)) {
-      try {
-        const codexVersionOutput = execSync(`"${localCodexPath}" --version`, {
-          encoding: 'utf-8',
-          stdio: 'pipe',
-        }).trim();
-        codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
-
-        // Verify local Codex CLI is authenticated
-        const isAuthenticated = await checkCodexAuthentication(localCodexPath);
-
-        if (!isAuthenticated) {
-          console.log('\n⚠️  Local Codex CLI is not authenticated.');
-          console.log(`📍 CLI Location: ${localCodexPath}`);
-          console.log(
-            `Codex CLI authentication failed.\n` +
-              `\n` +
-              `The framework uses a local bundled Codex CLI at:\n` +
-              `  ${localCodexPath}\n` +
-              `\n` +
-              `Please authenticate it manually:\n` +
-              `  "${localCodexPath}" login\n` +
-              `\n`,
-          );
-
-          errors.push(
-            `Codex CLI authentication failed.\n` +
-              `\n` +
-              `The framework uses a local bundled Codex CLI at:\n` +
-              `  ${localCodexPath}\n` +
-              `\n` +
-              `Please authenticate it manually:\n` +
-              `  ${localCodexPath} login\n` +
-              `\n` +
-              `Or use API key mode instead:\n` +
-              `  export OPENAI_API_KEY="your-api-key-here"`,
-          );
-        } else {
-          authMode = 'codex_cli';
-          provider = 'openai';
-        }
-      } catch (error) {
-        warnings.push(
-          `Local Codex CLI found but failed to execute: ${(error as Error).message}\n` +
-            `Path: ${localCodexPath}\n` +
-            `Trying global Codex CLI...`,
-        );
-      }
-    }
-
-    // Fallback to global Codex CLI if local not found or failed
-    if (authMode === 'none' && errors.length === 0) {
-      try {
-        const codexVersionOutput = execSync('codex --version', {
-          encoding: 'utf-8',
-          stdio: 'pipe',
-        }).trim();
-        codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
-
-        const isAuthenticated = await checkCodexAuthentication('codex');
-        if (!isAuthenticated) {
-          errors.push(
-            `Codex CLI is not authenticated.\n` +
-              `\n` +
-              `Please authenticate:\n` +
-              `  codex login\n` +
-              `\n` +
-              `Or use API key mode instead:\n` +
-              `  export OPENAI_API_KEY="your-api-key-here"`,
-          );
-        } else {
-          authMode = 'codex_cli';
-          provider = 'openai';
-
-          warnings.push(
-            `Using global Codex CLI instead of framework's bundled version.\n` +
-              `For consistency, ensure framework dependencies are installed:\n` +
-              `  cd orchestration && pnpm install`,
-          );
-        }
-      } catch {
-        // No Codex CLI at all
-        errors.push(
-          `Provider 'codex' was requested but Codex CLI is not installed.\n` +
-            `\n` +
-            `Install framework dependencies:\n` +
-            `  cd ${frameworkPath}/orchestration && pnpm install\n` +
-            `\n` +
-            `Then authenticate:\n` +
-            `  ${frameworkPath}/orchestration/node_modules/.bin/codex login`,
-        );
-      }
-    }
-  } else {
-    // ========================================================================
-    // CLAUDE PROVIDER (default) — original Claude CLI validation, unchanged
-    // ========================================================================
+  const validateClaudeCLI = async (strict: boolean): Promise<boolean> => {
     const localClaudePath = join(frameworkPath, 'orchestration/node_modules/.bin/claude');
 
     if (existsSync(localClaudePath)) {
@@ -291,40 +167,27 @@ export async function runPreflightChecks(
         }).trim();
         claudeVersion = claudeVersionOutput.split('\n')[0] || 'unknown';
 
-        // CHECK 5.5: Verify local Claude CLI is authenticated
-        const isAuthenticated = await checkClaudeAuthentication(localClaudePath);
-
-        if (!isAuthenticated) {
-          console.log('\n⚠️  Local Claude CLI is not authenticated.');
-          console.log(`📍 CLI Location: ${localClaudePath}`);
-          console.log(
-            `Claude CLI authentication failed.\n` +
-              `\n` +
-              `The framework uses a local bundled Claude CLI at:\n` +
-              `  ${localClaudePath}\n` +
-              `\n` +
-              `Please authenticate it manually:\n` +
-              `  "${localClaudePath}" /login\n` +
-              `\n`,
-          );
-
-          errors.push(
-            `Claude CLI authentication failed.\n` +
-              `\n` +
-              `The framework uses a local bundled Claude CLI at:\n` +
-              `  ${localClaudePath}\n` +
-              `\n` +
-              `Please authenticate it manually:\n` +
-              `  ${localClaudePath} /login\n` +
-              `\n` +
-              `Or use API key mode instead:\n` +
-              `  export ANTHROPIC_API_KEY="your-api-key-here"`,
-          );
-        } else {
+        if (hasAnthropicKey || (await checkClaudeAuthentication(localClaudePath))) {
           authMode = 'claude_cli';
+          provider = 'anthropic';
+          return true;
         }
+
+        if (strict) {
+          errors.push(
+            `Claude CLI is not authenticated.\n` +
+              `\n` +
+              `The framework uses a local bundled Claude CLI at:\n` +
+              `  ${localClaudePath}\n` +
+              `\n` +
+              `Please authenticate it manually:\n` +
+              `  ${localClaudePath} login\n` +
+              `\n` +
+              `Or set ANTHROPIC_API_KEY before running the framework.`,
+          );
+        }
+        return false;
       } catch (error) {
-        // Local Claude CLI exists but failed to execute
         warnings.push(
           `Local Claude CLI found but failed to execute: ${(error as Error).message}\n` +
             `Path: ${localClaudePath}\n` +
@@ -333,53 +196,178 @@ export async function runPreflightChecks(
       }
     }
 
-    // Fallback to global Claude CLI if local not found or failed
-    if (authMode === 'none') {
+    try {
+      const claudeVersionOutput = execSync('claude --version', {
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      }).trim();
+      claudeVersion = claudeVersionOutput.split('\n')[0] || 'unknown';
+
+      if (hasAnthropicKey || (await checkClaudeAuthentication('claude'))) {
+        authMode = 'claude_cli';
+        provider = 'anthropic';
+        warnings.push(
+          `Using global Claude CLI instead of framework's bundled version.\n` +
+            `For consistency, ensure framework dependencies are installed:\n` +
+            `  cd orchestration && npm install`,
+        );
+        return true;
+      }
+
+      if (strict) {
+        errors.push(
+          `Claude CLI is not authenticated.\n` +
+            `\n` +
+            `Please authenticate:\n` +
+            `  claude login\n` +
+            `\n` +
+            `Or set ANTHROPIC_API_KEY before running the framework.`,
+        );
+      }
+      return false;
+    } catch {
+      if (strict) {
+        errors.push(
+          `Claude CLI is not installed.\n` +
+            `\n` +
+            `Install framework dependencies:\n` +
+            `  cd ${frameworkPath}/orchestration && npm install\n` +
+            `\n` +
+            `Or install globally:\n` +
+            `  npm install -g @anthropic-ai/claude-code`,
+        );
+      }
+      return false;
+    }
+  };
+
+  const validateCodexCLI = async (strict: boolean): Promise<boolean> => {
+    const localCodexPath = join(frameworkPath, 'orchestration/node_modules/.bin/codex');
+
+    if (existsSync(localCodexPath)) {
       try {
-        const claudeVersionOutput = execSync('claude --version', {
+        const codexVersionOutput = execSync(`"${localCodexPath}" --version`, {
           encoding: 'utf-8',
           stdio: 'pipe',
         }).trim();
-        const isAuthenticated = await checkClaudeAuthentication('claude');
-        if (!isAuthenticated) {
-          errors.push(
-            `Claude CLI is not authenticated.\n` +
-              `\n` +
-              `Please authenticate:\n` +
-              `  claude login\n` +
-              `\n` +
-              `Or use API key mode instead:\n` +
-              `  export ANTHROPIC_API_KEY="your-api-key-here"`,
-          );
-        } else {
-          claudeVersion = claudeVersionOutput.split('\n')[0] || 'unknown';
-          authMode = 'claude_cli';
-          provider = 'anthropic';
+        codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
 
-          warnings.push(
-            `Using global Claude CLI instead of framework's bundled version.\n` +
-              `For consistency, ensure framework dependencies are installed:\n` +
-              `  cd orchestration && npm install`,
+        const authResult = ensureCodexAuthentication(localCodexPath);
+
+        if (authResult.authenticated) {
+          authMode = 'codex_cli';
+          provider = 'openai';
+          return true;
+        }
+
+        if (strict) {
+          errors.push(
+            `Codex CLI authentication failed.\n` +
+              `\n` +
+              `The framework uses a local bundled Codex CLI at:\n` +
+              `  ${localCodexPath}\n` +
+              `\n` +
+              (authResult.attemptedApiKeyLogin
+                ? `Automatic Codex API-key login failed${authResult.error ? `: ${authResult.error}` : '.'}\n` +
+                  `You can retry manually:\n` +
+                  `  printenv OPENAI_API_KEY | "${localCodexPath}" login --with-api-key`
+                : `Please authenticate it manually:\n` +
+                  `  ${localCodexPath} login\n` +
+                  `Or set OPENAI_API_KEY to let the framework run API-key login automatically.`) +
+              `\n` +
+              (hasOpenAIKey ? `OPENAI_API_KEY was detected in the environment.` : ''),
           );
         }
-      } catch {
-        // No Claude CLI at all
+        return false;
+      } catch (error) {
+        warnings.push(
+          `Local Codex CLI found but failed to execute: ${(error as Error).message}\n` +
+            `Path: ${localCodexPath}\n` +
+            `Trying global Codex CLI...`,
+        );
       }
     }
 
-    // No CLI found at all
+    // Fallback to global Codex CLI if local not found or failed
+    try {
+      const codexVersionOutput = execSync('codex --version', {
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      }).trim();
+      codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
+
+      const authResult = ensureCodexAuthentication('codex');
+      if (authResult.authenticated) {
+        authMode = 'codex_cli';
+        provider = 'openai';
+
+        warnings.push(
+          `Using global Codex CLI instead of framework's bundled version.\n` +
+            `For consistency, ensure framework dependencies are installed:\n` +
+            `  cd orchestration && pnpm install`,
+        );
+        return true;
+      }
+
+      if (strict) {
+        errors.push(
+          `Codex CLI is not authenticated.\n` +
+            `\n` +
+            `Please authenticate:\n` +
+            (authResult.attemptedApiKeyLogin
+              ? `Automatic Codex API-key login failed${authResult.error ? `: ${authResult.error}` : '.'}\n` +
+                `You can retry manually:\n` +
+                `  printenv OPENAI_API_KEY | codex login --with-api-key`
+              : `  codex login`) +
+            `\n` +
+            (hasOpenAIKey
+              ? `OPENAI_API_KEY was detected in the environment.`
+              : `Or set OPENAI_API_KEY to let the framework run API-key login automatically.`),
+        );
+      }
+      return false;
+    } catch {
+      if (strict) {
+        errors.push(
+          `Codex CLI is not installed.\n` +
+            `\n` +
+            `Install framework dependencies:\n` +
+            `  cd ${frameworkPath}/orchestration && pnpm install\n` +
+            `\n` +
+            `Then authenticate:\n` +
+            `  ${frameworkPath}/orchestration/node_modules/.bin/codex login`,
+        );
+      }
+      return false;
+    }
+  };
+
+  if (requestedProvider === 'codex' || requestedProvider === 'openai') {
+    await validateCodexCLI(true);
+  } else if (requestedProvider === 'claude' || requestedProvider === 'anthropic') {
+    await validateClaudeCLI(true);
+  } else if (hasAnthropicKey) {
+    await validateClaudeCLI(true);
+  } else if (hasOpenAIKey) {
+    await validateCodexCLI(true);
+  } else {
+    // GOOGLE_API_KEY is ignored: no Google CLI provider is supported.
+    await validateClaudeCLI(false);
+    if (authMode === 'none') {
+      await validateCodexCLI(false);
+    }
+
     if (authMode === 'none') {
       errors.push(
         `No authentication method found.\n` +
           `\n` +
-          `Option 1: Use API Keys (recommended for production)\n` +
-          `  Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY\n` +
+          `Option 1: Use Claude CLI with ANTHROPIC_API_KEY\n` +
           `  export ANTHROPIC_API_KEY="your-api-key-here"\n` +
           `\n` +
-          `Option 2: Use Codex CLI (uses ChatGPT subscription)\n` +
+          `Option 2: Use Codex CLI (requires codex login)\n` +
           `  npm install -g @openai/codex && codex login\n` +
           `\n` +
-          `Option 3: Use Claude CLI (requires Claude Pro/Max subscription)\n` +
+          `Option 3: Use Claude CLI subscription auth\n` +
           `  Install framework dependencies: cd orchestration && npm install\n` +
           `  Or install globally: npm install -g @anthropic-ai/claude-code`,
       );
@@ -561,23 +549,6 @@ async function checkClaudeAuthentication(claudePath: string): Promise<boolean> {
     // Parse the JSON output to check login status
     const authStatus = JSON.parse(testResult.trim());
     return authStatus.loggedIn === true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Check if Codex CLI is authenticated by running `codex login --verify`
- * Exits 0 when logged in, non-zero otherwise.
- */
-async function checkCodexAuthentication(codexPath: string): Promise<boolean> {
-  try {
-    execSync(`"${codexPath}" login status`, {
-      encoding: 'utf-8',
-      timeout: 10000,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    return true;
   } catch {
     return false;
   }

@@ -1,18 +1,19 @@
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { ensureCodexAuthentication } from './codex-auth.js';
 
 /**
  * Authentication modes supported by the framework
  */
 export enum AuthMode {
-  /** Use API key with LangChain/DeepAgents (full control, tier-based models) */
+  /** Deprecated: LangChain/DeepAgents API-key mode is no longer selected automatically */
   API_KEY = 'api_key',
 
   /** Use Claude CLI with subscription auth (Claude Pro/Max, TOS-compliant) */
   CLAUDE_CLI = 'claude_cli',
 
-  /** Use Codex CLI with subscription auth (ChatGPT Plus/Pro/Enterprise) */
+  /** Use Codex CLI with subscription auth or OPENAI_API_KEY-backed CLI auth */
   CODEX_CLI = 'codex_cli',
 
   /** No authentication available */
@@ -26,7 +27,7 @@ export interface AuthConfig {
   /** Selected authentication mode */
   mode: AuthMode;
 
-  /** Provider for API key mode (anthropic, openai, google) */
+  /** Provider selected for CLI execution (anthropic, openai) */
   provider?: string;
 
   /** Whether Claude CLI is available on the system */
@@ -49,9 +50,11 @@ export interface AuthConfig {
  * Detect available authentication methods and select the best option
  *
  * Priority order:
- * 1. API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY)
- * 2. Claude CLI with subscription authentication
- * 3. None (error state)
+ * 1. Explicit PROVIDER (claude/codex)
+ * 2. Provider API keys as CLI provider selectors (ANTHROPIC_API_KEY, OPENAI_API_KEY)
+ * 3. Claude CLI with subscription authentication
+ * 4. Codex CLI with subscription authentication
+ * 5. None (error state)
  *
  * @returns Authentication configuration
  *
@@ -59,9 +62,7 @@ export interface AuthConfig {
  * ```typescript
  * const authConfig = await detectAuthMode();
  *
- * if (authConfig.mode === AuthMode.API_KEY) {
- *   console.log(`Using API key for ${authConfig.provider}`);
- * } else if (authConfig.mode === AuthMode.CLAUDE_CLI) {
+ * if (authConfig.mode === AuthMode.CLAUDE_CLI) {
  *   console.log('Using Claude CLI with subscription');
  * } else {
  *   throw new Error('No authentication available');
@@ -77,38 +78,10 @@ export async function detectAuthMode(): Promise<AuthConfig> {
 
   const baseConfig = { hasClaudeCLI, hasCodexCLI, claudeCLIVersion, codexCLIVersion };
 
-  // Priority 1: Check for API keys (respect PROVIDER preference for ordering)
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
-  const googleKey = process.env.GOOGLE_API_KEY;
-  const providerHint = process.env.PROVIDER?.toLowerCase();
 
-  // If explicit provider is set and matching API key exists, prefer that
-  if (providerHint === 'codex' || providerHint === 'openai') {
-    if (openaiKey) {
-      return { mode: AuthMode.API_KEY, provider: 'openai', hasAPIKey: true, ...baseConfig };
-    }
-  }
-  if (providerHint === 'claude' || providerHint === 'anthropic') {
-    if (anthropicKey) {
-      return { mode: AuthMode.API_KEY, provider: 'anthropic', hasAPIKey: true, ...baseConfig };
-    }
-  }
-
-  // Default API key priority (no explicit provider)
-  if (anthropicKey) {
-    return { mode: AuthMode.API_KEY, provider: 'anthropic', hasAPIKey: true, ...baseConfig };
-  }
-
-  if (openaiKey) {
-    return { mode: AuthMode.API_KEY, provider: 'openai', hasAPIKey: true, ...baseConfig };
-  }
-
-  if (googleKey) {
-    return { mode: AuthMode.API_KEY, provider: 'google', hasAPIKey: true, ...baseConfig };
-  }
-
-  // Priority 2: Explicit PROVIDER env var — STRICT (no fallback)
+  // Priority 1: Explicit PROVIDER env var — STRICT (no fallback)
   const explicitProvider = process.env.PROVIDER?.toLowerCase();
 
   if (explicitProvider === 'codex' || explicitProvider === 'openai') {
@@ -122,21 +95,27 @@ export async function detectAuthMode(): Promise<AuthConfig> {
           `  "${frameworkPath}/orchestration/node_modules/.bin/codex" login`,
       );
     }
-    if (!(await isCodexCLIAuthenticated())) {
+    const authResult = ensureCodexCLIAuthentication();
+    if (!authResult.authenticated) {
       const localPath = resolveLocalCLIPath('codex');
       const codexCmd = localPath ? `"${localPath}"` : 'codex';
+      const apiKeyLoginFailure = authResult.attemptedApiKeyLogin
+        ? `\n\nAutomatic Codex API-key login failed${authResult.error ? `: ${authResult.error}` : '.'}\n` +
+          `You can retry manually:\n` +
+          `  printenv OPENAI_API_KEY | ${codexCmd} login --with-api-key`
+        : '';
       throw new Error(
         `Provider 'codex' was requested but Codex CLI is not authenticated.\n\n` +
           `Please authenticate:\n` +
           `  ${codexCmd} login\n\n` +
-          `Or use API key mode instead:\n` +
-          `  export OPENAI_API_KEY="your-api-key-here"`,
+          `If you have OPENAI_API_KEY set, the framework will attempt API-key login automatically.` +
+          apiKeyLoginFailure,
       );
     }
     return {
       mode: AuthMode.CODEX_CLI,
       provider: 'openai',
-      hasAPIKey: false,
+      hasAPIKey: !!openaiKey,
       ...baseConfig,
     };
   }
@@ -147,39 +126,90 @@ export async function detectAuthMode(): Promise<AuthConfig> {
         `Provider 'claude' was requested but Claude CLI is not installed.\n\n` +
           `Install with: npm install -g @anthropic-ai/claude-code\n` +
           `Or run: cd orchestration && pnpm install\n\n` +
-          `Then authenticate: claude setup-token`,
+          `Then authenticate: claude login`,
       );
     }
-    if (!(await isClaudeCLIAuthenticated())) {
+    if (!anthropicKey && !(await isClaudeCLIAuthenticated())) {
       throw new Error(
         `Provider 'claude' was requested but Claude CLI is not authenticated.\n\n` +
-          `Please authenticate: claude setup-token\n\n` +
-          `Or use API key mode instead:\n` +
-          `  export ANTHROPIC_API_KEY="your-api-key-here"`,
+          `Please authenticate: claude login\n\n` +
+          `Or set ANTHROPIC_API_KEY before running the framework.`,
       );
     }
     return {
       mode: AuthMode.CLAUDE_CLI,
       provider: 'anthropic',
-      hasAPIKey: false,
+      hasAPIKey: !!anthropicKey,
       ...baseConfig,
     };
   }
 
-  // Priority 3: Auto-detect CLI (check both, prefer whichever is authenticated)
-  if (hasCodexCLI && (await isCodexCLIAuthenticated())) {
+  // Priority 2: Provider API keys select the matching CLI implementation.
+  if (anthropicKey) {
+    if (!hasClaudeCLI) {
+      throw new Error(
+        `ANTHROPIC_API_KEY is set, but Claude CLI is not installed.\n\n` +
+          `Install with: npm install -g @anthropic-ai/claude-code\n` +
+          `Or run: cd orchestration && pnpm install`,
+      );
+    }
+
+    return {
+      mode: AuthMode.CLAUDE_CLI,
+      provider: 'anthropic',
+      hasAPIKey: true,
+      ...baseConfig,
+    };
+  }
+
+  if (openaiKey) {
+    if (!hasCodexCLI) {
+      const frameworkPath = process.env.FRAMEWORK_PATH || '.';
+      throw new Error(
+        `OPENAI_API_KEY is set, but Codex CLI is not installed.\n\n` +
+          `The framework bundles Codex CLI locally. Install dependencies:\n` +
+          `  cd ${frameworkPath}/orchestration && pnpm install\n\n` +
+          `Then authenticate with the key in your environment:\n` +
+          `  "${frameworkPath}/orchestration/node_modules/.bin/codex" login`,
+      );
+    }
+
+    const authResult = ensureCodexCLIAuthentication();
+    if (!authResult.authenticated) {
+      const localPath = resolveLocalCLIPath('codex');
+      const codexCmd = localPath ? `"${localPath}"` : 'codex';
+      throw new Error(
+        `OPENAI_API_KEY is set, but Codex CLI is not authenticated.\n\n` +
+          `Automatic Codex API-key login failed${authResult.error ? `: ${authResult.error}` : '.'}\n\n` +
+          `You can retry manually:\n` +
+          `  printenv OPENAI_API_KEY | ${codexCmd} login --with-api-key`,
+      );
+    }
+
     return {
       mode: AuthMode.CODEX_CLI,
       provider: 'openai',
-      hasAPIKey: false,
+      hasAPIKey: true,
       ...baseConfig,
     };
   }
 
+  // GOOGLE_API_KEY is intentionally ignored: there is no supported Google CLI provider.
+
+  // Priority 3: Auto-detect CLI (Claude first, then Codex)
   if (hasClaudeCLI && (await isClaudeCLIAuthenticated())) {
     return {
       mode: AuthMode.CLAUDE_CLI,
       provider: 'anthropic',
+      hasAPIKey: false,
+      ...baseConfig,
+    };
+  }
+
+  if (hasCodexCLI && (await isCodexCLIAuthenticated())) {
+    return {
+      mode: AuthMode.CODEX_CLI,
+      provider: 'openai',
       hasAPIKey: false,
       ...baseConfig,
     };
@@ -208,6 +238,8 @@ function resolveLocalCLIPath(binaryName: string): string | null {
  * Check if Claude CLI is installed and available in PATH
  */
 export async function isClaudeCLIAvailable(): Promise<boolean> {
+  if (resolveLocalCLIPath('claude')) return true;
+
   try {
     execSync('which claude', { stdio: 'ignore', timeout: 5000 });
     return true;
@@ -221,7 +253,9 @@ export async function isClaudeCLIAvailable(): Promise<boolean> {
  */
 export async function getClaudeCLIVersion(): Promise<string | undefined> {
   try {
-    const output = execSync('claude --version', {
+    const localPath = resolveLocalCLIPath('claude');
+    const cmd = localPath ? `"${localPath}" --version` : 'claude --version';
+    const output = execSync(cmd, {
       encoding: 'utf-8',
       timeout: 5000,
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -239,6 +273,8 @@ export async function getClaudeCLIVersion(): Promise<string | undefined> {
  * If the CLI is not authenticated, it will fail.
  */
 export async function isClaudeCLIAuthenticated(): Promise<boolean> {
+  if (process.env.ANTHROPIC_API_KEY) return true;
+
   try {
     // Try a simple command that requires authentication
     // Using --version should work without auth, but we can try a more specific check
@@ -320,25 +356,17 @@ export async function getCodexCLIVersion(): Promise<string | undefined> {
 }
 
 /**
- * Check if Codex CLI is authenticated using `codex login --verify`
+ * Check if Codex CLI is authenticated using `codex login status`
  * Exits 0 when logged in, non-zero otherwise.
- * Also accepts OPENAI_API_KEY as valid auth.
  */
 export async function isCodexCLIAuthenticated(): Promise<boolean> {
-  // API key is always valid auth for Codex
-  if (process.env.OPENAI_API_KEY) return true;
+  return ensureCodexCLIAuthentication().authenticated;
+}
 
-  try {
-    const localPath = resolveLocalCLIPath('codex');
-    const cmd = localPath ? `"${localPath}" login status` : 'codex login status';
-    execSync(cmd, {
-      timeout: 10000,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    return true;
-  } catch {
-    return false;
-  }
+function ensureCodexCLIAuthentication() {
+  const localPath = resolveLocalCLIPath('codex');
+  const codexPath = localPath ?? 'codex';
+  return ensureCodexAuthentication(codexPath);
 }
 
 /**
@@ -352,12 +380,11 @@ export function getAuthErrorMessage(authConfig: AuthConfig): string {
     '',
   ];
 
-  // Option 1: API Key (any provider)
-  lines.push('Option 1: Use API Key (recommended for CI/CD and automation)');
-  lines.push('  Set one of the following environment variables:');
+  // Option 1: API keys as CLI provider authentication/selection
+  lines.push('Option 1: Use a provider CLI with an API key in the environment');
+  lines.push('  Set one of the following environment variables before running the CLI:');
   lines.push('  export ANTHROPIC_API_KEY=sk-ant-...');
   lines.push('  export OPENAI_API_KEY=sk-...');
-  lines.push('  export GOOGLE_API_KEY=...');
   lines.push('');
 
   // Option 2: Codex CLI
@@ -375,12 +402,12 @@ export function getAuthErrorMessage(authConfig: AuthConfig): string {
   // Option 3: Claude CLI
   if (authConfig.hasClaudeCLI) {
     lines.push('Option 3: Authenticate Claude CLI (uses your Claude Pro/Max subscription)');
-    lines.push('  claude setup-token');
+    lines.push('  claude login');
     lines.push('');
   } else {
     lines.push('Option 3: Install and authenticate Claude CLI');
     lines.push('  Visit: https://code.claude.com');
-    lines.push('  Then run: claude setup-token');
+    lines.push('  Then run: claude login');
     lines.push('');
   }
 

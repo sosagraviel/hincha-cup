@@ -29,9 +29,7 @@ const program = new Command();
 
 program
   .name('orchestrate:initialize')
-  .description(
-    'Initialize AI Agentic Framework for a project using TypeScript DeepAgents orchestration',
-  )
+  .description('Initialize AI Agentic Framework for a project using TypeScript CLI orchestration')
   .version('1.0.0')
   .option('-p, --project-path <path>', 'Project path to initialize', process.cwd())
   .option(
@@ -220,7 +218,10 @@ program
 
       // Auto-detect provider from preflight if not explicitly set
       if (!options.provider) {
-        if (preflightResult.authMode === 'codex_cli') {
+        if (preflightResult.authMode === 'claude_cli') {
+          setActiveProvider(Provider.CLAUDE);
+          process.env.PROVIDER = 'claude';
+        } else if (preflightResult.authMode === 'codex_cli') {
           setActiveProvider(Provider.CODEX);
           process.env.PROVIDER = 'codex';
           if (!options.modelTier) {
@@ -233,14 +234,18 @@ program
       }
 
       // Show auth mode
-      if (preflightResult.authMode === 'api_key') {
-        logger.success(
-          `✓ Authentication: API Keys detected (${preflightResult.provider || 'unknown'})`,
-        );
-      } else if (preflightResult.authMode === 'claude_cli') {
-        logger.success('✓ Authentication: Claude CLI (subscription)');
+      if (preflightResult.authMode === 'claude_cli') {
+        if (process.env.ANTHROPIC_API_KEY) {
+          logger.success('✓ Authentication: Anthropic API key');
+        } else {
+          logger.success('✓ Authentication: Claude CLI (subscription)');
+        }
       } else if (preflightResult.authMode === 'codex_cli') {
-        logger.success('✓ Authentication: Codex CLI (subscription)');
+        if (process.env.OPENAI_API_KEY) {
+          logger.success('✓ Authentication: OpenAI API key');
+        } else {
+          logger.success('✓ Authentication: Codex CLI (subscription)');
+        }
       }
 
       if (preflightResult.gitignoreUpdated) {
