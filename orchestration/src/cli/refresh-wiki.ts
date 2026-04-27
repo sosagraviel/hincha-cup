@@ -8,6 +8,8 @@ import { MemorySaver } from '@langchain/langgraph';
 import { createWikiRefreshGraph } from '../graphs/wiki-refresh.graph.js';
 import { logger } from '../utils/logger.js';
 import { Provider } from '../providers/types.js';
+import { readWikiDeltaHintsFile } from '../services/graph-wiki/wiki-delta-hints.js';
+import type { WikiDeltaHint } from '../services/graph-wiki/wiki-delta-hints.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +33,10 @@ program
   .option('--force', 'Force full regeneration even when .state.json exists', false)
   .option('--pages <globs>', 'Comma-separated glob patterns to restrict which pages are refreshed')
   .option('--dry-run', 'Show the planned refresh set without writing any files', false)
+  .option(
+    '--hints <path>',
+    'Path to a JSONL file of Wiki Delta Hints emitted by the implementer; seeds the refresh set in addition to the git diff',
+  )
   .action(async (options) => {
     let isShuttingDown = false;
 
@@ -56,6 +62,23 @@ program
             .filter(Boolean)
         : undefined;
 
+      let hints: WikiDeltaHint[] = [];
+      if (options.hints) {
+        const hintsPath = path.resolve(options.hints as string);
+        if (!existsSync(hintsPath)) {
+          logger.error(`--hints path does not exist: ${hintsPath}`);
+          process.exit(1);
+        }
+        try {
+          hints = readWikiDeltaHintsFile(hintsPath);
+        } catch (err) {
+          logger.error(
+            `Failed to parse hints file: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          process.exit(1);
+        }
+      }
+
       logger.section('Wiki Refresh');
       logger.table({
         'Project Path': projectPath,
@@ -64,6 +87,7 @@ program
         'Since commit': options.since ?? '(from .state.json)',
         Force: String(options.force),
         'Dry run': String(options.dryRun),
+        Hints: hints.length > 0 ? `${hints.length} hint(s) from ${options.hints}` : '(none)',
       });
       logger.blank();
 
@@ -83,6 +107,7 @@ program
         generated_pages: [],
         errors: [],
         current_phase: 'init',
+        hints,
       };
 
       const threadId = `wiki-refresh-${path.basename(projectPath)}-${Date.now()}`;

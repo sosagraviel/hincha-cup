@@ -22,6 +22,7 @@ const baseState: WikiRefreshState = {
   generated_pages: [],
   errors: [],
   current_phase: 'compute_diff',
+  hints: [],
 };
 
 function makeDirent(name: string, isFile = true): import('fs').Dirent {
@@ -168,6 +169,104 @@ describe('computeRefreshSetNode', () => {
     const result = await computeRefreshSetNode(baseState);
 
     expect((result.refresh_set ?? []).length).toBeLessThanOrEqual(1);
+
+    delete process.env.WIKI_REFRESH_MAX_PAGES;
+  });
+
+  it('includes hint pages in the refresh set even when diff is empty', async () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readdirSync).mockReturnValue([] as any);
+
+    const result = await computeRefreshSetNode({
+      ...baseState,
+      changed_files: [],
+      hints: [
+        {
+          file_path: 'src/auth/oauth.ts',
+          suggested_page: 'services/auth.md',
+          action: 'update',
+          reason: 'OAuth added',
+        },
+        {
+          file_path: 'src/billing/invoice.ts',
+          suggested_page: 'PATTERNS.md',
+          action: 'update',
+          reason: 'billing pattern',
+        },
+      ],
+    });
+
+    const refreshSet = result.refresh_set ?? [];
+    expect(refreshSet.some((p) => p.includes('services/auth.md'))).toBe(true);
+    expect(refreshSet.some((p) => p.includes('PATTERNS.md'))).toBe(true);
+  });
+
+  it('deduplicates when hints and diff resolve to the same page', async () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    const seenDirs = new Set<string>();
+    vi.mocked(readdirSync).mockImplementation(((dir: unknown) => {
+      const dirStr = String(dir);
+      if (seenDirs.has(dirStr)) return [];
+      seenDirs.add(dirStr);
+      if (dirStr.endsWith('/wiki')) {
+        return [makeDirent('services', false)];
+      }
+      if (dirStr.endsWith('/services')) {
+        return [makeDirent('auth.md', true)];
+      }
+      return [];
+    }) as any);
+
+    const authPageContent = [
+      '---',
+      'document_type: service',
+      'sources:',
+      '  - path: src/auth/service.ts',
+      '    sha256: abc123',
+      '    ingested_at: 2026-01-01T00:00:00Z',
+      '    commit: abc123',
+      'related: []',
+      '---',
+      '# Auth service',
+    ].join('\n');
+
+    vi.mocked(readFileSync).mockImplementation(() => authPageContent);
+
+    const result = await computeRefreshSetNode({
+      ...baseState,
+      changed_files: ['src/auth/service.ts'],
+      hints: [
+        {
+          file_path: 'src/auth/service.ts',
+          suggested_page: 'services/auth.md',
+          action: 'update',
+          reason: 'same page',
+        },
+      ],
+    });
+
+    const refreshSet = result.refresh_set ?? [];
+    const authPages = refreshSet.filter((p) => p.includes('auth.md'));
+    expect(authPages.length).toBe(1);
+  });
+
+  it('hints respect the MAX_PAGES cap', async () => {
+    process.env.WIKI_REFRESH_MAX_PAGES = '2';
+
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readdirSync).mockReturnValue([] as any);
+
+    const result = await computeRefreshSetNode({
+      ...baseState,
+      changed_files: [],
+      hints: [
+        { file_path: 'src/a.ts', suggested_page: 'services/a.md', action: 'update', reason: 'a' },
+        { file_path: 'src/b.ts', suggested_page: 'services/b.md', action: 'update', reason: 'b' },
+        { file_path: 'src/c.ts', suggested_page: 'services/c.md', action: 'add', reason: 'c' },
+      ],
+    });
+
+    expect((result.refresh_set ?? []).length).toBeLessThanOrEqual(2);
 
     delete process.env.WIKI_REFRESH_MAX_PAGES;
   });

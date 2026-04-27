@@ -30,6 +30,7 @@ export async function writeLogNode(state: WikiRefreshState): Promise<Partial<Wik
     changed_files_count: state.changed_files.length,
     refreshed_pages: refreshedPages,
     lint_ok: lintOk,
+    hints_used: (state.hints ?? []).length,
   };
 
   const existingLog = existsSync(logPath) ? readFileSync(logPath, 'utf-8') : '';

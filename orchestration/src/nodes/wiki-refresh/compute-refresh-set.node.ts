@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join, relative, resolve } from 'path';
 import matter from 'gray-matter';
 import type { WikiRefreshState } from '../../state/schemas/wiki-refresh.schema.js';
+import type { WikiDeltaHint } from '../../services/graph-wiki/wiki-delta-hints.js';
 
 const DEFAULT_MAX_PAGES = 20;
 const WIKI_LINK_PATTERN = /\[{1,2}[^\]]*\]{1,2}\(((wiki\/|services\/|\.\.|\.\/)[^\s)]+\.md)\)/g;
@@ -33,10 +34,19 @@ export async function computeRefreshSetNode(
 
   const maxPages = resolveMaxPages();
   const wikiPages = collectWikiPages(wikiDir);
+  const hints: WikiDeltaHint[] = state.hints ?? [];
+  const wikiBase = join('docs', 'llm-wiki', 'wiki');
 
   if (wikiPages.length === 0) {
+    const hintPages = hints.map((h) => join(wikiBase, h.suggested_page));
+    const cappedHintPages = hintPages.slice(0, maxPages);
+    if (cappedHintPages.length > 0) {
+      console.log(
+        `Refresh set: ${cappedHintPages.length} pages (0 from diff, ${cappedHintPages.length} from hints)`,
+      );
+    }
     return {
-      refresh_set: [],
+      refresh_set: cappedHintPages,
       current_phase: 'compute_refresh_set',
     };
   }
@@ -69,6 +79,15 @@ export async function computeRefreshSetNode(
     }
   }
 
+  const diffDrivenCount = expandedSet.size;
+
+  for (const hint of hints) {
+    const hintPage = join(wikiBase, hint.suggested_page);
+    expandedSet.add(hintPage);
+  }
+
+  const hintDrivenCount = expandedSet.size - diffDrivenCount;
+
   let refreshSet = Array.from(expandedSet);
 
   if (state.pages_filter && state.pages_filter.length > 0) {
@@ -84,6 +103,11 @@ export async function computeRefreshSetNode(
   }
 
   const cappedSet = refreshSet.slice(0, maxPages);
+
+  const totalCount = cappedSet.length;
+  const diffCount = Math.min(diffDrivenCount, totalCount);
+  const hintCount = Math.min(hintDrivenCount, Math.max(0, totalCount - diffCount));
+  console.log(`Refresh set: ${totalCount} pages (${diffCount} from diff, ${hintCount} from hints)`);
 
   return {
     refresh_set: cappedSet,

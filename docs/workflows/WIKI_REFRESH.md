@@ -51,6 +51,18 @@ Defined in `orchestration/src/state/schemas/wiki-refresh.schema.ts` (`WikiRefres
 | `lint_report` | `LintReport?` | Structural + semantic lint results |
 | `errors` | `string[]` | Non-fatal errors from any node |
 | `current_phase` | `string` | Current node name (debug/logging) |
+| `hints` | `WikiDeltaHint[]` | Implementer-supplied page suggestions (from `--hints`); unioned with diff-driven set in `compute_refresh_set` |
+
+### WikiDeltaHint shape
+
+```ts
+{
+  file_path: string;       // source file relative to project root
+  suggested_page: string;  // wiki page relative to docs/llm-wiki/wiki/
+  action: 'add' | 'update' | 'deprecate';
+  reason: string;          // ≤120 chars
+}
+```
 
 ---
 
@@ -64,6 +76,7 @@ scripts/refresh-wiki.sh \
   --force                      # full regeneration
   --pages <globs>              # comma-separated glob patterns
   --dry-run                    # print plan, no writes
+  --hints <path>               # JSONL file of Wiki Delta Hints from the implementer
 ```
 
 ---
@@ -104,8 +117,8 @@ Changes are left uncommitted. `/implement-ticket` Phase 8.5 stages and commits t
 
 | Provider | Command |
 |----------|---------|
-| Claude Code | `/wiki-refresh [--since <sha>] [--force] [--pages <globs>] [--dry-run]` |
-| Codex CLI | `$wiki-refresh [--since <sha>] [--force] [--pages <globs>] [--dry-run]` |
+| Claude Code | `/wiki-refresh [--since <sha>] [--force] [--pages <globs>] [--dry-run] [--hints <path>]` |
+| Codex CLI | `$wiki-refresh [--since <sha>] [--force] [--pages <globs>] [--dry-run] [--hints <path>]` |
 
 ---
 

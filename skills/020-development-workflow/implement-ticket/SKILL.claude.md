@@ -106,9 +106,9 @@ Create each task using TaskCreate with these exact values:
 6. Phase 5: Implementation
    subject: "Phase 5: Implementation"
    activeForm: "Implementing code changes"
-   Steps: MUST spawn graph-aware implementer-{lang} agent with the planner-authored `Implementation Plan` from Phase 3, pass the same `WIKI_SERVICES` paths the planner cited plus the plan's `Wiki Evidence` and `Graph Evidence`, implementer absorbs those artifacts before any fresh discovery, implementer runs targeted graph checks only for high-risk edits flagged by the plan, implements code following the plan, follows project conventions from {{INSTRUCTION_FILE}}, creates/modifies files as needed, includes wiki pages consulted and any fresh graph queries in the final implementation summary
-   Expected outputs: graph-aware implementer agent was spawned, implementer confirmed it consumed the plan's Wiki Evidence and Graph Evidence, code changes exist, new files created as planned
-   Constraint: Do not proceed if implementer agent was not spawned, the plan's Wiki Evidence / Graph Evidence were not consumed, or no code changes exist.
+   Steps: MUST spawn graph-aware implementer-{lang} agent with the planner-authored `Implementation Plan` from Phase 3, pass the same `WIKI_SERVICES` paths the planner cited plus the plan's `Wiki Evidence` and `Graph Evidence`, implementer absorbs those artifacts before any fresh discovery, implementer runs targeted graph checks only for high-risk edits flagged by the plan, implements code following the plan, follows project conventions from {{INSTRUCTION_FILE}}, creates/modifies files as needed, includes wiki pages consulted and any fresh graph queries in the final implementation summary, implementer MUST end its completion summary with a `## Wiki Delta Hints` JSONL fenced block (see implementer template); the block may be empty if no wiki impact, but the section MUST be present
+   Expected outputs: graph-aware implementer agent was spawned, implementer confirmed it consumed the plan's Wiki Evidence and Graph Evidence, code changes exist, new files created as planned, completion summary contains a parseable `## Wiki Delta Hints` JSONL block
+   Constraint: Do not proceed if implementer agent was not spawned, the plan's Wiki Evidence / Graph Evidence were not consumed, no code changes exist, or the implementer did not emit a parseable Wiki Delta Hints block.
 
 7. Phase 6: Testing
    subject: "Phase 6: Testing"
@@ -134,7 +134,7 @@ Create each task using TaskCreate with these exact values:
 10. Phase 8.5: Wiki Refresh
     subject: "Phase 8.5: Wiki Refresh"
     activeForm: "Refreshing LLM wiki"
-    Steps: Compute branch-base via merge-base; invoke `/wiki-refresh --since <branch-base>`; surface lint report; if structural failures STOP; otherwise commit `docs/llm-wiki/**` changes with Conventional Commit message `docs(wiki): refresh for <TICKET-ID>`.
+    Steps: Extract the Wiki Delta Hints JSONL from the implementer's completion summary saved at `$ARTIFACTS_DIR/implementation/<ticket-id>-completion.md` (or wherever the implementer's completion summary was saved). If the implementer's completion summary is not available on disk, fall back to git-diff-only refresh. If hints exist, write them to `$ARTIFACTS_DIR/wiki/hints.jsonl`. Compute branch-base via `git merge-base HEAD origin/development` (fall back to `git merge-base HEAD origin/main`). Invoke `/wiki-refresh --since <branch-base>` and append `--hints $ARTIFACTS_DIR/wiki/hints.jsonl` if the hints file exists. Surface the lint report. If structural failures STOP. Otherwise commit `docs/llm-wiki/**` changes with Conventional Commit message `docs(wiki): refresh for <TICKET-ID>`.
     Expected outputs: wiki-refresh invocation completed, lint report collected, docs/llm-wiki/** changes either committed or confirmed empty.
     Constraint: Do not proceed if structural lint failures are unresolved. A wiki commit is optional only when no pages changed.
 
@@ -266,7 +266,9 @@ Spawn the stack-specific `implementer-{lang}` via `Task(subagent_type: <picked-f
 - Input paths: `$ARTIFACTS_DIR/plans/implementation-plan.md`, `$ARTIFACTS_DIR/context/wiki-context.md`
 - Reminder: consult the cited `WIKI_SERVICES` pages for conventions; use `mcp__code_graph` to verify impacts before touching anything the plan flags high-risk; reuse the plan's `Graph Evidence` — do not re-run those queries.
 
-Verify: code changes exist; completion summary lists wiki pages consulted and any fresh graph checks.
+Verify: code changes exist; completion summary lists wiki pages consulted and any fresh graph checks; completion summary contains a `## Wiki Delta Hints` JSONL fenced block (may be empty, but section must be present).
+
+CRITICAL: Do not proceed to Phase 6 if the implementer did not emit a parseable Wiki Delta Hints block.
 
 CONTINUE WITH Phase 6.
 
@@ -310,10 +312,14 @@ CONTINUE WITH Phase 8.5.
 
 ### Phase 8.5: Wiki Refresh
 
-CRITICAL: invoke `/wiki-refresh --since <branch-base>` where `<branch-base>` is the merge-base with the target branch (`development` by default). This updates only the pages implicated by the diff and runs `/wiki-lint` at the end.
+CRITICAL: invoke `/wiki-refresh --since <branch-base>` (plus `--hints` if available) where `<branch-base>` is the merge-base with the target branch (`development` by default). This updates only the pages implicated by the diff (and by implementer hints) and runs `/wiki-lint` at the end.
 
+- Extract the Wiki Delta Hints JSONL from the implementer's completion summary. The summary is expected at `$ARTIFACTS_DIR/implementation/<ticket-id>-completion.md`. If the file does not exist or the `## Wiki Delta Hints` section is absent, fall back to diff-only refresh.
+- If hints exist, write them to `$ARTIFACTS_DIR/wiki/hints.jsonl` (create the `wiki/` subdirectory under `$ARTIFACTS_DIR` if needed).
 - Compute `<branch-base>` via `git merge-base HEAD origin/development` (fall back to `git merge-base HEAD origin/main` if `development` does not exist).
-- Invoke the `/wiki-refresh` skill with `--since <branch-base>`.
+- Invoke the `/wiki-refresh` skill:
+  - With hints: `/wiki-refresh --since <branch-base> --hints $ARTIFACTS_DIR/wiki/hints.jsonl`
+  - Without hints: `/wiki-refresh --since <branch-base>`
 - If `/wiki-refresh` reports structural lint violations, STOP and report. Do NOT create the PR until the user resolves them.
 - If `/wiki-refresh` reports only warnings, continue and surface them in the PR body.
 - If the refresh produced no changes (no pages in the refresh set), do nothing and continue to Phase 9.

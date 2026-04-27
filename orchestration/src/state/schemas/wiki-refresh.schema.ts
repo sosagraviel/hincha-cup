@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { Annotation } from '@langchain/langgraph';
 import type { Provider } from '../../providers/types.js';
+import { WikiDeltaHintSchema } from '../../services/graph-wiki/wiki-delta-hints.js';
+export type { WikiDeltaHint } from '../../services/graph-wiki/wiki-delta-hints.js';
 
 // ============================================================================
 // LINT REPORT SHAPE
@@ -56,6 +58,7 @@ export const WikiRefreshStateSchema = z.object({
   lint_report: LintReportSchema.optional(),
   errors: z.array(z.string()).default([]),
   current_phase: z.string().default('init'),
+  hints: z.array(WikiDeltaHintSchema).default([]),
 });
 
 export type WikiRefreshState = z.infer<typeof WikiRefreshStateSchema>;
@@ -120,5 +123,9 @@ export const WikiRefreshAnnotation = {
   current_phase: Annotation<string>({
     reducer: (_existing, update) => update,
     default: () => 'init',
+  }),
+  hints: Annotation<import('../../services/graph-wiki/wiki-delta-hints.js').WikiDeltaHint[]>({
+    reducer: (_existing, update) => update,
+    default: () => [],
   }),
 };

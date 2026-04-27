@@ -28,6 +28,7 @@ const baseState: WikiRefreshState = {
   generated_pages: [],
   errors: [],
   current_phase: 'compute_refresh_set',
+  hints: [],
 };
 
 describe('refreshPagesNode', () => {

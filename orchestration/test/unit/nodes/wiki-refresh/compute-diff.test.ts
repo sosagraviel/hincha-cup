@@ -20,6 +20,7 @@ const baseState: WikiRefreshState = {
   generated_pages: [],
   errors: [],
   current_phase: 'read_state',
+  hints: [],
 };
 
 describe('computeDiffNode', () => {

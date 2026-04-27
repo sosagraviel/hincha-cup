@@ -26,6 +26,7 @@ const baseState: WikiRefreshState = {
   ],
   errors: [],
   current_phase: 'refresh_pages',
+  hints: [],
 };
 
 describe('writeChangelogNode', () => {

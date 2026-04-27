@@ -146,6 +146,7 @@ describe('wiki-refresh integration', () => {
       generated_pages: [],
       errors: [],
       current_phase: 'read_state',
+      hints: [],
     };
 
     const result = await computeDiffNode(state);
@@ -169,6 +170,7 @@ describe('wiki-refresh integration', () => {
       generated_pages: [],
       errors: [],
       current_phase: 'compute_diff',
+      hints: [],
     };
 
     const result = await computeRefreshSetNode(state);
@@ -198,6 +200,7 @@ describe('wiki-refresh integration', () => {
       ],
       errors: [],
       current_phase: 'refresh_pages',
+      hints: [],
     };
 
     const result = await writeChangelogNode(state);
@@ -227,6 +230,7 @@ describe('wiki-refresh integration', () => {
       ],
       errors: [],
       current_phase: 'write_changelog',
+      hints: [],
     };
 
     const result = await writeLogNode(state);
@@ -256,6 +260,7 @@ describe('wiki-refresh integration', () => {
       lint_report: { structural: [], semantic: [], stats: { pages_scanned: 1, duration_ms: 0 } },
       errors: [],
       current_phase: 'run_lint',
+      hints: [],
     };
 
     const result = await updateStateNode(state);
@@ -289,6 +294,7 @@ describe('wiki-refresh integration', () => {
       lint_report: { structural: [], semantic: [], stats: { pages_scanned: 1, duration_ms: 0 } },
       errors: [],
       current_phase: 'refresh_pages',
+      hints: [],
     };
 
     const changelog = await writeChangelogNode(dryRunState);
@@ -308,5 +314,36 @@ describe('wiki-refresh integration', () => {
       'utf-8',
     );
     expect(JSON.parse(originalState).last_indexed_commit).toBe('abc123');
+  });
+
+  it('includes hint-nominated pages in refresh_set when diff is empty', async () => {
+    const { computeRefreshSetNode } =
+      await import('../../src/nodes/wiki-refresh/compute-refresh-set.node.js');
+
+    const state = {
+      project_path: projectPath,
+      framework_path: '/framework',
+      provider: Provider.CLAUDE,
+      force: false,
+      dry_run: false,
+      changed_files: [],
+      refresh_set: [],
+      generated_pages: [],
+      errors: [],
+      current_phase: 'compute_diff',
+      hints: [
+        {
+          file_path: 'src/auth/service.ts',
+          suggested_page: 'services/auth.md',
+          action: 'update' as const,
+          reason: 'Added OAuth provider',
+        },
+      ],
+    };
+
+    const result = await computeRefreshSetNode(state);
+
+    const refreshSet = result.refresh_set ?? [];
+    expect(refreshSet.some((p) => p.includes('services/auth.md'))).toBe(true);
   });
 });

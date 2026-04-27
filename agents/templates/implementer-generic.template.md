@@ -167,4 +167,29 @@ At completion, include a short summary with:
 - Wiki pages consulted (from the planner handoff) and whether they matched reality
 - Graph queries used and the decisions they supported
 - Any warnings where the plan's evidence was missing or inconclusive
-- **Wiki Delta Hints** — a bulleted list of `(file_path, suggested_page, action)` tuples where `action ∈ {add, update, deprecate}`. Consumed by the downstream `/wiki-refresh` step.
+
+## Wiki Delta Hints
+
+End every completion summary with this section. Emit one JSON object per line inside the fenced block:
+
+````markdown
+## Wiki Delta Hints
+
+```jsonl
+{"file_path":"src/auth/oauth.py","suggested_page":"services/auth.md","action":"update","reason":"added GoogleOAuthProvider class"}
+{"file_path":"src/auth/oauth.py","suggested_page":"PATTERNS.md","action":"update","reason":"introduces OAuth retry pattern"}
+```
+````
+
+Requirements:
+- One JSON object per line.
+- Required keys: `file_path` (relative to project root), `suggested_page` (relative to `docs/llm-wiki/wiki/` — e.g. `services/auth.md`, `PATTERNS.md`), `action` (one of `add`, `update`, `deprecate`), `reason` (≤120 chars).
+- If no wiki pages were impacted (no-op ticket, pure config change), emit an empty fenced block:
+
+````markdown
+```jsonl
+```
+````
+
+- Failing to emit the `## Wiki Delta Hints` section at all is a Phase 5 completion failure. The block may be empty, but the section must be present.
+- This block is consumed by the downstream `/wiki-refresh --hints` step. It seeds the refresh set with pages the implementer knows were impacted, complementing the git-diff-based discovery.

@@ -61,6 +61,7 @@ $wiki-refresh --dry-run
 | `--force` | Full regeneration of all pages regardless of `.state.json` |
 | `--pages <globs>` | Comma-separated glob patterns to restrict which pages refresh |
 | `--dry-run` | Print the planned refresh set without writing any files |
+| `--hints <path>` | Path to a JSONL file of Wiki Delta Hints emitted by the implementer; seeds the refresh set in addition to the git diff |
 
 ---
 
@@ -108,9 +109,31 @@ $wiki-refresh --force
 
 ---
 
+## Wiki Delta Hints (JSONL format)
+
+The `--hints` flag accepts a JSONL file where each line is a JSON object describing one wiki page impact:
+
+```jsonl
+{"file_path":"src/auth/oauth.py","suggested_page":"services/auth.md","action":"update","reason":"added GoogleOAuthProvider class"}
+{"file_path":"src/auth/oauth.py","suggested_page":"PATTERNS.md","action":"update","reason":"introduces OAuth retry pattern"}
+```
+
+Required fields:
+
+| Field | Description |
+|-------|-------------|
+| `file_path` | Source file path relative to the project root |
+| `suggested_page` | Wiki page path relative to `docs/llm-wiki/wiki/` (e.g. `services/auth.md`) |
+| `action` | One of `add`, `update`, `deprecate` |
+| `reason` | Short explanation (≤120 chars) |
+
+The implementer agent automatically emits this block in its completion summary under `## Wiki Delta Hints`. Phase 8.5 of `/implement-ticket` extracts those hints, writes them to `$ARTIFACTS_DIR/wiki/hints.jsonl`, and passes the file to `/wiki-refresh --hints`. If no hints file is available, the refresh falls back to diff-only discovery.
+
+---
+
 ## Integration with `/implement-ticket` Phase 8.5
 
-Every `/implement-ticket` run automatically calls `/wiki-refresh --since <branch-base>` as Phase 8.5, immediately before PR creation. If the refresh produces structural lint failures (broken links, dead sources, missing frontmatter), the PR is blocked until fixed. Semantic warnings are surfaced in the PR body as advisory information. If no pages were in the refresh set, Phase 8.5 is a no-op and the workflow continues.
+Every `/implement-ticket` run automatically calls `/wiki-refresh --since <branch-base> [--hints <hints-file>]` as Phase 8.5, immediately before PR creation. The hints file, when present, seeds the refresh set with pages the implementer named explicitly — complementing the git-diff-driven discovery. If the refresh produces structural lint failures (broken links, dead sources, missing frontmatter), the PR is blocked until fixed. Semantic warnings are surfaced in the PR body as advisory information. If no pages were in the refresh set, Phase 8.5 is a no-op and the workflow continues.
 
 ---
 

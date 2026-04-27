@@ -25,6 +25,7 @@ const baseState: WikiRefreshState = {
   },
   errors: [],
   current_phase: 'run_lint',
+  hints: [],
 };
 
 describe('updateStateNode', () => {

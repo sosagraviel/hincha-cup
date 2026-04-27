@@ -29,6 +29,7 @@ const baseState: WikiRefreshState = {
   ],
   errors: [],
   current_phase: 'write_changelog',
+  hints: [],
 };
 
 describe('writeLogNode', () => {
@@ -60,6 +61,35 @@ describe('writeLogNode', () => {
     expect(entry.refreshed_pages).toContain('docs/llm-wiki/wiki/services/auth.md');
     expect(typeof entry.lint_ok).toBe('boolean');
     expect(typeof entry.ts).toBe('string');
+    expect(entry.hints_used).toBe(0);
+  });
+
+  it('records hints_used count when hints are present', async () => {
+    const stateWithHints: WikiRefreshState = {
+      ...baseState,
+      hints: [
+        {
+          file_path: 'src/auth/oauth.ts',
+          suggested_page: 'services/auth.md',
+          action: 'update',
+          reason: 'OAuth added',
+        },
+        {
+          file_path: 'src/billing/invoice.ts',
+          suggested_page: 'PATTERNS.md',
+          action: 'update',
+          reason: 'billing pattern',
+        },
+      ],
+    };
+
+    const result = await writeLogNode(stateWithHints);
+
+    const logPage = result.generated_pages?.find((p) => p.filename === 'docs/llm-wiki/log.md');
+    expect(logPage).toBeDefined();
+
+    const entry = JSON.parse(logPage!.content.trim());
+    expect(entry.hints_used).toBe(2);
   });
 
   it('appends to an existing log.md without overwriting prior entries', async () => {

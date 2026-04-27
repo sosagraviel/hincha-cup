@@ -198,9 +198,9 @@ Reminder: consult the cited `WIKI_SERVICES` pages for conventions; use `mcp__cod
 - Follow project conventions from `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`.
 - Create/modify files exactly as listed in the plan.
 
-Expected outputs: code changes exist, new files created as planned; completion summary lists wiki pages consulted and any fresh graph checks.
+Expected outputs: code changes exist, new files created as planned; completion summary lists wiki pages consulted and any fresh graph checks; completion summary contains a `## Wiki Delta Hints` JSONL fenced block (may be empty, but section must be present).
 
-Constraint: Do not proceed if no code changes exist, or if the plan's Wiki Evidence / Graph Evidence were not consumed.
+Constraint: Do not proceed if no code changes exist, or if the plan's Wiki Evidence / Graph Evidence were not consumed, or if the implementer did not emit a parseable Wiki Delta Hints block.
 
 ### Phase 6: Testing
 
@@ -246,10 +246,14 @@ Constraint: Do not proceed if doc-updater was not invoked.
 
 ### Phase 8.5: Wiki Refresh
 
-CRITICAL: invoke `/wiki-refresh --since <branch-base>` where `<branch-base>` is the merge-base with the target branch (`development` by default). This updates only the pages implicated by the diff and runs `/wiki-lint` at the end.
+CRITICAL: invoke `/wiki-refresh --since <branch-base>` (plus `--hints` if available) where `<branch-base>` is the merge-base with the target branch (`development` by default). This updates only the pages implicated by the diff (and by implementer hints) and runs `/wiki-lint` at the end.
 
+- Extract the Wiki Delta Hints JSONL from the implementer's completion summary. The summary is expected at `$ARTIFACTS_DIR/implementation/<ticket-id>-completion.md`. If the file does not exist or the `## Wiki Delta Hints` section is absent, fall back to diff-only refresh.
+- If hints exist, write them to `$ARTIFACTS_DIR/wiki/hints.jsonl` (create the `wiki/` subdirectory under `$ARTIFACTS_DIR` if needed).
 - Compute `<branch-base>` via `git merge-base HEAD origin/development` (fall back to `git merge-base HEAD origin/main` if `development` does not exist).
-- Invoke the `/wiki-refresh` skill with `--since <branch-base>`.
+- Invoke the `/wiki-refresh` skill:
+  - With hints: `/wiki-refresh --since <branch-base> --hints $ARTIFACTS_DIR/wiki/hints.jsonl`
+  - Without hints: `/wiki-refresh --since <branch-base>`
 - If `/wiki-refresh` reports structural lint violations, STOP and report. Do NOT create the PR until the user resolves them.
 - If `/wiki-refresh` reports only warnings, continue and surface them in the PR body.
 - If the refresh produced no changes (no pages in the refresh set), do nothing and continue to Phase 9.
