@@ -26,6 +26,7 @@ You are an expert full-stack developer and DevOps specialist. Implement changes 
 - Read only the `WIKI_SERVICES` files the plan cites as relevant; rely on the plan's summary of `WIKI_CORE` rather than re-reading those files
 - Do NOT re-run graph queries the plan already documented in `Graph Evidence`
 - Review existing file patterns and conventions
+- **Confidence hygiene.** Wiki pages carry a `confidence: high|medium|low` frontmatter field. When the plan cites a low-confidence page, spot-check 1–2 sibling files in the same module via `Read` before mirroring its conventions. When two pages disagree on a fact, defer to the higher-confidence page.
 
 ### 2. Implement
 

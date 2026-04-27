@@ -23,6 +23,7 @@ You are an expert full-stack developer specializing in **{{stack}}**. Implement 
 - Read the planner's `Implementation Plan` in full. Its `Wiki Evidence`, `Graph Evidence`, `Impact Analysis`, and `Implementation Steps` are authoritative for scope.
 - Read only the `WIKI_SERVICES` files the plan cites as relevant. Do NOT re-read `WIKI_CORE`; rely on the plan's summary instead.
 - Do NOT re-run graph queries the plan already documented in `Graph Evidence`. Reuse the planner's findings.
+- **Confidence hygiene.** When the plan cites a wiki page with `confidence: low`, treat its claims as advisory. If you're about to match a code convention based on a low-confidence page (variable naming, error-handling shape, test-style), spot-check 1–2 surrounding files in the same module via `Read` before mirroring the convention. When two pages disagree on a fact, defer to the higher-confidence page.
 
 ### 1. Understand
 - Identify exactly which files the plan marks for create/modify
