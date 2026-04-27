@@ -14,9 +14,51 @@ Analyze dependencies, databases, infrastructure tools, CI/CD pipelines, and depl
 
 <discovery_process>
 
-## Step 1: Find Dependency Manifests and Lock Files
+## Step 1: Service inventory via graph (do not re-glob manifests)
 
-For each service discovered in Phase 1 (by Structure Analyzer), locate and read its dependency files:
+Call `mcp__code_graph__list_communities` to get the same service set the structure-analyzer discovered. Use community names as service IDs. This eliminates the duplicate `**/package.json` glob that the old workflow ran.
+
+Record the community list. Subsequent steps use community names to scope graph queries per service.
+
+## Step 2: Identify actually-imported SDK libraries via graph
+
+For each key dependency category, use `mcp__code_graph__semantic_search_nodes` to find real import sites rather than trusting package.json declarations:
+
+**Database clients:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "PostgresClient | MongoClient | Pool | createConnection | DataSource | Prisma", kind: "function", limit: 50 })
+```
+
+**ORM initialization:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "TypeORM | Prisma | Sequelize | SQLAlchemy | GORM | Diesel", kind: "import", limit: 50 })
+```
+
+**Cache clients:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "Redis | Memcached | ioredis | createClient", kind: "import", limit: 30 })
+```
+
+**Authentication libraries:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "passport | jsonwebtoken | jose | auth0 | keycloak", kind: "import", limit: 30 })
+```
+
+**Payment / email / monitoring SDKs:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "Stripe | SendGrid | Sentry | Datadog", kind: "import", limit: 30 })
+```
+
+Record results in `graph_queries_used`. Only libraries that appear in actual import sites (not just in package.json) should be treated as confirmed usage.
+
+## Step 3: Find Dependency Manifests and Lock Files (Glob — required for version strings)
+
+For each service identified in Step 1, locate and read its manifest files to extract exact version numbers. The graph confirms usage; manifests provide version pinning details.
 
 <manifest_patterns>
 
@@ -46,11 +88,11 @@ Read each manifest to extract dependencies and their versions.
 
 </manifest_patterns>
 
-## Step 2: Comprehensive Dependency Analysis
+## Step 4: Comprehensive Dependency Analysis
 
 <dependency_analysis>
 
-For each service (or root if monorepo), extract and categorize ALL dependencies:
+For each service (or root if monorepo), extract and categorize ALL dependencies from the manifests read in Step 3. Cross-reference with the graph import data from Step 2 — mark libraries as "confirmed imported" vs. "declared only" where the graph provided signal.
 
 ### JavaScript/TypeScript (package.json)
 
@@ -71,41 +113,15 @@ Read `dependencies` (production) and `devDependencies` (development):
 
 ### Python (pyproject.toml)
 
-Read `[project.dependencies]` (production) and `[project.optional-dependencies.dev]` or `[tool.poetry.group.dev.dependencies]` (development):
-
-```toml
-[project.dependencies]
-fastapi = "^0.109.0"  # PRODUCTION
-sqlalchemy = "^2.0.25"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.0.0"  # DEVELOPMENT
-black = "^24.1.0"
-```
+Read `[project.dependencies]` (production) and `[project.optional-dependencies.dev]` or `[tool.poetry.group.dev.dependencies]` (development).
 
 ### Go (go.mod)
 
-All dependencies in `require` block are typically production (Go doesn't separate dev deps in go.mod):
-
-```go
-require (
-    github.com/gin-gonic/gin v1.9.1
-    gorm.io/gorm v1.25.5
-)
-```
+All dependencies in `require` block are typically production (Go doesn't separate dev deps in go.mod).
 
 ### Rust (Cargo.toml)
 
-Read `[dependencies]` (production) and `[dev-dependencies]` (development):
-
-```toml
-[dependencies]
-axum = "0.7"  # PRODUCTION
-tokio = "1.35"
-
-[dev-dependencies]
-cargo-test = "0.1"  # DEVELOPMENT
-```
+Read `[dependencies]` (production) and `[dev-dependencies]` (development).
 
 **Report format:**
 
@@ -126,26 +142,20 @@ cargo-test = "0.1"  # DEVELOPMENT
         "production": 4,
         "dev": 3
       }
-    },
-    "services/backend": {
-      "production": {...},
-      "dev": {...},
-      "notable": [...],
-      "count": {...}
     }
   },
-  "conflicts": [],  // Version conflicts across services (if any)
-  "lock_strategy": "strict"  // "strict" if lock files present, "loose" if not
+  "conflicts": [],
+  "lock_strategy": "strict"
 }
 ```
 
 </dependency_analysis>
 
-## Step 3: Identify Databases from Dependencies
+## Step 5: Identify Databases from Graph + Manifests
 
 <database_detection>
 
-Search for database client libraries in dependencies:
+Combine graph results from Step 2 (actual import sites) with manifest scanning (declared clients):
 
 **SQL Databases:**
 
@@ -167,7 +177,7 @@ Search for database client libraries in dependencies:
 - SQLAlchemy, Django ORM, Tortoise ORM (Python)
 - GORM (Go), Diesel (Rust), Hibernate/JPA (Java), ActiveRecord (Ruby)
 
-For each database client found:
+For each database client found (prefer graph-confirmed import sites over declared-only entries):
 
 1. Note the database type inferred from client library
 2. Record ORM if present
@@ -175,9 +185,11 @@ For each database client found:
 
 </database_detection>
 
-## Step 4: Comprehensive CI/CD Pipeline Analysis
+## Step 6: Comprehensive CI/CD Pipeline Analysis (Glob — required)
 
 <cicd_patterns>
+
+CI/CD config is not indexed by the graph. Always use Glob/Read for this step.
 
 Search for CI/CD configuration files:
 
@@ -199,32 +211,10 @@ If NO CI/CD config files found, report `"provider": "none"`.
 2. **Config files:** List all found config file paths
 3. **Triggers:** When pipeline runs (push, pull_request, manual, schedule)
 4. **Stages:** Pipeline stages (build, test, deploy, lint)
-5. **Test commands:** Commands that run tests (e.g., `npm test`, `pytest`, `go test`)
-6. **Build commands:** Commands that build artifacts (e.g., `npm run build`, `go build`)
-7. **Deploy commands:** Commands that deploy (e.g., `kubectl apply`, `docker push`)
+5. **Test commands:** Commands that run tests
+6. **Build commands:** Commands that build artifacts
+7. **Deploy commands:** Commands that deploy
 8. **Environments:** Target environments (development, staging, production)
-
-**Example GitHub Actions workflow extraction:**
-
-```yaml
-# .github/workflows/ci.yml
-name: CI
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - run: npm install
-      - run: npm test # TEST COMMAND
-      - run: npm run build # BUILD COMMAND
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - run: kubectl apply -f k8s/ # DEPLOY COMMAND
-    environment: production # ENVIRONMENT
-```
 
 **Report format:**
 
@@ -241,30 +231,15 @@ jobs:
 }
 ```
 
-If CI/CD not detected:
-
-```json
-"ci_cd": {
-  "provider": "none",
-  "config_files": [],
-  "triggers": [],
-  "stages": [],
-  "test_commands": [],
-  "build_commands": [],
-  "deploy_commands": [],
-  "environments": []
-}
-```
-
 </cicd_patterns>
 
-## Step 5: Infrastructure & Deployment Analysis
+## Step 7: Infrastructure & Deployment Analysis (Glob — required)
 
 <infrastructure_discovery>
 
-### Infrastructure Detection
+Infrastructure config (Dockerfile, docker-compose, k8s manifests) is not indexed by the graph. Always use Glob/Read for this step.
 
-Search for infrastructure configuration files:
+### Infrastructure Detection
 
 **Containerization:**
 
@@ -291,37 +266,6 @@ Search for infrastructure configuration files:
 - Netlify: `netlify.toml`
 - Vercel: `vercel.json`
 
-### Deployment Configuration Analysis
-
-Read Docker Compose / Kubernetes / Serverless configs to extract:
-
-1. **Deployment target:** "docker", "kubernetes", "serverless", "platform" (Vercel/Netlify)
-2. **Config files:** List ALL deployment-related files found
-3. **Runtime config:**
-   - Ports exposed (from docker-compose ports, Dockerfile EXPOSE, k8s Service)
-   - Worker/replica counts (from docker-compose scale, k8s replicas)
-   - Memory limits (from docker-compose mem_limit, k8s resources)
-4. **Scaling config:**
-   - Min/max replicas (from HorizontalPodAutoscaler, docker swarm, serverless auto-scaling)
-   - Autoscaling enabled or manual scaling
-
-**Example Docker Compose extraction:**
-
-```yaml
-# docker-compose.yml
-services:
-  backend:
-    build: ./services/backend
-    ports:
-      - '3050:3050' # PORT
-    environment:
-      - NODE_ENV=production
-  frontend:
-    build: ./services/web-frontend
-    ports:
-      - '2712:2712' # PORT
-```
-
 **Report format:**
 
 ```json
@@ -330,8 +274,6 @@ services:
   "target": "docker",
   "config_files": [
     "docker-compose.yml",
-    "docker-compose.production.yml",
-    "services/backend/Dockerfile.development",
     "services/backend/Dockerfile.production"
   ],
   "runtime_config": {
@@ -349,11 +291,11 @@ services:
 
 </infrastructure_discovery>
 
-## Step 6: Environment Configuration Discovery
+## Step 8: Environment Configuration Discovery (Glob — required)
 
 <environment_analysis>
 
-Search for environment configuration patterns:
+Environment files are not indexed by the graph. Always use Glob/Read for this step.
 
 **Environment Files:**
 
@@ -361,35 +303,9 @@ Search for environment configuration patterns:
 - `config/`, `env/` directories
 - Environment-specific configs: `.env.development`, `.env.production`, `.env.staging`
 
-**Configuration Management:**
-
-- dotenv usage in dependencies
-- Config libraries (node-config, python-decouple, viper for Go)
-- Environment variable references in code (`process.env`, `os.getenv`, `os.Getenv`)
-
 ### Extract from Environment Example Files:
 
-Read `.env.example` or `.env.template` to find **required environment variable names** (NEVER actual values):
-
-```bash
-# .env.example
-DATABASE_URL=postgresql://...
-REDIS_URL=redis://...
-API_KEY=your_api_key_here
-PORT=3000
-NODE_ENV=development
-```
-
-Extract variable names: `DATABASE_URL`, `REDIS_URL`, `API_KEY`, `PORT`, `NODE_ENV`
-
-### Detect Environment Types:
-
-From file names and CI/CD configs, identify which environments exist:
-
-- `.env.development` → "development"
-- `.env.production` → "production"
-- `.env.staging` → "staging"
-- `.env.test` → "test"
+Read `.env.example` or `.env.template` to find **required environment variable names** (NEVER actual values).
 
 **Report format:**
 
@@ -400,65 +316,26 @@ From file names and CI/CD configs, identify which environments exist:
     "REDIS_URL",
     "API_KEY",
     "PORT",
-    "NODE_ENV",
-    "JWT_SECRET"
+    "NODE_ENV"
   ],
   "environments": ["development", "production", "staging"],
-  "config_approach": "dotenv"  // or "env-vars", "config-files", "secrets-manager"
+  "config_approach": "dotenv"
 }
 ```
 
 </environment_analysis>
 
-## Step 7: External Services Detection
+## Step 9: External Services Detection
 
 <external_services>
 
-**Identify external service integrations from SDKs in dependencies:**
-
-### Authentication & Identity
-
-- **Keycloak:** `@keycloak/keycloak-admin-client`, `keycloak-js`
-- **Auth0:** `@auth0/auth0-react`, `auth0`
-- **Firebase Auth:** `firebase`, `@angular/fire`
-- **AWS Cognito:** `@aws-sdk/client-cognito-identity`
-- **OAuth providers:** `passport-google-oauth20`, `passport-github2`
-
-### Monitoring & Error Tracking
-
-- **Sentry:** `@sentry/node`, `@sentry/react`, `@sentry/nestjs`
-- **Datadog:** `dd-trace`, `@datadog/browser-rum`
-- **New Relic:** `newrelic`
-- **LogRocket:** `logrocket`
-
-### Payment Processing
-
-- **Stripe:** `stripe`, `@stripe/stripe-js`
-- **PayPal:** `@paypal/checkout-server-sdk`
-
-### Email Services
-
-- **SendGrid:** `@sendgrid/mail`
-- **Mailgun:** `mailgun-js`
-- **AWS SES:** `@aws-sdk/client-ses`
-- **MailHog:** (dev tool, found in docker-compose)
-
-### Cloud Services
-
-- **AWS SDK:** `@aws-sdk/*`, `boto3`, `aws-sdk-go-v2`
-- **Google Cloud:** `@google-cloud/*`, `google-cloud-*`
-- **Azure:** `@azure/*`
-
-### Search & Analytics
-
-- **Algolia:** `algoliasearch`
-- **Elasticsearch:** `@elastic/elasticsearch`
+Use graph results from Step 2 as primary signal (actual import sites). Supplement with manifest scanning for completeness.
 
 **For each detected service, report:**
 
 1. Service name
 2. SDK package name and version
-3. Config location (e.g., "dependencies", "docker-compose", "env variables")
+3. Whether confirmed via graph import site or declared-only
 
 **Report format:**
 
@@ -473,18 +350,13 @@ From file names and CI/CD configs, identify which environments exist:
     "service": "Sentry",
     "sdk": "@sentry/nestjs v9.30.0 / @sentry/react v9.32.0",
     "config_location": "vite.config.ts, backend dependencies"
-  },
-  {
-    "service": "Google OAuth",
-    "sdk": "passport-google-oauth20 v2.0.0",
-    "config_location": "backend dependencies"
   }
 ]
 ```
 
 </external_services>
 
-## Step 8: Build Tools Analysis
+## Step 10: Build Tools Analysis (Glob — required for config details)
 
 <build_tools>
 
@@ -498,32 +370,9 @@ Search dependencies for:
 - **Transpilers:** @babel/core, tsc (TypeScript compiler)
 - **Task Runners:** gulp, grunt, nx
 
-Read build configuration files:
+Read build configuration files (vite.config.ts/js, webpack.config.js, turbo.json) for build-target settings.
 
-- `vite.config.ts/js`
-- `webpack.config.js`
-- `rollup.config.js`
-- `turbo.json`
-
-### Extract Build Commands from package.json scripts:
-
-```json
-{
-  "scripts": {
-    "lint": "eslint --max-warnings=0", // LINT COMMAND
-    "format": "prettier --write src", // FORMAT COMMAND
-    "test": "jest", // TEST COMMAND
-    "build": "tsc -b && vite build" // BUILD COMMAND
-  }
-}
-```
-
-### Other Ecosystems
-
-- **Python:** `setup.py`, `pyproject.toml` build-system, `tox.ini`
-- **Go:** Built-in `go build`, `Makefile`
-- **Rust:** Built-in `cargo build`
-- **Java:** Maven (`pom.xml`), Gradle (`build.gradle`)
+### Extract Build Commands from package.json scripts.
 
 **Report format:**
 
@@ -540,48 +389,18 @@ Read build configuration files:
 
 </build_tools>
 
-## Step 9: Enhanced Monorepo Analysis
+## Step 11: Enhanced Monorepo Analysis
 
 <monorepo_analysis>
 
-**If monorepo detected, provide detailed workspace configuration:**
+**If monorepo detected (from graph architecture overview or community count > 1), provide detailed workspace configuration:**
 
-### Read Workspace Configuration:
+Read workspace configuration files:
 
 - **JavaScript/TypeScript:** `pnpm-workspace.yaml`, `package.json` workspaces field, `lerna.json`, `nx.json`
 - **Python:** Multiple `pyproject.toml` files, `poetry` workspaces
 - **Go:** `go.work` file
 - **Rust:** `Cargo.toml` `[workspace]` section
-
-### Extract:
-
-1. **Enabled:** true/false
-2. **Tool:** Which monorepo tool ("pnpm workspaces", "npm workspaces", "yarn workspaces", "lerna", "nx", "turborepo", "go workspaces", "cargo workspaces")
-3. **Workspace manager:** Package manager used
-4. **Build all command:** Command to build all packages (from root package.json scripts or turbo.json)
-5. **Test all command:** Command to test all packages
-
-**Example for pnpm monorepo:**
-
-Read `pnpm-workspace.yaml`:
-
-```yaml
-packages:
-  - 'packages/*'
-  - 'services/*'
-  - 'seeds/*'
-```
-
-Read root `package.json` scripts:
-
-```json
-{
-  "scripts": {
-    "build:all": "pnpm -r build",
-    "test:all": "pnpm -r test"
-  }
-}
-```
 
 **Report format:**
 
@@ -595,18 +414,6 @@ Read root `package.json` scripts:
 }
 ```
 
-If not a monorepo:
-
-```json
-"monorepo": {
-  "enabled": false,
-  "tool": "none",
-  "workspace_manager": "npm",
-  "build_all_command": "not specified",
-  "test_all_command": "not specified"
-}
-```
-
 </monorepo_analysis>
 
 </discovery_process>
@@ -615,20 +422,16 @@ If not a monorepo:
 
 ## Self-Verification Checklist
 
-1. **Found dependency manifests for all services?** Cross-check against Phase 1 service list
-2. **Comprehensive dependency breakdown complete?** Each service should have production/dev/notable/count fields
-3. **Database clients found but no database type?** Infer from client library name (pg = PostgreSQL, mongodb = MongoDB)
-4. **ORM present but no explicit database client?** ORM implies database (TypeORM often uses PostgreSQL)
-5. **CI/CD detection attempted?** If no config files found, report `"provider": "none"` (don't leave empty)
-6. **CI/CD commands extracted?** Test, build, and deploy commands from pipeline config
-7. **Infrastructure config found?** Check for Dockerfile, docker-compose, k8s configs
-8. **Deployment target identified?** Should be "docker", "kubernetes", "serverless", or "platform"
-9. **Environment variables extracted?** Read .env.example or .env.template for required var names
-10. **External services detected?** Check dependencies for Sentry, Keycloak, Auth0, Stripe, etc.
-11. **Build tools identified?** Find vite, webpack, or other bundlers and their config files
-12. **Build commands extracted?** Lint, format, test, build commands from package.json scripts
-13. **Monorepo analysis complete?** If monorepo, provide tool, workspace manager, and commands
-14. **Docker in dependencies but no Dockerfile?** Search more broadly (might be in subdirectories)
+1. **Called list_communities first?** If yes and got results, service list is in hand without manifest re-glob
+2. **graph_queries_used populated?** Every graph tool call must be recorded
+3. **Used semantic_search_nodes for database detection?** Graph confirms actual usage vs. declared-only
+4. **Found dependency manifests for all services?** Cross-check against Step 1 community list
+5. **CI/CD detection attempted?** If no config files found, report `"provider": "none"`
+6. **Infrastructure config found?** Check for Dockerfile, docker-compose, k8s configs
+7. **Environment variables extracted?** Read .env.example or .env.template for required var names
+8. **External services detected?** Graph import search should have surfaced Sentry, Keycloak, Auth0, Stripe, etc.
+9. **Build tools identified?** Find vite, webpack, or other bundlers and their config files
+10. **Monorepo analysis complete?** If monorepo, provide tool, workspace manager, and commands
 
 ## Common Patterns by Ecosystem
 
@@ -670,6 +473,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Service IDs must match those from Structure Analyzer (Agent 01)
 - Optional fields: `findings.monorepo` for monorepo-level config
 - Optional field: `needs_verification` array (maximum 5 items)
+- Required field: `graph_queries_used` array listing every graph tool call made
 
 ## Example Output Structure
 
@@ -715,11 +519,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
     },
     "deployment": {
       "target": "docker",
-      "config_files": [
-        "docker-compose.yml",
-        "docker-compose.production.yml",
-        "services/backend/Dockerfile.production"
-      ],
+      "config_files": ["docker-compose.yml", "services/backend/Dockerfile.production"],
       "runtime_config": {
         "port": "3050 (backend), 2712 (frontend)",
         "workers": "not specified",
@@ -742,12 +542,6 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
         "orm": "TypeORM",
         "migration_tool": "TypeORM",
         "migration_commands": ["npx typeorm migration:create", "npx typeorm migration:run"]
-      },
-      {
-        "type": "redis",
-        "orm": "ioredis",
-        "migration_tool": "none",
-        "migration_commands": []
       }
     ],
     "external_services": [
@@ -755,11 +549,6 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
         "service": "Keycloak",
         "sdk": "@keycloak/keycloak-admin-client v26.1.4",
         "config_location": "docker-compose configuration"
-      },
-      {
-        "service": "Sentry",
-        "sdk": "@sentry/nestjs v9.30.0",
-        "config_location": "backend dependencies"
       }
     ],
     "build_tools": {
@@ -778,6 +567,11 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
       "test_all_command": "pnpm -r test"
     }
   },
+  "graph_queries_used": [
+    "mcp__code_graph__list_communities",
+    "mcp__code_graph__semantic_search_nodes({ query: 'PostgresClient | Pool | DataSource', kind: 'function', limit: 50 })",
+    "mcp__code_graph__semantic_search_nodes({ query: 'Stripe | SendGrid | Sentry', kind: 'import', limit: 30 })"
+  ],
   "needs_verification": []
 }
 ```
@@ -798,8 +592,12 @@ Use `needs_verification` for:
 Do NOT use for:
 
 - Dependency versions (readable from manifests)
-- Database types (inferable from client libraries)
+- Database types (inferable from client libraries and graph import sites)
 - CI/CD presence (detectable from config files)
 - Infrastructure tools (detectable from Dockerfiles, k8s configs)
 
 </verification_guidelines>
+
+## Token efficiency
+
+Graph queries are O(1) on warm cache (the graph is built once per init). Glob+Read scales with file count. For projects with thousands of files, the difference is 10–100×. Use the graph.

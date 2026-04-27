@@ -6,40 +6,34 @@ Analyze repository structure and identify all services/packages with their langu
 
 <discovery_process>
 
-## Step 1: Find All Manifest Files
+## Step 1: Service boundaries via graph
 
-Use Glob with these universal manifest patterns (works across all stacks):
+Call `mcp__code_graph__list_communities`. The response is your service inventory. Each community is a candidate service.
 
-```
-**/package.json          # JavaScript/TypeScript (npm, yarn, pnpm, bun)
-**/pyproject.toml        # Python (Poetry, PDM, Hatch)
-**/setup.py              # Python (setuptools)
-**/requirements.txt      # Python (pip)
-**/Pipfile               # Python (Pipenv)
-**/go.mod                # Go
-**/Cargo.toml            # Rust
-**/pom.xml               # Java (Maven)
-**/build.gradle*         # Java/Kotlin (Gradle)
-**/Gemfile               # Ruby
-**/composer.json         # PHP
-**/*.csproj              # C#
-**/Package.swift         # Swift
-**/mix.exs               # Elixir
-**/pubspec.yaml          # Dart/Flutter
-```
+For each community, call `mcp__code_graph__get_community({ community_name, include_members: true })` to retrieve member files, language tags, and entry points. Record:
+
+- service id (use the community name as a stable id)
+- files (member list)
+- languages (language tags from the payload)
+- entry points (heuristic: members named `main.*`, `index.*`, `app.*`, `server.*`)
+
+## Step 2: Architecture topology via graph
+
+Call `mcp__code_graph__get_architecture_overview` once. Use the response to fill the project's top-level shape (monorepo? microservice? layered?). Cross-reference with Step 1's communities — they should align.
+
+## Step 3: Manifest verification (only when graph is empty)
+
+If Step 1 returned 0 communities — only then fall back to Glob `**/package.json`, `**/pyproject.toml`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`, `**/build.gradle*`, `**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/mix.exs`, `**/pubspec.yaml`. Read the minimum needed to fill the gap. Cite `[graph empty — fell back to manifest discovery]` in `graph_queries_used`.
 
 Each manifest file represents a potential service or package. Read each one to extract metadata.
 
-## Step 2: Detect All Languages in Repository
+## Step 4: Detect All Languages in Repository
 
 <multi_language_detection>
 
-**Don't assume a single primary language!** Modern projects often mix multiple languages:
+The graph's community payloads include language tags; use those first. If the graph returned communities, skip to Step 5 — language data is already in hand.
 
-- TypeScript backend + Python ML workers + Go microservices
-- JavaScript config files in TypeScript projects
-- Shell scripts in any project
-- Infrastructure as Code (Terraform, CloudFormation)
+Only when falling back to file-based discovery:
 
 **Count files by extension to detect ALL languages:**
 
@@ -96,9 +90,13 @@ pattern and still walks the excluded trees.
 
 </multi_language_detection>
 
-## Step 3: Determine Repository Type
+## Step 5: Determine Repository Type
 
 <repository_detection>
+
+The architecture overview from Step 2 should answer this. If the graph returned a clear topology (monorepo / single-service / microservices), use it directly.
+
+Only fall back to workspace-file analysis when the graph returned no topology:
 
 **Monorepo indicators:**
 
@@ -117,7 +115,7 @@ If monorepo detected, list ALL packages/services with their relative paths.
 
 </repository_detection>
 
-## Step 4: Detect Runtime Versions
+## Step 6: Detect Runtime Versions
 
 <runtime_detection>
 
@@ -163,46 +161,46 @@ If multiple version files exist (monorepo with mixed versions), report the most 
 
 </runtime_detection>
 
-## Step 5: Extract Service Information
+## Step 7: Extract Service Information
 
-For each discovered manifest file, read it and extract:
+For each service discovered via the graph (or manifests in fallback), record:
 
 <service_metadata>
 
 **Identity:**
 
-- id: Short identifier (e.g., "api", "web", "worker")
+- id: Short identifier (e.g., "api", "web", "worker") — use community name from Step 1 as the stable id
 - name: Human-readable name from manifest (if present)
 - path: Relative path from repository root to service directory
 
 **Language & Version:**
 
-- Primary language inferred from manifest type
-- Version constraints from manifest or version files (.nvmrc, .python-version, .go-version, .ruby-version, runtime.txt)
+- Primary language from community language tags (or inferred from manifest type)
+- Version constraints from runtime version files
 
-**Frameworks (from dependencies):**
+**Frameworks (from graph payload or manifest dependencies):**
 
 - Main framework: Express, NestJS, Fastify (Node); Django, Flask, FastAPI (Python); Gin, Echo, Chi (Go); Axum, Rocket, Actix (Rust); Spring Boot (Java); Rails, Sinatra (Ruby)
 - ORM/Database: TypeORM, Prisma, Sequelize (Node); SQLAlchemy, Django ORM (Python); GORM (Go); Diesel (Rust); Hibernate, JPA (Java); ActiveRecord (Ruby)
 
-**Service Type (infer from dependencies and structure):**
+**Service Type (infer from graph community type or dependencies and structure):**
 
-- backend: HTTP framework dependencies (express, flask, gin, actix-web)
-- frontend: UI framework dependencies (react, vue, angular, svelte)
+- backend: HTTP framework dependencies
+- frontend: UI framework dependencies
 - serverless: Serverless framework, AWS Lambda packages
-- worker: Background job libraries (bull, celery, sidekiq)
+- worker: Background job libraries
 - library: No server dependencies, reusable modules
-- cli: CLI framework dependencies (commander, click, cobra, clap)
+- cli: CLI framework dependencies
 - mobile: React Native, Flutter
 - desktop: Electron, Tauri
 
 </service_metadata>
 
-## Step 6: Analyze Architecture Patterns
+## Step 8: Architecture Patterns via graph
 
-<architecture_analysis>
+The architecture overview from Step 2 should already describe the top-level pattern. Use it directly.
 
-Examine the source code directory structure (typically `src/`, `lib/`, `app/`, or root-level files).
+Only examine source directory structure manually when the graph returned no pattern information:
 
 **Common Patterns to Identify:**
 
@@ -212,76 +210,15 @@ Examine the source code directory structure (typically `src/`, `lib/`, `app/`, o
 4. **DDD (Domain-Driven Design):** Bounded contexts, aggregates, entities, value objects
 5. **Flat:** All files in one directory or minimal nesting
 
-**Let the code structure guide discovery** - don't force a pattern classification if the structure is ambiguous.
+## Step 9: File-placement table via graph
 
-</architecture_analysis>
+Call `mcp__code_graph__query_graph({ pattern: "files_in", target: "<community>" })` per service from Step 1. Build the file-placement table from the edge results. Avoid Glob for this — the graph already has the membership data.
 
-## Step 7: Create Comprehensive File Placement Map
+Only fall back to Glob-based file mapping when `query_graph` returns empty for all communities.
 
 <file_mapping>
 
-**CRITICAL:** Create a concise table (10-20 rows) showing where major code types live in the repository. This is THE MOST IMPORTANT output for developers.
-
-**Discovery approach:**
-
-1. **Start with manifest-driven discovery** (frameworks tell you what patterns to expect)
-2. **Search for semantic patterns** based on discovered frameworks
-3. **Use glob patterns with file counts** to describe where code types live (e.g., `src/modules/**/*.service.ts` ~12 files)
-4. **Group by service/package** if monorepo
-
-**Universal Code Type Patterns:**
-
-Search for these code types using framework-specific patterns:
-
-### Backend Services
-
-| Code Type                       | Search Strategy                               | Example Patterns by Framework                                                                          |
-| ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Database Models/Entities**    | ORM decorators, class definitions with fields | NestJS: `@Entity()`, Django: `models.Model`, Go: struct tags, Rust: `#[derive]`                        |
-| **Controllers/Handlers/Routes** | Route decorators, HTTP method handlers        | NestJS: `@Controller()`, Django: `views.py`, Go: `router.Group()`, Rust: `Router::new()`               |
-| **Services/Business Logic**     | Service classes, business logic               | NestJS: `@Injectable()`, Django: `services.py`, Go: `service/`, Rust: `impl` blocks                    |
-| **DTOs/Request-Response**       | Data transfer objects, validation schemas     | NestJS: `class.*Dto`, Django: `serializers.py`, Go: request/response structs, Rust: Serde derives      |
-| **Database Migrations**         | Migration files in ORM-specific locations     | TypeORM: `src/**/migrations/*.ts`, Alembic: `alembic/versions/*.py`, GORM: `migrations/*.go`           |
-| **Guards/Middleware**           | Auth guards, middleware functions             | NestJS: `@Injectable()` guards, Django: `middleware.py`, Go: middleware funcs, Rust: middleware layers |
-| **Config/Environment**          | Config classes, env loaders                   | NestJS: `@nestjs/config`, Django: `settings.py`, Go: viper/env configs, Rust: config crates            |
-
-### Frontend Services
-
-| Code Type              | Search Strategy           | Example Patterns by Framework                                                                             |
-| ---------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **Feature Components** | Feature-based directories | React: `features/*/components`, Vue: `views/*`, Angular: `app/*/*.component.ts`                           |
-| **Atomic Components**  | Design system components  | React: `components/atoms/`, `components/molecules/`, Vue: `components/ui/`, Angular: `shared/components/` |
-| **Pages/Views**        | Page-level components     | React: `pages/*.tsx`, Vue: `views/*.vue`, Angular: `app/pages/*.component.ts`                             |
-| **API Clients**        | HTTP client services      | React: `api/*.ts`, Vue: `services/api/*.ts`, Angular: `services/*.service.ts`                             |
-| **State Management**   | Store/context files       | React: `store/*.ts` or `context/*.tsx`, Vue: `store/*.ts`, Angular: `state/*.ts`                          |
-| **Hooks/Composables**  | Custom hooks/composables  | React: `hooks/*.ts`, Vue: `composables/*.ts`, Angular: `shared/hooks/*.ts`                                |
-| **Routing**            | Route configuration       | React Router: `routes.tsx`, Vue Router: `router/*.ts`, Angular: `app-routing.module.ts`                   |
-
-### Shared/Library Packages
-
-| Code Type                  | Search Strategy         | Example Patterns                                     |
-| -------------------------- | ----------------------- | ---------------------------------------------------- |
-| **Shared DTOs**            | Cross-service types     | `shared/dtos/`, `common/types/`, `@org/shared/src/`  |
-| **Shared Enums/Constants** | Shared enums, constants | `shared/enums/`, `common/constants/`, `types/enums/` |
-| **Shared Utils**           | Utility functions       | `shared/utils/`, `common/helpers/`, `lib/utils/`     |
-| **Base Classes**           | Abstract base classes   | `shared/base/`, `common/abstract/`, `lib/base/`      |
-
-### Testing
-
-| Code Type             | Search Strategy              | Example Patterns                                               |
-| --------------------- | ---------------------------- | -------------------------------------------------------------- |
-| **Unit Tests**        | Co-located test files        | `**/*.spec.ts`, `**/*.test.py`, `**/*_test.go`, `**/*.spec.js` |
-| **Integration Tests** | Integration test directories | `tests/integration/`, `e2e/`, `__tests__/integration/`         |
-| **E2E Tests**         | E2E test directories         | `e2e/`, `tests/e2e/`, `playwright/`, `cypress/`                |
-| **Test Fixtures**     | Test data and fixtures       | `tests/fixtures/`, `__fixtures__/`, `testdata/`                |
-
-### Infrastructure/Deployment
-
-| Code Type                        | Search Strategy           | Example Patterns                                             |
-| -------------------------------- | ------------------------- | ------------------------------------------------------------ |
-| **Docker Configuration**         | Dockerfiles               | `Dockerfile*`, `docker-compose*.yml`, `.dockerignore`        |
-| **CI/CD Configuration**          | CI config files           | `.github/workflows/*.yml`, `.gitlab-ci.yml`, `Jenkinsfile`   |
-| **IaC (Infrastructure as Code)** | Terraform, CloudFormation | `terraform/*.tf`, `infrastructure/`, `cloudformation/*.yaml` |
+**CRITICAL:** Create a concise table (10-20 rows) showing where major code types live in the repository.
 
 **Output Format - File Placement Table:**
 
@@ -292,12 +229,6 @@ Generate a markdown table with these columns:
 - **Location Pattern**: Where these files live (glob pattern)
 - **File Count**: Approximate number of matching files (e.g., "~12 files")
 - **Notes**: Any important context
-
-**Example Table Row:**
-
-```markdown
-| services/backend | Database Models | src/modules/_/database/models/_.model.ts | ~8 files | TypeORM entities, vertical slice per module |
-```
 
 **CRITICAL REQUIREMENTS:**
 
@@ -322,11 +253,11 @@ Generate a markdown table with these columns:
 
 </file_mapping>
 
-## Step 8: Extract Path Aliases
+## Step 10: Extract Path Aliases (graph cannot answer — always Glob/Read)
 
 <path_aliases>
 
-**Path aliases** allow imports like `@shared/dto` instead of `../../../shared/dto`. These are critical for understanding import patterns.
+**Path aliases** allow imports like `@shared/dto` instead of `../../../shared/dto`. These are critical for understanding import patterns. The graph does not index build config metadata, so this step always uses file reads.
 
 **Search for path alias configurations:**
 
@@ -350,19 +281,6 @@ Generate a markdown table with these columns:
 
 - Read `**/pom.xml` or `**/build.gradle*` → source set configurations
 
-**Example TypeScript config:**
-
-```json
-{
-  "compilerOptions": {
-    "paths": {
-      "@shared/*": ["packages/shared/src/*"],
-      "@/*": ["src/*"]
-    }
-  }
-}
-```
-
 **Report in `findings.path_aliases` object:**
 
 ```json
@@ -375,7 +293,7 @@ Generate a markdown table with these columns:
 
 </path_aliases>
 
-## Step 9: Analyze Database Layer
+## Step 11: Analyze Database Layer
 
 <database_layer>
 
@@ -406,38 +324,7 @@ Look for database client libraries in dependencies:
 
 ### Migration Detection
 
-Search for migration commands and directories:
-
-```
-# TypeORM
-**/src/**/migrations/*.ts
-Look for: typeorm migration:create, typeorm migration:run in package.json scripts
-
-# Prisma
-**/prisma/migrations/
-Look for: prisma migrate in package.json scripts
-
-# Sequelize
-**/migrations/*.js
-Look for: sequelize db:migrate
-
-# Django
-**/migrations/*.py
-Look for: python manage.py migrate
-
-# Alembic (Python)
-**/alembic/versions/*.py
-Look for: alembic upgrade head
-
-# GORM (Go)
-Search for: AutoMigrate() calls in code
-
-# Diesel (Rust)
-**/migrations/*.sql
-Look for: diesel migration run
-```
-
-**Read package.json (or equivalent) scripts to find migration commands.**
+Read package.json (or equivalent) scripts to find migration commands. These live in build config, not code — the graph cannot answer this.
 
 **Report in `findings.database` object:**
 
@@ -454,39 +341,20 @@ Look for: diesel migration run
 
 </database_layer>
 
-## Step 10: Enhance Services with File Counts
+## Step 12: Enhance Services with File Counts
 
 **IMPORTANT: You are the SINGLE SOURCE OF TRUTH for service discovery.**
 
 Other analyzers (Tech Stack, Code Patterns, Data Flows) will reference services by ID.
-Ensure each service has a unique, stable ID.
+Ensure each service has a unique, stable ID (use community names from Step 1).
 
-For each service discovered in Step 4, add file count information:
-
-1. **File count:** Total files in service directory (use Bash: `find <path> -type f | wc -l`)
-2. **Total LOC (optional):** If time permits, estimate lines of code
-
-**Example command to count files:**
+For each service, add file count information. If the graph community payload already includes a member count, use that. Otherwise fall back to:
 
 ```bash
 find services/backend -type f | wc -l
 ```
 
-**Add file_count to each service in the services array:**
-
-```json
-{
-  "id": "backend",
-  "path": "services/backend",
-  "type": "backend",
-  "language": "typescript",
-  "file_count": 145, // ← Add this
-  "frameworks": {
-    "main": "NestJS 11",
-    "orm": "TypeORM 0.3"
-  }
-}
-```
+**Add file_count to each service in the services array.**
 
 **NOTE:** Do NOT create separate `packages` or `multi_stack` sections.
 All service information belongs in the `services` array.
@@ -499,26 +367,25 @@ All service information belongs in the `services` array.
 
 Before outputting results, verify:
 
-1. **Found at least ONE manifest file?** If no, search again with different patterns
-2. **Detected ALL languages?** Count files by extension - if project has 10+ .py files, Python should be in languages array
-3. **Extracted runtime versions?** Check for .nvmrc, .python-version, go.mod, etc.
-4. **File placement table has 10-20 rows?** Each row must use glob patterns with file counts
-5. **Found path aliases?** Read tsconfig.json, jsconfig.json, vite.config, webpack.config
-6. **Detected database layer?** Check dependencies for pg, psycopg2, mongoose, etc. Find ORM and migration commands
-7. **Multi-stack analysis complete?** For monorepos, list ALL workspaces with file counts and dependencies
-8. **Dependencies include frontend frameworks?** Must locate frontend source (search by .jsx, .tsx, .vue, .svelte extensions)
+1. **Called list_communities first?** If yes and got results, Steps 1-2 are done via graph — don't repeat with Glob
+2. **graph_queries_used populated?** Every graph tool call must be recorded
+3. **Found at least ONE service?** If graph returned 0 communities AND manifest fallback found nothing, search again
+4. **Detected ALL languages?** Community language tags should cover this; supplement with file-count fallback only for communities with ambiguous language data
+5. **Extracted runtime versions?** Check for .nvmrc, .python-version, go.mod, etc. (graph cannot answer this)
+6. **File placement table has 10-20 rows?** Use graph edge results first; supplement with Glob only for gaps
+7. **Found path aliases?** Read tsconfig.json, jsconfig.json, vite.config, webpack.config (graph cannot answer this)
+8. **Detected database layer?** Check dependencies for pg, psycopg2, mongoose, etc. Find ORM and migration commands
 9. **Marked as monorepo?** Verify ALL workspaces are listed (cross-check workspace config against found manifests)
-10. **Search patterns comprehensive?** Used `**/` for recursive search, not just root-only patterns
-11. **Read key files?** Don't just list files - read them to understand structure
 
 ## When Discovery Seems Incomplete
 
-If dependencies exist but code isn't found → Search patterns were too narrow. Common fixes:
+If graph communities are empty but code clearly exists:
 
+- Call `mcp__code_graph__get_architecture_overview` to confirm graph is online
+- If that also returns empty, fall back to full manifest discovery and cite `[graph empty — fell back to manifest discovery]`
 - Use broader glob patterns: `**/*.{ext1,ext2,ext3}`
 - Try multiple pattern variations (different naming conventions)
 - Read config files to understand custom directory structures
-- Check for source code in non-standard directories (not just `src/`)
 
 ## Real Projects Have These Characteristics
 
@@ -540,6 +407,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Required field: `findings.services` array with at least 1 service
 - Each service must have `id`, `path`, `type`, `language` fields
 - Optional field: `needs_verification` array (maximum 5 items)
+- Required field: `graph_queries_used` array listing every graph tool call made
 
 ## Example Output Structure
 
@@ -629,6 +497,13 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
       "migration_commands": ["pnpm typeorm:migration:create", "pnpm typeorm:migration:run"]
     }
   },
+  "graph_queries_used": [
+    "mcp__code_graph__list_communities",
+    "mcp__code_graph__get_community({ community_name: 'backend', include_members: true })",
+    "mcp__code_graph__get_community({ community_name: 'web-frontend', include_members: true })",
+    "mcp__code_graph__get_architecture_overview",
+    "mcp__code_graph__query_graph({ pattern: 'files_in', target: 'backend' })"
+  ],
   "needs_verification": [
     {
       "id": "v1",
@@ -650,3 +525,7 @@ Use `needs_verification` ONLY when information cannot be determined from code, c
 Maximum 5 verification items. Prioritize business decisions and deployment architecture questions over technical details discoverable from code.
 
 </verification_guidelines>
+
+## Token efficiency
+
+Graph queries are O(1) on warm cache (the graph is built once per init). Glob+Read scales with file count. For projects with thousands of files, the difference is 10–100×. Use the graph.

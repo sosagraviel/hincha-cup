@@ -56,9 +56,15 @@ Testing frameworks appear in devDependencies (JS/TS) or test dependencies sectio
 
 </testing_frameworks>
 
-## Step 2: Find Test Files
+## Step 2: Find Test Files via graph
 
-Search for test files using multiple patterns based on discovered framework:
+Call `mcp__code_graph__find_large_functions({ kind: "function", min_lines: 1 })` and filter results by function name patterns associated with test blocks: `describe`, `test`, `it`, `spec`, `test_`, `Test`. This surfaces test entry points without scanning every file path.
+
+For test → source linkage, call `mcp__code_graph__query_graph({ pattern: "tests_for", target: "<community>" })` per service. This relationship data is impossible to get from Glob alone.
+
+Record the test file list from graph results. Use this as your primary test file inventory.
+
+**Only when the graph returns 0 test-function matches** — fall back to Glob with these patterns:
 
 <test_patterns>
 
@@ -81,7 +87,9 @@ Count files matching each pattern to estimate test coverage breadth.
 
 </test_patterns>
 
-## Step 3: Find Test Configuration Files
+## Step 3: Find Test Configuration Files (Glob — required)
+
+Test framework config files are not indexed by the graph. Always use Glob/Read for this step.
 
 <test_configs>
 
@@ -112,43 +120,33 @@ Read config files to extract:
 
 </test_configs>
 
-## Step 4: Analyze API/Interface Patterns
+## Step 4: Analyze API/Interface Patterns via graph
+
+Call `mcp__code_graph__semantic_search_nodes({ query: "Controller | Resolver | Service", kind: "class" })` to detect API pattern indicators. The graph returns annotated class nodes without requiring per-file reads.
+
+Supplement with targeted queries for specific patterns:
+
+**GraphQL detection:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "Resolver | GraphQLSchema | ObjectType", kind: "class", limit: 20 })
+```
+
+**gRPC detection:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "ServiceDefinition | GrpcMethod", kind: "class", limit: 20 })
+```
+
+**WebSocket detection:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "WebSocketGateway | SubscribeMessage | io.on", kind: "function", limit: 20 })
+```
+
+Only fall back to Grep for API patterns when graph returns empty for all queries.
 
 <api_patterns>
-
-**Search for API pattern indicators in source code:**
-
-### REST API Patterns
-
-Search for HTTP framework decorators/annotations:
-
-- **NestJS:** `@Controller`, `@Get`, `@Post`, `@Put`, `@Delete` decorators
-- **Express:** `app.get`, `app.post`, `router.get` calls
-- **Django:** `def get`, `def post` in views, `path()` in urls.py
-- **FastAPI:** `@app.get`, `@app.post` decorators
-- **Go Gin:** `router.GET`, `router.POST` methods
-- **Rust Axum:** `Router::new().route()` calls
-- **Spring Boot:** `@RestController`, `@GetMapping`, `@PostMapping` annotations
-
-### GraphQL Patterns
-
-- **Node:** `@nestjs/graphql`, `apollo-server`, `type-graphql` in dependencies
-- **Python:** `graphene`, `ariadne`, `strawberry` in dependencies
-- Look for `.graphql` or `.gql` schema files
-
-### gRPC Patterns
-
-- **Node:** `@grpc/grpc-js` in dependencies, `.proto` files
-- **Go:** `google.golang.org/grpc` in go.mod
-- **Python:** `grpcio` in dependencies
-- Look for `*.proto` files in repository
-
-### WebSocket Patterns
-
-- **Node:** `socket.io`, `ws` in dependencies
-- **Django:** `channels` in dependencies
-- **Go:** `gorilla/websocket` in go.mod
-- Look for WebSocket handler code
 
 **Report discovered API patterns:**
 
@@ -163,7 +161,9 @@ Search for HTTP framework decorators/annotations:
 
 </api_patterns>
 
-## Step 5: Identify Code Quality Tools
+## Step 5: Identify Code Quality Tools (Glob — required for config)
+
+Quality tool configuration is not indexed by the graph. Use manifests for tool detection, Glob/Read for config details.
 
 <quality_tools>
 
@@ -190,7 +190,7 @@ Search for HTTP framework decorators/annotations:
 - JavaScript: TypeScript compiler, flow
 - Python: mypy, pyright, pyre
 
-**Pre-commit Hooks:**
+**Pre-commit Hooks (Glob — required):**
 
 - Search for: `.husky/`, `.git/hooks/`, `.pre-commit-config.yaml`, `lefthook.yml`
 - Check package.json for `husky`, `lint-staged`, `lefthook`
@@ -199,26 +199,23 @@ Find configuration files for each tool and note their presence.
 
 </quality_tools>
 
-## Step 6: Detect Documentation Patterns
+## Step 6: Code Quality via graph
+
+Call `mcp__code_graph__find_large_functions({ min_lines: 20 })` to surface functions that are candidates for complexity review. This is a quality signal the graph provides directly.
+
+Record the count and distribution of large functions per service in `findings.code_quality`.
+
+## Step 7: Detect Documentation Patterns (Glob — required)
+
+Documentation tool config is not indexed by the graph. Always use Glob/Read for this step.
 
 <documentation_patterns>
-
-**Search for documentation tools and patterns:**
 
 ### API Documentation
 
 - **OpenAPI/Swagger:** `swagger.json`, `swagger.yaml`, `openapi.json`, `openapi.yaml` files
-- **NestJS Swagger:** `@nestjs/swagger` in dependencies, `@ApiProperty()` decorators
+- **NestJS Swagger:** `@nestjs/swagger` in dependencies
 - **FastAPI:** Auto-generates OpenAPI (check dependencies)
-- **Spring Boot:** `springdoc-openapi` or `springfox` in dependencies
-
-### Code Documentation
-
-- **JavaScript/TypeScript:** JSDoc comments (`/** */`), TSDoc
-- **Python:** Docstrings (triple quotes), Sphinx (`docs/` with `conf.py`)
-- **Go:** Godoc comments (`//`)
-- **Rust:** Rustdoc comments (`///`), `cargo doc`
-- **Java:** Javadoc comments (`/***/`)
 
 ### README and Guides
 
@@ -227,7 +224,6 @@ Search for documentation files:
 - `README.md`, `README.rst`
 - `CONTRIBUTING.md`, `DEVELOPMENT.md`
 - `docs/` directory with markdown or reStructuredText
-- `*.mdx` files (MDX documentation)
 
 ### Static Site Generators
 
@@ -236,9 +232,6 @@ Check dependencies for:
 - **VitePress:** `vitepress` in devDependencies
 - **Docusaurus:** `@docusaurus/core`
 - **MkDocs:** `mkdocs` (Python)
-- **GitBook:** `gitbook` directory
-- **Sphinx:** `sphinx` (Python)
-- **Docsify:** `docsify`
 
 **Report format:**
 
@@ -253,9 +246,11 @@ Check dependencies for:
 
 </documentation_patterns>
 
-## Step 7: Categorize Tests by Type
+## Step 8: Categorize Tests by Type
 
 <test_categorization>
+
+Use the graph results from Step 2 as the primary source for test categorization. The `tests_for` edge query already gives you the test → source linkage needed to classify tests.
 
 Categorize discovered tests into three types:
 
@@ -290,14 +285,15 @@ Report counts for each type if distinguishable from file paths or config.
 
 ## Self-Verification Checklist
 
-1. **Testing framework in dependencies but no test files?** Try multiple search patterns (test/, tests/, **tests**/, _.test._, _.spec._)
-2. **No testing framework in dependencies?** Valid to report "none" (MVP projects, separate test repo)
-3. **API patterns detected?** Check for REST/GraphQL/gRPC/WebSocket indicators
-4. **Linter in dependencies but no config?** Check package.json, pyproject.toml for inline config
-5. **Formatter in dependencies but no config?** Some use defaults (prettier, black, gofmt)
-6. **E2E tests exist but framework unclear?** Read imports in test files (playwright, cypress, selenium)
-7. **Documentation tools checked?** Look for Swagger/OpenAPI, static site generators, docs/ directory
-8. **Pre-commit hooks detected?** Search for .husky/, .pre-commit-config.yaml, lefthook.yml
+1. **Called find_large_functions for test discovery?** Graph results should be primary test file inventory
+2. **Called query_graph with tests_for pattern?** Test → source linkage from graph edges
+3. **Called semantic_search_nodes for API patterns?** Controller/Resolver/Service class detection via graph
+4. **graph_queries_used populated?** Every graph tool call must be recorded
+5. **Testing framework in dependencies but no test files?** Check if graph returned results; if not, try Glob fallback patterns
+6. **No testing framework in dependencies?** Valid to report "none" (MVP projects, separate test repo)
+7. **Linter in dependencies but no config?** Check package.json, pyproject.toml for inline config
+8. **Documentation tools checked?** Look for Swagger/OpenAPI, static site generators, docs/ directory
+9. **Pre-commit hooks detected?** Search for .husky/, .pre-commit-config.yaml, lefthook.yml
 
 ## Common Patterns
 
@@ -333,6 +329,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Each service must match Agent 01's service IDs
 - Optional nested objects: `testing.unit`, `testing.integration`, `testing.e2e`
 - Optional field: `needs_verification` array (maximum 5 items)
+- Required field: `graph_queries_used` array listing every graph tool call made
 
 ## Example Output Structure
 
@@ -352,6 +349,10 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
       "formatter": "prettier",
       "type_checker": "typescript",
       "pre_commit": "husky"
+    },
+    "code_quality": {
+      "large_functions_count": 12,
+      "large_functions_threshold_lines": 20
     },
     "documentation": {
       "api_docs": ["swagger", "openapi"],
@@ -390,6 +391,12 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
       }
     ]
   },
+  "graph_queries_used": [
+    "mcp__code_graph__find_large_functions({ kind: 'function', min_lines: 1 })",
+    "mcp__code_graph__query_graph({ pattern: 'tests_for', target: 'backend' })",
+    "mcp__code_graph__semantic_search_nodes({ query: 'Controller | Resolver | Service', kind: 'class' })",
+    "mcp__code_graph__find_large_functions({ min_lines: 20 })"
+  ],
   "needs_verification": []
 }
 ```
@@ -410,8 +417,12 @@ Use `needs_verification` for:
 Do NOT use for:
 
 - Testing frameworks (discoverable from dependencies)
-- Test file locations (searchable with glob)
+- Test file locations (graph + Glob fallback)
 - Linter/formatter presence (in dependencies and configs)
 - Pre-commit hook configurations (in repo files)
 
 </verification_guidelines>
+
+## Token efficiency
+
+Graph queries are O(1) on warm cache (the graph is built once per init). Glob+Read scales with file count. For projects with thousands of files, the difference is 10–100×. Use the graph.

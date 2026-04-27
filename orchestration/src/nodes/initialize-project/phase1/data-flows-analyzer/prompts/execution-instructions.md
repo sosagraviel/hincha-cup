@@ -15,9 +15,15 @@ Analyze authentication, authorization, API design patterns, external integration
 
 <discovery_process>
 
-## Step 1: Identify Authentication Patterns
+## Step 1: Auth middleware order and request lifecycle via graph
 
-Search for authentication implementation in code:
+Call `mcp__code_graph__list_flows` to get all named request flows in the codebase. For each flow that looks auth-related (names containing "auth", "guard", "middleware", "request"), call `mcp__code_graph__get_flow({ flow_id })` to retrieve the execution path with middleware/guard nodes in order.
+
+This gives you the auth middleware chain (e.g., `CORS → RateLimiter → JwtGuard → RolesGuard → Handler`) directly, without grepping for JWT/OAuth/session patterns across files.
+
+Record all flow IDs queried in `graph_queries_used`.
+
+**Only when list_flows returns empty** — fall back to the file-based approach below:
 
 <auth_detection>
 
@@ -44,11 +50,17 @@ Search for authentication implementation in code:
 - Search for: `X-API-Key`, `Authorization: Bearer`, API key validation middleware
 - Common patterns: Custom headers, query parameters, bearer tokens
 
-Read auth middleware files to understand full authentication flow.
-
 </auth_detection>
 
-## Step 2: Discover Authorization Patterns
+## Step 2: Discover Authorization Patterns via graph
+
+Use graph flows from Step 1 to identify guard nodes that enforce roles or permissions (e.g., `RolesGuard`, `PermissionsGuard`, `@Roles`, `policy_check`).
+
+Supplement with:
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "RolesGuard | PermissionsGuard | hasRole | checkPermission | CASL | Casbin", kind: "class", limit: 20 })
+```
 
 <authorization_patterns>
 
@@ -62,98 +74,77 @@ Read auth middleware files to understand full authentication flow.
 - Search for: policy files, attribute checks, condition-based guards
 - Look for: CASL, Casbin, custom policy engines
 
-**Route-Level Guards:**
-
-- NestJS: `@UseGuards(AuthGuard)`, guard implementations
-- Express: Middleware like `isAuthenticated`, `requireRole`
-- Django: `@login_required`, `@permission_required` decorators
-- FastAPI: `Depends(get_current_user)`, security dependencies
-
-Identify which routes require authentication vs. public access.
-
 </authorization_patterns>
 
-## Step 3: Map API Design Patterns
+## Step 3: Map API Design Patterns via graph
+
+Call `mcp__code_graph__semantic_search_nodes({ query: "Controller | Resolver | Router | handler", kind: "class" })` to surface API boundary classes. Use the results to determine REST vs. GraphQL vs. gRPC.
 
 <api_patterns>
 
 **REST APIs:**
 
-- Search for: HTTP method decorators (@Get, @Post, app.get, router.post)
-- Patterns: Resource-based URLs, CRUD operations
-- Versioning: /api/v1/, /v2/ in routes
+- Controller/router class names signal REST; check for `@Get`, `@Post` annotations on the returned nodes
 
 **GraphQL:**
 
-- Dependencies: graphql, apollo-server, graphene, gqlgen
-- Files: schema.graphql, resolvers, type definitions
-- Operations: queries, mutations, subscriptions
+- `Resolver` class names signal GraphQL; look for `ObjectType`, `Query`, `Mutation` in graph results
 
 **gRPC:**
 
-- Dependencies: @grpc/grpc-js, grpcio, grpc-go
-- Files: \*.proto files, generated code
-- Patterns: Service definitions, RPC methods
+- `ServiceDefinition` or `GrpcMethod` class names signal gRPC
 
 **WebSocket / Real-time:**
 
-- Dependencies: socket.io, ws, websockets, gorilla/websocket
-- Patterns: Event handlers, room/namespace management
-- Use cases: Chat, notifications, live updates
+- `WebSocketGateway`, `SubscribeMessage`, `io.on` in graph results
 
 Document the primary API style and any secondary patterns.
 
 </api_patterns>
 
-## Step 4: Identify External Integrations
+## Step 4: Identify External Integrations via graph
+
+Use `mcp__code_graph__semantic_search_nodes` for actual import sites. Do NOT grep package.json — the graph only returns libraries that are actually imported in code.
+
+**Payment processors:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "Stripe | PayPal | Square", kind: "import", limit: 20 })
+```
+
+**Email services:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "SendGrid | Mailgun | SES | nodemailer", kind: "import", limit: 20 })
+```
+
+**Cloud storage:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "S3 | GCS | AzureBlob | storage", kind: "import", limit: 20 })
+```
+
+**Auth providers:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "Auth0 | Firebase | Cognito | Keycloak", kind: "import", limit: 20 })
+```
+
+**Monitoring:**
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "Sentry | Datadog | NewRelic", kind: "import", limit: 20 })
+```
+
+**Only when ALL graph import queries return empty** — fall back to scanning dependency manifests for SDK package names.
 
 <external_integrations>
 
-Search for third-party service integrations:
+**For each detected service, report:**
 
-**Payment Processors:**
-
-- Stripe: stripe dependency, `stripe.charges.create`
-- PayPal: paypal-rest-sdk, PayPal API calls
-- Square: square dependency
-
-**Email Services:**
-
-- SendGrid: @sendgrid/mail, `sgMail.send`
-- Mailgun: mailgun-js, Mailgun API
-- AWS SES: aws-sdk with SES, boto3 SES
-
-**Cloud Storage:**
-
-- AWS S3: aws-sdk, boto3, s3 client
-- Google Cloud Storage: @google-cloud/storage
-- Azure Blob: @azure/storage-blob
-
-**Analytics:**
-
-- Google Analytics: gtag, analytics.js
-- Mixpanel: mixpanel dependency
-- Segment: @segment/analytics-node
-
-**Authentication Providers:**
-
-- Auth0: auth0 dependency, Auth0 config
-- Firebase Auth: firebase-admin, Firebase SDK
-- Cognito: aws-sdk with Cognito
-
-**Message Queues / Event Streaming:**
-
-- RabbitMQ: amqplib, pika
-- Kafka: kafkajs, confluent-kafka
-- Redis Pub/Sub: ioredis with publish/subscribe
-
-**Monitoring / Logging:**
-
-- Sentry: @sentry/node, sentry-sdk
-- DataDog: dd-trace, datadog
-- New Relic: newrelic
-
-Search for API clients, SDK initialization, and webhook handlers for each integration.
+1. Service name
+2. SDK package name and version (from manifest cross-reference)
+3. Whether confirmed via graph import site or declared-only
 
 </external_integrations>
 
@@ -161,15 +152,13 @@ Search for API clients, SDK initialization, and webhook handlers for each integr
 
 <data_flows>
 
-**Request Processing Flow:**
+Use flow data from Step 1 to populate the request processing description. The `get_flow` response already encodes:
 
-1. Client sends request
-2. Middleware chain executes (CORS, auth, validation)
-3. Route handler processes request
-4. Business logic executes
-5. Data layer interaction (database, cache)
-6. Response transformation
-7. Response sent to client
+- Middleware chain execution order
+- Route handler identification
+- Guard/interceptor positions
+
+Supplement with data transformation patterns only when flow data is insufficient:
 
 **Data Transformation Patterns:**
 
@@ -185,11 +174,19 @@ Search for API clients, SDK initialization, and webhook handlers for each integr
 - Zustand: store definitions
 - Context API: React context providers
 
-Search for these patterns in code to understand data flow architecture.
-
 </data_flows>
 
-## Step 6: Identify Background Job & Queue Patterns
+## Step 6: Identify Background Job & Queue Patterns via graph
+
+Call:
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "BullMQ | Bull | Celery | Sidekiq | Asynq | Dramatiq | RQ", kind: "import", limit: 30 })
+```
+
+If the graph returns import sites, use those for queue and worker identification.
+
+**Only when graph returns empty** — fall back to:
 
 <background_jobs>
 
@@ -200,30 +197,21 @@ Search for these patterns in code to understand data flow architecture.
 - **BullMQ:** `bullmq` dependency, queue definitions, worker processors
 - **Bull:** `bull` dependency (older version of BullMQ)
 - **Agenda:** `agenda` dependency, job scheduling
-- **Bee-Queue:** `bee-queue` dependency
 
 ### Python
 
 - **Celery:** `celery` dependency, task decorators `@app.task`
 - **RQ (Redis Queue):** `rq` dependency, `@job` decorator
-- **Dramatiq:** `dramatiq` dependency
 
 ### Go
 
 - **Asynq:** `github.com/hibiken/asynq` in go.mod
-- **Machinery:** `github.com/RichardKnop/machinery` in go.mod
 
 ### Ruby
 
 - **Sidekiq:** `sidekiq` gem, worker classes
-- **Resque:** `resque` gem
 
-**Search for:**
-
-1. Queue definitions and configuration
-2. Worker/processor files (files with "worker", "job", "processor" in name)
-3. Cron/scheduled job configurations
-4. Job retry policies and error handling
+</background_jobs>
 
 **Report format:**
 
@@ -236,24 +224,17 @@ Search for these patterns in code to understand data flow architecture.
 }
 ```
 
-</background_jobs>
+## Step 7: Detect Caching Patterns via graph
 
-## Step 7: Detect Caching Patterns
+Call:
+
+```
+mcp__code_graph__semantic_search_nodes({ query: "Redis | Memcached | ioredis | createClient | cache.get | cache.set", kind: "function", limit: 30 })
+```
+
+Graph results give you actual cache initialization and usage sites. For cache strategy specifics (read-through / write-behind TTL logic), read the specific handler files the graph identified.
 
 <caching_patterns>
-
-**Cache Implementations:**
-
-### In-Memory Caching
-
-- **Node:** `node-cache`, `lru-cache`, `memory-cache`
-- **Python:** `cachetools`, `functools.lru_cache`
-- **Go:** Built-in with `sync.Map` or third-party like `go-cache`
-
-### Distributed Caching
-
-- **Redis:** `ioredis`, `redis`, `redis-py`, `go-redis`
-- **Memcached:** `memcached`, `pymemcache`
 
 **Cache Strategies:**
 
@@ -261,13 +242,6 @@ Search for these patterns in code to understand data flow architecture.
 - **Write-through:** Write to cache and DB simultaneously
 - **Write-behind:** Write to cache immediately, DB asynchronously
 - **Cache-aside:** Application manually manages cache
-
-**Search for:**
-
-1. Cache client initialization
-2. Cache key patterns (look for `cache.get()`, `cache.set()` calls)
-3. TTL (Time-To-Live) configurations
-4. Cache invalidation strategies
 
 **Report format:**
 
@@ -283,7 +257,15 @@ Search for these patterns in code to understand data flow architecture.
 
 </caching_patterns>
 
-## Step 8: Map Inter-Service Communication (Microservices)
+## Step 8: Map Inter-Service Communication via graph
+
+Call:
+
+```
+mcp__code_graph__query_graph({ pattern: "imports_of", target: "<broker>" })
+```
+
+for known message broker packages (kafkajs, amqplib, nats, @aws-sdk/client-sqs, @google-cloud/pubsub). The edge list shows which modules import the broker, revealing which services communicate through it.
 
 <inter_service_communication>
 
@@ -291,39 +273,17 @@ Search for these patterns in code to understand data flow architecture.
 
 ### Synchronous Communication
 
-- **HTTP/REST:** Direct HTTP calls between services
+- **HTTP/REST:** Direct HTTP calls between services (Axios, Fetch, node-fetch)
 - **gRPC:** High-performance RPC calls
 - **GraphQL:** Federation, schema stitching
 
 ### Asynchronous Communication
 
-- **Message Brokers:**
-  - **RabbitMQ:** `amqplib`, `pika`, `amqp091-go`
-  - **Kafka:** `kafkajs`, `confluent-kafka`, `kafka-go`
-  - **AWS SQS:** `@aws-sdk/client-sqs`, `boto3` SQS
-  - **Google Pub/Sub:** `@google-cloud/pubsub`
-  - **NATS:** `nats`, `nats.py`, `nats.go`
+- **Message Brokers:** RabbitMQ (amqplib), Kafka (kafkajs), AWS SQS, Google Pub/Sub, NATS
 
 ### Service Discovery
 
-- **Consul:** `consul` client libraries
-- **Eureka:** `eureka-js-client`, Spring Cloud Eureka
-- **etcd:** `etcd3`, `python-etcd`, `go.etcd.io/etcd`
-- **Kubernetes:** Service discovery via DNS/env vars
-
-### API Gateway
-
-- **Kong:** Configuration files, plugins
-- **AWS API Gateway:** CDK/CloudFormation definitions
-- **NGINX:** `nginx.conf` with reverse proxy configs
-- **Traefik:** `traefik.yml` configuration
-
-**Search for:**
-
-1. Service-to-service HTTP clients (Axios, Fetch, Requests, net/http)
-2. Message producer/consumer code
-3. Service registry client initialization
-4. Gateway configuration files
+- **Consul, Eureka, etcd, Kubernetes DNS**
 
 **Report format:**
 
@@ -357,15 +317,14 @@ If single service (not microservices):
 
 ## Self-Verification Checklist
 
-1. **Auth dependencies found but no implementation?** Search for middleware, guards, decorators
-2. **External service SDK but no usage?** Search for client initialization, API calls
-3. **GraphQL schema but no resolvers?** Look in separate resolvers directory or files
-4. **WebSocket dependency but no handlers?** Search for `io.on`, `socket.on` event handlers
-5. **Payment integration unclear?** Check for webhook handlers, confirmation endpoints
-6. **Queue library present but no workers?** Search for files with "worker", "job", "processor" in name
-7. **Redis in dependencies but purpose unclear?** Check for caching, session storage, or pub/sub patterns
+1. **Called list_flows first?** Flow data should drive auth middleware order before any grep
+2. **Called semantic_search_nodes for all external SDK categories?** Graph import sites are primary signal
+3. **graph_queries_used populated?** Every graph tool call must be recorded
+4. **Auth dependencies found but no flow data?** Fall back to middleware/guard file reads with citation
+5. **External service SDK but no import sites from graph?** Fall back to manifest scanning with citation
+6. **Queue library present but no graph import results?** Search for files with "worker", "job", "processor" in name
+7. **Redis in dependencies but purpose unclear?** Graph cache.get/cache.set sites should clarify usage
 8. **Multiple services but no message broker?** Check if it's truly microservices or modular monolith
-9. **API gateway configured?** Look for NGINX, Kong, or cloud gateway configurations
 
 ## Common Integration Patterns
 
@@ -395,6 +354,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Field `findings` can contain any relevant integration/data flow information
 - Schema allows passthrough fields for flexibility
 - Optional field: `needs_verification` array (maximum 5 items)
+- Required field: `graph_queries_used` array listing every graph tool call made
 
 ## Example Output Structure
 
@@ -407,7 +367,8 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
       "type": "JWT + OAuth2",
       "libraries": ["passport-jwt", "passport-google-oauth20"],
       "middleware": "src/modules/auth/guards/",
-      "providers": ["local", "google", "github"]
+      "providers": ["local", "google", "github"],
+      "flow_id": "request-auth-flow"
     },
     "authorization": {
       "type": "RBAC",
@@ -435,11 +396,6 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
         "service": "Sentry",
         "purpose": "Error tracking and monitoring",
         "sdk": "@sentry/nestjs 9.30.0"
-      },
-      {
-        "service": "MailHog",
-        "purpose": "Email testing (development)",
-        "sdk": "SMTP (docker-compose)"
       }
     ],
     "background_jobs": {
@@ -467,6 +423,14 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
       "serialization": "class-transformer decorators"
     }
   },
+  "graph_queries_used": [
+    "mcp__code_graph__list_flows",
+    "mcp__code_graph__get_flow({ flow_id: 'request-auth-flow' })",
+    "mcp__code_graph__semantic_search_nodes({ query: 'Stripe | SendGrid | Sentry', kind: 'import', limit: 20 })",
+    "mcp__code_graph__semantic_search_nodes({ query: 'BullMQ | Celery', kind: 'import', limit: 30 })",
+    "mcp__code_graph__semantic_search_nodes({ query: 'Redis | ioredis | createClient', kind: 'function', limit: 30 })",
+    "mcp__code_graph__query_graph({ pattern: 'imports_of', target: 'kafkajs' })"
+  ],
   "needs_verification": []
 }
 ```
@@ -486,9 +450,13 @@ Use `needs_verification` for:
 
 Do NOT use for:
 
-- Authentication patterns (discoverable from code)
-- API design style (REST/GraphQL/gRPC discoverable from routes)
-- Integration presence (SDK dependencies visible)
+- Authentication patterns (discoverable from graph flows and code)
+- API design style (REST/GraphQL/gRPC discoverable from graph class search)
+- Integration presence (graph import sites + SDK dependencies)
 - Data transformation patterns (code analysis)
 
 </verification_guidelines>
+
+## Token efficiency
+
+Graph queries are O(1) on warm cache (the graph is built once per init). Glob+Read scales with file count. For projects with thousands of files, the difference is 10–100×. Use the graph.
