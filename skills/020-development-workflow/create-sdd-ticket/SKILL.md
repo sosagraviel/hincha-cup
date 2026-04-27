@@ -104,11 +104,24 @@ Validate the canonical ticket against the SDD requirements and, for every missin
 Required inference order:
 
 1. Consult `WIKI_CORE` and any matched `WIKI_SERVICES` first; every question the wiki already answers is removed from the gap list.
-2. Run `mcp__code_graph__semantic_search_nodes_tool` for symbols implied by the ticket; confirm graph returns a node before grepping.
+2. Graph queries — classify each remaining gap by question type and route to the matching tool (e.g. `mcp__code_graph__semantic_search_nodes_tool` for symbol lookups, `mcp__code_graph__query_graph_tool` for relationships). Do NOT default to `semantic_search_nodes_tool` for everything. See the routing table below; cap at 6 graph queries total for this step.
 3. Search `project-context` skill content and `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`.
-4. Codebase grep + related file inspection (existing step; narrowed by graph node paths when available).
+4. Codebase grep + related file inspection (narrowed by graph node paths from step 2 when available; reuse cached graph results instead of re-querying).
 5. Inspect existing tickets or drafts for precedents.
 6. Only if 1–5 fail, add the item to the question batch.
+
+   | Question class | Example | Tool | Reasoning |
+   |---|---|---|---|
+   | symbol_lookup | "Does `RateLimiter` exist?" | `mcp__code_graph__semantic_search_nodes_tool` | matches by name |
+   | relationship | "Who calls `AuthService.login`?" / "What imports the `users` module?" | `mcp__code_graph__query_graph_tool` (`pattern: "callers_of"` / `"imports_of"` / `"tests_for"`) | edge traversal |
+   | data_flow | "Does the request flow auth → users?" / "What's the request lifecycle for `/api/login`?" | `mcp__code_graph__list_flows_tool` then `mcp__code_graph__get_flow_tool` | execution paths |
+   | boundary | "Are `users` and `auth` in the same service?" / "Which service owns `RateLimiter`?" | `mcp__code_graph__list_communities_tool` + `mcp__code_graph__get_community_tool` | community membership |
+   | impact | "If we change `User` model, what's affected?" | `mcp__code_graph__get_impact_radius_tool` | blast radius |
+   | overview | "What's the architectural shape?" | `mcp__code_graph__get_architecture_overview` | top-level topology (rare in gap detection — usually answered by Phase 0.5 wiki preload) |
+
+   Pick exactly ONE tool per gap. If the gap is ambiguous, prefer the cheaper tool (`semantic_search_nodes_tool` → `query_graph_tool` → `list_flows_tool`/`get_flow_tool` → `get_impact_radius_tool`). Cap at 6 graph queries total for Phase 2 — beyond that, fall back to grep.
+
+   Cache every result. If step 4 (codebase grep) needs the same symbol later, reuse the graph result instead of re-querying.
 
 UI-specific handling must remain available:
 
@@ -238,7 +251,9 @@ Use this structure as the mental model for completeness checks:
     ],
     "wikiEvidence": ["docs/llm-wiki/wiki/services/auth.md", "docs/llm-wiki/wiki/PATTERNS.md#throttling"],
     "graphEvidence": [
-      { "tool": "mcp__code_graph__semantic_search_nodes_tool", "params": { "query": "rate limit" }, "finding": "3 hits in src/auth/throttle.ts" }
+      { "tool": "mcp__code_graph__semantic_search_nodes_tool", "params": { "query": "rate limit" }, "finding": "3 hits in src/auth/throttle.ts" },
+      { "tool": "mcp__code_graph__query_graph_tool", "params": { "pattern": "callers_of", "target": "AuthService.login" }, "finding": "called from api/routes/auth.ts and middleware/session.ts" },
+      { "tool": "mcp__code_graph__get_community_tool", "params": { "node": "RateLimiter" }, "finding": "belongs to auth service community" }
     ]
   },
   "outOfScope": ["Item explicitly not included"],
@@ -357,7 +372,9 @@ Then [outcome]
 
 ## Graph Evidence
 
-- Tool: `mcp__code_graph__semantic_search_nodes_tool` — query: `"<symbol>"` — finding: `<result>`
+- Tool: `mcp__code_graph__semantic_search_nodes_tool` — params: `{"query": "<symbol>"}` — finding: `<result>`
+- Tool: `mcp__code_graph__query_graph_tool` — params: `{"pattern": "callers_of", "target": "<symbol>"}` — finding: `<result>`
+- Tool: `mcp__code_graph__get_community_tool` — params: `{"node": "<symbol>"}` — finding: `<result>`
 
 ## Implementation Notes
 
@@ -552,6 +569,7 @@ Before finalizing, validate:
 
 ## Version History
 
+- **3.2.0** (2026-04-24): multi-tool graph routing in Phase 2 gap detection (§5 of OPTIMIZATION_REVIEW) — question-class classifier table routes symbol_lookup, relationship, data_flow, boundary, impact, and overview gaps to the correct graph MCP tool; `graphEvidence` reshaped to array of `{tool, params, finding}` entries; 6-query cap enforced
 - **3.1.0** (2026-04-24): wiki + graph aware Phase 0.5, inference-order rewrite, `wikiEvidence`/`graphEvidence` in canonical ticket structure, `--skip-wiki` flag, updated Quality Checks
 - **3.0.0** (2026-04-15): unified command and skill behavior into one directly invokable skill, restored Phase 0 project-context injection, and removed slash-command duplication
 - **2.0.0** (2026-03-08): added multiple input and output modes plus intelligent gap detection

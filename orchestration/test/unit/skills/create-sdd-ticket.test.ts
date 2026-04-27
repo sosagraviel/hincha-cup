@@ -253,5 +253,66 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
       const v30Idx = content.indexOf('**3.0.0**');
       expect(v31Idx).toBeLessThan(v30Idx);
     });
+
+    it('version 3.2.0 entry exists', () => {
+      expect(content).toContain('**3.2.0**');
+    });
+
+    it('3.2.0 entry appears before 3.1.0 entry (newest first)', () => {
+      const v32Idx = content.indexOf('**3.2.0**');
+      const v31Idx = content.indexOf('**3.1.0**');
+      expect(v32Idx).toBeLessThan(v31Idx);
+    });
+  });
+
+  describe('Phase 2 multi-tool graph routing', () => {
+    it('Phase 2 step 2 mentions all six question classes', () => {
+      const phase2Section = content.slice(
+        content.indexOf('### Phase 2: Intelligent Gap Detection'),
+        content.indexOf('### Phase 3: Batch Question Generation'),
+      );
+      expect(phase2Section).toContain('symbol_lookup');
+      expect(phase2Section).toContain('relationship');
+      expect(phase2Section).toContain('data_flow');
+      expect(phase2Section).toContain('boundary');
+      expect(phase2Section).toContain('impact');
+      expect(phase2Section).toContain('overview');
+    });
+
+    it('Phase 2 step 2 references at least 4 distinct graph MCP tools by name', () => {
+      const phase2Section = content.slice(
+        content.indexOf('### Phase 2: Intelligent Gap Detection'),
+        content.indexOf('### Phase 3: Batch Question Generation'),
+      );
+      expect(phase2Section).toContain('mcp__code_graph__semantic_search_nodes_tool');
+      expect(phase2Section).toContain('mcp__code_graph__query_graph_tool');
+      expect(phase2Section).toContain('mcp__code_graph__get_community_tool');
+      expect(phase2Section).toContain('mcp__code_graph__list_flows_tool');
+    });
+
+    it('Phase 2 documents the cap of 6 graph queries', () => {
+      const phase2Section = content.slice(
+        content.indexOf('### Phase 2: Intelligent Gap Detection'),
+        content.indexOf('### Phase 3: Batch Question Generation'),
+      );
+      expect(phase2Section).toContain('6 graph queries');
+    });
+
+    it('graphEvidence in canonical structure is an array of {tool, params, finding} entries with multiple tools', () => {
+      const jsonBlock = content.slice(
+        content.indexOf('```json'),
+        content.indexOf('```', content.indexOf('```json') + 6),
+      );
+      const graphEvidenceStart = jsonBlock.indexOf('"graphEvidence"');
+      const graphEvidenceBlock = jsonBlock.slice(
+        graphEvidenceStart,
+        jsonBlock.indexOf(']', graphEvidenceStart) + 1,
+      );
+      expect(graphEvidenceBlock).toContain('"tool"');
+      expect(graphEvidenceBlock).toContain('"params"');
+      expect(graphEvidenceBlock).toContain('"finding"');
+      const toolCount = (graphEvidenceBlock.match(/"tool"/g) ?? []).length;
+      expect(toolCount).toBeGreaterThanOrEqual(2);
+    });
   });
 });
