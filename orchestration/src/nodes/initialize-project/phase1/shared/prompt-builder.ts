@@ -18,6 +18,12 @@ export interface GraphPromptContext {
   available: boolean;
   dbPath?: string;
   stats?: CodeGraphStats;
+  /**
+   * Live MCP tool catalog (`tools/list` from `code-review-graph serve`).
+   * Templated into the prompt so analyzer agents call the real tool names
+   * — never hand-written strings that drift on each server release.
+   */
+  toolCatalog?: Array<{ name: string; description: string }>;
 }
 
 /**
@@ -70,9 +76,30 @@ function buildGraphContext(graphContext: GraphPromptContext): string {
     lines.push(
       '',
       'Use the code graph as the first source of structural truth before Read/Grep/Glob.',
-      'Use mcp__code_graph tools for relationships, communities, flows, and file summaries when relevant.',
       'Use Read/Grep/Glob only for details the graph does not provide or for manifest/config verification.',
-      'Include a top-level optional "graph_queries_used": string[] listing graph tools you used.',
+    );
+
+    // Render the live MCP tool catalog. The set below IS the canonical list
+    // of tool names the agent may call — never invent or shorten them. Drift-
+    // proof by construction: this list comes straight from `tools/list` on
+    // the running `code-review-graph` MCP server (see tool-catalog.service.ts).
+    const tools = graphContext.toolCatalog ?? [];
+    if (tools.length > 0) {
+      lines.push('', 'Available MCP tools (call by exact name; do NOT invent variants):');
+      for (const t of tools) {
+        const desc = t.description ? ` — ${t.description.replace(/\s+/g, ' ').trim()}` : '';
+        lines.push(`- ${t.name}${desc}`);
+      }
+    } else {
+      lines.push(
+        '',
+        'NOTE: the MCP tool catalog is empty in this run. The Stop hook will reject any analyzer output that claims graph usage without producing tool_use events. If you cannot call any tool, fall back to Read/Grep/Glob and explain why in your output.',
+      );
+    }
+
+    lines.push(
+      '',
+      "The Stop hook records every mcp__code_graph__* tool call you make and writes the deterministic count into your output's `graph_queries_used` array — you do NOT need to populate that field yourself.",
     );
   } else {
     lines.push(

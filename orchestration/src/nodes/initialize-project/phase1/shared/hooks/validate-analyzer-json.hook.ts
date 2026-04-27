@@ -21,6 +21,64 @@ interface HookInput {
   cwd?: string;
 }
 
+const CODE_GRAPH_TOOL_PREFIX = 'mcp__code_graph__';
+
+/**
+ * Count code-graph MCP tool_use events across all assistant messages in a
+ * transcript. Returns the unique tool names called and the total event count.
+ *
+ * This is the deterministic ground truth for `graph_queries_used` — the agent
+ * cannot lie about it because we read the same transcript Claude CLI already
+ * wrote. Used in two places below:
+ *   1. The hook blocks when the agent claims graph use but the transcript
+ *      count is zero (the gira-run failure mode).
+ *   2. Even on success, the orchestration node will read this sidecar and
+ *      replace whatever the agent put in `graph_queries_used` with the real
+ *      list, eliminating the field from agent responsibility entirely.
+ */
+function countGraphToolUses(transcript: unknown[]): { count: number; uniqueNames: string[] } {
+  const uses = new Map<string, number>();
+  for (const msg of transcript) {
+    if (!isObject(msg)) continue;
+    const wrapped = isObject(msg.message) ? msg.message : msg;
+    if (wrapped.role !== 'assistant') continue;
+    const content = wrapped.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (!isObject(block) || block.type !== 'tool_use') continue;
+      const name = typeof block.name === 'string' ? block.name : '';
+      if (!name.startsWith(CODE_GRAPH_TOOL_PREFIX)) continue;
+      uses.set(name, (uses.get(name) ?? 0) + 1);
+    }
+  }
+  const total = Array.from(uses.values()).reduce((sum, n) => sum + n, 0);
+  return { count: total, uniqueNames: Array.from(uses.keys()).sort() };
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * Write the deterministic graph-tool-use record next to the transcript so the
+ * orchestration node can merge it into the persisted analyzer output. The
+ * orchestration node is the single writer of the agent's `output.json` file —
+ * the hook only emits a sidecar; the node does the rewrite. This keeps the
+ * hook's responsibility narrow (block on lies) and makes deterministic
+ * `graph_queries_used` easy to verify in Phase 6 validation.
+ */
+function writeGraphToolUseSidecar(
+  transcriptPath: string,
+  data: { count: number; uniqueNames: string[] },
+): void {
+  try {
+    const sidecarPath = transcriptPath.replace(/\.jsonl$/, '') + '.graph-tool-uses.json';
+    fs.writeFileSync(sidecarPath, JSON.stringify(data, null, 2));
+  } catch {
+    // Best-effort — sidecar failure must not block analyzer completion.
+  }
+}
+
 /**
  * Block Claude from finishing with feedback
  * Exit code 2 signals blocking to Claude CLI (exit 1 is just an error, not a block!)
@@ -178,6 +236,34 @@ async function main() {
           '  5. Single quotes instead of double quotes\n\n' +
           'TIP: Copy your JSON to a validator (jsonlint.com) or check the exact error above.\n\n' +
           'Please fix these syntax errors and output valid JSON.',
+      );
+    }
+
+    // Compute the deterministic graph-tool-use record from the transcript.
+    // This is the load-bearing fix for D5: the agent claimed graph_queries_used
+    // values that did not match its actual tool_use events. We read the same
+    // transcript Claude CLI wrote and count for ourselves.
+    const graphUses = countGraphToolUses(transcript);
+    writeGraphToolUseSidecar(input.transcript_path!, graphUses);
+
+    // Detect the "agent lied about graph usage" failure mode: the parsed JSON
+    // claims one or more graph_queries_used entries but the transcript shows
+    // zero `mcp__code_graph__*` tool_use events. Block + feedback so the agent
+    // retries either by actually calling the graph or by honestly reporting
+    // it had to fall back.
+    const claimed =
+      isObject(data) && Array.isArray((data as Record<string, unknown>).graph_queries_used)
+        ? ((data as Record<string, unknown>).graph_queries_used as unknown[]).length
+        : 0;
+    if (claimed > 0 && graphUses.count === 0) {
+      return blockWithFeedback(
+        '❌ Output claims graph_queries_used has entries but the transcript records zero ' +
+          `mcp__${CODE_GRAPH_TOOL_PREFIX.replace(/^mcp__/, '').replace(/__$/, '')}__* tool_use events.\n\n` +
+          'You did not actually call any code-graph MCP tool. Either:\n' +
+          '  1. Call at least one tool from the "Available MCP tools" list in your CODE GRAPH CONTEXT, OR\n' +
+          '  2. Set graph_queries_used to [] and explain in your output why the graph was not used.\n\n' +
+          'Do not invent tool names or fabricate query lists. The Stop hook reads the transcript directly ' +
+          'and will reject any future attempt that does not match what you actually executed.',
       );
     }
 

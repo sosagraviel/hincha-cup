@@ -1,5 +1,6 @@
 import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
 import { buildCodeGraph } from '../../../services/graph-wiki/code-graph.service.js';
+import { fetchCodeGraphToolCatalog } from '../../../services/framework/code-graph/tool-catalog.service.js';
 import { logger } from '../../../utils/logger.js';
 
 /** Formats a build duration as "2.4s" for durations under a minute, or "1m 12s" for longer. */
@@ -31,8 +32,32 @@ export async function graphFoundationNode(
         `Build: ${formatBuildTime(s.build_time_ms)}`,
     );
 
+    // Fetch the live MCP tool catalog so analyzer prompts template the real
+    // tool names (and not hand-written ones that drift on every server release).
+    let toolCatalog: { name: string; description: string }[] = [];
+    try {
+      toolCatalog = await fetchCodeGraphToolCatalog({
+        projectPath: state.project_path,
+        frameworkPath: state.framework_path,
+      });
+      phaseLogger.info(`  MCP tools: ${toolCatalog.length} available`);
+    } catch (catalogErr) {
+      const msg = catalogErr instanceof Error ? catalogErr.message : String(catalogErr);
+      phaseLogger.error(`  MCP tool catalog fetch FAILED: ${msg}`);
+      phaseLogger.error(
+        '  Analyzers cannot use the graph reliably without the catalog. The run will fail.',
+      );
+      return {
+        code_graph_available: false,
+        code_graph_error: `tool catalog: ${msg}`,
+        current_phase: 'failed',
+        errors: [...state.errors, `graph_foundation: tool catalog: ${msg}`],
+      };
+    }
+
     return {
       ...result,
+      code_graph_tool_catalog: toolCatalog,
       current_phase: 'phase0_graph',
     };
   } catch (error) {

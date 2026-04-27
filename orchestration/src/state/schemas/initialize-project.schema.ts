@@ -159,6 +159,18 @@ export const InitializeProjectStateSchema = z.object({
   code_graph_path: z.string().optional(),
   code_graph_stats: CodeGraphStatsSchema.optional(),
   code_graph_error: z.string().optional(),
+  // Live MCP tool catalog fetched from `code-review-graph serve` at Phase 0.
+  // Templated into every analyzer prompt so tool names cannot drift between
+  // hand-written prompts and the actual server. Empty array when graph is
+  // unavailable; the prompt builder falls back to file-discovery guidance.
+  code_graph_tool_catalog: z
+    .array(
+      z.object({
+        name: z.string(),
+        description: z.string(),
+      }),
+    )
+    .optional(),
 
   // Current phase tracking
   current_phase: z
@@ -280,6 +292,7 @@ export const InitializeProjectAnnotation = Annotation.Root({
   code_graph_path: Annotation<string | undefined>,
   code_graph_stats: Annotation<CodeGraphStats | undefined>,
   code_graph_error: Annotation<string | undefined>,
+  code_graph_tool_catalog: Annotation<Array<{ name: string; description: string }> | undefined>,
 
   // ============================================================================
   // PHASE TRACKING (use custom reducer for parallel phase updates)

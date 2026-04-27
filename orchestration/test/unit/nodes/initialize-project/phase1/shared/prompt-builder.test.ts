@@ -24,7 +24,10 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
     // "MCP Port" was removed — MCP is stdio-only, there is no port.
     expect(prompt).not.toContain('MCP Port');
     expect(prompt).toContain('Use the code graph as the first source of structural truth');
-    expect(prompt).toContain('"graph_queries_used": string[]');
+    // graph_queries_used is now derived by the Stop hook from the transcript;
+    // the prompt no longer asks the agent to populate it.
+    expect(prompt).not.toContain('"graph_queries_used": string[]');
+    expect(prompt).toContain('The Stop hook records every');
   });
 
   it('adds fallback guidance when graph is unavailable', () => {

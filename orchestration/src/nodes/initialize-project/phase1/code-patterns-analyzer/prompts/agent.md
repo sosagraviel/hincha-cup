@@ -14,14 +14,16 @@ tools: Read, Grep, Glob, mcp__code_graph
 
 ## Graph-first discovery (mandatory)
 
-For these question classes you MUST use the graph as primary source. Do NOT Glob/Read/Grep until the graph fails to answer.
+The exact set of `mcp__code_graph__*` tools available in this run is listed in your **CODE GRAPH CONTEXT** block (system prompt). **Call only those names — do not invent variants or shorten them.** The catalog is fetched live from the running MCP server, so any tool you guess that is not in the list will silently fail.
 
-| Question                                  | Tool                                                                                                                              | Reasoning                                                            |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Test file discovery                       | `mcp__code_graph__find_large_functions({ kind: "function", min_lines: 1 })` filtered by name pattern (`describe` / `test` / `it`) | graph already indexed all function definitions including test blocks |
-| Test → source linkage                     | `mcp__code_graph__query_graph({ pattern: "tests_for", target: "<module>" })`                                                      | direct edge query — impossible via Glob                              |
-| API pattern detection (REST/GraphQL/gRPC) | `mcp__code_graph__semantic_search_nodes({ query: "Controller \| Resolver \| Service", kind: "class" })`                           | graph surfaces annotated classes without reading every file          |
-| Large/complex functions (code quality)    | `mcp__code_graph__find_large_functions({ min_lines: 20 })`                                                                        | direct complexity signal                                             |
+For these question classes the graph is the primary source — use it before Glob/Read/Grep:
+
+| Question                                  | Use the graph for…                                                           |
+| ----------------------------------------- | ---------------------------------------------------------------------------- |
+| Test file discovery                       | function/class search tools (filter by `describe`/`test`/`it` name patterns) |
+| Test → source linkage                     | generic graph-query tools (test→source edge patterns)                        |
+| API pattern detection (REST/GraphQL/gRPC) | semantic search tools for `Controller`/`Resolver`/`Service` classes          |
+| Large/complex functions (code quality)    | large-function / complexity tools                                            |
 
 You MAY use Glob/Read for ONLY these (the graph cannot help):
 
@@ -31,7 +33,7 @@ You MAY use Glob/Read for ONLY these (the graph cannot help):
 - Documentation tools (Swagger/OpenAPI config, static site generator config)
 - Playwright/Cypress config files
 
-For anything else, the graph MUST be your first call. If the graph returns empty, cite the failure in `graph_queries_used` and fall through to Glob/Read.
+For anything else, the graph MUST be your first call. If a graph call returns empty, fall through to Glob/Read.
 
 ## Success Criteria
 
@@ -55,7 +57,7 @@ For anything else, the graph MUST be your first call. If the graph returns empty
 - Raw JSON only
 - First character: `{` Last character: `}`
 - No markdown, no code blocks, no explanations
-- Record EVERY graph tool call you made in `graph_queries_used` in your output JSON. This is auditable signal.
-- Structure: `{"agent_name": "code-patterns-testing-analyzer", "timestamp": "...", "findings": {"services": [...]}, "graph_queries_used": [], "needs_verification": []}`
+- The `graph_queries_used` field is **derived from your transcript by the Stop hook** — you do NOT need to populate it. Just call the graph tools when relevant; the framework records what you actually did.
+- Structure: `{"agent_name": "code-patterns-testing-analyzer", "timestamp": "...", "findings": {"services": [...]}, "needs_verification": []}`
 
 The graph is your PRIMARY discovery surface. Glob/Read/Grep are fallback only, restricted to the explicit question classes listed above. If you find yourself reaching for Glob to answer a structural or relational question, stop and use the graph instead.

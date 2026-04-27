@@ -14,14 +14,16 @@ tools: Read, Grep, Glob, mcp__code_graph
 
 ## Graph-first discovery (mandatory)
 
-For these question classes you MUST use the graph as primary source. Do NOT Glob/Read/Grep until the graph fails to answer.
+The exact set of `mcp__code_graph__*` tools available in this run is listed in your **CODE GRAPH CONTEXT** block (system prompt). **Call only those names — do not invent variants or shorten them.** The catalog is fetched live from the running MCP server, so any tool you guess that is not in the list will silently fail.
 
-| Question                                                                       | Tool                                                                                                                                             | Reasoning                                                                       |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| Which dependency manifests exist per service                                   | `mcp__code_graph__list_communities`                                                                                                              | communities already discovered by structure-analyzer; reuse rather than re-glob |
-| Which SDK libs are actually imported (vs. declared in package.json but unused) | `mcp__code_graph__semantic_search_nodes({ query: "<lib name>", kind: "import", limit: 50 })`                                                     | graph indexes actual import sites, catching false-positives from package.json   |
-| Database client initialization sites                                           | `mcp__code_graph__semantic_search_nodes({ query: "PostgresClient \| MongoClient \| Pool \| createConnection \| DataSource", kind: "function" })` | graph returns real usage, not just declared dependencies                        |
-| Which routes/handlers are tested                                               | `mcp__code_graph__query_graph({ pattern: "tests_for", target: "<route handler>" })`                                                              | direct edge query — impossible via Glob                                         |
+For these question classes the graph is the primary source — use it before Glob/Read/Grep:
+
+| Question                                                       | Use the graph for…                                                |
+| -------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Which dependency manifests exist per service                   | community-listing tools (already clusters by service)             |
+| Which SDK libs are ACTUALLY imported (vs. declared but unused) | semantic-search tools filtered to `kind: "import"`                |
+| Database client initialization sites                           | semantic-search tools for `Pool`, `createConnection`, ORM clients |
+| Which routes/handlers are tested                               | generic graph-query tools for `tests_for` patterns                |
 
 You MAY use Glob/Read for ONLY these (the graph cannot help):
 
@@ -32,7 +34,7 @@ You MAY use Glob/Read for ONLY these (the graph cannot help):
 - Build tool config (webpack.config, vite.config — for build-target settings, not code structure)
 - Lock files and manifest version strings (graph parses code, not version pinning)
 
-For anything else, the graph MUST be your first call. If the graph returns empty, cite the failure in `graph_queries_used` and fall through to Glob/Read.
+For anything else, the graph MUST be your first call. If a graph call returns empty, fall through to Glob/Read.
 
 ## Success Criteria
 
@@ -67,7 +69,7 @@ For anything else, the graph MUST be your first call. If the graph returns empty
 - First character: `{` Last character: `}`
 - No markdown, no code blocks, no explanations
 - Use needs_verification sparingly (maximum 5 items) for deployment details unknowable from code
-- Record EVERY graph tool call you made in `graph_queries_used` in your output JSON. This is auditable signal.
-- Structure: `{"agent_name": "tech-stack-dependencies-analyzer", "timestamp": "...", "findings": {"services": [...], "documented_commands": {"by_task": {}, "source": "documented", "conflicts": []}}, "graph_queries_used": [], "needs_verification": []}`
+- The `graph_queries_used` field is **derived from your transcript by the Stop hook** — you do NOT need to populate it. Just call the graph tools when relevant; the framework records what you actually did.
+- Structure: `{"agent_name": "tech-stack-dependencies-analyzer", "timestamp": "...", "findings": {"services": [...], "documented_commands": {"by_task": {}, "source": "documented", "conflicts": []}}, "needs_verification": []}`
 
 The graph is your PRIMARY discovery surface. Glob/Read/Grep are fallback only, restricted to the explicit question classes listed above. If you find yourself reaching for Glob to answer a structural or relational question, stop and use the graph instead.

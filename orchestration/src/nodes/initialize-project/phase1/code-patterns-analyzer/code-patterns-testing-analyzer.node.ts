@@ -47,6 +47,7 @@ export async function codePatternsTestingAnalyzerNode(
         {
           available: state.code_graph_available ?? false,
           dbPath: state.code_graph_path,
+          toolCatalog: state.code_graph_tool_catalog,
           stats: state.code_graph_stats,
         },
       );

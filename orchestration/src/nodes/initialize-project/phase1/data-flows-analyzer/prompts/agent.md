@@ -14,15 +14,17 @@ tools: Read, Grep, Glob, mcp__code_graph
 
 ## Graph-first discovery (mandatory)
 
-For these question classes you MUST use the graph as primary source. Do NOT Glob/Read/Grep until the graph fails to answer.
+The exact set of `mcp__code_graph__*` tools available in this run is listed in your **CODE GRAPH CONTEXT** block (system prompt). **Call only those names — do not invent variants or shorten them.** The catalog is fetched live from the running MCP server, so any tool you guess that is not in the list will silently fail.
 
-| Question                                                         | Tool                                                                                                                   | Reasoning                                                                                       |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Auth middleware order, request lifecycle                         | `mcp__code_graph__list_flows` + `mcp__code_graph__get_flow({ flow_id })`                                               | flows encode middleware/guard execution order — this is exactly what grep reconstructs manually |
-| External SDK integration sites (actual usage, not just declared) | `mcp__code_graph__semantic_search_nodes({ query: "Stripe \| SendGrid \| Sentry \| Auth0", kind: "import" })`           | graph counts only libraries actually imported, not just listed in package.json                  |
-| Background job/worker patterns                                   | `mcp__code_graph__semantic_search_nodes({ query: "BullMQ \| Celery \| Sidekiq \| Asynq", kind: "import" })`            | direct import detection                                                                         |
-| Caching client init sites                                        | `mcp__code_graph__semantic_search_nodes({ query: "Redis \| Memcached \| ioredis \| createClient", kind: "function" })` | graph returns real initialization sites                                                         |
-| Inter-service communication (message brokers, gateways)          | `mcp__code_graph__query_graph({ pattern: "imports_of", target: "<broker>" })`                                          | direct edge query showing which modules import the broker                                       |
+For these question classes the graph is the primary source — use it before Glob/Read/Grep:
+
+| Question                                                         | Use the graph for…                                                         |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Auth middleware order, request lifecycle                         | flow-listing / flow-detail tools (encode middleware/guard execution order) |
+| External SDK integration sites (actual usage, not just declared) | semantic-search tools filtered to `kind: "import"`                         |
+| Background job/worker patterns                                   | semantic-search tools for queue libraries (BullMQ, Celery, Sidekiq, …)     |
+| Caching client init sites                                        | semantic-search tools for cache clients (Redis, Memcached, …)              |
+| Inter-service communication (message brokers, gateways)          | generic graph-query tools for `imports_of` patterns                        |
 
 You MAY use Glob/Read for ONLY these (the graph cannot help):
 
@@ -32,7 +34,7 @@ You MAY use Glob/Read for ONLY these (the graph cannot help):
 - API contract files (OpenAPI/GraphQL schema text files)
 - Webhook signing details (config metadata)
 
-For anything else, the graph MUST be your first call. If the graph returns empty, cite the failure in `graph_queries_used` and fall through to Glob/Read.
+For anything else, the graph MUST be your first call. If a graph call returns empty, fall through to Glob/Read.
 
 ## Success Criteria
 
@@ -56,7 +58,7 @@ For anything else, the graph MUST be your first call. If the graph returns empty
 - Raw JSON only
 - First character: `{` Last character: `}`
 - No markdown, no code blocks, no explanations
-- Record EVERY graph tool call you made in `graph_queries_used` in your output JSON. This is auditable signal.
-- Structure: `{"agent_name": "data-flows-integrations-analyzer", "timestamp": "...", "findings": {...}, "graph_queries_used": [], "needs_verification": []}`
+- The `graph_queries_used` field is **derived from your transcript by the Stop hook** — you do NOT need to populate it. Just call the graph tools when relevant; the framework records what you actually did.
+- Structure: `{"agent_name": "data-flows-integrations-analyzer", "timestamp": "...", "findings": {...}, "needs_verification": []}`
 
 The graph is your PRIMARY discovery surface. Glob/Read/Grep are fallback only, restricted to the explicit question classes listed above. If you find yourself reaching for Glob to answer a structural or relational question, stop and use the graph instead.
