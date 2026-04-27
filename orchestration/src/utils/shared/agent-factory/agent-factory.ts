@@ -5,7 +5,6 @@ import {
   getAuthErrorMessage,
 } from '../../../auth/auth-detector.js';
 import type { Agent, AgentConfig } from './types.js';
-import { createDeepAgentImpl } from './deep-agent-impl.js';
 import {
   createCLIAgentImpl,
   abortAllInvocations,
@@ -18,7 +17,7 @@ import {
 } from './codex-cli-agent-impl.js';
 
 /**
- * Creates agents using DeepAgents.js (API key) or Claude CLI (subscription)
+ * Creates agents using provider CLIs only.
  */
 export class AgentFactory {
   private authConfig: AuthConfig;
@@ -61,14 +60,13 @@ export class AgentFactory {
   }
 
   /**
-   * Create agent using DeepAgents.js or Claude CLI
+   * Create agent using Claude CLI or Codex CLI.
    */
   async createAgent(config: AgentConfig): Promise<Agent> {
     if (this.authConfig.mode === AuthMode.API_KEY) {
-      if (!this.authConfig.provider) {
-        throw new Error('Provider is required for API_KEY mode');
-      }
-      return createDeepAgentImpl(config, this.authConfig.provider);
+      throw new Error(
+        'API key / DeepAgents execution mode is no longer supported. Use Claude CLI or Codex CLI authentication instead.',
+      );
     } else if (this.authConfig.mode === AuthMode.CLAUDE_CLI) {
       if (!this.authConfig.claudeCLIVersion) {
         throw new Error('Claude CLI version is required for CLAUDE_CLI mode');
