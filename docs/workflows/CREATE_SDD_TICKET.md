@@ -2,7 +2,7 @@
 
 Generates comprehensive, gap-free tickets following Specification-Driven Development (SDD) principles.
 
-**Version**: 2.0.0
+**Version**: 3.1.0
 **File**: `skills/020-development-workflow/create-sdd-ticket/SKILL.md`
 
 ---
@@ -24,11 +24,12 @@ Generates comprehensive, gap-free tickets following Specification-Driven Develop
 - **T**estable - Clear acceptance criteria
 
 ### 3. Minimal Engineer Interruption
-Performs deep codebase inference for:
-- Architecture patterns
-- File placement conventions
-- Naming conventions
-- Dependencies
+Performs wiki-first inference before touching the codebase:
+1. LLM wiki (`docs/llm-wiki/wiki/`) — pre-digested architecture, service contracts, patterns
+2. Code graph — symbol lookups, community membership, callers
+3. Project context skill and `CLAUDE.md`/`AGENTS.md`
+4. Codebase grep + file inspection (narrowed by graph)
+5. Engineer questions — only for gaps 1–4 cannot resolve
 
 ---
 
@@ -78,13 +79,15 @@ $create-sdd-ticket --from-input "Add real-time notifications"
 
 ---
 
-## Workflow (7 Phases)
+## Workflow (8 Phases)
 
+0. **Inject Project Context** - Load project-context skill and `CLAUDE.md`/`AGENTS.md`
+0.5. **Wiki & Graph Context Preload** - Read `docs/llm-wiki/wiki/` core docs; run one `get_minimal_context_tool` call; persist context artifact. Graceful fallback when wiki is missing (fresh clone, `/initialize-project` not yet run). Pass `--skip-wiki` to bypass explicitly.
 1. **Parse Input** - Load from text, Jira, or markdown
-2. **Canonical Format** - Transform to standard structure
-3. **Codebase Inference** - Infer missing information from codebase
-4. **Gap Detection** - Identify and resolve remaining gaps
-5. **SDD Template** - Format with user stories and BDD scenarios
+2. **Intelligent Gap Detection** - Consult wiki first, then graph, then project-context, then codebase grep, then ask you
+3. **Batch Questions** - Ask remaining questions in one batch (minimized by phases 0.5 and 2)
+4. **Process Answers** - Fill gaps and re-validate completeness
+5. **SDD Template** - Format with user stories and BDD scenarios; include `wikiEvidence` and `graphEvidence` in `technicalContext`
 6. **INVEST Validation** - Ensure quality criteria met
 7. **Output Formatting** - Save to markdown or Jira
 
@@ -112,7 +115,11 @@ $create-sdd-ticket --from-input "Add real-time notifications"
   "technicalContext": {
     "architecture": "Backend: NestJS + JWT, Frontend: React",
     "dependencies": ["@nestjs/jwt", "bcrypt"],
-    "filesToModify": ["src/auth/auth.controller.ts"]
+    "filesToModify": ["src/auth/auth.controller.ts"],
+    "wikiEvidence": ["docs/llm-wiki/wiki/services/auth.md", "docs/llm-wiki/wiki/PATTERNS.md#jwt"],
+    "graphEvidence": [
+      { "tool": "mcp__code_graph__semantic_search_nodes_tool", "params": { "query": "JWT token" }, "finding": "2 hits in src/auth/" }
+    ]
   },
   "estimatedEffort": "2 days",
   "priority": "high"

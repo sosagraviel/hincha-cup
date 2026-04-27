@@ -12,19 +12,22 @@
 
 ## Overview
 
-Transforms tickets into production-ready PRs through 11-phase TypeScript orchestration using LangGraph state machines.
+Transforms tickets into production-ready PRs through 13-phase TypeScript orchestration using LangGraph state machines.
 
 **Features**:
-- 11 sequential phases (Phase 0-10)
+- 13 sequential phases (Phase 0–11 with Phase 8.5)
 - TypeScript orchestration with type safety
+- Wiki-aware planning (LLM wiki preloaded in Phase 2)
+- Graph-aware implementation (code graph consulted throughout)
 - Visual regression testing (Playwright)
 - Comprehensive quality gates
 - Artifact-based agent communication
 - Multi-language support
+- Automatic wiki refresh (Phase 8.5) before every PR
 
-**Flow**: `Ticket → Context → Planning → Implementation → Testing → Visual → PR`
+**Flow**: `Ticket → Context → Wiki Preload → Planning → Implementation → Testing → Visual → Docs → Wiki Refresh → PR`
 
-**Duration**: 15-35 minutes
+**Duration**: 17-40 minutes
 
 ---
 
@@ -70,17 +73,19 @@ const graph = new StateGraph(ImplementTicketAnnotation)
 
 | Phase | Duration | Purpose |
 |-------|----------|---------|
-| 0 | 30-60s | Load ticket context, validate environment |
-| 1 | 2-5min | Create implementation plan with planner agent |
-| 2 | 1-2min | Identify and resolve requirement gaps |
-| 3 | 1-3min | Validate architectural decisions |
-| 4 | 3-8min | Generate code with implementer agent |
-| 5 | <1min | Manage dependencies and resources |
-| 6 | 2-5min | Run comprehensive test suite |
-| 7 | 1-3min | Run quality gates (linting, type checking) |
-| 8 | 1-2min | Validate external service integrations |
-| 9 | 2-4min | Visual regression testing (UI only) |
-| 10 | 1-2min | Create PR and archive artifacts |
+| 0 | 30-60s | Preflight: validate environment, LLM wiki presence; WARN (not fail) on stale wiki |
+| 1 | 1-2min | Context: fetch ticket from Jira/markdown/input |
+| 2 | 1-2min | Wiki Preload: read five core wiki docs; run one `get_minimal_context_tool` call |
+| 3 | 2-5min | Planning: planner agent consumes wiki + graph context; produces Implementation Plan |
+| 4 | 1-3min | Environment: create branch, allocate ports, capture before-screenshots |
+| 5 | 3-8min | Implementation: graph-aware implementer consumes plan + wiki evidence |
+| 6 | 2-5min | Testing: run unit/integration/E2E tests with coverage |
+| 7 | 2-4min | Visual: pixel-diff comparison; visual-verifier agent if >5% changed |
+| 8 | 1-3min | Documentation: invoke `/doc-updater` to update CLAUDE.md/project-context |
+| 8.5 | 1-2min | Wiki Refresh: `/wiki-refresh --since <branch-base>`; block PR on structural lint failures |
+| 9 | 1-2min | PR Creation: commit, push, open pull request (blocked by Phase 8.5) |
+| 10 | 2-4min | Review: `/pr-reviewer` + `/security-review`; up to 3 fix iterations |
+| 11 | 1-2min | Cleanup: archive artifacts, emit token-usage summary |
 
 ---
 

@@ -1,9 +1,5 @@
 import matter from 'gray-matter';
-import {
-  AI_KNOWLEDGE_CONTEXT_END,
-  AI_KNOWLEDGE_CONTEXT_START,
-  type WikiGraphState,
-} from './types.js';
+import { LLM_WIKI_CONTEXT_END, LLM_WIKI_CONTEXT_START, type WikiGraphState } from './types.js';
 import { ensureTrailingNewline, escapeRegExp, relativeGraphPath } from './utils.js';
 
 export function withFrontmatter(body: string, frontmatter: Record<string, unknown>): string {
@@ -25,19 +21,19 @@ export function stripMarkdownFrontmatter(content: string): string {
 export function buildContextSection(graph: WikiGraphState): string {
   const graphSource = graph.path ? relativeGraphPath(graph.path) : '.code-graph.db';
   return [
-    AI_KNOWLEDGE_CONTEXT_START,
-    '## AI Knowledge Wiki',
-    '- Wiki: `docs/ai-knowledge/index.md`',
+    LLM_WIKI_CONTEXT_START,
+    '## LLM Wiki',
+    '- Wiki: `docs/llm-wiki/wiki/index.md`',
     `- Graph-backed docs: generated from ${graphSource} with wiki-generator synthesis.`,
-    '- Before broad code changes, consult the relevant `docs/ai-knowledge/` page, then inspect source files for details.',
-    AI_KNOWLEDGE_CONTEXT_END,
+    '- Before broad code changes, consult the relevant `docs/llm-wiki/wiki/` page, then inspect source files for details.',
+    LLM_WIKI_CONTEXT_END,
   ].join('\n');
 }
 
-export function upsertAiKnowledgeContextSection(content: string, section: string): string {
+export function upsertLlmWikiContextSection(content: string, section: string): string {
   const normalizedSection = section.trim();
   const sectionPattern = new RegExp(
-    `${escapeRegExp(AI_KNOWLEDGE_CONTEXT_START)}[\\s\\S]*?${escapeRegExp(AI_KNOWLEDGE_CONTEXT_END)}`,
+    `${escapeRegExp(LLM_WIKI_CONTEXT_START)}[\\s\\S]*?${escapeRegExp(LLM_WIKI_CONTEXT_END)}`,
     'm',
   );
 

@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { execSync } from 'child_process';
 import { getFrameworkAgentPath } from '../../nodes/initialize-project/shared/index.js';
 import { AgentFactory } from '../../utils/shared/agent-factory/index.js';
 import {
@@ -46,4 +47,16 @@ export async function invokeWikiAgent(
 
 export function computeGraphVersion(graphPath: string): string {
   return createHash('sha256').update(readFileSync(graphPath)).digest('hex');
+}
+
+/**
+ * Returns the current HEAD commit SHA of the given repository path.
+ * Falls back to 'unknown' if the git command fails (e.g., not a git repo).
+ */
+export function computeGraphCommit(repoPath: string): string {
+  try {
+    return execSync('git rev-parse HEAD', { cwd: repoPath, encoding: 'utf-8' }).trim();
+  } catch {
+    return 'unknown';
+  }
 }

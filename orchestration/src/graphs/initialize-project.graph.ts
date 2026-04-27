@@ -71,7 +71,7 @@ export function routeAfterWikiPreparation(state: InitializeProjectState): string
  * PHASE 2: Consolidate findings and identify gaps
  * PHASE 3: Run Opus synthesis agent for comprehensive analysis
  * PHASE 4: Generate CLAUDE.md and project-context/SKILL.md
- * PHASE 4b: Generate docs/ai-knowledge wiki via parallel subgraph:
+ * PHASE 4b: Generate docs/llm-wiki wiki via parallel subgraph:
  *   wiki_preparation → [architecture, data-flow, pattern] in parallel →
  *   wiki_service_docs (N concurrent per-service LLM calls) →
  *   wiki_generation (deterministic SERVICES.md catalog + index + disk writes)

@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import type { InitializeProjectState } from '../../../../state/schemas/initialize-project.schema.js';
 import type { PhaseCompletionResult } from '../types.js';
-import { getExpectedAiKnowledgeFiles } from '../../../../services/graph-wiki/wiki-generator.service.js';
+import { getExpectedLlmWikiFiles } from '../../../../services/graph-wiki/wiki-generator.service.js';
 import {
   resolveConfigPath,
   resolveTempPath,
@@ -49,15 +49,14 @@ export function validatePhaseCompletion(state: InitializeProjectState): PhaseCom
   const claudeMdPath = join(projectConfigDir, getInstructionFileName());
   const phase4Complete = existsSync(frameworkConfigPath) && existsSync(claudeMdPath);
 
-  const shouldValidateWiki = Boolean(state.ai_knowledge_path || state.phase4_wiki_generation);
-  const aiKnowledgePath =
-    state.ai_knowledge_path || join(state.project_path, 'docs', 'ai-knowledge');
-  const expectedWikiFiles = getExpectedAiKnowledgeFiles(
+  const shouldValidateWiki = Boolean(state.llm_wiki_path || state.phase4_wiki_generation);
+  const llmWikiPath = state.llm_wiki_path || join(state.project_path, 'docs', 'llm-wiki');
+  const expectedWikiFiles = getExpectedLlmWikiFiles(
     readStackProfileForWiki(state, frameworkConfigPath),
   );
   const phase4WikiComplete =
     !shouldValidateWiki ||
-    expectedWikiFiles.every((fileName) => existsSync(join(aiKnowledgePath, fileName)));
+    expectedWikiFiles.every((fileName) => existsSync(join(llmWikiPath, String(fileName))));
 
   if (!phase1Complete) {
     errors.push('Phase 1 analysis outputs not found');

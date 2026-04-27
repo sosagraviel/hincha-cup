@@ -6,6 +6,7 @@ import { loadMarkdownFile } from '../prompt-loader.js';
 import type { Agent, AgentConfig, AgentInvokeInput, AgentInvokeResult } from './types.js';
 import { getAgentAction } from './agent-utils.js';
 import { beginAttemptRecorder } from './attempt-recorder.js';
+import { emitTokenUsage } from '../../../services/framework/debug-store/index.js';
 
 /**
  * Create agent using DeepAgents.js (API key mode)
@@ -87,6 +88,10 @@ export async function createDeepAgentImpl(
           (result.content as string | undefined) ??
           JSON.stringify(result);
 
+        const usage = result.usage as
+          | { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number }
+          | undefined;
+
         logger.trackConcurrentAgentSucceed(
           trackerId,
           `Completed in ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
@@ -100,6 +105,17 @@ export async function createDeepAgentImpl(
           outcome: 'success',
         });
         await recorder.finalize('success');
+
+        emitTokenUsage(config.projectPath, {
+          ts: new Date().toISOString(),
+          phase: config.phase?.phaseId ?? 'phase-unknown',
+          agent: config.agentName,
+          input_tokens: usage?.input_tokens ?? -1,
+          output_tokens: usage?.output_tokens ?? -1,
+          cache_hit: (usage?.cache_read_input_tokens ?? 0) > 0,
+          duration_ms: executionTimeMs,
+          budget_key: config.budgetKey,
+        }).catch(() => undefined);
 
         return { output, sessionId, mode: AuthMode.API_KEY, executionTimeMs };
       } catch (error: unknown) {
@@ -118,6 +134,17 @@ export async function createDeepAgentImpl(
           outcome: 'failure',
         });
         await recorder.finalize('failure');
+
+        emitTokenUsage(config.projectPath, {
+          ts: new Date().toISOString(),
+          phase: config.phase?.phaseId ?? 'phase-unknown',
+          agent: config.agentName,
+          input_tokens: -1,
+          output_tokens: -1,
+          cache_hit: false,
+          duration_ms: executionTimeMs,
+          budget_key: config.budgetKey,
+        }).catch(() => undefined);
 
         throw new Error(`DeepAgent execution failed after ${executionTimeMs}ms: ${errorMessage}`);
       }

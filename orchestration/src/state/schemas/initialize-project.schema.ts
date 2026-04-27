@@ -91,7 +91,7 @@ export const Phase4ContextSchema = z.object({
 });
 
 export const PhaseWikiGenerationSchema = z.object({
-  ai_knowledge_written: z.boolean().default(false),
+  llm_wiki_written: z.boolean().default(false),
   files: z.array(z.string()).default([]),
   timestamp: z.string(),
 });
@@ -106,6 +106,7 @@ export const Phase4WikiDocsSchema = z.object({
       stackProfile: z.any().optional(),
       generatedAt: z.string(),
       graphVersion: z.string(),
+      graphCommit: z.string().optional(),
     })
     .optional(),
   architecture: z.any().optional(),
@@ -201,8 +202,8 @@ export const InitializeProjectStateSchema = z.object({
   framework_config_path: z.string().optional(),
   claude_md_path: z.string().optional(),
   project_context_path: z.string().optional(),
-  ai_knowledge_path: z.string().optional(),
-  ai_knowledge_files: z.array(z.string()).optional(),
+  llm_wiki_path: z.string().optional(),
+  llm_wiki_files: z.array(z.string()).optional(),
 
   // Workflow metadata
   started_at: z.string().optional(),
@@ -403,8 +404,8 @@ export const InitializeProjectAnnotation = Annotation.Root({
   framework_config_path: Annotation<string | undefined>,
   claude_md_path: Annotation<string | undefined>,
   project_context_path: Annotation<string | undefined>,
-  ai_knowledge_path: Annotation<string | undefined>,
-  ai_knowledge_files: Annotation<string[] | undefined>,
+  llm_wiki_path: Annotation<string | undefined>,
+  llm_wiki_files: Annotation<string[] | undefined>,
 
   // ============================================================================
   // METADATA (use default LastValue reducer)

@@ -67,7 +67,7 @@ describe('validationNode', () => {
     // Mock successful validation scenario
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
-      if (path.includes('docs/ai-knowledge/services/main.md')) {
+      if (path.includes('docs/llm-wiki/wiki/services/main.md')) {
         return [
           '---',
           'document_type: service',
@@ -81,7 +81,7 @@ describe('validationNode', () => {
           '# Main Service',
         ].join('\n');
       }
-      if (path.includes('docs/ai-knowledge')) {
+      if (path.includes('docs/llm-wiki')) {
         return [
           '---',
           'document_type: architecture',
@@ -136,15 +136,15 @@ describe('validationNode', () => {
   });
 
   it('should validate wiki files when wiki state is present', async () => {
-    mockState.ai_knowledge_path = '/test/project/docs/ai-knowledge';
+    mockState.llm_wiki_path = '/test/project/docs/llm-wiki';
     mockState.phase4_wiki_generation = {
-      ai_knowledge_written: true,
+      llm_wiki_written: true,
       files: [
-        '/test/project/docs/ai-knowledge/index.md',
-        '/test/project/docs/ai-knowledge/ARCHITECTURE.md',
-        '/test/project/docs/ai-knowledge/SERVICES.md',
-        '/test/project/docs/ai-knowledge/DATA-FLOWS.md',
-        '/test/project/docs/ai-knowledge/PATTERNS.md',
+        '/test/project/docs/llm-wiki/wiki/index.md',
+        '/test/project/docs/llm-wiki/wiki/ARCHITECTURE.md',
+        '/test/project/docs/llm-wiki/wiki/SERVICES.md',
+        '/test/project/docs/llm-wiki/wiki/DATA-FLOWS.md',
+        '/test/project/docs/llm-wiki/wiki/PATTERNS.md',
       ],
       timestamp: '2024-01-01T00:00:00Z',
     };
@@ -152,14 +152,14 @@ describe('validationNode', () => {
     const result = await validationNode(mockState);
 
     expect(result.current_phase).toBe('complete');
-    expect(result.ai_knowledge_path).toBe('/test/project/docs/ai-knowledge');
-    expect(result.ai_knowledge_files).toHaveLength(6);
+    expect(result.llm_wiki_path).toBe('/test/project/docs/llm-wiki');
+    expect(result.llm_wiki_files).toHaveLength(6);
   });
 
   it('should fail if wiki state is present but a core wiki file is missing', async () => {
-    mockState.ai_knowledge_path = '/test/project/docs/ai-knowledge';
+    mockState.llm_wiki_path = '/test/project/docs/llm-wiki';
     mockState.phase4_wiki_generation = {
-      ai_knowledge_written: true,
+      llm_wiki_written: true,
       files: [],
       timestamp: '2024-01-01T00:00:00Z',
     };
@@ -170,7 +170,7 @@ describe('validationNode', () => {
     const result = await validationNode(mockState);
 
     expect(result.current_phase).toBe('failed');
-    expect(result.errors?.some((error) => error.includes('docs/ai-knowledge/PATTERNS.md'))).toBe(
+    expect(result.errors?.some((error) => error.includes('docs/llm-wiki/wiki/PATTERNS.md'))).toBe(
       true,
     );
   });

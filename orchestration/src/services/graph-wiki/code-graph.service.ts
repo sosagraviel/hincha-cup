@@ -1,5 +1,6 @@
-import { spawn } from 'child_process';
-import { existsSync, statSync } from 'fs';
+import { createHash } from 'crypto';
+import { execSync, spawn } from 'child_process';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import type { CodeGraphStats } from '../../state/schemas/initialize-project.schema.js';
@@ -25,7 +26,130 @@ interface CommandResult {
   stderr: string;
 }
 
+interface GraphStateFile {
+  last_indexed_commit?: string;
+  updated_at?: string;
+  tool_version?: string;
+}
+
+interface ExtractionManifest {
+  files_parsed: number | undefined;
+  languages: string[] | undefined;
+  tool_version: string;
+  sha: string;
+  build_time_ms: number | undefined;
+  created_at: string;
+}
+
 const COMMAND_TIMEOUT_MS = 300000;
+const CODE_REVIEW_GRAPH_DIRNAME = '.code-review-graph';
+
+/** Returns the path to the `.code-review-graph/` directory for a project. */
+function codeReviewGraphDir(projectPath: string): string {
+  return join(projectPath, CODE_REVIEW_GRAPH_DIRNAME);
+}
+
+/** Returns the path to `.code-review-graph/.state.json` for a project. */
+function graphStatePath(projectPath: string): string {
+  return join(codeReviewGraphDir(projectPath), '.state.json');
+}
+
+/**
+ * Reads the `.code-review-graph/.state.json` file and returns its contents,
+ * or null if the file does not exist or cannot be parsed.
+ */
+export function loadGraphState(projectPath: string): GraphStateFile | null {
+  const statePath = graphStatePath(projectPath);
+  if (!existsSync(statePath)) {
+    return null;
+  }
+  try {
+    return JSON.parse(readFileSync(statePath, 'utf-8')) as GraphStateFile;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Runs `git rev-parse HEAD` in the given project directory and returns the
+ * trimmed SHA. Falls back to 'unknown' when git is unavailable or the directory
+ * is not a git repo.
+ */
+export function resolveCurrentCommit(projectPath: string): string {
+  try {
+    return execSync('git rev-parse HEAD', { cwd: projectPath, encoding: 'utf-8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
+ * Resolves the installed `code-review-graph` version string.
+ * Falls back to 'unknown' when the command is unavailable.
+ */
+async function resolveToolVersion(projectPath: string): Promise<string> {
+  try {
+    const result = await runCommand('code-review-graph', ['--version'], {
+      cwd: projectPath,
+      env: getCodeGraphEnv(),
+      timeoutMs: 10000,
+    });
+    return result.stdout.trim().split('\n')[0] ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
+ * Persists `.code-review-graph/.state.json` with the current commit, ISO
+ * timestamp, and tool version. Creates the directory if it does not exist.
+ */
+async function writeGraphState(projectPath: string): Promise<void> {
+  const dir = codeReviewGraphDir(projectPath);
+  mkdirSync(dir, { recursive: true });
+
+  const toolVersion = await resolveToolVersion(projectPath);
+  const state: GraphStateFile = {
+    last_indexed_commit: resolveCurrentCommit(projectPath),
+    updated_at: new Date().toISOString(),
+    tool_version: toolVersion,
+  };
+  writeFileSync(graphStatePath(projectPath), JSON.stringify(state, null, 2), 'utf-8');
+}
+
+/**
+ * Writes `.code-review-graph/extraction-manifest.json` capturing snapshot
+ * metadata about the graph build so downstream consumers can verify what was
+ * indexed and when.
+ */
+export function writeExtractionManifest(
+  projectPath: string,
+  stats: CodeGraphStats,
+  sha: string,
+): void {
+  const dir = codeReviewGraphDir(projectPath);
+  mkdirSync(dir, { recursive: true });
+
+  let toolVersion = 'unknown';
+  try {
+    toolVersion =
+      execSync('code-review-graph --version', { encoding: 'utf-8' }).trim().split('\n')[0] ??
+      'unknown';
+  } catch {
+    // tool unavailable — already defaulted to 'unknown'
+  }
+
+  const manifest: ExtractionManifest = {
+    files_parsed: stats.files,
+    languages: stats.languages,
+    tool_version: toolVersion,
+    sha,
+    build_time_ms: stats.build_time_ms,
+    created_at: new Date().toISOString(),
+  };
+
+  writeFileSync(join(dir, 'extraction-manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+}
 
 export async function buildCodeGraph(
   options: CodeGraphBuildOptions,
@@ -54,7 +178,32 @@ export async function buildCodeGraph(
     throw new Error(`Code graph database was not created: ${graphDbPath}`);
   }
 
+  const graphState = loadGraphState(options.projectPath);
+  const currentCommit = resolveCurrentCommit(options.projectPath);
+  const nativeDbPath = join(codeReviewGraphDir(options.projectPath), 'graph.db');
+  const dbExists = existsSync(nativeDbPath) || existsSync(graphDbPath);
+
+  const hasIndexedCommit =
+    graphState !== null &&
+    graphState.last_indexed_commit !== undefined &&
+    graphState.last_indexed_commit !== 'unknown';
+
+  const headMoved = hasIndexedCommit && graphState!.last_indexed_commit !== currentCommit;
+
+  if (dbExists && hasIndexedCommit && headMoved) {
+    const updated = await tryIncrementalUpdate(options.projectPath);
+    if (!updated) {
+      await runFullBuild(options.projectPath, graphDbPath, options.frameworkPath);
+    }
+  }
+
+  await writeGraphState(options.projectPath);
+
   const stats = await collectGraphStats(graphDbPath, Date.now() - startedAt);
+  const sha = createHash('sha256').update(readFileSync(graphDbPath)).digest('hex');
+
+  writeExtractionManifest(options.projectPath, stats, sha);
+
   await startOrVerifyMcpServer(options.projectPath, graphDbPath, mcpPort, options.frameworkPath);
 
   return {
@@ -63,6 +212,50 @@ export async function buildCodeGraph(
     code_graph_mcp_port: mcpPort,
     code_graph_stats: stats,
   };
+}
+
+/**
+ * Attempts `code-review-graph update --repo <projectPath>`. Returns true on
+ * success, false when the command exits non-zero so the caller can fall back
+ * to a full build.
+ */
+async function tryIncrementalUpdate(projectPath: string): Promise<boolean> {
+  try {
+    await runCommand('code-review-graph', ['update', '--repo', projectPath], {
+      cwd: projectPath,
+      env: getCodeGraphEnv(),
+      timeoutMs: COMMAND_TIMEOUT_MS,
+    });
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(
+      `[code-graph] WARNING: incremental update failed (${message}); falling back to full build\n`,
+    );
+    return false;
+  }
+}
+
+/**
+ * Runs the setup script again as a full-build fallback.
+ * The setup script is idempotent: when `code-review-graph` is already installed
+ * it is cheap and produces a correct fresh build via `build --repo`.
+ */
+async function runFullBuild(
+  projectPath: string,
+  graphDbPath: string,
+  frameworkPath: string,
+): Promise<void> {
+  const setupScriptPath = join(frameworkPath, 'scripts', 'setup-code-graph.sh');
+  await runCommand('bash', [setupScriptPath], {
+    cwd: projectPath,
+    env: {
+      ...getCodeGraphEnv(),
+      PROJECT_PATH: projectPath,
+      CODE_GRAPH_DB_PATH: graphDbPath,
+    },
+    timeoutMs: COMMAND_TIMEOUT_MS,
+  });
 }
 
 export async function collectGraphStats(
@@ -246,4 +439,9 @@ function getCodeGraphEnv(): NodeJS.ProcessEnv {
     ...process.env,
     PATH: path,
   };
+}
+
+/** Returns the path to `.code-review-graph/extraction-manifest.json` for a project. */
+export function extractionManifestPath(projectPath: string): string {
+  return join(codeReviewGraphDir(projectPath), 'extraction-manifest.json');
 }

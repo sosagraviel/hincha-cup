@@ -142,3 +142,4 @@ At completion, include a short summary with:
 - Wiki pages consulted (from the planner handoff) and whether they matched reality
 - Any fresh graph queries you ran and the implementation decisions they supported
 - Any warnings where the plan's evidence was missing or inconclusive
+- **Wiki Delta Hints** — a bulleted list of `(file_path, suggested_page, action)` tuples where `action ∈ {add, update, deprecate}`. Consumed by the downstream `/wiki-refresh` step.

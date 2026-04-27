@@ -18,7 +18,7 @@ import {
 } from './helpers/directory-validator.js';
 import { validateAgentCoverage } from './helpers/agent-coverage-validator.js';
 import { validatePhaseCompletion } from './helpers/phase-completion-validator.js';
-import { getExpectedAiKnowledgeFiles } from '../../../services/graph-wiki/wiki-generator.service.js';
+import { getExpectedLlmWikiFiles } from '../../../services/graph-wiki/wiki-generator.service.js';
 import { validateCodeGraphMcpConfig } from '../../../services/framework/mcp-config.service.js';
 
 /**
@@ -53,9 +53,8 @@ export async function validationNode(
       resolveConfigPath(state.project_path, 'skills', 'project-context', 'SKILL.md');
     const frameworkConfigPath =
       state.framework_config_path || resolveFrameworkConfigPath(state.project_path);
-    const shouldValidateWiki = Boolean(state.ai_knowledge_path || state.phase4_wiki_generation);
-    const aiKnowledgePath =
-      state.ai_knowledge_path || join(state.project_path, 'docs', 'ai-knowledge');
+    const shouldValidateWiki = Boolean(state.llm_wiki_path || state.phase4_wiki_generation);
+    const llmWikiPath = state.llm_wiki_path || join(state.project_path, 'docs', 'llm-wiki');
 
     // Get standard directory paths
     const directories = getClaudeDirectories(state.project_path);
@@ -91,13 +90,13 @@ export async function validationNode(
     if (shouldValidateWiki) {
       const wikiErrors: string[] = [];
       const wikiStackProfile = readStackProfileForWiki(state, frameworkConfigPath);
-      const expectedWikiFiles = getExpectedAiKnowledgeFiles(wikiStackProfile);
+      const expectedWikiFiles = getExpectedLlmWikiFiles(wikiStackProfile);
 
       for (const fileName of expectedWikiFiles) {
         const wikiFileResult = validateWikiMarkdownFile(
-          join(aiKnowledgePath, fileName),
-          `docs/ai-knowledge/${fileName}`,
-          { serviceDoc: fileName.startsWith('services/') },
+          join(llmWikiPath, String(fileName)),
+          `docs/llm-wiki/${String(fileName)}`,
+          { serviceDoc: String(fileName).startsWith('wiki/services/') },
         );
         wikiErrors.push(...wikiFileResult.errors);
         validationWarnings.push(...wikiFileResult.warnings);
@@ -105,7 +104,7 @@ export async function validationNode(
 
       validationErrors.push(...wikiErrors);
       if (wikiErrors.length === 0) {
-        phaseLogger.success(' ✓ AI knowledge wiki validated');
+        phaseLogger.success(' ✓ LLM wiki validated');
       }
     }
 
@@ -192,7 +191,7 @@ export async function validationNode(
     phaseLogger.info(`${instructionFileName}: ${instructionFilePath}`);
     phaseLogger.info(`Config: ${frameworkConfigPath}`);
     if (shouldValidateWiki) {
-      phaseLogger.info(`AI Knowledge: ${aiKnowledgePath}`);
+      phaseLogger.info(`LLM Wiki: ${llmWikiPath}`);
     }
     if (totalDuration) {
       phaseLogger.info(`Duration: ${(totalDuration / 1000).toFixed(2)}s`);
@@ -207,12 +206,12 @@ export async function validationNode(
       claude_md_path: instructionFilePath,
       project_context_path: projectContextPath,
       framework_config_path: frameworkConfigPath,
-      ai_knowledge_path: shouldValidateWiki ? aiKnowledgePath : state.ai_knowledge_path,
-      ai_knowledge_files: shouldValidateWiki
-        ? getExpectedAiKnowledgeFiles(readStackProfileForWiki(state, frameworkConfigPath)).map(
-            (fileName) => join(aiKnowledgePath, fileName),
+      llm_wiki_path: shouldValidateWiki ? llmWikiPath : state.llm_wiki_path,
+      llm_wiki_files: shouldValidateWiki
+        ? getExpectedLlmWikiFiles(readStackProfileForWiki(state, frameworkConfigPath)).map(
+            (fileName) => join(llmWikiPath, String(fileName)),
           )
-        : state.ai_knowledge_files,
+        : state.llm_wiki_files,
     };
   } catch (error) {
     const errorMessage = `Validation failed: ${(error as Error).message}`;

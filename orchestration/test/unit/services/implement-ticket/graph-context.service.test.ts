@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import {
   assertAgentHasCodeGraphTool,
   assertCodeGraphReady,
-  loadAiKnowledgeContext,
+  loadLlmWikiContext,
 } from '../../../../src/services/implement-ticket/graph-context.service.js';
 
 vi.mock('fs', () => ({
@@ -52,14 +52,14 @@ describe('graph-context.service', () => {
     });
   });
 
-  describe('loadAiKnowledgeContext', () => {
-    it('returns empty context when AI knowledge docs are absent', () => {
+  describe('loadLlmWikiContext', () => {
+    it('returns empty context when LLM wiki docs are absent', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      expect(loadAiKnowledgeContext('/test/project')).toBe('');
+      expect(loadLlmWikiContext('/test/project')).toBe('');
     });
 
-    it('loads and truncates available AI knowledge docs', () => {
+    it('loads and truncates available LLM wiki docs', () => {
       vi.mocked(fs.existsSync).mockImplementation((path: any) =>
         String(path).endsWith('ARCHITECTURE.md'),
       );
@@ -70,12 +70,23 @@ document_type: architecture
 
 ${'A'.repeat(6500)}`);
 
-      const context = loadAiKnowledgeContext('/test/project');
+      const context = loadLlmWikiContext('/test/project');
 
-      expect(context).toContain('# AI Knowledge Wiki Context');
+      expect(context).toContain('# LLM Wiki Context');
       expect(context).toContain('## ARCHITECTURE');
       expect(context).toContain('[Truncated to 6000 characters for prompt budget]');
       expect(context).not.toContain('document_type: architecture');
+    });
+
+    it('reads from docs/llm-wiki/wiki/ directory', () => {
+      vi.mocked(fs.existsSync).mockImplementation((path: any) =>
+        String(path).endsWith('ARCHITECTURE.md'),
+      );
+      vi.mocked(fs.readFileSync).mockReturnValue('# Architecture\n\nContent.');
+
+      const context = loadLlmWikiContext('/test/project');
+
+      expect(context).toBe('# LLM Wiki Context\n\n## ARCHITECTURE\n\n# Architecture\n\nContent.');
     });
   });
 });

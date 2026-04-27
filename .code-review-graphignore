@@ -1,4 +1,8 @@
 .claude
 .github
 .code-review-graph
-docs/ai-knowledge
+docs/llm-wiki
+node_modules
+qubika-agentic-framework
+dist
+build

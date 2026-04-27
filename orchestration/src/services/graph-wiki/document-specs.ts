@@ -55,6 +55,7 @@ export function buildServiceSpec(
       `Document only the "${serviceId}" service.`,
       'Use service profile as the base inventory and graph MCP tools to verify boundaries.',
       'Use community, semantic search, and query context where available for entry points and dependencies.',
+      'Service docs live under docs/llm-wiki/wiki/services/.',
     ],
     sourceContext: {
       service,
@@ -116,6 +117,7 @@ function architectureSpec(
       'Use graph overview as the primary architecture source.',
       'List graph communities and summarize representative community details.',
       'Connect services and important directories to graph-backed relationships.',
+      'Architecture docs live under docs/llm-wiki/wiki/.',
     ],
     sourceContext: {
       graph,
@@ -145,6 +147,7 @@ function dataFlowsSpec(analyzers: WikiAnalyzerOutputs, stackProfile: unknown): W
       'Use graph flow tools first for execution and data-flow relationships.',
       'Blend graph flows with Phase 1 routes, auth, persistence, and integration findings.',
       'Explain the highest-signal flows in narrative markdown.',
+      'Data flow docs live under docs/llm-wiki/wiki/.',
     ],
     sourceContext: {
       data_flows_integrations: analyzers.data_flows_integrations,
@@ -172,6 +175,7 @@ function patternsSpec(analyzers: WikiAnalyzerOutputs, stackProfile: unknown): Wi
       'Use graph large-function and community tools first for pattern evidence.',
       'Blend graph signals with Phase 1 testing, convention, and quality findings.',
       'Call out recurring implementation patterns without inventing unsupported decisions.',
+      'Pattern docs live under docs/llm-wiki/wiki/.',
     ],
     sourceContext: {
       code_patterns_testing: analyzers.code_patterns_testing,

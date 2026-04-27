@@ -7,6 +7,7 @@ import {
   WikiGeneratorService,
   type CoreLlmDocumentType,
 } from '../../../../services/graph-wiki/wiki-generator.service.js';
+import { getActiveProvider } from '../../../../utils/provider-paths.js';
 
 export type CoreDocSlot = 'architecture' | 'data_flows' | 'patterns';
 
@@ -33,6 +34,7 @@ export async function runCoreDocNode(
     const wiki = new WikiGeneratorService({
       projectPath: state.project_path,
       frameworkPath: state.framework_path,
+      provider: getActiveProvider(),
       analyzers: context.analyzers,
       stackProfile: context.stackProfile,
       graph: {
@@ -48,6 +50,7 @@ export async function runCoreDocNode(
       documentType,
       context.generatedAt,
       context.graphVersion,
+      context.graphCommit ?? 'unknown',
     );
 
     phaseLogger.success(`✓ Generated ${SLOT_LABEL[slot]}`);

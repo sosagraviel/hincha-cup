@@ -43,6 +43,7 @@ Optional flags:
 - `--project-key <KEY>`
 - `--issue-type <TYPE>` where supported values are `Story`, `Task`, `Bug`
 - `--priority <PRIORITY>` where supported values are `High`, `Medium`, `Low`
+- `--skip-wiki`: bypass Phase 0.5 wiki and graph preload (useful for freshly-cloned projects or offline environments)
 
 If no output flag is provided, display the completed canonical ticket without saving.
 
@@ -76,6 +77,19 @@ Before ticket analysis, invoke the `project-context` skill so the workflow has d
 
 If the generated project-context skill is missing, fall back to `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` and explicit codebase inspection, but still treat project context collection as required work before continuing.
 
+### Phase 0.5: Wiki & Graph Context Preload
+
+If `docs/llm-wiki/wiki/` exists, preload its core docs so gap detection consults pre-digested architecture instead of re-grepping the repo.
+
+1. Read `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES,DATA-FLOWS,PATTERNS}.md` and collect their paths as `WIKI_CORE`.
+2. Call `mcp__code_graph__get_minimal_context_tool({ task: "<user idea or ticket summary>", changed_files: [], base: "HEAD~1" })` EXACTLY ONCE. Preserve the full response — downstream implement-ticket Phase 3 may reuse it.
+3. From that response and from `SERVICES.md`, extract up to 3 plausibly-implicated service IDs. For each, resolve `docs/llm-wiki/wiki/services/<service-id>.md` and collect matches as `WIKI_SERVICES`.
+4. Persist everything to `{{TEMP_DIR}}/tickets/<draft-id>/context/wiki-context.md` with `## WIKI_CORE`, `## WIKI_SERVICES`, and `## get_minimal_context_tool Payload` sections.
+
+**Fallback:** if `docs/llm-wiki/wiki/` is missing (project not yet initialized), log `wiki unavailable — falling back to project-context only` and continue. Do NOT fail the skill. Do NOT call graph tools if the graph MCP server is unavailable.
+
+Optional flag: pass `--skip-wiki` to bypass Phase 0.5 entirely (useful for freshly-cloned projects or offline environments). When `--skip-wiki` is present, log `wiki unavailable — falling back to project-context only` and proceed directly to Phase 1.
+
 ### Phase 1: Parse Input Source
 
 - detect which input mode is active
@@ -89,11 +103,12 @@ Validate the canonical ticket against the SDD requirements and, for every missin
 
 Required inference order:
 
-1. search project context and `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`
-2. search the codebase for similar features, patterns, validation rules, and architectural precedents
-3. inspect related files and integration points
-4. inspect existing tickets or drafts for precedents
-5. only if inference still fails, add the item to the question batch
+1. Consult `WIKI_CORE` and any matched `WIKI_SERVICES` first; every question the wiki already answers is removed from the gap list.
+2. Run `mcp__code_graph__semantic_search_nodes_tool` for symbols implied by the ticket; confirm graph returns a node before grepping.
+3. Search `project-context` skill content and `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`.
+4. Codebase grep + related file inspection (existing step; narrowed by graph node paths when available).
+5. Inspect existing tickets or drafts for precedents.
+6. Only if 1–5 fail, add the item to the question batch.
 
 UI-specific handling must remain available:
 
@@ -220,6 +235,10 @@ Use this structure as the mental model for completeness checks:
         "decision": "Use JWT tokens",
         "rationale": "Industry standard, stateless"
       }
+    ],
+    "wikiEvidence": ["docs/llm-wiki/wiki/services/auth.md", "docs/llm-wiki/wiki/PATTERNS.md#throttling"],
+    "graphEvidence": [
+      { "tool": "mcp__code_graph__semantic_search_nodes_tool", "params": { "query": "rate limit" }, "finding": "3 hits in src/auth/throttle.ts" }
     ]
   },
   "outOfScope": ["Item explicitly not included"],
@@ -330,6 +349,15 @@ Then [outcome]
 - Testing
 - Documentation
 - Review and deployment
+
+## Wiki Evidence
+
+- `docs/llm-wiki/wiki/ARCHITECTURE.md`
+- `docs/llm-wiki/wiki/services/<service-id>.md`
+
+## Graph Evidence
+
+- Tool: `mcp__code_graph__semantic_search_nodes_tool` — query: `"<symbol>"` — finding: `<result>`
 
 ## Implementation Notes
 
@@ -511,6 +539,8 @@ Before finalizing, validate:
 - [ ] constraints are documented
 - [ ] architecture decisions are explained where needed
 - [ ] error handling is defined
+- [ ] wiki evidence cited when available
+- [ ] graph evidence cited when the graph is available
 
 ## Integration Notes
 
@@ -518,9 +548,11 @@ Before finalizing, validate:
 - `fetch-ticket-context`: useful when Jira input needs enrichment
 - `implement-ticket`: the resulting markdown or Jira ticket should be directly implementable
 - `ui-testing` and `ui-visual-testing`: used when UI work is detected and testing expectations need to be injected
+- LLM wiki: required in Phase 0.5 when available; soft-optional when missing
 
 ## Version History
 
+- **3.1.0** (2026-04-24): wiki + graph aware Phase 0.5, inference-order rewrite, `wikiEvidence`/`graphEvidence` in canonical ticket structure, `--skip-wiki` flag, updated Quality Checks
 - **3.0.0** (2026-04-15): unified command and skill behavior into one directly invokable skill, restored Phase 0 project-context injection, and removed slash-command duplication
 - **2.0.0** (2026-03-08): added multiple input and output modes plus intelligent gap detection
 - **1.0.0** (2026-03-02): initial release

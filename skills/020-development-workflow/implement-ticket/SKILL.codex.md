@@ -1,8 +1,8 @@
 ---
 name: implement-ticket
-version: 3.3.0
-last-updated: 2026-04-23
-description: Implements a ticket end-to-end through a wiki-aware and graph-aware 12-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
+version: 3.4.0
+last-updated: 2026-04-24
+description: Implements a ticket end-to-end through a wiki-aware and graph-aware 13-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 disable-model-invocation: true
 ---
@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 Input: $ARGUMENTS
 
-Implement the ticket described above through the full wiki-aware and graph-aware 12-phase SDLC workflow.
+Implement the ticket described above through the full wiki-aware and graph-aware 13-phase SDLC workflow.
 
 ## Execution Model — Codex-specific
 
@@ -35,14 +35,14 @@ Parse the input for these flags:
 
 ## CRITICAL: Graph-Aware and Wiki-Aware Requirements
 
-Both the graph path AND the AI Knowledge wiki must be active.
+Both the graph path AND the LLM wiki must be active.
 
 - `code-review-graph` MUST be built and MCP-accessible before planning starts.
 - This framework uses `.code-graph.db` as the compatibility graph DB. Upstream `code-review-graph` defaults to `.code-review-graph/graph.db`.
 - The active Codex session MUST expose `mcp__code_graph__*` tools (register the `code_graph` MCP server in your Codex MCP settings and reload the session).
-- The AI Knowledge wiki at `docs/ai-knowledge/` MUST exist with all five core documents present: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`. Each MUST contain YAML frontmatter with at least `document_type` and `graph_version` keys.
+- The LLM wiki at `docs/llm-wiki/` MUST exist. Specifically `docs/llm-wiki/AGENTS.md` MUST be present (enforces that initialization ran for this provider). The five core wiki documents MUST be present under `docs/llm-wiki/wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`. Each MUST contain YAML frontmatter with at least `document_type` and `graph_version` keys. Phase 8.5 (Wiki Refresh) automatically updates this wiki at the end of every ticket — if the preflight warns about staleness, the refresh will fix it.
 
-If the graph DB, graph MCP tools, or the AI Knowledge wiki are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, `{{CONFIG_DIR}}/agents/*`, and `docs/ai-knowledge/*` are regenerated, then restart Codex so the `code_graph` MCP server reconnects and `mcp__code_graph__*` tools become visible before retrying `/implement-ticket`.
+If the graph DB, graph MCP tools, or the LLM wiki are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, `{{CONFIG_DIR}}/agents/*`, and `docs/llm-wiki/*` are regenerated, then restart Codex so the `code_graph` MCP server reconnects and `mcp__code_graph__*` tools become visible before retrying `/implement-ticket`.
 
 ## CRITICAL: Artifact Path Enforcement
 
@@ -84,7 +84,7 @@ Append one JSON record per phase transition, on its own line:
 ```
 
 Rules:
-- Emit an `in_progress` record BEFORE starting each phase (phases 0 through 11).
+- Emit an `in_progress` record BEFORE starting each phase (phases 0 through 8.5 through 11).
 - Emit a `completed` record ONLY after verifying the Expected outputs for that phase.
 - For a phase skipped via flag, emit `{"phase": N, "status": "completed", "note": "Skipped via flag", "ts": "..."}`.
 - Emit `{"phase": N, "status": "failed", "reason": "<why>", "ts": "..."}` and STOP if a Constraint is violated.
@@ -103,15 +103,16 @@ Steps:
 - Detect primary language and stack from `{{CONFIG_DIR}}/framework-config.json`.
 - Verify `.code-graph.db` exists at the project root.
 - Verify the active Codex session exposes `mcp__code_graph__*` tools.
-- Verify `docs/ai-knowledge/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`.
-- Verify each of those five wiki files starts with YAML frontmatter containing `document_type` and `graph_version` keys.
-- If `framework-config.json > wiki.services` is non-empty, verify at least one matching file exists under `docs/ai-knowledge/services/`.
+- Verify `docs/llm-wiki/AGENTS.md` exists (confirms initialization ran for the Codex provider).
+- Verify `docs/llm-wiki/wiki/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`.
+- Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-graph.db)`; if any page's `graph_version` does not match, WARN the user and suggest `/wiki-refresh`. Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN and suggest `/wiki-refresh --since <graph_commit>`. Do not block the workflow on stale wiki — Phase 8.5 refreshes it. But the user should see one clear warning line before planning begins.
+- If `framework-config.json > wiki.services` is non-empty, verify at least one matching file exists under `docs/llm-wiki/wiki/services/`.
 
-Expected outputs: git clean, tests pass, build succeeds, graph DB exists, graph MCP tools are visible, AI Knowledge wiki is present and well-formed.
+Expected outputs: git clean, tests pass, build succeeds, graph DB exists, graph MCP tools are visible, LLM wiki is present and well-formed; staleness warnings surfaced if applicable.
 
-Constraint: If any check fails, emit `failed` and STOP. Do not continue.
+Constraint: If any structural check fails, emit `failed` and STOP. Do not continue. Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures — Phase 8.5 will resolve them automatically.
 
-For graph or wiki failures, tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, `{{CONFIG_DIR}}/agents/*`, and `docs/ai-knowledge/*` are regenerated. Then restart Codex and confirm `mcp__code_graph__*` tools are visible before retrying.
+For graph or wiki failures, tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, `{{CONFIG_DIR}}/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Codex and confirm `mcp__code_graph__*` tools are visible before retrying.
 
 ### Phase 1: Context Gathering
 
@@ -128,18 +129,18 @@ Constraint: Do not proceed if requirements could not be extracted.
 
 ### Phase 2: Wiki Context Preload
 
-Preload the AI Knowledge wiki so the planner can rely on pre-digested architecture summaries instead of rediscovering them via graph queries. Do ALL of the following in order:
+Preload the LLM wiki so the planner can rely on pre-digested architecture summaries instead of rediscovering them via graph queries. Do ALL of the following in order:
 
 1. Read the five core wiki documents and collect their absolute paths as `WIKI_CORE`:
-   - `docs/ai-knowledge/index.md`
-   - `docs/ai-knowledge/ARCHITECTURE.md`
-   - `docs/ai-knowledge/SERVICES.md`
-   - `docs/ai-knowledge/DATA-FLOWS.md`
-   - `docs/ai-knowledge/PATTERNS.md`
+   - `docs/llm-wiki/wiki/index.md`
+   - `docs/llm-wiki/wiki/ARCHITECTURE.md`
+   - `docs/llm-wiki/wiki/SERVICES.md`
+   - `docs/llm-wiki/wiki/DATA-FLOWS.md`
+   - `docs/llm-wiki/wiki/PATTERNS.md`
 
 2. Call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` EXACTLY ONCE. Preserve the full response — it will be reused by the planner in Phase 3 and MUST NOT be re-issued by any downstream phase.
 
-3. From that response and from the `SERVICES.md` file, extract relevant service IDs for this ticket. For each, resolve `docs/ai-knowledge/services/<service-id>.md`. Collect matches (cap at 5) as `WIKI_SERVICES`.
+3. From that response and from the `SERVICES.md` file, extract relevant service IDs for this ticket. For each, resolve `docs/llm-wiki/wiki/services/<service-id>.md`. Collect matches (cap at 5) as `WIKI_SERVICES`.
 
 4. Persist everything to `$ARTIFACTS_DIR/context/wiki-context.md` with these sections:
    - `## WIKI_CORE` — list of paths
@@ -243,7 +244,24 @@ Expected outputs: doc-updater ran and produced an analysis.
 
 Constraint: Do not proceed if doc-updater was not invoked.
 
+### Phase 8.5: Wiki Refresh
+
+CRITICAL: invoke `/wiki-refresh --since <branch-base>` where `<branch-base>` is the merge-base with the target branch (`development` by default). This updates only the pages implicated by the diff and runs `/wiki-lint` at the end.
+
+- Compute `<branch-base>` via `git merge-base HEAD origin/development` (fall back to `git merge-base HEAD origin/main` if `development` does not exist).
+- Invoke the `/wiki-refresh` skill with `--since <branch-base>`.
+- If `/wiki-refresh` reports structural lint violations, STOP and report. Do NOT create the PR until the user resolves them.
+- If `/wiki-refresh` reports only warnings, continue and surface them in the PR body.
+- If the refresh produced no changes (no pages in the refresh set), do nothing and continue to Phase 9.
+- If the refresh produced changes, commit them with a Conventional Commit message: `docs(wiki): refresh for <TICKET-ID>` using the same author as the implementation commit. Stage only `docs/llm-wiki/**` paths — do not sweep other changes into this commit.
+
+Expected outputs: wiki-refresh invocation completed, lint report collected, `docs/llm-wiki/**` changes either committed or confirmed empty.
+
+Constraint: Do not proceed if structural lint failures are unresolved. A wiki commit is optional only when no pages changed.
+
 ### Phase 9: PR Creation
+
+- BEFORE Phase 9 starts: confirm Phase 8.5 marked completed (wiki refreshed or confirmed unchanged). If structural lint failures from 8.5 are unresolved, emit `failed` and STOP.
 
 If `--skip-pr` flag: commit all changes locally with a structured commit message, skip push and PR creation, emit `completed` with `note: "Skipped via flag"` and continue.
 
@@ -282,6 +300,7 @@ Constraint: If max iterations reached with unresolved issues, record them in the
 Steps:
 - Remove docker-compose override (if created).
 - Archive artifacts (`tar` the `$ARTIFACTS_DIR` into `{{TEMP_DIR}}/tickets/<TICKET_ID>/artifacts.tar.gz`).
+- Run `aggregate-metrics` CLI to produce `<ARTIFACTS_DIR>/metrics/summary.md`; include the summary path in the final report.
 - Print the final summary report.
 
 Expected outputs: cleanup done, summary printed.
@@ -295,7 +314,7 @@ If a phase fails:
 - Do NOT mark the phase as completed.
 - Report which phase failed and why.
 - If Phase 0 fails: stop immediately.
-- If graph DB, graph MCP tools, or the AI Knowledge wiki (`docs/ai-knowledge/*`) are unavailable: stop immediately and instruct the user to rerun `/initialize-project` or resource sync, restart Codex, and verify `mcp__code_graph__*` tools are visible.
+- If graph DB, graph MCP tools, or the LLM wiki (`docs/llm-wiki/*`) are unavailable: stop immediately and instruct the user to rerun `/initialize-project` or resource sync, restart Codex, and verify `mcp__code_graph__*` tools are visible.
 - If Phase 2 fails (wiki preload): stop and report. Do not fall back to a graph-only path — the planner depends on the wiki context artifact.
 - If Phase 6 fails after 3 iterations: stop and report.
 - For other phases: attempt to recover once, then stop if still failing.
@@ -308,8 +327,10 @@ If a phase fails:
 - `implementer-<stack>` role prompt — Phase 5, Phase 6 (fixes), Phase 10 (fixes); consumes the plan's Wiki + Graph evidence before any fresh discovery.
 - `visual-verifier` role prompt — Phase 7.
 - `/doc-updater` — Phase 8.
+- `/wiki-refresh` — Phase 8.5 (auto-invoked with `--since <branch-base>`; commits wiki diff if any pages changed).
 - `/pr-reviewer` — Phase 10.
 - `/security-review` — Phase 10.
+- `aggregate-metrics` CLI — Phase 11 (final metrics summary).
 
 ## Prerequisites
 
@@ -317,8 +338,8 @@ If a phase fails:
 - `code-review-graph` built and MCP-accessible.
 - `.code-graph.db` exists at the project root (framework compatibility DB; upstream default is `.code-review-graph/graph.db`).
 - Codex session has the `code_graph` MCP server registered and `mcp__code_graph__*` tools visible.
-- AI Knowledge wiki exists at `docs/ai-knowledge/`.
-- Git repository with remote configured.
+- LLM wiki exists at `docs/llm-wiki/` with `docs/llm-wiki/AGENTS.md` present.
+- Git repository with remote configured and `origin/development` or `origin/main` reachable (required for Phase 8.5 merge-base computation).
 - Tests passing in current state.
 - For `--from-jira`: Jira MCP configured.
 - For GitHub PR: GitHub MCP or `gh` CLI configured.

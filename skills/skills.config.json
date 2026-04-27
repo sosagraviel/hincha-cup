@@ -44,6 +44,12 @@
       "trigger_mode": "always"
     },
     {
+      "name": "wiki-refresh",
+      "path": "020-development-workflow/wiki-refresh",
+      "description": "Incrementally refresh docs/llm-wiki/ after code changes. Use when wiki is stale or after merging a feature branch.",
+      "trigger_mode": "always"
+    },
+    {
       "name": "mastering-git-cli",
       "path": "020-development-workflow/mastering-git-cli",
       "description": "Git version control operations: git status, git log, git diff, commits, branches, merge conflicts, rebase, stash, cherry-pick, git history, worktrees, submodules, and repository troubleshooting. Use for git commands, branch management, merge strategies, conflict resolution, commit history, viewing changes, checking repository state, and git workflows.",
@@ -66,6 +72,12 @@
       "name": "doc-updater",
       "path": "030-quality-assurance/doc-updater",
       "description": "Documentation update patterns",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "wiki-lint",
+      "path": "030-quality-assurance/wiki-lint",
+      "description": "Structural and semantic lint checks over docs/llm-wiki/wiki/. Structural failures exit non-zero; semantic warnings are advisory.",
       "trigger_mode": "always"
     },
     {

@@ -10,8 +10,12 @@ import { assertAgentFileValid } from './agent-validator.js';
 import type { Agent, AgentConfig, AgentInvokeInput, AgentInvokeResult } from './types.js';
 import { getAgentAction } from './agent-utils.js';
 import { getClaudeCLIPath, getCLIModelForAgent, parseToolsFromFrontmatter } from './cli-utils.js';
-import { summarizeCliError } from '../../../services/framework/debug-store/index.js';
+import {
+  summarizeCliError,
+  emitTokenUsage,
+} from '../../../services/framework/debug-store/index.js';
 import { beginAttemptRecorder } from './attempt-recorder.js';
+import type { BudgetKey } from '../../../services/framework/budgets.js';
 
 // Track active processes and invocations for cleanup
 const activeProcesses: Set<ChildProcess> = new Set();
@@ -331,6 +335,16 @@ async function invokeCLI(
           await recorder.captureTranscript({ outcome: 'success' });
           await recorder.finalize('success', { code });
           await removeScratchDir();
+          emitTokenUsage(config.projectPath, {
+            ts: new Date().toISOString(),
+            phase: config.phase?.phaseId ?? 'phase-unknown',
+            agent: config.agentName,
+            input_tokens: -1,
+            output_tokens: -1,
+            cache_hit: false,
+            duration_ms: Date.now() - recorder.startedAtMs,
+            budget_key: config.budgetKey,
+          }).catch(() => undefined);
           resolve({ output: stdout, sessionId: run.sessionId });
           return;
         }
@@ -364,6 +378,16 @@ async function invokeCLI(
         await recorder.captureTranscript({ outcome: 'failure' });
         await recorder.finalize('failure', { code, rateLimit: isRateLimit });
         await removeScratchDir();
+        emitTokenUsage(config.projectPath, {
+          ts: new Date().toISOString(),
+          phase: config.phase?.phaseId ?? 'phase-unknown',
+          agent: config.agentName,
+          input_tokens: -1,
+          output_tokens: -1,
+          cache_hit: false,
+          duration_ms: Date.now() - recorder.startedAtMs,
+          budget_key: config.budgetKey,
+        }).catch(() => undefined);
 
         reject(new Error(errorMessage));
       });

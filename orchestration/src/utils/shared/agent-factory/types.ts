@@ -1,6 +1,7 @@
 import { AuthMode } from '../../../auth/auth-detector.js';
 import type { ValidationResult } from '../../validator.js';
 import type { PhaseSlot } from '../../../services/framework/debug-store/index.js';
+import type { BudgetKey } from '../../../services/framework/budgets.js';
 
 export interface AgentConfig {
   agentName: string;
@@ -24,6 +25,11 @@ export interface AgentConfig {
    * to a phase-less slot (`phase-unknown`).
    */
   phase?: PhaseSlot;
+  /**
+   * Optional budget key used by the token-usage emitter to tag this agent call
+   * with a known SLA budget for aggregation and breach detection.
+   */
+  budgetKey?: BudgetKey;
   /**
    * Internal validator invoked after each Codex CLI exec completes successfully.
    *

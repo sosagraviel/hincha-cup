@@ -16,7 +16,10 @@ import {
   getCodexReasoningEffortForAgent,
 } from './codex-cli-utils.js';
 import { getSchemaForAgent } from '../../../schemas/phase1-agent-outputs.schema.js';
-import { summarizeCliError } from '../../../services/framework/debug-store/index.js';
+import {
+  summarizeCliError,
+  emitTokenUsage,
+} from '../../../services/framework/debug-store/index.js';
 import { beginAttemptRecorder, type AttemptRecorder } from './attempt-recorder.js';
 
 // Track active processes and invocations for cleanup
@@ -200,6 +203,17 @@ export async function createCodexCLIAgentImpl(
           `Completed in ${(executionTimeMs / 1000).toFixed(1)}s`,
         );
 
+        emitTokenUsage(config.projectPath, {
+          ts: new Date().toISOString(),
+          phase: config.phase?.phaseId ?? 'phase-unknown',
+          agent: config.agentName,
+          input_tokens: -1,
+          output_tokens: -1,
+          cache_hit: false,
+          duration_ms: executionTimeMs,
+          budget_key: config.budgetKey,
+        }).catch(() => undefined);
+
         return { output, sessionId, mode: AuthMode.CODEX_CLI, executionTimeMs };
       } catch (error: unknown) {
         const executionTimeMs = Date.now() - startTime;
@@ -208,6 +222,18 @@ export async function createCodexCLIAgentImpl(
           config.agentName,
           `Failed after ${(executionTimeMs / 1000).toFixed(1)}s`,
         );
+
+        emitTokenUsage(config.projectPath, {
+          ts: new Date().toISOString(),
+          phase: config.phase?.phaseId ?? 'phase-unknown',
+          agent: config.agentName,
+          input_tokens: -1,
+          output_tokens: -1,
+          cache_hit: false,
+          duration_ms: executionTimeMs,
+          budget_key: config.budgetKey,
+        }).catch(() => undefined);
+
         throw new Error(`Codex CLI execution failed after ${executionTimeMs}ms: ${errorMessage}`);
       }
     },

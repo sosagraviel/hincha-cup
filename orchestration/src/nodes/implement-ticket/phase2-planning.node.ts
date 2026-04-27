@@ -9,7 +9,7 @@ import {
 import {
   assertAgentHasCodeGraphTool,
   assertCodeGraphReady,
-  loadAiKnowledgeContext,
+  loadLlmWikiContext,
 } from '../../services/implement-ticket/graph-context.service.js';
 import { resolveTempPath, resolveConfigPath } from '../../utils/provider-paths.js';
 
@@ -92,11 +92,11 @@ export async function phase2PlanningNode(
     assertAgentHasCodeGraphTool(plannerAgentPath);
     console.log('[Phase 2: Planning] ✓ Planner agent is graph-aware');
 
-    const aiKnowledgeContext = loadAiKnowledgeContext(projectPath);
+    const aiKnowledgeContext = loadLlmWikiContext(projectPath);
     if (aiKnowledgeContext) {
-      console.log('[Phase 2: Planning] ✓ AI knowledge context loaded');
+      console.log('[Phase 2: Planning] ✓ LLM wiki context loaded');
     } else {
-      console.log('[Phase 2: Planning] AI knowledge context not found; continuing with graph only');
+      console.log('[Phase 2: Planning] LLM wiki context not found; continuing with graph only');
     }
 
     // Declare variables outside try block so they're in scope for file writes

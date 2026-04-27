@@ -57,7 +57,7 @@ Summary (identical in both):
 |---|---|---|
 | 0 | Preflight validation (git clean, tests pass, build succeeds, graph + wiki present) | — |
 | 1 | Context gathering | `/fetch-ticket-context` (Jira only) |
-| 2 | Wiki context preload (read `docs/ai-knowledge/`, one `get_minimal_context_tool` call, persist `wiki-context.md`) | `mcp__code_graph__get_minimal_context_tool` |
+| 2 | Wiki context preload (read `docs/llm-wiki/wiki/`, one `get_minimal_context_tool` call, persist `wiki-context.md`) | `mcp__code_graph__get_minimal_context_tool` |
 | 3 | Planning | `planner` agent |
 | 4 | Environment setup (branch, ports, seed data, BEFORE screenshots) | — |
 | 5 | Implementation | `implementer-{lang}` agent |
@@ -78,7 +78,7 @@ visibility. On Codex, each phase appends an `in_progress` / `completed`
 - Git repository with remote configured
 - Tests passing in current state
 - For `--from-jira`: Jira MCP server configured and `cloudId` accessible
-- AI Knowledge wiki at `docs/ai-knowledge/` (ARCHITECTURE.md, SERVICES.md, DATA-FLOWS.md, PATTERNS.md) with `document_type` + `graph_version` frontmatter
+- LLM wiki at `docs/llm-wiki/wiki/` (ARCHITECTURE.md, SERVICES.md, DATA-FLOWS.md, PATTERNS.md) with `document_type` + `graph_version` frontmatter
 - For Phase 9 PR creation: GitHub MCP or `gh` CLI authenticated
 
 ## Artifacts

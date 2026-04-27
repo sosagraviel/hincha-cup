@@ -1,30 +1,47 @@
-import { existsSync } from 'fs';
-import { basename } from 'path';
+import { createHash } from 'crypto';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import { basename, join } from 'path';
+import type { CodeGraphStats } from '../../state/schemas/initialize-project.schema.js';
 import matter from 'gray-matter';
-import { computeGraphVersion, invokeWikiAgent } from './agent-invoker.js';
+import { computeGraphCommit, computeGraphVersion, invokeWikiAgent } from './agent-invoker.js';
 import { buildCoreSpecs, buildPrompt, buildServiceSpec } from './document-specs.js';
 import { buildContextSection, stripMarkdownFrontmatter, withFrontmatter } from './frontmatter.js';
 import { collectAnalyzerGraphQueries, getServices } from './service-discovery.js';
 import {
-  AI_KNOWLEDGE_FILE_NAMES,
+  ALL_SCHEMA_FILENAMES,
   GENERATED_BY,
+  LLM_WIKI_FILE_NAMES,
   REQUIRED_ANALYZERS,
+  SCHEMA_FILENAME_BY_PROVIDER,
   type CoreLlmDocumentType,
-  type GeneratedAiKnowledgeWiki,
+  type GeneratedLlmWiki,
   type GeneratedWikiFile,
   type GeneratedWikiFilename,
+  type WikiAnalyzerOutputs,
   type WikiDocumentSpec,
   type WikiGeneratorServiceOptions,
+  type WikiGraphState,
+  type WikiSource,
 } from './types.js';
 import { isEmptyValue, isRecord, slugifyServiceId, uniqueStrings } from './utils.js';
 
 export * from './types.js';
 export { slugifyServiceId } from './utils.js';
-export { upsertAiKnowledgeContextSection } from './frontmatter.js';
+export { upsertLlmWikiContextSection } from './frontmatter.js';
 
 export interface WikiGenerationMetadata {
   generatedAt: string;
   graphVersion: string;
+  graphCommit: string;
+}
+
+export interface WikiStateJsonMeta {
+  graph_commit: string;
+  graph_sha: string;
+  pipeline_version: string;
+  last_indexed_commit: string;
+  last_ingest_at: string;
+  graph_stats?: CodeGraphStats;
 }
 
 export class WikiGeneratorService {
@@ -67,6 +84,7 @@ export class WikiGeneratorService {
     return {
       generatedAt: this.options.generatedAt ?? new Date().toISOString(),
       graphVersion: computeGraphVersion(this.options.graph.path!),
+      graphCommit: computeGraphCommit(this.options.projectPath),
     };
   }
 
@@ -78,12 +96,13 @@ export class WikiGeneratorService {
     documentType: CoreLlmDocumentType,
     generatedAt: string,
     graphVersion: string,
+    graphCommit: string,
   ): Promise<GeneratedWikiFile> {
     const spec = buildCoreSpecs(this.options).find((s) => s.documentType === documentType);
     if (!spec) {
       throw new Error(`Unknown core doc type: ${documentType}`);
     }
-    return this.generateDocument(spec, generatedAt, graphVersion);
+    return this.generateDocument(spec, generatedAt, graphVersion, graphCommit);
   }
 
   /**
@@ -93,12 +112,13 @@ export class WikiGeneratorService {
   async generateServiceDocsConcurrent(
     generatedAt: string,
     graphVersion: string,
+    graphCommit: string,
   ): Promise<GeneratedWikiFile[]> {
     const services = getServices(this.options.stackProfile);
     return Promise.all(
       services.map((service) => {
         const spec = buildServiceSpec(service, this.options.analyzers);
-        return this.generateDocument(spec, generatedAt, graphVersion);
+        return this.generateDocument(spec, generatedAt, graphVersion, graphCommit);
       }),
     );
   }
@@ -107,11 +127,13 @@ export class WikiGeneratorService {
    * Deterministic SERVICES.md catalog — a thin reference/index into per-service
    * docs. No LLM call. Uses stackProfile description fields with graceful
    * fallbacks to the first narrative paragraph of the per-service doc body.
+   * Filename is relative to the wiki/ subdirectory.
    */
   buildServicesCatalog(
     serviceDocs: GeneratedWikiFile[],
     generatedAt: string,
     graphVersion: string,
+    graphCommit: string,
   ): GeneratedWikiFile {
     const services = getServices(this.options.stackProfile);
     const rows = services.map((service) => {
@@ -133,55 +155,262 @@ export class WikiGeneratorService {
     ].join('\n');
 
     return {
-      filename: 'SERVICES.md',
+      filename: 'wiki/SERVICES.md',
       content: withFrontmatter(body, {
         document_type: 'services',
+        summary: 'Catalog of all services detected in this project with links to service docs.',
+        confidence: 'high',
         generated_at: generatedAt,
         generated_by: GENERATED_BY,
         graph_version: graphVersion,
+        graph_commit: graphCommit,
         graph_queries_used: [],
+        sources: [],
+        related: ['wiki/ARCHITECTURE.md', 'wiki/DATA-FLOWS.md'],
+        last_verified: generatedAt,
       }),
     };
   }
 
   /**
-   * Deterministic navigation index. Same behavior as before.
+   * Deterministic navigation index. Filename is relative to the wiki/ subdirectory.
    */
-  buildIndex(generatedAt: string, graphVersion: string): GeneratedWikiFile {
+  buildIndex(generatedAt: string, graphVersion: string, graphCommit: string): GeneratedWikiFile {
     return this.generateIndexDocument(
       generatedAt,
       graphVersion,
+      graphCommit,
       getServices(this.options.stackProfile),
     );
   }
 
   /**
-   * Backwards-compat orchestrator. Keeps the public API stable for tests and
-   * any callers that still want a single sequential path. Internally uses the
-   * new granular methods so only one code path is exercised.
+   * Emit the provider-specific schema document (CLAUDE.md, AGENTS.md, or COPILOT.md).
+   * Exactly one such file is emitted per run — never both CLAUDE.md and AGENTS.md.
+   * Body content is identical across providers; only the filename differs.
    */
-  async generateAll(): Promise<GeneratedAiKnowledgeWiki> {
+  buildSchemaDoc(projectName: string, generatedAt: string): GeneratedWikiFile {
+    const { provider } = this.options;
+    const schemaFilename = SCHEMA_FILENAME_BY_PROVIDER[provider];
+    const body = buildSchemaDocBody(projectName, schemaFilename);
+
+    return {
+      filename: schemaFilename,
+      content: body,
+    };
+  }
+
+  /**
+   * Emit a Keep-a-Changelog formatted CHANGELOG.md for the wiki root.
+   */
+  buildChangelog(generatedAt: string, initialEntry: { added: string[] }): GeneratedWikiFile {
+    const dateStr = generatedAt.slice(0, 10);
+    const addedLines = initialEntry.added.map((item) => `- ${item}`).join('\n');
+    const body = [
+      '# Changelog',
+      '',
+      'All notable changes to this wiki are documented in this file.',
+      '',
+      'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).',
+      '',
+      '## [Unreleased]',
+      '',
+      `## [${dateStr}] — Initial generation`,
+      '',
+      '### Added',
+      addedLines,
+      '',
+    ].join('\n');
+
+    return {
+      filename: 'CHANGELOG.md',
+      content: body,
+    };
+  }
+
+  /**
+   * Emit a single append-only entry to log.md.
+   */
+  buildLog(
+    generatedAt: string,
+    entry: { type: 'ingest'; summary: string; touched_pages: string[] },
+  ): GeneratedWikiFile {
+    const logEntry = JSON.stringify({
+      ts: generatedAt,
+      type: entry.type,
+      summary: entry.summary,
+      touched_pages: entry.touched_pages,
+      lint_ok: true,
+    });
+
+    return {
+      filename: 'log.md',
+      content: `${logEntry}\n`,
+    };
+  }
+
+  /**
+   * Emit .state.json for the wiki root. Includes graph_stats when available
+   * so consumers can read graph metrics without re-deriving them from Phase 1.
+   */
+  buildStateJson(meta: WikiStateJsonMeta): GeneratedWikiFile {
+    return {
+      filename: '.state.json',
+      content:
+        JSON.stringify(
+          {
+            graph_commit: meta.graph_commit,
+            graph_sha: meta.graph_sha,
+            pipeline_version: meta.pipeline_version,
+            last_indexed_commit: meta.last_indexed_commit,
+            last_ingest_at: meta.last_ingest_at,
+            graph_stats: meta.graph_stats ?? null,
+          },
+          null,
+          2,
+        ) + '\n',
+    };
+  }
+
+  /**
+   * Emit raw/manifest.json indexing only the genuinely-raw files under
+   * raw/snapshots/ and raw/external/. Each entry carries a doc_id (relative
+   * path under raw/), sha256, ingested_at, commit, and touched_pages.
+   * Analyzer JSONs and graph stats are NOT listed here — they live in
+   * .claude-temp/ and .state.json respectively.
+   */
+  buildRawManifest(sources: WikiSource[]): GeneratedWikiFile {
+    const entries = sources.map((s) => ({
+      doc_id: s.path,
+      sha256: s.sha256,
+      ingested_at: s.ingested_at,
+      commit: s.commit,
+      touched_pages: [] as string[],
+    }));
+
+    return {
+      filename: 'raw/manifest.json',
+      content:
+        JSON.stringify(
+          {
+            generated_at: new Date().toISOString(),
+            sources: entries,
+          },
+          null,
+          2,
+        ) + '\n',
+    };
+  }
+
+  /**
+   * Copy root-level markdown files from the project into raw/snapshots/, stamping each with sha256.
+   */
+  collectRawSnapshots(projectPath: string): GeneratedWikiFile[] {
+    const rootMarkdownFiles = ['README.md', 'CONTRIBUTING.md'];
+    const files: GeneratedWikiFile[] = [];
+
+    for (const fileName of rootMarkdownFiles) {
+      const filePath = join(projectPath, fileName);
+      if (!existsSync(filePath)) {
+        continue;
+      }
+      const content = readFileSync(filePath, 'utf-8');
+      const sha256 = createHash('sha256').update(content).digest('hex');
+      const snapshotContent = `<!-- sha256:${sha256} -->\n${content}`;
+      files.push({
+        filename: `raw/snapshots/${fileName}`,
+        content: snapshotContent,
+      });
+    }
+
+    try {
+      const entries = readdirSync(projectPath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile() || !entry.name.endsWith('.md')) {
+          continue;
+        }
+        if (rootMarkdownFiles.includes(entry.name)) {
+          continue;
+        }
+        const filePath = join(projectPath, entry.name);
+        const content = readFileSync(filePath, 'utf-8');
+        const sha256 = createHash('sha256').update(content).digest('hex');
+        files.push({
+          filename: `raw/snapshots/${entry.name}`,
+          content: `<!-- sha256:${sha256} -->\n${content}`,
+        });
+      }
+    } catch {}
+
+    return files;
+  }
+
+  /**
+   * Full orchestration: generate all wiki pages, raw files, and governance docs.
+   * Returns every file in one GeneratedLlmWiki result.
+   */
+  async generateAll(): Promise<GeneratedLlmWiki> {
     this.validate();
 
-    const { generatedAt, graphVersion } = this.computeMetadata();
+    const { generatedAt, graphVersion, graphCommit } = this.computeMetadata();
+    const projectName = basename(this.options.projectPath);
 
     const [architecture, dataFlows, patterns] = await Promise.all([
-      this.generateCoreDoc('architecture', generatedAt, graphVersion),
-      this.generateCoreDoc('data-flow', generatedAt, graphVersion),
-      this.generateCoreDoc('pattern', generatedAt, graphVersion),
+      this.generateCoreDoc('architecture', generatedAt, graphVersion, graphCommit),
+      this.generateCoreDoc('data-flow', generatedAt, graphVersion, graphCommit),
+      this.generateCoreDoc('pattern', generatedAt, graphVersion, graphCommit),
     ]);
 
-    const serviceDocs = await this.generateServiceDocsConcurrent(generatedAt, graphVersion);
-    const servicesCatalog = this.buildServicesCatalog(serviceDocs, generatedAt, graphVersion);
-    const index = this.buildIndex(generatedAt, graphVersion);
+    const serviceDocs = await this.generateServiceDocsConcurrent(
+      generatedAt,
+      graphVersion,
+      graphCommit,
+    );
+    const servicesCatalog = this.buildServicesCatalog(
+      serviceDocs,
+      generatedAt,
+      graphVersion,
+      graphCommit,
+    );
+    const index = this.buildIndex(generatedAt, graphVersion, graphCommit);
 
-    const files: GeneratedWikiFile[] = [
+    const wikiPages: GeneratedWikiFile[] = [
       architecture,
       servicesCatalog,
       dataFlows,
       patterns,
       ...serviceDocs,
       index,
+    ];
+
+    const rawSnapshots = this.collectRawSnapshots(this.options.projectPath);
+    const rawManifest = this.buildRawManifest([]);
+
+    const schemaDoc = this.buildSchemaDoc(projectName, generatedAt);
+    const touchedPages = wikiPages.map((f) => f.filename as string);
+    const changelog = this.buildChangelog(generatedAt, { added: touchedPages });
+    const log = this.buildLog(generatedAt, {
+      type: 'ingest',
+      summary: `Initial wiki generation for ${projectName}`,
+      touched_pages: touchedPages,
+    });
+    const stateJson = this.buildStateJson({
+      graph_commit: graphCommit,
+      graph_sha: graphVersion,
+      pipeline_version: GENERATED_BY,
+      last_indexed_commit: graphCommit,
+      last_ingest_at: generatedAt,
+      graph_stats: this.options.graph.stats,
+    });
+
+    const files: GeneratedWikiFile[] = [
+      ...wikiPages,
+      ...rawSnapshots,
+      rawManifest,
+      schemaDoc,
+      changelog,
+      log,
+      stateJson,
     ];
 
     return {
@@ -193,24 +422,36 @@ export class WikiGeneratorService {
   /**
    * Generate a single document from a spec. Made public so nodes can exercise
    * this path directly without going through generateAll.
+   * Filename is prefixed with wiki/ to place it under the canonical wiki subdirectory.
    */
   async generateDocument(
     spec: WikiDocumentSpec,
     generatedAt: string,
     graphVersion: string,
+    graphCommit: string,
   ): Promise<GeneratedWikiFile> {
     const prompt = buildPrompt(spec, this.options.projectPath);
     const rawBody = await this.invokeAgent(spec, prompt);
     const body = stripMarkdownFrontmatter(rawBody).trim();
 
+    const wikiFilename = spec.filename.startsWith('wiki/')
+      ? spec.filename
+      : (`wiki/${spec.filename}` as GeneratedWikiFilename);
+
     return {
-      filename: spec.filename,
+      filename: wikiFilename,
       content: withFrontmatter(body, {
         document_type: spec.documentType,
+        summary: extractSummary(body),
+        confidence: 'medium',
         generated_at: generatedAt,
         generated_by: GENERATED_BY,
         graph_version: graphVersion,
+        graph_commit: graphCommit,
         graph_queries_used: spec.graphQueriesUsed,
+        sources: [],
+        related: [],
+        last_verified: generatedAt,
         ...spec.frontmatterExtras,
       }),
     };
@@ -230,6 +471,7 @@ export class WikiGeneratorService {
   private generateIndexDocument(
     generatedAt: string,
     graphVersion: string,
+    graphCommit: string,
     services: Record<string, unknown>[],
   ): GeneratedWikiFile {
     const projectName = basename(this.options.projectPath);
@@ -240,7 +482,7 @@ export class WikiGeneratorService {
     });
 
     const body = [
-      `# ${projectName} AI Knowledge Wiki`,
+      `# ${projectName} LLM Wiki`,
       '',
       'Generated graph-backed documentation for agents working in this repository.',
       '',
@@ -260,26 +502,110 @@ export class WikiGeneratorService {
     ].join('\n');
 
     return {
-      filename: 'index.md',
+      filename: 'wiki/index.md',
       content: withFrontmatter(body, {
         document_type: 'index',
+        summary: `Navigation index for the ${projectName} LLM wiki.`,
+        confidence: 'high',
         generated_at: generatedAt,
         generated_by: GENERATED_BY,
         graph_version: graphVersion,
+        graph_commit: graphCommit,
         graph_queries_used: graphQueriesUsed,
+        sources: [],
+        related: [
+          'wiki/ARCHITECTURE.md',
+          'wiki/SERVICES.md',
+          'wiki/DATA-FLOWS.md',
+          'wiki/PATTERNS.md',
+        ],
+        last_verified: generatedAt,
       }),
     };
   }
 }
 
-export function getExpectedAiKnowledgeFiles(stackProfile: unknown): GeneratedWikiFilename[] {
+export function getExpectedLlmWikiFiles(stackProfile: unknown): GeneratedWikiFilename[] {
   return [
-    ...AI_KNOWLEDGE_FILE_NAMES,
+    ...LLM_WIKI_FILE_NAMES.map((name) => `wiki/${name}` as GeneratedWikiFilename),
     ...getServices(stackProfile).map(
       (service) =>
-        `services/${slugifyServiceId(String(service.id ?? service.name))}.md` as GeneratedWikiFilename,
+        `wiki/services/${slugifyServiceId(String(service.id ?? service.name))}.md` as GeneratedWikiFilename,
     ),
   ];
+}
+
+function buildSchemaDocBody(projectName: string, schemaFilename: string): string {
+  return (
+    [
+      `# ${projectName} — LLM Wiki Schema`,
+      '',
+      '## Purpose',
+      '',
+      "This directory is the project's LLM-owned knowledge base. Agents read from `wiki/`, cite pages by path, and rely on the provenance frontmatter to distinguish facts from inferences.",
+      '',
+      '## Layers',
+      '',
+      "- `raw/` — genuinely-raw, human-authored or externally-pulled source material. Sub-directories: `snapshots/` (pinned human-authored project docs) and `external/` (opt-in cached external docs). Phase 1 analyzer outputs are NOT stored here — they live in `.claude-temp/initialize-project/phase1-outputs/` per the framework's disk-first idempotency pattern. Graph stats live in `.state.json`. AI agents read `raw/`; they never write.",
+      '- `wiki/` — LLM-generated, source of truth for agent queries.',
+      `- \`${schemaFilename}\` (this file) — schema / ingest / lint / query rules. Filename matches the active provider (\`CLAUDE.md\` for Claude Code, \`AGENTS.md\` for Codex CLI, \`COPILOT.md\` for GitHub Copilot). Only one of these exists at any time; the others are removed on provider switch.`,
+      '- `CHANGELOG.md` — Keep-a-Changelog format, one section per ingest or refresh.',
+      '- `log.md` — append-only chronological log.',
+      '- `.state.json` — machine state (`last_indexed_commit`, `graph_sha`, `graph_commit`, `pipeline_version`, `last_ingest_at`, `graph_stats`).',
+      '',
+      '## Frontmatter contract (every file under wiki/)',
+      '',
+      '```yaml',
+      'document_type: <architecture|data-flow|pattern|service|services|index|schema>',
+      'summary: <single line, <=160 chars, load-bearing for retrieval>',
+      'confidence: <high|medium|low>',
+      'generated_at: <iso>',
+      'generated_by: ai-agentic-framework@<version>',
+      'graph_version: <sha256 of .code-graph.db>',
+      'graph_commit: <git sha at build time>',
+      'graph_queries_used: [mcp__code_graph__...]',
+      'sources:',
+      '  - { path: <relative-to-project-root>, sha256: <hash>, ingested_at: <iso>, commit: <git sha> }',
+      'related: [<wiki-relative-paths>]',
+      'last_verified: <iso>',
+      '```',
+      '',
+      '## Ingest workflow (agent-executable)',
+      '',
+      '1. Read source. Extract atomic facts.',
+      '2. Update (do not duplicate) affected wiki pages. Preserve prose whose source-chunk hash has not changed.',
+      '3. Update `wiki/index.md` if the navigation changed.',
+      '4. Update `sources[]` on every page touched.',
+      '5. Append one structured entry to `log.md`.',
+      '6. Add a line to the `## [Unreleased]` block of `CHANGELOG.md` under the correct section (Added/Changed/Deprecated/Removed/Fixed).',
+      '7. Run `/wiki-lint` before committing.',
+      '',
+      '## Lint policy',
+      '',
+      '- Structural (fail PR): broken wikilinks; `sources[]` pointing to non-existent paths; missing required frontmatter keys; `graph_version` mismatch with current `.code-graph.db`.',
+      '- Semantic (warn): orphan pages; stale claims; LLM-detected contradictions across changed-set + 1-hop.',
+      '',
+      '## Query policy',
+      '',
+      'Agents should query in this order: (1) wiki by slug + `summary`, (2) graph by symbol/community/flow, (3) grep/read only if both miss. Cite what you used.',
+      '',
+      '## Off-limits',
+      '',
+      '- Do not edit `raw/` by hand. Re-ingest via `/wiki-refresh` instead.',
+      '- Do not remove `.state.json` or tombstone a page without appending a `Removed` entry to `CHANGELOG.md`.',
+    ].join('\n') + '\n'
+  );
+}
+
+function extractSummary(body: string): string {
+  const firstLine = body
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l.length > 0 && !l.startsWith('#'));
+  if (!firstLine) {
+    return 'Generated wiki page.';
+  }
+  return firstLine.length <= 160 ? firstLine : `${firstLine.slice(0, 157)}...`;
 }
 
 function extractServiceDescription(
@@ -298,7 +624,9 @@ function extractServiceDescription(
   }
 
   const slug = slugifyServiceId(serviceId);
-  const doc = serviceDocs.find((d) => d.filename === `services/${slug}.md`);
+  const doc = serviceDocs.find(
+    (d) => d.filename === `wiki/services/${slug}.md` || d.filename === `services/${slug}.md`,
+  );
   if (doc) {
     const firstParagraph = extractFirstParagraph(doc.content);
     if (firstParagraph) {

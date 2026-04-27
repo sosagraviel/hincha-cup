@@ -1,6 +1,7 @@
 import type { CodeGraphStats } from '../../state/schemas/initialize-project.schema.js';
+import type { Provider } from '../../providers/types.js';
 
-export const AI_KNOWLEDGE_FILE_NAMES = [
+export const LLM_WIKI_FILE_NAMES = [
   'index.md',
   'ARCHITECTURE.md',
   'SERVICES.md',
@@ -10,16 +11,33 @@ export const AI_KNOWLEDGE_FILE_NAMES = [
 
 // Core docs that are LLM-generated in parallel. SERVICES.md is intentionally
 // excluded — it is now a deterministic catalog assembled in the finalization step.
-export const AI_KNOWLEDGE_CORE_GENERATION_ORDER = [
+export const LLM_WIKI_CORE_GENERATION_ORDER = [
   'ARCHITECTURE.md',
   'DATA-FLOWS.md',
   'PATTERNS.md',
 ] as const;
 
-export type CoreLlmDocumentType = 'architecture' | 'data-flow' | 'pattern';
+export const LLM_WIKI_CONTEXT_START = '<!-- LLM_WIKI_START -->';
+export const LLM_WIKI_CONTEXT_END = '<!-- LLM_WIKI_END -->';
 
-export const AI_KNOWLEDGE_CONTEXT_START = '<!-- AI_KNOWLEDGE_WIKI_START -->';
-export const AI_KNOWLEDGE_CONTEXT_END = '<!-- AI_KNOWLEDGE_WIKI_END -->';
+/**
+ * Maps each supported provider to the schema filename it auto-discovers.
+ * Exactly one of these files exists in docs/llm-wiki/ at any time.
+ */
+export const SCHEMA_FILENAME_BY_PROVIDER: Record<Provider, 'CLAUDE.md' | 'AGENTS.md'> = {
+  claude: 'CLAUDE.md',
+  codex: 'AGENTS.md',
+};
+
+/**
+ * All schema filenames that may ever exist in docs/llm-wiki/.
+ * Used by the cleanup sweep to remove stale variants on provider switch.
+ * Includes COPILOT.md so a stale file from any future provider gets swept.
+ */
+export const ALL_SCHEMA_FILENAMES = ['CLAUDE.md', 'AGENTS.md', 'COPILOT.md'] as const;
+
+export const LLM_WIKI_ROOT_FILE_NAMES_BASE = ['CHANGELOG.md', 'log.md', '.state.json'] as const;
+export const LLM_WIKI_RAW_SUBDIRS = ['external', 'snapshots'] as const;
 
 export const GENERATED_BY = 'ai-agentic-framework';
 export const WIKI_AGENT_NAME = 'wiki-generator';
@@ -32,8 +50,51 @@ export const REQUIRED_ANALYZERS = [
   'data_flows_integrations',
 ] as const;
 
-export type CoreWikiFileName = (typeof AI_KNOWLEDGE_FILE_NAMES)[number];
-export type GeneratedWikiFilename = CoreWikiFileName | `services/${string}.md`;
+export type CoreLlmDocumentType = 'architecture' | 'data-flow' | 'pattern';
+
+export type CoreWikiFileName = (typeof LLM_WIKI_FILE_NAMES)[number];
+export type SchemaFileName = (typeof ALL_SCHEMA_FILENAMES)[number];
+export type GeneratedWikiFilename =
+  | CoreWikiFileName
+  | SchemaFileName
+  | `wiki/${string}`
+  | `services/${string}.md`
+  | 'CHANGELOG.md'
+  | 'log.md'
+  | '.state.json'
+  | `raw/${string}`;
+
+export interface WikiSource {
+  path: string;
+  sha256: string;
+  ingested_at: string;
+  commit: string;
+}
+
+export interface WikiPageFrontmatter {
+  document_type:
+    | 'architecture'
+    | 'data-flow'
+    | 'pattern'
+    | 'service'
+    | 'services'
+    | 'index'
+    | 'schema';
+  generated_at: string;
+  generated_by: string;
+  graph_version: string;
+  graph_commit: string;
+  graph_queries_used: string[];
+  summary: string;
+  sources: WikiSource[];
+  confidence: 'high' | 'medium' | 'low';
+  related: string[];
+  last_verified: string;
+  service_id?: string;
+  entry_points?: string[];
+  dependencies?: Record<string, unknown>;
+  community_id?: string;
+}
 
 export interface AnalyzerDocument {
   agent_name?: string;
@@ -69,6 +130,7 @@ export type WikiAgentInvoker = (invocation: WikiAgentInvocation) => Promise<stri
 export interface WikiGeneratorServiceOptions {
   projectPath: string;
   frameworkPath: string;
+  provider: Provider;
   generatedAt?: string;
   analyzers: WikiAnalyzerOutputs;
   stackProfile?: unknown;
@@ -81,7 +143,7 @@ export interface GeneratedWikiFile {
   content: string;
 }
 
-export interface GeneratedAiKnowledgeWiki {
+export interface GeneratedLlmWiki {
   files: GeneratedWikiFile[];
   contextSection: string;
 }

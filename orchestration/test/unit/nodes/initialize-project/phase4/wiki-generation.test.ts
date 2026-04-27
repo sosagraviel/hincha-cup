@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { wikiGenerationNode } from '../../../../../src/nodes/initialize-project/phase4/wiki-generation.node.js';
-import { AI_KNOWLEDGE_CONTEXT_START } from '../../../../../src/services/graph-wiki/wiki-generator.service.js';
+import { LLM_WIKI_CONTEXT_START } from '../../../../../src/services/graph-wiki/types.js';
 import type { InitializeProjectState } from '../../../../../src/state/schemas/initialize-project.schema.js';
 import * as fs from 'fs';
 
@@ -9,6 +9,7 @@ vi.mock('fs', () => ({
   mkdirSync: vi.fn(),
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
+  unlinkSync: vi.fn(),
 }));
 
 vi.mock('../../../../../src/utils/logger.js', () => ({
@@ -20,6 +21,31 @@ vi.mock('../../../../../src/utils/logger.js', () => ({
       error: vi.fn(),
     })),
   },
+}));
+
+vi.mock('../../../../../src/utils/provider-paths.js', () => ({
+  getActiveProvider: vi.fn(() => 'claude'),
+  getAllProviderManagedDirs: vi.fn(() => ['.claude', '.codex']),
+  getAllProviderConfigDirs: vi.fn(() => ['.claude', '.codex']),
+  getAllProviderTempDirs: vi.fn(() => ['.claude-temp', '.codex-temp']),
+  getAllProviderBackupDirs: vi.fn(() => ['.claude-backup', '.codex-backup']),
+  getProviderPaths: vi.fn(() => ({
+    configDir: '.claude',
+    instructionFile: 'CLAUDE.md',
+    tempDir: '.claude-temp',
+    backupDir: '.claude-backup',
+    homeConfigDir: '~/.claude',
+    hooksFile: 'settings.json',
+    credentialsPath: '.claude/credentials.json',
+  })),
+  resolveConfigPath: vi.fn((projectPath: string, ...segments: string[]) =>
+    [projectPath, '.claude', ...segments].join('/'),
+  ),
+  resolveInstructionFilePath: vi.fn((projectPath: string) => `${projectPath}/.claude/CLAUDE.md`),
+  resolveTempPath: vi.fn((projectPath: string, ...segments: string[]) =>
+    [projectPath, '.claude-temp', ...segments].join('/'),
+  ),
+  getInstructionFileName: vi.fn(() => 'CLAUDE.md'),
 }));
 
 function buildCoreDoc(filename: string, documentType: string) {
@@ -104,33 +130,35 @@ describe('wikiGenerationNode (finalization)', () => {
     });
   });
 
-  it('writes ARCHITECTURE, SERVICES (catalog), DATA-FLOWS, PATTERNS, service docs, and index', async () => {
+  it('writes ARCHITECTURE, SERVICES (catalog), DATA-FLOWS, PATTERNS, service docs, and index under docs/llm-wiki/', async () => {
     const result = await wikiGenerationNode(state);
 
-    expect(fs.mkdirSync).toHaveBeenCalledWith('/test/project/docs/ai-knowledge', {
+    expect(fs.mkdirSync).toHaveBeenCalledWith('/test/project/docs/llm-wiki', {
       recursive: true,
     });
 
-    for (const fileName of [
-      'ARCHITECTURE.md',
-      'SERVICES.md',
-      'DATA-FLOWS.md',
-      'PATTERNS.md',
-      'index.md',
-    ]) {
+    const writtenPaths = vi.mocked(fs.writeFileSync).mock.calls.map(([p]) => String(p));
+
+    expect(writtenPaths.some((p) => p.includes('ARCHITECTURE.md'))).toBe(true);
+    expect(writtenPaths.some((p) => p.includes('SERVICES.md'))).toBe(true);
+    expect(writtenPaths.some((p) => p.includes('DATA-FLOWS.md'))).toBe(true);
+    expect(writtenPaths.some((p) => p.includes('PATTERNS.md'))).toBe(true);
+    expect(writtenPaths.some((p) => p.includes('index.md'))).toBe(true);
+    expect(writtenPaths.some((p) => p.includes('services/api.md'))).toBe(true);
+    expect(result.current_phase).toBe('phase4_wiki_generation');
+    expect(result.llm_wiki_path).toBe('/test/project/docs/llm-wiki');
+    expect(result.phase4_wiki_generation?.llm_wiki_written).toBe(true);
+  });
+
+  it('also writes CHANGELOG.md, log.md, .state.json, and schema doc at wiki root', async () => {
+    await wikiGenerationNode(state);
+
+    for (const fileName of ['CHANGELOG.md', 'log.md', '.state.json', 'CLAUDE.md']) {
       expect(fs.writeFileSync).toHaveBeenCalledWith(
-        `/test/project/docs/ai-knowledge/${fileName}`,
+        `/test/project/docs/llm-wiki/${fileName}`,
         expect.any(String),
       );
     }
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
-      '/test/project/docs/ai-knowledge/services/api.md',
-      expect.any(String),
-    );
-    expect(result.current_phase).toBe('phase4_wiki_generation');
-    expect(result.ai_knowledge_path).toBe('/test/project/docs/ai-knowledge');
-    expect(result.ai_knowledge_files).toHaveLength(6);
-    expect(result.phase4_wiki_generation?.ai_knowledge_written).toBe(true);
   });
 
   it('SERVICES.md written by finalization is a deterministic catalog', async () => {
@@ -143,21 +171,20 @@ describe('wikiGenerationNode (finalization)', () => {
 
     expect(content).toContain('document_type: services');
     expect(content).toContain('[**api**](services/api.md)');
-    // Should reference other core docs for cross-navigation.
     expect(content).toContain('[ARCHITECTURE.md](ARCHITECTURE.md)');
     expect(content).toContain('[DATA-FLOWS.md](DATA-FLOWS.md)');
   });
 
-  it('appends context guidance to CLAUDE.md and project-context', async () => {
+  it('appends LLM wiki context guidance to CLAUDE.md and project-context', async () => {
     await wikiGenerationNode(state);
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       '/test/project/.claude/CLAUDE.md',
-      expect.stringContaining('## AI Knowledge Wiki'),
+      expect.stringContaining('LLM Wiki'),
     );
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       '/test/project/.claude/skills/project-context/SKILL.md',
-      expect.stringContaining('docs/ai-knowledge/index.md'),
+      expect.stringContaining('docs/llm-wiki/wiki/'),
     );
   });
 
@@ -167,10 +194,10 @@ describe('wikiGenerationNode (finalization)', () => {
       if (pathString.includes('CLAUDE.md') || pathString.includes('SKILL.md')) {
         return [
           '# Existing',
-          AI_KNOWLEDGE_CONTEXT_START,
-          '## AI Knowledge Wiki',
+          LLM_WIKI_CONTEXT_START,
+          '## LLM Wiki',
           '- Old content',
-          '<!-- AI_KNOWLEDGE_WIKI_END -->',
+          '<!-- LLM_WIKI_END -->',
         ].join('\n');
       }
       return '{}';
@@ -181,11 +208,10 @@ describe('wikiGenerationNode (finalization)', () => {
     const claudeWrite = vi
       .mocked(fs.writeFileSync)
       .mock.calls.find(([path]) => String(path).includes('CLAUDE.md'));
-    expect(String(claudeWrite?.[1]).match(/AI Knowledge Wiki/g)).toHaveLength(1);
+    expect(String(claudeWrite?.[1]).match(/LLM Wiki/g)).toHaveLength(1);
   });
 
   it('fails fast when a core doc is missing from state', async () => {
-    // Simulate upstream failure: architecture slot never populated.
     const broken = {
       ...state,
       phase4_wiki_docs: {

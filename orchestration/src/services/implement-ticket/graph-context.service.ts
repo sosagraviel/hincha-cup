@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { basename, join } from 'path';
 
-const AI_KNOWLEDGE_FILES = ['ARCHITECTURE.md', 'SERVICES.md', 'DATA-FLOWS.md', 'PATTERNS.md'];
+const LLM_WIKI_FILES = ['ARCHITECTURE.md', 'SERVICES.md', 'DATA-FLOWS.md', 'PATTERNS.md'];
 const DEFAULT_MAX_CHARS_PER_DOCUMENT = 6000;
 
 export function assertCodeGraphReady(projectPath: string): string {
@@ -34,11 +34,11 @@ export function assertAgentHasCodeGraphTool(agentPath: string): void {
   }
 }
 
-export function loadAiKnowledgeContext(projectPath: string): string {
-  const wikiDir = join(projectPath, 'docs', 'ai-knowledge');
+export function loadLlmWikiContext(projectPath: string): string {
+  const wikiDir = join(projectPath, 'docs', 'llm-wiki', 'wiki');
   const sections: string[] = [];
 
-  for (const fileName of AI_KNOWLEDGE_FILES) {
+  for (const fileName of LLM_WIKI_FILES) {
     const filePath = join(wikiDir, fileName);
     if (!existsSync(filePath)) {
       continue;
@@ -61,7 +61,7 @@ export function loadAiKnowledgeContext(projectPath: string): string {
     return '';
   }
 
-  return ['# AI Knowledge Wiki Context', ...sections].join('\n\n');
+  return ['# LLM Wiki Context', ...sections].join('\n\n');
 }
 
 function stripFrontmatter(content: string): string {

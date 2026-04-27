@@ -2,6 +2,7 @@ import { existsSync } from 'fs';
 import type { InitializeProjectState } from '../../../../state/schemas/initialize-project.schema.js';
 import { logger } from '../../../../utils/logger.js';
 import { WikiGeneratorService } from '../../../../services/graph-wiki/wiki-generator.service.js';
+import { getActiveProvider } from '../../../../utils/provider-paths.js';
 import { readAnalyzerOutputs, readStackProfile, resolveWikiPaths } from './utils.js';
 
 export async function wikiPreparationNode(
@@ -25,10 +26,12 @@ export async function wikiPreparationNode(
 
     const analyzers = readAnalyzerOutputs(phase1Dir);
     const stackProfile = readStackProfile(tempDir, state);
+    const provider = getActiveProvider();
 
     const wiki = new WikiGeneratorService({
       projectPath: state.project_path,
       frameworkPath: state.framework_path,
+      provider,
       analyzers,
       stackProfile,
       graph: {
@@ -41,7 +44,7 @@ export async function wikiPreparationNode(
     });
 
     wiki.validate();
-    const { generatedAt, graphVersion } = wiki.computeMetadata();
+    const { generatedAt, graphVersion, graphCommit } = wiki.computeMetadata();
 
     phaseLogger.success('✓ Wiki inputs validated');
 
@@ -52,6 +55,7 @@ export async function wikiPreparationNode(
           stackProfile,
           generatedAt,
           graphVersion,
+          graphCommit,
         },
       },
       claude_md_path: claudeMdPath,

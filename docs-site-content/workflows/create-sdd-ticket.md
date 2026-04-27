@@ -102,10 +102,24 @@ $create-sdd-ticket --from-input "Make the app better" --save-to-markdown ./specs
 
 The AI automatically:
 
-1. **Understands Context** - Analyzes codebase for similar features
+1. **Understands Context** - Preloads the LLM wiki (`docs/llm-wiki/`) for pre-digested architecture, then analyzes the codebase
 2. **Expands Requirements** - Creates detailed user stories and acceptance criteria
-3. **Identifies Gaps** - Asks clarifying questions if needed
-4. **Structures Output** - Formats for developers
+3. **Identifies Gaps** - Asks clarifying questions only when the wiki and codebase cannot answer
+4. **Structures Output** - Formats for developers, citing wiki and graph evidence
+
+### Wiki-First Gap Detection
+
+Before asking you anything, the skill consults sources in this order:
+
+1. **LLM wiki** — reads `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES,DATA-FLOWS,PATTERNS}.md` and any matching service pages. Most architectural questions are resolved here without touching the codebase.
+2. **Code graph** — runs a single `get_minimal_context_tool` call to locate relevant symbols and communities.
+3. **Project context** — reads `CLAUDE.md` / `AGENTS.md` and project-context skill.
+4. **Codebase grep** — file inspection narrowed by graph paths.
+5. **You** — only for questions 1–4 cannot answer.
+
+If the LLM wiki does not exist yet (fresh clone, `/initialize-project` not run), the skill falls back to codebase-only analysis and continues normally.
+
+Pass `--skip-wiki` to bypass the wiki step entirely (useful in offline environments or before initialization).
 
 ### Gap Analysis
 

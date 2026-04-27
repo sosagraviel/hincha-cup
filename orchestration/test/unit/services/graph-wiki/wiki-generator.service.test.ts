@@ -4,11 +4,13 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import {
-  AI_KNOWLEDGE_CORE_GENERATION_ORDER,
+  LLM_WIKI_CORE_GENERATION_ORDER,
   WikiGeneratorService,
   slugifyServiceId,
-  upsertAiKnowledgeContextSection,
+  upsertLlmWikiContextSection,
 } from '../../../../src/services/graph-wiki/wiki-generator.service.js';
+import type { WikiAgentInvocation } from '../../../../src/services/graph-wiki/wiki-generator.service.js';
+import { Provider } from '../../../../src/providers/types.js';
 
 describe('wiki-generator.service', () => {
   function buildInput() {
@@ -19,6 +21,7 @@ describe('wiki-generator.service', () => {
     return {
       projectPath,
       frameworkPath: '/framework',
+      provider: Provider.CLAUDE,
       generatedAt: '2026-04-21T00:00:00.000Z',
       graph: {
         available: true,
@@ -95,7 +98,7 @@ describe('wiki-generator.service', () => {
     const invocations: string[] = [];
     const service = new WikiGeneratorService({
       ...buildInput(),
-      agentInvoker: async ({ filename }) => {
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => {
         invocations.push(filename);
         return `# ${filename}\n\nGenerated body.`;
       },
@@ -103,28 +106,27 @@ describe('wiki-generator.service', () => {
 
     const result = await service.generateAll();
 
-    // Core docs are LLM-generated in parallel (non-deterministic order), plus one per service.
     expect(new Set(invocations)).toEqual(
-      new Set([...AI_KNOWLEDGE_CORE_GENERATION_ORDER, 'services/api.md']),
+      new Set([...LLM_WIKI_CORE_GENERATION_ORDER, 'services/api.md']),
     );
-    // SERVICES.md is emitted but not invoked via the agent.
     expect(invocations).not.toContain('SERVICES.md');
 
-    expect(result.files.map((file) => file.filename)).toEqual([
-      'ARCHITECTURE.md',
-      'SERVICES.md',
-      'DATA-FLOWS.md',
-      'PATTERNS.md',
-      'services/api.md',
-      'index.md',
-    ]);
+    const wikiFilenames = result.files
+      .map((file) => file.filename)
+      .filter((f) => f.startsWith('wiki/'));
+    expect(wikiFilenames).toContain('wiki/ARCHITECTURE.md');
+    expect(wikiFilenames).toContain('wiki/SERVICES.md');
+    expect(wikiFilenames).toContain('wiki/DATA-FLOWS.md');
+    expect(wikiFilenames).toContain('wiki/PATTERNS.md');
+    expect(wikiFilenames).toContain('wiki/index.md');
+    expect(wikiFilenames).toContain('wiki/services/api.md');
   });
 
   it('prompts include graph-first instructions and relevant graph MCP tools', async () => {
     const prompts: string[] = [];
     const service = new WikiGeneratorService({
       ...buildInput(),
-      agentInvoker: async ({ prompt }) => {
+      agentInvoker: async ({ prompt }: WikiAgentInvocation) => {
         prompts.push(prompt);
         return '# Body\n\nGenerated body.';
       },
@@ -147,7 +149,7 @@ describe('wiki-generator.service', () => {
     });
 
     const result = await service.generateAll();
-    const architecture = result.files.find((file) => file.filename === 'ARCHITECTURE.md')!;
+    const architecture = result.files.find((file) => file.filename === 'wiki/ARCHITECTURE.md')!;
     const parsed = matter(architecture.content);
 
     expect(parsed.data.generated_by).toBe('ai-agentic-framework');
@@ -160,14 +162,14 @@ describe('wiki-generator.service', () => {
     const invocations: string[] = [];
     const service = new WikiGeneratorService({
       ...buildInput(),
-      agentInvoker: async ({ filename }) => {
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => {
         invocations.push(filename);
         return `# ${filename}\n\nExpress backend handling user requests.`;
       },
     });
 
     const result = await service.generateAll();
-    const servicesDoc = result.files.find((file) => file.filename === 'SERVICES.md')!;
+    const servicesDoc = result.files.find((file) => file.filename === 'wiki/SERVICES.md')!;
     const parsed = matter(servicesDoc.content);
 
     expect(parsed.data.document_type).toBe('services');
@@ -179,7 +181,7 @@ describe('wiki-generator.service', () => {
   it('SERVICES.md falls back to per-service doc first paragraph when stackProfile lacks description', async () => {
     const service = new WikiGeneratorService({
       ...buildInput(),
-      agentInvoker: async ({ filename }) => {
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => {
         if (filename === 'services/api.md') {
           return '# Api\n\nHandles user CRUD traffic for the platform.';
         }
@@ -188,18 +190,18 @@ describe('wiki-generator.service', () => {
     });
 
     const result = await service.generateAll();
-    const servicesDoc = result.files.find((file) => file.filename === 'SERVICES.md')!;
+    const servicesDoc = result.files.find((file) => file.filename === 'wiki/SERVICES.md')!;
     expect(servicesDoc.content).toContain('Handles user CRUD traffic for the platform.');
   });
 
   it('index links all core docs and service docs', async () => {
     const service = new WikiGeneratorService({
       ...buildInput(),
-      agentInvoker: async ({ filename }) => `# ${filename}`,
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => `# ${filename}`,
     });
 
     const result = await service.generateAll();
-    const index = result.files.find((file) => file.filename === 'index.md')?.content;
+    const index = result.files.find((file) => file.filename === 'wiki/index.md')?.content;
 
     expect(index).toContain('[Architecture](ARCHITECTURE.md)');
     expect(index).toContain('[Services](SERVICES.md)');
@@ -214,8 +216,7 @@ describe('wiki-generator.service', () => {
 
     const service = new WikiGeneratorService({
       ...buildInput(),
-      agentInvoker: async ({ filename }) => {
-        // Only observe core-doc overlap; service docs run in a later wave.
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => {
         const isCore = !filename.startsWith('services/');
         if (isCore) {
           inFlight++;
@@ -247,7 +248,7 @@ describe('wiki-generator.service', () => {
     const service = new WikiGeneratorService({
       ...input,
       stackProfile,
-      agentInvoker: async ({ filename }) => {
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => {
         if (filename.startsWith('services/')) {
           inFlight++;
           peak = Math.max(peak, inFlight);
@@ -263,8 +264,12 @@ describe('wiki-generator.service', () => {
 
     const serviceFilenames = result.files
       .map((f) => f.filename)
-      .filter((f) => f.startsWith('services/'));
-    expect(serviceFilenames).toEqual(['services/api.md', 'services/web.md', 'services/worker.md']);
+      .filter((f) => f.startsWith('wiki/services/'));
+    expect(serviceFilenames).toEqual([
+      'wiki/services/api.md',
+      'wiki/services/web.md',
+      'wiki/services/worker.md',
+    ]);
   });
 
   it('fails fast when graph is unavailable, analyzers are missing, or services are missing', async () => {
@@ -296,13 +301,13 @@ describe('wiki-generator.service', () => {
   it('replaces an existing context section instead of duplicating it', async () => {
     const service = new WikiGeneratorService({
       ...buildInput(),
-      agentInvoker: async ({ filename }) => `# ${filename}`,
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => `# ${filename}`,
     });
     const first = (await service.generateAll()).contextSection;
     const second = first.replace('Graph-backed docs:', 'Graph-backed docs: updated');
-    const content = upsertAiKnowledgeContextSection('hello\n\n' + first, second);
+    const content = upsertLlmWikiContextSection('hello\n\n' + first, second);
 
-    expect(content.match(/AI Knowledge Wiki/g)).toHaveLength(1);
+    expect(content.match(/LLM Wiki/g)).toHaveLength(1);
     expect(content).toContain('Graph-backed docs: updated');
   });
 

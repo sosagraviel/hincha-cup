@@ -1,13 +1,18 @@
 import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { logger } from '../../../utils/logger.js';
 import {
   WikiGeneratorService,
-  upsertAiKnowledgeContextSection,
+  upsertLlmWikiContextSection,
   type GeneratedWikiFile,
 } from '../../../services/graph-wiki/wiki-generator.service.js';
+import {
+  ALL_SCHEMA_FILENAMES,
+  SCHEMA_FILENAME_BY_PROVIDER,
+} from '../../../services/graph-wiki/types.js';
 import { buildContextSection } from '../../../services/graph-wiki/frontmatter.js';
+import { getActiveProvider } from '../../../utils/provider-paths.js';
 
 export async function wikiGenerationNode(
   state: InitializeProjectState,
@@ -33,10 +38,12 @@ export async function wikiGenerationNode(
 
     const claudeMdPath = state.claude_md_path!;
     const projectContextPath = state.project_context_path!;
+    const provider = getActiveProvider();
 
     const wiki = new WikiGeneratorService({
       projectPath: state.project_path,
       frameworkPath: state.framework_path,
+      provider,
       analyzers: context.analyzers,
       stackProfile: context.stackProfile,
       graph: {
@@ -52,10 +59,15 @@ export async function wikiGenerationNode(
       serviceDocs,
       context.generatedAt,
       context.graphVersion,
+      context.graphCommit ?? 'unknown',
     );
-    const index = wiki.buildIndex(context.generatedAt, context.graphVersion);
+    const index = wiki.buildIndex(
+      context.generatedAt,
+      context.graphVersion,
+      context.graphCommit ?? 'unknown',
+    );
 
-    const files: GeneratedWikiFile[] = [
+    const wikiFiles: GeneratedWikiFile[] = [
       architecture,
       servicesCatalog,
       dataFlows,
@@ -64,11 +76,44 @@ export async function wikiGenerationNode(
       index,
     ];
 
-    const aiKnowledgePath = join(state.project_path, 'docs', 'ai-knowledge');
-    mkdirSync(aiKnowledgePath, { recursive: true });
+    const llmWikiPath = join(state.project_path, 'docs', 'llm-wiki');
+    mkdirSync(llmWikiPath, { recursive: true });
 
-    const writtenFiles = files.map((file) => {
-      const filePath = join(aiKnowledgePath, file.filename);
+    const activeSchemaFilename = SCHEMA_FILENAME_BY_PROVIDER[provider];
+    const staleSchemaFiles = ALL_SCHEMA_FILENAMES.filter((name) => name !== activeSchemaFilename);
+    for (const staleName of staleSchemaFiles) {
+      const stalePath = join(llmWikiPath, staleName);
+      if (existsSync(stalePath)) {
+        phaseLogger.info(`removing stale schema doc from previous provider: ${staleName}`);
+        unlinkSync(stalePath);
+      }
+    }
+
+    const schemaDoc = wiki.buildSchemaDoc(
+      state.project_path.split('/').pop() ?? 'project',
+      context.generatedAt,
+    );
+
+    const changelog = wiki.buildChangelog(context.generatedAt, {
+      added: wikiFiles.map((f) => String(f.filename)),
+    });
+    const log = wiki.buildLog(context.generatedAt, {
+      type: 'ingest',
+      summary: 'Initial wiki generation',
+      touched_pages: wikiFiles.map((f) => String(f.filename)),
+    });
+    const stateJson = wiki.buildStateJson({
+      graph_commit: context.graphCommit ?? 'unknown',
+      graph_sha: context.graphVersion,
+      pipeline_version: 'ai-agentic-framework',
+      last_indexed_commit: context.graphCommit ?? 'unknown',
+      last_ingest_at: context.generatedAt,
+    });
+
+    const allFiles: GeneratedWikiFile[] = [...wikiFiles, schemaDoc, changelog, log, stateJson];
+
+    const writtenFiles = allFiles.map((file) => {
+      const filePath = join(llmWikiPath, String(file.filename));
       mkdirSync(dirname(filePath), { recursive: true });
       writeFileSync(filePath, file.content);
       return filePath;
@@ -83,25 +128,25 @@ export async function wikiGenerationNode(
     });
 
     const claudeMdContent = readFileSync(claudeMdPath, 'utf-8');
-    writeFileSync(claudeMdPath, upsertAiKnowledgeContextSection(claudeMdContent, contextSection));
+    writeFileSync(claudeMdPath, upsertLlmWikiContextSection(claudeMdContent, contextSection));
 
     const projectContextContent = readFileSync(projectContextPath, 'utf-8');
     writeFileSync(
       projectContextPath,
-      upsertAiKnowledgeContextSection(projectContextContent, contextSection),
+      upsertLlmWikiContextSection(projectContextContent, contextSection),
     );
 
-    phaseLogger.success(`✓ Written AI knowledge wiki: ${aiKnowledgePath}`);
+    phaseLogger.success(`✓ Written LLM wiki: ${llmWikiPath}`);
     phaseLogger.success('✓ Updated context references');
 
     return {
       phase4_wiki_generation: {
-        ai_knowledge_written: true,
+        llm_wiki_written: true,
         files: writtenFiles,
         timestamp: new Date().toISOString(),
       },
-      ai_knowledge_path: aiKnowledgePath,
-      ai_knowledge_files: writtenFiles,
+      llm_wiki_path: llmWikiPath,
+      llm_wiki_files: writtenFiles,
       claude_md_path: claudeMdPath,
       project_context_path: projectContextPath,
       current_phase: 'phase4_wiki_generation',

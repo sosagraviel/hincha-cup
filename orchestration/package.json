@@ -17,7 +17,10 @@
     "dev": "tsx",
     "initialize": "tsx src/cli/initialize.ts",
     "implement": "tsx src/cli/implement.ts",
+    "refresh-wiki": "tsx src/cli/refresh-wiki.ts",
+    "lint-wiki": "tsx src/cli/lint-wiki.ts",
     "sync-framework-resources": "tsx src/scripts/sync-framework-resources.ts",
+    "aggregate-metrics": "tsx src/cli/aggregate-metrics.ts",
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
@@ -28,7 +31,10 @@
     "format:fix": "prettier --write src/ test/"
   },
   "bin": {
-    "orchestrate-init": "./src/cli/initialize.ts"
+    "orchestrate-init": "./src/cli/initialize.ts",
+    "refresh-wiki": "./src/cli/refresh-wiki.ts",
+    "lint-wiki": "./src/cli/lint-wiki.ts",
+    "aggregate-metrics": "./src/cli/aggregate-metrics.ts"
   },
   "keywords": [
     "orchestration",

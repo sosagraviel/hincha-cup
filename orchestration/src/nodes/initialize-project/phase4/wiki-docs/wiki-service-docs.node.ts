@@ -1,6 +1,7 @@
 import type { InitializeProjectState } from '../../../../state/schemas/initialize-project.schema.js';
 import { logger } from '../../../../utils/logger.js';
 import { WikiGeneratorService } from '../../../../services/graph-wiki/wiki-generator.service.js';
+import { getActiveProvider } from '../../../../utils/provider-paths.js';
 
 export async function wikiServiceDocsNode(
   state: InitializeProjectState,
@@ -16,6 +17,7 @@ export async function wikiServiceDocsNode(
     const wiki = new WikiGeneratorService({
       projectPath: state.project_path,
       frameworkPath: state.framework_path,
+      provider: getActiveProvider(),
       analyzers: context.analyzers,
       stackProfile: context.stackProfile,
       graph: {
@@ -31,6 +33,7 @@ export async function wikiServiceDocsNode(
     const serviceDocs = await wiki.generateServiceDocsConcurrent(
       context.generatedAt,
       context.graphVersion,
+      context.graphCommit ?? 'unknown',
     );
     phaseLogger.success(`✓ Generated ${serviceDocs.length} service doc(s)`);
 

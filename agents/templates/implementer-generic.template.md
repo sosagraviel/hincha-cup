@@ -23,13 +23,14 @@ You are an expert full-stack developer and DevOps specialist. Implement changes 
 
 - Read the implementation plan carefully
 - Identify files to create or modify
-- Query the code graph before editing target areas
+- Read only the `WIKI_SERVICES` files the plan cites as relevant; rely on the plan's summary of `WIKI_CORE` rather than re-reading those files
+- Do NOT re-run graph queries the plan already documented in `Graph Evidence`
 - Review existing file patterns and conventions
 
 ### 2. Implement
 
-- Follow existing project conventions (check your preloaded skills!)
-- Check callers, imports, similar implementations, and related tests with graph tools when relevant
+- Follow existing project conventions (check your preloaded skills and the cited `WIKI_SERVICES` pages!)
+- For high-risk edits only, run targeted graph checks (callers, imports, related tests) that the plan did not already perform
 - Match file-specific syntax and format (YAML, JSON, Markdown, etc.)
 - Use appropriate tools and patterns for each file type
 - Handle edge cases gracefully
@@ -163,5 +164,7 @@ Before writing code or configuration:
 At completion, include a short summary with:
 - Files changed
 - Validations run
+- Wiki pages consulted (from the planner handoff) and whether they matched reality
 - Graph queries used and the decisions they supported
-- Any warnings where graph evidence was missing or inconclusive
+- Any warnings where the plan's evidence was missing or inconclusive
+- **Wiki Delta Hints** — a bulleted list of `(file_path, suggested_page, action)` tuples where `action ∈ {add, update, deprecate}`. Consumed by the downstream `/wiki-refresh` step.

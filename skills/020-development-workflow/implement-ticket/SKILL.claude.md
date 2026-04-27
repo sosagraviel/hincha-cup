@@ -1,8 +1,8 @@
 ---
 name: implement-ticket
-version: 3.3.0
-last-updated: 2026-04-23
-description: Implements a ticket end-to-end through 12-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
+version: 3.4.0
+last-updated: 2026-04-24
+description: Implements a ticket end-to-end through 13-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 disable-model-invocation: true
 ---
@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 Input: $ARGUMENTS
 
-Implement the ticket described above through the full wiki-aware and graph-aware 12-phase SDLC workflow.
+Implement the ticket described above through the full wiki-aware and graph-aware 13-phase SDLC workflow.
 
 ## Flags
 
@@ -25,16 +25,16 @@ Parse the input for these flags:
 
 ## CRITICAL: Graph-Aware and Wiki-Aware Requirements
 
-Both the graph path AND the AI Knowledge wiki must be active.
+Both the graph path AND the LLM wiki must be active.
 
 - `code-review-graph` MUST be built and MCP-accessible before planning starts.
 - This framework uses `.code-graph.db` as the compatibility graph DB. Upstream `code-review-graph` defaults to `.code-review-graph/graph.db`.
 - Project root `.mcp.json` MUST define `mcpServers.code_graph` so native Claude Code `/implement-ticket` sessions can load graph tools.
 - Generated `.claude/agents/planner.md` and `.claude/agents/implementer-*.md` MUST expose exact `mcp__code_graph__*_tool` entries, not only the broad `mcp__code_graph` server alias.
 - The actual active Claude Code session MUST expose `mcp__code_graph__*` tools. Agent frontmatter is only a subagent allowlist; it does not register the MCP server.
-- The AI Knowledge wiki at `docs/ai-knowledge/` MUST exist with all five core documents present: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`. Each MUST contain YAML frontmatter with at least `document_type` and `graph_version` keys.
+- The LLM wiki at `docs/llm-wiki/` MUST exist. Specifically `docs/llm-wiki/CLAUDE.md` MUST be present (enforces that initialization ran for this provider). The five core wiki documents MUST be present under `docs/llm-wiki/wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`. Each MUST contain YAML frontmatter with at least `document_type` and `graph_version` keys. Phase 8.5 (Wiki Refresh) automatically updates this wiki at the end of every ticket — if the preflight warns about staleness, the refresh will fix it.
 
-If the graph DB, MCP config, graph-aware agents, active graph tools, or the AI Knowledge wiki are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, project `.mcp.json`, graph-aware `.claude/agents/*`, and `docs/ai-knowledge/*` are regenerated. Then restart Claude Code in the project, approve the project MCP server if prompted, and verify `code_graph` with `/mcp` before using `/implement-ticket`.
+If the graph DB, MCP config, graph-aware agents, active graph tools, or the LLM wiki are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, project `.mcp.json`, graph-aware `.claude/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Claude Code in the project, approve the project MCP server if prompted, and verify `code_graph` with `/mcp` before using `/implement-ticket`.
 
 ## CRITICAL: Artifact Path Enforcement
 
@@ -64,16 +64,16 @@ This ensures:
 
 ## CRITICAL: Task Tracking Setup
 
-BEFORE starting any phase work, you MUST create the full task list using TaskCreate. This gives the user real-time progress visibility via Ctrl+T. Do NOT skip this step. Create all 12 tasks first, then set up dependencies, then begin Phase 0.
+BEFORE starting any phase work, you MUST create the full task list using TaskCreate. This gives the user real-time progress visibility via Ctrl+T. Do NOT skip this step. Create all 13 tasks first, then set up dependencies, then begin Phase 0.
 
 Create each task using TaskCreate with these exact values:
 
 1. Phase 0: Preflight Validation
    subject: "Phase 0: Preflight Validation"
    activeForm: "Validating environment"
-   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack, verify `.code-graph.db` exists, verify project `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible, verify `docs/ai-knowledge/` exists with the five core files (`index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`), verify at least one `docs/ai-knowledge/services/*.md` exists.
-   Expected outputs: git is clean, tests pass, build succeeds, graph DB exists, project MCP config exists, graph tools are visible in the active Claude Code session, graph-aware agents are present, AI Knowledge wiki is present and well-formed
-   Constraint: If any check fails, STOP and report. Do not proceed to Phase 1.
+   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack, verify `.code-graph.db` exists, verify project `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible, verify `docs/llm-wiki/CLAUDE.md` exists, verify `docs/llm-wiki/wiki/` exists with the five core files (`index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`), verify at least one `docs/llm-wiki/wiki/services/*.md` exists, check `graph_version` and `graph_commit` freshness in each wiki file and WARN (not fail) if stale.
+   Expected outputs: git is clean, tests pass, build succeeds, graph DB exists, project MCP config exists, graph tools are visible in the active Claude Code session, graph-aware agents are present, LLM wiki is present and well-formed; staleness warnings surfaced if applicable
+   Constraint: If any structural check fails, STOP and report. Staleness warnings do not block Phase 1 — Phase 8.5 resolves them automatically.
 
 2. Phase 1: Context Gathering
    subject: "Phase 1: Context Gathering"
@@ -84,8 +84,8 @@ Create each task using TaskCreate with these exact values:
 
 3. Phase 2: Wiki Context Preload
    subject: "Phase 2: Wiki Context Preload"
-   activeForm: "Preloading AI Knowledge wiki context"
-   Steps: Read the five core wiki docs under `docs/ai-knowledge/` (`index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`) and collect their paths as `WIKI_CORE`, call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` exactly once and keep its full response, extract relevant service IDs from the `get_minimal_context_tool` response and `SERVICES.md`, for each identified service resolve `docs/ai-knowledge/services/<service-id>.md` and collect matches as `WIKI_SERVICES` (cap at 5), read each loaded wiki file's YAML frontmatter and persist `WIKI_CORE`, `WIKI_SERVICES`, and the raw `get_minimal_context_tool` payload to `$ARTIFACTS_DIR/context/wiki-context.md`
+   activeForm: "Preloading LLM wiki context"
+   Steps: Read the five core wiki docs under `docs/llm-wiki/wiki/` (`index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`) and collect their paths as `WIKI_CORE`, call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` exactly once and keep its full response, extract relevant service IDs from the `get_minimal_context_tool` response and `SERVICES.md`, for each identified service resolve `docs/llm-wiki/wiki/services/<service-id>.md` and collect matches as `WIKI_SERVICES` (cap at 5), read each loaded wiki file's YAML frontmatter and persist `WIKI_CORE`, `WIKI_SERVICES`, and the raw `get_minimal_context_tool` payload to `$ARTIFACTS_DIR/context/wiki-context.md`
    Expected outputs: `$ARTIFACTS_DIR/context/wiki-context.md` exists and contains `WIKI_CORE`, `WIKI_SERVICES`, and the preserved `get_minimal_context_tool` payload for reuse by the planner
    Constraint: Do not proceed if `wiki-context.md` is missing, if any `WIKI_CORE` file failed to load, or if `get_minimal_context_tool` failed. `WIKI_SERVICES` may be empty when no service was implicated. The `get_minimal_context_tool` call MUST NOT be re-issued by later phases.
 
@@ -131,28 +131,35 @@ Create each task using TaskCreate with these exact values:
    Expected outputs: doc-updater skill was invoked and analysis completed
    Constraint: Do not proceed if doc-updater was not invoked.
 
-10. Phase 9: PR Creation
+10. Phase 8.5: Wiki Refresh
+    subject: "Phase 8.5: Wiki Refresh"
+    activeForm: "Refreshing LLM wiki"
+    Steps: Compute branch-base via merge-base; invoke `/wiki-refresh --since <branch-base>`; surface lint report; if structural failures STOP; otherwise commit `docs/llm-wiki/**` changes with Conventional Commit message `docs(wiki): refresh for <TICKET-ID>`.
+    Expected outputs: wiki-refresh invocation completed, lint report collected, docs/llm-wiki/** changes either committed or confirmed empty.
+    Constraint: Do not proceed if structural lint failures are unresolved. A wiki commit is optional only when no pages changed.
+
+11. Phase 9: PR Creation
     subject: "Phase 9: PR Creation"
     activeForm: "Creating pull request"
     Steps: If `--skip-pr` flag is set commit all changes locally and mark completed as "Skipped via flag" (no push, no PR), otherwise commit all changes, push feature branch, create pull request with title/summary/test plan/ticket link, return PR URL
     Expected outputs: commit exists and branch pushed and PR created with URL, OR commit exists locally and PR was skipped via `--skip-pr`
     Constraint: Do not proceed if PR was not created, unless `--skip-pr` was set in which case a local commit is sufficient.
 
-11. Phase 10: Review Loop
+12. Phase 10: Review Loop
     subject: "Phase 10: Review Loop"
     activeForm: "Running review loop"
     Steps: Run PR review via /pr-reviewer skill, run security review via /security-review skill, if blocking issues spawn implementer for fixes and re-run tests, max 3 iterations
     Expected outputs: PR review ran, security review ran, either no blocking issues or fixes applied
     Constraint: If max iterations reached with unresolved issues, report and proceed to cleanup.
 
-12. Phase 11: Cleanup
+13. Phase 11: Cleanup
     subject: "Phase 11: Cleanup"
     activeForm: "Cleaning up environment"
     Steps: Remove docker-compose override (if created), archive artifacts, print final summary report
     Expected outputs: cleanup done, summary printed
     Constraint: None. This is the final phase.
 
-After creating all 12 tasks, use TaskUpdate to chain dependencies:
+After creating all 13 tasks, use TaskUpdate to chain dependencies:
 - Task 2 addBlockedBy [Task 1]
 - Task 3 addBlockedBy [Task 2]
 - Task 4 addBlockedBy [Task 3]
@@ -164,6 +171,7 @@ After creating all 12 tasks, use TaskUpdate to chain dependencies:
 - Task 10 addBlockedBy [Task 9]
 - Task 11 addBlockedBy [Task 10]
 - Task 12 addBlockedBy [Task 11]
+- Task 13 addBlockedBy [Task 12]
 
 ### Task Status Rules
 
@@ -186,12 +194,13 @@ Execute each phase sequentially. Do not proceed to the next phase until the curr
 - Verify project root `.mcp.json` has `mcpServers.code_graph`
 - Verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible in this Claude Code session
 - Verify generated planner and implementer agents expose exact `mcp__code_graph__*_tool` entries in their frontmatter, not only the broad `mcp__code_graph` server alias
-- Verify `docs/ai-knowledge/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`
-- Verify each of those five wiki files starts with YAML frontmatter containing `document_type` and `graph_version` keys
+- Verify `docs/llm-wiki/CLAUDE.md` exists (confirms initialization ran for the Claude Code provider)
+- Verify `docs/llm-wiki/wiki/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`
+- Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-graph.db)`; if any page's `graph_version` does not match, WARN the user and suggest `/wiki-refresh`. Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN and suggest `/wiki-refresh --since <graph_commit>`. Do not block the workflow on stale wiki — Phase 8.5 refreshes it. But the user should see one clear warning line before planning begins.
 
-CRITICAL: If any check fails, STOP. Report the failure. Do not continue.
+CRITICAL: If any check fails, STOP. Report the failure. Do not continue. Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures — Phase 8.5 will resolve them automatically.
 
-For graph or wiki failures, tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, project `.mcp.json`, graph-aware `.claude/agents/*`, and `docs/ai-knowledge/*` are regenerated. Then restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`.
+For graph or wiki failures, tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, project `.mcp.json`, graph-aware `.claude/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`.
 
 CONTINUE WITH Phase 1.
 
@@ -206,18 +215,18 @@ CONTINUE WITH Phase 2.
 
 ### Phase 2: Wiki Context Preload
 
-Preload the AI Knowledge wiki so the planner can rely on pre-digested architecture summaries instead of rediscovering them via graph queries. Do ALL of the following in order:
+Preload the LLM wiki so the planner can rely on pre-digested architecture summaries instead of rediscovering them via graph queries. Do ALL of the following in order:
 
 1. Read the five core wiki documents and collect their absolute paths as `WIKI_CORE`:
-   - `docs/ai-knowledge/index.md`
-   - `docs/ai-knowledge/ARCHITECTURE.md`
-   - `docs/ai-knowledge/SERVICES.md`
-   - `docs/ai-knowledge/DATA-FLOWS.md`
-   - `docs/ai-knowledge/PATTERNS.md`
+   - `docs/llm-wiki/wiki/index.md`
+   - `docs/llm-wiki/wiki/ARCHITECTURE.md`
+   - `docs/llm-wiki/wiki/SERVICES.md`
+   - `docs/llm-wiki/wiki/DATA-FLOWS.md`
+   - `docs/llm-wiki/wiki/PATTERNS.md`
 
 2. Call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` EXACTLY ONCE. Preserve the full response — it will be reused by the planner in Phase 3 and MUST NOT be re-issued by any downstream phase.
 
-3. From that response and from the `SERVICES.md` file, extract relevant service IDs for this ticket. For each, resolve `docs/ai-knowledge/services/<service-id>.md`. Collect matches (cap at 5) as `WIKI_SERVICES`.
+3. From that response and from the `SERVICES.md` file, extract relevant service IDs for this ticket. For each, resolve `docs/llm-wiki/wiki/services/<service-id>.md`. Collect matches (cap at 5) as `WIKI_SERVICES`.
 
 4. Persist everything to `$ARTIFACTS_DIR/context/wiki-context.md` with these sections:
    - `## WIKI_CORE` — list of paths
@@ -297,9 +306,24 @@ CRITICAL: You MUST invoke `/doc-updater` skill. Do not skip this even if you thi
 - Apply maintenance test (only update if truly needed)
 - Update {{INSTRUCTION_FILE}} and project-context surgically if needed
 
+CONTINUE WITH Phase 8.5.
+
+### Phase 8.5: Wiki Refresh
+
+CRITICAL: invoke `/wiki-refresh --since <branch-base>` where `<branch-base>` is the merge-base with the target branch (`development` by default). This updates only the pages implicated by the diff and runs `/wiki-lint` at the end.
+
+- Compute `<branch-base>` via `git merge-base HEAD origin/development` (fall back to `git merge-base HEAD origin/main` if `development` does not exist).
+- Invoke the `/wiki-refresh` skill with `--since <branch-base>`.
+- If `/wiki-refresh` reports structural lint violations, STOP and report. Do NOT create the PR until the user resolves them.
+- If `/wiki-refresh` reports only warnings, continue and surface them in the PR body.
+- If the refresh produced no changes (no pages in the refresh set), do nothing and continue to Phase 9.
+- If the refresh produced changes, commit them with a Conventional Commit message: `docs(wiki): refresh for <TICKET-ID>` using the same author as the implementation commit. Stage only `docs/llm-wiki/**` paths — do not sweep other changes into this commit.
+
 CONTINUE WITH Phase 9.
 
 ### Phase 9: PR Creation
+
+- BEFORE Phase 9 starts: confirm Phase 8.5 marked completed (wiki refreshed or confirmed unchanged). If structural lint failures from 8.5 are unresolved, STOP.
 
 If `--skip-pr` flag: commit all changes locally with structured commit message, skip push and PR creation, mark completed as "Skipped via flag" and continue.
 
@@ -333,6 +357,7 @@ CONTINUE WITH Phase 11.
 
 - Remove docker-compose override (if created)
 - Clean up temporary files
+- Run `aggregate-metrics` CLI to produce `<ARTIFACTS_DIR>/metrics/summary.md`; include the summary path in the final report.
 - Report final status with summary
 
 ## Error Handling
@@ -341,7 +366,7 @@ If a phase fails:
 - Do NOT mark the task as completed
 - Report which phase failed and why
 - If Phase 0 fails: stop immediately
-- If graph DB, project MCP config, active graph tools, exact graph-aware subagent allowlists, or the AI Knowledge wiki (`docs/ai-knowledge/*`) are unavailable: stop immediately and instruct the user to rerun `/initialize-project` or resource sync, restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`
+- If graph DB, project MCP config, active graph tools, exact graph-aware subagent allowlists, or the LLM wiki (`docs/llm-wiki/*`) are unavailable: stop immediately and instruct the user to rerun `/initialize-project` or resource sync, restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`
 - If Phase 2 fails (wiki preload): stop and report. Do not fall back to a graph-only path — the planner depends on the wiki context artifact.
 - If Phase 6 fails after 3 fix iterations: stop and report
 - For other phases: attempt to recover once, then stop if still failing
@@ -354,8 +379,10 @@ If a phase fails:
 - `implementer-{lang}` agent: Phase 5, Phase 6 (fixes), Phase 10 (fixes); consumes planner's Wiki+Graph evidence before any fresh discovery
 - `visual-verifier` agent: Phase 7
 - `/doc-updater`: Phase 8
+- `/wiki-refresh`: Phase 8.5 (auto-invoked with `--since <branch-base>`; commits wiki diff if any pages changed)
 - `/pr-reviewer`: Phase 10
 - `/security-review`: Phase 10
+- `aggregate-metrics` CLI: Phase 11 (final metrics summary)
 
 ## Prerequisites
 
@@ -365,8 +392,8 @@ If a phase fails:
 - Project root `.mcp.json` defines `mcpServers.code_graph`
 - Claude Code has been restarted after MCP config changes and `/mcp` shows `code_graph` connected
 - Generated planner and implementer agents expose exact `mcp__code_graph__*_tool` entries
-- AI Knowledge wiki exists at `docs/ai-knowledge/`
-- Git repository with remote configured
+- LLM wiki exists at `docs/llm-wiki/` with `docs/llm-wiki/CLAUDE.md` present
+- Git repository with remote configured and `origin/development` or `origin/main` reachable (required for Phase 8.5 merge-base computation)
 - Tests passing in current state
 - For `--from-jira`: Jira MCP configured
 - For GitHub PR: GitHub MCP or gh CLI configured
