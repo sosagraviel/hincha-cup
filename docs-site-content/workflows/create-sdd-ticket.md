@@ -258,6 +258,20 @@ the session.
 
 ---
 
+## External Document Caching
+
+When your project has `wiki.cache_external: true` in `framework-config.json`, the
+`fetch-ticket-context` skill automatically caches external documents (Jira attachments, Notion
+pages, Confluence articles) to `docs/llm-wiki/raw/external/`. Subsequent runs hitting the same
+document read from this local cache instead of making a new network request.
+
+The cache is valid for 7 days. Pass `--refresh-external` to bypass it for a single run.
+
+By default (`cache_external: false`), no files are written — existing projects are unaffected
+until they opt in.
+
+---
+
 ## What Happens Next?
 
 Once you have a ticket:

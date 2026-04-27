@@ -244,6 +244,28 @@ $create-sdd-ticket --from-jira "PROJ-456" --save-to-jira "<board-url>"
 
 ---
 
+---
+
+## External Document Caching
+
+When `framework-config.json` has `wiki.cache_external: true`, the `fetch-ticket-context` skill
+persists every external doc fetched from Jira, Notion, or Confluence to:
+
+```
+docs/llm-wiki/raw/external/<source-type>/<source-id>.md
+```
+
+Each cached file carries frontmatter with `source_url`, `source_type`, `source_id`, `ticket_id`,
+`fetched_at`, and `sha256`. Subsequent runs hitting the same external doc read from this cache
+(valid for 7 days) instead of making a new network request.
+
+The default (`cache_external: false`) is identical to the legacy "fetch-and-discard" behavior —
+no files are written — so existing projects are unaffected until they opt in.
+
+Pass `--refresh-external` to `fetch-ticket-context` to bypass the cache for a single run.
+
 **See also**:
 - `skills/020-development-workflow/create-sdd-ticket/SKILL.md`
+- `skills/040-integrations/fetch-ticket-context/SKILL.md`
+- `orchestration/src/services/graph-wiki/external-cache.ts`
 - `schemas/sdd-ticket.schema.json`

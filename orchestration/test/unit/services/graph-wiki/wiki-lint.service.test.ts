@@ -301,6 +301,48 @@ describe('wiki-lint.service — legacy-raw-source', () => {
     const legacy = report.structural.filter((v) => v.rule === 'legacy-raw-source');
     expect(legacy).toHaveLength(0);
   });
+
+  it('does not flag sources nested under raw/external/<type>/<file>.md', async () => {
+    const { projectPath, wikiDir, artifactsDir } = buildProjectTree();
+    const externalTypeDir = require('path').join(
+      projectPath,
+      'docs',
+      'llm-wiki',
+      'raw',
+      'external',
+      'jira',
+    );
+    require('fs').mkdirSync(externalTypeDir, { recursive: true });
+    require('fs').writeFileSync(
+      require('path').join(externalTypeDir, 'PROJ-123.md'),
+      '# PROJ-123\n\nExternal content.',
+      'utf-8',
+    );
+
+    const fm = buildFrontmatter({
+      sources: [
+        {
+          path: 'docs/llm-wiki/raw/external/jira/PROJ-123.md',
+          sha256: 'd'.repeat(64),
+          ingested_at: '2026-01-01T00:00:00.000Z',
+          commit: 'e'.repeat(40),
+        },
+      ],
+    });
+    writeWikiPage(wikiDir, 'index.md', fm + '# Index\n');
+
+    const report = await lintLlmWiki({
+      projectPath,
+      skipSemantic: true,
+      artifactsDir,
+    });
+
+    const dead = report.structural.filter((v) => v.rule === 'dead-sources');
+    expect(dead).toHaveLength(0);
+
+    const legacy = report.structural.filter((v) => v.rule === 'legacy-raw-source');
+    expect(legacy).toHaveLength(0);
+  });
 });
 
 describe('wiki-lint.service — graph-version-mismatch', () => {

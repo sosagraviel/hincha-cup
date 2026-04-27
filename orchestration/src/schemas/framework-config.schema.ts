@@ -90,6 +90,18 @@ export type ResourceState = z.infer<typeof ResourceStateSchema>;
  * This is the complete schema for framework-config.json
  * Includes all fields: version info, analysis results (optional), stack profile, and resource state
  */
+/**
+ * Wiki configuration block. All fields are optional so existing configs without
+ * a wiki section remain valid.
+ */
+export const WikiConfigSchema = z
+  .object({
+    cache_external: z.boolean().default(false),
+  })
+  .default({ cache_external: false });
+
+export type WikiConfig = z.infer<typeof WikiConfigSchema>;
+
 export const FrameworkConfigSchema = z.object({
   version: z.string(), // For backward compatibility
   schema_version: z.string(),
@@ -98,6 +110,7 @@ export const FrameworkConfigSchema = z.object({
   analysis_results: AnalysisResultsSchema.optional(), // Made optional to avoid config bloat
   stack_profile: StackProfileSchema,
   resource_state: ResourceStateSchema,
+  wiki: WikiConfigSchema.optional(),
 });
 
 export type FrameworkConfig = z.infer<typeof FrameworkConfigSchema>;

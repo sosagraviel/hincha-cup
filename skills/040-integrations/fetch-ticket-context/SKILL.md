@@ -1,7 +1,7 @@
 ---
 name: fetch-ticket-context
 description: Fetch complete context for a Jira ticket including external documentation from Notion, Confluence, and linked resources. Use when starting ticket implementation to gather all requirements.
-argument-hint: "JIRA-URL-OR-KEY"
+argument-hint: "JIRA-URL-OR-KEY [--refresh-external]"
 ---
 
 # Fetch Ticket Context
@@ -499,8 +499,70 @@ $ /fetch-ticket-context PROJ-123
 Context ready (~15,000 tokens)
 ```
 
+## Caching to docs/llm-wiki/raw/external/
+
+When `framework-config.json` has `wiki.cache_external: true` (default `false`) AND the project
+has been initialized (`docs/llm-wiki/` exists), the skill MUST persist every fetched external doc to:
+
+```
+docs/llm-wiki/raw/external/<source-type>/<source-id>.md
+```
+
+with frontmatter carrying `source_url`, `source_type`, `source_id`, `ticket_id`, `fetched_at`, and
+`sha256`. Use the `external-cache` helper exposed at:
+
+```
+orchestration/src/services/graph-wiki/external-cache.ts
+```
+
+Specifically:
+
+```ts
+import { writeExternalCache } from '<orchestration>/services/graph-wiki/external-cache.js';
+
+writeExternalCache({
+  projectPath,
+  sourceType: 'jira',          // or 'notion' | 'confluence' | 'github' | 'other'
+  sourceId: 'PROJ-123',
+  sourceUrl: 'https://...',
+  ticketId: 'PROJ-123',
+  title: 'Add user search',
+  body: fetchedMarkdown,
+});
+```
+
+Before fetching, ALWAYS check the cache first (unless `--refresh-external` was passed):
+
+```ts
+import { readExternalCache } from '<orchestration>/services/graph-wiki/external-cache.js';
+
+const hit = readExternalCache({ projectPath, sourceType: 'jira', sourceId: 'PROJ-123' });
+if (hit) {
+  // Use hit.body; skip the network call.
+}
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--refresh-external` | Bypass the cache for this run; always re-fetch external docs and overwrite cached entries. |
+
+### Cache rules
+
+- When `wiki.cache_external` is `false` (the default), the skill MUST NOT write to the cache and
+  falls back to the legacy "fetch-and-discard" path. This keeps the default behavior identical to
+  pre-cache behavior — no surprise file writes.
+- The cache is invalidated automatically after 7 days (`maxAgeMs` default in `readExternalCache`).
+- Pass `--refresh-external` to bypass the cache for a single run.
+- Supported `source_type` values: `jira`, `notion`, `confluence`, `github`, `other`.
+- `sourceId` is sanitized for filesystem safety: characters outside `[a-zA-Z0-9._-]` are replaced
+  with `_`. For example, `PROJ-123` stays `PROJ-123.md` and `notion uuid/abc` becomes
+  `notion_uuid_abc.md`.
+
 ## References
 
 - Jira Skill: `{{CONFIG_DIR}}/skills/jira/SKILL.md`
 - Notion Manager: `{{CONFIG_DIR}}/skills/notion-document-manager/SKILL.md`
 - Confluence Skill: `{{CONFIG_DIR}}/skills/mastering-confluence/SKILL.md`
+- External cache helper: `orchestration/src/services/graph-wiki/external-cache.ts`
