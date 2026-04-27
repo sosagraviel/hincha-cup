@@ -98,13 +98,45 @@ export function loadGraphState(projectPath: string): GraphStateFile | null {
 /**
  * Runs `git rev-parse HEAD` in the given project directory and returns the
  * trimmed SHA. Falls back to 'unknown' when git is unavailable or the directory
- * is not a git repo.
+ * is not a git repo. Suppresses stderr to keep parent output clean on
+ * non-git fixtures.
  */
 export function resolveCurrentCommit(projectPath: string): string {
   try {
-    return execSync('git rev-parse HEAD', { cwd: projectPath, encoding: 'utf-8' }).trim();
+    return execSync('git rev-parse HEAD', {
+      cwd: projectPath,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
   } catch {
     return 'unknown';
+  }
+}
+
+/**
+ * Reads the launcher.json written by setup-code-graph.sh and returns the
+ * recorded `tool_version`, if any. This is the silent path — no subprocess
+ * spawn, no risk of `/bin/sh: command not found` leaking to the parent
+ * terminal. Returns null when the file is missing, malformed, or has no
+ * usable tool_version field.
+ */
+function readToolVersionFromLauncher(projectPath: string): string | null {
+  const launcherJsonPath = join(codeReviewGraphDir(projectPath), 'launcher.json');
+  if (!existsSync(launcherJsonPath)) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(readFileSync(launcherJsonPath, 'utf-8')) as LauncherJson;
+    if (
+      typeof parsed.tool_version === 'string' &&
+      parsed.tool_version.trim().length > 0 &&
+      parsed.tool_version !== 'unknown'
+    ) {
+      return parsed.tool_version.trim();
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -235,13 +267,27 @@ export function writeExtractionManifest(
   const dir = codeReviewGraphDir(projectPath);
   mkdirSync(dir, { recursive: true });
 
-  let toolVersion = 'unknown';
-  try {
-    toolVersion =
-      execSync('code-review-graph --version', { encoding: 'utf-8' }).trim().split('\n')[0] ??
-      'unknown';
-  } catch {
-    // tool unavailable — already defaulted to 'unknown'
+  // Prefer launcher.json (written by setup-code-graph.sh) — silent, no subprocess.
+  // Fall back to launcher-aware execSync only if launcher.json is missing or
+  // omitted tool_version. Always suppress child stderr so a missing binary
+  // doesn't leak `/bin/sh: code-review-graph: command not found` to the
+  // parent terminal.
+  let toolVersion = readToolVersionFromLauncher(projectPath);
+  if (!toolVersion) {
+    try {
+      toolVersion =
+        execSync('code-review-graph --version', {
+          encoding: 'utf-8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        })
+          .trim()
+          .split('\n')[0] ?? 'unknown';
+    } catch {
+      // tool unavailable on PATH — caller falls back to 'unknown'
+    }
+  }
+  if (!toolVersion) {
+    toolVersion = 'unknown';
   }
 
   const manifest: ExtractionManifest = {
