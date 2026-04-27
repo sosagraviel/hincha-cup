@@ -68,27 +68,46 @@ Exactly one input mode is required.
 
 ### Phase 0: Inject Project Context
 
-Before ticket analysis, invoke the `project-context` skill so the workflow has deep architectural context for:
+Invoke the `project-context` skill. **This skill is generated per target project** by `/initialize-project` Phase 5 and lives at `{{CONFIG_DIR}}/skills/project-context/SKILL.md` — its content is target-project-specific architectural narrative, not framework knowledge.
+
+Use it for:
 
 - conventions and patterns already used in the codebase
 - integration points and known constraints
 - naming, testing, and deployment expectations
 - project-specific gotchas that should influence gap detection
+- file-placement guide (where things go in this codebase)
 
-If the generated project-context skill is missing, fall back to `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` and explicit codebase inspection, but still treat project context collection as required work before continuing.
+If the generated `project-context` skill is missing (project not yet initialized), fall back to `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` (the project's `CLAUDE.md` / `AGENTS.md`) and explicit codebase inspection, but still treat project-context collection as required work before continuing. Phase 0 produces **narrative**, not authoritative structural data — Phase 0.5 below is the structural authority.
 
 ### Phase 0.5: Wiki & Graph Context Preload
 
-If `docs/llm-wiki/wiki/` exists, preload its core docs so gap detection consults pre-digested architecture instead of re-grepping the repo.
+Phases 0 and 0.5 are **complementary, not redundant**. Both inject target-project context, but they differ in shape and authority:
 
-1. Read `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES,DATA-FLOWS,PATTERNS}.md` and collect their paths as `WIKI_CORE`.
-2. Call `mcp__code_graph__get_minimal_context_tool({ task: "<user idea or ticket summary>", changed_files: [], base: "HEAD~1" })` EXACTLY ONCE. Preserve the full response — downstream implement-ticket Phase 3 may reuse it.
-3. From that response and from `SERVICES.md`, extract up to 3 plausibly-implicated service IDs. For each, resolve `docs/llm-wiki/wiki/services/<service-id>.md` and collect matches as `WIKI_SERVICES`.
-4. Persist everything to `{{TEMP_DIR}}/tickets/<draft-id>/context/wiki-context.md` with `## WIKI_CORE`, `## WIKI_SERVICES`, and `## get_minimal_context_tool Payload` sections.
+| | Phase 0 — `project-context` | Phase 0.5 — LLM wiki + graph |
+|---|---|---|
+| Shape | narrative prose (synthesis output) | structured graph-backed docs + frontmatter index |
+| Authority | high for conventions, gotchas, file-placement, named patterns | **highest** for architecture, service boundaries, data flows, and any structural fact derivable from the AST |
+| Freshness | refreshed only on full `/initialize-project` re-runs | refreshed every PR via `/implement-ticket` Phase 8.5; `graph_commit` frontmatter shows currency |
+| Cost | one skill invocation | tier-1 frontmatter scan ≈ 100 tokens; tier-2 one graph call; tier-3 selective body expansion |
 
-**Fallback:** if `docs/llm-wiki/wiki/` is missing (project not yet initialized), log `wiki unavailable — falling back to project-context only` and continue. Do NOT fail the skill. Do NOT call graph tools if the graph MCP server is unavailable.
+**Conflict-resolution rule** when both speak to the same fact: **the wiki wins** (graph-grounded + freshest). Use `project-context` for narrative gotchas, build/test commands, and conventions the wiki doesn't carry.
 
-Optional flag: pass `--skip-wiki` to bypass Phase 0.5 entirely (useful for freshly-cloned projects or offline environments). When `--skip-wiki` is present, log `wiki unavailable — falling back to project-context only` and proceed directly to Phase 1.
+If `docs/llm-wiki/wiki/` exists, preload it via tiered retrieval so gap detection consults pre-digested architecture instead of re-grepping the repo.
+
+1. **Tier 1 (cheap — frontmatter index).** For every wiki page (5 core docs + each `services/*.md`), parse YAML frontmatter only and collect `summary`, `confidence`, `document_type`, `related`. Persist as `WIKI_SUMMARY_INDEX` to `{{TEMP_DIR}}/tickets/<draft-id>/context/wiki-summary-index.md`. Cost: ~100 tokens regardless of project size.
+
+2. **Tier 2 (one graph call).** Call `mcp__code_graph__get_minimal_context_tool({ task: "<user idea or ticket summary>", changed_files: [], base: "HEAD~1" })` EXACTLY ONCE. Preserve the full response — downstream `/implement-ticket` Phase 3 may reuse it.
+
+3. **Tier 3 (selective body expansion).** From Tier 2's response + the Tier 1 `summary` fields, identify the 1–3 most relevant pages. Read FULL bodies only for those (cap 5). Always include `docs/llm-wiki/wiki/index.md` (navigation hub). Collect expanded paths as `WIKI_CORE`. Match up to 3 service docs from `SERVICES.md` and the graph response; collect their absolute paths as `WIKI_SERVICES`. Other pages stay summary-only — their summary in Tier 1 is sufficient.
+
+4. **Persist** to `{{TEMP_DIR}}/tickets/<draft-id>/context/wiki-context.md` with sections: `## WIKI_SUMMARIES` (Tier 1 path), `## WIKI_CORE`, `## WIKI_SERVICES`, `## get_minimal_context_tool Payload`.
+
+**Confidence-aware expansion:** during Tier 3 page selection, prefer `confidence: high` pages over `confidence: low` for the same topic. If only `confidence: low` pages match a relevant topic, expand them BUT tag any extracted fact in the ticket with `confidence: low` so the planner downstream can verify with a graph query before committing.
+
+**Fallback:** if `docs/llm-wiki/wiki/` is missing (project not yet initialized), log `wiki unavailable — falling back to project-context only` and continue with Phase 0's narrative only. Do NOT fail the skill. Do NOT call graph tools if the graph MCP server is unavailable.
+
+Optional flag: pass `--skip-wiki` to bypass Phase 0.5 entirely (useful for freshly-cloned projects or offline environments). When `--skip-wiki` is present, log `wiki unavailable — falling back to project-context only` and proceed directly to Phase 1. Use this only when the wiki is known to be drift-prone — the framework's default assumption is that the wiki is fresher than `project-context`.
 
 ### Phase 1: Parse Input Source
 
@@ -598,6 +617,7 @@ Before finalizing, validate:
 
 ## Version History
 
+- **3.4.0** (2026-04-27): clarified Phase 0 vs Phase 0.5 (§8) — both inject target-project context but in complementary shapes (narrative vs structured/graph-backed); explicit conflict-resolution rule (wiki wins on structural facts); confidence-aware Tier 3 page selection; `project-context` documented as target-project-generated, not framework knowledge
 - **3.3.0** (2026-04-24): objective INVEST "Small" scope check via get_impact_radius_tool (§6) — Phase 5a queries blast radius before subjective evaluation; `metadata.scope_impact` records impacted_services/impacted_files/max_depth; split recommendations cite actual numbers; fallback logs `graph unavailable for scope check`
 - **3.2.0** (2026-04-24): multi-tool graph routing in Phase 2 gap detection (§5 of OPTIMIZATION_REVIEW) — question-class classifier table routes symbol_lookup, relationship, data_flow, boundary, impact, and overview gaps to the correct graph MCP tool; `graphEvidence` reshaped to array of `{tool, params, finding}` entries; 6-query cap enforced
 - **3.1.0** (2026-04-24): wiki + graph aware Phase 0.5, inference-order rewrite, `wikiEvidence`/`graphEvidence` in canonical ticket structure, `--skip-wiki` flag, updated Quality Checks
