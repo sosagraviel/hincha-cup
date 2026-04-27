@@ -270,18 +270,20 @@ echo -e "${CYAN}  AI AGENTIC FRAMEWORK - TICKET IMPLEMENTATION${NC}"
 echo -e "${CYAN}========================================================================${NC}"
 echo ""
 
-# Auto-detect framework path from script's own location
+# Resolve framework + project paths via the canonical helper. Both are LOCALLY
+# scoped; never `export` them. The agent-factory in TS is the only legitimate
+# point that injects FRAMEWORK_PATH into a child process's env.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FRAMEWORK_PATH="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/resolve-paths.sh
+source "$SCRIPT_DIR/lib/resolve-paths.sh"
+FRAMEWORK_PATH="$(framework_path)"
+PROJECT_PATH="$(project_path)"
 
 # Validate framework path exists
 if [ ! -d "$FRAMEWORK_PATH" ]; then
     echo -e "${RED}Error: Framework path does not exist: $FRAMEWORK_PATH${NC}"
     exit 1
 fi
-
-# Detect project path from parent directory of framework
-PROJECT_PATH="$(cd "$FRAMEWORK_PATH/.." && pwd)"
 
 # Validate project path is not the same as framework
 if [ "$PROJECT_PATH" = "$FRAMEWORK_PATH" ]; then
@@ -521,10 +523,10 @@ echo "  Using TypeScript CLI: $ORCHESTRATION_CLI"
 echo "  Node.js version: $(node --version)"
 echo ""
 
-# Export environment variables
+# Export only what tsx genuinely needs via env. PROJECT_PATH and FRAMEWORK_PATH
+# are NOT exported — paths.service derives them from import.meta.url (single
+# source of truth).
 export MODEL_TIER
-export PROJECT_PATH
-export FRAMEWORK_PATH
 export PROVIDER
 
 # Build tsx command
@@ -535,12 +537,11 @@ if [ ! -f "$TSX_BIN" ]; then
     exit 1
 fi
 
-# Build command arguments
+# Build command arguments. --project-path / --framework-path are no longer
+# passed: paths.service.ts derives them from import.meta.url.
 CMD_ARGS=(
     "$TSX_BIN"
     "$ORCHESTRATION_CLI"
-    --project-path "$PROJECT_PATH"
-    --framework-path "$FRAMEWORK_PATH"
     --ticket-id "$TICKET_ID"
     --model-tier "$MODEL_TIER"
     --provider "$PROVIDER"

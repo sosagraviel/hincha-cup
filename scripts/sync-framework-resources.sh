@@ -31,9 +31,13 @@
 #
 # ============================================================================
 
-# Auto-detect framework path from script's own location
+# Resolve paths via the canonical helper. PROJECT_PATH and FRAMEWORK_PATH are NOT
+# exported — the orchestration TypeScript layer uses paths.service for both, which
+# derives them from import.meta.url (single source of truth).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FRAMEWORK_PATH="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/resolve-paths.sh
+source "$SCRIPT_DIR/lib/resolve-paths.sh"
+FRAMEWORK_PATH="$(framework_path)"
 
 # Validate framework path exists
 if [ ! -d "$FRAMEWORK_PATH" ]; then
@@ -43,24 +47,6 @@ if [ ! -d "$FRAMEWORK_PATH" ]; then
   exit 1
 fi
 
-# Detect dogfooding mode: framework directory is a symlink pointing to "."
-# When qubika-agentic-framework -> ., doing cd qubika-agentic-framework/.. goes to parent
-# We need to detect this case and fix the paths
-
-# Get the real physical path (resolving symlink)
-FRAMEWORK_REAL_PATH="$(cd "$FRAMEWORK_PATH" && pwd -P)"
-
-# If framework's real path equals project's logical path, we're in dogfooding mode
-# This means qubika-agentic-framework is a symlink to . (self)
-if [ "$FRAMEWORK_REAL_PATH" = "$(dirname "$FRAMEWORK_PATH")" ]; then
-  # Dogfooding mode detected
-  # PROJECT_PATH is the real path (same as framework's real path)
-  # FRAMEWORK_PATH stays as the symlink path for proper file operations
-  export PROJECT_PATH="$FRAMEWORK_REAL_PATH"
-  export FRAMEWORK_PATH="$FRAMEWORK_PATH"
-  cd "$FRAMEWORK_REAL_PATH/orchestration" && npm run sync-framework-resources -- "$@"
-  exit $?
-fi
-
-# Normal mode: Navigate to orchestration module and run TypeScript script
-cd "$FRAMEWORK_PATH/orchestration" && npm run sync-framework-resources -- "$@"
+# Run from the framework's orchestration directory. We use the framework's physical
+# path (via `pwd -P`) so dogfooding's self-symlink doesn't confuse `cd`.
+cd "$(cd "$FRAMEWORK_PATH" && pwd -P)/orchestration" && npm run sync-framework-resources -- "$@"

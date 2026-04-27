@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import path from 'path';
 import { lintLlmWiki } from '../services/graph-wiki/wiki-lint.service.js';
 import { logger } from '../utils/logger.js';
+import { getProjectPath } from '../services/framework/paths.service.js';
 
 const program = new Command();
 
@@ -11,8 +12,8 @@ program
   .name('lint-wiki')
   .description('Run structural and semantic lint checks over docs/llm-wiki/wiki/')
   .version('1.0.0')
-  .option('-p, --project-path <path>', 'Project root containing docs/llm-wiki/', process.cwd())
-  .option('--graph-db <path>', 'Path to .code-graph.db (default: <project-path>/.code-graph.db)')
+  // --project-path is no longer accepted: paths.service.ts resolves locally.
+  .option('--graph-db <path>', 'Path to .code-graph.db (default: <project>/.code-graph.db)')
   .option(
     '--changed-pages <pages>',
     'Comma-separated list of changed wiki page paths for contradiction checks',
@@ -35,7 +36,7 @@ program
     process.on('SIGTERM', () => cleanup('SIGTERM'));
 
     try {
-      const projectPath = path.resolve(options.projectPath as string);
+      const projectPath = getProjectPath();
       const graphDbPath = options.graphDb
         ? path.resolve(options.graphDb as string)
         : path.join(projectPath, '.code-graph.db');

@@ -11,6 +11,7 @@ import { MemorySaver } from '@langchain/langgraph';
 import type { ImplementTicketState } from '../state/schemas/implement-ticket.schema.js';
 import { Provider } from '../providers/types.js';
 import { setActiveProvider, resolveTempPath } from '../utils/provider-paths.js';
+import { getFrameworkPath, getProjectPath } from '../services/framework/paths.service.js';
 
 const logger = new Logger('implement-ticket');
 
@@ -99,8 +100,8 @@ program
   .name('implement-ticket')
   .description('Implement a ticket using the graph-aware Claude Code framework')
   .version('1.0.0')
-  .requiredOption('-p, --project-path <path>', 'Path to the project to implement in')
-  .requiredOption('-f, --framework-path <path>', 'Path to the Claude Code framework')
+  // --project-path / --framework-path are no longer accepted: paths.service.ts
+  // resolves both locally from import.meta.url. Single source of truth.
   .option('--ticket-id <id>', 'Ticket ID (e.g., PROJ-123) - optional if using --from-jira with URL')
   .option(
     '--from-jira [url]',
@@ -120,17 +121,20 @@ program
 
 const options = program.opts();
 
+// Resolve framework + project from paths.service (single source of truth, derived
+// from import.meta.url; dogfooding-aware via the qubika-agentic-framework -> .
+// self-symlink check).
+const projectPath = getProjectPath();
+const frameworkPath = getFrameworkPath();
+
 const activeProvider =
-  parseProvider(options.provider) ?? detectProvider(options.projectPath, options.frameworkPath);
+  parseProvider(options.provider) ?? detectProvider(projectPath, frameworkPath);
 
 setActiveProvider(activeProvider);
 
 if (activeProvider === Provider.CODEX && options.modelTier === 'standard') {
   process.env.MODEL_TIER = 'openai';
 }
-
-const projectPath = resolve(options.projectPath);
-const frameworkPath = resolve(options.frameworkPath);
 
 if (!existsSync(projectPath)) {
   logger.error(`Project path does not exist: ${projectPath}`);

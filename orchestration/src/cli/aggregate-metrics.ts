@@ -11,6 +11,7 @@ import {
   resolveTokenUsageJsonlPath,
   resolveMetricsSummaryPath,
 } from '../services/framework/debug-store/index.js';
+import { getProjectPath } from '../services/framework/paths.service.js';
 
 const program = new Command();
 
@@ -18,15 +19,11 @@ program
   .name('aggregate-metrics')
   .description('Aggregate token-usage JSONL into a per-run summary with SLA comparisons')
   .version('1.0.0')
-  .option(
-    '-p, --project-path <path>',
-    'Project root (used for default ARTIFACTS_DIR)',
-    process.cwd(),
-  )
+  // --project-path is no longer accepted: paths.service.ts resolves locally.
   .option('--artifacts-dir <path>', 'Override ARTIFACTS_DIR')
   .action(async (options) => {
     try {
-      const projectPath = path.resolve(options.projectPath as string);
+      const projectPath = getProjectPath();
 
       if (options.artifactsDir) {
         process.env.ARTIFACTS_DIR = path.resolve(options.artifactsDir as string);

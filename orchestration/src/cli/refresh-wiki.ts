@@ -2,7 +2,6 @@
 
 import { Command } from 'commander';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import { MemorySaver } from '@langchain/langgraph';
 import { createWikiRefreshGraph } from '../graphs/wiki-refresh.graph.js';
@@ -10,11 +9,7 @@ import { logger } from '../utils/logger.js';
 import { Provider } from '../providers/types.js';
 import { readWikiDeltaHintsFile } from '../services/graph-wiki/wiki-delta-hints.js';
 import type { WikiDeltaHint } from '../services/graph-wiki/wiki-delta-hints.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// Framework root is 3 levels up from dist/cli/refresh-wiki.js
-const DEFAULT_FRAMEWORK_PATH = path.resolve(__dirname, '../../..');
+import { getFrameworkPath, getProjectPath } from '../services/framework/paths.service.js';
 
 const program = new Command();
 
@@ -22,12 +17,8 @@ program
   .name('refresh-wiki')
   .description('Incrementally refresh the LLM wiki at docs/llm-wiki/ after code changes')
   .version('1.0.0')
-  .option('-p, --project-path <path>', 'Project path containing the wiki', process.cwd())
-  .option(
-    '-f, --framework-path <path>',
-    'Framework path',
-    process.env.FRAMEWORK_PATH || DEFAULT_FRAMEWORK_PATH,
-  )
+  // --project-path / --framework-path are no longer accepted: paths.service.ts
+  // resolves both locally from import.meta.url. Single source of truth.
   .option('--provider <claude|codex>', 'AI provider (auto-detected from config if omitted)')
   .option('--since <sha>', 'Refresh only pages affected since this git commit')
   .option('--force', 'Force full regeneration even when .state.json exists', false)
@@ -52,8 +43,8 @@ program
     process.on('SIGTERM', () => cleanup('SIGTERM'));
 
     try {
-      const projectPath = path.resolve(options.projectPath);
-      const frameworkPath = path.resolve(options.frameworkPath);
+      const projectPath = getProjectPath();
+      const frameworkPath = getFrameworkPath();
       const provider = resolveProvider(options.provider, projectPath);
       const pagesFilter = options.pages
         ? (options.pages as string)

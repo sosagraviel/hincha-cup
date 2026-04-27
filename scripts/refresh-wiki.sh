@@ -8,8 +8,6 @@
 #   ./ai-agentic-framework/scripts/refresh-wiki.sh [OPTIONS]
 #
 # Options:
-#   --project-path PATH    Project root (default: parent of framework dir)
-#   --framework-path PATH  Framework root (default: auto-detected)
 #   --provider PROVIDER    AI provider: claude or codex (auto-detected)
 #   --since SHA            Refresh pages affected since this commit
 #   --force                Full regeneration regardless of .state.json
@@ -36,10 +34,6 @@ ${BLUE}USAGE:${NC}
     $0 [OPTIONS]
 
 ${BLUE}OPTIONS:${NC}
-    --project-path PATH    Project root containing docs/llm-wiki/
-                           Default: parent directory of the framework
-    --framework-path PATH  Framework root
-                           Default: auto-detected from script location
     --provider PROVIDER    AI provider: claude or codex
                            Default: auto-detected from project config
     --since SHA            Refresh only pages affected since this commit SHA
@@ -67,7 +61,7 @@ ${BLUE}EXAMPLES:${NC}
     $0 --pages "wiki/services/"
 
     # Refresh for a specific project path
-    $0 --project-path /path/to/my-project
+    $0 --force
 
 ${BLUE}WHAT THIS DOES:${NC}
     1. Reads docs/llm-wiki/.state.json to find last indexed commit
@@ -94,8 +88,6 @@ EOF
 # ARGUMENT PARSING
 # ============================================================================
 
-PROJECT_PATH_ARG=""
-FRAMEWORK_PATH_ARG=""
 PROVIDER_ARG=""
 SINCE_ARG=""
 FORCE_ARG=""
@@ -104,14 +96,6 @@ DRY_RUN_ARG=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --project-path)
-            PROJECT_PATH_ARG="$2"
-            shift 2
-            ;;
-        --framework-path)
-            FRAMEWORK_PATH_ARG="$2"
-            shift 2
-            ;;
         --provider)
             PROVIDER_ARG="$2"
             shift 2
@@ -146,18 +130,19 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ============================================================================
-# PATH RESOLUTION
+# PATH RESOLUTION (single source of truth — see scripts/lib/resolve-paths.sh)
 # ============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FRAMEWORK_PATH="${FRAMEWORK_PATH_ARG:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# shellcheck source=lib/resolve-paths.sh
+source "$SCRIPT_DIR/lib/resolve-paths.sh"
+FRAMEWORK_PATH="$(framework_path)"
+PROJECT_PATH="$(project_path)"
 
 if [ ! -d "$FRAMEWORK_PATH" ]; then
     echo -e "${RED}Error: Framework path does not exist: $FRAMEWORK_PATH${NC}"
     exit 1
 fi
-
-PROJECT_PATH="${PROJECT_PATH_ARG:-$(cd "$FRAMEWORK_PATH/.." && pwd)}"
 
 if [ "$PROJECT_PATH" = "$FRAMEWORK_PATH" ]; then
     echo -e "${RED}Error: Framework is not inside a project directory${NC}"
@@ -212,8 +197,6 @@ fi
 CMD_ARGS=(
     "$TSX_BIN"
     "$ORCHESTRATION_CLI"
-    --project-path "$PROJECT_PATH"
-    --framework-path "$FRAMEWORK_PATH"
 )
 
 [ -n "$PROVIDER_ARG" ] && CMD_ARGS+=(--provider "$PROVIDER_ARG")

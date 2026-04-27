@@ -288,6 +288,14 @@ async function invokeCLI(
         env: {
           ...process.env,
           CLAUDE_SKIP_CONFIRMATIONS: '1',
+          // ────────────────────────────────────────────────────────────────────
+          // ONLY ALLOWED ENV-INJECTION POINT for FRAMEWORK_PATH/FRAMEWORK_PROJECT_PATH.
+          // The bash MCP launcher inside the spawned subprocess uses
+          // `${FRAMEWORK_PATH}` substitution in mcp.json; the PreToolUse path-
+          // restriction hook reads FRAMEWORK_PROJECT_PATH. The orchestration's
+          // own code never reads these env vars — it uses paths.service instead.
+          // Do NOT add new framework-internal call sites that read these env vars.
+          // ────────────────────────────────────────────────────────────────────
           FRAMEWORK_PATH: config.frameworkPath,
           FRAMEWORK_PROJECT_PATH: config.projectPath,
           FRAMEWORK_EXCLUDED_DIRS: JSON.stringify(excludedDirs),

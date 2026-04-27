@@ -8,9 +8,7 @@
 #   ./ai-agentic-framework/scripts/lint-wiki.sh [OPTIONS]
 #
 # Options:
-#   --project-path PATH    Project root containing docs/llm-wiki/ (default: parent of framework dir)
-#   --framework-path PATH  Framework root (default: auto-detected)
-#   --graph-db PATH        Path to .code-graph.db (default: <project-path>/.code-graph.db)
+#   --graph-db PATH        Path to .code-graph.db (default: <project>/.code-graph.db)
 #   --changed-pages LIST   Comma-separated wiki page paths for contradiction checks
 #   --skip-semantic        Skip semantic (warn-only) checks
 #   --artifacts-dir PATH   Directory for lint report output
@@ -36,17 +34,13 @@ ${BLUE}USAGE:${NC}
     $0 [OPTIONS]
 
 ${BLUE}OPTIONS:${NC}
-    --project-path PATH    Project root containing docs/llm-wiki/
-                           Default: parent directory of the framework
-    --framework-path PATH  Framework root
-                           Default: auto-detected from script location
     --graph-db PATH        Path to .code-graph.db for graph_version checks
-                           Default: <project-path>/.code-graph.db
+                           Default: <project>/.code-graph.db
     --changed-pages LIST   Comma-separated wiki page paths for semantic
                            contradiction checks (e.g. "wiki/ARCH.md,wiki/SERVICES.md")
     --skip-semantic        Skip semantic (warn-only) checks entirely
     --artifacts-dir PATH   Write lint reports here (JSON + Markdown)
-                           Default: <project-path>/.claude-temp/wiki-lint/
+                           Default: <project>/.claude-temp/wiki-lint/
     --json-only            Suppress all log output; print only the summary line
     --help, -h             Show this help message
 
@@ -66,7 +60,7 @@ ${BLUE}EXAMPLES:${NC}
     $0 --changed-pages "docs/llm-wiki/wiki/ARCHITECTURE.md,docs/llm-wiki/wiki/services/auth.md"
 
     # Check a specific project
-    $0 --project-path /path/to/my-project
+    $0 --skip-semantic
 
 ${BLUE}WHAT THIS CHECKS:${NC}
     Structural (fail):
@@ -95,8 +89,6 @@ EOF
 # ARGUMENT PARSING
 # ============================================================================
 
-PROJECT_PATH_ARG=""
-FRAMEWORK_PATH_ARG=""
 GRAPH_DB_ARG=""
 CHANGED_PAGES_ARG=""
 SKIP_SEMANTIC_ARG=""
@@ -105,14 +97,6 @@ JSON_ONLY_ARG=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --project-path)
-            PROJECT_PATH_ARG="$2"
-            shift 2
-            ;;
-        --framework-path)
-            FRAMEWORK_PATH_ARG="$2"
-            shift 2
-            ;;
         --graph-db)
             GRAPH_DB_ARG="$2"
             shift 2
@@ -147,18 +131,19 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ============================================================================
-# PATH RESOLUTION
+# PATH RESOLUTION (single source of truth — see scripts/lib/resolve-paths.sh)
 # ============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FRAMEWORK_PATH="${FRAMEWORK_PATH_ARG:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# shellcheck source=lib/resolve-paths.sh
+source "$SCRIPT_DIR/lib/resolve-paths.sh"
+FRAMEWORK_PATH="$(framework_path)"
+PROJECT_PATH="$(project_path)"
 
 if [ ! -d "$FRAMEWORK_PATH" ]; then
     echo -e "${RED}Error: Framework path does not exist: $FRAMEWORK_PATH${NC}"
     exit 1
 fi
-
-PROJECT_PATH="${PROJECT_PATH_ARG:-$(cd "$FRAMEWORK_PATH/.." && pwd)}"
 
 if [ "$PROJECT_PATH" = "$FRAMEWORK_PATH" ]; then
     echo -e "${RED}Error: Framework is not inside a project directory${NC}"
@@ -219,7 +204,6 @@ fi
 CMD_ARGS=(
     "$TSX_BIN"
     "$ORCHESTRATION_CLI"
-    --project-path "$PROJECT_PATH"
 )
 
 [ -n "$GRAPH_DB_ARG" ] && CMD_ARGS+=(--graph-db "$GRAPH_DB_ARG")

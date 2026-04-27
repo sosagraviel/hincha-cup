@@ -40,6 +40,7 @@ import {
   getAllProviderConfigDirs,
 } from '../utils/provider-paths.js';
 import { Provider } from '../providers/types.js';
+import { getFrameworkPath, getProjectPath } from '../services/framework/paths.service.js';
 
 interface SyncConfig {
   projectPath: string;
@@ -102,19 +103,13 @@ function resolveProviderFromEnvOrDisk(projectPath: string): Provider {
 const PROVIDER_DIR_CLAUDE = getProviderPaths(Provider.CLAUDE).configDir;
 
 /**
- * Auto-detect paths from script location
+ * Resolve paths via paths.service (single source of truth, derived from
+ * import.meta.url, dogfooding-aware via the qubika-agentic-framework -> .
+ * self-symlink check).
  */
 function detectPaths(): SyncConfig {
-  let frameworkPath: string;
-  let projectPath: string;
-
-  if (process.env.FRAMEWORK_PATH && process.env.PROJECT_PATH) {
-    frameworkPath = process.env.FRAMEWORK_PATH;
-    projectPath = process.env.PROJECT_PATH;
-  } else {
-    frameworkPath = join(process.cwd(), '..');
-    projectPath = join(frameworkPath, '..');
-  }
+  const frameworkPath = getFrameworkPath();
+  const projectPath = getProjectPath();
 
   if (!existsSync(frameworkPath)) {
     throw new Error(`Framework path does not exist: ${frameworkPath}`);

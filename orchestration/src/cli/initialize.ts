@@ -2,7 +2,6 @@
 
 import { Command } from 'commander';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { createInitializeProjectGraph } from '../graphs/initialize-project.graph.js';
 import {
   devCheckpointer,
@@ -14,16 +13,10 @@ import { AgentFactory } from '../utils/shared/agent-factory/index.js';
 import { runPreflightChecks } from '../utils/preflight-checks.js';
 import { Provider } from '../providers/types.js';
 import { setActiveProvider, resolveTempPath } from '../utils/provider-paths.js';
+import { getFrameworkPath, getProjectPath } from '../services/framework/paths.service.js';
 import { resetLLMFactory } from '../llm/llm-factory.js';
 import { DebugStore, setActiveDebugStore } from '../services/framework/debug-store/index.js';
 import { renderRunIndexHtml } from '../services/framework/transcripts/index.js';
-
-// Get the directory where this CLI script is located
-// This file is at: <framework>/orchestration/dist/cli/initialize.js
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// Framework root is 3 levels up from dist/cli/initialize.js
-const DEFAULT_FRAMEWORK_PATH = path.resolve(__dirname, '../../..');
 
 const program = new Command();
 
@@ -31,12 +24,8 @@ program
   .name('orchestrate:initialize')
   .description('Initialize AI Agentic Framework for a project using TypeScript CLI orchestration')
   .version('1.0.0')
-  .option('-p, --project-path <path>', 'Project path to initialize', process.cwd())
-  .option(
-    '-f, --framework-path <path>',
-    'Framework path',
-    process.env.FRAMEWORK_PATH || DEFAULT_FRAMEWORK_PATH,
-  )
+  // --project-path / --framework-path are no longer accepted: paths.service.ts
+  // resolves both locally from import.meta.url. Single source of truth.
   .option(
     '--model-tier <tier>',
     'Set model tier: fast, standard, advanced, openai, or gemini (default: standard)',
@@ -154,8 +143,8 @@ program
         process.exit(0);
       }
 
-      const projectPath = path.resolve(options.projectPath);
-      const frameworkPath = path.resolve(options.frameworkPath);
+      const projectPath = getProjectPath();
+      const frameworkPath = getFrameworkPath();
 
       const startPhase = parseInt(options.startPhase || '1', 10);
       if (isNaN(startPhase) || startPhase < 1 || startPhase > 6) {

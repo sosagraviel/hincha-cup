@@ -4,8 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/bootstrap-uv.sh
 source "$SCRIPT_DIR/lib/bootstrap-uv.sh"
+# shellcheck source=lib/resolve-paths.sh
+source "$SCRIPT_DIR/lib/resolve-paths.sh"
 
-PROJECT_PATH="${PROJECT_PATH:-$(pwd)}"
+# PROJECT_PATH is locally scoped — never exported. Single source of truth is the
+# helper, which detects dogfooding via the qubika-agentic-framework -> . self-symlink.
+PROJECT_PATH="$(project_path)"
 CODE_GRAPH_DB_PATH="${CODE_GRAPH_DB_PATH:-$PROJECT_PATH/.code-graph.db}"
 DEFAULT_CODE_GRAPH_DB_PATH="$PROJECT_PATH/.code-review-graph/graph.db"
 MIN_PYTHON_VERSION="3.10"

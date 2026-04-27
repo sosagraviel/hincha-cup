@@ -2,6 +2,7 @@ import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { ensureCodexAuthentication } from './codex-auth.js';
+import { getFrameworkPath } from '../services/framework/paths.service.js';
 
 /**
  * Authentication modes supported by the framework
@@ -86,7 +87,7 @@ export async function detectAuthMode(): Promise<AuthConfig> {
 
   if (explicitProvider === 'codex' || explicitProvider === 'openai') {
     if (!hasCodexCLI) {
-      const frameworkPath = process.env.FRAMEWORK_PATH || '.';
+      const frameworkPath = getFrameworkPath();
       throw new Error(
         `Provider 'codex' was requested but Codex CLI is not installed.\n\n` +
           `The framework bundles Codex CLI locally. Install dependencies:\n` +
@@ -164,7 +165,7 @@ export async function detectAuthMode(): Promise<AuthConfig> {
 
   if (openaiKey) {
     if (!hasCodexCLI) {
-      const frameworkPath = process.env.FRAMEWORK_PATH || '.';
+      const frameworkPath = getFrameworkPath();
       throw new Error(
         `OPENAI_API_KEY is set, but Codex CLI is not installed.\n\n` +
           `The framework bundles Codex CLI locally. Install dependencies:\n` +
@@ -224,12 +225,10 @@ export async function detectAuthMode(): Promise<AuthConfig> {
  * Returns the path if found, null if not.
  */
 function resolveLocalCLIPath(binaryName: string): string | null {
-  const frameworkPath = process.env.FRAMEWORK_PATH;
-  if (frameworkPath) {
-    const localPath = join(frameworkPath, 'orchestration/node_modules/.bin', binaryName);
-    if (existsSync(localPath)) {
-      return localPath;
-    }
+  const frameworkPath = getFrameworkPath();
+  const localPath = join(frameworkPath, 'orchestration/node_modules/.bin', binaryName);
+  if (existsSync(localPath)) {
+    return localPath;
   }
   return null;
 }
