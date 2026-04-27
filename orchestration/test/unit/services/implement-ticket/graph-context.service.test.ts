@@ -88,5 +88,41 @@ ${'A'.repeat(6500)}`);
 
       expect(context).toBe('# LLM Wiki Context\n\n## ARCHITECTURE\n\n# Architecture\n\nContent.');
     });
+
+    it('includes index.md as part of WIKI_CORE', () => {
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => String(path).endsWith('index.md'));
+      vi.mocked(fs.readFileSync).mockReturnValue('# Project Index\n\nNavigation hub for the wiki.');
+
+      const context = loadLlmWikiContext('/test/project');
+
+      expect(context).toContain('## index');
+      expect(context).toContain('Navigation hub for the wiki.');
+    });
+
+    it('loads all five core wiki files when present (index + 4 core docs)', () => {
+      const presentFiles = new Set([
+        'index.md',
+        'ARCHITECTURE.md',
+        'SERVICES.md',
+        'DATA-FLOWS.md',
+        'PATTERNS.md',
+      ]);
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        const name = String(path).split('/').pop();
+        return presentFiles.has(String(name));
+      });
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        const name = String(path).split('/').pop();
+        return `# ${String(name).replace('.md', '')}\n\nBody for ${String(name)}.`;
+      });
+
+      const context = loadLlmWikiContext('/test/project');
+
+      expect(context).toContain('## index');
+      expect(context).toContain('## ARCHITECTURE');
+      expect(context).toContain('## SERVICES');
+      expect(context).toContain('## DATA-FLOWS');
+      expect(context).toContain('## PATTERNS');
+    });
   });
 });

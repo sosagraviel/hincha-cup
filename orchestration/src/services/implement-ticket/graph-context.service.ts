@@ -1,7 +1,13 @@
 import { existsSync, readFileSync } from 'fs';
 import { basename, join } from 'path';
 
-const LLM_WIKI_FILES = ['ARCHITECTURE.md', 'SERVICES.md', 'DATA-FLOWS.md', 'PATTERNS.md'];
+const LLM_WIKI_FILES = [
+  'index.md',
+  'ARCHITECTURE.md',
+  'SERVICES.md',
+  'DATA-FLOWS.md',
+  'PATTERNS.md',
+];
 const DEFAULT_MAX_CHARS_PER_DOCUMENT = 6000;
 
 export function assertCodeGraphReady(projectPath: string): string {
