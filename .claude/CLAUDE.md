@@ -1,5 +1,38 @@
 # AI Agentic Framework
 
+## Project Description
+
+This framework is **shared infrastructure** that ships to every developer at a 15+ year software factory. It is currently installed on **6000+ developer machines** across **20+ active projects**, and is on track to reach **600+ projects** — every line of code here runs in thousands of local environments and shapes how the entire engineering organization works with AI agents.
+
+**Non-negotiables when writing code in this repo:**
+
+1. **Production-ready, always.** There is no "it works on my machine," no TODOs left for later, no commented-out code, no half-wired features behind a flag that nobody will flip. Every PR that merges is assumed to be deployed to 6000+ machines the moment it lands on `development`. Treat every change like it has that blast radius — because it does.
+
+2. **Automate everything.** Manual steps do not scale to 600 projects. If a human has to remember to run something, copy a file, edit a config, or "just this once" do X, it will break in production within a week. If you find yourself writing docs that say "developers should run …", stop and automate it instead. Scripts, hooks, skills, and orchestration nodes are the delivery mechanism — not README instructions.
+
+3. **Usage must be trivially simple.** Our users are busy engineers across dozens of stacks. The surface we expose to them (slash commands, skills, CLI scripts) must work with zero ceremony: sensible defaults, clear errors, idempotent reruns, no required flags for the happy path. Complexity belongs inside the framework; simplicity belongs at the edge the developer touches.
+
+4. **Documentation stays current — automatically.** Both in-repo `README.md` files and the public GitHub Pages site must reflect the code that exists today. Out-of-date docs on 6000 machines is worse than no docs. When you change behavior, update the docs in the same PR, and prefer doc-generation pipelines over hand-maintained prose whenever the source of truth can be derived from code, schemas, or skill frontmatter.
+
+**Target project diversity — the framework must be stack-agnostic.**
+
+The framework does not get to assume anything about the shape of the repo it lands in. Real target projects include, among many others:
+
+- Multi-repo microservice architectures (each service in its own repository)
+- Monorepos with a single backend + single frontend
+- Monorepos containing many microservices (same language, mixed languages)
+- Single-repo single-service projects
+- Monorepos with multiple backends in different languages sharing one tree
+- Serverless repositories with functions in multiple runtimes (Node, Python, Go, Java, .NET, etc.)
+- Legacy codebases with stacks that predate modern tooling (older PHP, .NET Framework, Java 8, Python 2-era layouts, Rails, etc.)
+- Mixed modern + legacy in the same organization, sometimes in the same repo
+
+Because of this, **never hardcode stack assumptions** (language, build tool, package manager, test runner, directory layout, service boundaries). The Phase 1 analyzers exist precisely to discover the shape of each project at runtime; downstream phases and generated agents/skills must consume that discovered profile (`framework-config.json`, `by_service` maps, stack profile) rather than assuming a structure. When adding a feature, ask: *"Does this work on a 2011 PHP monolith the same way it works on a 2026 Bun + TypeScript serverless project?"* If not, make it configurable, make it discovered, or gate it on detected capability — do not hardcode.
+
+**Why this matters for agents working in this repo:**
+
+When you (or any downstream agent) are asked to add a feature, fix a bug, or extend a skill here, every decision should be filtered through the four rules above plus the diversity constraint. If a proposed approach would require a human step, lock the framework to one stack, leave docs stale, or ship anything less than production quality, reject that approach and find one that does not. The cost of a shortcut is multiplied by 6000.
+
 ## Tech Stack
 
 - **TypeScript** ~5.9.3 — primary language

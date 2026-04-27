@@ -267,6 +267,52 @@ Common issues:
 
 ---
 
+## Projects with existing Claude configuration
+
+If your project already has a `CLAUDE.md` at the repository root or a
+`.claude/CLAUDE.md` from a previous setup, `initialize-project` will detect
+this during preflight and emit non-blocking warnings. Initialization will
+continue, but you should understand how Claude Code loads these files before
+proceeding.
+
+### How Claude Code loads CLAUDE.md
+
+Claude Code loads configuration files in this order, concatenating their
+contents into the system context:
+
+1. `./CLAUDE.md` — project root (user-maintained)
+2. `./.claude/CLAUDE.md` — framework-generated (this framework writes here)
+
+When both exist, **both are loaded**. Conflicting instructions (for example,
+two different "tech stack" sections) can produce inconsistent agent behavior.
+
+### What initialize-project does
+
+- **Does NOT** touch `./CLAUDE.md` at the project root.
+- **DOES** write `./.claude/CLAUDE.md` in Phase 4, overwriting any prior file at that path.
+- **Does NOT** auto-merge content. Merging is a manual step.
+
+### Recommended workflow
+
+1. Before running `initialize-project`, back up any existing `./.claude/CLAUDE.md`:
+   ```bash
+   cp .claude/CLAUDE.md .claude/CLAUDE.md.bak
+   ```
+2. Run `initialize-project` as normal. Expect two warnings if both files exist; they are informational and do not block the run.
+3. After completion, diff the generated `./.claude/CLAUDE.md` against your backup and reconcile any custom content you want to keep.
+4. Decide which file is the **source of truth** for each concern:
+   - Framework conventions, tech stack, agent/skill wiring → `./.claude/CLAUDE.md` (framework-owned).
+   - Project-specific rules, team conventions, onboarding notes → `./CLAUDE.md` (user-owned).
+5. Remove duplicated sections from `./CLAUDE.md` so each rule lives in exactly one file.
+
+### Out of scope
+
+- Automatic merging of `CLAUDE.md` files.
+- Automatic backup creation (the framework does not copy your files).
+- Conflict detection for `.claude/skills/` or `.claude/agents/` directories.
+
+---
+
 ## What's Next?
 
 ### Learn the Full Workflows
