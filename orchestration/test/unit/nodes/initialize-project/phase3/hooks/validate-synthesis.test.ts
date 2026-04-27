@@ -126,8 +126,8 @@ describe('validate-synthesis hook', () => {
     };
 
     try {
-      // Run hook via npx tsx
-      const result = execSync(`npx tsx ${HOOK_PATH}`, {
+      // Run hook via Node's import hook to avoid tsx CLI IPC sockets in restricted test sandboxes.
+      const result = execSync(`node --import tsx ${HOOK_PATH}`, {
         input: JSON.stringify(hookInput),
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],

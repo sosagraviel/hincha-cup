@@ -657,8 +657,9 @@ Please set one of the following:
   export OPENAI_API_KEY=sk-...
   export GOOGLE_API_KEY=...
 
-Or authenticate Claude CLI:
-  claude setup-token
+Or authenticate a provider CLI with a subscription:
+  claude login        # Anthropic / Claude CLI
+  codex login         # OpenAI / Codex CLI
 ```
 
 ## Example Configurations

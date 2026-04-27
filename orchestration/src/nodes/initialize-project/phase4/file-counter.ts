@@ -1,7 +1,7 @@
-import { readdir, stat } from 'fs/promises';
-import { join, extname, relative, basename } from 'path';
-import { logger } from '../../../utils/logger.js';
-import { LANGUAGE_EXTENSIONS, IGNORE_DIRS } from './constants.js';
+import { readdir } from 'fs/promises';
+import { join, extname, basename } from 'path';
+import { LANGUAGE_EXTENSIONS, isToolingConfigFile } from './constants.js';
+import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
 
 /**
  * File count information for a specific language
@@ -21,14 +21,31 @@ export interface FileCountResult {
   by_language: FileCount[];
   scanned_directories: number;
   errors: string[];
+  /**
+   * Per-language count of tooling-config files we deliberately excluded
+   * (e.g. `eslint.config.mjs`, `commitlint.config.js`). Useful for
+   * diagnostics — callers can surface this in warnings without letting it
+   * influence language detection.
+   */
+  tooling_config_counts?: Record<string, number>;
 }
 
 /**
- * Count files by programming language in a project directory
+ * Count files by programming language in a project directory.
  *
- * @param projectPath - Absolute path to the project root
- * @param maxDepth - Maximum directory depth to scan (default: 10)
- * @param frameworkPath - Absolute path to the framework directory
+ * Exclusions applied (all at any depth):
+ *   - `STANDARD_IGNORE_DIRS` (node_modules, dist, build, .git, .venv, etc.)
+ *   - Provider-managed dirs (`.claude`, `.codex`, `.claude-temp`, …)
+ *   - Directories listed in the project's `.gitignore`
+ *   - The framework checkout at `<project>/<frameworkDirName>/`
+ *   - Tooling-config filenames (`*.config.{js,mjs,cjs,ts}`, `.*rc.*`)
+ *     — these are legitimate JS/TS but don't describe the project's
+ *     source language.
+ *
+ * @param projectPath  Absolute path to the project root
+ * @param maxDepth     Maximum directory depth to scan (default: 10)
+ * @param frameworkPath Absolute path to the framework directory — its
+ *                     basename is added to the excluded dir list
  * @returns File count results by language
  */
 export async function countFilesByLanguage(
@@ -36,24 +53,24 @@ export async function countFilesByLanguage(
   maxDepth: number = 10,
   frameworkPath?: string,
 ): Promise<FileCountResult> {
-  // Determine framework directory name to exclude
-  // CRITICAL: This must match the logic in prompt-loader.ts and preflight-checks.ts
-  // Framework is ALWAYS at project root: <project>/<framework-name>/
-  const frameworkDirName = frameworkPath ? basename(frameworkPath) : 'qubika-agentic-framework'; // Fallback if not provided
-  // Map: language -> Set of file paths
+  // Single source of truth for what to ignore. This picks up:
+  //   - NON_PROVIDER_IGNORE_DIRS (hardcoded list like node_modules)
+  //   - getAllProviderManagedDirs() (`.claude*`, `.codex*`)
+  //   - .gitignore entries at the project root (dir patterns only)
+  //   - the framework checkout's basename
+  const excludedDirSet = new Set(getExcludedDirectories(projectPath, frameworkPath));
+
   const languageFiles = new Map<string, Set<string>>();
+  const toolingConfigCounts = new Map<string, number>();
   const errors: string[] = [];
   let directoriesScanned = 0;
 
-  // Initialize map for all languages
   for (const lang of Object.keys(LANGUAGE_EXTENSIONS)) {
     languageFiles.set(lang, new Set());
   }
 
-  // Recursive scan
-  await scanDirectory(projectPath, 0, maxDepth, languageFiles, errors, frameworkDirName);
+  await scanDirectory(projectPath, 0);
 
-  // Convert to result format
   const byLanguage: FileCount[] = [];
   let totalFiles = 0;
 
@@ -62,12 +79,9 @@ export async function countFilesByLanguage(
       const extensions = LANGUAGE_EXTENSIONS[language];
       const directories = new Set<string>();
 
-      // Extract unique directories
       for (const file of files) {
         const dir = file.substring(projectPath.length + 1, file.lastIndexOf('/'));
-        if (dir) {
-          directories.add(dir);
-        }
+        if (dir) directories.add(dir);
       }
 
       byLanguage.push({
@@ -81,7 +95,6 @@ export async function countFilesByLanguage(
     }
   }
 
-  // Sort by count descending
   byLanguage.sort((a, b) => b.count - a.count);
 
   return {
@@ -89,69 +102,58 @@ export async function countFilesByLanguage(
     by_language: byLanguage,
     scanned_directories: directoriesScanned,
     errors,
+    tooling_config_counts: Object.fromEntries(toolingConfigCounts),
   };
 
   /**
-   * Recursively scan a directory for source files
+   * Recursively scan a directory for source files.
    */
-  async function scanDirectory(
-    dirPath: string,
-    currentDepth: number,
-    maxDepth: number,
-    stats: Map<string, Set<string>>,
-    errors: string[],
-    frameworkDirName: string,
-  ): Promise<void> {
-    if (currentDepth > maxDepth) {
-      return;
-    }
+  async function scanDirectory(dirPath: string, currentDepth: number): Promise<void> {
+    if (currentDepth > maxDepth) return;
 
     directoriesScanned++;
 
+    let entries: import('fs').Dirent[];
     try {
-      const entries = await readdir(dirPath, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const fullPath = join(dirPath, entry.name);
-
-        try {
-          if (entry.isDirectory()) {
-            // Skip ignored directories and framework directory
-            if (IGNORE_DIRS.has(entry.name) || entry.name === frameworkDirName) {
-              continue;
-            }
-
-            // Recursively scan subdirectory
-            await scanDirectory(
-              fullPath,
-              currentDepth + 1,
-              maxDepth,
-              stats,
-              errors,
-              frameworkDirName,
-            );
-          } else if (entry.isFile()) {
-            // Check file extension against language map
-            const ext = extname(entry.name).toLowerCase();
-
-            for (const [language, extensions] of Object.entries(LANGUAGE_EXTENSIONS)) {
-              if (extensions.includes(ext)) {
-                stats.get(language)?.add(fullPath);
-                break; // File matched, no need to check other languages
-              }
-            }
-          }
-        } catch (error) {
-          // Permission denied or other file-level error
-          const errorMsg = `Error accessing ${fullPath}: ${error instanceof Error ? error.message : String(error)}`;
-          errors.push(errorMsg);
-          // Continue scanning other files
-        }
-      }
+      entries = await readdir(dirPath, { withFileTypes: true });
     } catch (error) {
-      // Directory-level error (can't read directory)
-      const errorMsg = `Error reading directory ${dirPath}: ${error instanceof Error ? error.message : String(error)}`;
-      errors.push(errorMsg);
+      errors.push(
+        `Error reading directory ${dirPath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return;
+    }
+
+    for (const entry of entries) {
+      const fullPath = join(dirPath, entry.name);
+
+      try {
+        if (entry.isDirectory()) {
+          if (excludedDirSet.has(entry.name)) continue;
+          await scanDirectory(fullPath, currentDepth + 1);
+          continue;
+        }
+
+        if (!entry.isFile()) continue;
+
+        const ext = extname(entry.name).toLowerCase();
+        for (const [language, extensions] of Object.entries(LANGUAGE_EXTENSIONS)) {
+          if (!extensions.includes(ext)) continue;
+
+          if (isToolingConfigFile(entry.name)) {
+            // Track tooling-config files separately for diagnostics but
+            // don't let them influence language detection.
+            toolingConfigCounts.set(language, (toolingConfigCounts.get(language) ?? 0) + 1);
+            break;
+          }
+
+          languageFiles.get(language)?.add(fullPath);
+          break;
+        }
+      } catch (error) {
+        errors.push(
+          `Error accessing ${fullPath}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
   }
 }
@@ -175,12 +177,16 @@ export function getLanguageExtensions(language: string): string[] | undefined {
  */
 export function detectLanguageFromExtension(filename: string): string | undefined {
   const ext = extname(filename).toLowerCase();
-
   for (const [language, extensions] of Object.entries(LANGUAGE_EXTENSIONS)) {
-    if (extensions.includes(ext)) {
-      return language;
-    }
+    if (extensions.includes(ext)) return language;
   }
-
   return undefined;
 }
+
+// Re-export so tests and diagnostics can introspect the tooling filter
+// through the same API surface as the counter.
+export { isToolingConfigFile, TOOLING_CONFIG_PATTERNS } from './constants.js';
+
+// Kept for completeness — basename is a common helper used by call sites
+// that previously reached into this module's internals.
+export { basename };

@@ -38,6 +38,9 @@ const NON_PROVIDER_IGNORE_DIRS = [
   '.maven',
   'bin',
   'obj',
+  '.terraform',
+  'site-packages',
+  'pkg',
 ];
 
 /**

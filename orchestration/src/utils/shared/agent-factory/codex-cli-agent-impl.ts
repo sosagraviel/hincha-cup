@@ -21,6 +21,7 @@ import {
   emitTokenUsage,
 } from '../../../services/framework/debug-store/index.js';
 import { beginAttemptRecorder, type AttemptRecorder } from './attempt-recorder.js';
+import { getExcludedDirectories } from '../prompt-loader.js';
 
 // Track active processes and invocations for cleanup
 const activeCodexProcesses: Set<ChildProcess> = new Set();
@@ -531,9 +532,24 @@ function runCodex(params: {
 
       let timeoutId: NodeJS.Timeout | undefined;
 
+      // Codex's hook system is notification-only — there is no PreToolUse
+      // equivalent that can block a tool call. We still pass the same env
+      // contract that Claude uses so (a) any framework-aware tooling that
+      // reads these vars stays consistent across providers, and (b) if
+      // Codex gains blocking-hook support later, the wiring is already in
+      // place. Hard path enforcement on Codex today is prompt-level only
+      // (the `<excluded_directories>` block in `prompt-builder.ts`).
+      const excludedDirs = getExcludedDirectories(params.cwd, params.frameworkPath);
+
       const proc = spawn(params.codexPath, cliArgs, {
         cwd: params.cwd,
-        env: { ...process.env, FRAMEWORK_PATH: params.frameworkPath },
+        env: {
+          ...process.env,
+          FRAMEWORK_PATH: params.frameworkPath,
+          FRAMEWORK_PROJECT_PATH: params.cwd,
+          FRAMEWORK_EXCLUDED_DIRS: JSON.stringify(excludedDirs),
+          FRAMEWORK_ENFORCE: '1',
+        },
         stdio: [promptFd, 'pipe', 'pipe'],
         detached: false,
       });

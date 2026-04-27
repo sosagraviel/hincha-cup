@@ -42,3 +42,6 @@ coverage
 .claude-temp/
 .claude-backups/
 qubika-agentic-framework/
+
+.codex-temp/
+.codex-backups/
