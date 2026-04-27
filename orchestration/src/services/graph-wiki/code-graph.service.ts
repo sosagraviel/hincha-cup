@@ -1,6 +1,14 @@
 import { createHash } from 'crypto';
 import { execSync, spawn } from 'child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs';
+import {
+  accessSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import type { CodeGraphStats } from '../../state/schemas/initialize-project.schema.js';
@@ -20,6 +28,14 @@ export interface CodeGraphBuildResult {
   code_graph_stats: CodeGraphStats;
 }
 
+/** Describes how `code-review-graph` should be invoked on this machine. */
+export interface ResolvedCodeGraphCommand {
+  command: string;
+  /** Prefix args inserted before the actual sub-command + user args (e.g. `['code-review-graph']` for uvx). */
+  args: string[];
+  via: 'launcher.json' | 'local-launcher' | 'wrapper-script' | 'system-binary' | 'uvx-direct';
+}
+
 interface CommandResult {
   exitCode: number | null;
   stdout: string;
@@ -30,6 +46,15 @@ interface GraphStateFile {
   last_indexed_commit?: string;
   updated_at?: string;
   tool_version?: string;
+}
+
+interface LauncherJson {
+  version: string;
+  command: string;
+  args: string[];
+  resolved_at: string;
+  tool_version?: string;
+  [key: string]: unknown;
 }
 
 interface ExtractionManifest {
@@ -84,13 +109,93 @@ export function resolveCurrentCommit(projectPath: string): string {
 }
 
 /**
+ * Returns the canonical invocation for code-review-graph.
+ *
+ * Resolution order:
+ *   1. <projectPath>/.code-review-graph/launcher.json (written by setup-code-graph.sh)
+ *   2. <projectPath>/.code-review-graph/code-review-graph executable
+ *   3. <frameworkPath>/scripts/code-review-graph-mcp.sh wrapper
+ *   4. System `code-review-graph` binary on PATH
+ *   5. System `uvx` → `uvx code-review-graph`
+ *
+ * Never throws — the wrapper handles the missing-binary error at runtime.
+ */
+export function resolveCodeGraphCommand(
+  projectPath: string,
+  frameworkPath: string,
+): ResolvedCodeGraphCommand {
+  const launcherJsonPath = join(codeReviewGraphDir(projectPath), 'launcher.json');
+  if (existsSync(launcherJsonPath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(launcherJsonPath, 'utf-8')) as LauncherJson;
+      if (
+        typeof parsed.command === 'string' &&
+        Array.isArray(parsed.args) &&
+        parsed.args.every((a) => typeof a === 'string')
+      ) {
+        return { command: parsed.command, args: parsed.args as string[], via: 'launcher.json' };
+      }
+    } catch {
+      // malformed — fall through
+    }
+  }
+
+  const localLauncher = join(codeReviewGraphDir(projectPath), 'code-review-graph');
+  try {
+    accessSync(localLauncher, constants.X_OK);
+    return { command: localLauncher, args: [], via: 'local-launcher' };
+  } catch {
+    // not executable or missing — fall through
+  }
+
+  const wrapperScript = join(frameworkPath, 'scripts', 'code-review-graph-mcp.sh');
+  if (existsSync(wrapperScript)) {
+    return { command: wrapperScript, args: [], via: 'wrapper-script' };
+  }
+
+  try {
+    execSync('command -v code-review-graph', { stdio: 'ignore' });
+    return { command: 'code-review-graph', args: [], via: 'system-binary' };
+  } catch {
+    // not on PATH — fall through
+  }
+
+  return { command: 'uvx', args: ['code-review-graph'], via: 'uvx-direct' };
+}
+
+/**
+ * Spawns `code-review-graph <args>` via the resolver and returns exit code,
+ * stdout, and stderr. All TS call sites use this instead of bare
+ * `runCommand('code-review-graph', args)`.
+ */
+export async function runCodeGraphCommand(
+  subArgs: string[],
+  options: {
+    projectPath: string;
+    frameworkPath: string;
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+    timeoutMs?: number;
+  },
+): Promise<CommandResult> {
+  const resolved = resolveCodeGraphCommand(options.projectPath, options.frameworkPath);
+  const fullArgs = [...resolved.args, ...subArgs];
+  return runCommand(resolved.command, fullArgs, {
+    cwd: options.cwd,
+    env: options.env ?? getCodeGraphEnv(),
+    timeoutMs: options.timeoutMs,
+  });
+}
+
+/**
  * Resolves the installed `code-review-graph` version string.
  * Falls back to 'unknown' when the command is unavailable.
  */
-async function resolveToolVersion(projectPath: string): Promise<string> {
+async function resolveToolVersion(projectPath: string, frameworkPath: string): Promise<string> {
   try {
-    const result = await runCommand('code-review-graph', ['--version'], {
-      cwd: projectPath,
+    const result = await runCodeGraphCommand(['--version'], {
+      projectPath,
+      frameworkPath,
       env: getCodeGraphEnv(),
       timeoutMs: 10000,
     });
@@ -104,11 +209,11 @@ async function resolveToolVersion(projectPath: string): Promise<string> {
  * Persists `.code-review-graph/.state.json` with the current commit, ISO
  * timestamp, and tool version. Creates the directory if it does not exist.
  */
-async function writeGraphState(projectPath: string): Promise<void> {
+async function writeGraphState(projectPath: string, frameworkPath: string): Promise<void> {
   const dir = codeReviewGraphDir(projectPath);
   mkdirSync(dir, { recursive: true });
 
-  const toolVersion = await resolveToolVersion(projectPath);
+  const toolVersion = await resolveToolVersion(projectPath, frameworkPath);
   const state: GraphStateFile = {
     last_indexed_commit: resolveCurrentCommit(projectPath),
     updated_at: new Date().toISOString(),
@@ -191,15 +296,20 @@ export async function buildCodeGraph(
   const headMoved = hasIndexedCommit && graphState!.last_indexed_commit !== currentCommit;
 
   if (dbExists && hasIndexedCommit && headMoved) {
-    const updated = await tryIncrementalUpdate(options.projectPath);
+    const updated = await tryIncrementalUpdate(options.projectPath, options.frameworkPath);
     if (!updated) {
       await runFullBuild(options.projectPath, graphDbPath, options.frameworkPath);
     }
   }
 
-  await writeGraphState(options.projectPath);
+  await writeGraphState(options.projectPath, options.frameworkPath);
 
-  const stats = await collectGraphStats(graphDbPath, Date.now() - startedAt);
+  const stats = await collectGraphStats(
+    graphDbPath,
+    Date.now() - startedAt,
+    options.projectPath,
+    options.frameworkPath,
+  );
   const sha = createHash('sha256').update(readFileSync(graphDbPath)).digest('hex');
 
   writeExtractionManifest(options.projectPath, stats, sha);
@@ -219,10 +329,11 @@ export async function buildCodeGraph(
  * success, false when the command exits non-zero so the caller can fall back
  * to a full build.
  */
-async function tryIncrementalUpdate(projectPath: string): Promise<boolean> {
+async function tryIncrementalUpdate(projectPath: string, frameworkPath: string): Promise<boolean> {
   try {
-    await runCommand('code-review-graph', ['update', '--repo', projectPath], {
-      cwd: projectPath,
+    await runCodeGraphCommand(['update', '--repo', projectPath], {
+      projectPath,
+      frameworkPath,
       env: getCodeGraphEnv(),
       timeoutMs: COMMAND_TIMEOUT_MS,
     });
@@ -261,16 +372,28 @@ async function runFullBuild(
 export async function collectGraphStats(
   graphDbPath: string,
   buildTimeMs = 0,
+  projectPath?: string,
+  frameworkPath?: string,
 ): Promise<CodeGraphStats> {
   try {
     const repoPath = graphDbPath.endsWith('/.code-graph.db')
       ? graphDbPath.slice(0, -'/.code-graph.db'.length)
       : undefined;
-    const result = await runFirstSuccessfulCommand([
+
+    const resolvedProjectPath = projectPath ?? repoPath ?? process.cwd();
+    const resolvedFrameworkPath = frameworkPath ?? process.cwd();
+
+    const commandArgSets = [
       ['stats', '--db', graphDbPath, '--format', 'json'],
       ...(repoPath ? [['status', '--repo', repoPath]] : []),
       ['status'],
-    ]);
+    ];
+
+    const result = await runFirstSuccessfulCodeGraphCommand(
+      commandArgSets,
+      resolvedProjectPath,
+      resolvedFrameworkPath,
+    );
 
     return parseGraphStats(result.stdout, buildTimeMs);
   } catch {
@@ -301,25 +424,20 @@ async function resolveMcpCommand(
   _port: number,
   frameworkPath?: string,
 ): Promise<void> {
-  const commands: Array<[string, string[]]> = [
-    ...(frameworkPath
-      ? [
-          [
-            join(frameworkPath, 'scripts', 'code-review-graph-mcp.sh'),
-            ['serve', '--repo', projectPath, '--help'],
-          ] as [string, string[]],
-        ]
-      : []),
-    ['code-review-graph', ['serve', '--repo', projectPath, '--help']],
-    ['code-review-graph', ['serve', '--help']],
-    ['code-review-graph', ['mcp-server', '--help']],
-    ['code-review-graph', ['mcp', '--help']],
+  const resolvedFrameworkPath = frameworkPath ?? process.cwd();
+
+  const subCommandSets: string[][] = [
+    ['serve', '--repo', projectPath, '--help'],
+    ['serve', '--help'],
+    ['mcp-server', '--help'],
+    ['mcp', '--help'],
   ];
 
-  for (const [command, args] of commands) {
+  for (const subArgs of subCommandSets) {
     try {
-      await runCommand(command, args, {
-        cwd: projectPath,
+      await runCodeGraphCommand(subArgs, {
+        projectPath,
+        frameworkPath: resolvedFrameworkPath,
         env: getCodeGraphEnv(),
         timeoutMs: 10000,
       });
@@ -327,19 +445,26 @@ async function resolveMcpCommand(
     } catch {}
   }
 
-  await runCommand('code-review-graph', ['--help'], {
-    cwd: projectPath,
+  await runCodeGraphCommand(['--help'], {
+    projectPath,
+    frameworkPath: resolvedFrameworkPath,
     env: getCodeGraphEnv(),
     timeoutMs: 10000,
   });
 }
 
-async function runFirstSuccessfulCommand(commandArgs: string[][]): Promise<CommandResult> {
+async function runFirstSuccessfulCodeGraphCommand(
+  commandArgSets: string[][],
+  projectPath: string,
+  frameworkPath: string,
+): Promise<CommandResult> {
   let lastError: Error | undefined;
 
-  for (const args of commandArgs) {
+  for (const args of commandArgSets) {
     try {
-      return await runCommand('code-review-graph', args, {
+      return await runCodeGraphCommand(args, {
+        projectPath,
+        frameworkPath,
         env: getCodeGraphEnv(),
         timeoutMs: 30000,
       });

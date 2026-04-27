@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/bootstrap-uv.sh
+source "$SCRIPT_DIR/lib/bootstrap-uv.sh"
+
 PROJECT_PATH="${PROJECT_PATH:-$(pwd)}"
 CODE_GRAPH_DB_PATH="${CODE_GRAPH_DB_PATH:-$PROJECT_PATH/.code-graph.db}"
 DEFAULT_CODE_GRAPH_DB_PATH="$PROJECT_PATH/.code-review-graph/graph.db"
@@ -68,6 +72,27 @@ ensure_code_review_graph() {
 
   if command -v uvx >/dev/null 2>&1; then
     log_info "Using code-review-graph through uvx (no persistent install)"
+    CODE_GRAPH_CMD=(uvx code-review-graph)
+    return 0
+  fi
+
+  if command -v uv >/dev/null 2>&1; then
+    log_info "Installing code-review-graph with uv tool install"
+    if uv tool install code-review-graph; then
+      export PATH="$HOME/.local/bin:$PATH"
+      if command -v code-review-graph >/dev/null 2>&1; then
+        CODE_GRAPH_CMD=(code-review-graph)
+        return 0
+      fi
+    fi
+    log_info "uv tool install failed; trying uvx"
+    CODE_GRAPH_CMD=(uvx code-review-graph)
+    return 0
+  fi
+
+  # Attempt to bootstrap uv from scratch when nothing else is available.
+  if bootstrap_uv_if_needed && command -v uvx >/dev/null 2>&1; then
+    log_info "Using code-review-graph through bootstrapped uvx"
     CODE_GRAPH_CMD=(uvx code-review-graph)
     return 0
   fi
@@ -151,6 +176,48 @@ write_local_launcher() {
   chmod +x "$launcher"
 }
 
+write_launcher_json() {
+  mkdir -p "$PROJECT_PATH/.code-review-graph"
+
+  local command_name args_json resolved_at tool_version
+
+  if [ "${#CODE_GRAPH_CMD[@]}" -eq 1 ] && [ "${CODE_GRAPH_CMD[0]}" = "code-review-graph" ]; then
+    command_name="code-review-graph"
+    args_json="[]"
+  else
+    command_name="${CODE_GRAPH_CMD[0]}"
+    local remaining=("${CODE_GRAPH_CMD[@]:1}")
+    args_json="["
+    local first=true
+    for arg in "${remaining[@]}"; do
+      if [ "$first" = true ]; then
+        args_json+="\"$arg\""
+        first=false
+      else
+        args_json+=",\"$arg\""
+      fi
+    done
+    args_json+="]"
+  fi
+
+  resolved_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+  tool_version="unknown"
+  if "${CODE_GRAPH_CMD[@]}" --version >/dev/null 2>&1; then
+    tool_version="$("${CODE_GRAPH_CMD[@]}" --version 2>&1 | head -n 1)"
+  fi
+
+  cat > "$PROJECT_PATH/.code-review-graph/launcher.json" << EOF
+{
+  "version": "1",
+  "command": "$command_name",
+  "args": $args_json,
+  "resolved_at": "$resolved_at",
+  "tool_version": "$tool_version"
+}
+EOF
+}
+
 main() {
   if [ ! -d "$PROJECT_PATH" ]; then
     log_error "Project path does not exist: $PROJECT_PATH"
@@ -160,6 +227,7 @@ main() {
   ensure_code_review_graph
   build_graph
   write_local_launcher
+  write_launcher_json
 
   if [ ! -f "$CODE_GRAPH_DB_PATH" ]; then
     log_error "Expected graph database was not created: $CODE_GRAPH_DB_PATH"

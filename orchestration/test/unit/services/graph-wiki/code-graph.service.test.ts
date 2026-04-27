@@ -8,6 +8,7 @@ import {
   buildCodeGraph,
   extractionManifestPath,
   loadGraphState,
+  resolveCodeGraphCommand,
   resolveCurrentCommit,
   writeExtractionManifest,
 } from '../../../../src/services/graph-wiki/code-graph.service.js';
@@ -150,6 +151,41 @@ describe('writeExtractionManifest', () => {
       unknown
     >;
     expect(parsed.tool_version).toBe('unknown');
+  });
+});
+
+describe('resolveCodeGraphCommand — integration with code-graph.service', () => {
+  it('returns wrapper-script via when the mcp wrapper script exists in frameworkPath', () => {
+    const frameworkPath = mkdtempSync(join(tmpdir(), 'fw-resolve-test-'));
+    const projectPath = mkdtempSync(join(tmpdir(), 'proj-resolve-test-'));
+    const scriptsDir = join(frameworkPath, 'scripts');
+    mkdirSync(scriptsDir, { recursive: true });
+    writeFileSync(join(scriptsDir, 'code-review-graph-mcp.sh'), '#!/bin/bash\n', 'utf-8');
+
+    const result = resolveCodeGraphCommand(projectPath, frameworkPath);
+    expect(result.via).toBe('wrapper-script');
+    expect(result.command).toContain('code-review-graph-mcp.sh');
+  });
+
+  it('returns launcher.json via when launcher.json exists and is valid', () => {
+    const frameworkPath = mkdtempSync(join(tmpdir(), 'fw-resolve-test-'));
+    const projectPath = mkdtempSync(join(tmpdir(), 'proj-resolve-test-'));
+    const codeReviewDir = join(projectPath, '.code-review-graph');
+    mkdirSync(codeReviewDir, { recursive: true });
+    writeFileSync(
+      join(codeReviewDir, 'launcher.json'),
+      JSON.stringify({
+        version: '1',
+        command: 'uvx',
+        args: ['code-review-graph'],
+        resolved_at: '2026-01-01T00:00:00Z',
+      }),
+      'utf-8',
+    );
+
+    const result = resolveCodeGraphCommand(projectPath, frameworkPath);
+    expect(result.via).toBe('launcher.json');
+    expect(result.command).toBe('uvx');
   });
 });
 

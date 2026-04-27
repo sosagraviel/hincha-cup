@@ -162,6 +162,23 @@ pnpm initialize -- -p . -f /path/to/framework
 
 ---
 
+## Code Graph Bootstrap (First Run)
+
+On the very first run, the workflow invokes `scripts/setup-code-graph.sh` to install and invoke `code-review-graph`. The script resolves the tool using this priority order:
+
+1. `code-review-graph` already on PATH — used directly.
+2. `uvx` available — runs `uvx code-review-graph` without a persistent install.
+3. `uv` available (but no uvx) — installs via `uv tool install code-review-graph`.
+4. **Bootstrap**: if none of the above exist, the script downloads and installs `uv` automatically via the official installer (`curl -LsSf https://astral.sh/uv/install.sh | sh`), then uses `uvx`. This requires `curl` and outbound access to `astral.sh`. The installer places a single static binary in `~/.local/bin`; no system Python or sudo is needed.
+5. `pipx` — installs the package persistently.
+6. Python 3.10+ with pip — installs with `pip install --user`.
+
+When you see `[code-graph] bootstrapping uv (single-binary Python tool runner)` in the output, step 4 is running. This is a one-time operation; subsequent runs find `uvx` already on PATH.
+
+After installation, `setup-code-graph.sh` writes `<projectPath>/.code-review-graph/launcher.json`. The TypeScript layer reads this file on subsequent calls so it never needs to resolve the binary again from scratch.
+
+---
+
 ## Troubleshooting
 
 ### "Stack detection failed"
