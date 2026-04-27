@@ -41,7 +41,7 @@ function buildProject(): {
   const wikiDir = join(projectPath, 'docs', 'llm-wiki', 'wiki');
   const rawDir = join(projectPath, 'docs', 'llm-wiki', 'raw');
   const artifactsDir = join(projectPath, '.claude-temp', 'wiki-lint-integ');
-  const graphDbPath = join(projectPath, '.code-graph.db');
+  const graphDbPath = join(projectPath, '.code-review-graph/graph.db');
 
   mkdirSync(join(wikiDir, 'services'), { recursive: true });
   mkdirSync(rawDir, { recursive: true });

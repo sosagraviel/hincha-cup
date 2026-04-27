@@ -32,7 +32,7 @@ Verify the project is ready for wiki refresh:
 
 1. Check that `docs/llm-wiki/` exists. If missing, tell the user to run `$initialize-project` first.
 2. Check that `docs/llm-wiki/wiki/` exists and contains at least one `.md` file.
-3. Check that `.code-graph.db` exists in the project root.
+3. Check that `.code-review-graph/graph.db` exists in the project root.
 4. Check that `AGENTS.md` exists at `docs/llm-wiki/AGENTS.md` (Codex schema document).
 5. If `.state.json` does not exist and `--since` was not passed, inform the user that a full-tree refresh will run.
 

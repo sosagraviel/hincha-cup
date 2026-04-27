@@ -47,8 +47,7 @@ describe('graphFoundationNode', () => {
   it('returns graph metadata when graph build succeeds', async () => {
     vi.mocked(buildCodeGraph).mockResolvedValue({
       code_graph_available: true,
-      code_graph_path: '/test/project/.code-graph.db',
-      code_graph_mcp_port: 3100,
+      code_graph_path: '/test/project/.code-review-graph/graph.db',
       code_graph_stats: {
         files: 10,
         functions: 20,
@@ -67,8 +66,7 @@ describe('graphFoundationNode', () => {
     });
     expect(result).toMatchObject({
       code_graph_available: true,
-      code_graph_path: '/test/project/.code-graph.db',
-      code_graph_mcp_port: 3100,
+      code_graph_path: '/test/project/.code-review-graph/graph.db',
       current_phase: 'phase0_graph',
     });
   });
@@ -76,8 +74,7 @@ describe('graphFoundationNode', () => {
   it('logs file count and build time in success message', async () => {
     vi.mocked(buildCodeGraph).mockResolvedValue({
       code_graph_available: true,
-      code_graph_path: '/test/project/.code-graph.db',
-      code_graph_mcp_port: 3100,
+      code_graph_path: '/test/project/.code-review-graph/graph.db',
       code_graph_stats: {
         files: 247,
         functions: 1834,
@@ -101,8 +98,7 @@ describe('graphFoundationNode', () => {
   it('formats build time in minutes and seconds for long builds', async () => {
     vi.mocked(buildCodeGraph).mockResolvedValue({
       code_graph_available: true,
-      code_graph_path: '/test/project/.code-graph.db',
-      code_graph_mcp_port: 3100,
+      code_graph_path: '/test/project/.code-review-graph/graph.db',
       code_graph_stats: {
         files: 100,
         functions: 500,

@@ -58,7 +58,7 @@ Exit code 1 when any of these fire. They represent facts about the wiki that are
 | `deadSources` | Parse `sources[].path` from YAML frontmatter; assert each exists under project root or `raw/` |
 | `missingFrontmatter` | Assert every page has `document_type`, `graph_version`, `generated_at`, `summary`, `sources`, `confidence` |
 | `legacy-raw-source` | Assert no `sources[].path` points under `docs/llm-wiki/raw/analyzers/` or `docs/llm-wiki/raw/graph-stats/` — those subdirs were removed. Phase 1 analyzer outputs live in `.claude-temp/initialize-project/phase1-outputs/`; graph stats live in `.state.json`. Valid `raw/` subdirs are `snapshots/` and `external/` only. Example violation: a page citing `docs/llm-wiki/raw/analyzers/01-structure-architecture.json` as a source. |
-| `graphVersionMismatch` | Assert each page's `graph_version` equals `sha256(<projectPath>/.code-graph.db)`. **Severity: warn** — expected between builds |
+| `graphVersionMismatch` | Assert each page's `graph_version` equals `sha256(<projectPath>/.code-review-graph/graph.db)`. **Severity: warn** — expected between builds |
 | `graphCommitMismatch` | Assert each page's `graph_commit` equals `git rev-parse HEAD`. **Severity: warn** — expected between builds |
 
 `graphVersionMismatch` and `graphCommitMismatch` use `'warn'` severity despite being in the structural group; they appear in the Structural section of the Markdown report to signal "run `/wiki-refresh`" rather than "manual fix required".

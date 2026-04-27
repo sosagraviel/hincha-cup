@@ -63,7 +63,7 @@ Environment variables: DATABASE_URL=postgres://...
       if (path.includes('context-complete.json')) return true;
       if (path.includes('full-context.md')) return true;
       if (path.includes('stack-profile.json')) return true;
-      if (path.includes('.code-graph.db')) return true;
+      if (path.includes('.code-review-graph/graph.db')) return true;
       if (path.includes('planner.md')) return true;
       return false;
     });
@@ -206,7 +206,7 @@ Environment variables: DATABASE_URL=postgres://...
         if (path.includes('context-complete.json')) return true;
         if (path.includes('full-context.md')) return true;
         if (path.includes('stack-profile.json')) return true;
-        if (path.includes('.code-graph.db')) return false;
+        if (path.includes('.code-review-graph/graph.db')) return false;
         return false;
       });
 
@@ -223,7 +223,7 @@ Environment variables: DATABASE_URL=postgres://...
         if (path.includes('context-complete.json')) return true;
         if (path.includes('full-context.md')) return true;
         if (path.includes('stack-profile.json')) return true;
-        if (path.includes('.code-graph.db')) return true;
+        if (path.includes('.code-review-graph/graph.db')) return true;
         if (path.includes('planner.md')) return true;
         return false;
       });

@@ -3,6 +3,7 @@ import { execSync } from 'child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join, relative, resolve } from 'path';
 import matter from 'gray-matter';
+import { graphDbPath as canonicalGraphDbPath } from './code-graph.service.js';
 
 export type LintSeverity = 'fail' | 'warn';
 
@@ -59,7 +60,7 @@ export async function lintLlmWiki(opts: LintOptions): Promise<LintReport> {
   const wikiDir = join(projectPath, 'docs', 'llm-wiki', 'wiki');
   const rawDir = join(projectPath, 'docs', 'llm-wiki', 'raw');
   const artifactsDir = opts.artifactsDir ?? join(projectPath, '.claude-temp', 'wiki-lint');
-  const graphDbPath = opts.graphDbPath ?? join(projectPath, '.code-graph.db');
+  const graphDbPath = opts.graphDbPath ?? canonicalGraphDbPath(projectPath);
 
   const pages = collectMarkdownPages(wikiDir);
   const structural: LintViolation[] = [];
@@ -283,7 +284,7 @@ function checkGraphVersionMismatch(
       page: relPage,
       rule: 'graph-version-mismatch',
       severity: 'warn',
-      message: `Page graph_version (${pageGraphVersion.slice(0, 8)}…) does not match current .code-graph.db hash. Run /wiki-refresh to update.`,
+      message: `Page graph_version (${pageGraphVersion.slice(0, 8)}…) does not match current graph DB hash. Run /wiki-refresh to update.`,
       evidence: pageGraphVersion,
     });
   }

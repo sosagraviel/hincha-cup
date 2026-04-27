@@ -1,7 +1,7 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import matter from 'gray-matter';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { describe, expect, it } from 'vitest';
 import {
   LLM_WIKI_CORE_GENERATION_ORDER,
@@ -15,7 +15,8 @@ import { Provider } from '../../../../src/providers/types.js';
 describe('wiki-generator.service', () => {
   function buildInput() {
     const projectPath = mkdtempSync(join(tmpdir(), 'simple-api-wiki-service-'));
-    const graphPath = join(projectPath, '.code-graph.db');
+    const graphPath = join(projectPath, '.code-review-graph/graph.db');
+    mkdirSync(dirname(graphPath), { recursive: true });
     writeFileSync(graphPath, 'graph-content');
 
     return {
@@ -26,7 +27,6 @@ describe('wiki-generator.service', () => {
       graph: {
         available: true,
         path: graphPath,
-        mcpPort: 3100,
         stats: {
           files: 8,
           functions: 10,
@@ -276,7 +276,7 @@ describe('wiki-generator.service', () => {
     await expect(
       new WikiGeneratorService({
         ...buildInput(),
-        graph: { available: false, path: '/missing/.code-graph.db' },
+        graph: { available: false, path: '/missing/.code-review-graph/graph.db' },
         agentInvoker: async () => '# Body',
       }).generateAll(),
     ).rejects.toThrow('Code graph is required');

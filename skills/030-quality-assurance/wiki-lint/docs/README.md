@@ -11,7 +11,7 @@ Structural and semantic lint checks for the LLM wiki at `docs/llm-wiki/wiki/`.
 | `broken-wikilinks` | Every `[text](path)` and `[[wikilink]]` target must resolve to an existing file. External `http(s)://` links and anchor-only `#section` links are skipped. |
 | `dead-sources` | Every entry in `sources[].path` (frontmatter) must exist in the project tree or under `docs/llm-wiki/raw/`. |
 | `missing-frontmatter` | Every page must have all six required keys: `document_type`, `graph_version`, `generated_at`, `summary`, `sources`, `confidence`. |
-| `graph-version-mismatch` | Page `graph_version` must match `sha256(.code-graph.db)`. Classified as **semantic warn** — stale between builds is expected. |
+| `graph-version-mismatch` | Page `graph_version` must match `sha256(.code-review-graph/graph.db)`. Classified as **semantic warn** — stale between builds is expected. |
 | `graph-commit-mismatch` | Page `graph_commit` must match `git rev-parse HEAD`. Classified as **semantic warn** — run `/wiki-refresh` to fix. |
 
 ### Semantic (warn — zero exit)

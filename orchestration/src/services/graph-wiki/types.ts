@@ -114,7 +114,6 @@ export interface WikiAnalyzerOutputs {
 export interface WikiGraphState {
   available?: boolean;
   path?: string;
-  mcpPort?: number;
   stats?: CodeGraphStats;
   error?: string;
 }

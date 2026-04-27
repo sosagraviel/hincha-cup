@@ -78,7 +78,7 @@ ${BLUE}WHAT THIS DOES:${NC}
 ${BLUE}REQUIREMENTS:${NC}
     - Project initialized (run initialize-project.sh first)
     - docs/llm-wiki/ must exist
-    - .code-graph.db must exist
+    - .code-review-graph/graph.db must exist
     - node (v18+) and pnpm
 
 EOF

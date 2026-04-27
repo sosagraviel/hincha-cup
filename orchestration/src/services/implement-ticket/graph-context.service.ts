@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { basename, join } from 'path';
 import matter from 'gray-matter';
+import { graphDbPath } from '../graph-wiki/code-graph.service.js';
 
 const LLM_WIKI_FILES = [
   'index.md',
@@ -38,12 +39,12 @@ export interface TieredContextOptions {
 }
 
 export function assertCodeGraphReady(projectPath: string): string {
-  const graphPath = join(projectPath, '.code-graph.db');
+  const graphPath = graphDbPath(projectPath);
 
   if (!existsSync(graphPath)) {
     throw new Error(
       `Code graph database not found: ${graphPath}\n` +
-        'Run initialize-project before /implement-ticket so .code-graph.db is available.',
+        'Run initialize-project before /implement-ticket so the graph DB is available.',
     );
   }
 

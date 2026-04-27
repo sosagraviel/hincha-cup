@@ -26,7 +26,8 @@ describe('mcp-config.service', () => {
       recursive: true,
     });
     mkdirSync(join(frameworkPath, 'scripts'), { recursive: true });
-    writeFileSync(join(projectPath, '.code-graph.db'), '');
+    mkdirSync(join(projectPath, '.code-review-graph'), { recursive: true });
+    writeFileSync(join(projectPath, '.code-review-graph/graph.db'), '');
     writeFileSync(join(frameworkPath, 'scripts', 'code-review-graph-mcp.sh'), '#!/bin/bash\n');
     return { projectPath, frameworkPath };
   }

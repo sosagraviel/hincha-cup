@@ -1,13 +1,14 @@
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { describe, expect, it } from 'vitest';
 import { WikiGeneratorService } from '../../../../src/services/graph-wiki/wiki-generator.service.js';
 import { Provider } from '../../../../src/providers/types.js';
 
 function buildService() {
   const projectPath = mkdtempSync(join(tmpdir(), 'log-md-test-'));
-  const graphPath = join(projectPath, '.code-graph.db');
+  const graphPath = join(projectPath, '.code-review-graph/graph.db');
+  mkdirSync(dirname(graphPath), { recursive: true });
   writeFileSync(graphPath, 'graph-content');
 
   return new WikiGeneratorService({

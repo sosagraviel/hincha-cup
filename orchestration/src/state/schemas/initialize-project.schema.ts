@@ -153,10 +153,10 @@ export const InitializeProjectStateSchema = z.object({
   // Phase control
   start_phase: z.number().min(1).max(6).default(1).optional(),
 
-  // Code graph foundation (Phase 0 POC)
+  // Code graph foundation (Phase 0). The MCP server is stdio-only — there is no
+  // port. Any historical `code_graph_mcp_port` field has been removed.
   code_graph_available: z.boolean().optional(),
   code_graph_path: z.string().optional(),
-  code_graph_mcp_port: z.number().optional(),
   code_graph_stats: CodeGraphStatsSchema.optional(),
   code_graph_error: z.string().optional(),
 
@@ -278,7 +278,6 @@ export const InitializeProjectAnnotation = Annotation.Root({
     default: () => false,
   }),
   code_graph_path: Annotation<string | undefined>,
-  code_graph_mcp_port: Annotation<number | undefined>,
   code_graph_stats: Annotation<CodeGraphStats | undefined>,
   code_graph_error: Annotation<string | undefined>,
 

@@ -23,7 +23,6 @@ export async function wikiServiceDocsNode(
       graph: {
         available: state.code_graph_available,
         path: state.code_graph_path,
-        mcpPort: state.code_graph_mcp_port,
         stats: state.code_graph_stats,
         error: state.code_graph_error,
       },

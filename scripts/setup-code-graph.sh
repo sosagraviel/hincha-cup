@@ -10,8 +10,11 @@ source "$SCRIPT_DIR/lib/resolve-paths.sh"
 # PROJECT_PATH is locally scoped — never exported. Single source of truth is the
 # helper, which detects dogfooding via the qubika-agentic-framework -> . self-symlink.
 PROJECT_PATH="$(project_path)"
-CODE_GRAPH_DB_PATH="${CODE_GRAPH_DB_PATH:-$PROJECT_PATH/.code-graph.db}"
-DEFAULT_CODE_GRAPH_DB_PATH="$PROJECT_PATH/.code-review-graph/graph.db"
+# Single canonical graph DB path. The legacy `.code-graph.db` snapshot at the
+# project root has been retired (see retired Phase 2 of init-refactor): no
+# `copy_graph_db_if_needed` step exists anymore, and any existing legacy file
+# is harmless — it's never read or written by this codepath.
+CODE_GRAPH_DB_PATH="$PROJECT_PATH/.code-review-graph/graph.db"
 MIN_PYTHON_VERSION="3.10"
 CODE_GRAPH_CMD=()
 
@@ -140,27 +143,18 @@ ensure_code_review_graph() {
 
 build_graph() {
   log_info "Building graph for $PROJECT_PATH"
-  log_info "Native output: $DEFAULT_CODE_GRAPH_DB_PATH"
-  log_info "Compatibility output: $CODE_GRAPH_DB_PATH"
+  log_info "Output: $CODE_GRAPH_DB_PATH"
 
   if "${CODE_GRAPH_CMD[@]}" build --repo "$PROJECT_PATH"; then
-    copy_graph_db_if_needed
     return 0
   fi
 
   log_info "Retrying graph build from project directory"
   if (cd "$PROJECT_PATH" && "${CODE_GRAPH_CMD[@]}" build); then
-    copy_graph_db_if_needed
     return 0
   fi
 
   return 1
-}
-
-copy_graph_db_if_needed() {
-  if [ -f "$DEFAULT_CODE_GRAPH_DB_PATH" ] && [ "$DEFAULT_CODE_GRAPH_DB_PATH" != "$CODE_GRAPH_DB_PATH" ]; then
-    cp "$DEFAULT_CODE_GRAPH_DB_PATH" "$CODE_GRAPH_DB_PATH"
-  fi
 }
 
 write_local_launcher() {

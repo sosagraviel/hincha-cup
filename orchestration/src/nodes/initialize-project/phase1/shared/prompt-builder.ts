@@ -17,7 +17,6 @@ import type { CodeGraphStats } from '../../../../state/schemas/initialize-projec
 export interface GraphPromptContext {
   available: boolean;
   dbPath?: string;
-  mcpPort?: number;
   stats?: CodeGraphStats;
 }
 
@@ -64,7 +63,6 @@ function buildGraphContext(graphContext: GraphPromptContext): string {
   const lines = [
     `Available: ${graphContext.available ? 'yes' : 'no'}`,
     graphContext.dbPath ? `Database: ${graphContext.dbPath}` : undefined,
-    graphContext.mcpPort ? `MCP Port: ${graphContext.mcpPort}` : undefined,
     graphContext.stats ? `Stats: ${JSON.stringify(graphContext.stats)}` : undefined,
   ].filter(Boolean) as string[];
 

@@ -19,7 +19,7 @@ export function stripMarkdownFrontmatter(content: string): string {
 }
 
 export function buildContextSection(graph: WikiGraphState): string {
-  const graphSource = graph.path ? relativeGraphPath(graph.path) : '.code-graph.db';
+  const graphSource = graph.path ? relativeGraphPath(graph.path) : '.code-review-graph/graph.db';
   return [
     LLM_WIKI_CONTEXT_START,
     '## LLM Wiki',

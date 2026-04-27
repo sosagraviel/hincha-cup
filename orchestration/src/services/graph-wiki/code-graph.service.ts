@@ -16,18 +16,14 @@ import { homedir } from 'os';
 import { join } from 'path';
 import type { CodeGraphStats } from '../../state/schemas/initialize-project.schema.js';
 
-export const DEFAULT_CODE_GRAPH_MCP_PORT = 3100;
-
 export interface CodeGraphBuildOptions {
   projectPath: string;
   frameworkPath: string;
-  mcpPort?: number;
 }
 
 export interface CodeGraphBuildResult {
   code_graph_available: boolean;
   code_graph_path: string;
-  code_graph_mcp_port: number;
   code_graph_stats: CodeGraphStats;
 }
 
@@ -88,8 +84,18 @@ const COMMAND_TIMEOUT_MS = 300000;
 const CODE_REVIEW_GRAPH_DIRNAME = '.code-review-graph';
 
 /** Returns the path to the `.code-review-graph/` directory for a project. */
-function codeReviewGraphDir(projectPath: string): string {
+export function codeReviewGraphDir(projectPath: string): string {
   return join(projectPath, CODE_REVIEW_GRAPH_DIRNAME);
+}
+
+/**
+ * Returns the canonical path to the code-graph SQLite database for a project.
+ * Single source of truth for every reader/writer of the graph DB. The legacy
+ * `<project>/.code-graph.db` snapshot has been retired (Phase 2 of the
+ * init-refactor); only this path is produced or consumed.
+ */
+export function graphDbPath(projectPath: string): string {
+  return join(codeReviewGraphDir(projectPath), 'graph.db');
 }
 
 /** Returns the path to `.code-review-graph/.state.json` for a project. */
@@ -401,8 +407,7 @@ export async function buildCodeGraph(
   options: CodeGraphBuildOptions,
 ): Promise<CodeGraphBuildResult> {
   const startedAt = Date.now();
-  const mcpPort = options.mcpPort ?? DEFAULT_CODE_GRAPH_MCP_PORT;
-  const graphDbPath = join(options.projectPath, '.code-graph.db');
+  const dbPath = graphDbPath(options.projectPath);
   const setupScriptPath = join(options.frameworkPath, 'scripts', 'setup-code-graph.sh');
 
   if (!existsSync(setupScriptPath)) {
@@ -413,18 +418,16 @@ export async function buildCodeGraph(
     cwd: options.projectPath,
     env: {
       ...getCodeGraphEnv(),
-      PROJECT_PATH: options.projectPath,
-      CODE_GRAPH_DB_PATH: graphDbPath,
     },
     timeoutMs: COMMAND_TIMEOUT_MS,
   });
   process.env.PATH = getCodeGraphEnv().PATH;
 
-  if (!existsSync(graphDbPath)) {
-    throw new Error(`Code graph database was not created: ${graphDbPath}`);
+  if (!existsSync(dbPath)) {
+    throw new Error(`Code graph database was not created: ${dbPath}`);
   }
 
-  const dbCheck = validateGraphDb(graphDbPath);
+  const dbCheck = validateGraphDb(dbPath);
   if (!dbCheck.ok) {
     throw new Error(`Graph DB invalid (${dbCheck.sizeBytes} bytes): ${dbCheck.reason}`);
   }
@@ -435,8 +438,6 @@ export async function buildCodeGraph(
       cwd: options.projectPath,
       env: {
         ...getCodeGraphEnv(),
-        PROJECT_PATH: options.projectPath,
-        CODE_GRAPH_DB_PATH: graphDbPath,
         FORCE_REINSTALL: '1',
       },
       timeoutMs: COMMAND_TIMEOUT_MS,
@@ -457,8 +458,6 @@ export async function buildCodeGraph(
 
   const graphState = loadGraphState(options.projectPath);
   const currentCommit = resolveCurrentCommit(options.projectPath);
-  const nativeDbPath = join(codeReviewGraphDir(options.projectPath), 'graph.db');
-  const dbExists = existsSync(nativeDbPath) || existsSync(graphDbPath);
 
   const hasIndexedCommit =
     graphState !== null &&
@@ -467,31 +466,31 @@ export async function buildCodeGraph(
 
   const headMoved = hasIndexedCommit && graphState!.last_indexed_commit !== currentCommit;
 
-  if (dbExists && hasIndexedCommit && headMoved) {
+  if (existsSync(dbPath) && hasIndexedCommit && headMoved) {
     const updated = await tryIncrementalUpdate(options.projectPath, options.frameworkPath);
     if (!updated) {
-      await runFullBuild(options.projectPath, graphDbPath, options.frameworkPath);
+      await runFullBuild(options.projectPath, dbPath, options.frameworkPath);
     }
   }
 
   await writeGraphState(options.projectPath, options.frameworkPath);
 
   const stats = await collectGraphStats(
-    graphDbPath,
+    dbPath,
     Date.now() - startedAt,
     options.projectPath,
     options.frameworkPath,
   );
-  const sha = createHash('sha256').update(readFileSync(graphDbPath)).digest('hex');
+  const sha = createHash('sha256').update(readFileSync(dbPath)).digest('hex');
 
   writeExtractionManifest(options.projectPath, stats, sha);
 
-  await startOrVerifyMcpServer(options.projectPath, graphDbPath, mcpPort, options.frameworkPath);
+  // Verify the code-review-graph CLI is callable (no port involved — MCP is stdio).
+  await verifyCodeGraphCli(options.projectPath, options.frameworkPath);
 
   return {
     code_graph_available: true,
-    code_graph_path: graphDbPath,
-    code_graph_mcp_port: mcpPort,
+    code_graph_path: dbPath,
     code_graph_stats: stats,
   };
 }
@@ -526,16 +525,17 @@ async function tryIncrementalUpdate(projectPath: string, frameworkPath: string):
  */
 async function runFullBuild(
   projectPath: string,
-  graphDbPath: string,
+  _graphDbPath: string,
   frameworkPath: string,
 ): Promise<void> {
+  // The bash script derives the project path locally via lib/resolve-paths.sh
+  // and writes to <project>/.code-review-graph/graph.db. No PROJECT_PATH or
+  // CODE_GRAPH_DB_PATH env injection is required or honored anymore.
   const setupScriptPath = join(frameworkPath, 'scripts', 'setup-code-graph.sh');
   await runCommand('bash', [setupScriptPath], {
     cwd: projectPath,
     env: {
       ...getCodeGraphEnv(),
-      PROJECT_PATH: projectPath,
-      CODE_GRAPH_DB_PATH: graphDbPath,
     },
     timeoutMs: COMMAND_TIMEOUT_MS,
   });
@@ -548,8 +548,10 @@ export async function collectGraphStats(
   frameworkPath?: string,
 ): Promise<CodeGraphStats> {
   try {
-    const repoPath = graphDbPath.endsWith('/.code-graph.db')
-      ? graphDbPath.slice(0, -'/.code-graph.db'.length)
+    // <project>/.code-review-graph/graph.db → <project>
+    const suffix = '/.code-review-graph/graph.db';
+    const repoPath = graphDbPath.endsWith(suffix)
+      ? graphDbPath.slice(0, -suffix.length)
       : undefined;
 
     const resolvedProjectPath = projectPath ?? repoPath ?? process.cwd();
@@ -581,19 +583,14 @@ export async function collectGraphStats(
   }
 }
 
-export async function startOrVerifyMcpServer(
+/**
+ * Verify the code-review-graph CLI is callable on this machine. The MCP server
+ * itself is launched per-session by Claude/Codex via the stdio command in
+ * `mcp.json` — there is no long-running HTTP server, no port. This verification
+ * just exercises the CLI subcommands so resolution failures surface early.
+ */
+export async function verifyCodeGraphCli(
   projectPath: string,
-  graphDbPath: string,
-  port = DEFAULT_CODE_GRAPH_MCP_PORT,
-  frameworkPath?: string,
-): Promise<void> {
-  await resolveMcpCommand(projectPath, graphDbPath, port, frameworkPath);
-}
-
-async function resolveMcpCommand(
-  projectPath: string,
-  _graphDbPath: string,
-  _port: number,
   frameworkPath?: string,
 ): Promise<void> {
   const resolvedFrameworkPath = frameworkPath ?? process.cwd();

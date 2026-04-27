@@ -38,11 +38,11 @@ Parse the input for these flags:
 Both the graph path AND the LLM wiki must be active.
 
 - `code-review-graph` MUST be built and MCP-accessible before planning starts.
-- This framework uses `.code-graph.db` as the compatibility graph DB. Upstream `code-review-graph` defaults to `.code-review-graph/graph.db`.
+- This framework uses `.code-review-graph/graph.db` as the compatibility graph DB. Upstream `code-review-graph` defaults to `.code-review-graph/graph.db`.
 - The active Codex session MUST expose `mcp__code_graph__*` tools (register the `code_graph` MCP server in your Codex MCP settings and reload the session).
 - The LLM wiki at `docs/llm-wiki/` MUST exist. Specifically `docs/llm-wiki/AGENTS.md` MUST be present (enforces that initialization ran for this provider). The five core wiki documents MUST be present under `docs/llm-wiki/wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`. Each MUST contain YAML frontmatter with at least `document_type` and `graph_version` keys. Phase 8.5 (Wiki Refresh) automatically updates this wiki at the end of every ticket — if the preflight warns about staleness, the refresh will fix it.
 
-If the graph DB, graph MCP tools, or the LLM wiki are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, `{{CONFIG_DIR}}/agents/*`, and `docs/llm-wiki/*` are regenerated, then restart Codex so the `code_graph` MCP server reconnects and `mcp__code_graph__*` tools become visible before retrying `/implement-ticket`.
+If the graph DB, graph MCP tools, or the LLM wiki are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync so `.code-review-graph/graph.db`, `{{CONFIG_DIR}}/agents/*`, and `docs/llm-wiki/*` are regenerated, then restart Codex so the `code_graph` MCP server reconnects and `mcp__code_graph__*` tools become visible before retrying `/implement-ticket`.
 
 ## CRITICAL: Artifact Path Enforcement
 
@@ -101,18 +101,18 @@ Steps:
 - Verify tests pass in current state.
 - Validate build succeeds.
 - Detect primary language and stack from `{{CONFIG_DIR}}/framework-config.json`.
-- Verify `.code-graph.db` exists at the project root.
+- Verify `.code-review-graph/graph.db` exists at the project root.
 - Verify the active Codex session exposes `mcp__code_graph__*` tools.
 - Verify `docs/llm-wiki/AGENTS.md` exists (confirms initialization ran for the Codex provider).
 - Verify `docs/llm-wiki/wiki/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`.
-- Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-graph.db)`; if any page's `graph_version` does not match, WARN the user and suggest `/wiki-refresh`. Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN and suggest `/wiki-refresh --since <graph_commit>`. Do not block the workflow on stale wiki — Phase 8.5 refreshes it. But the user should see one clear warning line before planning begins.
+- Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-review-graph/graph.db)`; if any page's `graph_version` does not match, WARN the user and suggest `/wiki-refresh`. Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN and suggest `/wiki-refresh --since <graph_commit>`. Do not block the workflow on stale wiki — Phase 8.5 refreshes it. But the user should see one clear warning line before planning begins.
 - If `framework-config.json > wiki.services` is non-empty, verify at least one matching file exists under `docs/llm-wiki/wiki/services/`.
 
 Expected outputs: git clean, tests pass, build succeeds, graph DB exists, graph MCP tools are visible, LLM wiki is present and well-formed; staleness warnings surfaced if applicable.
 
 Constraint: If any structural check fails, emit `failed` and STOP. Do not continue. Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures — Phase 8.5 will resolve them automatically.
 
-For graph or wiki failures, tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, `{{CONFIG_DIR}}/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Codex and confirm `mcp__code_graph__*` tools are visible before retrying.
+For graph or wiki failures, tell the user to rerun `/initialize-project` or resource sync so `.code-review-graph/graph.db`, `{{CONFIG_DIR}}/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Codex and confirm `mcp__code_graph__*` tools are visible before retrying.
 
 ### Phase 1: Context Gathering
 
@@ -338,7 +338,7 @@ If a phase fails:
 
 - Project initialized with `/initialize-project`.
 - `code-review-graph` built and MCP-accessible.
-- `.code-graph.db` exists at the project root (framework compatibility DB; upstream default is `.code-review-graph/graph.db`).
+- `.code-review-graph/graph.db` exists at the project root (framework compatibility DB; upstream default is `.code-review-graph/graph.db`).
 - Codex session has the `code_graph` MCP server registered and `mcp__code_graph__*` tools visible.
 - LLM wiki exists at `docs/llm-wiki/` with `docs/llm-wiki/AGENTS.md` present.
 - Git repository with remote configured and `origin/development` or `origin/main` reachable (required for Phase 8.5 merge-base computation).

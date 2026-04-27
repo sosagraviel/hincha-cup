@@ -64,7 +64,8 @@ describe('wiki generation smoke on simple-api fixture', () => {
       join(projectPath, '.claude', 'skills', 'project-context', 'SKILL.md'),
       '# Skill\n',
     );
-    writeFileSync(join(projectPath, '.code-graph.db'), 'graph');
+    mkdirSync(join(projectPath, '.code-review-graph'), { recursive: true });
+    writeFileSync(join(projectPath, '.code-review-graph/graph.db'), 'graph');
     writeFileSync(
       join(tempDir, 'stack-profile.json'),
       JSON.stringify({
@@ -105,7 +106,7 @@ describe('wiki generation smoke on simple-api fixture', () => {
       claude_md_path: join(projectPath, '.claude', 'CLAUDE.md'),
       project_context_path: join(projectPath, '.claude', 'skills', 'project-context', 'SKILL.md'),
       code_graph_available: true,
-      code_graph_path: join(projectPath, '.code-graph.db'),
+      code_graph_path: join(projectPath, '.code-review-graph/graph.db'),
       phase4_context: {
         claude_md_written: true,
         project_context_written: true,
@@ -120,7 +121,7 @@ describe('wiki generation smoke on simple-api fixture', () => {
     const result = await wikiGenerationNode(state);
 
     expect(result.current_phase).toBe('phase4_wiki_generation');
-    expect(existsSync(join(projectPath, '.code-graph.db'))).toBe(true);
+    expect(existsSync(join(projectPath, '.code-review-graph/graph.db'))).toBe(true);
     for (const fileName of [
       'wiki/index.md',
       'wiki/ARCHITECTURE.md',

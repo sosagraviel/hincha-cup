@@ -17,12 +17,12 @@ describe('graph-context.service', () => {
   });
 
   describe('assertCodeGraphReady', () => {
-    it('returns graph path when .code-graph.db exists', () => {
+    it('returns graph path when .code-review-graph/graph.db exists', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
       const graphPath = assertCodeGraphReady('/test/project');
 
-      expect(graphPath).toBe('/test/project/.code-graph.db');
+      expect(graphPath).toBe('/test/project/.code-review-graph/graph.db');
     });
 
     it('fails with initialize-project guidance when graph database is missing', () => {

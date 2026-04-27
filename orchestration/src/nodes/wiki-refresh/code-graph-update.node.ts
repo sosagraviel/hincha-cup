@@ -1,6 +1,5 @@
-import { join } from 'path';
 import { existsSync } from 'fs';
-import { buildCodeGraph } from '../../services/graph-wiki/code-graph.service.js';
+import { buildCodeGraph, graphDbPath } from '../../services/graph-wiki/code-graph.service.js';
 import type { WikiRefreshState } from '../../state/schemas/wiki-refresh.schema.js';
 
 /**
@@ -12,13 +11,13 @@ import type { WikiRefreshState } from '../../state/schemas/wiki-refresh.schema.j
 export async function codeGraphUpdateNode(
   state: WikiRefreshState,
 ): Promise<Partial<WikiRefreshState>> {
-  const graphDbPath = join(state.project_path, '.code-graph.db');
+  const dbPath = graphDbPath(state.project_path);
 
-  if (!existsSync(graphDbPath) && !state.force) {
+  if (!existsSync(dbPath) && !state.force) {
     return {
       current_phase: 'code_graph_update',
       errors: [
-        `code_graph_update: .code-graph.db not found at ${graphDbPath}. Run /initialize-project first or pass --force to skip.`,
+        `code_graph_update: code graph database not found at ${dbPath}. Run /initialize-project first or pass --force to skip.`,
       ],
     };
   }

@@ -5,6 +5,7 @@ import path from 'path';
 import { lintLlmWiki } from '../services/graph-wiki/wiki-lint.service.js';
 import { logger } from '../utils/logger.js';
 import { getProjectPath } from '../services/framework/paths.service.js';
+import { graphDbPath } from '../services/graph-wiki/code-graph.service.js';
 
 const program = new Command();
 
@@ -13,7 +14,10 @@ program
   .description('Run structural and semantic lint checks over docs/llm-wiki/wiki/')
   .version('1.0.0')
   // --project-path is no longer accepted: paths.service.ts resolves locally.
-  .option('--graph-db <path>', 'Path to .code-graph.db (default: <project>/.code-graph.db)')
+  .option(
+    '--graph-db <path>',
+    'Path to the code-graph DB (default: <project>/.code-review-graph/graph.db)',
+  )
   .option(
     '--changed-pages <pages>',
     'Comma-separated list of changed wiki page paths for contradiction checks',
@@ -37,9 +41,9 @@ program
 
     try {
       const projectPath = getProjectPath();
-      const graphDbPath = options.graphDb
+      const dbPath = options.graphDb
         ? path.resolve(options.graphDb as string)
-        : path.join(projectPath, '.code-graph.db');
+        : graphDbPath(projectPath);
 
       const changedPages = options.changedPages
         ? (options.changedPages as string)
@@ -56,7 +60,7 @@ program
         logger.section('Wiki Lint');
         logger.table({
           'Project Path': projectPath,
-          'Graph DB': graphDbPath,
+          'Graph DB': dbPath,
           'Skip Semantic': String(options.skipSemantic),
         });
         logger.blank();
@@ -65,7 +69,7 @@ program
 
       const report = await lintLlmWiki({
         projectPath,
-        graphDbPath,
+        graphDbPath: dbPath,
         changedPages,
         skipSemantic: Boolean(options.skipSemantic),
         artifactsDir,

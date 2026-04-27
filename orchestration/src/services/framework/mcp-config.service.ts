@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { join } from 'path';
 import { Provider } from '../../providers/types.js';
 import { getActiveProvider, getProviderPaths } from '../../utils/provider-paths.js';
+import { graphDbPath } from '../graph-wiki/code-graph.service.js';
 import {
   codexMcpServerMatches,
   extractCodeGraphMcpTomlServer,
@@ -127,8 +128,8 @@ function validateClaudeCodeGraphMcpConfig(params: {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (!existsSync(join(projectPath, '.code-graph.db'))) {
-    errors.push('Code graph database not found: .code-graph.db');
+  if (!existsSync(graphDbPath(projectPath))) {
+    errors.push('Code graph database not found: .code-review-graph/graph.db');
   }
 
   if (!existsSync(configPath)) {
@@ -230,8 +231,8 @@ function validateCodexCodeGraphMcpConfig(params: {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (!existsSync(join(projectPath, '.code-graph.db'))) {
-    errors.push('Code graph database not found: .code-graph.db');
+  if (!existsSync(graphDbPath(projectPath))) {
+    errors.push('Code graph database not found: .code-review-graph/graph.db');
   }
 
   if (!existsSync(configPath)) {

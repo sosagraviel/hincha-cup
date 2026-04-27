@@ -37,8 +37,7 @@ vi.mock('../../src/services/graph-wiki/agent-invoker.js', () => ({
 vi.mock('../../src/services/graph-wiki/code-graph.service.js', () => ({
   buildCodeGraph: vi.fn().mockResolvedValue({
     code_graph_available: true,
-    code_graph_path: '/tmp/test/.code-graph.db',
-    code_graph_mcp_port: 3100,
+    code_graph_path: '/tmp/test/.code-review-graph/graph.db',
     code_graph_stats: { files: 5, functions: 10 },
   }),
 }));
@@ -100,7 +99,8 @@ describe('wiki-refresh integration', () => {
     mkdirSync(join(projectPath, 'docs', 'llm-wiki', 'wiki', 'services'), { recursive: true });
     mkdirSync(join(projectPath, '.code-review-graph'), { recursive: true });
 
-    writeFileSync(join(projectPath, '.code-graph.db'), 'binary', 'utf-8');
+    mkdirSync(join(projectPath, '.code-review-graph'), { recursive: true });
+    writeFileSync(join(projectPath, '.code-review-graph/graph.db'), 'binary', 'utf-8');
 
     writeFileSync(
       join(projectPath, 'docs', 'llm-wiki', '.state.json'),

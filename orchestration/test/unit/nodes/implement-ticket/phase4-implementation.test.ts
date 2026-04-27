@@ -52,7 +52,7 @@ describe('phase4ImplementationNode', () => {
       if (path.includes('implementation-plan.md')) return true;
       if (path.includes('full-context.md')) return true;
       if (path.includes('stack-profile.json')) return true;
-      if (path.includes('.code-graph.db')) return true;
+      if (path.includes('.code-review-graph/graph.db')) return true;
       if (path.includes('implementer-typescript.md')) return true;
       return false;
     });
@@ -228,7 +228,7 @@ describe('phase4ImplementationNode', () => {
         if (path.includes('implementation-plan.md')) return true;
         if (path.includes('full-context.md')) return true;
         if (path.includes('stack-profile.json')) return true;
-        if (path.includes('.code-graph.db')) return true;
+        if (path.includes('.code-review-graph/graph.db')) return true;
         if (path.includes('implementer-python.md')) return true;
         return false;
       });
@@ -266,7 +266,7 @@ describe('phase4ImplementationNode', () => {
         if (path.includes('implementation-plan.md')) return true;
         if (path.includes('full-context.md')) return true;
         if (path.includes('stack-profile.json')) return true;
-        if (path.includes('.code-graph.db')) return true;
+        if (path.includes('.code-review-graph/graph.db')) return true;
         if (path.includes('implementer-generic.md')) return true;
         return false;
       });
@@ -351,7 +351,7 @@ describe('phase4ImplementationNode', () => {
         if (path.includes('implementation-plan.md')) return true;
         if (path.includes('full-context.md')) return true;
         if (path.includes('stack-profile.json')) return true;
-        if (path.includes('.code-graph.db')) return false;
+        if (path.includes('.code-review-graph/graph.db')) return false;
         return false;
       });
 
@@ -369,7 +369,7 @@ describe('phase4ImplementationNode', () => {
         if (path.includes('implementation-plan.md')) return true;
         if (path.includes('full-context.md')) return true;
         if (path.includes('stack-profile.json')) return true;
-        if (path.includes('.code-graph.db')) return true;
+        if (path.includes('.code-review-graph/graph.db')) return true;
         if (path.includes('implementer-typescript.md')) return true;
         return false;
       });

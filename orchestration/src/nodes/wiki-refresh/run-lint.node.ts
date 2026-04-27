@@ -1,5 +1,6 @@
 import { join } from 'path';
 import { lintLlmWiki } from '../../services/graph-wiki/wiki-lint.service.js';
+import { graphDbPath } from '../../services/graph-wiki/code-graph.service.js';
 import type { WikiRefreshState } from '../../state/schemas/wiki-refresh.schema.js';
 import type { LintReport } from '../../services/graph-wiki/wiki-lint.service.js';
 
@@ -22,12 +23,12 @@ export async function runLintNode(state: WikiRefreshState): Promise<Partial<Wiki
   }
 
   try {
-    const graphDbPath = join(state.project_path, '.code-graph.db');
+    const dbPath = graphDbPath(state.project_path);
     const artifactsDir = join(state.project_path, '.claude-temp', 'wiki-lint');
 
     const report = await lintLlmWiki({
       projectPath: state.project_path,
-      graphDbPath,
+      graphDbPath: dbPath,
       changedPages: state.refresh_set.length > 0 ? state.refresh_set : undefined,
       skipSemantic: false,
       artifactsDir,

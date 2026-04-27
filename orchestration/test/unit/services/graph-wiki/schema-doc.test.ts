@@ -1,6 +1,6 @@
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { describe, expect, it } from 'vitest';
 import { WikiGeneratorService } from '../../../../src/services/graph-wiki/wiki-generator.service.js';
 import { SCHEMA_FILENAME_BY_PROVIDER } from '../../../../src/services/graph-wiki/types.js';
@@ -8,7 +8,8 @@ import { Provider } from '../../../../src/providers/types.js';
 
 function buildOptions(provider: Provider) {
   const projectPath = mkdtempSync(join(tmpdir(), 'schema-doc-test-'));
-  const graphPath = join(projectPath, '.code-graph.db');
+  const graphPath = join(projectPath, '.code-review-graph/graph.db');
+  mkdirSync(dirname(graphPath), { recursive: true });
   writeFileSync(graphPath, 'graph-content');
 
   return {

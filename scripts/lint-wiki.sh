@@ -8,7 +8,7 @@
 #   ./ai-agentic-framework/scripts/lint-wiki.sh [OPTIONS]
 #
 # Options:
-#   --graph-db PATH        Path to .code-graph.db (default: <project>/.code-graph.db)
+#   --graph-db PATH        Path to .code-review-graph/graph.db (default: <project>/.code-review-graph/graph.db)
 #   --changed-pages LIST   Comma-separated wiki page paths for contradiction checks
 #   --skip-semantic        Skip semantic (warn-only) checks
 #   --artifacts-dir PATH   Directory for lint report output
@@ -34,8 +34,8 @@ ${BLUE}USAGE:${NC}
     $0 [OPTIONS]
 
 ${BLUE}OPTIONS:${NC}
-    --graph-db PATH        Path to .code-graph.db for graph_version checks
-                           Default: <project>/.code-graph.db
+    --graph-db PATH        Path to .code-review-graph/graph.db for graph_version checks
+                           Default: <project>/.code-review-graph/graph.db
     --changed-pages LIST   Comma-separated wiki page paths for semantic
                            contradiction checks (e.g. "wiki/ARCH.md,wiki/SERVICES.md")
     --skip-semantic        Skip semantic (warn-only) checks entirely
@@ -68,7 +68,7 @@ ${BLUE}WHAT THIS CHECKS:${NC}
       - dead-sources        — sources[].path must exist in project or raw/
       - missing-frontmatter — every page must have document_type, graph_version,
                               generated_at, summary, sources, confidence
-      - graph-version-mismatch — WARN: page graph_version vs sha256(.code-graph.db)
+      - graph-version-mismatch — WARN: page graph_version vs sha256(.code-review-graph/graph.db)
       - graph-commit-mismatch  — WARN: page graph_commit vs git HEAD
 
     Semantic (warn):

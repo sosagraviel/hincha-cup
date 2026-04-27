@@ -76,7 +76,7 @@ These checks exit non-zero when they find a problem. Fix them before creating a 
 | `deadSources` | Every `sources[].path` in frontmatter exists in the project tree or under `raw/` |
 | `missingFrontmatter` | Every wiki page has `document_type`, `graph_version`, `generated_at`, `summary`, `sources`, and `confidence` |
 | `legacy-raw-source` | Any `sources[].path` pointing under the removed `raw/analyzers/` or `raw/graph-stats/` directories is rejected — those subdirs no longer exist; valid source paths are under `raw/snapshots/`, `raw/external/`, or the project tree |
-| `graphVersionMismatch` | Each page's `graph_version` matches the current SHA-256 of `.code-graph.db` (warns; run `/wiki-refresh` to fix) |
+| `graphVersionMismatch` | Each page's `graph_version` matches the current SHA-256 of `.code-review-graph/graph.db` (warns; run `/wiki-refresh` to fix) |
 | `graphCommitMismatch` | Each page's `graph_commit` is not behind the current HEAD (warns; run `/wiki-refresh --since <graph_commit>`) |
 
 ---

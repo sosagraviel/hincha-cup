@@ -28,7 +28,7 @@ Verify the project is ready for wiki refresh:
 
 1. Check that `docs/llm-wiki/` exists. If missing, tell the user to run `/initialize-project` first.
 2. Check that `docs/llm-wiki/wiki/` exists and contains at least one `.md` file.
-3. Check that `.code-graph.db` exists in the project root. If missing, warn the user and continue (the code-graph-update step will handle the error gracefully).
+3. Check that `.code-review-graph/graph.db` exists in the project root. If missing, warn the user and continue (the code-graph-update step will handle the error gracefully).
 4. Check that the project `.mcp.json` exposes the `code_graph` MCP server when the graph is available.
 5. If `.state.json` does not exist and `--since` was not passed, inform the user that a full-tree refresh will run.
 

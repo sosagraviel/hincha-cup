@@ -24,7 +24,8 @@ import { Provider } from '../../src/providers/types.js';
 
 function buildProjectDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'llm-wiki-full-tree-'));
-  writeFileSync(join(dir, '.code-graph.db'), 'stub-graph-content');
+  mkdirSync(join(dir, '.code-review-graph'), { recursive: true });
+  writeFileSync(join(dir, '.code-review-graph/graph.db'), 'stub-graph-content');
   writeFileSync(join(dir, 'README.md'), '# Test Project\n\nA test project for wiki generation.');
   return dir;
 }
@@ -86,8 +87,7 @@ function buildService(projectPath: string, provider: Provider): WikiGeneratorSer
     generatedAt: '2026-04-24T00:00:00.000Z',
     graph: {
       available: true,
-      path: join(projectPath, '.code-graph.db'),
-      mcpPort: 3100,
+      path: join(projectPath, '.code-review-graph/graph.db'),
       stats: {
         files: 12,
         functions: 20,

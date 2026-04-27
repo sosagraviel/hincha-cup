@@ -77,8 +77,7 @@ describe('wikiGenerationNode (finalization)', () => {
       claude_md_path: '/test/project/.claude/CLAUDE.md',
       project_context_path: '/test/project/.claude/skills/project-context/SKILL.md',
       code_graph_available: true,
-      code_graph_path: '/test/project/.code-graph.db',
-      code_graph_mcp_port: 3100,
+      code_graph_path: '/test/project/.code-review-graph/graph.db',
       code_graph_stats: {
         files: 12,
         functions: 20,

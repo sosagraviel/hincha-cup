@@ -13,16 +13,16 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
       undefined,
       {
         available: true,
-        dbPath: '/test/project/.code-graph.db',
-        mcpPort: 3100,
+        dbPath: '/test/project/.code-review-graph/graph.db',
         stats: { files: 5, functions: 10, languages: ['typescript'] },
       },
     );
 
     expect(prompt).toContain('CODE GRAPH CONTEXT');
     expect(prompt).toContain('Available: yes');
-    expect(prompt).toContain('Database: /test/project/.code-graph.db');
-    expect(prompt).toContain('MCP Port: 3100');
+    expect(prompt).toContain('Database: /test/project/.code-review-graph/graph.db');
+    // "MCP Port" was removed — MCP is stdio-only, there is no port.
+    expect(prompt).not.toContain('MCP Port');
     expect(prompt).toContain('Use the code graph as the first source of structural truth');
     expect(prompt).toContain('"graph_queries_used": string[]');
   });

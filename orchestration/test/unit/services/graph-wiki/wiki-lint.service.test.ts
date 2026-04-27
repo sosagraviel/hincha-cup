@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { describe, expect, it } from 'vitest';
 import { lintLlmWiki } from '../../../../src/services/graph-wiki/wiki-lint.service.js';
 
@@ -348,7 +348,8 @@ describe('wiki-lint.service — legacy-raw-source', () => {
 describe('wiki-lint.service — graph-version-mismatch', () => {
   it('emits a semantic warn when graph_version does not match the DB hash', async () => {
     const { projectPath, wikiDir, artifactsDir } = buildProjectTree();
-    const graphDbPath = join(projectPath, '.code-graph.db');
+    const graphDbPath = join(projectPath, '.code-review-graph/graph.db');
+    mkdirSync(dirname(graphDbPath), { recursive: true });
     writeFileSync(graphDbPath, 'real-db-content', 'utf-8');
     const realHash = createHash('sha256').update('real-db-content').digest('hex');
 
@@ -370,7 +371,8 @@ describe('wiki-lint.service — graph-version-mismatch', () => {
 
   it('does not emit a violation when graph_version matches', async () => {
     const { projectPath, wikiDir, artifactsDir } = buildProjectTree();
-    const graphDbPath = join(projectPath, '.code-graph.db');
+    const graphDbPath = join(projectPath, '.code-review-graph/graph.db');
+    mkdirSync(dirname(graphDbPath), { recursive: true });
     writeFileSync(graphDbPath, 'real-db-content', 'utf-8');
     const realHash = createHash('sha256').update('real-db-content').digest('hex');
 

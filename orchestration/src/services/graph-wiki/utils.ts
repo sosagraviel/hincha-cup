@@ -73,5 +73,8 @@ export function stableJsonStringify(value: unknown): string {
 }
 
 export function relativeGraphPath(graphPath: string): string {
-  return graphPath.endsWith('/.code-graph.db') ? '.code-graph.db' : graphPath;
+  // The canonical layout is <project>/.code-review-graph/graph.db. Return the
+  // relative form when the input matches; otherwise pass through unchanged.
+  const suffix = '/.code-review-graph/graph.db';
+  return graphPath.endsWith(suffix) ? '.code-review-graph/graph.db' : graphPath;
 }

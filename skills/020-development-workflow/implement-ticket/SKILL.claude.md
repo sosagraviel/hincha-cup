@@ -28,13 +28,13 @@ Parse the input for these flags:
 Both the graph path AND the LLM wiki must be active.
 
 - `code-review-graph` MUST be built and MCP-accessible before planning starts.
-- This framework uses `.code-graph.db` as the compatibility graph DB. Upstream `code-review-graph` defaults to `.code-review-graph/graph.db`.
+- This framework uses `.code-review-graph/graph.db` as the compatibility graph DB. Upstream `code-review-graph` defaults to `.code-review-graph/graph.db`.
 - Project root `.mcp.json` MUST define `mcpServers.code_graph` so native Claude Code `/implement-ticket` sessions can load graph tools.
 - Generated `.claude/agents/planner.md` and `.claude/agents/implementer-*.md` MUST expose exact `mcp__code_graph__*_tool` entries, not only the broad `mcp__code_graph` server alias.
 - The actual active Claude Code session MUST expose `mcp__code_graph__*` tools. Agent frontmatter is only a subagent allowlist; it does not register the MCP server.
 - The LLM wiki at `docs/llm-wiki/` MUST exist. Specifically `docs/llm-wiki/CLAUDE.md` MUST be present (enforces that initialization ran for this provider). The five core wiki documents MUST be present under `docs/llm-wiki/wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`. Each MUST contain YAML frontmatter with at least `document_type` and `graph_version` keys. Phase 8.5 (Wiki Refresh) automatically updates this wiki at the end of every ticket — if the preflight warns about staleness, the refresh will fix it.
 
-If the graph DB, MCP config, graph-aware agents, active graph tools, or the LLM wiki are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, project `.mcp.json`, graph-aware `.claude/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Claude Code in the project, approve the project MCP server if prompted, and verify `code_graph` with `/mcp` before using `/implement-ticket`.
+If the graph DB, MCP config, graph-aware agents, active graph tools, or the LLM wiki are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync so `.code-review-graph/graph.db`, project `.mcp.json`, graph-aware `.claude/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Claude Code in the project, approve the project MCP server if prompted, and verify `code_graph` with `/mcp` before using `/implement-ticket`.
 
 ## CRITICAL: Artifact Path Enforcement
 
@@ -71,7 +71,7 @@ Create each task using TaskCreate with these exact values:
 1. Phase 0: Preflight Validation
    subject: "Phase 0: Preflight Validation"
    activeForm: "Validating environment"
-   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack, verify `.code-graph.db` exists, verify project `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible, verify `docs/llm-wiki/CLAUDE.md` exists, verify `docs/llm-wiki/wiki/` exists with the five core files (`index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`), verify at least one `docs/llm-wiki/wiki/services/*.md` exists, check `graph_version` and `graph_commit` freshness in each wiki file and WARN (not fail) if stale.
+   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack, verify `.code-review-graph/graph.db` exists, verify project `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible, verify `docs/llm-wiki/CLAUDE.md` exists, verify `docs/llm-wiki/wiki/` exists with the five core files (`index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`), verify at least one `docs/llm-wiki/wiki/services/*.md` exists, check `graph_version` and `graph_commit` freshness in each wiki file and WARN (not fail) if stale.
    Expected outputs: git is clean, tests pass, build succeeds, graph DB exists, project MCP config exists, graph tools are visible in the active Claude Code session, graph-aware agents are present, LLM wiki is present and well-formed; staleness warnings surfaced if applicable
    Constraint: If any structural check fails, STOP and report. Staleness warnings do not block Phase 1 — Phase 8.5 resolves them automatically.
 
@@ -190,17 +190,17 @@ Execute each phase sequentially. Do not proceed to the next phase until the curr
 - Verify tests pass in current state
 - Validate build succeeds
 - Detect primary language and stack
-- Verify `.code-graph.db` exists at the project root
+- Verify `.code-review-graph/graph.db` exists at the project root
 - Verify project root `.mcp.json` has `mcpServers.code_graph`
 - Verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible in this Claude Code session
 - Verify generated planner and implementer agents expose exact `mcp__code_graph__*_tool` entries in their frontmatter, not only the broad `mcp__code_graph` server alias
 - Verify `docs/llm-wiki/CLAUDE.md` exists (confirms initialization ran for the Claude Code provider)
 - Verify `docs/llm-wiki/wiki/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`
-- Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-graph.db)`; if any page's `graph_version` does not match, WARN the user and suggest `/wiki-refresh`. Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN and suggest `/wiki-refresh --since <graph_commit>`. Do not block the workflow on stale wiki — Phase 8.5 refreshes it. But the user should see one clear warning line before planning begins.
+- Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-review-graph/graph.db)`; if any page's `graph_version` does not match, WARN the user and suggest `/wiki-refresh`. Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN and suggest `/wiki-refresh --since <graph_commit>`. Do not block the workflow on stale wiki — Phase 8.5 refreshes it. But the user should see one clear warning line before planning begins.
 
 CRITICAL: If any check fails, STOP. Report the failure. Do not continue. Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures — Phase 8.5 will resolve them automatically.
 
-For graph or wiki failures, tell the user to rerun `/initialize-project` or resource sync so `.code-graph.db`, project `.mcp.json`, graph-aware `.claude/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`.
+For graph or wiki failures, tell the user to rerun `/initialize-project` or resource sync so `.code-review-graph/graph.db`, project `.mcp.json`, graph-aware `.claude/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`.
 
 CONTINUE WITH Phase 1.
 
@@ -392,7 +392,7 @@ If a phase fails:
 
 - Project initialized with `/initialize-project`
 - `code-review-graph` built and MCP-accessible
-- `.code-graph.db` exists at the project root (framework compatibility DB; upstream default is `.code-review-graph/graph.db`)
+- `.code-review-graph/graph.db` exists at the project root (framework compatibility DB; upstream default is `.code-review-graph/graph.db`)
 - Project root `.mcp.json` defines `mcpServers.code_graph`
 - Claude Code has been restarted after MCP config changes and `/mcp` shows `code_graph` connected
 - Generated planner and implementer agents expose exact `mcp__code_graph__*_tool` entries

@@ -9,7 +9,7 @@ import {
   closeSync,
 } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execSync, spawn } from 'child_process';
 
@@ -87,6 +87,10 @@ function writeGraphState(
 
 /** Writes a minimal SQLite header (16 magic bytes + padding) to a file path. */
 function writeSqliteFile(filePath: string): void {
+  // Ensure the parent dir exists — the canonical graph DB lives at
+  // <project>/.code-review-graph/graph.db, so callers passing that path need
+  // the .code-review-graph/ directory created first.
+  mkdirSync(dirname(filePath), { recursive: true });
   const header = Buffer.alloc(100, 0);
   header.write('SQLite format 3\0', 0, 'utf8');
   const fd = openSync(filePath, 'w');
@@ -236,12 +240,12 @@ describe('buildCodeGraph', () => {
   });
 
   it('runs full build path when no .state.json exists (first run)', async () => {
-    writeSqliteFile(join(projectPath, '.code-graph.db'));
+    writeSqliteFile(join(projectPath, '.code-review-graph/graph.db'));
 
     const result = await buildCodeGraph({ projectPath, frameworkPath });
 
     expect(result.code_graph_available).toBe(true);
-    expect(result.code_graph_path).toContain('.code-graph.db');
+    expect(result.code_graph_path).toContain('.code-review-graph/graph.db');
 
     const stateFile = graphStateFilePath(projectPath);
     expect(existsSync(stateFile)).toBe(true);
@@ -257,7 +261,7 @@ describe('buildCodeGraph', () => {
     vi.mocked(execSync).mockReturnValue(`${commit}\n`);
 
     writeGraphState(projectPath, { last_indexed_commit: commit });
-    writeSqliteFile(join(projectPath, '.code-graph.db'));
+    writeSqliteFile(join(projectPath, '.code-review-graph/graph.db'));
 
     const spawnCalls: string[] = [];
     vi.mocked(spawn).mockImplementation((cmd: string, args: readonly string[]) => {
@@ -281,7 +285,7 @@ describe('buildCodeGraph', () => {
     vi.mocked(execSync).mockReturnValue(`${newCommit}\n`);
 
     writeGraphState(projectPath, { last_indexed_commit: oldCommit });
-    writeSqliteFile(join(projectPath, '.code-graph.db'));
+    writeSqliteFile(join(projectPath, '.code-review-graph/graph.db'));
     mkdirSync(join(projectPath, CODE_REVIEW_GRAPH_DIRNAME), { recursive: true });
     writeSqliteFile(join(projectPath, CODE_REVIEW_GRAPH_DIRNAME, 'graph.db'));
 
@@ -307,7 +311,7 @@ describe('buildCodeGraph', () => {
     vi.mocked(execSync).mockReturnValue(`${newCommit}\n`);
 
     writeGraphState(projectPath, { last_indexed_commit: oldCommit });
-    writeSqliteFile(join(projectPath, '.code-graph.db'));
+    writeSqliteFile(join(projectPath, '.code-review-graph/graph.db'));
     mkdirSync(join(projectPath, CODE_REVIEW_GRAPH_DIRNAME), { recursive: true });
     writeSqliteFile(join(projectPath, CODE_REVIEW_GRAPH_DIRNAME, 'graph.db'));
 
@@ -350,7 +354,7 @@ describe('buildCodeGraph', () => {
   });
 
   it('writes .state.json after successful build', async () => {
-    writeSqliteFile(join(projectPath, '.code-graph.db'));
+    writeSqliteFile(join(projectPath, '.code-review-graph/graph.db'));
 
     await buildCodeGraph({ projectPath, frameworkPath });
 
@@ -365,7 +369,7 @@ describe('buildCodeGraph', () => {
   });
 
   it('writes extraction-manifest.json after successful build', async () => {
-    writeSqliteFile(join(projectPath, '.code-graph.db'));
+    writeSqliteFile(join(projectPath, '.code-review-graph/graph.db'));
 
     await buildCodeGraph({ projectPath, frameworkPath });
 
@@ -380,7 +384,8 @@ describe('buildCodeGraph', () => {
   });
 
   it('throws when DB fails SQLite validation after setup', async () => {
-    writeFileSync(join(projectPath, '.code-graph.db'), 'not-sqlite', 'utf-8');
+    mkdirSync(join(projectPath, '.code-review-graph'), { recursive: true });
+    writeFileSync(join(projectPath, '.code-review-graph/graph.db'), 'not-sqlite', 'utf-8');
 
     await expect(buildCodeGraph({ projectPath, frameworkPath })).rejects.toThrow(
       'Graph DB invalid',
@@ -388,7 +393,7 @@ describe('buildCodeGraph', () => {
   });
 
   it('autofixes on first smoke test failure and succeeds on second attempt', async () => {
-    writeSqliteFile(join(projectPath, '.code-graph.db'));
+    writeSqliteFile(join(projectPath, '.code-review-graph/graph.db'));
 
     const setupScriptCalls: string[] = [];
     let firstVersionCall = true;
@@ -411,7 +416,7 @@ describe('buildCodeGraph', () => {
   });
 
   it('hard-fails with remediation hint when both smoke tests fail', async () => {
-    writeSqliteFile(join(projectPath, '.code-graph.db'));
+    writeSqliteFile(join(projectPath, '.code-review-graph/graph.db'));
 
     vi.mocked(spawn).mockImplementation((cmd: string, args: readonly string[]) => {
       const callStr = [cmd, ...args].join(' ');

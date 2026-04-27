@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import matter from 'gray-matter';
 import { invokeWikiAgent } from '../../services/graph-wiki/agent-invoker.js';
+import { graphDbPath } from '../../services/graph-wiki/code-graph.service.js';
 import {
   computeGraphVersion,
   computeGraphCommit,
@@ -35,8 +36,8 @@ export async function refreshPagesNode(
     };
   }
 
-  const graphDbPath = join(state.project_path, '.code-graph.db');
-  const graphVersion = existsSync(graphDbPath) ? computeGraphVersion(graphDbPath) : 'unknown';
+  const dbPath = graphDbPath(state.project_path);
+  const graphVersion = existsSync(dbPath) ? computeGraphVersion(dbPath) : 'unknown';
   const graphCommit = computeGraphCommit(state.project_path);
   const generatedAt = new Date().toISOString();
 
@@ -47,8 +48,8 @@ export async function refreshPagesNode(
     generatedAt,
     analyzers: {},
     graph: {
-      available: existsSync(graphDbPath),
-      path: graphDbPath,
+      available: existsSync(dbPath),
+      path: dbPath,
     },
   };
 
