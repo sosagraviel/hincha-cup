@@ -9,7 +9,7 @@ import {
 import {
   assertAgentHasCodeGraphTool,
   assertCodeGraphReady,
-  loadLlmWikiContext,
+  loadLlmWikiContextTiered,
 } from '../../services/implement-ticket/graph-context.service.js';
 import { resolveTempPath, resolveConfigPath } from '../../utils/provider-paths.js';
 
@@ -92,9 +92,9 @@ export async function phase2PlanningNode(
     assertAgentHasCodeGraphTool(plannerAgentPath);
     console.log('[Phase 2: Planning] ✓ Planner agent is graph-aware');
 
-    const aiKnowledgeContext = loadLlmWikiContext(projectPath);
+    const aiKnowledgeContext = loadLlmWikiContextTiered(projectPath, { summariesOnly: true });
     if (aiKnowledgeContext) {
-      console.log('[Phase 2: Planning] ✓ LLM wiki context loaded');
+      console.log('[Phase 2: Planning] ✓ LLM wiki context loaded (tiered — summary index)');
     } else {
       console.log('[Phase 2: Planning] LLM wiki context not found; continuing with graph only');
     }

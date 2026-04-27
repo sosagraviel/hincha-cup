@@ -10,7 +10,7 @@ import {
 import {
   assertAgentHasCodeGraphTool,
   assertCodeGraphReady,
-  loadLlmWikiContext,
+  loadLlmWikiContextTiered,
 } from '../../services/implement-ticket/graph-context.service.js';
 import { resolveTempPath } from '../../utils/provider-paths.js';
 
@@ -108,9 +108,9 @@ export async function phase4ImplementationNode(
     const graphPath = assertCodeGraphReady(projectPath);
     console.log(`[Phase 4: Implementation] ✓ Code graph available (${graphPath})`);
 
-    const aiKnowledgeContext = loadLlmWikiContext(projectPath);
+    const aiKnowledgeContext = loadLlmWikiContextTiered(projectPath, { summariesOnly: true });
     if (aiKnowledgeContext) {
-      console.log('[Phase 4: Implementation] ✓ LLM wiki context loaded');
+      console.log('[Phase 4: Implementation] ✓ LLM wiki context loaded (tiered — summary index)');
     } else {
       console.log(
         '[Phase 4: Implementation] AI knowledge context not found; continuing with graph only',

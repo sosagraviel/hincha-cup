@@ -129,27 +129,25 @@ Constraint: Do not proceed if requirements could not be extracted.
 
 ### Phase 2: Wiki Context Preload
 
-Preload the LLM wiki so the planner can rely on pre-digested architecture summaries instead of rediscovering them via graph queries. Do ALL of the following in order:
+Preload the LLM wiki so the planner can rely on pre-digested architecture summaries instead of rediscovering them via graph queries. Use a **tiered retrieval approach** — read summaries first for all pages, then expand full bodies only for the most relevant ones. Do ALL of the following in order:
 
-1. Read the five core wiki documents and collect their absolute paths as `WIKI_CORE`:
-   - `docs/llm-wiki/wiki/index.md`
-   - `docs/llm-wiki/wiki/ARCHITECTURE.md`
-   - `docs/llm-wiki/wiki/SERVICES.md`
-   - `docs/llm-wiki/wiki/DATA-FLOWS.md`
-   - `docs/llm-wiki/wiki/PATTERNS.md`
+1. **Tier 1 (cheap — summary index).** Load every wiki page's frontmatter `summary`, `confidence`, and `document_type` into a single index. Read `docs/llm-wiki/wiki/index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`, plus every `docs/llm-wiki/wiki/services/*.md`. Use `gray-matter` (or read the file head until the second `---`) to extract frontmatter only — do NOT read full bodies in Tier 1. Persist the index to `$ARTIFACTS_DIR/context/wiki-summary-index.md`.
 
-2. Call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` EXACTLY ONCE. Preserve the full response — it will be reused by the planner in Phase 3 and MUST NOT be re-issued by any downstream phase.
+2. **Tier 2 (call once).** Call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` EXACTLY ONCE. Preserve the full response — it will be reused by the planner in Phase 3 and MUST NOT be re-issued by any downstream phase.
 
-3. From that response and from the `SERVICES.md` file, extract relevant service IDs for this ticket. For each, resolve `docs/llm-wiki/wiki/services/<service-id>.md`. Collect matches (cap at 5) as `WIKI_SERVICES`.
+3. **Tier 3 (expand selectively).** From Tier 2's response and the Tier 1 summary index, identify the 1–3 most relevant pages. Expand FULL bodies only for those (cap at 5 total). Always include `index.md`'s body (the navigation hub). For all other pages, the summary from Tier 1 is sufficient. Collect expanded paths as `WIKI_CORE`.
 
-4. Persist everything to `$ARTIFACTS_DIR/context/wiki-context.md` with these sections:
-   - `## WIKI_CORE` — list of paths
+4. From the Tier 2 response and `SERVICES.md`, extract relevant service IDs for this ticket. For each, resolve `docs/llm-wiki/wiki/services/<service-id>.md`. Expand their full bodies (still within the 5-page cap). Collect matches as `WIKI_SERVICES`.
+
+5. **Persist.** Write `$ARTIFACTS_DIR/context/wiki-context.md` with these sections:
+   - `## WIKI_CORE` — list of paths actually expanded
    - `## WIKI_SERVICES` — list of paths (may be empty)
+   - `## WIKI_SUMMARIES` — path to the Tier 1 summary index (`$ARTIFACTS_DIR/context/wiki-summary-index.md`)
    - `## get_minimal_context_tool Payload` — the full preserved response
 
-Expected outputs: `$ARTIFACTS_DIR/context/wiki-context.md` exists and contains `WIKI_CORE`, `WIKI_SERVICES`, and the preserved `get_minimal_context_tool` payload for reuse by the planner.
+Expected outputs: `$ARTIFACTS_DIR/context/wiki-context.md` exists and contains `WIKI_CORE`, `WIKI_SERVICES`, `WIKI_SUMMARIES`, and the preserved `get_minimal_context_tool` payload for reuse by the planner.
 
-Constraint: Do not proceed if `wiki-context.md` is missing, any `WIKI_CORE` file failed to load, or `get_minimal_context_tool` failed. `WIKI_SERVICES` may legitimately be empty for tickets that touch no identified service.
+Constraint: Do not proceed if `wiki-context.md` is missing, `index.md` body failed to load, or `get_minimal_context_tool` failed. `WIKI_SERVICES` may legitimately be empty for tickets that touch no identified service.
 
 ### Phase 3: Planning
 
