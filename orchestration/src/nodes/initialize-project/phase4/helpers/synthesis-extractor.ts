@@ -5,7 +5,6 @@
  * and writes them to the appropriate locations in the project directory.
  */
 
-import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { extractSynthesisMarkdown } from '../../../../utils/validator.js';
 import {
@@ -13,6 +12,12 @@ import {
   resolveInstructionFilePath,
   getInstructionFileName,
 } from '../../../../utils/provider-paths.js';
+import {
+  PortablePathResolver,
+  PortableWriter,
+  PortabilityError,
+  asAbsolutePath,
+} from '../../../../services/framework/portable-paths/index.js';
 
 /**
  * Result of synthesis extraction and file writing
@@ -64,15 +69,33 @@ export function extractAndWriteSynthesis(
   const projectContextLines = projectContextContent.split('\n').length;
   logger.success(`✓ Extracted project-context/SKILL.md (${projectContextLines} lines)`);
 
+  // PortableWriter is the single chokepoint for committed .claude/ writes. It
+  // asserts the LLM did not emit absolute paths like /Users/<name>/... or
+  // /home/<name>/... which would break portability for every other developer
+  // on the project. If the synthesis content contains such a path, the writer
+  // throws with a clear file:line error pointing at the offending content,
+  // which the orchestration's retry-with-feedback loop surfaces back to the
+  // synthesis agent so it can regenerate with relative paths.
+  const portableWriter = new PortableWriter(new PortablePathResolver(asAbsolutePath(projectPath)));
+
   // Write instruction file (CLAUDE.md or AGENTS.md based on active provider)
   const claudeMdPath = resolveInstructionFilePath(projectPath);
-  mkdirSync(resolveConfigPath(projectPath), { recursive: true });
-  writeFileSync(claudeMdPath, claudeMdContent);
+  try {
+    portableWriter.writeMarkdown(asAbsolutePath(claudeMdPath), claudeMdContent);
+  } catch (err) {
+    if (err instanceof PortabilityError) {
+      throw new Error(
+        `Phase 3 synthesis emitted a non-portable absolute path in CLAUDE.md content. ` +
+          `Re-run synthesis with explicit "use only project-relative paths" guidance. ` +
+          `Underlying: ${err.message}`,
+      );
+    }
+    throw err;
+  }
   logger.success(`✓ Written: ${claudeMdPath}`);
 
   // Write project-context/SKILL.md
   const projectContextDir = resolveConfigPath(projectPath, 'skills', 'project-context');
-  mkdirSync(projectContextDir, { recursive: true });
   const projectContextPath = join(projectContextDir, 'SKILL.md');
 
   // Ensure the skill name is always "project-context" (not project-specific name)
@@ -81,7 +104,18 @@ export function extractAndWriteSynthesis(
     (match, before, after) => `---\n${before}name: project-context\n${after}---`,
   );
 
-  writeFileSync(projectContextPath, normalizedProjectContext);
+  try {
+    portableWriter.writeMarkdown(asAbsolutePath(projectContextPath), normalizedProjectContext);
+  } catch (err) {
+    if (err instanceof PortabilityError) {
+      throw new Error(
+        `Phase 3 synthesis emitted a non-portable absolute path in project-context/SKILL.md. ` +
+          `Re-run synthesis with explicit "use only project-relative paths" guidance. ` +
+          `Underlying: ${err.message}`,
+      );
+    }
+    throw err;
+  }
   logger.success(`✓ Written: ${projectContextPath}`);
 
   return {

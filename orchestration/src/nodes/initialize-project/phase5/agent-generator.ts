@@ -1,4 +1,9 @@
-import { writeFileSync, mkdirSync } from 'fs';
+import { mkdirSync } from 'fs';
+import {
+  PortablePathResolver,
+  PortableWriter,
+  asAbsolutePath,
+} from '../../../services/framework/portable-paths/index.js';
 import { join } from 'path';
 import type { StackProfile } from '../../../schemas/index.js';
 import type { ResolvedSkill, GeneratedAgent } from './types.js';
@@ -92,10 +97,13 @@ export function writeAgents(agents: GeneratedAgent[], projectPath: string): void
   mkdirSync(agentsDir, { recursive: true });
 
   const provider = getActiveProvider();
+  // Single chokepoint for committed .claude/.codex writes — asserts the rendered
+  // template body contains no machine-specific absolute paths before flushing.
+  const portableWriter = new PortableWriter(new PortablePathResolver(asAbsolutePath(projectPath)));
   for (const agent of agents) {
     const agentPath = join(agentsDir, agent.filename);
     const content = rewriteAgentFrontmatter(agent.content, provider);
-    writeFileSync(agentPath, content);
+    portableWriter.writeMarkdown(asAbsolutePath(agentPath), content);
     agent.path = agentPath;
   }
 }

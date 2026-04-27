@@ -17,9 +17,9 @@
  * Result is cached per process keyed by `(frameworkPath, projectPath)` so a
  * single run does not pay the spawn cost more than once.
  */
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { join } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
+import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
+import { join } from 'path';
+import { setTimeout as delay } from 'timers/promises';
 
 import type { CodeGraphTool } from './tool-catalog.types.js';
 

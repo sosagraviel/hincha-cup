@@ -61,11 +61,15 @@ export const AnalysisResultsSchema = z.object({
 export type AnalysisResults = z.infer<typeof AnalysisResultsSchema>;
 
 /**
- * Project Metadata Schema
+ * Project Metadata Schema.
+ *
+ * The retired `project_path` field used to embed an absolute path to the
+ * developer's worktree. Verified via full-codebase grep (destructured access,
+ * bracket access, JSON-path queries) to have ZERO readers. Drop it; the file's
+ * own location IS the project anchor for any consumer.
  */
 export const ProjectMetadataSchema = z
   .object({
-    project_path: z.string(),
     last_analysis: z.string(),
     initialization_hash: z.string(),
   })

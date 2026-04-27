@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__atlassian__getJiraProjectIssueTypesMetadata",
+      "mcp__atlassian__createJiraIssue",
+      "mcp__atlassian__getAccessibleAtlassianResources"
+    ]
+  }
+}

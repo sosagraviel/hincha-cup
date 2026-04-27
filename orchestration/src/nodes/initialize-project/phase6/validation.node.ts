@@ -20,6 +20,7 @@ import { validateAgentCoverage } from './helpers/agent-coverage-validator.js';
 import { validatePhaseCompletion } from './helpers/phase-completion-validator.js';
 import { getExpectedLlmWikiFiles } from '../../../services/graph-wiki/wiki-generator.service.js';
 import { validateCodeGraphMcpConfig } from '../../../services/framework/mcp-config.service.js';
+import { validatePortability } from './helpers/portability-validator.js';
 
 /**
  * Phase 6: Validation Node
@@ -160,6 +161,33 @@ export async function validationNode(
     const phaseCompletionResult = validatePhaseCompletion(state);
     validationErrors.push(...phaseCompletionResult.errors);
     validationWarnings.push(...phaseCompletionResult.warnings);
+
+    // 9. Portability scan: walk the generated <project>/.claude/ + .codex/ tree
+    // and fail the run on any non-portable absolute path. This is the runtime
+    // safety net for D6 — even if a writer slips past the type system, Zod
+    // refinement, and PortableWriter assertion, this scan catches it before
+    // the run reports success and the developer commits non-portable artifacts.
+    phaseLogger.info(' Validating portability of generated .claude/ + .codex/ artifacts...');
+    const portability = validatePortability(state.project_path);
+    if (!portability.ok) {
+      phaseLogger.error(' ✗ Portability scan FAILED:');
+      const TOP_N = 20;
+      portability.violations.slice(0, TOP_N).forEach((v) => {
+        phaseLogger.error(`  - ${v.file}:${v.line}: ${v.content}`);
+      });
+      if (portability.violations.length > TOP_N) {
+        phaseLogger.error(
+          `  ... and ${portability.violations.length - TOP_N} more (run with --debug for the full list)`,
+        );
+      }
+      validationErrors.push(
+        `Portability scan: ${portability.violations.length} non-portable absolute path(s) found in committed .claude/ or .codex/ artifacts (e.g. ${portability.violations[0]?.file}:${portability.violations[0]?.line}). Generated outputs must contain only project-relative paths, /tmp/, or URLs.`,
+      );
+    } else {
+      phaseLogger.success(
+        ` ✓ Portability scan passed (${portability.filesScanned} file${portability.filesScanned === 1 ? '' : 's'} scanned, 0 violations)`,
+      );
+    }
 
     // Check for validation errors
     if (validationErrors.length > 0) {

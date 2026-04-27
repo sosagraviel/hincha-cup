@@ -20,7 +20,9 @@ function generateProjectHash(): string {
  * This function is idempotent - it reads from disk files, not state
  */
 export function generateFrameworkConfig(
-  projectPath: string,
+  // _projectPath: kept for API stability; was used to populate the now-removed
+  // project_metadata.project_path field (verified zero readers).
+  _projectPath: string,
   tempDir: string,
   phase1Data: Phase1AnalysisData,
   phase3SynthesisContent: string,
@@ -52,7 +54,10 @@ export function generateFrameworkConfig(
     schema_version: '1.0.0',
     framework_version: frameworkVersion,
     project_metadata: {
-      project_path: projectPath,
+      // The legacy `project_path` field carried an absolute path to the first
+      // developer's worktree, breaking portability. It has zero readers across
+      // the codebase (verified by full-codebase grep) and has been removed —
+      // the file's own location is the project anchor.
       last_analysis: new Date().toISOString(),
       initialization_hash: generateProjectHash(),
     },

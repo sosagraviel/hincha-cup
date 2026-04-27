@@ -22,6 +22,12 @@ import { extractInfrastructure } from './helpers/infrastructure-extractor.js';
 import { extractServicesFromPhase1Analyzers } from './helpers/service-extractor.js';
 import { validateStackProfile } from './helpers/stack-profile-validator.js';
 import { resolveConfigPath, resolveTempPath } from '../../../utils/provider-paths.js';
+import {
+  PortablePathResolver,
+  PortableWriter,
+  asAbsolutePath,
+} from '../../../services/framework/portable-paths/index.js';
+import { FrameworkConfigSchema } from '../../../schemas/framework-config.schema.js';
 
 /**
  * Phase 4: Context Generation Node
@@ -307,7 +313,13 @@ export async function contextGenerationNode(
     );
 
     const configPath = resolveConfigPath(state.project_path, 'framework-config.json');
-    writeFileSync(configPath, JSON.stringify(frameworkConfig, null, 2));
+    // Single chokepoint for all writes into <project>/.claude/ or .codex/.
+    // PortableWriter asserts no /Users/<name>/... or /home/<name>/... strings
+    // land in the persisted JSON, and validates the shape against the schema.
+    const portableWriter = new PortableWriter(
+      new PortablePathResolver(asAbsolutePath(state.project_path)),
+    );
+    portableWriter.writeJson(asAbsolutePath(configPath), frameworkConfig);
     phaseLogger.success(`✓ Written: ${configPath}`);
 
     return {

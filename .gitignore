@@ -45,3 +45,4 @@ qubika-agentic-framework/
 
 .codex-temp/
 .codex-backups/
+.claude/settings.local.json
