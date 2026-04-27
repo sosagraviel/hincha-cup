@@ -2,6 +2,7 @@ import { existsSync, readFileSync, appendFileSync, writeFileSync } from 'fs';
 import { join, basename } from 'path';
 import { execSync } from 'child_process';
 import { getAllProviderTempDirs, getAllProviderBackupDirs } from './provider-paths.js';
+import { ensureCodexAuthentication } from '../auth/codex-auth.js';
 
 /**
  * Preflight validation results
@@ -251,9 +252,9 @@ export async function runPreflightChecks(
         }).trim();
         codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
 
-        const isAuthenticated = await checkCodexAuthentication(localCodexPath);
+        const authResult = ensureCodexAuthentication(localCodexPath);
 
-        if (isAuthenticated) {
+        if (authResult.authenticated) {
           authMode = 'codex_cli';
           provider = 'openai';
           return true;
@@ -266,13 +267,15 @@ export async function runPreflightChecks(
               `The framework uses a local bundled Codex CLI at:\n` +
               `  ${localCodexPath}\n` +
               `\n` +
-              `Please authenticate it manually:\n` +
-              `  ${localCodexPath}\n` +
-              `Select "Provide your own API key" and follow the prompts.\n` +
+              (authResult.attemptedApiKeyLogin
+                ? `Automatic Codex API-key login failed${authResult.error ? `: ${authResult.error}` : '.'}\n` +
+                  `You can retry manually:\n` +
+                  `  printenv OPENAI_API_KEY | "${localCodexPath}" login --with-api-key`
+                : `Please authenticate it manually:\n` +
+                  `  ${localCodexPath} login\n` +
+                  `Or set OPENAI_API_KEY to let the framework run API-key login automatically.`) +
               `\n` +
-              (hasOpenAIKey
-                ? `Keep OPENAI_API_KEY in the environment while running login.`
-                : `Set OPENAI_API_KEY if your Codex login flow requires an API key.`),
+              (hasOpenAIKey ? `OPENAI_API_KEY was detected in the environment.` : ''),
           );
         }
         return false;
@@ -293,8 +296,8 @@ export async function runPreflightChecks(
       }).trim();
       codexVersion = codexVersionOutput.split('\n')[0] || 'unknown';
 
-      const isAuthenticated = await checkCodexAuthentication('codex');
-      if (isAuthenticated) {
+      const authResult = ensureCodexAuthentication('codex');
+      if (authResult.authenticated) {
         authMode = 'codex_cli';
         provider = 'openai';
 
@@ -311,12 +314,15 @@ export async function runPreflightChecks(
           `Codex CLI is not authenticated.\n` +
             `\n` +
             `Please authenticate:\n` +
-            `  codex\n` +
-            `Select "Provide your own API key"\n` +
+            (authResult.attemptedApiKeyLogin
+              ? `Automatic Codex API-key login failed${authResult.error ? `: ${authResult.error}` : '.'}\n` +
+                `You can retry manually:\n` +
+                `  printenv OPENAI_API_KEY | codex login --with-api-key`
+              : `  codex login`) +
             `\n` +
             (hasOpenAIKey
-              ? `Keep OPENAI_API_KEY in the environment while running login.`
-              : `Set OPENAI_API_KEY if your Codex login flow requires an API key.`),
+              ? `OPENAI_API_KEY was detected in the environment.`
+              : `Or set OPENAI_API_KEY to let the framework run API-key login automatically.`),
         );
       }
       return false;
@@ -543,23 +549,6 @@ async function checkClaudeAuthentication(claudePath: string): Promise<boolean> {
     // Parse the JSON output to check login status
     const authStatus = JSON.parse(testResult.trim());
     return authStatus.loggedIn === true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Check if Codex CLI is authenticated by running `codex login --verify`
- * Exits 0 when logged in, non-zero otherwise.
- */
-async function checkCodexAuthentication(codexPath: string): Promise<boolean> {
-  try {
-    execSync(`"${codexPath}" login status`, {
-      encoding: 'utf-8',
-      timeout: 10000,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    return true;
   } catch {
     return false;
   }

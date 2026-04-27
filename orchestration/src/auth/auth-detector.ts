@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { ensureCodexAuthentication } from './codex-auth.js';
 
 /**
  * Authentication modes supported by the framework
@@ -12,7 +13,7 @@ export enum AuthMode {
   /** Use Claude CLI with subscription auth (Claude Pro/Max, TOS-compliant) */
   CLAUDE_CLI = 'claude_cli',
 
-  /** Use Codex CLI with subscription auth (ChatGPT Plus/Pro/Enterprise) */
+  /** Use Codex CLI with subscription auth or OPENAI_API_KEY-backed CLI auth */
   CODEX_CLI = 'codex_cli',
 
   /** No authentication available */
@@ -94,14 +95,21 @@ export async function detectAuthMode(): Promise<AuthConfig> {
           `  "${frameworkPath}/orchestration/node_modules/.bin/codex" login`,
       );
     }
-    if (!(await isCodexCLIAuthenticated())) {
+    const authResult = ensureCodexCLIAuthentication();
+    if (!authResult.authenticated) {
       const localPath = resolveLocalCLIPath('codex');
       const codexCmd = localPath ? `"${localPath}"` : 'codex';
+      const apiKeyLoginFailure = authResult.attemptedApiKeyLogin
+        ? `\n\nAutomatic Codex API-key login failed${authResult.error ? `: ${authResult.error}` : '.'}\n` +
+          `You can retry manually:\n` +
+          `  printenv OPENAI_API_KEY | ${codexCmd} login --with-api-key`
+        : '';
       throw new Error(
         `Provider 'codex' was requested but Codex CLI is not authenticated.\n\n` +
           `Please authenticate:\n` +
           `  ${codexCmd} login\n\n` +
-          `If you have OPENAI_API_KEY set, keep it in the environment while running login.`,
+          `If you have OPENAI_API_KEY set, the framework will attempt API-key login automatically.` +
+          apiKeyLoginFailure,
       );
     }
     return {
@@ -166,13 +174,15 @@ export async function detectAuthMode(): Promise<AuthConfig> {
       );
     }
 
-    if (!(await isCodexCLIAuthenticated())) {
+    const authResult = ensureCodexCLIAuthentication();
+    if (!authResult.authenticated) {
       const localPath = resolveLocalCLIPath('codex');
       const codexCmd = localPath ? `"${localPath}"` : 'codex';
       throw new Error(
         `OPENAI_API_KEY is set, but Codex CLI is not authenticated.\n\n` +
-          `Please authenticate with the key in your environment:\n` +
-          `  ${codexCmd} login`,
+          `Automatic Codex API-key login failed${authResult.error ? `: ${authResult.error}` : '.'}\n\n` +
+          `You can retry manually:\n` +
+          `  printenv OPENAI_API_KEY | ${codexCmd} login --with-api-key`,
       );
     }
 
@@ -350,17 +360,13 @@ export async function getCodexCLIVersion(): Promise<string | undefined> {
  * Exits 0 when logged in, non-zero otherwise.
  */
 export async function isCodexCLIAuthenticated(): Promise<boolean> {
-  try {
-    const localPath = resolveLocalCLIPath('codex');
-    const cmd = localPath ? `"${localPath}" login status` : 'codex login status';
-    execSync(cmd, {
-      timeout: 10000,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  return ensureCodexCLIAuthentication().authenticated;
+}
+
+function ensureCodexCLIAuthentication() {
+  const localPath = resolveLocalCLIPath('codex');
+  const codexPath = localPath ?? 'codex';
+  return ensureCodexAuthentication(codexPath);
 }
 
 /**

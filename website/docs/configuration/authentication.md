@@ -91,6 +91,8 @@ The system automatically selects the best available authentication:
 If `ANTHROPIC_API_KEY` is set, it takes precedence over any existing Claude CLI subscription authentication. Unset `ANTHROPIC_API_KEY` when you specifically want the framework to use your logged-in Claude CLI account.
 :::
 
+When `OPENAI_API_KEY` is set, the framework selects Codex CLI and can authenticate it automatically by running the equivalent of `printenv OPENAI_API_KEY | codex login --with-api-key`. Agent execution still runs through Codex CLI, not LangChain or DeepAgents.
+
 ## Switching Between Modes
 
 ```bash

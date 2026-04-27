@@ -235,9 +235,17 @@ program
 
       // Show auth mode
       if (preflightResult.authMode === 'claude_cli') {
-        logger.success('✓ Authentication: Claude CLI (subscription)');
+        if (process.env.ANTHROPIC_API_KEY) {
+          logger.success('✓ Authentication: Anthropic API key');
+        } else {
+          logger.success('✓ Authentication: Claude CLI (subscription)');
+        }
       } else if (preflightResult.authMode === 'codex_cli') {
-        logger.success('✓ Authentication: Codex CLI (subscription)');
+        if (process.env.OPENAI_API_KEY) {
+          logger.success('✓ Authentication: OpenAI API key');
+        } else {
+          logger.success('✓ Authentication: Codex CLI (subscription)');
+        }
       }
 
       if (preflightResult.gitignoreUpdated) {

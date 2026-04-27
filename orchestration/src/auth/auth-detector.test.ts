@@ -9,6 +9,8 @@ import {
 
 vi.mock('child_process', () => ({
   execSync: vi.fn(),
+  execFileSync: vi.fn(),
+  spawnSync: vi.fn(),
 }));
 
 // Mock fs
@@ -63,17 +65,77 @@ describe('auth-detector', () => {
       await expect(detectAuthMode()).rejects.toThrow(/Claude CLI is not installed/);
     });
 
-    it('should require Codex CLI login when OPENAI_API_KEY is set', async () => {
+    it('should auto-authenticate Codex CLI when OPENAI_API_KEY is set', async () => {
       process.env.OPENAI_API_KEY = 'sk-test-key';
-      const { execSync } = await import('child_process');
+      const { execSync, execFileSync, spawnSync } = await import('child_process');
       vi.mocked(execSync).mockImplementation((cmd: string) => {
         if (cmd === 'which codex') return Buffer.from('/usr/local/bin/codex');
         if (cmd === 'codex --version') return Buffer.from('codex 0.121.0');
-        if (cmd === 'codex login status') throw new Error('Not authenticated');
         throw new Error('Command failed');
       });
+      vi.mocked(execFileSync)
+        .mockImplementationOnce(() => {
+          throw new Error('Not authenticated');
+        })
+        .mockReturnValue(Buffer.from('Logged in'));
+      vi.mocked(spawnSync).mockReturnValue({
+        status: 0,
+        signal: null,
+        output: [null, '', ''],
+        pid: 123,
+        stdout: '',
+        stderr: '',
+      });
 
-      await expect(detectAuthMode()).rejects.toThrow(/Codex CLI is not authenticated/);
+      const result = await detectAuthMode();
+
+      expect(result.mode).toBe(AuthMode.CODEX_CLI);
+      expect(result.provider).toBe('openai');
+      expect(result.hasAPIKey).toBe(true);
+      expect(spawnSync).toHaveBeenCalledWith(
+        'codex',
+        ['login', '--with-api-key'],
+        expect.objectContaining({ input: 'sk-test-key\n' }),
+      );
+    });
+
+    it('should fail clearly when OPENAI_API_KEY automatic Codex login fails', async () => {
+      process.env.OPENAI_API_KEY = 'sk-test-key';
+      const { execSync, execFileSync, spawnSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        if (cmd === 'which codex') return Buffer.from('/usr/local/bin/codex');
+        if (cmd === 'codex --version') return Buffer.from('codex 0.121.0');
+        throw new Error('Command failed');
+      });
+      vi.mocked(execFileSync).mockImplementation(() => {
+        throw new Error('Not authenticated');
+      });
+      vi.mocked(spawnSync).mockReturnValue({
+        status: 1,
+        signal: null,
+        output: [null, '', 'failed'],
+        pid: 123,
+        stdout: '',
+        stderr: 'failed',
+      });
+
+      await expect(detectAuthMode()).rejects.toThrow(/Automatic Codex API-key login failed/);
+    });
+
+    it('should keep normal Codex login guidance when no OPENAI_API_KEY is set', async () => {
+      process.env.PROVIDER = 'codex';
+      const { execSync, execFileSync, spawnSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        if (cmd === 'which codex') return Buffer.from('/usr/local/bin/codex');
+        if (cmd === 'codex --version') return Buffer.from('codex 0.121.0');
+        throw new Error('Command failed');
+      });
+      vi.mocked(execFileSync).mockImplementation(() => {
+        throw new Error('Not authenticated');
+      });
+
+      await expect(detectAuthMode()).rejects.toThrow(/codex login/);
+      expect(spawnSync).not.toHaveBeenCalled();
     });
 
     it('should ignore GOOGLE_API_KEY and fall through to Claude CLI detection', async () => {
