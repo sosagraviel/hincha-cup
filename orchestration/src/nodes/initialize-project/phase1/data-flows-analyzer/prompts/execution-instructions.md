@@ -1,5 +1,7 @@
 # Data Flows & Integrations Analysis Instructions
 
+> **Tool naming.** Bare tool names below (e.g. `list_flows`) are semantic identifiers. The canonical names are listed in the **CODE GRAPH CONTEXT** block in your system prompt — they share the `mcp__code_graph__` prefix and may carry a `_tool` suffix. Always call the catalog name, not a name you find here.
+
 <objective>
 Analyze authentication, authorization, API design patterns, external integrations, and data flow patterns. Document how the application handles requests, integrates with external services, and manages data transformations.
 </objective>
@@ -17,7 +19,7 @@ Analyze authentication, authorization, API design patterns, external integration
 
 ## Step 1: Auth middleware order and request lifecycle via graph
 
-Call `mcp__code_graph__list_flows` to get all named request flows in the codebase. For each flow that looks auth-related (names containing "auth", "guard", "middleware", "request"), call `mcp__code_graph__get_flow({ flow_id })` to retrieve the execution path with middleware/guard nodes in order.
+Call `list_flows` to get all named request flows in the codebase. For each flow that looks auth-related (names containing "auth", "guard", "middleware", "request"), call `get_flow({ flow_id })` to retrieve the execution path with middleware/guard nodes in order.
 
 This gives you the auth middleware chain (e.g., `CORS → RateLimiter → JwtGuard → RolesGuard → Handler`) directly, without grepping for JWT/OAuth/session patterns across files.
 
@@ -59,7 +61,7 @@ Use graph flows from Step 1 to identify guard nodes that enforce roles or permis
 Supplement with:
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "RolesGuard | PermissionsGuard | hasRole | checkPermission | CASL | Casbin", kind: "class", limit: 20 })
+semantic_search_nodes({ query: "RolesGuard | PermissionsGuard | hasRole | checkPermission | CASL | Casbin", kind: "class", limit: 20 })
 ```
 
 <authorization_patterns>
@@ -78,7 +80,7 @@ mcp__code_graph__semantic_search_nodes({ query: "RolesGuard | PermissionsGuard |
 
 ## Step 3: Map API Design Patterns via graph
 
-Call `mcp__code_graph__semantic_search_nodes({ query: "Controller | Resolver | Router | handler", kind: "class" })` to surface API boundary classes. Use the results to determine REST vs. GraphQL vs. gRPC.
+Call `semantic_search_nodes({ query: "Controller | Resolver | Router | handler", kind: "class" })` to surface API boundary classes. Use the results to determine REST vs. GraphQL vs. gRPC.
 
 <api_patterns>
 
@@ -104,36 +106,36 @@ Document the primary API style and any secondary patterns.
 
 ## Step 4: Identify External Integrations via graph
 
-Use `mcp__code_graph__semantic_search_nodes` for actual import sites. Do NOT grep package.json — the graph only returns libraries that are actually imported in code.
+Use `semantic_search_nodes` for actual import sites. Do NOT grep package.json — the graph only returns libraries that are actually imported in code.
 
 **Payment processors:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "Stripe | PayPal | Square", kind: "import", limit: 20 })
+semantic_search_nodes({ query: "Stripe | PayPal | Square", kind: "import", limit: 20 })
 ```
 
 **Email services:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "SendGrid | Mailgun | SES | nodemailer", kind: "import", limit: 20 })
+semantic_search_nodes({ query: "SendGrid | Mailgun | SES | nodemailer", kind: "import", limit: 20 })
 ```
 
 **Cloud storage:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "S3 | GCS | AzureBlob | storage", kind: "import", limit: 20 })
+semantic_search_nodes({ query: "S3 | GCS | AzureBlob | storage", kind: "import", limit: 20 })
 ```
 
 **Auth providers:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "Auth0 | Firebase | Cognito | Keycloak", kind: "import", limit: 20 })
+semantic_search_nodes({ query: "Auth0 | Firebase | Cognito | Keycloak", kind: "import", limit: 20 })
 ```
 
 **Monitoring:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "Sentry | Datadog | NewRelic", kind: "import", limit: 20 })
+semantic_search_nodes({ query: "Sentry | Datadog | NewRelic", kind: "import", limit: 20 })
 ```
 
 **Only when ALL graph import queries return empty** — fall back to scanning dependency manifests for SDK package names.
@@ -181,7 +183,7 @@ Supplement with data transformation patterns only when flow data is insufficient
 Call:
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "BullMQ | Bull | Celery | Sidekiq | Asynq | Dramatiq | RQ", kind: "import", limit: 30 })
+semantic_search_nodes({ query: "BullMQ | Bull | Celery | Sidekiq | Asynq | Dramatiq | RQ", kind: "import", limit: 30 })
 ```
 
 If the graph returns import sites, use those for queue and worker identification.
@@ -229,7 +231,7 @@ If the graph returns import sites, use those for queue and worker identification
 Call:
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "Redis | Memcached | ioredis | createClient | cache.get | cache.set", kind: "function", limit: 30 })
+semantic_search_nodes({ query: "Redis | Memcached | ioredis | createClient | cache.get | cache.set", kind: "function", limit: 30 })
 ```
 
 Graph results give you actual cache initialization and usage sites. For cache strategy specifics (read-through / write-behind TTL logic), read the specific handler files the graph identified.
@@ -262,7 +264,7 @@ Graph results give you actual cache initialization and usage sites. For cache st
 Call:
 
 ```
-mcp__code_graph__query_graph({ pattern: "imports_of", target: "<broker>" })
+query_graph({ pattern: "imports_of", target: "<broker>" })
 ```
 
 for known message broker packages (kafkajs, amqplib, nats, @aws-sdk/client-sqs, @google-cloud/pubsub). The edge list shows which modules import the broker, revealing which services communicate through it.
@@ -424,12 +426,12 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
     }
   },
   "graph_queries_used": [
-    "mcp__code_graph__list_flows",
-    "mcp__code_graph__get_flow({ flow_id: 'request-auth-flow' })",
-    "mcp__code_graph__semantic_search_nodes({ query: 'Stripe | SendGrid | Sentry', kind: 'import', limit: 20 })",
-    "mcp__code_graph__semantic_search_nodes({ query: 'BullMQ | Celery', kind: 'import', limit: 30 })",
-    "mcp__code_graph__semantic_search_nodes({ query: 'Redis | ioredis | createClient', kind: 'function', limit: 30 })",
-    "mcp__code_graph__query_graph({ pattern: 'imports_of', target: 'kafkajs' })"
+    "list_flows",
+    "get_flow({ flow_id: 'request-auth-flow' })",
+    "semantic_search_nodes({ query: 'Stripe | SendGrid | Sentry', kind: 'import', limit: 20 })",
+    "semantic_search_nodes({ query: 'BullMQ | Celery', kind: 'import', limit: 30 })",
+    "semantic_search_nodes({ query: 'Redis | ioredis | createClient', kind: 'function', limit: 30 })",
+    "query_graph({ pattern: 'imports_of', target: 'kafkajs' })"
   ],
   "needs_verification": []
 }

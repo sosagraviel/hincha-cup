@@ -1,5 +1,7 @@
 # Tech Stack & Dependencies Analysis Instructions
 
+> **Tool naming.** Bare tool names below (e.g. `list_communities`) are semantic identifiers. The canonical names are listed in the **CODE GRAPH CONTEXT** block in your system prompt — they share the `mcp__code_graph__` prefix and may carry a `_tool` suffix. Always call the catalog name, not a name you find here.
+
 <objective>
 Analyze dependencies, databases, infrastructure tools, CI/CD pipelines, and deployment configuration for each service. Provide comprehensive tech stack information to understand the operational requirements.
 </objective>
@@ -16,42 +18,42 @@ Analyze dependencies, databases, infrastructure tools, CI/CD pipelines, and depl
 
 ## Step 1: Service inventory via graph (do not re-glob manifests)
 
-Call `mcp__code_graph__list_communities` to get the same service set the structure-analyzer discovered. Use community names as service IDs. This eliminates the duplicate `**/package.json` glob that the old workflow ran.
+Call `list_communities` to get the same service set the structure-analyzer discovered. Use community names as service IDs. This eliminates the duplicate `**/package.json` glob that the old workflow ran.
 
 Record the community list. Subsequent steps use community names to scope graph queries per service.
 
 ## Step 2: Identify actually-imported SDK libraries via graph
 
-For each key dependency category, use `mcp__code_graph__semantic_search_nodes` to find real import sites rather than trusting package.json declarations:
+For each key dependency category, use `semantic_search_nodes` to find real import sites rather than trusting package.json declarations:
 
 **Database clients:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "PostgresClient | MongoClient | Pool | createConnection | DataSource | Prisma", kind: "function", limit: 50 })
+semantic_search_nodes({ query: "PostgresClient | MongoClient | Pool | createConnection | DataSource | Prisma", kind: "function", limit: 50 })
 ```
 
 **ORM initialization:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "TypeORM | Prisma | Sequelize | SQLAlchemy | GORM | Diesel", kind: "import", limit: 50 })
+semantic_search_nodes({ query: "TypeORM | Prisma | Sequelize | SQLAlchemy | GORM | Diesel", kind: "import", limit: 50 })
 ```
 
 **Cache clients:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "Redis | Memcached | ioredis | createClient", kind: "import", limit: 30 })
+semantic_search_nodes({ query: "Redis | Memcached | ioredis | createClient", kind: "import", limit: 30 })
 ```
 
 **Authentication libraries:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "passport | jsonwebtoken | jose | auth0 | keycloak", kind: "import", limit: 30 })
+semantic_search_nodes({ query: "passport | jsonwebtoken | jose | auth0 | keycloak", kind: "import", limit: 30 })
 ```
 
 **Payment / email / monitoring SDKs:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "Stripe | SendGrid | Sentry | Datadog", kind: "import", limit: 30 })
+semantic_search_nodes({ query: "Stripe | SendGrid | Sentry | Datadog", kind: "import", limit: 30 })
 ```
 
 Record results in `graph_queries_used`. Only libraries that appear in actual import sites (not just in package.json) should be treated as confirmed usage.
@@ -568,9 +570,9 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
     }
   },
   "graph_queries_used": [
-    "mcp__code_graph__list_communities",
-    "mcp__code_graph__semantic_search_nodes({ query: 'PostgresClient | Pool | DataSource', kind: 'function', limit: 50 })",
-    "mcp__code_graph__semantic_search_nodes({ query: 'Stripe | SendGrid | Sentry', kind: 'import', limit: 30 })"
+    "list_communities",
+    "semantic_search_nodes({ query: 'PostgresClient | Pool | DataSource', kind: 'function', limit: 50 })",
+    "semantic_search_nodes({ query: 'Stripe | SendGrid | Sentry', kind: 'import', limit: 30 })"
   ],
   "needs_verification": []
 }

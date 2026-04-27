@@ -21,9 +21,23 @@ Analyzes codebase and generates AI configuration via 6-phase workflow.
 
 ---
 
+## Recent changes (2026-04 init refactor)
+
+- **Single-init model.** No `-p` / `-f` flags, no `PROJECT_PATH` / `FRAMEWORK_PATH` env vars. The Bash entry point and the TypeScript layer derive both paths locally — Bash via `pwd -P` walking up from the script, TS via `import.meta.url`. The framework is expected to live as a child of the target project (`<project>/qubika-agentic-framework/…`); dogfooding is detected via the `qubika-agentic-framework -> .` self-symlink so this very repo can initialize itself.
+- **Phase 0 — Graph Foundation.** Runs *before* Phase 1. Builds `<project>/.code-review-graph/graph.db`, writes the project-level MCP config (`.mcp.json` for Claude, `.codex/config.toml` for Codex), then opens an MCP stdio session against `code-review-graph serve` and stashes the live tool catalog in workflow state. Failure here aborts the run (`current_phase: failed`) — analyzers without the graph are not allowed to silently fall back to file scanning.
+- **Live tool catalog.** Analyzer prompts no longer hard-code `mcp__code_graph__<name>` strings. Phase 1's `prompt-builder.ts` injects the catalog as a `=== CODE GRAPH CONTEXT ===` block, and the analyzer's Stop hook reads `transcript.jsonl` to count actual `mcp__code_graph__*` `tool_use` events. `graph_queries_used` in each analyzer's output is overwritten with the real count; an analyzer that claims graph use without making any call is rejected and retried.
+- **Portable artifacts.** Everything written under `<project>/.claude/` and `<project>/.codex/` flows through `PortableWriter` (services/framework/portable-paths/). Four layers of defense: branded TypeScript types (`AbsolutePath` / `ProjectRelativePath`), Zod refinements, the `PortableWriter` chokepoint, and a Phase 6 runtime walker (`portability-validator.ts`) that scans every committed text file for `/Users/<name>/` or `/home/<name>/` patterns. A non-portable path anywhere in the generated tree fails the run.
+- **`.code-review-graphignore`.** Lives in `templates/code-review-graphignore` in the framework; copied idempotently into `<project>/.code-review-graphignore` by `setup-code-graph.sh` and `sync-framework-resources.sh`. The framework folder no longer holds an inert copy.
+- **`framework-config.json`.** `project_metadata.project_path` was dropped — it was an absolute filesystem path written into a committed file, and nothing read it.
+- **Settings split.** `<project>/.claude/settings.json` is committed (shareable permissions); `<project>/.claude/settings.local.json` is gitignored.
+
+See [`docs/CODE_GRAPH.md`](../CODE_GRAPH.md) and [`docs/CLAUDE_DIR_LAYOUT.md`](../CLAUDE_DIR_LAYOUT.md) for details.
+
+---
+
 ## Architecture
 
-**Pattern**: Phase 1 (4 parallel analyzers) → Phases 2-6 (sequential)
+**Pattern**: Phase 0 (graph + catalog) → Phase 1 (4 parallel analyzers) → Phases 2-6 (sequential)
 
 ```typescript
 const graph = new StateGraph(InitializeProjectAnnotation)

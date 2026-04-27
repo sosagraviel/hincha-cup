@@ -1,5 +1,7 @@
 # Code Patterns & Testing Analysis Instructions
 
+> **Tool naming.** Bare tool names below (e.g. `find_large_functions`) are semantic identifiers. The canonical names are listed in the **CODE GRAPH CONTEXT** block in your system prompt — they share the `mcp__code_graph__` prefix and may carry a `_tool` suffix. Always call the catalog name, not a name you find here.
+
 <objective>
 Analyze testing strategies, code quality tools, and development practices for each service. Identify test frameworks, categorize tests, and document quality tooling.
 </objective>
@@ -58,9 +60,9 @@ Testing frameworks appear in devDependencies (JS/TS) or test dependencies sectio
 
 ## Step 2: Find Test Files via graph
 
-Call `mcp__code_graph__find_large_functions({ kind: "function", min_lines: 1 })` and filter results by function name patterns associated with test blocks: `describe`, `test`, `it`, `spec`, `test_`, `Test`. This surfaces test entry points without scanning every file path.
+Call `find_large_functions({ kind: "function", min_lines: 1 })` and filter results by function name patterns associated with test blocks: `describe`, `test`, `it`, `spec`, `test_`, `Test`. This surfaces test entry points without scanning every file path.
 
-For test → source linkage, call `mcp__code_graph__query_graph({ pattern: "tests_for", target: "<community>" })` per service. This relationship data is impossible to get from Glob alone.
+For test → source linkage, call `query_graph({ pattern: "tests_for", target: "<community>" })` per service. This relationship data is impossible to get from Glob alone.
 
 Record the test file list from graph results. Use this as your primary test file inventory.
 
@@ -122,26 +124,26 @@ Read config files to extract:
 
 ## Step 4: Analyze API/Interface Patterns via graph
 
-Call `mcp__code_graph__semantic_search_nodes({ query: "Controller | Resolver | Service", kind: "class" })` to detect API pattern indicators. The graph returns annotated class nodes without requiring per-file reads.
+Call `semantic_search_nodes({ query: "Controller | Resolver | Service", kind: "class" })` to detect API pattern indicators. The graph returns annotated class nodes without requiring per-file reads.
 
 Supplement with targeted queries for specific patterns:
 
 **GraphQL detection:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "Resolver | GraphQLSchema | ObjectType", kind: "class", limit: 20 })
+semantic_search_nodes({ query: "Resolver | GraphQLSchema | ObjectType", kind: "class", limit: 20 })
 ```
 
 **gRPC detection:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "ServiceDefinition | GrpcMethod", kind: "class", limit: 20 })
+semantic_search_nodes({ query: "ServiceDefinition | GrpcMethod", kind: "class", limit: 20 })
 ```
 
 **WebSocket detection:**
 
 ```
-mcp__code_graph__semantic_search_nodes({ query: "WebSocketGateway | SubscribeMessage | io.on", kind: "function", limit: 20 })
+semantic_search_nodes({ query: "WebSocketGateway | SubscribeMessage | io.on", kind: "function", limit: 20 })
 ```
 
 Only fall back to Grep for API patterns when graph returns empty for all queries.
@@ -201,7 +203,7 @@ Find configuration files for each tool and note their presence.
 
 ## Step 6: Code Quality via graph
 
-Call `mcp__code_graph__find_large_functions({ min_lines: 20 })` to surface functions that are candidates for complexity review. This is a quality signal the graph provides directly.
+Call `find_large_functions({ min_lines: 20 })` to surface functions that are candidates for complexity review. This is a quality signal the graph provides directly.
 
 Record the count and distribution of large functions per service in `findings.code_quality`.
 
@@ -392,10 +394,10 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
     ]
   },
   "graph_queries_used": [
-    "mcp__code_graph__find_large_functions({ kind: 'function', min_lines: 1 })",
-    "mcp__code_graph__query_graph({ pattern: 'tests_for', target: 'backend' })",
-    "mcp__code_graph__semantic_search_nodes({ query: 'Controller | Resolver | Service', kind: 'class' })",
-    "mcp__code_graph__find_large_functions({ min_lines: 20 })"
+    "find_large_functions({ kind: 'function', min_lines: 1 })",
+    "query_graph({ pattern: 'tests_for', target: 'backend' })",
+    "semantic_search_nodes({ query: 'Controller | Resolver | Service', kind: 'class' })",
+    "find_large_functions({ min_lines: 20 })"
   ],
   "needs_verification": []
 }

@@ -10,6 +10,7 @@ source "$SCRIPT_DIR/lib/resolve-paths.sh"
 # PROJECT_PATH is locally scoped — never exported. Single source of truth is the
 # helper, which detects dogfooding via the qubika-agentic-framework -> . self-symlink.
 PROJECT_PATH="$(project_path)"
+FRAMEWORK_PATH="$(framework_path)"
 # Single canonical graph DB path. The legacy `.code-graph.db` snapshot at the
 # project root has been retired (see retired Phase 2 of init-refactor): no
 # `copy_graph_db_if_needed` step exists anymore, and any existing legacy file
@@ -218,12 +219,25 @@ write_launcher_json() {
 EOF
 }
 
+ensure_ignore_file() {
+  # `code-review-graph build --repo <project>` reads `.code-review-graphignore`
+  # from the project root, not from the framework. Seed it idempotently so
+  # fresh targets get sane excludes (.claude/, node_modules, etc.).
+  local target="$PROJECT_PATH/.code-review-graphignore"
+  local source="$FRAMEWORK_PATH/templates/code-review-graphignore"
+  if [ ! -f "$target" ] && [ -f "$source" ]; then
+    log_info "Seeding $target from template"
+    cp "$source" "$target"
+  fi
+}
+
 main() {
   if [ ! -d "$PROJECT_PATH" ]; then
     log_error "Project path does not exist: $PROJECT_PATH"
     exit 1
   fi
 
+  ensure_ignore_file
   ensure_code_review_graph
   build_graph
   write_local_launcher

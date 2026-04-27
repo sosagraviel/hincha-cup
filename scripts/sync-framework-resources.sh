@@ -38,6 +38,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/resolve-paths.sh
 source "$SCRIPT_DIR/lib/resolve-paths.sh"
 FRAMEWORK_PATH="$(framework_path)"
+PROJECT_PATH="$(project_path)"
 
 # Validate framework path exists
 if [ ! -d "$FRAMEWORK_PATH" ]; then
@@ -45,6 +46,15 @@ if [ ! -d "$FRAMEWORK_PATH" ]; then
   echo ""
   echo "This script must be run from the framework's scripts/ directory."
   exit 1
+fi
+
+# Seed `.code-review-graphignore` idempotently. setup-code-graph.sh does the
+# same; we duplicate the check here so a sync-only run (no graph rebuild)
+# still produces a portable target.
+ignore_target="$PROJECT_PATH/.code-review-graphignore"
+ignore_source="$FRAMEWORK_PATH/templates/code-review-graphignore"
+if [ ! -f "$ignore_target" ] && [ -f "$ignore_source" ]; then
+  cp "$ignore_source" "$ignore_target"
 fi
 
 # Run from the framework's orchestration directory. We use the framework's physical

@@ -1,5 +1,7 @@
 # Structure & Architecture Analysis Instructions
 
+> **Tool naming.** Bare tool names below (e.g. `list_communities`) are semantic identifiers. The canonical names are listed in the **CODE GRAPH CONTEXT** block in your system prompt — they share the `mcp__code_graph__` prefix and may carry a `_tool` suffix. Always call the catalog name, not a name you find here.
+
 <objective>
 Analyze repository structure and identify all services/packages with their languages, frameworks, and architectural patterns. Create a comprehensive map of the codebase structure.
 </objective>
@@ -8,9 +10,9 @@ Analyze repository structure and identify all services/packages with their langu
 
 ## Step 1: Service boundaries via graph
 
-Call `mcp__code_graph__list_communities`. The response is your service inventory. Each community is a candidate service.
+Call `list_communities`. The response is your service inventory. Each community is a candidate service.
 
-For each community, call `mcp__code_graph__get_community({ community_name, include_members: true })` to retrieve member files, language tags, and entry points. Record:
+For each community, call `get_community({ community_name, include_members: true })` to retrieve member files, language tags, and entry points. Record:
 
 - service id (use the community name as a stable id)
 - files (member list)
@@ -19,7 +21,7 @@ For each community, call `mcp__code_graph__get_community({ community_name, inclu
 
 ## Step 2: Architecture topology via graph
 
-Call `mcp__code_graph__get_architecture_overview` once. Use the response to fill the project's top-level shape (monorepo? microservice? layered?). Cross-reference with Step 1's communities — they should align.
+Call `get_architecture_overview` once. Use the response to fill the project's top-level shape (monorepo? microservice? layered?). Cross-reference with Step 1's communities — they should align.
 
 ## Step 3: Manifest verification (only when graph is empty)
 
@@ -212,7 +214,7 @@ Only examine source directory structure manually when the graph returned no patt
 
 ## Step 9: File-placement table via graph
 
-Call `mcp__code_graph__query_graph({ pattern: "files_in", target: "<community>" })` per service from Step 1. Build the file-placement table from the edge results. Avoid Glob for this — the graph already has the membership data.
+Call `query_graph({ pattern: "files_in", target: "<community>" })` per service from Step 1. Build the file-placement table from the edge results. Avoid Glob for this — the graph already has the membership data.
 
 Only fall back to Glob-based file mapping when `query_graph` returns empty for all communities.
 
@@ -381,7 +383,7 @@ Before outputting results, verify:
 
 If graph communities are empty but code clearly exists:
 
-- Call `mcp__code_graph__get_architecture_overview` to confirm graph is online
+- Call `get_architecture_overview` to confirm graph is online
 - If that also returns empty, fall back to full manifest discovery and cite `[graph empty — fell back to manifest discovery]`
 - Use broader glob patterns: `**/*.{ext1,ext2,ext3}`
 - Try multiple pattern variations (different naming conventions)
@@ -498,11 +500,11 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
     }
   },
   "graph_queries_used": [
-    "mcp__code_graph__list_communities",
-    "mcp__code_graph__get_community({ community_name: 'backend', include_members: true })",
-    "mcp__code_graph__get_community({ community_name: 'web-frontend', include_members: true })",
-    "mcp__code_graph__get_architecture_overview",
-    "mcp__code_graph__query_graph({ pattern: 'files_in', target: 'backend' })"
+    "list_communities",
+    "get_community({ community_name: 'backend', include_members: true })",
+    "get_community({ community_name: 'web-frontend', include_members: true })",
+    "get_architecture_overview",
+    "query_graph({ pattern: 'files_in', target: 'backend' })"
   ],
   "needs_verification": [
     {
