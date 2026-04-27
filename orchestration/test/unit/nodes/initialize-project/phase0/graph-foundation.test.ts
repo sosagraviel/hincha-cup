@@ -12,6 +12,13 @@ vi.mock('../../../../../src/services/framework/code-graph/tool-catalog.service.j
   fetchCodeGraphToolCatalog: vi.fn(),
 }));
 
+vi.mock('../../../../../src/services/framework/mcp-config.service.js', () => ({
+  upsertCodeGraphMcpConfig: vi.fn(() => ({
+    configPath: '/test/project/.mcp.json',
+    changed: false,
+  })),
+}));
+
 const infoMessages: string[] = [];
 const successMessages: string[] = [];
 const errorMessages: string[] = [];

@@ -259,6 +259,14 @@ async function invokeCLI(
 
           // Claude CLI settings do not carry MCP server definitions; if an
           // mcp.json sits next to settings.json, resolve and pass it explicitly.
+          //
+          // Codex parity note: the Codex CLI does NOT take a per-session MCP
+          // config flag. Codex auto-discovers `<cwd>/.codex/config.toml` (and
+          // `~/.codex/config.toml`) on session start. The framework writes the
+          // project-level `.codex/config.toml` in Phase 0 (graph-foundation)
+          // via upsertCodeGraphMcpConfig so Codex Phase 1 analyzers find the
+          // `code_graph` MCP server too. See codex-cli-agent-impl.ts for the
+          // Codex spawn (no --mcp-config flag is needed there).
           const mcpConfigSource = path.join(path.dirname(config.settingsPath), 'mcp.json');
           if (fs.existsSync(mcpConfigSource)) {
             const originalMcp = fs.readFileSync(mcpConfigSource, 'utf-8');

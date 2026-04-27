@@ -1,6 +1,9 @@
 import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
 import { buildCodeGraph } from '../../../services/graph-wiki/code-graph.service.js';
 import { fetchCodeGraphToolCatalog } from '../../../services/framework/code-graph/tool-catalog.service.js';
+import { upsertCodeGraphMcpConfig } from '../../../services/framework/mcp-config.service.js';
+import { getActiveProvider } from '../../../utils/provider-paths.js';
+import { Provider } from '../../../providers/types.js';
 import { logger } from '../../../utils/logger.js';
 
 /** Formats a build duration as "2.4s" for durations under a minute, or "1m 12s" for longer. */
@@ -31,6 +34,29 @@ export async function graphFoundationNode(
         `Classes: ${s.classes ?? '?'} │ Languages: ${(s.languages ?? []).join(', ') || '?'} │ ` +
         `Build: ${formatBuildTime(s.build_time_ms)}`,
     );
+
+    // Codex MCP parity: write <project>/.codex/config.toml (or .mcp.json for
+    // Claude) NOW so Phase 1 analyzers spawned via Codex CLI find the
+    // `code_graph` MCP server in their auto-discovered project config. The
+    // Claude codepath also benefits — it has per-node mcp.json passed via
+    // --mcp-config, but downstream phases (e.g. wiki generation) still rely
+    // on the project-level .mcp.json. Phase 5/resources also calls this; we
+    // pre-create here so analyzers in either provider have what they need.
+    try {
+      const provider = getActiveProvider();
+      upsertCodeGraphMcpConfig({
+        projectPath: state.project_path,
+        frameworkPath: state.framework_path,
+        provider,
+      });
+      phaseLogger.info(
+        `  MCP config written for ${provider === Provider.CODEX ? '.codex/config.toml' : '.mcp.json'}`,
+      );
+    } catch (mcpErr) {
+      phaseLogger.warn(
+        `  MCP config upsert failed (non-fatal): ${mcpErr instanceof Error ? mcpErr.message : String(mcpErr)}`,
+      );
+    }
 
     // Fetch the live MCP tool catalog so analyzer prompts template the real
     // tool names (and not hand-written ones that drift on every server release).
