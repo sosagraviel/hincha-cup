@@ -2,10 +2,13 @@ import { createHash } from 'crypto';
 import { execSync, spawn } from 'child_process';
 import {
   accessSync,
+  closeSync,
   constants,
   existsSync,
   mkdirSync,
+  openSync,
   readFileSync,
+  readSync,
   statSync,
   writeFileSync,
 } from 'fs';
@@ -34,6 +37,21 @@ export interface ResolvedCodeGraphCommand {
   /** Prefix args inserted before the actual sub-command + user args (e.g. `['code-review-graph']` for uvx). */
   args: string[];
   via: 'launcher.json' | 'local-launcher' | 'wrapper-script' | 'system-binary' | 'uvx-direct';
+}
+
+/** Result of a smoke test verifying the resolved code-review-graph command is callable. */
+export interface SmokeTestResult {
+  ok: boolean;
+  version?: string;
+  error?: string;
+  via?: ResolvedCodeGraphCommand['via'];
+}
+
+/** Result of validating a graph DB file is present, non-empty, and structurally valid. */
+export interface DbValidationResult {
+  ok: boolean;
+  sizeBytes: number;
+  reason?: string;
 }
 
 interface CommandResult {
@@ -138,6 +156,83 @@ function readToolVersionFromLauncher(projectPath: string): string | null {
   } catch {
     return null;
   }
+}
+
+const SQLITE_MAGIC = 'SQLite format 3\0';
+
+/**
+ * Verifies the resolved code-review-graph command is callable and returns
+ * a parseable version string. Stderr suppressed so a failure on the
+ * happy path doesn't print noise to the user; the returned `error` field
+ * carries any captured stderr for callers that want to surface it.
+ */
+export async function smokeTestCodeGraph(
+  projectPath: string,
+  frameworkPath: string,
+  options?: { timeoutMs?: number },
+): Promise<SmokeTestResult> {
+  const resolved = resolveCodeGraphCommand(projectPath, frameworkPath);
+  try {
+    const result = await runCodeGraphCommand(['--version'], {
+      projectPath,
+      frameworkPath,
+      timeoutMs: options?.timeoutMs ?? 15_000,
+    });
+    const version = result.stdout.trim();
+    if (!/\d+\.\d+/.test(version)) {
+      return {
+        ok: false,
+        error: `version string does not match expected pattern: "${version}"`,
+        via: resolved.via,
+      };
+    }
+    return { ok: true, version, via: resolved.via };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: message, via: resolved.via };
+  }
+}
+
+/**
+ * Validates that the graph DB file exists, has size > 0, and starts with
+ * the SQLite magic header. Anything else is a half-built artifact.
+ */
+export function validateGraphDb(graphDbPath: string): DbValidationResult {
+  if (!existsSync(graphDbPath)) {
+    return { ok: false, sizeBytes: 0, reason: 'file does not exist' };
+  }
+
+  const { size: sizeBytes } = statSync(graphDbPath);
+  if (sizeBytes === 0) {
+    return { ok: false, sizeBytes: 0, reason: 'file is empty (0 bytes)' };
+  }
+
+  const header = Buffer.alloc(16);
+  let fd: number | undefined;
+  try {
+    fd = openSync(graphDbPath, 'r');
+    readSync(fd, header, 0, 16, 0);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, sizeBytes, reason: `could not read file header: ${message}` };
+  } finally {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {}
+    }
+  }
+
+  const magic = header.toString('utf8', 0, 16);
+  if (magic !== SQLITE_MAGIC) {
+    return {
+      ok: false,
+      sizeBytes,
+      reason: `not a SQLite file (magic bytes mismatch: "${magic.replace(/\0/g, '\\0')}")`,
+    };
+  }
+
+  return { ok: true, sizeBytes };
 }
 
 /**
@@ -327,6 +422,37 @@ export async function buildCodeGraph(
 
   if (!existsSync(graphDbPath)) {
     throw new Error(`Code graph database was not created: ${graphDbPath}`);
+  }
+
+  const dbCheck = validateGraphDb(graphDbPath);
+  if (!dbCheck.ok) {
+    throw new Error(`Graph DB invalid (${dbCheck.sizeBytes} bytes): ${dbCheck.reason}`);
+  }
+
+  let smoke = await smokeTestCodeGraph(options.projectPath, options.frameworkPath);
+  if (!smoke.ok) {
+    await runCommand('bash', [setupScriptPath], {
+      cwd: options.projectPath,
+      env: {
+        ...getCodeGraphEnv(),
+        PROJECT_PATH: options.projectPath,
+        CODE_GRAPH_DB_PATH: graphDbPath,
+        FORCE_REINSTALL: '1',
+      },
+      timeoutMs: COMMAND_TIMEOUT_MS,
+    });
+    smoke = await smokeTestCodeGraph(options.projectPath, options.frameworkPath);
+  }
+
+  if (!smoke.ok) {
+    const hint =
+      'Install uv manually: https://docs.astral.sh/uv/getting-started/installation/ ' +
+      `or rerun: bash ${setupScriptPath}`;
+    throw new Error(
+      `code-review-graph failed verification after autofix attempt.\n` +
+        `Last error: ${smoke.error ?? 'unknown'}\n` +
+        `${hint}`,
+    );
   }
 
   const graphState = loadGraphState(options.projectPath);

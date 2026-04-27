@@ -64,7 +64,9 @@ ensure_pip() {
 }
 
 ensure_code_review_graph() {
-  if command -v code-review-graph >/dev/null 2>&1; then
+  if [ "${FORCE_REINSTALL:-0}" = "1" ]; then
+    log_info "FORCE_REINSTALL=1 — skipping on-PATH check, re-resolving from scratch"
+  elif command -v code-review-graph >/dev/null 2>&1; then
     log_info "code-review-graph found: $(code-review-graph --version 2>&1 | head -n 1)"
     CODE_GRAPH_CMD=(code-review-graph)
     return 0

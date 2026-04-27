@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  writeFileSync,
+  writeSync,
+  closeSync,
+} from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,6 +19,8 @@ import {
   loadGraphState,
   resolveCodeGraphCommand,
   resolveCurrentCommit,
+  smokeTestCodeGraph,
+  validateGraphDb,
   writeExtractionManifest,
 } from '../../../../src/services/graph-wiki/code-graph.service.js';
 
@@ -72,6 +83,15 @@ function writeGraphState(
   const dir = join(projectPath, CODE_REVIEW_GRAPH_DIRNAME);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, '.state.json'), JSON.stringify(state), 'utf-8');
+}
+
+/** Writes a minimal SQLite header (16 magic bytes + padding) to a file path. */
+function writeSqliteFile(filePath: string): void {
+  const header = Buffer.alloc(100, 0);
+  header.write('SQLite format 3\0', 0, 'utf8');
+  const fd = openSync(filePath, 'w');
+  writeSync(fd, header);
+  closeSync(fd);
 }
 
 describe('loadGraphState', () => {
@@ -201,7 +221,13 @@ describe('buildCodeGraph', () => {
     writeFileSync(join(scriptsDir, 'setup-code-graph.sh'), '#!/bin/bash\n', 'utf-8');
 
     vi.mocked(execSync).mockReturnValue('unknown\n');
-    vi.mocked(spawn).mockImplementation(() => buildFakeChildProcess(0, '', ''));
+    vi.mocked(spawn).mockImplementation((cmd: string, args: readonly string[]) => {
+      const callStr = [cmd, ...args].join(' ');
+      if (callStr.includes('--version')) {
+        return buildFakeChildProcess(0, '2.2.3.1', '');
+      }
+      return buildFakeChildProcess(0, '', '');
+    });
   });
 
   afterEach(() => {
@@ -210,7 +236,7 @@ describe('buildCodeGraph', () => {
   });
 
   it('runs full build path when no .state.json exists (first run)', async () => {
-    writeFileSync(join(projectPath, '.code-graph.db'), 'db', 'utf-8');
+    writeSqliteFile(join(projectPath, '.code-graph.db'));
 
     const result = await buildCodeGraph({ projectPath, frameworkPath });
 
@@ -231,11 +257,15 @@ describe('buildCodeGraph', () => {
     vi.mocked(execSync).mockReturnValue(`${commit}\n`);
 
     writeGraphState(projectPath, { last_indexed_commit: commit });
-    writeFileSync(join(projectPath, '.code-graph.db'), 'db', 'utf-8');
+    writeSqliteFile(join(projectPath, '.code-graph.db'));
 
     const spawnCalls: string[] = [];
     vi.mocked(spawn).mockImplementation((cmd: string, args: readonly string[]) => {
-      spawnCalls.push([cmd, ...args].join(' '));
+      const callStr = [cmd, ...args].join(' ');
+      spawnCalls.push(callStr);
+      if (callStr.includes('--version')) {
+        return buildFakeChildProcess(0, '2.2.3.1', '');
+      }
       return buildFakeChildProcess(0, '', '');
     });
 
@@ -251,13 +281,17 @@ describe('buildCodeGraph', () => {
     vi.mocked(execSync).mockReturnValue(`${newCommit}\n`);
 
     writeGraphState(projectPath, { last_indexed_commit: oldCommit });
-    writeFileSync(join(projectPath, '.code-graph.db'), 'db', 'utf-8');
+    writeSqliteFile(join(projectPath, '.code-graph.db'));
     mkdirSync(join(projectPath, CODE_REVIEW_GRAPH_DIRNAME), { recursive: true });
-    writeFileSync(join(projectPath, CODE_REVIEW_GRAPH_DIRNAME, 'graph.db'), 'db', 'utf-8');
+    writeSqliteFile(join(projectPath, CODE_REVIEW_GRAPH_DIRNAME, 'graph.db'));
 
     const spawnCalls: string[] = [];
     vi.mocked(spawn).mockImplementation((cmd: string, args: readonly string[]) => {
-      spawnCalls.push([cmd, ...args].join(' '));
+      const callStr = [cmd, ...args].join(' ');
+      spawnCalls.push(callStr);
+      if (callStr.includes('--version')) {
+        return buildFakeChildProcess(0, '2.2.3.1', '');
+      }
       return buildFakeChildProcess(0, '', '');
     });
 
@@ -273,9 +307,9 @@ describe('buildCodeGraph', () => {
     vi.mocked(execSync).mockReturnValue(`${newCommit}\n`);
 
     writeGraphState(projectPath, { last_indexed_commit: oldCommit });
-    writeFileSync(join(projectPath, '.code-graph.db'), 'db', 'utf-8');
+    writeSqliteFile(join(projectPath, '.code-graph.db'));
     mkdirSync(join(projectPath, CODE_REVIEW_GRAPH_DIRNAME), { recursive: true });
-    writeFileSync(join(projectPath, CODE_REVIEW_GRAPH_DIRNAME, 'graph.db'), 'db', 'utf-8');
+    writeSqliteFile(join(projectPath, CODE_REVIEW_GRAPH_DIRNAME, 'graph.db'));
 
     const stderrLines: string[] = [];
     const originalWrite = process.stderr.write.bind(process.stderr);
@@ -292,6 +326,9 @@ describe('buildCodeGraph', () => {
       spawnCalls.push(callStr);
       if (callStr.includes('update')) {
         return buildFakeChildProcess(1, '', 'update error');
+      }
+      if (callStr.includes('--version')) {
+        return buildFakeChildProcess(0, '2.2.3.1', '');
       }
       return buildFakeChildProcess(0, '', '');
     });
@@ -313,7 +350,7 @@ describe('buildCodeGraph', () => {
   });
 
   it('writes .state.json after successful build', async () => {
-    writeFileSync(join(projectPath, '.code-graph.db'), 'db', 'utf-8');
+    writeSqliteFile(join(projectPath, '.code-graph.db'));
 
     await buildCodeGraph({ projectPath, frameworkPath });
 
@@ -328,7 +365,7 @@ describe('buildCodeGraph', () => {
   });
 
   it('writes extraction-manifest.json after successful build', async () => {
-    writeFileSync(join(projectPath, '.code-graph.db'), 'db', 'utf-8');
+    writeSqliteFile(join(projectPath, '.code-graph.db'));
 
     await buildCodeGraph({ projectPath, frameworkPath });
 
@@ -340,5 +377,154 @@ describe('buildCodeGraph', () => {
     expect(manifest).toHaveProperty('created_at');
     expect(manifest).toHaveProperty('tool_version');
     expect(manifest).toHaveProperty('build_time_ms');
+  });
+
+  it('throws when DB fails SQLite validation after setup', async () => {
+    writeFileSync(join(projectPath, '.code-graph.db'), 'not-sqlite', 'utf-8');
+
+    await expect(buildCodeGraph({ projectPath, frameworkPath })).rejects.toThrow(
+      'Graph DB invalid',
+    );
+  });
+
+  it('autofixes on first smoke test failure and succeeds on second attempt', async () => {
+    writeSqliteFile(join(projectPath, '.code-graph.db'));
+
+    const setupScriptCalls: string[] = [];
+    let firstVersionCall = true;
+    vi.mocked(spawn).mockImplementation((cmd: string, args: readonly string[]) => {
+      const callStr = [cmd, ...args].join(' ');
+      if (callStr.includes('setup-code-graph.sh')) {
+        setupScriptCalls.push(callStr);
+        return buildFakeChildProcess(0, '', '');
+      }
+      if (callStr.includes('--version') && firstVersionCall) {
+        firstVersionCall = false;
+        return buildFakeChildProcess(1, '', 'command not found');
+      }
+      return buildFakeChildProcess(0, '2.2.3.1', '');
+    });
+
+    const result = await buildCodeGraph({ projectPath, frameworkPath });
+    expect(result.code_graph_available).toBe(true);
+    expect(setupScriptCalls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('hard-fails with remediation hint when both smoke tests fail', async () => {
+    writeSqliteFile(join(projectPath, '.code-graph.db'));
+
+    vi.mocked(spawn).mockImplementation((cmd: string, args: readonly string[]) => {
+      const callStr = [cmd, ...args].join(' ');
+      if (callStr.includes('--version')) {
+        return buildFakeChildProcess(1, '', 'command not found: code-review-graph');
+      }
+      return buildFakeChildProcess(0, '', '');
+    });
+
+    let thrownError: Error | undefined;
+    try {
+      await buildCodeGraph({ projectPath, frameworkPath });
+    } catch (e) {
+      thrownError = e instanceof Error ? e : new Error(String(e));
+    }
+
+    expect(thrownError).toBeDefined();
+    expect(thrownError?.message).toContain(
+      'code-review-graph failed verification after autofix attempt',
+    );
+    expect(thrownError?.message).toContain(
+      'https://docs.astral.sh/uv/getting-started/installation/',
+    );
+  });
+});
+
+describe('smokeTestCodeGraph', () => {
+  let projectPath: string;
+  let frameworkPath: string;
+
+  beforeEach(() => {
+    projectPath = mkdtempSync(join(tmpdir(), 'smoke-test-'));
+    frameworkPath = mkdtempSync(join(tmpdir(), 'smoke-fw-'));
+    vi.mocked(execSync).mockImplementation(() => {
+      throw new Error('not on path');
+    });
+  });
+
+  afterEach(() => {
+    vi.mocked(spawn).mockReset();
+    vi.mocked(execSync).mockReset();
+  });
+
+  it('returns ok=true with version when command outputs a version string', async () => {
+    vi.mocked(spawn).mockImplementation(() => buildFakeChildProcess(0, '2.2.3.1', ''));
+
+    const result = await smokeTestCodeGraph(projectPath, frameworkPath);
+
+    expect(result.ok).toBe(true);
+    expect(result.version).toBe('2.2.3.1');
+  });
+
+  it('returns ok=false with captured stderr on non-zero exit', async () => {
+    vi.mocked(spawn).mockImplementation(() =>
+      buildFakeChildProcess(1, '', 'command not found: code-review-graph'),
+    );
+
+    const result = await smokeTestCodeGraph(projectPath, frameworkPath);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('exit code 1');
+  });
+
+  it('returns ok=false when stdout lacks a digit-dot pattern', async () => {
+    vi.mocked(spawn).mockImplementation(() => buildFakeChildProcess(0, 'no-version-here', ''));
+
+    const result = await smokeTestCodeGraph(projectPath, frameworkPath);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('version string does not match');
+  });
+});
+
+describe('validateGraphDb', () => {
+  it('returns ok=true for a valid SQLite file', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'validate-db-'));
+    const dbPath = join(dir, 'test.db');
+    writeSqliteFile(dbPath);
+
+    const result = validateGraphDb(dbPath);
+
+    expect(result.ok).toBe(true);
+    expect(result.sizeBytes).toBeGreaterThan(0);
+  });
+
+  it('returns ok=false with reason when file does not exist', () => {
+    const result = validateGraphDb('/nonexistent/path/to/graph.db');
+
+    expect(result.ok).toBe(false);
+    expect(result.sizeBytes).toBe(0);
+    expect(result.reason).toContain('does not exist');
+  });
+
+  it('returns ok=false with reason for empty file', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'validate-db-'));
+    const dbPath = join(dir, 'empty.db');
+    writeFileSync(dbPath, '', 'utf-8');
+
+    const result = validateGraphDb(dbPath);
+
+    expect(result.ok).toBe(false);
+    expect(result.sizeBytes).toBe(0);
+    expect(result.reason).toContain('empty');
+  });
+
+  it('returns ok=false with reason when magic bytes are wrong', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'validate-db-'));
+    const dbPath = join(dir, 'wrong.db');
+    writeFileSync(dbPath, 'not a sqlite file at all', 'utf-8');
+
+    const result = validateGraphDb(dbPath);
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('magic bytes mismatch');
   });
 });

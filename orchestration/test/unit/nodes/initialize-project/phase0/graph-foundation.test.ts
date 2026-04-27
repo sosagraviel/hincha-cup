@@ -7,12 +7,22 @@ vi.mock('../../../../../src/services/graph-wiki/code-graph.service.js', () => ({
   buildCodeGraph: vi.fn(),
 }));
 
+const infoMessages: string[] = [];
+const successMessages: string[] = [];
+const errorMessages: string[] = [];
+
 vi.mock('../../../../../src/utils/logger.js', () => ({
   logger: {
     child: vi.fn(() => ({
-      info: vi.fn(),
-      success: vi.fn(),
-      error: vi.fn(),
+      info: vi.fn((msg: string) => {
+        infoMessages.push(msg);
+      }),
+      success: vi.fn((msg: string) => {
+        successMessages.push(msg);
+      }),
+      error: vi.fn((msg: string) => {
+        errorMessages.push(msg);
+      }),
     })),
   },
 }));
@@ -29,6 +39,9 @@ const baseState: InitializeProjectState = {
 describe('graphFoundationNode', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    infoMessages.length = 0;
+    successMessages.length = 0;
+    errorMessages.length = 0;
   });
 
   it('returns graph metadata when graph build succeeds', async () => {
@@ -60,6 +73,50 @@ describe('graphFoundationNode', () => {
     });
   });
 
+  it('logs file count and build time in success message', async () => {
+    vi.mocked(buildCodeGraph).mockResolvedValue({
+      code_graph_available: true,
+      code_graph_path: '/test/project/.code-graph.db',
+      code_graph_mcp_port: 3100,
+      code_graph_stats: {
+        files: 247,
+        functions: 1834,
+        classes: 156,
+        languages: ['typescript', 'javascript'],
+        build_time_ms: 2400,
+      },
+    });
+
+    await graphFoundationNode(baseState);
+
+    const statsLine = infoMessages.find((m) => m.includes('Files:'));
+    expect(statsLine).toBeDefined();
+    expect(statsLine).toContain('Files: 247');
+    expect(statsLine).toContain('Functions: 1834');
+    expect(statsLine).toContain('Classes: 156');
+    expect(statsLine).toContain('typescript');
+    expect(statsLine).toContain('Build: 2.4s');
+  });
+
+  it('formats build time in minutes and seconds for long builds', async () => {
+    vi.mocked(buildCodeGraph).mockResolvedValue({
+      code_graph_available: true,
+      code_graph_path: '/test/project/.code-graph.db',
+      code_graph_mcp_port: 3100,
+      code_graph_stats: {
+        files: 100,
+        functions: 500,
+        languages: ['typescript'],
+        build_time_ms: 72000,
+      },
+    });
+
+    await graphFoundationNode(baseState);
+
+    const statsLine = infoMessages.find((m) => m.includes('Files:'));
+    expect(statsLine).toContain('Build: 1m 12s');
+  });
+
   it('fails the workflow when graph build fails', async () => {
     vi.mocked(buildCodeGraph).mockRejectedValue(new Error('build failed'));
 
@@ -74,5 +131,31 @@ describe('graphFoundationNode', () => {
       current_phase: 'failed',
     });
     expect(result.errors).toEqual(['previous error', 'graph_foundation: build failed']);
+  });
+
+  it('logs remediation hint on failure', async () => {
+    vi.mocked(buildCodeGraph).mockRejectedValue(
+      new Error(
+        'code-review-graph failed verification after autofix attempt.\nLast error: command not found',
+      ),
+    );
+
+    await graphFoundationNode(baseState);
+
+    const remediationLine = errorMessages.find((m) => m.includes('setup-code-graph.sh'));
+    expect(remediationLine).toBeDefined();
+    expect(remediationLine).toContain('https://docs.astral.sh/uv/getting-started/installation/');
+  });
+
+  it('sets current_phase to failed and includes error in errors array on failure', async () => {
+    vi.mocked(buildCodeGraph).mockRejectedValue(new Error('smoke test failed'));
+
+    const result = await graphFoundationNode({
+      ...baseState,
+      errors: [],
+    });
+
+    expect(result.current_phase).toBe('failed');
+    expect(result.errors).toContain('graph_foundation: smoke test failed');
   });
 });
