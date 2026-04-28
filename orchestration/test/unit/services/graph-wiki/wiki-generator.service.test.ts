@@ -122,7 +122,7 @@ describe('wiki-generator.service', () => {
     expect(wikiFilenames).toContain('wiki/services/api.md');
   });
 
-  it('prompts include graph-first instructions and relevant graph MCP tools', async () => {
+  it('prompts are closed-book: no graph-first directive, no MCP tool names', async () => {
     const prompts: string[] = [];
     const service = new WikiGeneratorService({
       ...buildInput(),
@@ -134,11 +134,99 @@ describe('wiki-generator.service', () => {
 
     await service.generateAll();
 
-    expect(prompts.every((prompt) => prompt.includes('Use graph MCP tools first'))).toBe(true);
-    expect(prompts.join('\n')).toContain('mcp__code_graph__get_architecture_overview');
-    expect(prompts.join('\n')).toContain('mcp__code_graph__list_flows');
-    expect(prompts.join('\n')).toContain('mcp__code_graph__find_large_functions');
-    expect(prompts.join('\n')).toContain('mcp__code_graph__semantic_search_nodes');
+    const joined = prompts.join('\n');
+    expect(joined).not.toContain('Use graph MCP tools first');
+    expect(joined).not.toContain('mcp__code_graph__');
+    expect(prompts.every((prompt) => prompt.includes('You have NO tools'))).toBe(true);
+    expect(prompts.every((prompt) => prompt.includes('(not determined by analysis)'))).toBe(true);
+    expect(prompts.every((prompt) => prompt.includes('Digested upstream (structured):'))).toBe(
+      true,
+    );
+  });
+
+  it('prompts inject the digested upstream narrative (synthesis, CLAUDE.md, project-context)', async () => {
+    const prompts: string[] = [];
+    const service = new WikiGeneratorService({
+      ...buildInput(),
+      digestedUpstream: {
+        synthesis: '# Synthesis\n\n## Architecture\nMonorepo shape.\n\n## Patterns\nUnit-tested.\n',
+        claudeMd: '# CLAUDE\n\n## Architecture\nNestJS service boundaries.\n',
+        projectContext: '# project-context\n\nNotes about the project.\n',
+      },
+      agentInvoker: async ({ prompt }: WikiAgentInvocation) => {
+        prompts.push(prompt);
+        return '# Body\n\nGenerated body.';
+      },
+    });
+
+    await service.generateAll();
+
+    expect(prompts.some((p) => p.includes('phase 3 synthesis'))).toBe(true);
+    expect(prompts.some((p) => p.includes('generated CLAUDE.md'))).toBe(true);
+    expect(prompts.some((p) => p.includes('project-context skill'))).toBe(true);
+  });
+
+  it('service-doc concurrency is bounded (default 3)', async () => {
+    const stackProfile = {
+      services: Array.from({ length: 8 }, (_, i) => ({
+        id: `svc-${i}`,
+        path: `apps/svc-${i}`,
+        type: 'backend',
+      })),
+    };
+
+    let inFlight = 0;
+    let peak = 0;
+
+    const service = new WikiGeneratorService({
+      ...buildInput(),
+      stackProfile,
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => {
+        if (filename.startsWith('services/')) {
+          inFlight++;
+          peak = Math.max(peak, inFlight);
+          await new Promise((r) => setTimeout(r, 25));
+          inFlight--;
+        }
+        return `# ${filename}`;
+      },
+    });
+
+    await service.generateAll();
+
+    expect(peak).toBeLessThanOrEqual(3);
+    expect(peak).toBeGreaterThan(1);
+  });
+
+  it('serviceDocConcurrency option overrides the default cap', async () => {
+    const stackProfile = {
+      services: Array.from({ length: 6 }, (_, i) => ({
+        id: `svc-${i}`,
+        path: `apps/svc-${i}`,
+        type: 'backend',
+      })),
+    };
+
+    let inFlight = 0;
+    let peak = 0;
+
+    const service = new WikiGeneratorService({
+      ...buildInput(),
+      stackProfile,
+      serviceDocConcurrency: 1,
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => {
+        if (filename.startsWith('services/')) {
+          inFlight++;
+          peak = Math.max(peak, inFlight);
+          await new Promise((r) => setTimeout(r, 5));
+          inFlight--;
+        }
+        return `# ${filename}`;
+      },
+    });
+
+    await service.generateAll();
+    expect(peak).toBe(1);
   });
 
   it('strips LLM frontmatter and writes deterministic orchestration frontmatter', async () => {

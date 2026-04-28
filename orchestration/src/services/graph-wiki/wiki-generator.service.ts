@@ -106,8 +106,16 @@ export class WikiGeneratorService {
   }
 
   /**
-   * Generate every per-service doc concurrently via Promise.all.
-   * Order of the returned array matches the service inventory order.
+   * Generate every per-service doc with bounded concurrency.
+   *
+   * Service docs are LLM-backed and each prompt carries the (sliced) Phase 1
+   * analyzer JSON for that service. Unbounded `Promise.all` left half the
+   * sessions in `pending` state during the gira smoke run with five services.
+   * Default bound is 3 in flight; override via
+   * `WikiGeneratorServiceOptions.serviceDocConcurrency`.
+   *
+   * Order of the returned array matches the service inventory order — the
+   * downstream finalization node (and tests) rely on positional stability.
    */
   async generateServiceDocsConcurrent(
     generatedAt: string,
@@ -115,12 +123,24 @@ export class WikiGeneratorService {
     graphCommit: string,
   ): Promise<GeneratedWikiFile[]> {
     const services = getServices(this.options.stackProfile);
-    return Promise.all(
-      services.map((service) => {
-        const spec = buildServiceSpec(service, this.options.analyzers);
-        return this.generateDocument(spec, generatedAt, graphVersion, graphCommit);
-      }),
-    );
+    const concurrency = Math.max(1, this.options.serviceDocConcurrency ?? 3);
+    const results: GeneratedWikiFile[] = new Array(services.length);
+
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(concurrency, services.length) }, async () => {
+      while (true) {
+        const index = cursor++;
+        if (index >= services.length) return;
+        const spec = buildServiceSpec(
+          services[index],
+          this.options.analyzers,
+          this.options.digestedUpstream,
+        );
+        results[index] = await this.generateDocument(spec, generatedAt, graphVersion, graphCommit);
+      }
+    });
+    await Promise.all(workers);
+    return results;
   }
 
   /**

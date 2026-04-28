@@ -38,8 +38,11 @@ export async function invokeWikiAgent(
     trackerDisplayName: trackerId,
   });
 
+  // No `ultrathink` prefix: this agent runs closed-book over digested upstream.
+  // Narrative synthesis from a structured prompt does not benefit from extended
+  // thinking; the gira run had the Patterns doc spend 5 minutes on it.
   const result = await agent.invoke({
-    inputPrompt: `ultrathink\n\n${prompt}\n\nGenerate ${filename} (${documentType}).`,
+    inputPrompt: `${prompt}\n\nGenerate ${filename} (${documentType}).`,
   });
 
   return result.output;

@@ -107,6 +107,16 @@ export const Phase4WikiDocsSchema = z.object({
       generatedAt: z.string(),
       graphVersion: z.string(),
       graphCommit: z.string().optional(),
+      // Digested upstream piped into the closed-book wiki-generator. All three
+      // come from earlier phases of the same workflow; the wiki agent has no
+      // filesystem access, so these strings are its sole narrative source.
+      digestedUpstream: z
+        .object({
+          synthesis: z.string().optional(),
+          claudeMd: z.string().optional(),
+          projectContext: z.string().optional(),
+        })
+        .optional(),
     })
     .optional(),
   architecture: z.any().optional(),

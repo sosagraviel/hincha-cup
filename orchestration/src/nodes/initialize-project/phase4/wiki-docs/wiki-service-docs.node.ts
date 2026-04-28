@@ -20,6 +20,8 @@ export async function wikiServiceDocsNode(
       provider: getActiveProvider(),
       analyzers: context.analyzers,
       stackProfile: context.stackProfile,
+      digestedUpstream: context.digestedUpstream,
+      codeGraphToolCatalog: state.code_graph_tool_catalog,
       graph: {
         available: state.code_graph_available,
         path: state.code_graph_path,

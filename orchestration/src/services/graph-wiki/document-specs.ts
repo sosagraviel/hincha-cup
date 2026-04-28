@@ -1,5 +1,6 @@
 import type {
   WikiAnalyzerOutputs,
+  WikiDigestedUpstream,
   WikiDocumentSpec,
   WikiGeneratorServiceOptions,
   WikiGraphState,
@@ -9,20 +10,27 @@ import {
   discoverDependencies,
   discoverEntryPoints,
 } from './service-discovery.js';
-import { isEmptyValue, slugifyServiceId, stableJsonStringify, uniqueStrings } from './utils.js';
+import {
+  isEmptyValue,
+  isRecord,
+  slugifyServiceId,
+  stableJsonStringify,
+  uniqueStrings,
+} from './utils.js';
 
 export function buildCoreSpecs(options: WikiGeneratorServiceOptions): WikiDocumentSpec[] {
-  const { analyzers, stackProfile, graph } = options;
+  const { analyzers, stackProfile, graph, digestedUpstream } = options;
   return [
-    architectureSpec(analyzers, stackProfile, graph),
-    dataFlowsSpec(analyzers, stackProfile),
-    patternsSpec(analyzers, stackProfile),
+    architectureSpec(analyzers, stackProfile, graph, digestedUpstream),
+    dataFlowsSpec(analyzers, stackProfile, digestedUpstream),
+    patternsSpec(analyzers, stackProfile, digestedUpstream),
   ];
 }
 
 export function buildServiceSpec(
   service: Record<string, unknown>,
   analyzers: WikiAnalyzerOutputs,
+  digestedUpstream?: WikiDigestedUpstream,
 ): WikiDocumentSpec {
   const serviceId = String(service.id ?? service.name);
   const entryPoints = discoverEntryPoints(serviceId, service, analyzers);
@@ -38,24 +46,15 @@ export function buildServiceSpec(
     filename: `services/${slugifyServiceId(serviceId)}.md`,
     documentType: 'service',
     title: `Service: ${serviceId}`,
-    graphTools: [
-      'mcp__code_graph__semantic_search_nodes',
-      'mcp__code_graph__query_graph',
-      'mcp__code_graph__get_community',
-      'mcp__code_graph__get_minimal_context',
-    ],
     graphQueriesUsed: uniqueStrings([
-      'mcp__code_graph__semantic_search_nodes',
-      'mcp__code_graph__query_graph',
-      ...(communityId ? ['mcp__code_graph__get_community'] : []),
       ...(analyzers.structure_architecture?.graph_queries_used ?? []),
       ...(analyzers.tech_stack_dependencies?.graph_queries_used ?? []),
     ]),
     promptFocus: [
       `Document only the "${serviceId}" service.`,
-      'Use service profile as the base inventory and graph MCP tools to verify boundaries.',
-      'Use community, semantic search, and query context where available for entry points and dependencies.',
-      'Service docs live under docs/llm-wiki/wiki/services/.',
+      'Use the service-scoped analyzer slice as the inventory of facts about this service.',
+      'Cover purpose, entry points, dependencies, and any data-flow or pattern signals that mention this service.',
+      `Service docs live under docs/llm-wiki/wiki/services/. Output filename: services/${slugifyServiceId(serviceId)}.md`,
     ],
     sourceContext: {
       service,
@@ -63,123 +62,283 @@ export function buildServiceSpec(
       entry_points: entryPoints,
       dependencies,
       community_id: communityId,
-      analyzers,
+      analyzers: sliceAnalyzersForService(serviceId, analyzers),
     },
+    digestedUpstream,
     frontmatterExtras,
   };
 }
 
 export function buildPrompt(spec: WikiDocumentSpec, projectPath: string): string {
-  return [
+  const lines: string[] = [
     `Generate ${spec.title} as narrative markdown for ${projectPath}.`,
     '',
-    'Graph-first instructions:',
-    '- Use graph MCP tools first before Read/Grep/Glob.',
-    '- Treat graph relationships, communities, flows, and searches as the primary structural evidence.',
-    '- Use Read/Grep/Glob only for details that graph tools cannot provide or to verify source snippets.',
+    'Closed-book synthesis instructions:',
+    '- You have NO tools. Synthesize the page from the structured input below only.',
+    '- If a fact the page should carry is not in the input, write `(not determined by analysis)` and continue. Do not invent.',
+    '- Cite sources inline with provenance footnotes (^[analyzer:<name>], ^[synthesis], ^[claude-md], ^[project-context], ^[inferred], ^[ambiguous]).',
     '- Return markdown body only. Do not include YAML frontmatter. Do not wrap the response in code fences.',
-    '',
-    'Relevant graph MCP tools:',
-    ...spec.graphTools.map((tool) => `- ${tool}`),
     '',
     'Document-specific focus:',
     ...spec.promptFocus.map((focus) => `- ${focus}`),
     '',
-    'Available deterministic context:',
-    '```json',
-    stableJsonStringify(spec.sourceContext),
-    '```',
-  ].join('\n');
+  ];
+
+  if (spec.digestedUpstream) {
+    const sections = renderDigestedUpstream(spec.digestedUpstream);
+    if (sections.length > 0) {
+      lines.push('Digested upstream (narrative):');
+      lines.push('');
+      lines.push(...sections);
+      lines.push('');
+    }
+  }
+
+  lines.push('Digested upstream (structured):');
+  lines.push('```json');
+  lines.push(stableJsonStringify(spec.sourceContext));
+  lines.push('```');
+
+  return lines.join('\n');
+}
+
+function renderDigestedUpstream(upstream: WikiDigestedUpstream): string[] {
+  const sections: string[] = [];
+  if (upstream.synthesis && upstream.synthesis.trim().length > 0) {
+    sections.push('--- begin: phase 3 synthesis (relevant excerpt) ---');
+    sections.push(upstream.synthesis.trim());
+    sections.push('--- end: phase 3 synthesis ---');
+    sections.push('');
+  }
+  if (upstream.claudeMd && upstream.claudeMd.trim().length > 0) {
+    sections.push('--- begin: generated CLAUDE.md (relevant excerpt) ---');
+    sections.push(upstream.claudeMd.trim());
+    sections.push('--- end: generated CLAUDE.md ---');
+    sections.push('');
+  }
+  if (upstream.projectContext && upstream.projectContext.trim().length > 0) {
+    sections.push('--- begin: project-context skill (relevant excerpt) ---');
+    sections.push(upstream.projectContext.trim());
+    sections.push('--- end: project-context skill ---');
+    sections.push('');
+  }
+  return sections;
 }
 
 function architectureSpec(
   analyzers: WikiAnalyzerOutputs,
   stackProfile: unknown,
   graph: WikiGraphState,
+  digestedUpstream: WikiDigestedUpstream | undefined,
 ): WikiDocumentSpec {
   return {
     filename: 'ARCHITECTURE.md',
     documentType: 'architecture',
     title: 'Architecture',
-    graphTools: [
-      'mcp__code_graph__get_architecture_overview',
-      'mcp__code_graph__list_communities',
-      'mcp__code_graph__get_community',
-      'mcp__code_graph__query_graph',
-    ],
     graphQueriesUsed: uniqueStrings([
-      'mcp__code_graph__get_architecture_overview',
-      'mcp__code_graph__list_communities',
-      'mcp__code_graph__get_community',
       ...(analyzers.structure_architecture?.graph_queries_used ?? []),
     ]),
     promptFocus: [
-      'Use graph overview as the primary architecture source.',
-      'List graph communities and summarize representative community details.',
-      'Connect services and important directories to graph-backed relationships.',
-      'Architecture docs live under docs/llm-wiki/wiki/.',
+      'Describe monorepo / multi-repo shape, service boundaries, communities, and high-level relationships.',
+      'Use `structure_architecture` analyzer findings as the structural ground truth.',
+      'Architecture docs live under docs/llm-wiki/wiki/. Output filename: ARCHITECTURE.md',
     ],
     sourceContext: {
-      graph,
+      graph_stats: graph.stats ?? null,
       stack_profile: stackProfile,
       structure_architecture: analyzers.structure_architecture,
     },
+    digestedUpstream: scopeDigestedUpstream(digestedUpstream, [
+      'architecture',
+      'topology',
+      'monorepo',
+      'workspace',
+      'services',
+    ]),
   };
 }
 
-function dataFlowsSpec(analyzers: WikiAnalyzerOutputs, stackProfile: unknown): WikiDocumentSpec {
+function dataFlowsSpec(
+  analyzers: WikiAnalyzerOutputs,
+  stackProfile: unknown,
+  digestedUpstream: WikiDigestedUpstream | undefined,
+): WikiDocumentSpec {
   return {
     filename: 'DATA-FLOWS.md',
     documentType: 'data-flow',
     title: 'Data Flows',
-    graphTools: [
-      'mcp__code_graph__list_flows',
-      'mcp__code_graph__get_flow',
-      'mcp__code_graph__query_graph',
-      'mcp__code_graph__semantic_search_nodes',
-    ],
     graphQueriesUsed: uniqueStrings([
-      'mcp__code_graph__list_flows',
-      'mcp__code_graph__get_flow',
       ...(analyzers.data_flows_integrations?.graph_queries_used ?? []),
     ]),
     promptFocus: [
-      'Use graph flow tools first for execution and data-flow relationships.',
-      'Blend graph flows with Phase 1 routes, auth, persistence, and integration findings.',
-      'Explain the highest-signal flows in narrative markdown.',
-      'Data flow docs live under docs/llm-wiki/wiki/.',
+      'Describe request lifecycles, auth, persistence, integrations, and middleware ordering.',
+      'Use `data_flows_integrations` analyzer findings as the structural ground truth.',
+      'Highlight the highest-signal flows in narrative markdown — do not enumerate every endpoint.',
+      'Data flow docs live under docs/llm-wiki/wiki/. Output filename: DATA-FLOWS.md',
     ],
     sourceContext: {
       data_flows_integrations: analyzers.data_flows_integrations,
       stack_profile: stackProfile,
     },
+    digestedUpstream: scopeDigestedUpstream(digestedUpstream, [
+      'data flow',
+      'request',
+      'auth',
+      'middleware',
+      'persistence',
+      'integration',
+      'flow',
+      'lifecycle',
+    ]),
   };
 }
 
-function patternsSpec(analyzers: WikiAnalyzerOutputs, stackProfile: unknown): WikiDocumentSpec {
+function patternsSpec(
+  analyzers: WikiAnalyzerOutputs,
+  stackProfile: unknown,
+  digestedUpstream: WikiDigestedUpstream | undefined,
+): WikiDocumentSpec {
   return {
     filename: 'PATTERNS.md',
     documentType: 'pattern',
     title: 'Patterns',
-    graphTools: [
-      'mcp__code_graph__find_large_functions',
-      'mcp__code_graph__list_communities',
-      'mcp__code_graph__get_community',
-      'mcp__code_graph__query_graph',
-    ],
     graphQueriesUsed: uniqueStrings([
-      'mcp__code_graph__find_large_functions',
       ...(analyzers.code_patterns_testing?.graph_queries_used ?? []),
     ]),
     promptFocus: [
-      'Use graph large-function and community tools first for pattern evidence.',
-      'Blend graph signals with Phase 1 testing, convention, and quality findings.',
-      'Call out recurring implementation patterns without inventing unsupported decisions.',
-      'Pattern docs live under docs/llm-wiki/wiki/.',
+      'Describe recurring implementation patterns, conventions, code style, and testing approach.',
+      'Use `code_patterns_testing` analyzer findings as the structural ground truth.',
+      'Call out patterns observed at scale — not one-off exceptions.',
+      'Pattern docs live under docs/llm-wiki/wiki/. Output filename: PATTERNS.md',
     ],
     sourceContext: {
       code_patterns_testing: analyzers.code_patterns_testing,
       stack_profile: stackProfile,
     },
+    digestedUpstream: scopeDigestedUpstream(digestedUpstream, [
+      'pattern',
+      'convention',
+      'testing',
+      'test',
+      'style',
+      'lint',
+      'quality',
+    ]),
   };
+}
+
+/**
+ * Restrict the digested-upstream excerpts to sections whose headings reference
+ * any of the provided keywords. Keeps the prompt tight: the architecture page
+ * does not need the testing-patterns paragraphs and vice versa.
+ *
+ * The matching is intentionally lenient — narrative documents from human
+ * authors don't follow a fixed heading vocabulary. If no headings match, the
+ * full excerpt is returned (better to over-include than to starve the agent).
+ */
+function scopeDigestedUpstream(
+  upstream: WikiDigestedUpstream | undefined,
+  keywords: string[],
+): WikiDigestedUpstream | undefined {
+  if (!upstream) return undefined;
+
+  return {
+    synthesis: upstream.synthesis
+      ? extractRelevantMarkdownSections(upstream.synthesis, keywords)
+      : undefined,
+    claudeMd: upstream.claudeMd
+      ? extractRelevantMarkdownSections(upstream.claudeMd, keywords)
+      : undefined,
+    projectContext: upstream.projectContext
+      ? extractRelevantMarkdownSections(upstream.projectContext, keywords)
+      : undefined,
+  };
+}
+
+/**
+ * Walk a markdown document by `## ` headings; return only sections whose
+ * heading line contains any of the provided keywords (case-insensitive). When
+ * nothing matches, return the input unchanged.
+ */
+function extractRelevantMarkdownSections(markdown: string, keywords: string[]): string {
+  const lines = markdown.split('\n');
+  const lower = keywords.map((k) => k.toLowerCase());
+  const sections: { heading: string; body: string[] }[] = [];
+  let current: { heading: string; body: string[] } | null = null;
+  let preamble: string[] = [];
+
+  for (const line of lines) {
+    if (/^##\s+/.test(line)) {
+      if (current) sections.push(current);
+      current = { heading: line, body: [] };
+    } else if (current) {
+      current.body.push(line);
+    } else {
+      preamble.push(line);
+    }
+  }
+  if (current) sections.push(current);
+
+  const matched = sections.filter((s) => {
+    const heading = s.heading.toLowerCase();
+    return lower.some((k) => heading.includes(k));
+  });
+
+  if (matched.length === 0) {
+    return markdown;
+  }
+
+  const out: string[] = [];
+  if (preamble.some((l) => l.trim().length > 0)) {
+    out.push(preamble.join('\n').trimEnd());
+    out.push('');
+  }
+  for (const section of matched) {
+    out.push(section.heading);
+    out.push(...section.body);
+  }
+  return out.join('\n').trim();
+}
+
+/**
+ * For per-service docs: drop unrelated services from analyzer findings so the
+ * prompt for service A doesn't carry every fact about service B. Keeps
+ * top-level keys (e.g. `findings`, `services`) but recursively narrows
+ * service-keyed records and `services` arrays to the target service.
+ */
+function sliceAnalyzersForService(
+  serviceId: string,
+  analyzers: WikiAnalyzerOutputs,
+): WikiAnalyzerOutputs {
+  return {
+    structure_architecture: sliceAnalyzerForService(analyzers.structure_architecture, serviceId),
+    tech_stack_dependencies: sliceAnalyzerForService(analyzers.tech_stack_dependencies, serviceId),
+    code_patterns_testing: sliceAnalyzerForService(analyzers.code_patterns_testing, serviceId),
+    data_flows_integrations: sliceAnalyzerForService(analyzers.data_flows_integrations, serviceId),
+  };
+}
+
+function sliceAnalyzerForService<T>(value: T, serviceId: string): T {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sliceAnalyzerForService(entry, serviceId)) as unknown as T;
+  }
+  if (!isRecord(value)) return value;
+
+  const next: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (key === 'services' && Array.isArray(raw)) {
+      next[key] = raw.filter(
+        (entry) =>
+          isRecord(entry) &&
+          (entry.id === serviceId || entry.name === serviceId || entry.path === serviceId),
+      );
+      continue;
+    }
+    if (key === 'by_service' && isRecord(raw)) {
+      next[key] = serviceId in raw ? { [serviceId]: raw[serviceId] } : {};
+      continue;
+    }
+    next[key] = sliceAnalyzerForService(raw, serviceId);
+  }
+  return next as T;
 }

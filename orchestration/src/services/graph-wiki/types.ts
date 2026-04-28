@@ -126,6 +126,24 @@ export interface WikiAgentInvocation {
 
 export type WikiAgentInvoker = (invocation: WikiAgentInvocation) => Promise<string>;
 
+/**
+ * Digested upstream artifacts piped into the closed-book wiki-generator.
+ * All four are produced by earlier phases of the same workflow and live on
+ * disk before Phase 4b runs:
+ *   - analyzer JSONs in `.<provider>-temp/initialize-project/phase1-outputs/`
+ *   - `synthesis-raw.md` in `.<provider>-temp/initialize-project/`
+ *   - generated CLAUDE.md / AGENTS.md at the project root
+ *   - generated project-context/SKILL.md under `.<provider>/skills/`
+ *
+ * The wiki-generator agent has no filesystem access — these strings are the
+ * sole source of truth for every page it renders.
+ */
+export interface WikiDigestedUpstream {
+  synthesis?: string;
+  claudeMd?: string;
+  projectContext?: string;
+}
+
 export interface WikiGeneratorServiceOptions {
   projectPath: string;
   frameworkPath: string;
@@ -134,6 +152,19 @@ export interface WikiGeneratorServiceOptions {
   analyzers: WikiAnalyzerOutputs;
   stackProfile?: unknown;
   graph: WikiGraphState;
+  digestedUpstream?: WikiDigestedUpstream;
+  /**
+   * Maximum number of per-service docs the generator may render concurrently.
+   * Service docs are LLM-backed; unbounded fan-out left half the sessions in
+   * `pending` state during the gira smoke run. Default 3.
+   */
+  serviceDocConcurrency?: number;
+  /**
+   * Live MCP tool catalog from the running code-review-graph server. Templated
+   * into the schema doc (router) so its "available graph tools" section can
+   * never drift from server reality. Empty array when graph is unavailable.
+   */
+  codeGraphToolCatalog?: Array<{ name: string; description: string }>;
   agentInvoker?: WikiAgentInvoker;
 }
 
@@ -151,9 +182,28 @@ export interface WikiDocumentSpec {
   filename: GeneratedWikiFilename;
   documentType: string;
   title: string;
+  /**
+   * Graph queries the upstream Phase 1 analyzers ran while producing the JSON
+   * that grounds this page. Surfaced verbatim into frontmatter for traceability.
+   * The wiki-generator itself does NOT call graph tools — that work is upstream.
+   */
   graphQueriesUsed: string[];
-  graphTools: string[];
   promptFocus: string[];
+  /**
+   * Structured upstream context the agent synthesizes from. Includes the
+   * relevant analyzer slice, stack profile slice, and (for core docs) sliced
+   * narrative from synthesis / CLAUDE.md / project-context.
+   */
   sourceContext: Record<string, unknown>;
+  /**
+   * Sliced narrative excerpts (markdown) from the digested upstream. Rendered
+   * into the prompt verbatim so the agent does not have to re-derive structure
+   * from the raw analyzer JSON when a synthesis paragraph already says it.
+   */
+  digestedUpstream?: {
+    synthesis?: string;
+    claudeMd?: string;
+    projectContext?: string;
+  };
   frontmatterExtras?: Record<string, unknown>;
 }

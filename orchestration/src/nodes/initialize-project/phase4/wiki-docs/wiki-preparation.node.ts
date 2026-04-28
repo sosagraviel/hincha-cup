@@ -1,4 +1,5 @@
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import type { InitializeProjectState } from '../../../../state/schemas/initialize-project.schema.js';
 import { logger } from '../../../../utils/logger.js';
 import { WikiGeneratorService } from '../../../../services/graph-wiki/wiki-generator.service.js';
@@ -28,12 +29,28 @@ export async function wikiPreparationNode(
     const stackProfile = readStackProfile(tempDir, state);
     const provider = getActiveProvider();
 
+    // Load digested upstream — the wiki-generator agent runs closed-book over
+    // these. Phase 3 synthesis lives at <tempDir>/synthesis-raw.md (written by
+    // the synthesis node); CLAUDE.md and project-context/SKILL.md were just
+    // generated in Phase 4a. Missing files are non-fatal — the agent will
+    // surface gaps with `(not determined by analysis)` rather than guess.
+    const synthesisPath = join(tempDir, 'synthesis-raw.md');
+    const digestedUpstream = {
+      synthesis: existsSync(synthesisPath) ? readFileSync(synthesisPath, 'utf-8') : undefined,
+      claudeMd: existsSync(claudeMdPath) ? readFileSync(claudeMdPath, 'utf-8') : undefined,
+      projectContext: existsSync(projectContextPath)
+        ? readFileSync(projectContextPath, 'utf-8')
+        : undefined,
+    };
+
     const wiki = new WikiGeneratorService({
       projectPath: state.project_path,
       frameworkPath: state.framework_path,
       provider,
       analyzers,
       stackProfile,
+      digestedUpstream,
+      codeGraphToolCatalog: state.code_graph_tool_catalog,
       graph: {
         available: state.code_graph_available,
         path: state.code_graph_path,
@@ -55,6 +72,7 @@ export async function wikiPreparationNode(
           generatedAt,
           graphVersion,
           graphCommit,
+          digestedUpstream,
         },
       },
       claude_md_path: claudeMdPath,
