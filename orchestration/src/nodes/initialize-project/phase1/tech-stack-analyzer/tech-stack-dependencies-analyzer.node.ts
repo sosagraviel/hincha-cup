@@ -9,6 +9,7 @@ import { logger } from '../../../../utils/logger.js';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { buildPhase1AnalyzerPrompt } from '../shared/prompt-builder.js';
+import { applyGraphToolUsageFromSidecar } from '../shared/graph-tool-usage.js';
 import { getFrameworkAgentPath } from '../../shared/index.js';
 import { reasoningPrefix } from '../../../../utils/shared/context-tags.js';
 import { resolveTempPath } from '../../../../utils/provider-paths.js';
@@ -80,7 +81,7 @@ export async function techStackDependenciesAnalyzerNode(
 
     const outputPath = join(tempDir, 'phase1-outputs', '02-tech-stack-dependencies.json');
 
-    const validatedData = await retryWithEnhancedFeedback(
+    const { data: validatedData, sessionId } = await retryWithEnhancedFeedback(
       agentInvoke,
       validator,
       DEFAULT_RETRY_CONFIG,
@@ -91,7 +92,11 @@ export async function techStackDependenciesAnalyzerNode(
       },
     );
 
-    writeFileSync(outputPath, JSON.stringify(validatedData, null, 2));
+    // Overwrite agent-supplied graph_queries_used with the canonical sorted
+    // list of `mcp__code_graph__*_tool` names from the Stop hook's sidecar.
+    const persisted = applyGraphToolUsageFromSidecar(validatedData, state.project_path, sessionId);
+
+    writeFileSync(outputPath, JSON.stringify(persisted, null, 2));
 
     return {
       temp_dir: tempDir,

@@ -171,7 +171,7 @@ ${consolidationInstructions}`;
       }
     };
 
-    const parsed = await retryWithEnhancedFeedback<QuestionConsolidationOutput>(
+    const { data: parsed } = await retryWithEnhancedFeedback<QuestionConsolidationOutput>(
       agentInvoke,
       validator,
       DEFAULT_RETRY_CONFIG,

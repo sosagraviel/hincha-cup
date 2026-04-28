@@ -290,7 +290,7 @@ Report counts for each type if distinguishable from file paths or config.
 1. **Called find_large_functions for test discovery?** Graph results should be primary test file inventory
 2. **Called query_graph with tests_for pattern?** Test → source linkage from graph edges
 3. **Called semantic_search_nodes for API patterns?** Controller/Resolver/Service class detection via graph
-4. **graph_queries_used populated?** Every graph tool call must be recorded
+4. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
 5. **Testing framework in dependencies but no test files?** Check if graph returned results; if not, try Glob fallback patterns
 6. **No testing framework in dependencies?** Valid to report "none" (MVP projects, separate test repo)
 7. **Linter in dependencies but no config?** Check package.json, pyproject.toml for inline config
@@ -331,7 +331,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Each service must match Agent 01's service IDs
 - Optional nested objects: `testing.unit`, `testing.integration`, `testing.e2e`
 - Optional field: `needs_verification` array (maximum 5 items)
-- Required field: `graph_queries_used` array listing every graph tool call made
+- Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
 
 ## Example Output Structure
 
@@ -393,12 +393,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
       }
     ]
   },
-  "graph_queries_used": [
-    "find_large_functions({ kind: 'function', min_lines: 1 })",
-    "query_graph({ pattern: 'tests_for', target: 'backend' })",
-    "semantic_search_nodes({ query: 'Controller | Resolver | Service', kind: 'class' })",
-    "find_large_functions({ min_lines: 20 })"
-  ],
+  "graph_queries_used": [],
   "needs_verification": []
 }
 ```

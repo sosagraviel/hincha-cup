@@ -56,7 +56,7 @@ semantic_search_nodes({ query: "passport | jsonwebtoken | jose | auth0 | keycloa
 semantic_search_nodes({ query: "Stripe | SendGrid | Sentry | Datadog", kind: "import", limit: 30 })
 ```
 
-Record results in `graph_queries_used`. Only libraries that appear in actual import sites (not just in package.json) should be treated as confirmed usage.
+Only libraries that appear in actual import sites (not just in package.json) should be treated as confirmed usage.
 
 ## Step 3: Find Dependency Manifests and Lock Files (Glob — required for version strings)
 
@@ -425,7 +425,7 @@ Read workspace configuration files:
 ## Self-Verification Checklist
 
 1. **Called list_communities first?** If yes and got results, service list is in hand without manifest re-glob
-2. **graph_queries_used populated?** Every graph tool call must be recorded
+2. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
 3. **Used semantic_search_nodes for database detection?** Graph confirms actual usage vs. declared-only
 4. **Found dependency manifests for all services?** Cross-check against Step 1 community list
 5. **CI/CD detection attempted?** If no config files found, report `"provider": "none"`
@@ -475,7 +475,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Service IDs must match those from Structure Analyzer (Agent 01)
 - Optional fields: `findings.monorepo` for monorepo-level config
 - Optional field: `needs_verification` array (maximum 5 items)
-- Required field: `graph_queries_used` array listing every graph tool call made
+- Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
 
 ## Example Output Structure
 
@@ -569,11 +569,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
       "test_all_command": "pnpm -r test"
     }
   },
-  "graph_queries_used": [
-    "list_communities",
-    "semantic_search_nodes({ query: 'PostgresClient | Pool | DataSource', kind: 'function', limit: 50 })",
-    "semantic_search_nodes({ query: 'Stripe | SendGrid | Sentry', kind: 'import', limit: 30 })"
-  ],
+  "graph_queries_used": [],
   "needs_verification": []
 }
 ```

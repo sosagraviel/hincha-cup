@@ -217,6 +217,17 @@ export function buildEnhancedFeedback(state: RetryState, validation: ValidationR
 }
 
 /**
+ * Result of `retryWithEnhancedFeedback`. The `sessionId` of the **final
+ * accepted attempt** is exposed so the caller can locate provider-side
+ * artifacts (e.g. the Phase 1 Stop hook's graph-tool-uses sidecar at
+ * `~/.claude/projects/<slug>/<sessionId>.graph-tool-uses.json`).
+ */
+export interface RetryWithFeedbackResult<T> {
+  data: T;
+  sessionId: string | undefined;
+}
+
+/**
  * Enhanced retry wrapper with progressive feedback.
  */
 export async function retryWithEnhancedFeedback<T>(
@@ -228,7 +239,7 @@ export async function retryWithEnhancedFeedback<T>(
   validator: (output: string) => ValidationResult,
   config: RetryConfig = DEFAULT_RETRY_CONFIG,
   diagnostics?: RetryDiagnosticsContext,
-): Promise<T> {
+): Promise<RetryWithFeedbackResult<T>> {
   let retryState = initRetryState(config.maxAttempts);
   let validation: ValidationResult | null = null;
   let lastSessionId: string | undefined;
@@ -261,7 +272,7 @@ export async function retryWithEnhancedFeedback<T>(
         if (retryState.attempt > 1) {
           logger.success(`✓ External retry succeeded after ${retryState.attempt} attempts`);
         }
-        return validation.data as T;
+        return { data: validation.data as T, sessionId: lastSessionId };
       }
 
       const errorMessage = validation.errors.join('; ');

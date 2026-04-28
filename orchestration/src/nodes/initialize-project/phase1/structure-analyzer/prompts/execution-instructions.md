@@ -25,7 +25,7 @@ Call `get_architecture_overview` once. Use the response to fill the project's to
 
 ## Step 3: Manifest verification (only when graph is empty)
 
-If Step 1 returned 0 communities — only then fall back to Glob `**/package.json`, `**/pyproject.toml`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`, `**/build.gradle*`, `**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/mix.exs`, `**/pubspec.yaml`. Read the minimum needed to fill the gap. Cite `[graph empty — fell back to manifest discovery]` in `graph_queries_used`.
+If Step 1 returned 0 communities — only then fall back to Glob `**/package.json`, `**/pyproject.toml`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`, `**/build.gradle*`, `**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/mix.exs`, `**/pubspec.yaml`. Read the minimum needed to fill the gap.
 
 Each manifest file represents a potential service or package. Read each one to extract metadata.
 
@@ -370,7 +370,7 @@ All service information belongs in the `services` array.
 Before outputting results, verify:
 
 1. **Called list_communities first?** If yes and got results, Steps 1-2 are done via graph — don't repeat with Glob
-2. **graph_queries_used populated?** Every graph tool call must be recorded
+2. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
 3. **Found at least ONE service?** If graph returned 0 communities AND manifest fallback found nothing, search again
 4. **Detected ALL languages?** Community language tags should cover this; supplement with file-count fallback only for communities with ambiguous language data
 5. **Extracted runtime versions?** Check for .nvmrc, .python-version, go.mod, etc. (graph cannot answer this)
@@ -384,7 +384,7 @@ Before outputting results, verify:
 If graph communities are empty but code clearly exists:
 
 - Call `get_architecture_overview` to confirm graph is online
-- If that also returns empty, fall back to full manifest discovery and cite `[graph empty — fell back to manifest discovery]`
+- If that also returns empty, fall back to full manifest discovery
 - Use broader glob patterns: `**/*.{ext1,ext2,ext3}`
 - Try multiple pattern variations (different naming conventions)
 - Read config files to understand custom directory structures
@@ -409,7 +409,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Required field: `findings.services` array with at least 1 service
 - Each service must have `id`, `path`, `type`, `language` fields
 - Optional field: `needs_verification` array (maximum 5 items)
-- Required field: `graph_queries_used` array listing every graph tool call made
+- Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
 
 ## Example Output Structure
 
@@ -499,13 +499,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
       "migration_commands": ["pnpm typeorm:migration:create", "pnpm typeorm:migration:run"]
     }
   },
-  "graph_queries_used": [
-    "list_communities",
-    "get_community({ community_name: 'backend', include_members: true })",
-    "get_community({ community_name: 'web-frontend', include_members: true })",
-    "get_architecture_overview",
-    "query_graph({ pattern: 'files_in', target: 'backend' })"
-  ],
+  "graph_queries_used": [],
   "needs_verification": [
     {
       "id": "v1",

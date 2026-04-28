@@ -23,8 +23,6 @@ Call `list_flows` to get all named request flows in the codebase. For each flow 
 
 This gives you the auth middleware chain (e.g., `CORS → RateLimiter → JwtGuard → RolesGuard → Handler`) directly, without grepping for JWT/OAuth/session patterns across files.
 
-Record all flow IDs queried in `graph_queries_used`.
-
 **Only when list_flows returns empty** — fall back to the file-based approach below:
 
 <auth_detection>
@@ -321,7 +319,7 @@ If single service (not microservices):
 
 1. **Called list_flows first?** Flow data should drive auth middleware order before any grep
 2. **Called semantic_search_nodes for all external SDK categories?** Graph import sites are primary signal
-3. **graph_queries_used populated?** Every graph tool call must be recorded
+3. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
 4. **Auth dependencies found but no flow data?** Fall back to middleware/guard file reads with citation
 5. **External service SDK but no import sites from graph?** Fall back to manifest scanning with citation
 6. **Queue library present but no graph import results?** Search for files with "worker", "job", "processor" in name
@@ -356,7 +354,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Field `findings` can contain any relevant integration/data flow information
 - Schema allows passthrough fields for flexibility
 - Optional field: `needs_verification` array (maximum 5 items)
-- Required field: `graph_queries_used` array listing every graph tool call made
+- Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
 
 ## Example Output Structure
 
@@ -425,14 +423,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
       "serialization": "class-transformer decorators"
     }
   },
-  "graph_queries_used": [
-    "list_flows",
-    "get_flow({ flow_id: 'request-auth-flow' })",
-    "semantic_search_nodes({ query: 'Stripe | SendGrid | Sentry', kind: 'import', limit: 20 })",
-    "semantic_search_nodes({ query: 'BullMQ | Celery', kind: 'import', limit: 30 })",
-    "semantic_search_nodes({ query: 'Redis | ioredis | createClient', kind: 'function', limit: 30 })",
-    "query_graph({ pattern: 'imports_of', target: 'kafkajs' })"
-  ],
+  "graph_queries_used": [],
   "needs_verification": []
 }
 ```

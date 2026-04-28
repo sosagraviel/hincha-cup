@@ -81,7 +81,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
         const { output } = await agentInvoke('');
-        return JSON.parse(output);
+        return { data: JSON.parse(output), sessionId: undefined };
       },
     );
   });
@@ -163,13 +163,19 @@ describe('techStackDependenciesAnalyzerNode', () => {
       findings: { test: 'data' },
     };
 
-    vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockResolvedValue(mockData);
+    // The node now expects { data, sessionId } from retryWithEnhancedFeedback
+    // and overwrites graph_queries_used from the Stop hook's sidecar before
+    // persisting. With sessionId=undefined the helper forces graph_queries_used=[].
+    vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockResolvedValue({
+      data: mockData,
+      sessionId: undefined,
+    });
 
     await techStackDependenciesAnalyzerNode(mockState);
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.any(String),
-      JSON.stringify(mockData, null, 2),
+      JSON.stringify({ ...mockData, graph_queries_used: [] }, null, 2),
     );
   });
 
@@ -197,7 +203,10 @@ describe('techStackDependenciesAnalyzerNode', () => {
       vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
         async (agentInvoke: any) => {
           await agentInvoke('');
-          return { agent_name: 'test', timestamp: '2024-01-01T00:00:00Z', findings: {} };
+          return {
+            data: { agent_name: 'test', timestamp: '2024-01-01T00:00:00Z', findings: {} },
+            sessionId: undefined,
+          };
         },
       );
 
@@ -329,7 +338,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
         const output = await agentInvoke('');
-        return JSON.parse(JSON.stringify(output));
+        return { data: JSON.parse(JSON.stringify(output)), sessionId: undefined };
       },
     );
 

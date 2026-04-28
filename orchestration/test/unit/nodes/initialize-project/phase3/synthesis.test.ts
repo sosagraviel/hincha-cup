@@ -147,7 +147,7 @@ describe('synthesisNode', () => {
         const { output } = await agentInvoke('');
         const result = validator(output);
         if (!result.valid) throw new Error('Validation failed');
-        return result.data; // Return validated data, not raw output
+        return { data: result.data, sessionId: undefined };
       },
     );
   });
@@ -329,7 +329,7 @@ describe('synthesisNode', () => {
         const { output } = await agentInvoke('');
         const result = validator(output);
         if (!result.valid) throw new Error('Validation failed');
-        return result.data;
+        return { data: result.data, sessionId: undefined };
       },
     );
     let result = await synthesisNode(mockState);
@@ -354,7 +354,7 @@ describe('synthesisNode', () => {
         const { output } = await agentInvoke('');
         const result = validator(output);
         if (!result.valid) throw new Error('Validation failed');
-        return result.data;
+        return { data: result.data, sessionId: undefined };
       },
     );
     result = await synthesisNode(mockState);

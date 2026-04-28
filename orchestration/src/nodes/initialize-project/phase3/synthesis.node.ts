@@ -112,7 +112,7 @@ export async function synthesisNode(
 
     const synthesisPath = join(tempDir, 'synthesis-raw.md');
 
-    const synthesisContent = await retryWithEnhancedFeedback<string>(
+    const { data: synthesisContent } = await retryWithEnhancedFeedback<string>(
       agentInvoke,
       validator,
       { ...DEFAULT_RETRY_CONFIG, maxAttempts: 10 },
