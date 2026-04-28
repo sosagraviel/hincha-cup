@@ -62,7 +62,19 @@ export async function wikiGenerationNode(
       context.graphVersion,
       context.graphCommit ?? 'unknown',
     );
+
+    // Build the index AFTER every other page so its summary catalog can read
+    // each page's frontmatter (summary / confidence / tags / related). Tier 1
+    // retrieval at consumer time becomes one read instead of N.
+    const indexInputPages: GeneratedWikiFile[] = [
+      architecture,
+      servicesCatalog,
+      dataFlows,
+      patterns,
+      ...serviceDocs,
+    ];
     const index = wiki.buildIndex(
+      indexInputPages,
       context.generatedAt,
       context.graphVersion,
       context.graphCommit ?? 'unknown',

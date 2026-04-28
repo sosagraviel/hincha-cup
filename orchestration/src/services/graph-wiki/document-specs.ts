@@ -65,8 +65,32 @@ export function buildServiceSpec(
       analyzers: sliceAnalyzersForService(serviceId, analyzers),
     },
     digestedUpstream,
+    tags: deriveServiceTags(service),
     frontmatterExtras,
   };
+}
+
+/**
+ * Tags surfaced into a service page's frontmatter and into `index.md`'s
+ * summary catalog. Bounded to a small curated set: language, main framework,
+ * service type, plus a `service` marker. No free-form tags so the index entries
+ * stay scannable.
+ */
+function deriveServiceTags(service: Record<string, unknown>): string[] {
+  const tags: string[] = ['service'];
+  if (typeof service.language === 'string' && service.language.length > 0) {
+    tags.push(service.language.toLowerCase());
+  }
+  if (typeof service.type === 'string' && service.type.length > 0) {
+    tags.push(service.type.toLowerCase());
+  }
+  if (isRecord(service.frameworks)) {
+    const main = service.frameworks.main;
+    if (typeof main === 'string' && main.length > 0) {
+      tags.push(main.toLowerCase());
+    }
+  }
+  return uniqueStrings(tags);
 }
 
 export function buildPrompt(spec: WikiDocumentSpec, projectPath: string): string {
@@ -155,6 +179,7 @@ function architectureSpec(
       'workspace',
       'services',
     ]),
+    tags: deriveCoreTags('architecture', stackProfile),
   };
 }
 
@@ -190,6 +215,7 @@ function dataFlowsSpec(
       'flow',
       'lifecycle',
     ]),
+    tags: deriveCoreTags('data-flow', stackProfile),
   };
 }
 
@@ -224,7 +250,42 @@ function patternsSpec(
       'lint',
       'quality',
     ]),
+    tags: deriveCoreTags('pattern', stackProfile),
   };
+}
+
+/**
+ * Curated tag set for core docs. Pulls the project's main languages from the
+ * stack profile services so the architecture/data-flows/patterns index entries
+ * can be filtered by stack at a glance. Bounded to ~5 tags per page.
+ */
+function deriveCoreTags(
+  documentType: 'architecture' | 'data-flow' | 'pattern',
+  stackProfile: unknown,
+): string[] {
+  const seedByType: Record<typeof documentType, string[]> = {
+    architecture: ['architecture', 'topology'],
+    'data-flow': ['data-flow', 'integrations'],
+    pattern: ['patterns', 'testing'],
+  };
+  const tags: string[] = [...seedByType[documentType]];
+
+  if (isRecord(stackProfile) && Array.isArray(stackProfile.services)) {
+    for (const service of stackProfile.services) {
+      if (!isRecord(service)) continue;
+      if (typeof service.language === 'string' && service.language.length > 0) {
+        tags.push(service.language.toLowerCase());
+      }
+      if (isRecord(service.frameworks)) {
+        const main = service.frameworks.main;
+        if (typeof main === 'string' && main.length > 0) {
+          tags.push(main.toLowerCase());
+        }
+      }
+    }
+  }
+
+  return uniqueStrings(tags).slice(0, 5);
 }
 
 /**

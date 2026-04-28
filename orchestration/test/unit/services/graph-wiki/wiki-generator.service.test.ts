@@ -282,7 +282,7 @@ describe('wiki-generator.service', () => {
     expect(servicesDoc.content).toContain('Handles user CRUD traffic for the platform.');
   });
 
-  it('index links all core docs and service docs', async () => {
+  it('index renders a summary catalog with links, document_type, tags, and grouping headings', async () => {
     const service = new WikiGeneratorService({
       ...buildInput(),
       agentInvoker: async ({ filename }: WikiAgentInvocation) => `# ${filename}`,
@@ -291,11 +291,56 @@ describe('wiki-generator.service', () => {
     const result = await service.generateAll();
     const index = result.files.find((file) => file.filename === 'wiki/index.md')?.content;
 
-    expect(index).toContain('[Architecture](ARCHITECTURE.md)');
-    expect(index).toContain('[Services](SERVICES.md)');
-    expect(index).toContain('[Data flows](DATA-FLOWS.md)');
-    expect(index).toContain('[Patterns](PATTERNS.md)');
+    expect(index).toContain('## Architecture');
+    expect(index).toContain('## Services catalog');
+    expect(index).toContain('## Per-service docs');
+    expect(index).toContain('## Data flows');
+    expect(index).toContain('## Patterns');
+
+    expect(index).toContain('[ARCHITECTURE](ARCHITECTURE.md)');
+    expect(index).toContain('[SERVICES](SERVICES.md)');
+    expect(index).toContain('[DATA-FLOWS](DATA-FLOWS.md)');
+    expect(index).toContain('[PATTERNS](PATTERNS.md)');
     expect(index).toContain('[api](services/api.md)');
+
+    // Inline metadata: document_type + confidence + tags
+    expect(index).toMatch(/architecture, confidence:/);
+    expect(index).toMatch(/\*\*Tags:\*\* /);
+  });
+
+  it('index entries carry summary text from each page frontmatter', async () => {
+    const service = new WikiGeneratorService({
+      ...buildInput(),
+      agentInvoker: async ({ filename }: WikiAgentInvocation) =>
+        `# ${filename}\n\nFirst paragraph for ${filename}.`,
+    });
+
+    const result = await service.generateAll();
+    const index = result.files.find((file) => file.filename === 'wiki/index.md')?.content;
+
+    expect(index).toContain('First paragraph for ARCHITECTURE.md');
+  });
+
+  it('every generated page carries a tags frontmatter array', async () => {
+    const service = new WikiGeneratorService({
+      ...buildInput(),
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => `# ${filename}\n\nBody.`,
+    });
+
+    const result = await service.generateAll();
+    const interestingPages = result.files.filter(
+      (f) =>
+        f.filename === 'wiki/ARCHITECTURE.md' ||
+        f.filename === 'wiki/DATA-FLOWS.md' ||
+        f.filename === 'wiki/PATTERNS.md' ||
+        f.filename === 'wiki/services/api.md',
+    );
+    expect(interestingPages.length).toBeGreaterThan(0);
+    for (const page of interestingPages) {
+      const data = matter(page.content).data as Record<string, unknown>;
+      expect(Array.isArray(data.tags)).toBe(true);
+      expect((data.tags as string[]).length).toBeGreaterThan(0);
+    }
   });
 
   it('runs the 3 core docs concurrently (not sequentially)', async () => {

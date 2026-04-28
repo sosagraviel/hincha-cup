@@ -90,6 +90,13 @@ export interface WikiPageFrontmatter {
   confidence: 'high' | 'medium' | 'low';
   related: string[];
   last_verified: string;
+  /**
+   * Optional curated tags. Source: analyzer findings (service language /
+   * framework / type for service docs; analyzer-derived top tags for core
+   * docs). Used by `index.md` to render summary catalog entries inline so
+   * Tier 1 retrieval is one read instead of N frontmatter scans.
+   */
+  tags?: string[];
   service_id?: string;
   entry_points?: string[];
   dependencies?: Record<string, unknown>;
@@ -205,5 +212,10 @@ export interface WikiDocumentSpec {
     claudeMd?: string;
     projectContext?: string;
   };
+  /**
+   * Curated tags rendered into the page frontmatter (`tags:` field). Used by
+   * `index.md` to enrich its summary catalog without re-deriving structure.
+   */
+  tags?: string[];
   frontmatterExtras?: Record<string, unknown>;
 }

@@ -188,20 +188,24 @@ export class WikiGeneratorService {
         sources: [],
         related: ['wiki/ARCHITECTURE.md', 'wiki/DATA-FLOWS.md'],
         last_verified: generatedAt,
+        tags: ['services', 'catalog'],
       }),
     };
   }
 
   /**
-   * Deterministic navigation index. Filename is relative to the wiki/ subdirectory.
+   * Deterministic summary catalog. One entry per generated wiki page, with
+   * summary / document_type / confidence / tags / related read directly from
+   * each page's frontmatter. A 25-page wiki collapses Tier 1 retrieval from
+   * 25 reads to one. Filename is relative to the wiki/ subdirectory.
    */
-  buildIndex(generatedAt: string, graphVersion: string, graphCommit: string): GeneratedWikiFile {
-    return this.generateIndexDocument(
-      generatedAt,
-      graphVersion,
-      graphCommit,
-      getServices(this.options.stackProfile),
-    );
+  buildIndex(
+    pages: GeneratedWikiFile[],
+    generatedAt: string,
+    graphVersion: string,
+    graphCommit: string,
+  ): GeneratedWikiFile {
+    return this.generateIndexDocument(pages, generatedAt, graphVersion, graphCommit);
   }
 
   /**
@@ -392,7 +396,18 @@ export class WikiGeneratorService {
       graphVersion,
       graphCommit,
     );
-    const index = this.buildIndex(generatedAt, graphVersion, graphCommit);
+
+    // Build the index AFTER every other page so it can read each page's
+    // frontmatter (summary / confidence / tags / related) and emit the summary
+    // catalog inline. Tier 1 retrieval becomes one read, not N.
+    const indexInputPages: GeneratedWikiFile[] = [
+      architecture,
+      servicesCatalog,
+      dataFlows,
+      patterns,
+      ...serviceDocs,
+    ];
+    const index = this.buildIndex(indexInputPages, generatedAt, graphVersion, graphCommit);
 
     const wikiPages: GeneratedWikiFile[] = [
       architecture,
@@ -458,22 +473,27 @@ export class WikiGeneratorService {
       ? spec.filename
       : (`wiki/${spec.filename}` as GeneratedWikiFilename);
 
+    const frontmatter: Record<string, unknown> = {
+      document_type: spec.documentType,
+      summary: extractSummary(body),
+      confidence: 'medium',
+      generated_at: generatedAt,
+      generated_by: GENERATED_BY,
+      graph_version: graphVersion,
+      graph_commit: graphCommit,
+      graph_queries_used: spec.graphQueriesUsed,
+      sources: [],
+      related: [],
+      last_verified: generatedAt,
+      ...spec.frontmatterExtras,
+    };
+    if (spec.tags && spec.tags.length > 0) {
+      frontmatter.tags = spec.tags;
+    }
+
     return {
       filename: wikiFilename,
-      content: withFrontmatter(body, {
-        document_type: spec.documentType,
-        summary: extractSummary(body),
-        confidence: 'medium',
-        generated_at: generatedAt,
-        generated_by: GENERATED_BY,
-        graph_version: graphVersion,
-        graph_commit: graphCommit,
-        graph_queries_used: spec.graphQueriesUsed,
-        sources: [],
-        related: [],
-        last_verified: generatedAt,
-        ...spec.frontmatterExtras,
-      }),
+      content: withFrontmatter(body, frontmatter),
     };
   }
 
@@ -489,43 +509,59 @@ export class WikiGeneratorService {
   }
 
   private generateIndexDocument(
+    pages: GeneratedWikiFile[],
     generatedAt: string,
     graphVersion: string,
     graphCommit: string,
-    services: Record<string, unknown>[],
   ): GeneratedWikiFile {
     const projectName = basename(this.options.projectPath);
     const graphQueriesUsed = uniqueStrings(collectAnalyzerGraphQueries(this.options.analyzers));
-    const serviceLinks = services.map((service) => {
-      const serviceId = String(service.id ?? service.name);
-      return `- [${serviceId}](services/${slugifyServiceId(serviceId)}.md)`;
-    });
 
-    const body = [
+    const entries = pages
+      .filter((page) => page.filename !== 'wiki/index.md')
+      .map((page) => readIndexEntry(page))
+      .filter((entry): entry is IndexEntry => entry !== null);
+
+    const grouped = groupIndexEntries(entries);
+
+    const body: string[] = [
       `# ${projectName} LLM Wiki`,
       '',
-      'Generated graph-backed documentation for agents working in this repository.',
+      'Summary catalog of every page in this wiki. Each line carries the page summary, document type, confidence, tags, and related pages — frontmatter inline so a single read of `index.md` serves Tier 1 retrieval.',
       '',
-      '## Core Documents',
-      '- [Architecture](ARCHITECTURE.md)',
-      '- [Services](SERVICES.md)',
-      '- [Data flows](DATA-FLOWS.md)',
-      '- [Patterns](PATTERNS.md)',
+      `_Generated at ${generatedAt} from graph version \`${graphVersion.slice(0, 12)}\`._`,
       '',
-      '## Service Documents',
-      serviceLinks.length > 0 ? serviceLinks.join('\n') : '- No services detected.',
-      '',
-      '## How Agents Should Use This',
-      '- Read the relevant page before broad code changes.',
-      '- Treat these documents as orientation, then inspect source files for implementation details.',
-      '- Prefer pages with graph evidence and follow up with graph MCP tools when relationships matter.',
-    ].join('\n');
+    ];
+
+    for (const group of INDEX_GROUP_ORDER) {
+      const groupEntries = grouped.get(group.documentType) ?? [];
+      if (groupEntries.length === 0) continue;
+      body.push(`## ${group.heading}`);
+      body.push('');
+      for (const entry of groupEntries) {
+        body.push(formatIndexLine(entry));
+      }
+      body.push('');
+    }
+
+    body.push('## How agents should use this');
+    body.push('');
+    body.push(
+      '- Start with this index. Read the 1–3 page bodies whose summaries match your question.',
+    );
+    body.push(
+      '- Follow `**Related:**` `[[wikilinks]]` only when the matched pages reference them.',
+    );
+    body.push('- Stop wikilink traversal at depth 2.');
+    body.push(
+      '- If the wiki does not answer your question, fall back to graph MCP tools — never re-read the wiki cover-to-cover.',
+    );
 
     return {
       filename: 'wiki/index.md',
-      content: withFrontmatter(body, {
+      content: withFrontmatter(body.join('\n'), {
         document_type: 'index',
-        summary: `Navigation index for the ${projectName} LLM wiki.`,
+        summary: `Summary catalog for the ${projectName} LLM wiki — one line per page, frontmatter inline.`,
         confidence: 'high',
         generated_at: generatedAt,
         generated_by: GENERATED_BY,
@@ -543,6 +579,90 @@ export class WikiGeneratorService {
       }),
     };
   }
+}
+
+interface IndexEntry {
+  filename: string;
+  documentType: string;
+  summary: string;
+  confidence?: string;
+  tags: string[];
+  related: string[];
+}
+
+const INDEX_GROUP_ORDER: ReadonlyArray<{ documentType: string; heading: string }> = [
+  { documentType: 'architecture', heading: 'Architecture' },
+  { documentType: 'services', heading: 'Services catalog' },
+  { documentType: 'service', heading: 'Per-service docs' },
+  { documentType: 'data-flow', heading: 'Data flows' },
+  { documentType: 'pattern', heading: 'Patterns' },
+];
+
+function readIndexEntry(page: GeneratedWikiFile): IndexEntry | null {
+  let parsed: matter.GrayMatterFile<string>;
+  try {
+    parsed = matter(page.content);
+  } catch {
+    return null;
+  }
+  const data = parsed.data as Record<string, unknown>;
+  const documentType = typeof data.document_type === 'string' ? data.document_type : '';
+  if (!documentType) return null;
+  return {
+    filename: page.filename,
+    documentType,
+    summary: typeof data.summary === 'string' ? data.summary : '',
+    confidence: typeof data.confidence === 'string' ? data.confidence : undefined,
+    tags: Array.isArray(data.tags)
+      ? data.tags.filter((t): t is string => typeof t === 'string')
+      : [],
+    related: Array.isArray(data.related)
+      ? data.related.filter((r): r is string => typeof r === 'string')
+      : [],
+  };
+}
+
+function groupIndexEntries(entries: IndexEntry[]): Map<string, IndexEntry[]> {
+  const grouped = new Map<string, IndexEntry[]>();
+  for (const entry of entries) {
+    const list = grouped.get(entry.documentType) ?? [];
+    list.push(entry);
+    grouped.set(entry.documentType, list);
+  }
+  for (const list of grouped.values()) {
+    list.sort((a, b) => a.filename.localeCompare(b.filename));
+  }
+  return grouped;
+}
+
+function formatIndexLine(entry: IndexEntry): string {
+  // Strip the leading `wiki/` so the link is relative to index.md (which lives
+  // alongside the wiki/ subdirectory's pages).
+  const linkPath = entry.filename.startsWith('wiki/')
+    ? entry.filename.slice('wiki/'.length)
+    : entry.filename;
+  const linkText = entry.filename.startsWith('wiki/services/')
+    ? entry.filename.slice('wiki/services/'.length).replace(/\.md$/, '')
+    : linkPath.replace(/\.md$/, '');
+
+  const meta: string[] = [entry.documentType];
+  if (entry.confidence) meta.push(`confidence: ${entry.confidence}`);
+
+  const parts: string[] = [`- [${linkText}](${linkPath}) — *${meta.join(', ')}*`];
+  if (entry.summary) parts.push(`— ${entry.summary}`);
+
+  let line = parts.join(' ');
+  if (entry.tags.length > 0) {
+    line += ` **Tags:** ${entry.tags.join(', ')}.`;
+  }
+  if (entry.related.length > 0) {
+    const wikilinks = entry.related
+      .map((r) => r.replace(/^wiki\//, '').replace(/\.md$/, ''))
+      .map((r) => `[[${r}]]`)
+      .join(', ');
+    line += ` **Related:** ${wikilinks}.`;
+  }
+  return line;
 }
 
 export function getExpectedLlmWikiFiles(stackProfile: unknown): GeneratedWikiFilename[] {
