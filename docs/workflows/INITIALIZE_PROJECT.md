@@ -99,6 +99,17 @@ Generates human-readable project understanding from consolidated analysis.
 - `.claude/CLAUDE.md` - Quick reference for Claude (`.codex/AGENTS.md` for Codex)
 - `.claude/skills/project-context/SKILL.md` - Deep project knowledge
 
+### Phase 4b: LLM-Wiki Generation
+
+**Creates** under `<project>/docs/llm-wiki/`:
+- `wiki/ARCHITECTURE.md`, `wiki/DATA-FLOWS.md`, `wiki/PATTERNS.md` — LLM-synthesized from already-digested upstream (Phase 1 analyzer JSONs + Phase 3 synthesis + the just-generated CLAUDE.md slice + project-context slice). The `wiki-generator` agent runs **closed-book** — no Read/Grep/Glob/MCP — so it cannot re-analyze the codebase.
+- `wiki/services/<id>.md` per detected service. Concurrency bounded to 3 in flight.
+- `wiki/SERVICES.md` — deterministic catalog (no LLM call).
+- `wiki/index.md` — deterministic summary catalog: one line per page with `summary` / `document_type` / `confidence` / `tags` / `related` inline. Tier 1 retrieval at consumer time is one read, not N.
+- `<schema-filename>` — the wiki's runtime router, project-specific. `CLAUDE.md` for Claude provider, `AGENTS.md` for Codex provider, `COPILOT.md` for GitHub Copilot. Capped at ~150 lines: decision table, tier discipline, ingest workflow, off-limits. The frontmatter contract for wiki pages lives in `docs/CLAUDE_DIR_LAYOUT.md` (developer-facing, not query-time).
+
+See [`docs/LLM_WIKI.md`](../LLM_WIKI.md) for the full router contract and consumer-side retrieval model.
+
 ### Phase 5: Resource Sync
 
 **Syncs** (based on detected stack):

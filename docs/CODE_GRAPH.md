@@ -61,7 +61,7 @@ The project-level MCP config files are written by Phase 0 (`upsertCodeGraphMcpCo
 
 | Provider | File | Why |
 |---|---|---|
-| Claude | `<project>/.mcp.json` | Per-spawn analyzers receive `--mcp-config` pointing at a per-node mcp.json, but downstream phases (e.g. wiki generation, implement-ticket) rely on the project-level file. |
+| Claude | `<project>/.mcp.json` | Per-spawn analyzers receive `--mcp-config` pointing at a per-node mcp.json. Downstream phases (e.g. implement-ticket) read the project-level file. The wiki-generator no longer calls graph tools at all (closed-book synthesis from already-digested upstream — see `docs/LLM_WIKI.md`); graph queries live exclusively in Phase 0 + Phase 1. |
 | Codex | `<project>/.codex/config.toml` | Codex CLI auto-discovers MCP servers from this file at session start; there is no per-spawn flag. Writing it in Phase 0 — *before* Phase 1 spawns analyzers — is the parity fix that lets `--provider codex` runs use the graph. |
 
 ---
