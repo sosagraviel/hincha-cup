@@ -240,14 +240,16 @@ install_quality_tools() {
     fi
 
     if [[ "$lang" == "ruby" ]]; then
-        # Ensure bundler is present
+        # Ensure bundler is present (needed even just to run `bundle exec`)
         if ! command -v bundle &>/dev/null; then
             echo "Installing bundler..."
             gem install bundler
         fi
 
-        # Install RuboCop if missing
-        if ! command -v rubocop &>/dev/null; then
+        # Install RuboCop only if neither bundler nor PATH resolves it.
+        # Avoids pinning drift when the project already has rubocop in its Gemfile.
+        if ! (bundle exec rubocop --version &>/dev/null) \
+            && ! command -v rubocop &>/dev/null; then
             echo "Installing rubocop..."
             gem install rubocop
         fi
