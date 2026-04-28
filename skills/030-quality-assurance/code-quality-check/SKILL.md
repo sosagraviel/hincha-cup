@@ -670,10 +670,14 @@ run_ruby_tests() {
             echo "Tests: PASSED"
         fi
 
-        # Check coverage from SimpleCov report
+        # Check coverage from SimpleCov report.
+        # Use `// 0` inside jq so a missing `.result.line` key (older SimpleCov,
+        # branch-only configs) returns 0 instead of the literal string "null",
+        # which would crash the bash arithmetic comparison below.
         if [[ -f "coverage/.last_run.json" ]]; then
-            coverage=$(jq '.result.line' coverage/.last_run.json 2>/dev/null || echo "0")
+            coverage=$(jq -r '.result.line // 0' coverage/.last_run.json 2>/dev/null || echo "0")
             coverage_int=${coverage%.*}
+            : "${coverage_int:=0}"
 
             echo "Coverage: ${coverage}%"
 
@@ -683,6 +687,9 @@ run_ruby_tests() {
             else
                 echo "Coverage: PASSED (${coverage}% >= ${coverage_threshold}%)"
             fi
+        else
+            tests_passed=false
+            echo "Coverage: UNKNOWN (coverage/.last_run.json not found — is SimpleCov activated?)"
         fi
     else
         echo "No test runner found, skipping tests"
