@@ -130,3 +130,37 @@ Same regex spirit as the validator (the validator's pattern is more conservative
 | Runtime validator | `orchestration/src/nodes/initialize-project/phase6/helpers/portability-validator.ts` |
 | Provider config dirs helper | `orchestration/src/utils/provider-paths.ts` |
 | `framework-config.json` schema | `orchestration/src/schemas/framework-config.schema.ts` |
+
+---
+
+## LLM-wiki frontmatter contract
+
+Every file under `<project>/docs/llm-wiki/wiki/` carries the same provenance frontmatter so the wiki linter, the index summary catalog, and downstream agents can rely on a stable contract. This block lives here (developer documentation) rather than inside the wiki's own router doc, which is capped at ~150 lines for runtime use.
+
+```yaml
+document_type: <architecture|data-flow|pattern|service|services|index|schema>
+summary: <single line, <=160 chars, load-bearing for retrieval>
+confidence: <high|medium|low>
+generated_at: <iso>
+generated_by: ai-agentic-framework
+graph_version: <sha256 of .code-review-graph/graph.db>
+graph_commit: <git sha at build time>
+graph_queries_used: [<mcp__code_graph__... names — Phase 1 analyzer queries, not wiki-gen>]
+sources:
+  - { path: <relative-to-project-root>, sha256: <hash>, ingested_at: <iso>, commit: <git sha> }
+related: [<wiki-relative-paths>]
+last_verified: <iso>
+tags: [<curated, ~5 max — bound vocabulary from analyzer findings>]
+# service docs only:
+service_id: <id from stack profile>
+entry_points: [<paths>]
+dependencies: { production: [...], development: [...] }
+community_id: <graph community id, when known>
+```
+
+Lint policy:
+
+- **Structural (fail PR):** broken wikilinks; `sources[]` pointing to non-existent paths; missing required frontmatter keys; `graph_version` mismatch with current `.code-review-graph/graph.db`.
+- **Semantic (warn):** orphan pages; stale claims; LLM-detected contradictions across changed-set + 1-hop.
+
+The `tags:` field is consumed by `wiki/index.md`'s summary catalog so Tier 1 retrieval is a single read; keep the vocabulary curated.

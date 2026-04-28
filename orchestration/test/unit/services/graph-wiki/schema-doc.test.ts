@@ -6,7 +6,13 @@ import { WikiGeneratorService } from '../../../../src/services/graph-wiki/wiki-g
 import { SCHEMA_FILENAME_BY_PROVIDER } from '../../../../src/services/graph-wiki/types.js';
 import { Provider } from '../../../../src/providers/types.js';
 
-function buildOptions(provider: Provider) {
+function buildOptions(
+  provider: Provider,
+  overrides: Partial<{
+    services: Array<Record<string, unknown>>;
+    catalog: Array<{ name: string; description: string }>;
+  }> = {},
+) {
   const projectPath = mkdtempSync(join(tmpdir(), 'schema-doc-test-'));
   const graphPath = join(projectPath, '.code-review-graph/graph.db');
   mkdirSync(dirname(graphPath), { recursive: true });
@@ -19,7 +25,8 @@ function buildOptions(provider: Provider) {
     generatedAt: '2026-04-24T00:00:00.000Z',
     graph: { available: true, path: graphPath },
     analyzers: {},
-    stackProfile: { services: [] },
+    stackProfile: { services: overrides.services ?? [] },
+    codeGraphToolCatalog: overrides.catalog,
   };
 }
 
@@ -70,24 +77,72 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
     expect(codexResult.content).toContain('`AGENTS.md`');
   });
 
-  it('body describes the wiki layout structure', () => {
+  it('body is a runtime router with a decision table and tier discipline', () => {
     const service = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
     const result = service.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
 
-    expect(result.content).toContain('raw/');
-    expect(result.content).toContain('wiki/');
-    expect(result.content).toContain('CHANGELOG.md');
-    expect(result.content).toContain('log.md');
-    expect(result.content).toContain('.state.json');
+    expect(result.content).toContain('## How to query (decision table)');
+    expect(result.content).toContain('| Question is about… | Read first | Drill into… |');
+    expect(result.content).toContain('## Tier discipline');
+    expect(result.content).toContain('Tier 1');
+    expect(result.content).toContain('Tier 2');
+    expect(result.content).toContain('Tier 3');
+    expect(result.content).toContain('## Ingest workflow');
+    expect(result.content).toContain('## Off-limits');
   });
 
-  it('raw/ layer description references only snapshots/ and external/ subdirs', () => {
+  it('body is capped at <= 150 lines so loading the router stays cheap', () => {
+    const service = new WikiGeneratorService(
+      buildOptions(Provider.CLAUDE, {
+        services: Array.from({ length: 12 }, (_, i) => ({ id: `svc-${i}` })),
+      }),
+    );
+    const result = service.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
+    const lineCount = result.content.split('\n').length;
+    expect(lineCount).toBeLessThanOrEqual(150);
+  });
+
+  it('templates the project-specific service list into the at-a-glance section', () => {
+    const service = new WikiGeneratorService(
+      buildOptions(Provider.CLAUDE, {
+        services: [{ id: 'backend' }, { id: 'frontend' }, { id: 'worker' }],
+      }),
+    );
+    const result = service.buildSchemaDoc('my-project', '2026-04-24T00:00:00.000Z');
+    expect(result.content).toContain('## Wiki at a glance');
+    expect(result.content).toContain('my-project');
+    expect(result.content).toContain('3 services');
+    expect(result.content).toContain('`backend`');
+    expect(result.content).toContain('`frontend`');
+    expect(result.content).toContain('`worker`');
+  });
+
+  it('renders the live graph-tool catalog when present, omits the section otherwise', () => {
+    const withCatalog = new WikiGeneratorService(
+      buildOptions(Provider.CLAUDE, {
+        catalog: [
+          {
+            name: 'mcp__code_graph__get_minimal_context_tool',
+            description: 'Fetch minimal context\nMore detail.',
+          },
+          { name: 'mcp__code_graph__list_communities_tool', description: 'List communities.' },
+        ],
+      }),
+    );
+    const withCatalogResult = withCatalog.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
+    expect(withCatalogResult.content).toContain('## Available graph tools');
+    expect(withCatalogResult.content).toContain('`mcp__code_graph__get_minimal_context_tool`');
+    expect(withCatalogResult.content).toContain('Fetch minimal context');
+
+    const withoutCatalog = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
+    const withoutCatalogResult = withoutCatalog.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
+    expect(withoutCatalogResult.content).not.toContain('## Available graph tools');
+  });
+
+  it('does not embed the frontmatter contract (that lives in framework docs)', () => {
     const service = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
     const result = service.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
-
-    expect(result.content).toContain('snapshots/');
-    expect(result.content).toContain('external/');
-    expect(result.content).toContain('phase1-outputs');
-    expect(result.content).toContain('graph_stats');
+    expect(result.content).not.toContain('Frontmatter contract');
+    expect(result.content).not.toContain('document_type: <architecture');
   });
 });

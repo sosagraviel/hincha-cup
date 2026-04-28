@@ -214,9 +214,10 @@ export class WikiGeneratorService {
    * Body content is identical across providers; only the filename differs.
    */
   buildSchemaDoc(projectName: string, generatedAt: string): GeneratedWikiFile {
-    const { provider } = this.options;
+    const { provider, codeGraphToolCatalog, stackProfile } = this.options;
     const schemaFilename = SCHEMA_FILENAME_BY_PROVIDER[provider];
-    const body = buildSchemaDocBody(projectName, schemaFilename);
+    const services = getServices(stackProfile);
+    const body = buildSchemaDocBody(projectName, schemaFilename, services, codeGraphToolCatalog);
 
     return {
       filename: schemaFilename,
@@ -675,66 +676,104 @@ export function getExpectedLlmWikiFiles(stackProfile: unknown): GeneratedWikiFil
   ];
 }
 
-function buildSchemaDocBody(projectName: string, schemaFilename: string): string {
-  return (
-    [
-      `# ${projectName} — LLM Wiki Schema`,
-      '',
-      '## Purpose',
-      '',
-      "This directory is the project's LLM-owned knowledge base. Agents read from `wiki/`, cite pages by path, and rely on the provenance frontmatter to distinguish facts from inferences.",
-      '',
-      '## Layers',
-      '',
-      "- `raw/` — genuinely-raw, human-authored or externally-pulled source material. Sub-directories: `snapshots/` (pinned human-authored project docs) and `external/` (opt-in cached external docs). Phase 1 analyzer outputs are NOT stored here — they live in `.claude-temp/initialize-project/phase1-outputs/` per the framework's disk-first idempotency pattern. Graph stats live in `.state.json`. AI agents read `raw/`; they never write.",
-      '- `wiki/` — LLM-generated, source of truth for agent queries.',
-      `- \`${schemaFilename}\` (this file) — schema / ingest / lint / query rules. Filename matches the active provider (\`CLAUDE.md\` for Claude Code, \`AGENTS.md\` for Codex CLI, \`COPILOT.md\` for GitHub Copilot). Only one of these exists at any time; the others are removed on provider switch.`,
-      '- `CHANGELOG.md` — Keep-a-Changelog format, one section per ingest or refresh.',
-      '- `log.md` — append-only chronological log.',
-      '- `.state.json` — machine state (`last_indexed_commit`, `graph_sha`, `graph_commit`, `pipeline_version`, `last_ingest_at`, `graph_stats`).',
-      '',
-      '## Frontmatter contract (every file under wiki/)',
-      '',
-      '```yaml',
-      'document_type: <architecture|data-flow|pattern|service|services|index|schema>',
-      'summary: <single line, <=160 chars, load-bearing for retrieval>',
-      'confidence: <high|medium|low>',
-      'generated_at: <iso>',
-      'generated_by: ai-agentic-framework@<version>',
-      'graph_version: <sha256 of .code-review-graph/graph.db>',
-      'graph_commit: <git sha at build time>',
-      'graph_queries_used: [mcp__code_graph__...]',
-      'sources:',
-      '  - { path: <relative-to-project-root>, sha256: <hash>, ingested_at: <iso>, commit: <git sha> }',
-      'related: [<wiki-relative-paths>]',
-      'last_verified: <iso>',
-      '```',
-      '',
-      '## Ingest workflow (agent-executable)',
-      '',
-      '1. Read source. Extract atomic facts.',
-      '2. Update (do not duplicate) affected wiki pages. Preserve prose whose source-chunk hash has not changed.',
-      '3. Update `wiki/index.md` if the navigation changed.',
-      '4. Update `sources[]` on every page touched.',
-      '5. Append one structured entry to `log.md`.',
-      '6. Add a line to the `## [Unreleased]` block of `CHANGELOG.md` under the correct section (Added/Changed/Deprecated/Removed/Fixed).',
-      '7. Run `/wiki-lint` before committing.',
-      '',
-      '## Lint policy',
-      '',
-      '- Structural (fail PR): broken wikilinks; `sources[]` pointing to non-existent paths; missing required frontmatter keys; `graph_version` mismatch with current `.code-review-graph/graph.db`.',
-      '- Semantic (warn): orphan pages; stale claims; LLM-detected contradictions across changed-set + 1-hop.',
-      '',
-      '## Query policy',
-      '',
-      'Agents should query in this order: (1) wiki by slug + `summary`, (2) graph by symbol/community/flow, (3) grep/read only if both miss. Cite what you used.',
-      '',
-      '## Off-limits',
-      '',
-      '- Do not edit `raw/` by hand. Re-ingest via `/wiki-refresh` instead.',
-      '- Do not remove `.state.json` or tombstone a page without appending a `Removed` entry to `CHANGELOG.md`.',
-    ].join('\n') + '\n'
+/**
+ * The wiki schema doc is the **runtime router** for any agent that wants to
+ * consult this project's LLM wiki. It is project-specific (services / graph
+ * tools templated in) but the routing rules are universal. Capped at ~150
+ * lines so loading it never costs more than a wiki page body. The frontmatter
+ * contract lives in the framework docs (CLAUDE_DIR_LAYOUT.md), not here —
+ * developer-facing documentation does not belong in the runtime router.
+ */
+function buildSchemaDocBody(
+  projectName: string,
+  schemaFilename: string,
+  services: Record<string, unknown>[],
+  graphToolCatalog?: Array<{ name: string; description: string }>,
+): string {
+  const serviceList =
+    services.length > 0
+      ? services
+          .map((s) => `\`${slugifyServiceId(String(s.id ?? s.name))}\``)
+          .slice(0, 12)
+          .join(', ') + (services.length > 12 ? `, … (${services.length} total)` : '')
+      : '_none detected_';
+  const serviceCount = services.length;
+
+  const lines: string[] = [
+    `# ${projectName} — LLM Wiki router`,
+    '',
+    '## Wiki at a glance',
+    '',
+    `This directory is the LLM-owned knowledge base for **${projectName}**. ${serviceCount === 0 ? 'No services were detected.' : `${serviceCount} service${serviceCount === 1 ? '' : 's'}: ${serviceList}.`}`,
+    '',
+    'Top-level docs under `wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`. Per-service docs under `wiki/services/<id>.md`. Every page carries summary / document_type / confidence / tags / related frontmatter; `index.md` aggregates that frontmatter inline so a single read serves Tier 1 retrieval.',
+    '',
+    '## How to query (decision table)',
+    '',
+    '| Question is about… | Read first | Drill into… |',
+    '|---|---|---|',
+    '| architecture, topology, monorepo shape | `wiki/index.md` (summaries) → `wiki/ARCHITECTURE.md` | `wiki/services/<id>.md` for service-specific detail |',
+    '| a specific service | `wiki/SERVICES.md` (catalog) | `wiki/services/<id>.md` |',
+    '| request lifecycle, auth, middleware | `wiki/index.md` → `wiki/DATA-FLOWS.md` | `wiki/services/<id>.md` for service-specific flows |',
+    '| testing, conventions, code style | `wiki/PATTERNS.md` | — |',
+    '| "I don\'t know which page" | `grep -i "<term>" wiki/index.md`, then read matched pages | follow `[[wikilinks]]` in matched pages, depth ≤ 2 |',
+    '',
+    '## Tier discipline',
+    '',
+    '1. **Tier 1 (always):** read `wiki/index.md`. One file, summaries inline. Pick the 1–3 pages whose summaries match your question.',
+    '2. **Tier 2 (on relevance):** read those page bodies. Stop.',
+    '3. **Tier 3 (on demand):** follow `**Related:**` `[[wikilinks]]` on the matched pages. Cap traversal at depth 2.',
+    '4. **Fallback:** if the wiki does not answer your question, call graph MCP tools (below). Do **not** re-read the wiki cover-to-cover.',
+    '',
+  ];
+
+  // Optional section: live graph-tool catalog from Phase 0. Present only when
+  // the workflow captured a non-empty catalog from the running MCP server, so
+  // the router can never claim a tool that the server does not expose.
+  if (graphToolCatalog && graphToolCatalog.length > 0) {
+    lines.push('## Available graph tools');
+    lines.push('');
+    lines.push(
+      'Live MCP tool catalog from `code-review-graph` (auto-discovered at init time). Call by exact name; the server will reject names that are not in this list.',
+    );
+    lines.push('');
+    for (const tool of graphToolCatalog) {
+      const desc = tool.description.split('\n')[0].trim();
+      lines.push(`- \`${tool.name}\` — ${desc}`);
+    }
+    lines.push('');
+  }
+
+  lines.push('## Ingest workflow');
+  lines.push('');
+  lines.push(
+    'When sources change (`/wiki-refresh`), update affected pages in place — never overwrite. Steps:',
   );
+  lines.push('');
+  lines.push('1. Extract atomic facts from changed sources.');
+  lines.push(
+    '2. Update (do not duplicate) the pages those facts touch. Preserve prose whose source-chunk hash has not changed.',
+  );
+  lines.push("3. Update `wiki/index.md` if the page's summary, tags, or related changed.");
+  lines.push('4. Update `sources[]` on every touched page.');
+  lines.push('5. Append one structured entry to `log.md`.');
+  lines.push(
+    '6. Add a line to `## [Unreleased]` in `CHANGELOG.md` under Added / Changed / Deprecated / Removed / Fixed.',
+  );
+  lines.push('7. Run `/wiki-lint` before committing.');
+  lines.push('');
+  lines.push('## Off-limits');
+  lines.push('');
+  lines.push('- Do not edit `raw/` by hand. Re-ingest via `/wiki-refresh` instead.');
+  lines.push(
+    '- Do not remove `.state.json` or tombstone a page without appending a `Removed` entry to `CHANGELOG.md`.',
+  );
+  lines.push(
+    `- Do not edit \`${schemaFilename}\` by hand. It is regenerated whenever the active provider's wiki is rebuilt.`,
+  );
+  lines.push('');
+
+  return lines.join('\n');
 }
 
 function extractSummary(body: string): string {
