@@ -268,12 +268,17 @@ Search for these code types using framework-specific patterns:
 
 ### Testing
 
-| Code Type             | Search Strategy              | Example Patterns                                                                               |
-| --------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
-| **Unit Tests**        | Co-located test files        | `**/*.spec.ts`, `**/*.test.py`, `**/*_test.go`, `**/*.spec.js`, `**/*_spec.rb`, `**/*_test.rb` |
-| **Integration Tests** | Integration test directories | `tests/integration/`, `e2e/`, `__tests__/integration/`                                         |
-| **E2E Tests**         | E2E test directories         | `e2e/`, `tests/e2e/`, `playwright/`, `cypress/`                                                |
-| **Test Fixtures**     | Test data and fixtures       | `tests/fixtures/`, `__fixtures__/`, `testdata/`                                                |
+| Code Type             | Search Strategy              | Example Patterns                                                                                  |
+| --------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Unit Tests**        | Co-located test files        | `**/*.spec.ts`, `**/*.test.py`, `**/*_test.go`, `**/*.spec.js`, `**/*_spec.rb`, `**/*_test.rb`    |
+| **Integration Tests** | Integration test directories | `tests/integration/`, `e2e/`, `__tests__/integration/`, `spec/requests/`, `spec/integration/`     |
+| **E2E Tests**         | E2E test directories         | `e2e/`, `tests/e2e/`, `playwright/`, `cypress/`, `spec/system/`, `spec/features/`, `test/system/` |
+| **Test Fixtures**     | Test data and fixtures       | `tests/fixtures/`, `__fixtures__/`, `testdata/`, `spec/fixtures/`, `test/fixtures/`               |
+
+> **Rails note:** when classifying `*_spec.rb` / `*_test.rb` files, treat
+> `spec/system/`, `spec/features/`, `test/system/` as **E2E** (Capybara-driven
+> system tests), and `spec/requests/`, `spec/integration/` as **integration**.
+> Only files outside those directories should be counted as unit tests.
 
 ### Infrastructure/Deployment
 
