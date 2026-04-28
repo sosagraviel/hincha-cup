@@ -132,12 +132,15 @@ export async function wikiGenerationNode(
       return filePath;
     });
 
-    const contextSection = buildContextSection({
-      available: state.code_graph_available,
-      path: state.code_graph_path,
-      stats: state.code_graph_stats,
-      error: state.code_graph_error,
-    });
+    const contextSection = buildContextSection(
+      {
+        available: state.code_graph_available,
+        path: state.code_graph_path,
+        stats: state.code_graph_stats,
+        error: state.code_graph_error,
+      },
+      activeSchemaFilename,
+    );
 
     const claudeMdContent = readFileSync(claudeMdPath, 'utf-8');
     writeFileSync(claudeMdPath, upsertLlmWikiContextSection(claudeMdContent, contextSection));

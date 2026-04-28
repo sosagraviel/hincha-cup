@@ -452,7 +452,10 @@ export class WikiGeneratorService {
 
     return {
       files,
-      contextSection: buildContextSection(this.options.graph),
+      contextSection: buildContextSection(
+        this.options.graph,
+        SCHEMA_FILENAME_BY_PROVIDER[this.options.provider],
+      ),
     };
   }
 

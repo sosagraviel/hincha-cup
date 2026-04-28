@@ -1,6 +1,7 @@
 import matter from 'gray-matter';
 import { describe, expect, it } from 'vitest';
 import {
+  buildContextSection,
   withFrontmatter,
   upsertLlmWikiContextSection,
 } from '../../../../src/services/graph-wiki/frontmatter.js';
@@ -122,6 +123,43 @@ describe('withFrontmatter', () => {
     const parsed = matter(output);
 
     expect(parsed.data.graph_commit).toBe('b'.repeat(40));
+  });
+});
+
+describe('buildContextSection', () => {
+  const graph = {
+    available: true,
+    path: '/some/project/.code-review-graph/graph.db',
+  };
+
+  it('names the wiki router (CLAUDE.md) for the Claude provider', () => {
+    const section = buildContextSection(graph, 'CLAUDE.md');
+    expect(section).toContain('docs/llm-wiki/CLAUDE.md');
+    expect(section).toContain('Router (entry point)');
+    expect(section).toContain('Read this first');
+  });
+
+  it('names the wiki router (AGENTS.md) for the Codex provider', () => {
+    const section = buildContextSection(graph, 'AGENTS.md');
+    expect(section).toContain('docs/llm-wiki/AGENTS.md');
+    expect(section).not.toContain('docs/llm-wiki/CLAUDE.md');
+  });
+
+  it('still references the index summary catalog as Tier 1', () => {
+    const section = buildContextSection(graph, 'CLAUDE.md');
+    expect(section).toContain('docs/llm-wiki/wiki/index.md');
+    expect(section).toContain('Index (summary catalog)');
+  });
+
+  it('opens with LLM_WIKI_CONTEXT_START and closes with LLM_WIKI_CONTEXT_END', () => {
+    const section = buildContextSection(graph, 'CLAUDE.md');
+    expect(section.startsWith(LLM_WIKI_CONTEXT_START)).toBe(true);
+    expect(section.endsWith(LLM_WIKI_CONTEXT_END)).toBe(true);
+  });
+
+  it('describes the load-router-then-index-then-pages workflow', () => {
+    const section = buildContextSection(graph, 'CLAUDE.md');
+    expect(section).toMatch(/load the router.*match the index.*read only the matched pages/i);
   });
 });
 
