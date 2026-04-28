@@ -408,9 +408,18 @@ run_ruby_security_scan() {
         ${BUNDLE_PREFIX}bundle-audit update --quiet 2>/dev/null || true
         ${BUNDLE_PREFIX}bundle-audit check --format json > "$artifacts_dir/bundler-audit-report.json" 2>&1 || true
 
-        # Parse results
-        bundler_vulns=$(jq '.results | length' "$artifacts_dir/bundler-audit-report.json" 2>/dev/null || echo "0")
-        echo "bundle-audit found $bundler_vulns vulnerable gems"
+        # Parse results. bundler-audit < 0.10 silently ignores `--format json`
+        # and emits plain text; reporting "0 vulnerable gems" in that case
+        # would be a false negative, so detect non-JSON output and surface
+        # an INCONCLUSIVE state instead.
+        if jq -e empty "$artifacts_dir/bundler-audit-report.json" &>/dev/null; then
+            bundler_vulns=$(jq '.results | length' "$artifacts_dir/bundler-audit-report.json" 2>/dev/null || echo "0")
+            echo "bundle-audit found $bundler_vulns vulnerable gems"
+        else
+            bundler_vulns="inconclusive"
+            installed_version=$(${BUNDLE_PREFIX}bundle-audit --version 2>/dev/null | head -n1)
+            echo "bundle-audit: INCONCLUSIVE (output is not valid JSON — likely an older bundler-audit; got: ${installed_version:-unknown}). Upgrade to bundler-audit >= 0.10 to enable JSON parsing."
+        fi
     fi
 
     # 3. RuboCop Security cops - Static checks for unsafe patterns
