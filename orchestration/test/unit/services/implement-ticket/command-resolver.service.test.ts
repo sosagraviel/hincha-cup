@@ -521,7 +521,7 @@ describe('CommandResolverService', () => {
       expect(result.some((cmd) => cmd.includes('cargo build'))).toBe(true);
     });
 
-    it('should handle ruby build (rails assets:precompile / gem build)', () => {
+    it('should return empty array for ruby (interpreted language, no build step)', () => {
       const rubyConfig = {
         project_name: 'test',
         stack_profile: {
@@ -541,9 +541,9 @@ describe('CommandResolverService', () => {
       };
       const rubyService = new CommandResolverService(rubyConfig as any);
       const result = rubyService.getBuildCommand();
-      expect(result.some((cmd) => cmd.includes('rails assets:precompile'))).toBe(true);
-      expect(result.some((cmd) => cmd.includes('gem build'))).toBe(true);
-      expect(result.some((cmd) => cmd === 'bundle install')).toBe(false);
+      // Ruby/Rails is interpreted; assets:precompile is deploy, gem build is
+      // packaging. Neither belongs in implement-ticket's build phase.
+      expect(result).toEqual([]);
     });
 
     it('should handle java build', () => {
