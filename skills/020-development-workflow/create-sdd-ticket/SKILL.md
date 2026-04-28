@@ -86,26 +86,26 @@ Phases 0 and 0.5 are **complementary, not redundant**. Both inject target-projec
 
 | | Phase 0 — `project-context` | Phase 0.5 — LLM wiki + graph |
 |---|---|---|
-| Shape | narrative prose (synthesis output) | structured graph-backed docs + frontmatter index |
+| Shape | narrative prose (synthesis output) | structured graph-backed docs + summary index |
 | Authority | high for conventions, gotchas, file-placement, named patterns | **highest** for architecture, service boundaries, data flows, and any structural fact derivable from the AST |
 | Freshness | refreshed only on full `/initialize-project` re-runs | refreshed every PR via `/implement-ticket` Phase 8.5; `graph_commit` frontmatter shows currency |
-| Cost | one skill invocation | tier-1 frontmatter scan ≈ 100 tokens; tier-2 one graph call; tier-3 selective body expansion |
+| Cost | one skill invocation | router (≤150 lines) + 1–3 page bodies + at most one optional graph call |
 
 **Conflict-resolution rule** when both speak to the same fact: **the wiki wins** (graph-grounded + freshest). Use `project-context` for narrative gotchas, build/test commands, and conventions the wiki doesn't carry.
 
-If `docs/llm-wiki/wiki/` exists, preload it via tiered retrieval so gap detection consults pre-digested architecture instead of re-grepping the repo.
+If `docs/llm-wiki/` exists, defer retrieval to the wiki's own router. The router is project-specific and lists every available page with its summary inline; you do not need to walk frontmatter.
 
-1. **Tier 1 (cheap — frontmatter index).** For every wiki page (5 core docs + each `services/*.md`), parse YAML frontmatter only and collect `summary`, `confidence`, `document_type`, `related`. Persist as `WIKI_SUMMARY_INDEX` to `{{TEMP_DIR}}/tickets/<draft-id>/context/wiki-summary-index.md`. Cost: ~100 tokens regardless of project size.
+1. **Read the router.** Read `docs/llm-wiki/CLAUDE.md` (Claude provider) or `docs/llm-wiki/AGENTS.md` (Codex provider). Whichever exists for the active provider is the wiki's runtime entry point — capped at ~150 lines, with a decision table that names which page to consult for which question.
 
-2. **Tier 2 (one graph call).** Call `mcp__code_graph__get_minimal_context_tool({ task: "<user idea or ticket summary>", changed_files: [], base: "HEAD~1" })` EXACTLY ONCE. Preserve the full response — downstream `/implement-ticket` Phase 3 may reuse it.
+2. **Pick 1–3 pages from `index.md`.** Read `docs/llm-wiki/wiki/index.md` (it is the summary catalog: one line per page with summary / document_type / confidence / tags / related inline). Match the user's idea against the summaries; identify the 1–3 most relevant pages. Read **only** those page bodies. **Confidence-aware:** prefer `confidence: high` pages; if only `confidence: low` pages match, expand them but tag extracted facts as `confidence: low` so the planner verifies with a graph query.
 
-3. **Tier 3 (selective body expansion).** From Tier 2's response + the Tier 1 `summary` fields, identify the 1–3 most relevant pages. Read FULL bodies only for those (cap 5). Always include `docs/llm-wiki/wiki/index.md` (navigation hub). Collect expanded paths as `WIKI_CORE`. Match up to 3 service docs from `SERVICES.md` and the graph response; collect their absolute paths as `WIKI_SERVICES`. Other pages stay summary-only — their summary in Tier 1 is sufficient.
+3. **Optional graph call.** If the matched page bodies do not fully answer the gap-detection questions, call `mcp__code_graph__get_minimal_context_tool({ task: "<user idea or ticket summary>", changed_files: [], base: "HEAD~1" })` **at most once**. Preserve the full response — downstream `/implement-ticket` Phase 3 may reuse it.
 
-4. **Persist** to `{{TEMP_DIR}}/tickets/<draft-id>/context/wiki-context.md` with sections: `## WIKI_SUMMARIES` (Tier 1 path), `## WIKI_CORE`, `## WIKI_SERVICES`, `## get_minimal_context_tool Payload`.
+4. **Persist** the loaded context to `{{TEMP_DIR}}/tickets/<draft-id>/context/wiki-context.md` with sections: `## ROUTER` (the router file path), `## WIKI_INDEX_SNAPSHOT` (the index.md content), `## WIKI_CORE` (the 1–3 expanded page paths + bodies), `## get_minimal_context_tool Payload` (only when step 3 ran).
 
-**Confidence-aware expansion:** during Tier 3 page selection, prefer `confidence: high` pages over `confidence: low` for the same topic. If only `confidence: low` pages match a relevant topic, expand them BUT tag any extracted fact in the ticket with `confidence: low` so the planner downstream can verify with a graph query before committing.
+**Tier discipline:** start with the router → 1–3 page bodies → at most one graph call. Never read every wiki page; the index entry summary is sufficient unless the user's question matches the page's topic. Stop wikilink traversal at depth 2.
 
-**Fallback:** if `docs/llm-wiki/wiki/` is missing (project not yet initialized), log `wiki unavailable — falling back to project-context only` and continue with Phase 0's narrative only. Do NOT fail the skill. Do NOT call graph tools if the graph MCP server is unavailable.
+**Fallback:** if `docs/llm-wiki/` is missing (project not yet initialized), log `wiki unavailable — falling back to project-context only` and continue with Phase 0's narrative only. Do NOT fail the skill. Do NOT call graph tools if the graph MCP server is unavailable.
 
 Optional flag: pass `--skip-wiki` to bypass Phase 0.5 entirely (useful for freshly-cloned projects or offline environments). When `--skip-wiki` is present, log `wiki unavailable — falling back to project-context only` and proceed directly to Phase 1. Use this only when the wiki is known to be drift-prone — the framework's default assumption is that the wiki is fresher than `project-context`.
 
@@ -122,7 +122,7 @@ Validate the canonical ticket against the SDD requirements and, for every missin
 
 Required inference order:
 
-1. Consult `WIKI_CORE` and any matched `WIKI_SERVICES` first; every question the wiki already answers is removed from the gap list.
+1. Consult `WIKI_CORE` (the 1–3 page bodies loaded by Phase 0.5); every question the wiki already answers is removed from the gap list. If a matched page references a related page via `**Related:** [[...]]` and that related page is on-topic, expand it (depth ≤ 2).
 2. Graph queries — classify each remaining gap by question type and route to the matching tool (e.g. `mcp__code_graph__semantic_search_nodes_tool` for symbol lookups, `mcp__code_graph__query_graph_tool` for relationships). Do NOT default to `semantic_search_nodes_tool` for everything. See the routing table below; cap at 6 graph queries total for this step.
 3. Search `project-context` skill content and `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`.
 4. Codebase grep + related file inspection (narrowed by graph node paths from step 2 when available; reuse cached graph results instead of re-querying).

@@ -75,7 +75,7 @@ const graph = new StateGraph(ImplementTicketAnnotation)
 |-------|----------|---------|
 | 0 | 30-60s | Preflight: validate environment, LLM wiki presence; WARN (not fail) on stale wiki |
 | 1 | 1-2min | Context: fetch ticket from Jira/markdown/input |
-| 2 | 1-2min | Wiki Preload: tiered retrieval — Tier 1 summary index for all pages, Tier 2 one `get_minimal_context_tool` call, Tier 3 expand bodies for 1–3 relevant docs only |
+| 2 | 1-2min | Wiki Preload: read the wiki router (`docs/llm-wiki/CLAUDE.md`/`AGENTS.md`) and `index.md` (summary catalog), expand 1–3 matched page bodies, optionally call `get_minimal_context_tool` once if the matched bodies don't fully answer the planner's likely questions |
 | 3 | 2-5min | Planning: planner agent consumes wiki + graph context; produces Implementation Plan. Mid-session `⚠ BUDGET WARNING` messages injected via stop hooks when token thresholds are approached — informational, non-blocking. |
 | 4 | 1-3min | Environment: create branch, allocate ports, capture before-screenshots |
 | 5 | 3-8min | Implementation: graph-aware implementer consumes plan + wiki evidence. Also receives mid-session `⚠ BUDGET WARNING` stop-hook messages directing it to trim exploratory graph queries. |

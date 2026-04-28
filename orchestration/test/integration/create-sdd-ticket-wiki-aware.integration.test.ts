@@ -404,20 +404,24 @@ describe('create-sdd-ticket wiki-aware integration', () => {
       expect(phase05).toContain('docs/llm-wiki/wiki/');
     });
 
-    it('Phase 0.5 references docs/llm-wiki/wiki/services/<service-id>.md — the path auth.md follows', () => {
+    it('Phase 0.5 defers retrieval to the wiki router (CLAUDE.md / AGENTS.md), not a hard-coded frontmatter walk', () => {
       const phase05 = skillContent.slice(
         skillContent.indexOf('### Phase 0.5:'),
         skillContent.indexOf('### Phase 1:'),
       );
-      expect(phase05).toContain('docs/llm-wiki/wiki/services/<service-id>.md');
+      expect(phase05).toMatch(/Read `docs\/llm-wiki\/(CLAUDE|AGENTS)\.md`/);
+      // Anti-regression: never re-introduce the hard-coded Tier 1 frontmatter walk.
+      expect(phase05).not.toMatch(/frontmatter only/i);
+      expect(phase05).not.toContain('WIKI_SUMMARY_INDEX');
+      expect(phase05).not.toContain('wiki-summary-index.md');
     });
 
-    it('Phase 0.5 references index in the core docs list', () => {
+    it('Phase 0.5 references the index summary catalog as the Tier 1 entry point', () => {
       const phase05 = skillContent.slice(
         skillContent.indexOf('### Phase 0.5:'),
         skillContent.indexOf('### Phase 1:'),
       );
-      expect(phase05).toContain('index');
+      expect(phase05).toContain('docs/llm-wiki/wiki/index.md');
     });
 
     it('wiki-context.md persistence path uses TEMP_DIR placeholder', () => {

@@ -37,8 +37,12 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
       expect(content).toContain('WIKI_CORE');
     });
 
-    it('Phase 0.5 includes WIKI_SERVICES collection step', () => {
-      expect(content).toContain('WIKI_SERVICES');
+    it('Phase 0.5 defers Tier 1 to the wiki router (CLAUDE.md / AGENTS.md)', () => {
+      // Phase 0.5 must read the project's own wiki router doc rather than walking
+      // every page's frontmatter. Anti-regression for the Karpathy router redesign.
+      expect(content).toMatch(/Read `docs\/llm-wiki\/(CLAUDE|AGENTS)\.md`/);
+      expect(content).not.toMatch(/frontmatter only/i);
+      expect(content).not.toContain('WIKI_SUMMARY_INDEX');
     });
 
     it('Phase 0.5 includes mcp__code_graph__get_minimal_context_tool call', () => {

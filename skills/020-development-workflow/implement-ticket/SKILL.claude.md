@@ -84,15 +84,15 @@ Create each task using TaskCreate with these exact values:
 
 3. Phase 2: Wiki Context Preload
    subject: "Phase 2: Wiki Context Preload"
-   activeForm: "Preloading LLM wiki context (tiered)"
-   Steps: (Tier 1) Read frontmatter only from every wiki page (`docs/llm-wiki/wiki/*.md` plus `services/*.md`) to build a summary index — extract `summary`, `confidence`, `document_type` per page using gray-matter (stop at second `---`), persist index to `$ARTIFACTS_DIR/context/wiki-summary-index.md`; (Tier 2) call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` exactly once and preserve full response; (Tier 3) from Tier 2 response and Tier 1 index identify 1–3 most relevant pages, always include `index.md` body, expand full bodies only for those pages (cap 5 total) as `WIKI_CORE`; extract relevant service IDs from Tier 2 and `SERVICES.md`, expand those service docs as `WIKI_SERVICES` (within 5-page cap); persist `WIKI_CORE`, `WIKI_SERVICES`, `WIKI_SUMMARIES` path, and the raw `get_minimal_context_tool` payload to `$ARTIFACTS_DIR/context/wiki-context.md`
-   Expected outputs: `$ARTIFACTS_DIR/context/wiki-summary-index.md` exists with frontmatter summaries; `$ARTIFACTS_DIR/context/wiki-context.md` exists and contains `WIKI_CORE`, `WIKI_SERVICES`, `WIKI_SUMMARIES`, and the preserved `get_minimal_context_tool` payload for reuse by the planner
-   Constraint: Do not proceed if `wiki-context.md` is missing, `index.md` body failed to load, or `get_minimal_context_tool` failed. `WIKI_SERVICES` may be empty when no service was implicated. The `get_minimal_context_tool` call MUST NOT be re-issued by later phases.
+   activeForm: "Preloading LLM wiki context via the wiki router"
+   Steps: (1) Read `docs/llm-wiki/CLAUDE.md` — the wiki's runtime router (≤150 lines, decision table tells which page to consult for which question); (2) Read `docs/llm-wiki/wiki/index.md` — the summary catalog with one line per page and summary / document_type / confidence / tags / related inline. Match the ticket summary against the index entries and pick the 1–3 most relevant pages; (3) Read full bodies for those pages (cap 5 — the index entry summary is sufficient for everything else). Stop wikilink traversal at depth 2; (4) Optional: if the matched bodies do not fully answer the planner's likely questions, call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` AT MOST ONCE and preserve the full response — the planner in Phase 3 may reuse it; (5) Persist `$ARTIFACTS_DIR/context/wiki-context.md` with sections `## ROUTER` (router file path), `## WIKI_INDEX_SNAPSHOT` (the index.md content), `## WIKI_CORE` (the 1–3 expanded page paths and bodies), and `## get_minimal_context_tool Payload` (only when step 4 ran).
+   Expected outputs: `$ARTIFACTS_DIR/context/wiki-context.md` exists and contains `## ROUTER`, `## WIKI_INDEX_SNAPSHOT`, `## WIKI_CORE`, and (when step 4 ran) `## get_minimal_context_tool Payload`
+   Constraint: Do not proceed if `wiki-context.md` is missing or the wiki router could not be loaded. Step 4 is optional — skip it when the matched pages already answer the planner's likely questions. When step 4 runs, the call MUST NOT be re-issued by later phases.
 
 4. Phase 3: Planning
    subject: "Phase 3: Planning"
    activeForm: "Creating implementation plan"
-   Steps: MUST spawn planner agent, planner consumes the ticket context from Phase 1 and the Phase 2 wiki context (`WIKI_CORE`, `WIKI_SERVICES`, preserved `get_minimal_context_tool` payload), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact, planner emits a `Recommended Implementer` section naming exactly one of `implementer-typescript` | `implementer-python` | `implementer-generic` with rationale
+   Steps: MUST spawn planner agent, planner consumes the ticket context from Phase 1 and the Phase 2 wiki context (`WIKI_INDEX_SNAPSHOT`, `WIKI_CORE`, and the optional `get_minimal_context_tool` payload when present), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact, planner emits a `Recommended Implementer` section naming exactly one of `implementer-typescript` | `implementer-python` | `implementer-generic` with rationale
    Expected outputs: planner agent was spawned with the Phase 2 wiki context injected, parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 3 planning artifact, Wiki Evidence exists and cites the wiki paths actually used, Graph Evidence exists, test strategy defined, files to create/modify identified, `Recommended Implementer` present in the plan naming one of `implementer-typescript` | `implementer-python` | `implementer-generic`
    Constraint: Do not proceed if planner agent was not spawned, Wiki Evidence or Graph Evidence is absent, the planner-authored `Implementation Plan` does not exist, Phase 3 produced competing planning artifacts, or `Recommended Implementer` is missing.
 
@@ -106,7 +106,7 @@ Create each task using TaskCreate with these exact values:
 6. Phase 5: Implementation
    subject: "Phase 5: Implementation"
    activeForm: "Implementing code changes"
-   Steps: MUST spawn graph-aware implementer-{lang} agent with the planner-authored `Implementation Plan` from Phase 3, pass the same `WIKI_SERVICES` paths the planner cited plus the plan's `Wiki Evidence` and `Graph Evidence`, implementer absorbs those artifacts before any fresh discovery, implementer runs targeted graph checks only for high-risk edits flagged by the plan, implements code following the plan, follows project conventions from {{INSTRUCTION_FILE}}, creates/modifies files as needed, includes wiki pages consulted and any fresh graph queries in the final implementation summary, implementer MUST end its completion summary with a `## Wiki Delta Hints` JSONL fenced block (see implementer template); the block may be empty if no wiki impact, but the section MUST be present
+   Steps: MUST spawn graph-aware implementer-{lang} agent with the planner-authored `Implementation Plan` from Phase 3, pass the same `WIKI_CORE` page paths the planner cited (including any service docs the wiki router already matched) plus the plan's `Wiki Evidence` and `Graph Evidence`, implementer absorbs those artifacts before any fresh discovery, implementer runs targeted graph checks only for high-risk edits flagged by the plan, implements code following the plan, follows project conventions from {{INSTRUCTION_FILE}}, creates/modifies files as needed, includes wiki pages consulted and any fresh graph queries in the final implementation summary, implementer MUST end its completion summary with a `## Wiki Delta Hints` JSONL fenced block (see implementer template); the block may be empty if no wiki impact, but the section MUST be present
    Expected outputs: graph-aware implementer agent was spawned, implementer confirmed it consumed the plan's Wiki Evidence and Graph Evidence, code changes exist, new files created as planned, completion summary contains a parseable `## Wiki Delta Hints` JSONL block
    Constraint: Do not proceed if implementer agent was not spawned, the plan's Wiki Evidence / Graph Evidence were not consumed, no code changes exist, or the implementer did not emit a parseable Wiki Delta Hints block.
 
@@ -215,23 +215,23 @@ CONTINUE WITH Phase 2.
 
 ### Phase 2: Wiki Context Preload
 
-Preload the LLM wiki so the planner can rely on pre-digested architecture summaries instead of rediscovering them via graph queries. Use a **tiered retrieval approach** — read summaries first for all pages, then expand full bodies only for the most relevant ones. Do ALL of the following in order:
+Preload the LLM wiki so the planner can rely on pre-digested architecture instead of rediscovering it via graph queries. The wiki ships its own runtime router; defer to it instead of hard-coding a frontmatter walk. Do ALL of the following in order:
 
-1. **Tier 1 (cheap — summary index).** Load every wiki page's frontmatter `summary`, `confidence`, and `document_type` into a single index. Read `docs/llm-wiki/wiki/index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`, plus every `docs/llm-wiki/wiki/services/*.md`. Use `gray-matter` (or read the file head until the second `---`) to extract frontmatter only — do NOT read full bodies in Tier 1. Persist the index to `$ARTIFACTS_DIR/context/wiki-summary-index.md`.
+1. **Read the router.** Open `docs/llm-wiki/CLAUDE.md` (the wiki's runtime router, ≤150 lines). Its decision table tells you which page to consult for which question — architecture, a specific service, request lifecycles, testing/conventions, or "I don't know which page".
 
-2. **Tier 2 (call once).** Call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` EXACTLY ONCE. Preserve full response — it will be reused by the planner in Phase 3 and MUST NOT be re-issued by any downstream phase.
+2. **Read the index.** Open `docs/llm-wiki/wiki/index.md` — the summary catalog. One line per page with summary / document_type / confidence / tags / related inline. This is Tier 1: a single read of `index.md` carries the same information today's frontmatter walk used to gather across N files.
 
-3. **Tier 3 (expand selectively).** From Tier 2's response and the Tier 1 summary index, identify the 1–3 most relevant pages. Expand FULL bodies only for those (cap at 5 total). Always include `index.md`'s body (the navigation hub). For all other pages, the summary from Tier 1 is sufficient. Collect expanded paths as `WIKI_CORE`.
+3. **Pick 1–3 pages and expand them.** Match the ticket summary against the index entries; identify the 1–3 most relevant pages. Read their full bodies (cap 5 — the index summary is sufficient for everything else). Always include `index.md`'s body. **Confidence-aware:** prefer `confidence: high` pages; if only `confidence: low` matches, expand them but tag extracted facts as `confidence: low`. Stop wikilink traversal at depth 2.
 
-4. From the Tier 2 response and `SERVICES.md`, extract relevant service IDs for this ticket. For each, resolve `docs/llm-wiki/wiki/services/<service-id>.md`. Expand their full bodies (still within the 5-page cap). Collect matches as `WIKI_SERVICES`.
+4. **Optional graph call.** If the matched bodies do not fully answer the planner's likely questions, call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` AT MOST ONCE. Preserve the full response — the planner in Phase 3 may reuse it. The call MUST NOT be re-issued by any downstream phase.
 
 5. **Persist.** Write `$ARTIFACTS_DIR/context/wiki-context.md` with these sections:
-   - `## WIKI_CORE` — list of paths actually expanded
-   - `## WIKI_SERVICES` — list of paths (may be empty)
-   - `## WIKI_SUMMARIES` — path to the Tier 1 summary index (`$ARTIFACTS_DIR/context/wiki-summary-index.md`)
-   - `## get_minimal_context_tool Payload` — the full preserved response
+   - `## ROUTER` — the path to the router file (`docs/llm-wiki/CLAUDE.md`)
+   - `## WIKI_INDEX_SNAPSHOT` — the content of `index.md`
+   - `## WIKI_CORE` — the 1–3 expanded page paths and their full bodies
+   - `## get_minimal_context_tool Payload` — the full preserved response, only when step 4 ran
 
-CRITICAL: Do not proceed to Phase 3 if `wiki-context.md` is missing, `index.md` body failed to load, or `get_minimal_context_tool` failed. `WIKI_SERVICES` may legitimately be empty for tickets that touch no identified service.
+CRITICAL: Do not proceed to Phase 3 if `wiki-context.md` is missing or the router could not be loaded. Step 4 is optional — skip it when the matched pages already answer the planner's likely questions. The graph call (when made) MUST NOT be re-issued by later phases.
 
 CONTINUE WITH Phase 3.
 
@@ -262,7 +262,7 @@ CONTINUE WITH Phase 5.
 Spawn the stack-specific `implementer-{lang}` via `Task(subagent_type: <picked-from-plan>, prompt: ...)`. Pick the subagent_type from the planner's `Recommended Implementer`. Keep the prompt short — the implementer's system prompt already covers methodology. Include only:
 - Ticket ID and one-line summary
 - Input paths: `$ARTIFACTS_DIR/plans/implementation-plan.md`, `$ARTIFACTS_DIR/context/wiki-context.md`
-- Reminder: consult the cited `WIKI_SERVICES` pages for conventions; use `mcp__code_graph` to verify impacts before touching anything the plan flags high-risk; reuse the plan's `Graph Evidence` — do not re-run those queries.
+- Reminder: consult the cited `WIKI_CORE` pages (including any service docs already matched by the wiki router) for conventions; use `mcp__code_graph` to verify impacts before touching anything the plan flags high-risk; reuse the plan's `Graph Evidence` — do not re-run those queries.
 
 Verify: code changes exist; completion summary lists wiki pages consulted and any fresh graph checks; completion summary contains a `## Wiki Delta Hints` JSONL fenced block (may be empty, but section must be present).
 
