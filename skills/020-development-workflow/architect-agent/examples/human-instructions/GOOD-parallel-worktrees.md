@@ -76,7 +76,7 @@ echo "Task B branch: $TASK_B_BRANCH"
 ### Expected Output
 
 ```
-Creating worktrees from: /Users/you/projects/myapp
+Creating worktrees from: ~/projects/myapp
 Task A branch: feature/json-import
 Task B branch: feature/embeddings
 ```
@@ -119,9 +119,9 @@ git worktree list
 
 Expected:
 ```
-/Users/you/projects/myapp                     abc1234 [main]
-/Users/you/projects/myapp/.worktrees/task-a   abc1234 [feature/json-import]
-/Users/you/projects/myapp/.worktrees/task-b   abc1234 [feature/embeddings]
+~/projects/myapp                     abc1234 [main]
+~/projects/myapp/.worktrees/task-a   abc1234 [feature/json-import]
+~/projects/myapp/.worktrees/task-b   abc1234 [feature/embeddings]
 ```
 
 ### If This Fails
@@ -194,8 +194,8 @@ echo "Task B: cd $PROJECT_ROOT/.worktrees/task-b"
 ### Expected Output
 
 ```
-Task A: cd /Users/you/projects/myapp/.worktrees/task-a
-Task B: cd /Users/you/projects/myapp/.worktrees/task-b
+Task A: cd ~/projects/myapp/.worktrees/task-a
+Task B: cd ~/projects/myapp/.worktrees/task-b
 ```
 
 ### Verification
@@ -209,7 +209,7 @@ git branch --show-current
 
 Expected for Task A:
 ```
-/Users/you/projects/myapp/.worktrees/task-a
+~/projects/myapp/.worktrees/task-a
 feature/json-import
 ```
 

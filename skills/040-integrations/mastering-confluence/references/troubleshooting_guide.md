@@ -368,7 +368,7 @@ ls -lh ./diagrams/architecture.png
 ![Diagram](./diagrams/architecture.png)
 
 # Use absolute:
-![Diagram](/Users/you/project/diagrams/architecture.png)
+![Diagram](~/project/diagrams/architecture.png)
 ```
 
 **Check 3: Verify working directory**

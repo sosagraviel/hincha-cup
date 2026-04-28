@@ -23,7 +23,7 @@ If directories exist, inform user this appears to be an existing workspace.
 Ask user:
 ```
 Where is the code agent workspace located?
-Example: /Users/user/projects/my-project
+Example: ~/projects/my-project
 ```
 
 Store this path for CLAUDE.md configuration.

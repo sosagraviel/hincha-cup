@@ -1287,6 +1287,7 @@ cat debugging/instructions/current_instructions.md
 - Use `*` for single-level wildcards
 
 **Examples:**
+<!-- portable-example-start -->
 ```json
 {
   "allow": [
@@ -1297,6 +1298,7 @@ cat debugging/instructions/current_instructions.md
   ]
 }
 ```
+<!-- portable-example-end -->
 
 ### Finding Absolute Paths
 
@@ -1331,6 +1333,7 @@ Grant only the permissions needed for the workflow:
 ```
 
 **✅ Appropriately Scoped:**
+<!-- portable-example-start -->
 ```json
 {
   "allow": [
@@ -1340,6 +1343,7 @@ Grant only the permissions needed for the workflow:
   ]
 }
 ```
+<!-- portable-example-end -->
 
 ### Sensitive Operations
 
@@ -1418,6 +1422,7 @@ Grant only the permissions needed for the workflow:
 
 **Solution:**
 1. Architect workspace permissions:
+   <!-- portable-example-start -->
    ```json
    {
      "allow": [
@@ -1426,6 +1431,7 @@ Grant only the permissions needed for the workflow:
      ]
    }
    ```
+   <!-- portable-example-end -->
 2. Created `instructions/` and `human/` directories in code workspace
 3. Result: Seamless instruction delivery
 
@@ -1435,6 +1441,7 @@ Grant only the permissions needed for the workflow:
 
 **Solution:**
 1. Architect workspace permissions:
+   <!-- portable-example-start -->
    ```json
    {
      "allow": [
@@ -1442,6 +1449,7 @@ Grant only the permissions needed for the workflow:
      ]
    }
    ```
+   <!-- portable-example-end -->
 2. Result: Architect can read logs and grade work
 
 ---

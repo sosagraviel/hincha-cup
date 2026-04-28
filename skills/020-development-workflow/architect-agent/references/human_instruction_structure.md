@@ -209,7 +209,7 @@ Worktrees let you work on multiple branches simultaneously without switching or 
 ### Commands
 
 ```bash
-cd /Users/you/projects/myproject
+cd ~/projects/myproject
 
 # Create worktree for feature A
 git worktree add .worktrees/feature-a -b feature-a main
@@ -239,9 +239,9 @@ git worktree list
 
 Expected:
 ```
-/Users/you/projects/myproject                    abc1234 [main]
-/Users/you/projects/myproject/.worktrees/feature-a  abc1234 [feature-a]
-/Users/you/projects/myproject/.worktrees/feature-b  abc1234 [feature-b]
+~/projects/myproject                    abc1234 [main]
+~/projects/myproject/.worktrees/feature-a  abc1234 [feature-a]
+~/projects/myproject/.worktrees/feature-b  abc1234 [feature-b]
 ```
 
 ### If This Fails
