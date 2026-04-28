@@ -235,15 +235,15 @@ Search for these code types using framework-specific patterns:
 
 ### Backend Services
 
-| Code Type                       | Search Strategy                               | Example Patterns by Framework                                                                          |
-| ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Database Models/Entities**    | ORM decorators, class definitions with fields | NestJS: `@Entity()`, Django: `models.Model`, Go: struct tags, Rust: `#[derive]`                        |
-| **Controllers/Handlers/Routes** | Route decorators, HTTP method handlers        | NestJS: `@Controller()`, Django: `views.py`, Go: `router.Group()`, Rust: `Router::new()`               |
-| **Services/Business Logic**     | Service classes, business logic               | NestJS: `@Injectable()`, Django: `services.py`, Go: `service/`, Rust: `impl` blocks                    |
-| **DTOs/Request-Response**       | Data transfer objects, validation schemas     | NestJS: `class.*Dto`, Django: `serializers.py`, Go: request/response structs, Rust: Serde derives      |
-| **Database Migrations**         | Migration files in ORM-specific locations     | TypeORM: `src/**/migrations/*.ts`, Alembic: `alembic/versions/*.py`, GORM: `migrations/*.go`           |
-| **Guards/Middleware**           | Auth guards, middleware functions             | NestJS: `@Injectable()` guards, Django: `middleware.py`, Go: middleware funcs, Rust: middleware layers |
-| **Config/Environment**          | Config classes, env loaders                   | NestJS: `@nestjs/config`, Django: `settings.py`, Go: viper/env configs, Rust: config crates            |
+| Code Type                       | Search Strategy                               | Example Patterns by Framework                                                                                                                                            |
+| ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Database Models/Entities**    | ORM decorators, class definitions with fields | NestJS: `@Entity()`, Django: `models.Model`, Go: struct tags, Rust: `#[derive]`, Rails: `app/models/*.rb` inheriting `ApplicationRecord`                                 |
+| **Controllers/Handlers/Routes** | Route decorators, HTTP method handlers        | NestJS: `@Controller()`, Django: `views.py`, Go: `router.Group()`, Rust: `Router::new()`, Rails: `app/controllers/**/*_controller.rb` + `config/routes.rb`               |
+| **Services/Business Logic**     | Service classes, business logic               | NestJS: `@Injectable()`, Django: `services.py`, Go: `service/`, Rust: `impl` blocks, Rails: `app/services/**/*.rb` (convention) or `app/models/concerns/`                |
+| **DTOs/Request-Response**       | Data transfer objects, validation schemas     | NestJS: `class.*Dto`, Django: `serializers.py`, Go: request/response structs, Rust: Serde derives, Rails: `app/views/**/*.jbuilder` or strong_params in controllers      |
+| **Database Migrations**         | Migration files in ORM-specific locations     | TypeORM: `src/**/migrations/*.ts`, Alembic: `alembic/versions/*.py`, GORM: `migrations/*.go`, Rails: `db/migrate/*.rb` + `db/schema.rb`                                  |
+| **Guards/Middleware**           | Auth guards, middleware functions             | NestJS: `@Injectable()` guards, Django: `middleware.py`, Go: middleware funcs, Rust: middleware layers, Rails: Rack middleware, `before_action` callbacks in controllers |
+| **Config/Environment**          | Config classes, env loaders                   | NestJS: `@nestjs/config`, Django: `settings.py`, Go: viper/env configs, Rust: config crates, Rails: `config/application.rb`, `config/environments/*.rb`                  |
 
 ### Frontend Services
 
@@ -268,12 +268,12 @@ Search for these code types using framework-specific patterns:
 
 ### Testing
 
-| Code Type             | Search Strategy              | Example Patterns                                               |
-| --------------------- | ---------------------------- | -------------------------------------------------------------- |
-| **Unit Tests**        | Co-located test files        | `**/*.spec.ts`, `**/*.test.py`, `**/*_test.go`, `**/*.spec.js` |
-| **Integration Tests** | Integration test directories | `tests/integration/`, `e2e/`, `__tests__/integration/`         |
-| **E2E Tests**         | E2E test directories         | `e2e/`, `tests/e2e/`, `playwright/`, `cypress/`                |
-| **Test Fixtures**     | Test data and fixtures       | `tests/fixtures/`, `__fixtures__/`, `testdata/`                |
+| Code Type             | Search Strategy              | Example Patterns                                                                               |
+| --------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Unit Tests**        | Co-located test files        | `**/*.spec.ts`, `**/*.test.py`, `**/*_test.go`, `**/*.spec.js`, `**/*_spec.rb`, `**/*_test.rb` |
+| **Integration Tests** | Integration test directories | `tests/integration/`, `e2e/`, `__tests__/integration/`                                         |
+| **E2E Tests**         | E2E test directories         | `e2e/`, `tests/e2e/`, `playwright/`, `cypress/`                                                |
+| **Test Fixtures**     | Test data and fixtures       | `tests/fixtures/`, `__fixtures__/`, `testdata/`                                                |
 
 ### Infrastructure/Deployment
 
@@ -403,6 +403,7 @@ Look for database client libraries in dependencies:
 - **GORM:** Look for `gorm.Model` embeds
 - **Diesel:** Look for `diesel::prelude` imports
 - **Hibernate/JPA:** Look for `@Entity` annotations
+- **ActiveRecord:** Look for classes inheriting from `ApplicationRecord` (or `ActiveRecord::Base` in legacy Rails)
 
 ### Migration Detection
 
@@ -435,6 +436,10 @@ Search for: AutoMigrate() calls in code
 # Diesel (Rust)
 **/migrations/*.sql
 Look for: diesel migration run
+
+# Rails (ActiveRecord)
+**/db/migrate/*.rb + db/schema.rb (or db/structure.sql)
+Look for: bin/rails db:migrate, rake db:migrate
 ```
 
 **Read package.json (or equivalent) scripts to find migration commands.**
