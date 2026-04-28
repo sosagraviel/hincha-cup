@@ -79,20 +79,12 @@ export const COMMAND_DEFAULTS: Record<string, CommandSet> = {
     build: 'composer install',
   },
   ruby: {
-    // Always go through bundler so the version pinned in the project's Gemfile
-    // wins over a system-wide gem (mirrors what code-quality-check and
-    // security-review do). RuboCop covers both lint and format via -a.
     lint: 'bundle exec rubocop',
     format: 'bundle exec rubocop -a',
-    // Ruby has no default static type checker. Steep / Sorbet are opt-in and
-    // very rare in real-world projects; assuming Steep would render a failing
-    // command on every Rails app. Leave empty so the agent skips this step.
+    // Ruby has no default static type checker.
     typecheck: '',
     test: 'bundle exec rspec',
-    // Ruby is interpreted — no build step. `bundle install` is install, not
-    // build; `rails assets:precompile` is a deploy task; `gem build *.gemspec`
-    // is for gem authors only. Keep this empty to match `command-resolver`'s
-    // `getBuildCommand()`, which returns [] for Ruby for the same reason.
+    // Ruby is interpreted — no build step.
     build: '',
   },
 };

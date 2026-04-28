@@ -139,8 +139,8 @@ RSpec/MultipleExpectations:
 ```bash
 bundle exec rubocop                    # Check everything
 bundle exec rubocop app spec           # Specific paths
-bundle exec rubocop -A                 # Auto-correct safe issues
-bundle exec rubocop -a                 # Auto-correct all (review first!)
+bundle exec rubocop -a                 # Auto-correct safe issues
+bundle exec rubocop -A                 # Auto-correct all, including unsafe ones that may change semantics. (review first!)
 bundle exec rubocop --parallel         # Multi-core
 bundle exec rubocop --format github    # GitHub Actions annotations
 
@@ -284,8 +284,8 @@ See [performance.md](performance.md) for deeper profiling strategies.
 | -------------------- | ---------------------- | ---------------------------------------- |
 | Version manager      | mise / rbenv           | `mise use ruby@3.3.5`                    |
 | Dependencies         | Bundler                | `bundle install`                         |
-| Linting              | RuboCop                | `bundle exec rubocop -A`                 |
-| Formatting           | RuboCop (built-in)     | `bundle exec rubocop -A`                 |
+| Linting              | RuboCop                | `bundle exec rubocop -a`                 |
+| Formatting           | RuboCop (built-in)     | `bundle exec rubocop -a`                 |
 | Testing              | RSpec / Minitest       | `bundle exec rspec`                      |
 | Coverage             | SimpleCov              | `COVERAGE=true bundle exec rspec`        |
 | Security (SAST)      | Brakeman               | `bundle exec brakeman`                   |

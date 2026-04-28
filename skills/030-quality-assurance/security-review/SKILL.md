@@ -198,9 +198,6 @@ detect_language_and_tools() {
         if (bundle exec bundle-audit --version &>/dev/null) || command -v bundle-audit &>/dev/null; then
             TOOLS="$TOOLS bundler-audit"
         fi
-        if (bundle exec rubocop --version &>/dev/null) || command -v rubocop &>/dev/null; then
-            TOOLS="$TOOLS rubocop-security"
-        fi
 
         echo "Language: Ruby"
         echo "Rails project: $IS_RAILS"
@@ -420,17 +417,6 @@ run_ruby_security_scan() {
             installed_version=$(${BUNDLE_PREFIX}bundle-audit --version 2>/dev/null | head -n1)
             echo "bundle-audit: INCONCLUSIVE (output is not valid JSON — likely an older bundler-audit; got: ${installed_version:-unknown}). Upgrade to bundler-audit >= 0.10 to enable JSON parsing."
         fi
-    fi
-
-    # 3. RuboCop Security cops - Static checks for unsafe patterns
-    if (bundle exec rubocop --version &>/dev/null) || command -v rubocop &>/dev/null; then
-        echo "Running rubocop with Security cops..."
-        ${BUNDLE_PREFIX}rubocop --only Security --format json \
-            --out "$artifacts_dir/rubocop-security.json" . 2>&1 || true
-
-        # Parse results
-        rubocop_security_issues=$(jq '[.files[].offenses[]] | length' "$artifacts_dir/rubocop-security.json" 2>/dev/null || echo "0")
-        echo "RuboCop Security found $rubocop_security_issues issues"
     fi
 
     echo "Ruby/Rails security scans complete"

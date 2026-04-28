@@ -212,10 +212,6 @@ export class CommandResolverService {
       commands.push('sbt compile', 'sbt package');
     } else if (primaryLang === 'ruby') {
       // Ruby (including Rails) is interpreted — there is no build step.
-      // `rails assets:precompile` is a deploy task (run by Kamal/Capistrano),
-      // not a build, and `gem build *.gemspec` only applies to gem authors
-      // packaging a release. Both are out of scope for implement-ticket, so
-      // we return no commands and let callers treat Ruby as build-less.
     }
 
     return commands.filter(Boolean);

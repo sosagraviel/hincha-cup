@@ -154,7 +154,7 @@ detect_language_and_tools() {
         # Linter + formatter (RuboCop covers both)
         if (bundle exec rubocop --version &>/dev/null) || command -v rubocop &>/dev/null; then
             LINTER="${BUNDLE_PREFIX}rubocop"
-            FORMATTER="${BUNDLE_PREFIX}rubocop -A"
+            FORMATTER="${BUNDLE_PREFIX}rubocop -a"
         fi
 
         # Test runner (RSpec preferred, then Rails Minitest, then rake)
@@ -772,7 +772,7 @@ npx eslint --fix .
 npx prettier --write .
 
 # Ruby
-rubocop -A
+rubocop -a
 \`\`\`
 
 ---
