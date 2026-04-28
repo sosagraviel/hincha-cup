@@ -88,10 +88,49 @@ function deriveServiceTags(service: Record<string, unknown>): string[] {
   if (isRecord(service.frameworks)) {
     const main = service.frameworks.main;
     if (typeof main === 'string' && main.length > 0) {
-      tags.push(main.toLowerCase());
+      tags.push(...cleanFrameworkTokens(main));
     }
   }
-  return uniqueStrings(tags);
+  return uniqueStrings(tags).slice(0, 5);
+}
+
+/**
+ * Normalize a free-form `frameworks.main` string (e.g.
+ *   `"NestJS ^11.0.11"`
+ *   `"class-transformer ^0.5.1 + class-validator ^0.14.1"`
+ *   `"@keycloak/keycloak-admin-client ^26.1.4"`
+ * ) into a small set of clean lowercase tag tokens.
+ *
+ * Split on `+` (multi-package joiners). For each part: strip version
+ * constraints (`^x.y.z`, `~x.y.z`, bare `x.y.z`), drop the leading
+ * `@scope/` prefix, lowercase, replace whitespace with `-`. Drop any
+ * candidate longer than 30 chars or empty after cleanup.
+ */
+function cleanFrameworkTokens(raw: string): string[] {
+  const parts = raw.split('+').map((p) => p.trim());
+  const out: string[] = [];
+  for (const part of parts) {
+    if (part.length === 0) continue;
+
+    // Strip version-like trailing tokens. Examples we kill:
+    //   "NestJS ^11.0.11"     → "NestJS"
+    //   "class-transformer ~0.5.1" → "class-transformer"
+    //   "pg 8.13.1"           → "pg"
+    //   "Foo >=2.0"           → "Foo"
+    let cleaned = part.replace(/\s+[\^~>=<]?[\d][\w.\-*]*\s*$/, '').trim();
+    if (cleaned.length === 0) continue;
+
+    // Drop scope prefix `@scope/` so e.g. `@keycloak/keycloak-admin-client`
+    // becomes `keycloak-admin-client` (the package name is what readers grep).
+    cleaned = cleaned.replace(/^@[^/]+\//, '');
+
+    // Slugify whitespace runs to dashes; drop residual non-tag characters.
+    cleaned = cleaned.toLowerCase().replace(/\s+/g, '-');
+
+    if (cleaned.length === 0 || cleaned.length > 30) continue;
+    out.push(cleaned);
+  }
+  return out;
 }
 
 export function buildPrompt(spec: WikiDocumentSpec, projectPath: string): string {
@@ -280,7 +319,7 @@ function deriveCoreTags(
       if (isRecord(service.frameworks)) {
         const main = service.frameworks.main;
         if (typeof main === 'string' && main.length > 0) {
-          tags.push(main.toLowerCase());
+          tags.push(...cleanFrameworkTokens(main));
         }
       }
     }
