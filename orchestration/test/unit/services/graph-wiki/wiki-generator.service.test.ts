@@ -94,6 +94,38 @@ describe('wiki-generator.service', () => {
     };
   }
 
+  it('drops non-canonical graph_queries_used strings from wiki frontmatter (defence in depth)', async () => {
+    const input = buildInput();
+    // Simulate a Phase 1 regression: free-form prose in graph_queries_used.
+    input.analyzers = {
+      ...input.analyzers,
+      structure_architecture: {
+        ...input.analyzers.structure_architecture!,
+        graph_queries_used: [
+          "list_communities({ detail_level: 'standard' }) — exceeded token limit",
+          'mcp__code_graph__list_communities_tool',
+        ],
+      },
+    };
+
+    const service = new WikiGeneratorService({
+      ...input,
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => `# ${filename}\n\nbody`,
+    });
+
+    const result = await service.generateAll();
+
+    for (const file of result.files) {
+      if (!file.filename.startsWith('wiki/')) continue;
+      const data = matter(file.content).data as Record<string, unknown>;
+      const queries = (data.graph_queries_used ?? []) as string[];
+      expect(queries.every((q) => /^mcp__code_graph__[A-Za-z0-9_]+$/.test(q))).toBe(true);
+      expect(queries).not.toContain(
+        "list_communities({ detail_level: 'standard' }) — exceeded token limit",
+      );
+    }
+  });
+
   it('invokes the agent only for LLM-backed docs (SERVICES.md is now deterministic)', async () => {
     const invocations: string[] = [];
     const service = new WikiGeneratorService({

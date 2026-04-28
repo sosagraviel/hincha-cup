@@ -7,6 +7,7 @@ import { computeGraphCommit, computeGraphVersion, invokeWikiAgent } from './agen
 import { buildCoreSpecs, buildPrompt, buildServiceSpec } from './document-specs.js';
 import { buildContextSection, stripMarkdownFrontmatter, withFrontmatter } from './frontmatter.js';
 import { collectAnalyzerGraphQueries, getServices } from './service-discovery.js';
+import { normalizeGraphQueriesUsed } from './query-name-normalizer.js';
 import {
   ALL_SCHEMA_FILENAMES,
   GENERATED_BY,
@@ -516,7 +517,9 @@ export class WikiGeneratorService {
     graphCommit: string,
   ): GeneratedWikiFile {
     const projectName = basename(this.options.projectPath);
-    const graphQueriesUsed = uniqueStrings(collectAnalyzerGraphQueries(this.options.analyzers));
+    const graphQueriesUsed = normalizeGraphQueriesUsed(
+      collectAnalyzerGraphQueries(this.options.analyzers),
+    );
 
     const entries = pages
       .filter((page) => page.filename !== 'wiki/index.md')

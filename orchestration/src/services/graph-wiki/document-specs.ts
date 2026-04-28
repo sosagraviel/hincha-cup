@@ -10,6 +10,7 @@ import {
   discoverDependencies,
   discoverEntryPoints,
 } from './service-discovery.js';
+import { normalizeGraphQueriesUsed } from './query-name-normalizer.js';
 import {
   isEmptyValue,
   isRecord,
@@ -46,9 +47,9 @@ export function buildServiceSpec(
     filename: `services/${slugifyServiceId(serviceId)}.md`,
     documentType: 'service',
     title: `Service: ${serviceId}`,
-    graphQueriesUsed: uniqueStrings([
-      ...(analyzers.structure_architecture?.graph_queries_used ?? []),
-      ...(analyzers.tech_stack_dependencies?.graph_queries_used ?? []),
+    graphQueriesUsed: normalizeGraphQueriesUsed([
+      ...((analyzers.structure_architecture?.graph_queries_used ?? []) as string[]),
+      ...((analyzers.tech_stack_dependencies?.graph_queries_used ?? []) as string[]),
     ]),
     promptFocus: [
       `Document only the "${serviceId}" service.`,
@@ -159,9 +160,9 @@ function architectureSpec(
     filename: 'ARCHITECTURE.md',
     documentType: 'architecture',
     title: 'Architecture',
-    graphQueriesUsed: uniqueStrings([
-      ...(analyzers.structure_architecture?.graph_queries_used ?? []),
-    ]),
+    graphQueriesUsed: normalizeGraphQueriesUsed(
+      (analyzers.structure_architecture?.graph_queries_used ?? []) as string[],
+    ),
     promptFocus: [
       'Describe monorepo / multi-repo shape, service boundaries, communities, and high-level relationships.',
       'Use `structure_architecture` analyzer findings as the structural ground truth.',
@@ -192,9 +193,9 @@ function dataFlowsSpec(
     filename: 'DATA-FLOWS.md',
     documentType: 'data-flow',
     title: 'Data Flows',
-    graphQueriesUsed: uniqueStrings([
-      ...(analyzers.data_flows_integrations?.graph_queries_used ?? []),
-    ]),
+    graphQueriesUsed: normalizeGraphQueriesUsed(
+      (analyzers.data_flows_integrations?.graph_queries_used ?? []) as string[],
+    ),
     promptFocus: [
       'Describe request lifecycles, auth, persistence, integrations, and middleware ordering.',
       'Use `data_flows_integrations` analyzer findings as the structural ground truth.',
@@ -228,9 +229,9 @@ function patternsSpec(
     filename: 'PATTERNS.md',
     documentType: 'pattern',
     title: 'Patterns',
-    graphQueriesUsed: uniqueStrings([
-      ...(analyzers.code_patterns_testing?.graph_queries_used ?? []),
-    ]),
+    graphQueriesUsed: normalizeGraphQueriesUsed(
+      (analyzers.code_patterns_testing?.graph_queries_used ?? []) as string[],
+    ),
     promptFocus: [
       'Describe recurring implementation patterns, conventions, code style, and testing approach.',
       'Use `code_patterns_testing` analyzer findings as the structural ground truth.',
