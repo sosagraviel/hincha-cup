@@ -164,3 +164,34 @@ Lint policy:
 - **Semantic (warn):** orphan pages; stale claims; LLM-detected contradictions across changed-set + 1-hop.
 
 The `tags:` field is consumed by `wiki/index.md`'s summary catalog so Tier 1 retrieval is a single read; keep the vocabulary curated.
+
+---
+
+## Portability conventions for skill / framework documentation
+
+The Phase 6 portability validator (`portability-validator.ts`) refuses any committed text file under `<project>/.claude/` or `<project>/.codex/` whose body contains `/Users/<name>/...` or `/home/<name>/...`. The intent is that anything we ship to thousands of developer machines must be portable by construction.
+
+### Two ways to keep skill docs portable
+
+1. **Use `~/`-style placeholders.** `~/projects/myapp` reads identically to `/Users/you/projects/myapp` and the validator does not match it. Default for prose-style examples.
+2. **Wrap genuine "absolute path tutorials" in fences.** Some references (Claude permissions syntax, AWS bastion paths, etc.) *teach* the absolute-path form. For those, use the existing fence the validator honours:
+
+   ```html
+   <!-- portable-example-start -->
+   ```json
+   {
+     "allow": ["Read(//Users/username/project/**)"]
+   }
+   ```
+   <!-- portable-example-end -->
+   ```
+
+   Everything between the two HTML comments is excluded from the regex sweep. Fence boundaries are line-anchored, so wrap the whole code block (or the surrounding markdown stanza), not individual characters.
+
+A unit test (`test/unit/skills/skill-portability.test.ts`) walks `<framework>/skills/**` with the same regex and the same fence-stripper as the runtime validator, so a new contribution that forgets either convention fails CI before it ships.
+
+### `framework-config.json` field allowlist
+
+The current writer never emits `project_metadata.project_path`; the field is runtime-derivable. Pre-existing files from older runs may still carry it, so Phase 6 housekeeping strips it before the portability scan runs (logging `[portability] stripped stale project_path field from …`). Other `project_metadata` fields (`initialization_hash`, `last_analysis`) are preserved.
+
+If a future field needs the same treatment, add it to `stripStaleFrameworkConfigFields` in `portability-validator.ts` — surgical strips only, never a wholesale rewrite.

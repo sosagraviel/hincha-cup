@@ -11,12 +11,18 @@
  * machine-agnostic, and explicit example fences let docs reference paths
  * intentionally without tripping the validator.
  */
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { extname, join, relative } from 'path';
 
+import { logger } from '../../../../utils/logger.js';
 import { getAllProviderConfigDirs } from '../../../../utils/provider-paths.js';
 
-const NON_PORTABLE_ABSOLUTE_PATTERN = /(?<![A-Za-z])\/(?:Users|home)\/[a-zA-Z][a-zA-Z0-9_.-]*\//;
+/**
+ * Regex used by both the runtime portability validator and the framework
+ * skill-portability CI guard. Exported so the two stay in lockstep.
+ */
+export const NON_PORTABLE_ABSOLUTE_PATTERN =
+  /(?<![A-Za-z])\/(?:Users|home)\/[a-zA-Z][a-zA-Z0-9_.-]*\//;
 
 const TEXT_EXTENSIONS = new Set([
   '.md',
@@ -59,6 +65,13 @@ export interface PortabilityValidationResult {
  * Validate every committed text file under `<project>/.claude/` and
  * `<project>/.codex/` for non-portable absolute paths. Returns a structured
  * result; the caller decides how to report it.
+ *
+ * Before scanning, runs a housekeeping pass that strips known-stale fields
+ * from any pre-existing `framework-config.json` files in the scanned dirs.
+ * This handles the asymmetric-write problem: when the active provider doesn't
+ * touch the other provider's tree, stale files from prior runs (which may
+ * carry fields the current writer no longer emits) would otherwise trip the
+ * validator forever.
  */
 export function validatePortability(projectPath: string): PortabilityValidationResult {
   const violations: PortabilityViolation[] = [];
@@ -67,6 +80,7 @@ export function validatePortability(projectPath: string): PortabilityValidationR
   for (const configDir of getAllProviderConfigDirs()) {
     const root = join(projectPath, configDir);
     if (!existsSync(root)) continue;
+    stripStaleFrameworkConfigFields(root, projectPath);
     walkAndScan(
       root,
       projectPath,
@@ -84,6 +98,57 @@ export function validatePortability(projectPath: string): PortabilityValidationR
     violations,
     filesScanned,
   };
+}
+
+/**
+ * Surgical strip of known-stale fields from `framework-config.json` files
+ * left behind by older versions of the framework. Today the only such field
+ * is `project_metadata.project_path` — the current writer never emits it,
+ * but pre-existing files (e.g. an older `--provider codex` run) still
+ * carry it and would otherwise fail the portability scan.
+ *
+ * Surgical = preserve every other field (`initialization_hash`,
+ * `last_analysis`, the entire `stack_profile`, etc.). We only touch the one
+ * field whose presence we already disabled in the writer.
+ */
+function stripStaleFrameworkConfigFields(configDirRoot: string, projectPath: string): void {
+  const filePath = join(configDirRoot, 'framework-config.json');
+  if (!existsSync(filePath)) return;
+
+  let raw: string;
+  try {
+    raw = readFileSync(filePath, 'utf-8');
+  } catch {
+    return;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  if (!isObject(parsed)) return;
+
+  const meta = (parsed as Record<string, unknown>).project_metadata;
+  if (!isObject(meta)) return;
+
+  if (!Object.prototype.hasOwnProperty.call(meta, 'project_path')) return;
+
+  delete (meta as Record<string, unknown>).project_path;
+  try {
+    writeFileSync(filePath, JSON.stringify(parsed, null, 2) + '\n', 'utf-8');
+    logger.info(
+      `[portability] stripped stale project_path field from ${relative(projectPath, filePath)}`,
+    );
+  } catch {
+    // Best-effort: if the rewrite fails, the scanner will still report the
+    // violation and the developer can fix it manually.
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function walkAndScan(
@@ -140,7 +205,7 @@ function scanTextForViolations(
   }
 }
 
-function stripExampleFences(content: string): string {
+export function stripExampleFences(content: string): string {
   if (!content.includes(EXAMPLE_FENCE_OPEN)) return content;
   let result = '';
   let cursor = 0;

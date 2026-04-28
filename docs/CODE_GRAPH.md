@@ -49,7 +49,9 @@ The fix lives at three layers:
 
 2. **Phase 1 templates the catalog into every prompt.** `phase1/shared/prompt-builder.ts` renders the catalog as a bullet list inside a `=== CODE GRAPH CONTEXT ===` block. Each analyzer's `agent.md` carries a directive: *"Call only the tool names listed in your CODE GRAPH CONTEXT block. Do not invent variants or shorten them."* The execution-instructions playbooks still mention semantic tool names (e.g. `list_communities`) for readability, but their preamble explicitly defers to the catalog for the canonical name.
 
-3. **The Stop hook verifies usage from the transcript.** `phase1/shared/hooks/validate-analyzer-json.hook.ts` reads `transcript.jsonl` from the analyzer's session directory, counts `tool_use` events whose `name` matches `^mcp__code_graph__`, and overwrites the analyzer's reported `graph_queries_used` with the real list. If the analyzer is graph-required and the count is zero, the hook writes a retry-feedback file naming the available tools and exits non-zero so the orchestration retries the analyzer.
+3. **The Stop hook verifies usage from the transcript and writes a sidecar.** `phase1/shared/hooks/validate-analyzer-json.hook.ts` reads `transcript.jsonl` from the analyzer's session directory, counts `tool_use` events whose `name` matches `^mcp__code_graph__`, and writes a `<sessionId>.graph-tool-uses.json` sidecar next to the transcript with the canonical sorted unique list of `mcp__code_graph__*_tool` names. If the analyzer is graph-required and the count is zero, the hook BLOCKS the agent (exit 2) with retry-feedback naming the available tools.
+
+4. **The Phase 1 orchestration node overwrites `graph_queries_used` from the sidecar.** `phase1/shared/graph-tool-usage.ts` reads the sidecar after `retryWithEnhancedFeedback` succeeds and replaces whatever the agent put in the field with the canonical list. The agent's value is discarded unconditionally — the field is no longer agent-owned. If the sidecar is missing or malformed, the helper logs a warning and forces `graph_queries_used: []` (honest empty array beats fabricated list).
 
 ---
 

@@ -106,6 +106,17 @@ Persist the loaded context to `<artifacts>/context/wiki-context.md` with section
 
 ---
 
+## Frontmatter cleanliness
+
+Frontmatter is contractual, not narrative. Two structured fields are sanitized at every materialization site so they stay grep-able and diff-stable:
+
+- **`graph_queries_used`** — only canonical `mcp__code_graph__[A-Za-z0-9_]+` names survive. Free-form analyzer prose (e.g. `"list_communities({ detail_level: 'standard' }) — exceeded token limit"`) is dropped. Source-of-truth path: Phase 1 Stop hook writes a sidecar; the orchestration node overwrites the field from the sidecar; the wiki layer re-applies the regex as defence in depth. See `services/graph-wiki/query-name-normalizer.ts`.
+- **`tags`** — bounded curated vocabulary, max 5 entries per page. `service.frameworks.main` strings are split on `+` (multi-package joiners), version constraints stripped (`^x.y.z`, `~x.y.z`, bare `x.y.z`, `>=2.0`), `@scope/` prefix dropped, lowercased, whitespace slugified. Candidates longer than 30 chars are dropped. See `cleanFrameworkTokens` in `services/graph-wiki/document-specs.ts`.
+
+These are the rules that make `index.md`'s summary catalog cheap and useful. A regression here makes Tier 1 retrieval noisy.
+
+---
+
 ## Lint policy
 
 `/wiki-lint` enforces:
