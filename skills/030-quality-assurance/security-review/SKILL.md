@@ -182,15 +182,23 @@ detect_language_and_tools() {
             IS_RAILS=true
         fi
 
-        # Check for security tools
+        # Always prefer `bundle exec` when Gemfile.lock is present so we run the
+        # gem versions pinned by the project (avoids drift with system-wide gems).
+        # Mirrors the same pattern used by code-quality-check.
+        BUNDLE_PREFIX=""
+        if [[ -f "Gemfile.lock" ]] && command -v bundle &>/dev/null; then
+            BUNDLE_PREFIX="bundle exec "
+        fi
+
+        # Check for security tools — try bundler-resolved gem first, then system-wide.
         TOOLS=""
-        if [[ "$IS_RAILS" == "true" ]] && command -v brakeman &>/dev/null; then
+        if [[ "$IS_RAILS" == "true" ]] && { (bundle exec brakeman --version &>/dev/null) || command -v brakeman &>/dev/null; }; then
             TOOLS="$TOOLS brakeman"
         fi
-        if command -v bundle-audit &>/dev/null; then
+        if (bundle exec bundle-audit --version &>/dev/null) || command -v bundle-audit &>/dev/null; then
             TOOLS="$TOOLS bundler-audit"
         fi
-        if command -v rubocop &>/dev/null; then
+        if (bundle exec rubocop --version &>/dev/null) || command -v rubocop &>/dev/null; then
             TOOLS="$TOOLS rubocop-security"
         fi
 
@@ -252,20 +260,25 @@ install_security_tools() {
     fi
 
     if [[ "$lang" == "ruby" ]]; then
-        # Ensure bundler is present
+        # Ensure bundler is present (needed even just to run `bundle exec`)
         if ! command -v bundle &>/dev/null; then
             echo "Installing bundler..."
             gem install bundler
         fi
 
-        # Install Brakeman only on Rails projects (it's Rails-specific SAST)
-        if [[ "$IS_RAILS" == "true" ]] && ! command -v brakeman &>/dev/null; then
+        # Install Brakeman only on Rails projects (it's Rails-specific SAST).
+        # Skip global install if the project already pins it via bundler.
+        if [[ "$IS_RAILS" == "true" ]] \
+            && ! (bundle exec brakeman --version &>/dev/null) \
+            && ! command -v brakeman &>/dev/null; then
             echo "Installing brakeman..."
             gem install brakeman
         fi
 
-        # Install bundler-audit (dependency vulnerability scanner)
-        if ! command -v bundle-audit &>/dev/null; then
+        # Install bundler-audit (dependency vulnerability scanner).
+        # Skip global install if bundler already resolves it.
+        if ! (bundle exec bundle-audit --version &>/dev/null) \
+            && ! command -v bundle-audit &>/dev/null; then
             echo "Installing bundler-audit..."
             gem install bundler-audit
         fi
@@ -374,10 +387,12 @@ run_ruby_security_scan() {
 
     echo "Running Ruby/Rails security scans..."
 
-    # 1. Brakeman - Rails-specific static analysis (skipped on non-Rails Ruby projects)
-    if [[ "$IS_RAILS" == "true" ]] && command -v brakeman &>/dev/null; then
+    # 1. Brakeman - Rails-specific static analysis (skipped on non-Rails Ruby projects).
+    # Use ${BUNDLE_PREFIX} so the version pinned in the project's Gemfile wins.
+    if [[ "$IS_RAILS" == "true" ]] \
+        && { (bundle exec brakeman --version &>/dev/null) || command -v brakeman &>/dev/null; }; then
         echo "Running brakeman..."
-        brakeman -q --no-progress --format json \
+        ${BUNDLE_PREFIX}brakeman -q --no-progress --format json \
             -o "$artifacts_dir/brakeman-report.json" . 2>&1 || true
 
         # Parse results
@@ -388,10 +403,10 @@ run_ruby_security_scan() {
     fi
 
     # 2. bundler-audit - Dependency vulnerabilities
-    if command -v bundle-audit &>/dev/null; then
+    if (bundle exec bundle-audit --version &>/dev/null) || command -v bundle-audit &>/dev/null; then
         echo "Running bundle-audit..."
-        bundle-audit update --quiet 2>/dev/null || true
-        bundle-audit check --format json > "$artifacts_dir/bundler-audit-report.json" 2>&1 || true
+        ${BUNDLE_PREFIX}bundle-audit update --quiet 2>/dev/null || true
+        ${BUNDLE_PREFIX}bundle-audit check --format json > "$artifacts_dir/bundler-audit-report.json" 2>&1 || true
 
         # Parse results
         bundler_vulns=$(jq '.results | length' "$artifacts_dir/bundler-audit-report.json" 2>/dev/null || echo "0")
@@ -399,9 +414,9 @@ run_ruby_security_scan() {
     fi
 
     # 3. RuboCop Security cops - Static checks for unsafe patterns
-    if command -v rubocop &>/dev/null; then
+    if (bundle exec rubocop --version &>/dev/null) || command -v rubocop &>/dev/null; then
         echo "Running rubocop with Security cops..."
-        rubocop --only Security --format json \
+        ${BUNDLE_PREFIX}rubocop --only Security --format json \
             --out "$artifacts_dir/rubocop-security.json" . 2>&1 || true
 
         # Parse results
