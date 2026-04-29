@@ -1,5 +1,15 @@
 {
   "hooks": {
-    "Stop": []
+    "Stop": [
+      {
+        "matcher": "wiki-generator",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/src/nodes/initialize-project/phase4/wiki-generator/hooks/validate-wiki-output.hook.ts"
+          }
+        ]
+      }
+    ]
   }
 }

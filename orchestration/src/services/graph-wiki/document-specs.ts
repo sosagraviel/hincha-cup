@@ -18,13 +18,19 @@ import {
   stableJsonStringify,
   uniqueStrings,
 } from './utils.js';
+import { sanitizeWikiUpstream, scopeUpstreamForService } from './wiki-input-sanitizer.js';
 
 export function buildCoreSpecs(options: WikiGeneratorServiceOptions): WikiDocumentSpec[] {
   const { analyzers, stackProfile, graph, digestedUpstream } = options;
+  // Strip framework-internal jargon ("the X tool overflowed", "automated
+  // run", etc.) BEFORE every downstream slicer so no consumer can reintroduce
+  // it. See wiki-input-sanitizer.ts + plans/2026-04-29-gira-init-run-audit-refactor
+  // finding F15.
+  const sanitizedUpstream = sanitizeWikiUpstream(digestedUpstream);
   return [
-    architectureSpec(analyzers, stackProfile, graph, digestedUpstream),
-    dataFlowsSpec(analyzers, stackProfile, digestedUpstream),
-    patternsSpec(analyzers, stackProfile, digestedUpstream),
+    architectureSpec(analyzers, stackProfile, graph, sanitizedUpstream),
+    dataFlowsSpec(analyzers, stackProfile, sanitizedUpstream),
+    patternsSpec(analyzers, stackProfile, sanitizedUpstream),
   ];
 }
 
@@ -42,6 +48,21 @@ export function buildServiceSpec(
   if (entryPoints.length > 0) frontmatterExtras.entry_points = entryPoints;
   if (!isEmptyValue(dependencies)) frontmatterExtras.dependencies = dependencies;
   if (communityId) frontmatterExtras.community_id = communityId;
+
+  // Per-service upstream scoping: the prompt for service A must not carry
+  // every paragraph about service B. First strip framework-internal jargon,
+  // then narrow to sections mentioning the target service's id / name / path
+  // leaf. Stack-agnostic — string-token matching only, no role mappings.
+  // See wiki-input-sanitizer.ts + plans/2026-04-29-gira-init-run-audit-refactor
+  // finding F3 (the prior wiki-generator passed digestedUpstream verbatim
+  // to every service doc, inflating each prompt by ~64 KB of cross-service
+  // narrative).
+  const sanitized = sanitizeWikiUpstream(digestedUpstream);
+  const scoped = scopeUpstreamForService(sanitized, {
+    id: serviceId,
+    name: typeof service.name === 'string' ? service.name : undefined,
+    path: typeof service.path === 'string' ? service.path : undefined,
+  });
 
   return {
     filename: `services/${slugifyServiceId(serviceId)}.md`,
@@ -65,7 +86,7 @@ export function buildServiceSpec(
       community_id: communityId,
       analyzers: sliceAnalyzersForService(serviceId, analyzers),
     },
-    digestedUpstream,
+    digestedUpstream: scoped,
     tags: deriveServiceTags(service),
     frontmatterExtras,
   };
