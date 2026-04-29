@@ -117,6 +117,21 @@ These are the rules that make `index.md`'s summary catalog cheap and useful. A r
 
 ---
 
+## Graph navigation discipline (when the wiki does not answer)
+
+If the wiki answers your question, you do not need to call any graph tool at all — that is the whole point of the wiki. When you genuinely need to fall back to the graph, follow the canonical discipline templated into `<project>/.claude/CLAUDE.md` (or `.codex/AGENTS.md`), section *Graph navigation discipline* — same `<!-- GRAPH_DISCIPLINE_START -->` fenced section also present in the project-context skill body.
+
+Quick summary so wiki consumers don't have to look it up:
+
+- **Forbidden:** `mcp__code_graph__get_architecture_overview_tool` — its response has no bounding knob and overflows on any non-trivial graph.
+- **Cheap entry:** always start with `mcp__code_graph__get_minimal_context_tool({ task: "<your goal>" })` — ~100 tokens.
+- **Lean defaults:** `detail_level: "minimal"`, `limit: 20` MAX on `semantic_search_nodes_tool`, `include_members: false` on `get_community_tool`, `include_source: false` on `get_flow_tool`.
+- **Spill protocol:** if a tool result starts with `Error: result (NNN characters) exceeds maximum allowed tokens. Output has been saved to /Users/.../tool-results/...txt`, treat it as a calling error — re-call with tighter parameters; do not read the spillover file.
+
+The full table + drill-in budgets live at `services/graph-wiki/graph-navigation-discipline.ts` (single source of truth) and at `docs/CODE_GRAPH.md`.
+
+---
+
 ## Lint policy
 
 `/wiki-lint` enforces:

@@ -81,6 +81,8 @@ const graph = new StateGraph(InitializeProjectAnnotation)
 
 **Writes**: `phase1-analysis.json`
 
+**Graph navigation discipline.** Every analyzer prompt embeds the canonical graph-tool discipline (single source: `services/graph-wiki/graph-navigation-discipline.ts`). The discipline forbids `mcp__code_graph__get_architecture_overview_tool` (its response cannot be bounded and overflows on any non-trivial codebase) and pins lean defaults (`detail_level: "minimal"`, `limit: 20` MAX, `include_members: false`, `include_source: false`) on every other graph tool. The same constant is upserted into `<project>/.claude/CLAUDE.md` (or `.codex/AGENTS.md`) and the project-context skill at Phase 4b, so every downstream agent (planner, implementer, ad-hoc Claude / Codex sessions) inherits the same rules. See [`docs/CODE_GRAPH.md`](../CODE_GRAPH.md) for the full discipline + lean-defaults table.
+
 ### Phase 2: Consolidation
 
 Merges Phase 1 analyzer outputs into unified analysis.

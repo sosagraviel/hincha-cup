@@ -53,6 +53,35 @@ The fix lives at three layers:
 
 4. **The Phase 1 orchestration node overwrites `graph_queries_used` from the sidecar.** `phase1/shared/graph-tool-usage.ts` reads the sidecar after `retryWithEnhancedFeedback` succeeds and replaces whatever the agent put in the field with the canonical list. The agent's value is discarded unconditionally — the field is no longer agent-owned. If the sidecar is missing or malformed, the helper logs a warning and forces `graph_queries_used: []` (honest empty array beats fabricated list).
 
+5. **The Stop hook also counts tool-result overflows and the orchestration surfaces them.** Each call whose result starts with the `Error: result (NNN characters) exceeds maximum allowed tokens. Output has been saved to /Users/.../tool-results/...txt` sentinel is recorded in the sidecar's `overflows: [{tool, callIndex}]` array. The orchestration node stamps `graph_overflow_count` and `graph_overflow_tools` onto the persisted analyzer JSON, and Phase 2 consolidation emits a `WARN` line for any analyzer with `graph_overflow_count > 0`. This makes silently-degraded runs impossible to ignore.
+
+---
+
+## Graph navigation discipline
+
+The four Phase 1 analyzers must call graph tools top-down: cheap entry point first, drill in selectively. The discipline is enforced at five places — one source of truth, five consumers — so an analyzer / planner / implementer / wiki-consumer / ad-hoc agent cannot bypass it:
+
+1. **Single source.** `orchestration/src/services/graph-wiki/graph-navigation-discipline.ts` exports the canonical text. Any change here propagates to every consumer below.
+2. **Phase 1 prompts.** `shared/prompt-builder.ts::buildGraphContext` embeds the discipline in every analyzer's system prompt. Per-analyzer `execution-instructions.md` defers all "how to call" decisions to it.
+3. **Generated `<project>/.claude/CLAUDE.md` (or `.codex/AGENTS.md`).** Phase 4b upserts the discipline as a `<!-- GRAPH_DISCIPLINE_START -->` fenced section. Visible to every ambient agent session in the target project.
+4. **Generated `<project>/.claude/skills/project-context/SKILL.md`.** Same upsert call as #3.
+5. **Wiki router doc and ticket skills.** Cross-reference the canonical fenced section in #3 (no duplication of the body).
+
+### The forbid
+
+`mcp__code_graph__get_architecture_overview_tool` is **forbidden**. Its response has no bounding knob and always returns full member lists for every community; on any non-trivial codebase it overflows Claude's tool-result token cap (5/5 calls overflowed in the gira run before this redesign). Information-equivalent alternatives (`get_minimal_context_tool` + `list_communities_tool({ detail_level: "minimal" })` + selective `get_community_tool({ include_members: false })` + `get_hub_nodes_tool` + `get_bridge_nodes_tool`) are bounded.
+
+### Lean defaults at a glance
+
+| Tool | Default this way |
+|---|---|
+| `list_communities_tool` | `detail_level: "minimal"`, `min_size: 10` |
+| `get_community_tool` | `include_members: false` (≤3 with members) |
+| `list_flows_tool` | `detail_level: "minimal"`, `limit: 30` |
+| `get_flow_tool` | `include_source: false` (cap 1 with source) |
+| `semantic_search_nodes_tool` | `limit: 20` MAX, `detail_level: "minimal"` |
+| `find_large_functions_tool` | `min_lines: 50`, `limit: 30` (never `min_lines: 1`) |
+
 ---
 
 ## MCP transport
