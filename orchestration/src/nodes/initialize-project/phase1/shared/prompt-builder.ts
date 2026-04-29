@@ -12,7 +12,21 @@ import {
   buildJsonOutputFormat,
   buildContentSection,
 } from '../../../../utils/shared/context-tags.js';
+import {
+  GRAPH_NAVIGATION_DISCIPLINE_HEADING,
+  GRAPH_NAVIGATION_DISCIPLINE_TEXT,
+} from '../../../../services/graph-wiki/graph-navigation-discipline.js';
 import type { CodeGraphStats } from '../../../../state/schemas/initialize-project.schema.js';
+
+/**
+ * Heuristic: a graph is "large" if it has > 200 files OR > 1000 functions.
+ * Above this threshold the lean defaults from `GRAPH_NAVIGATION_DISCIPLINE_TEXT`
+ * matter most — exceeding the drill-in budgets will overflow every time.
+ */
+function isLargeGraph(stats: CodeGraphStats | undefined): boolean {
+  if (!stats) return false;
+  return (stats.files ?? 0) > 200 || (stats.functions ?? 0) > 1000;
+}
 
 export interface GraphPromptContext {
   available: boolean;
@@ -97,9 +111,23 @@ function buildGraphContext(graphContext: GraphPromptContext): string {
       );
     }
 
+    // The discipline block: top-down navigation, lean defaults, forbid list,
+    // drill-in budgets, spill protocol. Single source of truth in
+    // `services/graph-wiki/graph-navigation-discipline.ts` — also rendered
+    // into the generated CLAUDE.md/AGENTS.md and into the wiki router doc, so
+    // every consumer sees the same rules.
+    lines.push('', GRAPH_NAVIGATION_DISCIPLINE_HEADING, '', GRAPH_NAVIGATION_DISCIPLINE_TEXT);
+
+    if (isLargeGraph(graphContext.stats)) {
+      lines.push(
+        '',
+        'NOTE: this is a **large graph** (> 200 files or > 1000 functions). Be especially aggressive about the lean defaults and drill-in caps above — exceeding them will overflow.',
+      );
+    }
+
     lines.push(
       '',
-      "The Stop hook records every mcp__code_graph__* tool call you make and writes the deterministic count into your output's `graph_queries_used` array — you do NOT need to populate that field yourself.",
+      "The Stop hook records every mcp__code_graph__* tool call you make and writes the deterministic count into your output's `graph_queries_used` array — you do NOT need to populate that field yourself. Tool-result overflows are also logged; an overflowing call is a regression and will surface as a phase-end warning.",
     );
   } else {
     lines.push(
