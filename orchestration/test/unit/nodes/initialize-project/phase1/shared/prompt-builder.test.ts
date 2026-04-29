@@ -63,6 +63,11 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
       // Spill protocol must be present so Claude/Codex recognise the sentinel.
       expect(prompt).toContain('exceeds maximum allowed tokens');
       expect(prompt).toContain('Do not read the spillover file');
+      // Section 0 conventions (added 2026-04-29 per gira-init-run audit F1/F5/F25).
+      expect(prompt).toContain('### 0. Tool-call conventions');
+      expect(prompt).toMatch(/Do not pass `repo_root`/);
+      expect(prompt).toMatch(/First-call startup race/);
+      expect(prompt).toMatch(/retry the SAME call once/);
     });
 
     it('does NOT embed the discipline when the graph is unavailable', () => {

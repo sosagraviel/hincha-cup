@@ -33,6 +33,12 @@ export const GRAPH_NAVIGATION_DISCIPLINE_HEADING = '## Graph navigation discipli
  */
 export const GRAPH_NAVIGATION_DISCIPLINE_TEXT = `Top-down, never breadth-first. When you call a code-graph MCP tool, start with the cheapest entry point and only drill into the small priority set you need to answer your specific question. The MCP server has a strict tool-result token cap; unbounded calls overflow silently and dump 200+ KB to a sidecar file you cannot usefully consume.
 
+### 0. Tool-call conventions
+
+**Server identity is preconfigured. Do not pass \`repo_root\`** (or any equivalent path/path-like argument) in any \`mcp__code_graph__*\` tool call. The MCP launcher already pins the server to this project via its launch flags; including \`repo_root\` in tool arguments is redundant for every tool and triggers an upstream type-coercion bug for some (\`get_hub_nodes_tool\`, \`get_bridge_nodes_tool\`) that surfaces as \`Error calling tool '...': 'str' object has no attribute 'resolve'\`. Call these tools with their own arguments only (e.g. \`top_n\`, \`limit\`, \`detail_level\`) — never with \`repo_root\`.
+
+**First-call startup race.** Your very first \`mcp__code_graph__*\` tool call may transiently fail with \`tool_use_error: No such tool available: <exact-tool-name>\` even though \`<exact-tool-name>\` appears in the catalog above and matches the spelling exactly. This is a known race between MCP server tool registration and the first agent turn — it self-resolves within a few hundred milliseconds. **If you see this error on a tool whose name is in the catalog, retry the SAME call once.** After the retry, every subsequent MCP call in this session will work. Do not switch to a different tool name, do not abandon the graph, do not invent a fallback — just retry. If the retry also fails, only then treat the tool as genuinely unavailable.
+
 ### 1. Always start with the cheapest entry point
 
 Call \`mcp__code_graph__get_minimal_context_tool({ task: "<your goal>" })\` first. ~100 tokens. Returns top communities, top flows, risk score, suggested next tools. This is the map; everything else is a drill-in from here.
