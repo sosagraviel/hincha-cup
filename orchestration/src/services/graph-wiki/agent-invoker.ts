@@ -36,6 +36,10 @@ export async function invokeWikiAgent(
     settingsPath: join(options.frameworkPath, SETTINGS_SUBPATH),
     trackerId,
     trackerDisplayName: trackerId,
+    // Phase coordinate threaded so the debug bucket lands under a real
+    // phase slot (phase-4-wiki) instead of the legacy `phase-unknown/`
+    // fallback. See plans/2026-04-29-gira-init-run-audit-refactor.md F2.
+    phase: options.phase,
   });
 
   // No `ultrathink` prefix: this agent runs closed-book over digested upstream.

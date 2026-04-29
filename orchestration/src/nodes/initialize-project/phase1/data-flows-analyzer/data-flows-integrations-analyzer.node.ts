@@ -14,7 +14,10 @@ import { applyGraphToolUsageFromSidecar } from '../shared/graph-tool-usage.js';
 import { getFrameworkAgentPath } from '../../shared/index.js';
 import { reasoningPrefix } from '../../../../utils/shared/context-tags.js';
 import { resolveTempPath } from '../../../../utils/provider-paths.js';
-import { getInitializeProjectPhase } from '../../../../services/framework/debug-store/index.js';
+import {
+  getInitializeProjectPhase,
+  tryActiveDebugStore,
+} from '../../../../services/framework/debug-store/index.js';
 
 /**
  * Data Flows & Integrations Analyzer Node
@@ -113,6 +116,13 @@ export async function dataFlowsIntegrationsAnalyzerNode(
     const persisted = applyGraphToolUsageFromSidecar(validatedData, state.project_path, sessionId);
 
     writeFileSync(outputPath, JSON.stringify(persisted, null, 2));
+
+    // Overlay onto debug bucket — see structure-analyzer for rationale
+    // (gira-init-run audit findings F6 / F18).
+    const activeStore = tryActiveDebugStore();
+    if (activeStore && sessionId) {
+      await activeStore.overlaySessionOutput(agentName, sessionId, persisted);
+    }
 
     return {
       temp_dir: tempDir,

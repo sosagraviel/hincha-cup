@@ -4,6 +4,7 @@ import type { InitializeProjectState } from '../../../../state/schemas/initializ
 import { logger } from '../../../../utils/logger.js';
 import { WikiGeneratorService } from '../../../../services/graph-wiki/wiki-generator.service.js';
 import { getActiveProvider } from '../../../../utils/provider-paths.js';
+import { getInitializeProjectPhase } from '../../../../services/framework/debug-store/index.js';
 import { readAnalyzerOutputs, readStackProfile, resolveWikiPaths } from './utils.js';
 
 export async function wikiPreparationNode(
@@ -51,6 +52,9 @@ export async function wikiPreparationNode(
       stackProfile,
       digestedUpstream,
       codeGraphToolCatalog: state.code_graph_tool_catalog,
+      // Phase coordinate so debug attempts go under phase-4-wiki/ instead of
+      // phase-unknown/ — see plans/2026-04-29-gira-init-run-audit-refactor.md F2.
+      phase: getInitializeProjectPhase('phase4Wiki'),
       graph: {
         available: state.code_graph_available,
         path: state.code_graph_path,

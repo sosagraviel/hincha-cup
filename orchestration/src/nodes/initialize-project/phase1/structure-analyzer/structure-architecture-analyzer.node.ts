@@ -13,7 +13,10 @@ import { applyGraphToolUsageFromSidecar } from '../shared/graph-tool-usage.js';
 import { getFrameworkAgentPath } from '../../shared/index.js';
 import { reasoningPrefix } from '../../../../utils/shared/context-tags.js';
 import { resolveTempPath } from '../../../../utils/provider-paths.js';
-import { getInitializeProjectPhase } from '../../../../services/framework/debug-store/index.js';
+import {
+  getInitializeProjectPhase,
+  tryActiveDebugStore,
+} from '../../../../services/framework/debug-store/index.js';
 
 /**
  * Structure & Architecture Analyzer Node
@@ -114,6 +117,16 @@ export async function structureArchitectureAnalyzerNode(
     const persisted = applyGraphToolUsageFromSidecar(validatedData, state.project_path, sessionId);
 
     writeFileSync(outputPath, JSON.stringify(persisted, null, 2));
+
+    // Overlay the post-sidecar persisted view onto the debug bucket so
+    // anyone reading debug/runs/.../output.json sees the same overflow
+    // telemetry the persisted phase1-outputs file carries (gira-init-run
+    // audit findings F6 / F18). Best-effort — silent no-op if no debug
+    // store is active or the attempt dir cannot be located.
+    const activeStore = tryActiveDebugStore();
+    if (activeStore && sessionId) {
+      await activeStore.overlaySessionOutput(agentName, sessionId, persisted);
+    }
 
     return {
       temp_dir: tempDir,

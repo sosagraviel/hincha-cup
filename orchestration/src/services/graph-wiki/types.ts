@@ -1,5 +1,6 @@
 import type { CodeGraphStats } from '../../state/schemas/initialize-project.schema.js';
 import type { Provider } from '../../providers/types.js';
+import type { PhaseSlot } from '../framework/debug-store/index.js';
 
 export const LLM_WIKI_FILE_NAMES = [
   'index.md',
@@ -176,6 +177,18 @@ export interface WikiGeneratorServiceOptions {
    */
   codeGraphToolCatalog?: Array<{ name: string; description: string }>;
   agentInvoker?: WikiAgentInvoker;
+  /**
+   * Phase coordinate threaded through to the per-attempt debug bucket. When
+   * absent, debug attempts are bucketed under `phase-unknown/` — see
+   * plans/2026-04-29-gira-init-run-audit-refactor.md finding F2 (the gira
+   * run had eight wiki sessions tagged `phase-unknown` because this
+   * coordinate was never wired through).
+   *
+   * For initialize-project callers, use
+   * `getInitializeProjectPhase('phase4Wiki')`. For wiki-refresh callers,
+   * use `getWikiRefreshPhase('refresh')` (or whichever slot is canonical).
+   */
+  phase?: PhaseSlot;
 }
 
 export interface GeneratedWikiFile {
