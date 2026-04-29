@@ -9,9 +9,15 @@ import {
 } from '../../../services/graph-wiki/wiki-generator.service.js';
 import {
   ALL_SCHEMA_FILENAMES,
+  GRAPH_DISCIPLINE_CONTEXT_END,
+  GRAPH_DISCIPLINE_CONTEXT_START,
   SCHEMA_FILENAME_BY_PROVIDER,
 } from '../../../services/graph-wiki/types.js';
-import { buildContextSection } from '../../../services/graph-wiki/frontmatter.js';
+import {
+  buildContextSection,
+  buildGraphDisciplineSection,
+  upsertFencedSection,
+} from '../../../services/graph-wiki/frontmatter.js';
 import { getActiveProvider } from '../../../utils/provider-paths.js';
 
 export async function wikiGenerationNode(
@@ -141,14 +147,34 @@ export async function wikiGenerationNode(
       },
       activeSchemaFilename,
     );
+    const disciplineSection = buildGraphDisciplineSection();
 
+    // Both fenced sections are upserted into both files (the project's main
+    // CLAUDE.md/AGENTS.md AND the project-context skill body). Idempotent
+    // across re-runs: the regex replaces the prior section in place rather
+    // than appending duplicates. Order: LLM Wiki first, Graph Discipline
+    // second — they're orthogonal concerns and either can be edited
+    // independently in a future redesign.
     const claudeMdContent = readFileSync(claudeMdPath, 'utf-8');
-    writeFileSync(claudeMdPath, upsertLlmWikiContextSection(claudeMdContent, contextSection));
+    writeFileSync(
+      claudeMdPath,
+      upsertFencedSection(
+        upsertLlmWikiContextSection(claudeMdContent, contextSection),
+        disciplineSection,
+        GRAPH_DISCIPLINE_CONTEXT_START,
+        GRAPH_DISCIPLINE_CONTEXT_END,
+      ),
+    );
 
     const projectContextContent = readFileSync(projectContextPath, 'utf-8');
     writeFileSync(
       projectContextPath,
-      upsertLlmWikiContextSection(projectContextContent, contextSection),
+      upsertFencedSection(
+        upsertLlmWikiContextSection(projectContextContent, contextSection),
+        disciplineSection,
+        GRAPH_DISCIPLINE_CONTEXT_START,
+        GRAPH_DISCIPLINE_CONTEXT_END,
+      ),
     );
 
     phaseLogger.success(`✓ Written LLM wiki: ${llmWikiPath}`);

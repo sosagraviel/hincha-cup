@@ -28,7 +28,11 @@ import { isEmptyValue, isRecord, slugifyServiceId, uniqueStrings } from './utils
 
 export * from './types.js';
 export { slugifyServiceId } from './utils.js';
-export { upsertLlmWikiContextSection } from './frontmatter.js';
+export {
+  buildGraphDisciplineSection,
+  upsertFencedSection,
+  upsertLlmWikiContextSection,
+} from './frontmatter.js';
 
 export interface WikiGenerationMetadata {
   generatedAt: string;
@@ -749,6 +753,35 @@ function buildSchemaDocBody(
     }
     lines.push('');
   }
+
+  // Graph navigation discipline — short summary in the router doc, with a
+  // pointer to the canonical fenced section in the project's CLAUDE.md /
+  // AGENTS.md. Keeping the full body in one place (the project root file)
+  // avoids triple-copy drift between the prompt-builder, the router doc, and
+  // the project root. The router only needs to forbid the load-bearing call
+  // and tell the agent where to read the rest.
+  lines.push('## Graph navigation discipline');
+  lines.push('');
+  lines.push(
+    'If the wiki answers your question, you do not need to call any graph tool at all. The discipline below applies when you fall back to the graph.',
+  );
+  lines.push('');
+  lines.push(
+    `**Forbidden:** \`mcp__code_graph__get_architecture_overview_tool\` — its response cannot be bounded and overflows. Use \`mcp__code_graph__get_minimal_context_tool\` (~100 tokens) as the cheap entry point, then drill in selectively with \`list_communities_tool({ detail_level: "minimal" })\`, \`get_community_tool({ include_members: false })\`, \`get_hub_nodes_tool\`, \`get_bridge_nodes_tool\`.`,
+  );
+  lines.push('');
+  // Provider-aware file location for the canonical discipline section. Claude
+  // writes CLAUDE.md under .claude/; Codex writes AGENTS.md under .codex/.
+  const projectInstructionDir =
+    schemaFilename === 'CLAUDE.md'
+      ? '.claude'
+      : schemaFilename === 'AGENTS.md'
+        ? '.codex'
+        : `.${schemaFilename.toLowerCase().replace(/\.md$/, '')}`;
+  lines.push(
+    `**Lean defaults everywhere:** \`detail_level: "minimal"\`, \`limit: 20\` MAX on \`semantic_search_nodes_tool\`, \`include_members: false\` on \`get_community_tool\`, \`include_source: false\` on \`get_flow_tool\`. Full rules and drill-in budgets: see the \`Graph navigation discipline\` section in \`<project>/${projectInstructionDir}/${schemaFilename}\`.`,
+  );
+  lines.push('');
 
   lines.push('## Ingest workflow');
   lines.push('');

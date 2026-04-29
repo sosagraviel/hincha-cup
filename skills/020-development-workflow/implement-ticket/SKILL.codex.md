@@ -139,6 +139,8 @@ Preload the LLM wiki so the planner can rely on pre-digested architecture instea
 
 4. **Optional graph call.** If the matched bodies do not fully answer the planner's likely questions, call `mcp__code_graph__get_minimal_context_tool({ task: "<ticket summary>", changed_files: [], base: "HEAD~1" })` AT MOST ONCE. Preserve the full response — the planner in Phase 3 may reuse it. The call MUST NOT be re-issued by any downstream phase.
 
+   **Follow the graph navigation discipline.** When the planner or implementer falls back to graph MCP tools, follow the canonical rules in `<project>/.codex/AGENTS.md`, section *Graph navigation discipline*. Summary: start with `mcp__code_graph__get_minimal_context_tool`; never call `mcp__code_graph__get_architecture_overview_tool` (forbidden — response cannot be bounded); set `detail_level: "minimal"`, `limit: 20` MAX, `include_members: false`, `include_source: false` everywhere they apply.
+
 5. **Persist.** Write `$ARTIFACTS_DIR/context/wiki-context.md` with these sections:
    - `## ROUTER` — the path to the router file (`docs/llm-wiki/AGENTS.md`)
    - `## WIKI_INDEX_SNAPSHOT` — the content of `index.md`

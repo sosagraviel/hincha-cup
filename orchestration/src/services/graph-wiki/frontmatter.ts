@@ -1,10 +1,16 @@
 import matter from 'gray-matter';
 import {
+  GRAPH_DISCIPLINE_CONTEXT_END,
+  GRAPH_DISCIPLINE_CONTEXT_START,
   LLM_WIKI_CONTEXT_END,
   LLM_WIKI_CONTEXT_START,
   type SchemaFileName,
   type WikiGraphState,
 } from './types.js';
+import {
+  GRAPH_NAVIGATION_DISCIPLINE_HEADING,
+  GRAPH_NAVIGATION_DISCIPLINE_TEXT,
+} from './graph-navigation-discipline.js';
 import { ensureTrailingNewline, escapeRegExp, relativeGraphPath } from './utils.js';
 
 export function withFrontmatter(body: string, frontmatter: Record<string, unknown>): string {
@@ -47,10 +53,40 @@ export function buildContextSection(graph: WikiGraphState, schemaFilename: Schem
   ].join('\n');
 }
 
-export function upsertLlmWikiContextSection(content: string, section: string): string {
+/**
+ * Build the fenced "Graph navigation discipline" section appended to
+ * `<project>/.claude/CLAUDE.md` (or `.codex/AGENTS.md`) and to the project-
+ * context skill body. Same idempotent upsert pattern as the LLM Wiki section,
+ * different sentinels.
+ *
+ * The body is the canonical text from `graph-navigation-discipline.ts` —
+ * single source of truth across the Phase 1 prompt-builder, the wiki router
+ * doc, this fenced section, and the ticket-skill cross-references.
+ */
+export function buildGraphDisciplineSection(): string {
+  return [
+    GRAPH_DISCIPLINE_CONTEXT_START,
+    GRAPH_NAVIGATION_DISCIPLINE_HEADING,
+    '',
+    GRAPH_NAVIGATION_DISCIPLINE_TEXT,
+    GRAPH_DISCIPLINE_CONTEXT_END,
+  ].join('\n');
+}
+
+/**
+ * Generic fenced-section upsert. Replaces an existing fenced block in place;
+ * appends a new one when no prior block exists. Used by both the LLM Wiki
+ * and Graph Discipline upserts so they share regex/replace logic.
+ */
+export function upsertFencedSection(
+  content: string,
+  section: string,
+  startSentinel: string,
+  endSentinel: string,
+): string {
   const normalizedSection = section.trim();
   const sectionPattern = new RegExp(
-    `${escapeRegExp(LLM_WIKI_CONTEXT_START)}[\\s\\S]*?${escapeRegExp(LLM_WIKI_CONTEXT_END)}`,
+    `${escapeRegExp(startSentinel)}[\\s\\S]*?${escapeRegExp(endSentinel)}`,
     'm',
   );
 
@@ -59,4 +95,13 @@ export function upsertLlmWikiContextSection(content: string, section: string): s
   }
 
   return ensureTrailingNewline(`${content.trimEnd()}\n\n${normalizedSection}`);
+}
+
+/**
+ * Back-compat wrapper around `upsertFencedSection` for the LLM Wiki section.
+ * Existing callers keep their signature; new code can call
+ * `upsertFencedSection` directly with arbitrary sentinels.
+ */
+export function upsertLlmWikiContextSection(content: string, section: string): string {
+  return upsertFencedSection(content, section, LLM_WIKI_CONTEXT_START, LLM_WIKI_CONTEXT_END);
 }

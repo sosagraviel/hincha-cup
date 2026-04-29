@@ -101,6 +101,8 @@ If `docs/llm-wiki/` exists, defer retrieval to the wiki's own router. The router
 
 3. **Optional graph call.** If the matched page bodies do not fully answer the gap-detection questions, call `mcp__code_graph__get_minimal_context_tool({ task: "<user idea or ticket summary>", changed_files: [], base: "HEAD~1" })` **at most once**. Preserve the full response — downstream `/implement-ticket` Phase 3 may reuse it.
 
+   **Follow the graph navigation discipline.** When you fall back to graph MCP tools, follow the canonical rules in `<project>/.claude/CLAUDE.md` (Claude) or `<project>/.codex/AGENTS.md` (Codex), section *Graph navigation discipline*. Summary: start with `mcp__code_graph__get_minimal_context_tool`; never call `mcp__code_graph__get_architecture_overview_tool` (forbidden — response cannot be bounded); set `detail_level: "minimal"`, `limit: 20` MAX, `include_members: false`, `include_source: false` everywhere they apply.
+
 4. **Persist** the loaded context to `{{TEMP_DIR}}/tickets/<draft-id>/context/wiki-context.md` with sections: `## ROUTER` (the router file path), `## WIKI_INDEX_SNAPSHOT` (the index.md content), `## WIKI_CORE` (the 1–3 expanded page paths + bodies), `## get_minimal_context_tool Payload` (only when step 3 ran).
 
 **Tier discipline:** start with the router → 1–3 page bodies → at most one graph call. Never read every wiki page; the index entry summary is sufficient unless the user's question matches the page's topic. Stop wikilink traversal at depth 2.

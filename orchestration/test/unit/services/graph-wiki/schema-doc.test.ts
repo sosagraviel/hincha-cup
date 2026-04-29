@@ -51,6 +51,10 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
 
     const normalise = (content: string) =>
       content
+        // Provider-specific config dir: .claude / .codex
+        .replace(/\.claude\b/g, '{{instruction_dir}}')
+        .replace(/\.codex\b/g, '{{instruction_dir}}')
+        // Provider-specific schema filename
         .replace(/CLAUDE\.md/g, '{{schema_filename}}')
         .replace(/AGENTS\.md/g, '{{schema_filename}}')
         .replace(/COPILOT\.md/g, '{{schema_filename}}');
@@ -144,5 +148,30 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
     const result = service.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
     expect(result.content).not.toContain('Frontmatter contract');
     expect(result.content).not.toContain('document_type: <architecture');
+  });
+
+  it('embeds a Graph navigation discipline subsection forbidding architecture-overview', () => {
+    const service = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
+    const result = service.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
+    expect(result.content).toContain('## Graph navigation discipline');
+    expect(result.content).toContain('mcp__code_graph__get_architecture_overview_tool');
+    expect(result.content).toMatch(/forbidden/i);
+    // Lean-defaults summary is present.
+    expect(result.content).toContain('detail_level: "minimal"');
+    expect(result.content).toContain('limit: 20');
+  });
+
+  it('points at the provider-specific instruction file for the canonical discipline body', () => {
+    const claudeResult = new WikiGeneratorService(buildOptions(Provider.CLAUDE)).buildSchemaDoc(
+      'proj',
+      '2026-04-24T00:00:00.000Z',
+    );
+    expect(claudeResult.content).toContain('<project>/.claude/CLAUDE.md');
+
+    const codexResult = new WikiGeneratorService(buildOptions(Provider.CODEX)).buildSchemaDoc(
+      'proj',
+      '2026-04-24T00:00:00.000Z',
+    );
+    expect(codexResult.content).toContain('<project>/.codex/AGENTS.md');
   });
 });

@@ -187,6 +187,30 @@ describe('wikiGenerationNode (finalization)', () => {
     );
   });
 
+  it('appends a Graph navigation discipline fenced section to both files', async () => {
+    await wikiGenerationNode(state);
+
+    const claudeWrite = vi
+      .mocked(fs.writeFileSync)
+      .mock.calls.find(([path]) => String(path) === '/test/project/.claude/CLAUDE.md');
+    const skillWrite = vi
+      .mocked(fs.writeFileSync)
+      .mock.calls.find(
+        ([path]) => String(path) === '/test/project/.claude/skills/project-context/SKILL.md',
+      );
+
+    for (const write of [claudeWrite, skillWrite]) {
+      const body = String(write?.[1]);
+      expect(body).toContain('<!-- GRAPH_DISCIPLINE_START -->');
+      expect(body).toContain('<!-- GRAPH_DISCIPLINE_END -->');
+      expect(body).toContain('## Graph navigation discipline');
+      expect(body).toContain('mcp__code_graph__get_minimal_context_tool');
+      expect(body).toContain('mcp__code_graph__get_architecture_overview_tool');
+      // Both fenced sections coexist — the LLM Wiki section was already there.
+      expect(body).toContain('<!-- LLM_WIKI_START -->');
+    }
+  });
+
   it('replaces the context section on rerun instead of duplicating it', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
       const pathString = String(path);

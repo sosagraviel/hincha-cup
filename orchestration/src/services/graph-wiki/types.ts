@@ -20,6 +20,9 @@ export const LLM_WIKI_CORE_GENERATION_ORDER = [
 export const LLM_WIKI_CONTEXT_START = '<!-- LLM_WIKI_START -->';
 export const LLM_WIKI_CONTEXT_END = '<!-- LLM_WIKI_END -->';
 
+export const GRAPH_DISCIPLINE_CONTEXT_START = '<!-- GRAPH_DISCIPLINE_START -->';
+export const GRAPH_DISCIPLINE_CONTEXT_END = '<!-- GRAPH_DISCIPLINE_END -->';
+
 /**
  * Maps each supported provider to the schema filename it auto-discovers.
  * Exactly one of these files exists in docs/llm-wiki/ at any time.

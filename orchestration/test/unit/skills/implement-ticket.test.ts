@@ -232,6 +232,19 @@ describe('SKILL.claude.md — Phase F regression', () => {
       expect(skillsSection).toContain('Phase 8.5');
     });
   });
+
+  describe('graph navigation discipline cross-reference', () => {
+    it('Phase 2 names the canonical discipline section in .claude/CLAUDE.md', () => {
+      expect(content).toMatch(/Graph navigation discipline/);
+      expect(content).toContain('.claude/CLAUDE.md');
+      expect(content).toContain('mcp__code_graph__get_architecture_overview_tool');
+    });
+
+    it('names the lean-default summary explicitly', () => {
+      expect(content).toContain('detail_level: "minimal"');
+      expect(content).toContain('limit: 20');
+    });
+  });
 });
 
 describe('SKILL.codex.md — Phase F regression (symmetric)', () => {
@@ -352,6 +365,19 @@ describe('SKILL.codex.md — Phase F regression (symmetric)', () => {
       );
       expect(skillsSection).toContain('/wiki-refresh');
       expect(skillsSection).toContain('Phase 8.5');
+    });
+  });
+
+  describe('graph navigation discipline cross-reference', () => {
+    it('Phase 2 names the canonical discipline section in .codex/AGENTS.md (Codex variant)', () => {
+      expect(content).toMatch(/Graph navigation discipline/);
+      expect(content).toContain('.codex/AGENTS.md');
+      expect(content).toContain('mcp__code_graph__get_architecture_overview_tool');
+    });
+
+    it('names the lean-default summary explicitly', () => {
+      expect(content).toContain('detail_level: "minimal"');
+      expect(content).toContain('limit: 20');
     });
   });
 });

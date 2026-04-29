@@ -2,12 +2,16 @@ import matter from 'gray-matter';
 import { describe, expect, it } from 'vitest';
 import {
   buildContextSection,
-  withFrontmatter,
+  buildGraphDisciplineSection,
+  upsertFencedSection,
   upsertLlmWikiContextSection,
+  withFrontmatter,
 } from '../../../../src/services/graph-wiki/frontmatter.js';
 import {
-  LLM_WIKI_CONTEXT_START,
+  GRAPH_DISCIPLINE_CONTEXT_END,
+  GRAPH_DISCIPLINE_CONTEXT_START,
   LLM_WIKI_CONTEXT_END,
+  LLM_WIKI_CONTEXT_START,
 } from '../../../../src/services/graph-wiki/types.js';
 
 const BASE_FRONTMATTER = {
@@ -207,5 +211,81 @@ describe('upsertLlmWikiContextSection', () => {
   it('result ends with a newline', () => {
     const result = upsertLlmWikiContextSection('# Doc', section);
     expect(result.endsWith('\n')).toBe(true);
+  });
+});
+
+describe('buildGraphDisciplineSection', () => {
+  const section = buildGraphDisciplineSection();
+
+  it('opens with GRAPH_DISCIPLINE_CONTEXT_START and closes with the matching end', () => {
+    expect(section.startsWith(GRAPH_DISCIPLINE_CONTEXT_START)).toBe(true);
+    expect(section.endsWith(GRAPH_DISCIPLINE_CONTEXT_END)).toBe(true);
+  });
+
+  it('renders the discipline heading and the canonical text', () => {
+    expect(section).toContain('## Graph navigation discipline');
+    expect(section).toContain('mcp__code_graph__get_minimal_context_tool');
+    expect(section).toContain('DO NOT CALL');
+    expect(section).toContain('mcp__code_graph__get_architecture_overview_tool');
+  });
+
+  it('includes the lean-defaults table and the spill-protocol sentinel', () => {
+    expect(section).toContain('detail_level: "minimal"');
+    expect(section).toContain('include_members: false');
+    expect(section).toContain('limit: 20');
+    expect(section).toContain('exceeds maximum allowed tokens');
+  });
+});
+
+describe('upsertFencedSection', () => {
+  it('appends a new fenced block when no prior block exists', () => {
+    const out = upsertFencedSection(
+      '# Doc body',
+      `${GRAPH_DISCIPLINE_CONTEXT_START}\n## Graph nav\n- new\n${GRAPH_DISCIPLINE_CONTEXT_END}`,
+      GRAPH_DISCIPLINE_CONTEXT_START,
+      GRAPH_DISCIPLINE_CONTEXT_END,
+    );
+    expect(out).toContain('## Graph nav');
+    expect(out).toContain(GRAPH_DISCIPLINE_CONTEXT_START);
+    expect(out).toContain(GRAPH_DISCIPLINE_CONTEXT_END);
+  });
+
+  it('replaces an existing fenced block in place — no duplication on rerun', () => {
+    const initial = upsertFencedSection(
+      '# Doc body',
+      `${GRAPH_DISCIPLINE_CONTEXT_START}\nold\n${GRAPH_DISCIPLINE_CONTEXT_END}`,
+      GRAPH_DISCIPLINE_CONTEXT_START,
+      GRAPH_DISCIPLINE_CONTEXT_END,
+    );
+    const updated = upsertFencedSection(
+      initial,
+      `${GRAPH_DISCIPLINE_CONTEXT_START}\nnew\n${GRAPH_DISCIPLINE_CONTEXT_END}`,
+      GRAPH_DISCIPLINE_CONTEXT_START,
+      GRAPH_DISCIPLINE_CONTEXT_END,
+    );
+    expect(updated).toContain('new');
+    expect(updated).not.toContain('old');
+    const occurrences = (updated.match(new RegExp(GRAPH_DISCIPLINE_CONTEXT_START, 'g')) ?? [])
+      .length;
+    expect(occurrences).toBe(1);
+  });
+
+  it('handles both LLM Wiki and Graph Discipline sections in the same file', () => {
+    const wikiSection = `${LLM_WIKI_CONTEXT_START}\nwiki body\n${LLM_WIKI_CONTEXT_END}`;
+    const disciplineSection = `${GRAPH_DISCIPLINE_CONTEXT_START}\ndiscipline body\n${GRAPH_DISCIPLINE_CONTEXT_END}`;
+    let out = upsertFencedSection(
+      '# Doc',
+      wikiSection,
+      LLM_WIKI_CONTEXT_START,
+      LLM_WIKI_CONTEXT_END,
+    );
+    out = upsertFencedSection(
+      out,
+      disciplineSection,
+      GRAPH_DISCIPLINE_CONTEXT_START,
+      GRAPH_DISCIPLINE_CONTEXT_END,
+    );
+    expect(out).toContain('wiki body');
+    expect(out).toContain('discipline body');
   });
 });

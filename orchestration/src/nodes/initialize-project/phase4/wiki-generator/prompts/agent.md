@@ -44,6 +44,7 @@ If you cannot cite any source for a claim, do not include the claim.
 - Do not include YAML frontmatter.
 - Do not wrap the response in code fences.
 - Do not invent ADRs, decisions, services, frameworks, or any content not directly supported by the digested upstream.
+- If you reference a graph tool name in the page body, use canonical names from the catalog (e.g. `mcp__code_graph__list_communities_tool`). Never reference `mcp__code_graph__get_architecture_overview_tool` — it is forbidden by the project's graph-navigation discipline because its response cannot be bounded.
 
 ## Output Style
 

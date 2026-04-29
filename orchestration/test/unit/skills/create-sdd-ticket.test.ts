@@ -379,4 +379,26 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
       expect(toolCount).toBeGreaterThanOrEqual(2);
     });
   });
+
+  describe('graph navigation discipline cross-reference', () => {
+    it('Phase 0.5 cites the canonical discipline section in CLAUDE.md / AGENTS.md', () => {
+      const phase05 = content.slice(
+        content.indexOf('### Phase 0.5:'),
+        content.indexOf('### Phase 1:'),
+      );
+      expect(phase05).toMatch(/Graph navigation discipline/);
+      // Names both provider-specific files so Codex users see the right path.
+      expect(phase05).toContain('.claude/CLAUDE.md');
+      expect(phase05).toContain('.codex/AGENTS.md');
+    });
+
+    it('Phase 0.5 names the forbidden tool', () => {
+      const phase05 = content.slice(
+        content.indexOf('### Phase 0.5:'),
+        content.indexOf('### Phase 1:'),
+      );
+      expect(phase05).toContain('mcp__code_graph__get_architecture_overview_tool');
+      expect(phase05).toMatch(/forbidden/i);
+    });
+  });
 });
