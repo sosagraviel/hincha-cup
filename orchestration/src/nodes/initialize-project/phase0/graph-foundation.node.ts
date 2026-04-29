@@ -1,7 +1,10 @@
 import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
 import { buildCodeGraph } from '../../../services/graph-wiki/code-graph.service.js';
 import { fetchCodeGraphToolCatalog } from '../../../services/framework/code-graph/tool-catalog.service.js';
-import { upsertCodeGraphMcpConfig } from '../../../services/framework/mcp-config.service.js';
+import {
+  upsertCodeGraphMcpConfig,
+  upsertCodexPathRestrictionHookConfig,
+} from '../../../services/framework/mcp-config.service.js';
 import { getActiveProvider } from '../../../utils/provider-paths.js';
 import { Provider } from '../../../providers/types.js';
 import { logger } from '../../../utils/logger.js';
@@ -52,9 +55,24 @@ export async function graphFoundationNode(
       phaseLogger.info(
         `  MCP config written for ${provider === Provider.CODEX ? '.codex/config.toml' : '.mcp.json'}`,
       );
+
+      // Codex parity for path restriction. Claude sessions get directory
+      // exclusion via permissions.deny rules in their per-spawn settings.json
+      // (see services/framework/permissions/excluded-paths.ts). Codex has no
+      // permissions.deny equivalent, so we register the same hook script
+      // (restrict-agent-paths.hook.ts) as a Codex PreToolUse hook in
+      // .codex/config.toml. Idempotent; preserves user config around the
+      // managed block. See codex-hooks-toml.ts for rationale.
+      if (provider === Provider.CODEX) {
+        upsertCodexPathRestrictionHookConfig({
+          projectPath: state.project_path,
+          frameworkPath: state.framework_path,
+        });
+        phaseLogger.info('  Codex PreToolUse path-restriction hook wired in .codex/config.toml');
+      }
     } catch (mcpErr) {
       phaseLogger.warn(
-        `  MCP config upsert failed (non-fatal): ${mcpErr instanceof Error ? mcpErr.message : String(mcpErr)}`,
+        `  MCP / Codex hook config upsert failed (non-fatal): ${mcpErr instanceof Error ? mcpErr.message : String(mcpErr)}`,
       );
     }
 

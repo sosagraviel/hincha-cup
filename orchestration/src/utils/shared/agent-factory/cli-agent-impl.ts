@@ -16,6 +16,10 @@ import {
 } from '../../../services/framework/debug-store/index.js';
 import { beginAttemptRecorder } from './attempt-recorder.js';
 import { getExcludedDirectories } from '../prompt-loader.js';
+import {
+  buildClaudeDenyRules,
+  renderDenyRulesPlaceholderValue,
+} from '../../../services/framework/permissions/excluded-paths.js';
 
 // Track active processes and invocations for cleanup
 const activeProcesses: Set<ChildProcess> = new Set();
@@ -247,10 +251,19 @@ async function invokeCLI(
       if (config.settingsPath) {
         try {
           const originalSettings = fs.readFileSync(config.settingsPath, 'utf-8');
-          const resolvedSettings = originalSettings.replace(
-            /\$\{FRAMEWORK_PATH\}|\$FRAMEWORK_PATH/g,
-            config.frameworkPath,
-          );
+          // First substitution: ${FRAMEWORK_PATH} → absolute framework root.
+          // Second substitution: "${FRAMEWORK_EXCLUDED_DENY_RULES}" → expanded
+          // list of Claude Code `permissions.deny` rules covering every
+          // excluded directory for this project. The placeholder is a single
+          // quoted entry inside a JSON array, replaced with N comma-separated
+          // quoted entries — see services/framework/permissions/excluded-paths.ts
+          // for the rationale and the load-bearing official-docs quote that
+          // guarantees these rules filter Glob/Grep results.
+          const denyRules = buildClaudeDenyRules(config.projectPath, config.frameworkPath);
+          const denyRulesPlaceholderValue = renderDenyRulesPlaceholderValue(denyRules);
+          const resolvedSettings = originalSettings
+            .replace(/\$\{FRAMEWORK_PATH\}|\$FRAMEWORK_PATH/g, config.frameworkPath)
+            .replace(/"\$\{FRAMEWORK_EXCLUDED_DENY_RULES\}"/g, denyRulesPlaceholderValue);
 
           const tempSettingsFile = path.join(sessionTempDir, 'settings-resolved.json');
           fs.writeFileSync(tempSettingsFile, resolvedSettings, 'utf-8');

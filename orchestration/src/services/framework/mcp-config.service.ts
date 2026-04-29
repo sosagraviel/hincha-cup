@@ -8,6 +8,7 @@ import {
   extractCodeGraphMcpTomlServer,
   upsertCodeGraphMcpTomlBlock,
 } from './codex-mcp-toml.js';
+import { upsertCodexPathRestrictionHookBlock } from './codex-hooks-toml.js';
 
 interface McpConfig {
   mcpServers?: Record<string, unknown>;
@@ -208,6 +209,70 @@ function upsertCodexCodeGraphMcpConfig(params: {
 
   mkdirSync(configDir, { recursive: true });
   writeFileSync(configPath, upsertCodeGraphMcpTomlBlock(existingContent, expectedServer));
+
+  return {
+    configPath,
+    changed: true,
+    backedUp,
+    backupPath,
+  };
+}
+
+/**
+ * Upsert the framework's path-restriction hook block into Codex's
+ * `.codex/config.toml`.
+ *
+ * Why this exists: Codex CLI has no `permissions.deny` equivalent (the
+ * Claude-side mechanism for filtering Glob/Grep results — see
+ * `permissions/excluded-paths.ts`). Codex's tool surface is Bash + apply_patch
+ * + MCP, so `find` / `grep` walks happen inside Bash. The official Codex
+ * hooks docs (https://developers.openai.com/codex/hooks) document a
+ * `PreToolUse` event with `permissionDecision: "deny"` support, which is
+ * exactly the contract our existing `restrict-agent-paths.hook.ts` uses
+ * (exit 2 with stderr feedback ⇒ block). This wires the hook into Codex's
+ * config so Codex sessions get the same blocking guarantee Claude sessions
+ * already have through `permissions.deny`.
+ *
+ * Idempotent: the upsert uses sentinel comments to identify the framework's
+ * managed block; surrounding Codex config (other `[mcp_servers.*]` tables,
+ * user model/sandbox config) is preserved byte-for-byte.
+ *
+ * Stack-agnostic — only TOML mechanics; no language or framework
+ * assumptions. Covers Codex on every project shape (PHP, Python, Go,
+ * legacy .NET, etc.).
+ */
+export function upsertCodexPathRestrictionHookConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+}): CodeGraphMcpConfigResult {
+  const { projectPath, frameworkPath } = params;
+  const configDir = join(projectPath, getProviderPaths(Provider.CODEX).configDir);
+  const configPath = join(configDir, CODEX_CONFIG_FILE);
+  const tsxBin = join(frameworkPath, 'orchestration/node_modules/.bin/tsx');
+  const hookScript = join(
+    frameworkPath,
+    'orchestration/src/nodes/initialize-project/shared/hooks/restrict-agent-paths.hook.ts',
+  );
+  const existingContent = existsSync(configPath) ? readFileSync(configPath, 'utf-8') : '';
+  const updated = upsertCodexPathRestrictionHookBlock(existingContent, { tsxBin, hookScript });
+
+  if (updated === existingContent) {
+    return {
+      configPath,
+      changed: false,
+      backedUp: false,
+    };
+  }
+
+  let backedUp = false;
+  let backupPath: string | undefined;
+  if (existsSync(configPath)) {
+    backupPath = backupMcpConfig(projectPath, configPath, Provider.CODEX);
+    backedUp = true;
+  }
+
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(configPath, updated);
 
   return {
     configPath,

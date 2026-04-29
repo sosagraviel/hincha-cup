@@ -532,13 +532,16 @@ function runCodex(params: {
 
       let timeoutId: NodeJS.Timeout | undefined;
 
-      // Codex's hook system is notification-only — there is no PreToolUse
-      // equivalent that can block a tool call. We still pass the same env
-      // contract that Claude uses so (a) any framework-aware tooling that
-      // reads these vars stays consistent across providers, and (b) if
-      // Codex gains blocking-hook support later, the wiring is already in
-      // place. Hard path enforcement on Codex today is prompt-level only
-      // (the `<excluded_directories>` block in `prompt-builder.ts`).
+      // Codex hook plumbing: per the official Codex hooks docs
+      // (https://developers.openai.com/codex/hooks), `PreToolUse` supports
+      // `permissionDecision: "deny"` to block tool calls before execution.
+      // The framework's `restrict-agent-paths.hook.ts` is wired into Codex
+      // via `[[hooks.PreToolUse]]` in `.codex/config.toml` (written by
+      // `upsertCodexPathRestrictionHookConfig` during Phase 0). The hook is
+      // matcher-scoped to `Bash` + `apply_patch` so Codex's `find` / `grep`
+      // walks get the same blocking guarantee Claude sessions have via
+      // `permissions.deny`. The env vars below feed the hook with the same
+      // contract Claude uses; both providers run the identical hook script.
       const excludedDirs = getExcludedDirectories(params.cwd, params.frameworkPath);
 
       const proc = spawn(params.codexPath, cliArgs, {
