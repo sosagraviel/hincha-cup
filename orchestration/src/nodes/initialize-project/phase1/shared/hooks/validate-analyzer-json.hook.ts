@@ -10,9 +10,22 @@
  */
 
 import fs from 'fs';
+import path from 'path';
 // Import centralized validator from Phase 0 schema registry
 import { validateAgentOutput } from '../../../../../schemas/phase1-agent-outputs.schema.js';
 import { extractJSON } from '../../../../../utils/validator.js';
+
+/**
+ * Names of the three downstream Phase 1 analyzers — those that consume the
+ * structure-analyzer's authoritative services[] and must emit a service-ID
+ * surface compatible with it. The hook cross-checks their output against
+ * `<tempDir>/phase1-outputs/01-structure-architecture.json`.
+ */
+const DOWNSTREAM_ANALYZERS = new Set([
+  'tech-stack-dependencies-analyzer',
+  'code-patterns-testing-analyzer',
+  'data-flows-integrations-analyzer',
+]);
 
 interface HookInput {
   stop_hook_active: boolean;
@@ -113,6 +126,169 @@ function countGraphToolUses(transcript: unknown[]): GraphToolUseRecord {
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
+
+/**
+ * Loads the authoritative service IDs the structure-analyzer persisted at
+ * `<tempDir>/phase1-outputs/01-structure-architecture.json`. The downstream
+ * analyzers (02, 03, 04) MUST stay within this set — any service-shaped key
+ * referencing an ID that isn't in the authoritative set is a regression
+ * (see plans/2026-04-29-gira-init-run-audit-refactor.md findings F7/F22).
+ *
+ * Returns an empty `Set` when the file is missing or malformed (e.g. a
+ * single-analyzer replay where 01 wasn't run). The caller treats an empty
+ * set as "no consistency check possible — skip" rather than failing the
+ * agent on missing infrastructure.
+ *
+ * Stack-agnostic: only consumes service `id` strings; no language or
+ * framework assumptions.
+ */
+function loadAuthoritativeServiceIds(cwd: string | undefined): Set<string> {
+  const tempCandidates = candidateTempDirs(cwd);
+  for (const tempDir of tempCandidates) {
+    const outputPath = path.join(tempDir, 'phase1-outputs', '01-structure-architecture.json');
+    if (!fs.existsSync(outputPath)) continue;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(outputPath, 'utf-8')) as unknown;
+      if (!isObject(parsed)) continue;
+      const findings = (parsed as Record<string, unknown>).findings;
+      if (!isObject(findings)) continue;
+      const services = (findings as Record<string, unknown>).services;
+      if (!Array.isArray(services)) continue;
+      const ids = new Set<string>();
+      for (const s of services) {
+        if (isObject(s) && typeof s.id === 'string' && s.id.trim()) {
+          ids.add(s.id.trim());
+        }
+      }
+      if (ids.size > 0) return ids;
+    } catch {
+      // Continue to the next candidate — best-effort, never fail open here.
+    }
+  }
+  return new Set();
+}
+
+/**
+ * Resolves the candidate `<tempDir>` directories where Phase 1 outputs may
+ * live. Mirrors the resolveTempPath() lookup order without the runtime
+ * dependency: `.claude-temp/initialize-project/` (Claude provider) and
+ * `.codex-temp/initialize-project/` (Codex). Returns absolute paths.
+ */
+function candidateTempDirs(cwd: string | undefined): string[] {
+  const root = cwd && cwd.length > 0 ? cwd : process.cwd();
+  return [
+    path.join(root, '.claude-temp', 'initialize-project'),
+    path.join(root, '.codex-temp', 'initialize-project'),
+  ];
+}
+
+/**
+ * Walk every leaf string value in a parsed analyzer output looking for
+ * service IDs that don't appear in the authoritative set. Heuristic: collect
+ * keys of every record at the top level of `findings.{by_service|testing|
+ * api_patterns|service_communication|...}` — these are conventionally keyed
+ * by service ID per the schema. Also scan top-level keys whose value is an
+ * object that itself contains an `id` field (defensive).
+ *
+ * Returns an array of `{key, parent}` records describing every offending
+ * appearance so the feedback message can list them precisely.
+ */
+function findUnknownServiceIds(
+  data: unknown,
+  authoritative: Set<string>,
+): Array<{ id: string; location: string }> {
+  if (!isObject(data) || authoritative.size === 0) return [];
+  const findings = (data as Record<string, unknown>).findings;
+  if (!isObject(findings)) return [];
+
+  const offenders: Array<{ id: string; location: string }> = [];
+
+  // 1. Scan top-level objects in `findings` whose entries are conventionally
+  //    keyed by service ID. We do NOT assume any specific key name —
+  //    the schemas use `by_service`, `testing`, `service_communication`,
+  //    `api_patterns`, etc., and consumers may evolve. Heuristic: any
+  //    record-shaped value in `findings` whose keys look like identifiers.
+  for (const [parentKey, parentValue] of Object.entries(findings)) {
+    if (!isObject(parentValue)) continue;
+    // Skip plainly-not-by-service-id structures: ones that have well-known
+    // non-id keys at the top level (e.g. `dependencies` has `by_service` as
+    // a nested map, not its top level).
+    if (parentKey === 'dependencies') {
+      const inner = (parentValue as Record<string, unknown>).by_service;
+      if (isObject(inner)) {
+        for (const id of Object.keys(inner)) {
+          if (!authoritative.has(id)) {
+            offenders.push({ id, location: `findings.dependencies.by_service.${id}` });
+          }
+        }
+      }
+      continue;
+    }
+    // Scan record-shaped containers: top-level keys that look like service IDs.
+    for (const candidateId of Object.keys(parentValue)) {
+      // Heuristic guard: reject keys that obviously aren't IDs (whitespace,
+      // single-char, or "raw" container keys we don't want to flag like
+      // "source", "conflicts", "by_task").
+      if (candidateId.length < 2) continue;
+      if (/\s/.test(candidateId)) continue;
+      // Skip well-known schema-sanctioned non-service keys: a record-shaped
+      // object can also be a config block, not a service-id map.
+      if (
+        ['source', 'conflicts', 'by_task', 'main', 'orm', 'package_manager'].includes(candidateId)
+      ) {
+        continue;
+      }
+      // Lower-case identifier-ish; flag if not in authoritative set.
+      if (
+        /^[a-z][a-z0-9_-]+$/i.test(candidateId) &&
+        !authoritative.has(candidateId) &&
+        // Allow known structural keys per schema (these are NOT service IDs).
+        !STRUCTURAL_KEY_ALLOWLIST.has(`${parentKey}.${candidateId}`)
+      ) {
+        // Shallow heuristic — only flag when the value is itself an object
+        // (record-shaped) AND the parent key is one we expect to be keyed
+        // by service ID.
+        if (isObject((parentValue as Record<string, unknown>)[candidateId])) {
+          if (BY_SERVICE_PARENT_KEYS.has(parentKey)) {
+            offenders.push({
+              id: candidateId,
+              location: `findings.${parentKey}.${candidateId}`,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return offenders;
+}
+
+/**
+ * Conservative allowlist: keys we KNOW are conventionally keyed by service ID
+ * across the three downstream analyzers. The check only flags unknown IDs
+ * inside these parents — every other shape is left alone, so adding a new
+ * non-service-id-keyed structure to a schema doesn't cause false positives.
+ */
+const BY_SERVICE_PARENT_KEYS = new Set<string>([
+  'testing',
+  'api_patterns',
+  'service_communication',
+  'naming_conventions',
+  'error_handling',
+  'async_patterns',
+  'environment',
+]);
+
+/**
+ * Top-level subkeys we want to ignore even when they appear inside a
+ * by-service parent — they're container metadata, not service IDs.
+ */
+const STRUCTURAL_KEY_ALLOWLIST = new Set<string>([
+  'testing.unit',
+  'testing.integration',
+  'testing.e2e',
+  'service_communication.protocols',
+]);
 
 /**
  * Write the deterministic graph-tool-use record next to the transcript so the
@@ -352,8 +528,9 @@ async function main() {
           '  "agent_name": "structure-architecture-analyzer" | "tech-stack-dependencies-analyzer" | "code-patterns-testing-analyzer" | "data-flows-integrations-analyzer",\n' +
           '  "timestamp": "2026-04-02T10:30:00.000Z", // ISO 8601 format\n' +
           '  "findings": {\n' +
-          '    "services": [ /* REQUIRED: Array of discovered services */ ],\n' +
-          '    // Additional fields specific to each analyzer\n' +
+          '    // For structure-architecture-analyzer: findings.services[] is REQUIRED (≥1 service).\n' +
+          '    // For the three downstream analyzers: findings.services[] is FORBIDDEN — use the\n' +
+          '    // service-ID-keyed maps documented in your schema (by_service / testing / api_patterns / etc.).\n' +
           '  },\n' +
           '  "needs_verification": [\n' +
           '    { "id": "v1", "question": "Clear question?", "reason": "context" }\n' +
@@ -362,11 +539,55 @@ async function main() {
           'IMPORTANT:\n' +
           '  - agent_name must exactly match one of the 4 analyzer names above\n' +
           '  - timestamp must be valid ISO 8601 format\n' +
-          '  - findings.services array is REQUIRED (at least 1 service)\n' +
-          "  - Each service must have an 'id' field\n" +
+          '  - For analyzer 01 only: findings.services[] is REQUIRED (≥1 service, each with an id).\n' +
+          '  - For analyzers 02/03/04: do NOT emit findings.services[] — that key is forbidden.\n' +
           '  - ⚠️  needs_verification MAXIMUM 5 ITEMS - prioritize the most critical unknowns\n\n' +
           'Please output the corrected JSON with all required fields.',
       );
+    }
+
+    // Service-ID consistency check for downstream analyzers (02/03/04). The
+    // structure-architecture-analyzer's services[] is the authoritative set;
+    // any service-id-keyed structure in this output that references an unknown
+    // ID is a regression (see plans/2026-04-29-gira-init-run-audit-refactor.md
+    // findings F7/F22). Stack-agnostic — only consumes id strings.
+    const agentName =
+      isObject(data) && typeof (data as Record<string, unknown>).agent_name === 'string'
+        ? ((data as Record<string, unknown>).agent_name as string)
+        : '';
+
+    if (DOWNSTREAM_ANALYZERS.has(agentName)) {
+      const authoritative = loadAuthoritativeServiceIds(input.cwd);
+      // Empty authoritative set = no consistency check possible (single-
+      // analyzer replay or interrupted run). Skip rather than fail open.
+      if (authoritative.size > 0) {
+        const offenders = findUnknownServiceIds(data, authoritative);
+        if (offenders.length > 0) {
+          const offenderList = offenders
+            .map(({ id, location }) => `  - "${id}" at ${location}`)
+            .join('\n');
+          const authoritativeList = Array.from(authoritative).sort().join(', ');
+          return blockWithFeedback(
+            '❌ Service-ID consistency check failed.\n\n' +
+              'Your output references service IDs that are NOT in the AUTHORITATIVE SERVICE\n' +
+              'LIST you were given. The structure-architecture-analyzer ran first and is\n' +
+              'the single source of truth for service discovery; you may not introduce new\n' +
+              'IDs of your own.\n\n' +
+              'Unknown IDs found in your output:\n' +
+              offenderList +
+              '\n\n' +
+              `Authoritative service IDs (from your prompt's AUTHORITATIVE SERVICE LIST): ${authoritativeList}\n\n` +
+              'How to fix:\n' +
+              '  - If a finding belongs to one of the authoritative services, use that service ID verbatim.\n' +
+              '  - If the finding is genuinely cross-cutting (not tied to a specific service), put it under\n' +
+              '    a top-level non-service key (e.g. an analyzer-specific section), not under a service-ID map.\n' +
+              '  - If you believe an authoritative ID is missing entirely from the list, that decision was\n' +
+              '    made by analyzer 01 — it is NOT your job to override it. Either drop the finding or surface\n' +
+              "    it as a needs_verification item with a clear 'reason' so the human reviewer can decide.\n\n" +
+              'Please re-emit the corrected JSON.',
+          );
+        }
+      }
     }
 
     return allow();

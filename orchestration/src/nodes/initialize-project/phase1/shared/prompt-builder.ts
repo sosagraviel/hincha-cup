@@ -17,6 +17,7 @@ import {
   GRAPH_NAVIGATION_DISCIPLINE_TEXT,
 } from '../../../../services/graph-wiki/graph-navigation-discipline.js';
 import type { CodeGraphStats } from '../../../../state/schemas/initialize-project.schema.js';
+import type { AuthoritativeService } from './authoritative-services.js';
 
 /**
  * Heuristic: a graph is "large" if it has > 200 files OR > 1000 functions.
@@ -45,6 +46,13 @@ export interface GraphPromptContext {
  *
  * Used by: structure-architecture, tech-stack-dependencies,
  *          code-patterns-testing, data-flows-integrations
+ *
+ * `authoritativeServices` is supplied by the downstream analyzers (02 / 03 /
+ * 04) only — the structure analyzer itself runs first and discovers them.
+ * When provided, the rendered prompt opens with an `=== AUTHORITATIVE SERVICE
+ * LIST ===` block that pins the canonical service IDs the agent must consume
+ * verbatim. Stack-agnostic: the block contains only descriptive fields
+ * (id / path / type / language) that work for any project shape.
  */
 export function buildPhase1AnalyzerPrompt(
   projectPath: string,
@@ -52,6 +60,7 @@ export function buildPhase1AnalyzerPrompt(
   agentName: string,
   feedbackPrompt?: string, // Error feedback for retry
   graphContext?: GraphPromptContext,
+  authoritativeServices?: AuthoritativeService[],
 ): string {
   const excludedDirs = getExcludedDirectories(projectPath, frameworkPath);
   const executionInstructions = loadExecutionInstructions(agentName, frameworkPath);
@@ -63,6 +72,16 @@ export function buildPhase1AnalyzerPrompt(
     '',
     buildJsonOutputFormat(agentName),
   ];
+
+  if (authoritativeServices && authoritativeServices.length > 0) {
+    parts.push(
+      '',
+      buildContentSection(
+        'Authoritative Service List',
+        buildAuthoritativeServicesBlock(authoritativeServices),
+      ),
+    );
+  }
 
   if (graphContext) {
     parts.push('', buildContentSection('Code Graph Context', buildGraphContext(graphContext)));
@@ -77,6 +96,30 @@ export function buildPhase1AnalyzerPrompt(
   }
 
   return parts.join('\n');
+}
+
+/**
+ * Renders the authoritative service list block. Stack-agnostic: only
+ * descriptive fields (id, path, type, language) — no language-specific or
+ * framework-specific scaffolding. The agent is told to use these IDs verbatim
+ * and never to invent new ones.
+ */
+function buildAuthoritativeServicesBlock(services: AuthoritativeService[]): string {
+  const lines: string[] = [
+    'The structure-architecture-analyzer ran first and is the SINGLE SOURCE OF TRUTH for service discovery. The services below are authoritative; you MUST consume their IDs verbatim and MUST NOT introduce new IDs of your own. If a directory looks like it could be a service but its ID is not in the list below, ignore it — that decision was already made.',
+    '',
+    '| id | path | type | language |',
+    '|---|---|---|---|',
+  ];
+  for (const s of services) {
+    const cells = [s.id, s.path || '_(repo root)_', s.type ?? '—', s.language ?? '—'];
+    lines.push(`| ${cells.map((c) => c.replace(/\|/g, '\\|')).join(' | ')} |`);
+  }
+  lines.push(
+    '',
+    `Total: ${services.length} service${services.length === 1 ? '' : 's'}. Reference each by \`id\` in your output (use the \`by_service\` map keyed by service ID, or otherwise organize per-service findings under these IDs as documented in your output schema). Do NOT emit a top-level \`findings.services[]\` array — that key is forbidden in your schema.`,
+  );
+  return lines.join('\n');
 }
 
 function buildGraphContext(graphContext: GraphPromptContext): string {

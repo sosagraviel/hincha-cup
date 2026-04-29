@@ -53,12 +53,25 @@ For anything else, the graph MUST be your first call. If a graph call returns em
 - You CANNOT fix code, improve documentation, or make ANY changes
 - Your ONLY job: search → read → analyze → output JSON
 
+## Service IDs are upstream — application services come from analyzer 01
+
+Your prompt opens with an **`=== AUTHORITATIVE SERVICE LIST ===`** block listing the canonical APPLICATION services (with paths, types, and languages) discovered by the structure-architecture-analyzer. **Use those IDs verbatim** when keying communication patterns, authentication scopes, or any other service-shaped field.
+
+You MUST NOT include application services in your output. Your job is to surface:
+
+- **`findings.infrastructure_services`** — caches, databases, message queues, mail servers, object stores, etc. (NOT application services from the authoritative list).
+- **`findings.service_communication`** — a record keyed by AUTHORITATIVE service IDs describing inter-service traffic.
+- Authentication, authorization, external integrations, API design.
+
+The schema FORBIDS `findings.services[]` (any shape) for this analyzer. Application services come from analyzer 01; infrastructure services go under `infrastructure_services`. Any output that mixes the two will be rejected.
+
 **Output:**
 
 - Raw JSON only
 - First character: `{` Last character: `}`
 - No markdown, no code blocks, no explanations
 - The `graph_queries_used` field is **derived from your transcript by the Stop hook** — you do NOT need to populate it. Just call the graph tools when relevant; the framework records what you actually did.
-- Structure: `{"agent_name": "data-flows-integrations-analyzer", "timestamp": "...", "findings": {...}, "needs_verification": []}`
+- Structure: `{"agent_name": "data-flows-integrations-analyzer", "timestamp": "...", "findings": {"infrastructure_services": [{"id": "...", "type": "...", "used_by": ["<authoritative-service-id>"]}], "service_communication": {"<authoritative-service-id>": {"exposes_api": true, "consumed_by": ["<authoritative-service-id>"], "protocols": ["rest"]}}}, "needs_verification": []}`
+- Note: `findings.services[]` is FORBIDDEN — schema validation will reject it.
 
 The graph is your PRIMARY discovery surface. Glob/Read/Grep are fallback only, restricted to the explicit question classes listed above. If you find yourself reaching for Glob to answer a structural or relational question, stop and use the graph instead.

@@ -63,6 +63,12 @@ For anything else, the graph MUST be your first call. If a graph call returns em
 - Flag conflicts when documentation disagrees with package.json scripts
 - Store in `findings.documented_commands` with source priority: documented > makefile > scripts > package_json
 
+## Service IDs are upstream — DO NOT invent your own
+
+Your prompt opens with an **`=== AUTHORITATIVE SERVICE LIST ===`** block listing the canonical service IDs (with paths, types, and languages) discovered by the structure-architecture-analyzer. **Use those IDs verbatim.** You MUST NOT introduce a new service ID, rename one, or drop one. If a directory looks like a service but its ID is not on the list, that decision was already made — ignore it.
+
+The schema FORBIDS top-level `findings.services[]` for this analyzer. Any output that includes that key will be rejected. Organize your per-service findings under `findings.dependencies.by_service` (a record keyed by the authoritative service IDs) instead.
+
 **Output:**
 
 - Raw JSON only
@@ -70,6 +76,7 @@ For anything else, the graph MUST be your first call. If a graph call returns em
 - No markdown, no code blocks, no explanations
 - Use needs_verification sparingly (maximum 5 items) for deployment details unknowable from code
 - The `graph_queries_used` field is **derived from your transcript by the Stop hook** — you do NOT need to populate it. Just call the graph tools when relevant; the framework records what you actually did.
-- Structure: `{"agent_name": "tech-stack-dependencies-analyzer", "timestamp": "...", "findings": {"services": [...], "documented_commands": {"by_task": {}, "source": "documented", "conflicts": []}}, "needs_verification": []}`
+- Structure: `{"agent_name": "tech-stack-dependencies-analyzer", "timestamp": "...", "findings": {"dependencies": {"by_service": {"<authoritative-service-id>": {"production": [...], "development": [...]}}}, "documented_commands": {"by_task": {}, "source": "documented", "conflicts": []}}, "needs_verification": []}`
+- Note: `findings.services[]` is FORBIDDEN — schema validation will reject it.
 
 The graph is your PRIMARY discovery surface. Glob/Read/Grep are fallback only, restricted to the explicit question classes listed above. If you find yourself reaching for Glob to answer a structural or relational question, stop and use the graph instead.

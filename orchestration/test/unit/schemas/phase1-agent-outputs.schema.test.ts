@@ -195,7 +195,11 @@ describe('Phase 1 Agent Output Schemas', () => {
       expect(() => TechStackAnalyzerOutputSchema.parse(outputWithoutServices)).not.toThrow();
     });
 
-    it('should accept output WITH services array (backward compat)', () => {
+    it('rejects output WITH findings.services[] (forbidden — analyzer 01 is the single source of truth)', () => {
+      // Per plans/2026-04-29-gira-init-run-audit-refactor.md F8/F22, the
+      // tech-stack analyzer is downstream of structure-architecture-analyzer
+      // and consumes its services[] verbatim. Emitting findings.services[]
+      // here is a regression and the schema must reject it.
       const outputWithServices = {
         agent_name: 'tech-stack-dependencies-analyzer',
         timestamp: '2026-04-07T10:00:00.000Z',
@@ -220,8 +224,7 @@ describe('Phase 1 Agent Output Schemas', () => {
         needs_verification: [],
       };
 
-      // Should parse because services is optional
-      expect(() => TechStackAnalyzerOutputSchema.parse(outputWithServices)).not.toThrow();
+      expect(() => TechStackAnalyzerOutputSchema.parse(outputWithServices)).toThrow();
     });
 
     it('should accept dependencies.by_service map structure', () => {
@@ -283,18 +286,19 @@ describe('Phase 1 Agent Output Schemas', () => {
       expect(() => CodePatternsAnalyzerOutputSchema.parse(outputWithoutServices)).not.toThrow();
     });
 
-    it('should NOT have frameworks.testing field (anti-duplication test)', () => {
-      const outputWithFrameworksTesting = {
+    it('rejects output WITH findings.services[] (forbidden — single source of truth)', () => {
+      // Per plans/2026-04-29-gira-init-run-audit-refactor.md F9/F22, the
+      // code-patterns analyzer is downstream of structure-architecture-analyzer
+      // and consumes its services[] verbatim via the AUTHORITATIVE SERVICE LIST
+      // in its prompt. Emitting findings.services[] here is a regression and
+      // the schema must reject it.
+      const outputWithServices = {
         agent_name: 'code-patterns-testing-analyzer',
         timestamp: '2026-04-07T10:00:00.000Z',
         findings: {
           services: [
             {
               id: 'backend',
-              // frameworks.testing removed - duplicates testing.*.framework
-              frameworks: {
-                testing: ['jest'], // This should NOT be in schema
-              },
               testing: {
                 unit: {
                   framework: 'jest',
@@ -307,10 +311,7 @@ describe('Phase 1 Agent Output Schemas', () => {
         needs_verification: [],
       };
 
-      // Should parse due to .passthrough(), but frameworks.testing is not typed
-      const result = CodePatternsAnalyzerOutputSchema.parse(outputWithFrameworksTesting);
-      // Verify output parses (passthrough allows extra fields)
-      expect(result).toBeDefined();
+      expect(() => CodePatternsAnalyzerOutputSchema.parse(outputWithServices)).toThrow();
     });
 
     it('should accept testing organized by service ID', () => {

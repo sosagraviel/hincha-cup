@@ -116,4 +116,81 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
       expect(prompt).not.toContain('large graph');
     });
   });
+
+  describe('AUTHORITATIVE SERVICE LIST block (Phase B — single source of truth)', () => {
+    it('renders the block when authoritativeServices is supplied (downstream analyzers)', () => {
+      const prompt = buildPhase1AnalyzerPrompt(
+        '/test/project',
+        frameworkPath,
+        'tech-stack-dependencies-analyzer',
+        undefined,
+        { available: true, stats: { files: 50, functions: 200 } },
+        [
+          { id: 'api', path: 'services/api', type: 'backend', language: 'typescript' },
+          { id: 'web', path: 'apps/web', type: 'frontend', language: 'javascript' },
+        ],
+      );
+
+      expect(prompt).toContain('=== AUTHORITATIVE SERVICE LIST ===');
+      expect(prompt).toContain('SINGLE SOURCE OF TRUTH for service discovery');
+      expect(prompt).toContain('| api | services/api | backend | typescript |');
+      expect(prompt).toContain('| web | apps/web | frontend | javascript |');
+      expect(prompt).toContain('Total: 2 services');
+      expect(prompt).toMatch(/Do NOT emit a top-level `findings\.services\[\]` array/);
+    });
+
+    it('does NOT render the block when authoritativeServices is omitted (analyzer 01 itself)', () => {
+      const prompt = buildPhase1AnalyzerPrompt(
+        '/test/project',
+        frameworkPath,
+        'structure-architecture-analyzer',
+        undefined,
+        { available: true, stats: { files: 50, functions: 200 } },
+      );
+      expect(prompt).not.toContain('=== AUTHORITATIVE SERVICE LIST ===');
+    });
+
+    it('does NOT render the block when authoritativeServices is an empty array', () => {
+      // Loader returns empty + error when 01-structure-architecture.json is
+      // missing; downstream nodes still build a prompt but fall back to the
+      // legacy behaviour. The block must not appear in that case so the
+      // agent isn't told there are zero services.
+      const prompt = buildPhase1AnalyzerPrompt(
+        '/test/project',
+        frameworkPath,
+        'tech-stack-dependencies-analyzer',
+        undefined,
+        { available: true, stats: { files: 50, functions: 200 } },
+        [],
+      );
+      expect(prompt).not.toContain('=== AUTHORITATIVE SERVICE LIST ===');
+    });
+
+    it('handles services with missing optional fields gracefully (legacy stacks)', () => {
+      const prompt = buildPhase1AnalyzerPrompt(
+        '/test/project',
+        frameworkPath,
+        'tech-stack-dependencies-analyzer',
+        undefined,
+        { available: true, stats: { files: 50, functions: 200 } },
+        // Stack-agnostic: legacy projects might not have `type` or `language`
+        // resolved by analyzer 01. The renderer must not crash on missing
+        // fields — em-dash placeholder.
+        [{ id: 'legacy', path: 'src' }],
+      );
+      expect(prompt).toContain('| legacy | src | — | — |');
+    });
+
+    it('renders 1-service projects as singular ("Total: 1 service")', () => {
+      const prompt = buildPhase1AnalyzerPrompt(
+        '/test/project',
+        frameworkPath,
+        'tech-stack-dependencies-analyzer',
+        undefined,
+        { available: true, stats: { files: 50, functions: 200 } },
+        [{ id: 'monolith', path: '.', type: 'backend', language: 'php' }],
+      );
+      expect(prompt).toContain('Total: 1 service.');
+    });
+  });
 });

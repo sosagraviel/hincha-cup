@@ -788,16 +788,21 @@ ${validJSON}
     });
 
     it('should handle agent_name mismatch', () => {
+      // Tech-stack analyzer must NOT emit findings.services[] (forbidden by
+      // schema — analyzer 01 is the single source of truth for services).
+      // The valid shape uses findings.dependencies.by_service keyed by IDs.
       const output = {
         agent_name: 'tech-stack-dependencies-analyzer',
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
-          services: [
-            {
-              id: 'main',
-              package_manager: 'npm',
+          dependencies: {
+            by_service: {
+              main: {
+                production: ['some-package'],
+                development: ['jest'],
+              },
             },
-          ],
+          },
         },
       };
 

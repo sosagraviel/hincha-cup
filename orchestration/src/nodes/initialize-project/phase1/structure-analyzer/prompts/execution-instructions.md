@@ -20,14 +20,30 @@ Call `list_communities` with `detail_level: "minimal", min_size: 10, sort_by: "s
 
 For up to **8** of the largest/highest-cohesion communities, call `get_community({ community_id, include_members: false })` to get language tags, file count, and the description. Do NOT request `include_members: true` here.
 
-For ≤ **3** communities whose role is genuinely ambiguous (you cannot tell from the name and description whether it's a service or a leaf package), call `get_community({ community_id, include_members: true })`. Use the member list to spot entry points (`main.*`, `index.*`, `app.*`, `server.*`).
+### Entry-point extraction (per-service, language-agnostic)
+
+Every service entry MUST carry an `entry_points: string[]` field with 1–3 representative file paths (relative to the service `path`). This is what downstream consumers (Phase 3 synthesis, the LLM wiki) cite when describing the service.
+
+The graph is language-agnostic — use it. Do NOT hard-code naming conventions per language; do not Glob `main.{ts,py,go,…}`. Pick the cheapest of these in order:
+
+1. **Cheap path (small community, size ≤ 30):** call `get_community({ community_id, include_members: true })` and pick the top 1–3 file nodes whose names match the service's most-imported-from / most-referenced surface. Sentinel filenames the agent may recognize across stacks include but are NOT limited to: `main.*`, `index.*`, `app.*`, `server.*`, `program.*`, `bootstrap.*`, `start.*`, `__init__.*`, `Application.*`, `Startup.*`, `Run.*`. If none of those exist, prefer the file with the highest inbound-edge count.
+
+2. **Medium path (community 30–200 members):** call `query_graph_tool({ pattern: "file_summary", target: <community-name>, detail_level: "minimal" })` and inspect the returned file summary for the top 1–3 files by inbound edges. If the tool does not support `pattern: "file_summary"` on this graph, fall through to (3).
+
+3. **Fallback path (community > 200 members or graph returns no useful surface):** call `semantic_search_nodes_tool({ kind: "File", limit: 20 })` filtered to the service path; pick 1–3 with the most inbound dependencies.
+
+4. **Last resort:** leave `entry_points: []` AND add a `needs_verification` item explaining that the graph could not surface entry points for this service. Do not fabricate filenames.
+
+Stack-agnostic guarantee: every step above works for any language `code-review-graph` parses (TypeScript, JavaScript, Python, Go, Java, C#, PHP, Ruby, Rust, Kotlin, Swift, etc.). Do NOT add language-specific Glob patterns — the graph already knows.
+
+For ≤ **3** communities whose role is genuinely ambiguous (you cannot tell from the name and description whether it's a service or a leaf package), call `get_community({ community_id, include_members: true })`. The same member list also feeds the entry-point extraction above for those communities.
 
 Record per service:
 
 - service id (use the community name as a stable id)
 - file count (size from the community payload)
 - languages (`dominant_language` plus language tags when drilled in)
-- entry points (heuristic on member names — only available when you drilled in)
+- **entry points** (1–3 representative file paths from the procedure above; empty array + `needs_verification` only as last resort)
 
 ## Step 3: Architectural topology via hubs and bridges
 

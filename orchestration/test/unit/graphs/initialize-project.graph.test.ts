@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   initializeProjectGraph,
   routeAfterGraphFoundation,
+  routeAfterStructureAnalyzer,
   routeAfterWikiPreparation,
   routeToPhase,
 } from '../../../src/graphs/initialize-project.graph.js';
@@ -68,16 +69,32 @@ describe('initializeProjectGraph routing', () => {
     expect(routeAfterWikiPreparation({ ...baseState, current_phase: 'failed' })).toBe('__end__');
   });
 
-  it('routes successful graph foundation to all phase 1 analyzers', () => {
-    expect(routeAfterGraphFoundation({ ...baseState, current_phase: 'phase0_graph' })).toEqual([
+  it('routes successful graph foundation to ONLY the structure-analyzer (sequential head)', () => {
+    // The Phase 1 topology is sequential at the head: structure-analyzer
+    // runs first, alone, and persists the authoritative services[]. The
+    // three downstream analyzers (02/03/04) consume that file before
+    // building their own prompts. See plans/2026-04-29-gira-init-run-audit-refactor
+    // findings F7/F22.
+    expect(routeAfterGraphFoundation({ ...baseState, current_phase: 'phase0_graph' })).toBe(
       'structure_architecture_analyzer',
-      'tech_stack_dependencies_analyzer',
-      'code_patterns_testing_analyzer',
-      'data_flows_integrations_analyzer',
-    ]);
+    );
   });
 
   it('stops when graph foundation fails', () => {
     expect(routeAfterGraphFoundation({ ...baseState, current_phase: 'failed' })).toBe('__end__');
+  });
+
+  it('fans out from the structure-analyzer to the three downstream analyzers in parallel', () => {
+    expect(routeAfterStructureAnalyzer({ ...baseState, current_phase: 'phase1_analysis' })).toEqual(
+      [
+        'tech_stack_dependencies_analyzer',
+        'code_patterns_testing_analyzer',
+        'data_flows_integrations_analyzer',
+      ],
+    );
+  });
+
+  it('stops when the structure-analyzer fails (Phase 1 cannot proceed without authoritative services)', () => {
+    expect(routeAfterStructureAnalyzer({ ...baseState, current_phase: 'failed' })).toBe('__end__');
   });
 });

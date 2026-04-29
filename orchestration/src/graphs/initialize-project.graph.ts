@@ -48,8 +48,23 @@ export function routeAfterGraphFoundation(state: InitializeProjectState): string
     return END;
   }
 
+  // Phase 1 is sequential at the head + parallel at the tail:
+  //   structure_architecture_analyzer (single source of truth for services[])
+  //   → [ tech_stack, code_patterns, data_flows ] (parallel; consume structure's
+  //      services[] as authoritative input).
+  // The earlier topology fanned out all four analyzers in parallel and let
+  // each re-derive its own service list, which produced inconsistent IDs and
+  // dropped services across runs (see plans/2026-04-29-gira-init-run-audit-refactor
+  // findings F7/F8/F9/F22).
+  return 'structure_architecture_analyzer';
+}
+
+export function routeAfterStructureAnalyzer(state: InitializeProjectState): string | string[] {
+  if (state.current_phase === 'failed') {
+    return END;
+  }
+
   return [
-    'structure_architecture_analyzer',
     'tech_stack_dependencies_analyzer',
     'code_patterns_testing_analyzer',
     'data_flows_integrations_analyzer',
@@ -67,7 +82,10 @@ export function routeAfterWikiPreparation(state: InitializeProjectState): string
 /**
  * Initialize Project Graph - 6-Phase Workflow
  *
- * PHASE 1 (PARALLEL): Run 4 analyzer agents concurrently
+ * PHASE 1 (sequential head + parallel tail):
+ *   structure_architecture_analyzer first (single source of truth for services[]),
+ *   then [tech-stack, code-patterns, data-flows] in parallel with structure's
+ *   services[] injected as authoritative input.
  * PHASE 2: Consolidate findings and identify gaps
  * PHASE 3: Run Opus synthesis agent for comprehensive analysis
  * PHASE 4: Generate CLAUDE.md and project-context/SKILL.md
@@ -99,10 +117,14 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addNode('validation', validationNode)
   // Conditional routing from START based on start_phase
   .addConditionalEdges(START, routeToPhase)
-  // Phase 0 → Phase 1 edges
+  // Phase 0 → structure_architecture_analyzer (sequential head — sole source
+  // of truth for services[]).
   .addConditionalEdges('graph_foundation', routeAfterGraphFoundation)
-  // Phase 1 → Phase 2 edges
-  .addEdge('structure_architecture_analyzer', 'consolidation')
+  // structure_architecture_analyzer → [02, 03, 04] in parallel. The downstream
+  // analyzers read structure-analyzer's persisted output for the authoritative
+  // services[] list before building their own prompts.
+  .addConditionalEdges('structure_architecture_analyzer', routeAfterStructureAnalyzer)
+  // [02, 03, 04] → consolidation
   .addEdge('tech_stack_dependencies_analyzer', 'consolidation')
   .addEdge('code_patterns_testing_analyzer', 'consolidation')
   .addEdge('data_flows_integrations_analyzer', 'consolidation')

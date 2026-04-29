@@ -9,6 +9,7 @@ import { logger } from '../../../../utils/logger.js';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { buildPhase1AnalyzerPrompt } from '../shared/prompt-builder.js';
+import { loadAuthoritativeServices } from '../shared/authoritative-services.js';
 import { applyGraphToolUsageFromSidecar } from '../shared/graph-tool-usage.js';
 import { getFrameworkAgentPath } from '../../shared/index.js';
 import { reasoningPrefix } from '../../../../utils/shared/context-tags.js';
@@ -33,6 +34,14 @@ export async function dataFlowsIntegrationsAnalyzerNode(
   const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   mkdirSync(join(tempDir, 'phase1-outputs'), { recursive: true });
 
+  // Read structure-analyzer's authoritative services from disk. The graph
+  // topology guarantees structure-architecture-analyzer ran before this node.
+  const { services: authoritativeServices, error: servicesLoadError } =
+    loadAuthoritativeServices(tempDir);
+  if (servicesLoadError) {
+    logger.warn(`${agentName}: ${servicesLoadError} — proceeding without injection`);
+  }
+
   try {
     const agentInvoke = async (
       feedbackPrompt: string,
@@ -51,6 +60,7 @@ export async function dataFlowsIntegrationsAnalyzerNode(
           toolCatalog: state.code_graph_tool_catalog,
           stats: state.code_graph_stats,
         },
+        authoritativeServices,
       );
 
       // Create agent using new interface

@@ -1,4 +1,5 @@
 import { z, ZodSchema } from 'zod';
+import { normalizeLanguage } from './language-normalization.js';
 
 // ============================================================================
 // PHASE 1 AGENT OUTPUT SCHEMAS
@@ -38,7 +39,12 @@ export const StructureAnalyzerServiceSchema = z
         'infrastructure',
       ])
       .describe('Service type inferred from dependencies and entry points'),
-    language: z.string().describe("Primary language (e.g., 'typescript', 'python', 'go')"),
+    language: z
+      .string()
+      .transform(normalizeLanguage)
+      .describe(
+        "Primary language. Normalized to canonical lowercase (e.g., 'typescript', 'python', 'go', 'csharp', 'php'). Aliases like 'tsx' / 'jsx' / 'cs' / 'cpp' / 'rb' / 'kt' / 'py' are auto-mapped. Unknown values pass through unchanged so legacy or unusual stacks still flow downstream.",
+      ),
     language_version: z
       .string()
       .optional()
@@ -226,13 +232,18 @@ export const TechStackAnalyzerOutputSchema = z
     graph_overflow_tools: z.array(z.string()).optional(),
     findings: z
       .object({
-        // CHANGED: services is now optional - use by_service map with service IDs as keys instead
-        // This eliminates duplication - Structure Analyzer (01) is the single source of truth for services
+        // FORBIDDEN: the `services` array is no longer accepted on this analyzer.
+        // Structure Analyzer (01) is the single source of truth for service
+        // discovery (its services[] is injected into this prompt as the
+        // AUTHORITATIVE SERVICE LIST). Use the `dependencies.by_service` map
+        // keyed by those service IDs instead. Schema rejects any output that
+        // includes this key (see plans/2026-04-29-gira-init-run-audit-refactor.md
+        // findings F8/F22).
         services: z
-          .array(TechStackAnalyzerServiceSchema)
+          .never()
           .optional()
           .describe(
-            'DEPRECATED: Use dependencies.by_service map instead. Reference services by ID from Structure Analyzer.',
+            'FORBIDDEN: top-level findings.services[] is not accepted on this analyzer. Use dependencies.by_service map keyed by service IDs from the AUTHORITATIVE SERVICE LIST in your prompt.',
           ),
         dependencies: z
           .object({
@@ -363,13 +374,14 @@ export const CodePatternsAnalyzerOutputSchema = z
     graph_overflow_tools: z.array(z.string()).optional(),
     findings: z
       .object({
-        // CHANGED: services is now optional - use service IDs as keys in testing{}, api_patterns{}, etc. instead
-        // This eliminates duplication - Structure Analyzer (01) is the single source of truth for services
+        // FORBIDDEN: see TechStackAnalyzerOutputSchema for the rationale.
+        // Use the `testing` / `api_patterns` / etc. records keyed by the
+        // service IDs supplied in your AUTHORITATIVE SERVICE LIST.
         services: z
-          .array(CodePatternsAnalyzerServiceSchema)
+          .never()
           .optional()
           .describe(
-            'DEPRECATED: Organize findings by service ID as top-level keys instead. Reference services from Structure Analyzer.',
+            'FORBIDDEN: top-level findings.services[] is not accepted on this analyzer. Organize findings by service ID under testing{}/api_patterns{}/etc., using IDs from the AUTHORITATIVE SERVICE LIST in your prompt.',
           ),
         testing: z
           .record(
@@ -438,6 +450,19 @@ export const DataFlowsAnalyzerOutputSchema = z.object({
   graph_overflow_tools: z.array(z.string()).optional(),
   findings: z
     .object({
+      // FORBIDDEN: top-level `findings.services[]` is rejected here. Application
+      // services come from Structure Analyzer (01) via the AUTHORITATIVE SERVICE
+      // LIST in this analyzer's prompt. This analyzer's job is to surface
+      // INFRASTRUCTURE services (caches, databases, queues, mail servers) under
+      // `infrastructure_services` and inter-service communication patterns
+      // under `service_communication`. Schema rejects the deprecated key
+      // (see plans/2026-04-29-gira-init-run-audit-refactor.md finding F8).
+      services: z
+        .never()
+        .optional()
+        .describe(
+          'FORBIDDEN: this analyzer does not emit application services. Use infrastructure_services[] for caches/DBs/queues/mail and service_communication{} for service-to-service patterns.',
+        ),
       // IMPORTANT: Focus ONLY on infrastructure services (redis, postgres, message queues, email servers)
       // DO NOT list application services here - Structure Analyzer (01) is the single source of truth
       infrastructure_services: z
