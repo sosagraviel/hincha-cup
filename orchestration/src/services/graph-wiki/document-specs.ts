@@ -161,7 +161,7 @@ export function buildPrompt(spec: WikiDocumentSpec, projectPath: string): string
     'Closed-book synthesis instructions:',
     '- You have NO tools. Synthesize the page from the structured input below only.',
     '- If a fact the page should carry is not in the input, write `(not determined by analysis)` and continue. Do not invent.',
-    '- Cite sources inline with provenance footnotes (^[analyzer:<name>], ^[synthesis], ^[claude-md], ^[project-context], ^[inferred], ^[ambiguous]).',
+    '- Provenance lives in YAML frontmatter (`sources:` + `confidence:`), auto-injected by the framework. DO NOT emit inline `^[...]` citation markers in the body — they are non-standard markdown and the Stop hook rejects them. For in-wiki cross-references use `[[wikilinks]]`; for gaps write `(not determined by analysis)`.',
     '- Return markdown body only. Do not include YAML frontmatter. Do not wrap the response in code fences.',
     '',
     'Document-specific focus:',

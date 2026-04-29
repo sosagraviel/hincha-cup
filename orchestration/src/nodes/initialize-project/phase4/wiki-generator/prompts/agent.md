@@ -24,18 +24,27 @@ If the page should carry a fact (e.g., the auth mechanism, the persistence backe
 
 If a Phase 1 analyzer should have determined this fact, it is a Phase 1 bug — surfacing the gap helps fix it.
 
-## Provenance
+## Provenance lives in frontmatter, not inline
 
-Every page you return MUST include in its body at least one paragraph indicating where the claims came from. The enclosing workflow injects the YAML `sources[]` block into frontmatter automatically; your job is to make the body's claims explicit about their origin. Use inline footnote notation:
+Provenance is recorded by the enclosing workflow, NOT by you in the page body. The framework auto-injects YAML frontmatter on every page with the load-bearing fields:
 
-- `^[analyzer:<name>]` — claim is grounded in a Phase 1 analyzer JSON (e.g. `^[analyzer:structure-architecture]`).
-- `^[synthesis]` — claim is grounded in the Phase 3 synthesis narrative.
-- `^[claude-md]` — claim is grounded in the generated CLAUDE.md.
-- `^[project-context]` — claim is grounded in the project-context skill.
-- `^[inferred]` — claim is your synthesis across two or more of the above.
-- `^[ambiguous]` — sources contradict; the page records the conflict.
+- `sources: [...]` — the upstream documents that fed this page (analyzer JSON paths, synthesis path, etc.).
+- `confidence: high|medium|low` — your aggregate confidence in the page's claims.
+- `tags: [...]` and `related: [[...]]` — navigation hints.
 
-If you cannot cite any source for a claim, do not include the claim.
+You **MUST NOT** emit inline citation markers in the page body. Specifically: `^[analyzer:...]`, `^[synthesis]`, `^[claude-md]`, `^[project-context]`, `^[inferred]`, `^[ambiguous]`, or any other `^[...]` shape are FORBIDDEN. Reasons:
+
+1. `^[id]` is non-standard markdown. GitHub and most renderers strip it; Obsidian's `^[content]` is a different extension where the brackets carry the inline footnote BODY (not an id), so `^[project-context]` would render as a footnote whose entire text is literally "project-context" — a citation that says nothing.
+2. The Stop hook **rejects** any output containing a `^[...]` marker. Your response will be blocked and you will have to re-emit.
+3. `^[claude-md]` and `^[project-context]` would point to files OUTSIDE the wiki tree (`.claude/CLAUDE.md`, `.claude/skills/project-context/SKILL.md`). A wiki must be self-contained — every reference resolves inside the wiki via `[[wikilinks]]` or in frontmatter metadata.
+
+What to use in the body instead:
+
+- **`[[wikilinks]]`** for in-wiki cross-references. Example: _"see [[ARCHITECTURE]] for the service map"_. These work in Obsidian, the framework's wiki linter, and the LLM router.
+- **`(not determined by analysis)`** for gaps. If a fact the page should carry is not in the digested upstream, write that literal phrase and continue. Do not invent. Do not guess.
+- **Plain prose** otherwise. The frontmatter `sources` field carries provenance for the whole page; you do not need per-claim citations in the body.
+
+If a paragraph would have nothing more than a citation tag attached to a fact you can't otherwise ground, drop the paragraph.
 
 ## Constraints
 
@@ -43,6 +52,7 @@ If you cannot cite any source for a claim, do not include the claim.
 - Return markdown body only.
 - Do not include YAML frontmatter.
 - Do not wrap the response in code fences.
+- Do not emit inline `^[...]` citation markers (see above).
 - Do not invent ADRs, decisions, services, frameworks, or any content not directly supported by the digested upstream.
 - If you reference a graph tool name in the page body, use canonical names from the catalog (e.g. `mcp__code_graph__list_communities_tool`). Never reference `mcp__code_graph__get_architecture_overview_tool` — it is forbidden by the project's graph-navigation discipline because its response cannot be bounded.
 
@@ -52,4 +62,4 @@ If you cannot cite any source for a claim, do not include the claim.
 - Prefer short narrative sections over raw JSON dumps.
 - Include file paths, service IDs, graph communities, and graph relationships when they appear in the upstream.
 - Be direct about unknowns. `(not determined by analysis)` beats a guess.
-- Include at least three provenance tags per page.
+- Use `[[wikilinks]]` to point at sibling pages when relevant; never point outside the wiki.

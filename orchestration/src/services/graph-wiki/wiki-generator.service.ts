@@ -735,6 +735,22 @@ function buildSchemaDocBody(
     '3. **Tier 3 (on demand):** follow `**Related:**` `[[wikilinks]]` on the matched pages. Cap traversal at depth 2.',
     '4. **Fallback:** if the wiki does not answer your question, call graph MCP tools (below). Do **not** re-read the wiki cover-to-cover.',
     '',
+    '## How pages cite sources',
+    '',
+    'Provenance lives in **YAML frontmatter**, not in the page body. Every page has:',
+    '',
+    '- `sources: [...]` — the upstream documents that fed the page (analyzer JSON paths, synthesis output, etc.).',
+    "- `confidence: high | medium | low` — aggregate confidence in the page's claims.",
+    '- `tags: [...]` and `related: [[...]]` — navigation hints.',
+    '',
+    'Page bodies use only:',
+    '',
+    '- **`[[wikilinks]]`** for in-wiki cross-references (Karpathy LLM-wiki convention; renders correctly in Obsidian, the framework wiki linter, and any markdown viewer).',
+    '- **`(not determined by analysis)`** for gaps the upstream analysis did not surface.',
+    '- Plain prose otherwise.',
+    '',
+    "There are **no inline `^[...]` footnotes** anywhere in the wiki. The Stop hook rejects them on generation, and `wiki-lint` flags them on subsequent edits. If you need to know where a fact came from, read the page's `sources:` field.",
+    '',
   ];
 
   // Optional section: live graph-tool catalog from Phase 0. Present only when
