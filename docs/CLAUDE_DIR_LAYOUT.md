@@ -31,12 +31,14 @@ This is the load-bearing constraint behind every other rule on this page: **no f
 │   ├── prompts/                      # Skill bodies expressed as Codex prompts
 │   └── … (mirrored from .claude/ shape)
 │
-├── .mcp.json                         # Project-level Claude MCP config (Phase 0)
-├── .code-review-graph/               # Graph DB + launcher (gitignored)
-│   ├── graph.db
-│   ├── code-review-graph             # Wrapper script
-│   └── launcher.json
-└── .code-review-graphignore          # Seeded from templates/code-review-graphignore
+├── .mcp.json                         # Project-level Claude MCP config (gitignored; preflight writes local copy)
+├── .code-review-graph/               # Graph DB + launcher metadata
+│   ├── .gitignore                    # Framework allowlist (committed) — overrides tool's `*`
+│   ├── graph.db                      # SQLite graph (gitignored — per-developer)
+│   ├── code-review-graph             # Wrapper script (gitignored)
+│   ├── launcher.json                 # Install resolution metadata (gitignored)
+│   └── extraction-manifest.json      # Freshness signal (gitignored)
+└── .code-review-graphignore          # Seeded from templates/code-review-graphignore (committed)
 ```
 
 ### Per-file table
@@ -50,11 +52,17 @@ This is the load-bearing constraint behind every other rule on this page: **no f
 | `.claude/settings.json` | Manually curated, shareable | Developer commits | yes |
 | `.claude/settings.local.json` | Per-developer | Claude CLI writes auto-saves here | **no** (gitignored) |
 | `.claude/mcp.json` | Per-spawn | Agent factory writes for one analyzer call | no (transient, gitignored) |
-| `.mcp.json` | Phase 0 | `upsertCodeGraphMcpConfig` in graph-foundation.node | yes |
-| `.code-review-graph/**` | `setup-code-graph.sh` + `code-review-graph build` | The graph itself | **no** (gitignored) |
-| `.code-review-graphignore` | `templates/code-review-graphignore` | Seeded by setup-code-graph.sh / sync-framework-resources.sh | yes |
+| `.mcp.json` (Claude) | Skill preflight (`ensure-context.sh`) | `upsertCodeGraphMcpConfig` and the bash MCP-config writer in `ensure-context.sh` | **no** (gitignored — re-emitted locally on every preflight) |
+| `.codex/config.toml` (Codex) | Manually curated + skill preflight | Developer commits the rest; `[mcp_servers.code_graph]` block is stripped by Phase 6 housekeeping and re-emitted locally by `ensure-context.sh` | yes (without the code_graph block) |
+| `.code-review-graph/graph.db` | `setup-code-graph.sh` + `code-review-graph build` | The graph SQLite DB (binary, embeds absolute paths) | **no** (per-developer; rebuilt by preflight) |
+| `.code-review-graph/launcher.json` | `setup-code-graph.sh` | Per-developer install resolution metadata | **no** (gitignored) |
+| `.code-review-graph/extraction-manifest.json` | `code-review-graph build/update` | Per-developer freshness signal (sha + tool_version) | **no** (gitignored) |
+| `.code-review-graph/.gitignore` | `templates/code-review-graph-gitignore` | Framework allowlist (overrides upstream tool's `*` to permit metadata files) | yes |
+| `.code-review-graphignore` | `templates/code-review-graphignore` | Seeded by `setup-code-graph.sh` if missing; editable by the project | yes |
 
 `framework-config.json` no longer carries `project_metadata.project_path`. It was an absolute path in a committed file and nothing read it.
+
+`.code-review-graph/` commit policy: **only the lightweight metadata is committed; the graph DB is per-developer.** A teammate cloning the project gets the framework allowlist and the project's `.code-review-graphignore`, then the skill preflight (`ensure-context.sh`) builds their local `graph.db` (~4 s on a small repo) and writes their local `launcher.json` + `extraction-manifest.json`. No manual setup.
 
 ---
 

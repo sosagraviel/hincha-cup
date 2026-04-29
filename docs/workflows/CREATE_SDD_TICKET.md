@@ -79,13 +79,14 @@ $create-sdd-ticket --from-input "Add real-time notifications"
 
 ---
 
-## Workflow (8 Phases)
+## Workflow (9 Phases)
 
-0. **Inject Project Context** - Load project-context skill and `CLAUDE.md`/`AGENTS.md`
-0.5. **Wiki & Graph Context Preload** - Read `docs/llm-wiki/wiki/` core docs; run one `get_minimal_context_tool` call; persist context artifact. Graceful fallback when wiki is missing (fresh clone, `/initialize-project` not yet run). Pass `--skip-wiki` to bypass explicitly.
+0. **Preflight (MANDATORY)** - Run `bash $FRAMEWORK_PATH/scripts/ensure-context.sh`. Auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or incrementally updates the graph, refreshes the wiki when stale, re-emits the local MCP config, and writes a `.preflight-ok` marker. Hot path: <3 s. STOPs on non-zero exit; do NOT continue to later phases.
+0.1. **Inject Project Context** - Load project-context skill and `CLAUDE.md`/`AGENTS.md`
+0.2. **Wiki & Graph Context Preload** - Read `docs/llm-wiki/wiki/` core docs; run one `get_minimal_context_tool` call; persist context artifact. Graceful fallback when wiki is missing (fresh clone, `/initialize-project` not yet run). Pass `--skip-wiki` to bypass explicitly.
 1. **Parse Input** - Load from text, Jira, or markdown
 2. **Intelligent Gap Detection** - Consult wiki first, then graph, then project-context, then codebase grep, then ask you
-3. **Batch Questions** - Ask remaining questions in one batch (minimized by phases 0.5 and 2)
+3. **Batch Questions** - Ask remaining questions in one batch (minimized by phases 0.2 and 2)
 4. **Process Answers** - Fill gaps and re-validate completeness
 5. **SDD Template** - Format with user stories and BDD scenarios; include `wikiEvidence` and `graphEvidence` in `technicalContext`
 6. **INVEST Validation** - Ensure quality criteria met

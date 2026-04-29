@@ -73,7 +73,7 @@ const graph = new StateGraph(ImplementTicketAnnotation)
 
 | Phase | Duration | Purpose |
 |-------|----------|---------|
-| 0 | 30-60s | Preflight: validate environment, LLM wiki presence; WARN (not fail) on stale wiki |
+| 0 | <3 s hot, ~5 s cold (graph fresh) / 30–90 s cold (graph + wiki refresh) | Preflight: `bash $FRAMEWORK_PATH/scripts/ensure-context.sh`. Auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or incrementally updates the graph, refreshes the wiki when stale, re-emits the local MCP config, then runs the legacy structural assertions as defensive double-checks. STOPs on non-zero exit; staleness WARNs only. |
 | 1 | 1-2min | Context: fetch ticket from Jira/markdown/input |
 | 2 | 1-2min | Wiki Preload: read the wiki router (`docs/llm-wiki/CLAUDE.md`/`AGENTS.md`) and `index.md` (summary catalog), expand 1–3 matched page bodies, optionally call `get_minimal_context_tool` once if the matched bodies don't fully answer the planner's likely questions |
 | 3 | 2-5min | Planning: planner agent consumes wiki + graph context; produces Implementation Plan. Mid-session `⚠ BUDGET WARNING` messages injected via stop hooks when token thresholds are approached — informational, non-blocking. |

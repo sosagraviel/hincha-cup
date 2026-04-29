@@ -113,15 +113,58 @@ When the Stop hook rejects an analyzer for making zero graph calls, look in this
 
 ## Setup script details
 
-`scripts/setup-code-graph.sh`:
+`scripts/setup-code-graph.sh` (state-first; cheapest tier wins):
 
-1. Resolves Python ≥ 3.10. Bootstraps `uv` from `https://astral.sh/uv/install.sh` if necessary; falls through to `pipx`/pip-user installs.
-2. Seeds `<project>/.code-review-graphignore` from the template (idempotent).
-3. Runs `code-review-graph build --repo <project>` (with a fallback `cd <project> && code-review-graph build`).
-4. Writes the wrapper launcher and `launcher.json`.
-5. Asserts `<project>/.code-review-graph/graph.db` exists.
+1. **Tier 0 — install resolution.** Short-circuits when `code-review-graph` is already on `PATH`. Otherwise: bootstraps `uv` from `https://astral.sh/uv/install.sh` and runs through the fallback chain (`uv tool install` → `bootstrap_uv` → `pipx` → `pip --user`). Skipped entirely on hot runs where the binary is already resolvable.
+2. **Tier 1 / 2 / 3 decision** — `decide_graph_tier` reads `<project>/.code-review-graph/extraction-manifest.json::sha`, compares against `git rev-parse HEAD`, and returns:
+   - `tier1` (no work): graph DB exists, manifest sha == HEAD → return immediately.
+   - `tier2` (incremental): graph DB exists, manifest sha != HEAD → `code-review-graph update` (~1 s).
+   - `tier3` (full build): no graph DB or no manifest → `code-review-graph build` (~4 s on a small repo).
+3. Seeds `<project>/.code-review-graphignore` from the template (idempotent).
+4. Re-emits the launcher wrapper and `launcher.json` (compare-then-write).
+5. Re-syncs the framework allowlist `.code-review-graph/.gitignore` (`templates/code-review-graph-gitignore`) over the upstream tool's auto-emitted `*` rule.
+6. Asserts `<project>/.code-review-graph/graph.db` exists.
 
-The script is idempotent: re-running it after a successful build is a no-op except for re-resolving the launcher.
+The script is idempotent end-to-end: hot runs (Tier 1) finish in well under one second of actual work.
+
+---
+
+## Team onboarding (zero-setup)
+
+Skills auto-bootstrap everything. A teammate cloning a framework-managed project runs `/create-sdd-ticket` or `/implement-ticket` directly — no manual installs, no MCP approval prompts, no environment variables. The deterministic preflight (`scripts/ensure-context.sh`, called by both skills as Phase 0) handles:
+
+- Auto-installing `uv` / `uvx` / `code-review-graph` via the fallback chain in `setup-code-graph.sh`.
+- Building the graph (Tier 3) on first use, or incrementally updating it (Tier 2) when a teammate's commit moved HEAD.
+- Re-emitting `.mcp.json` (Claude) or `.codex/config.toml`'s `[mcp_servers.code_graph]` block (Codex) with this machine's absolute paths.
+- Refreshing the LLM wiki when `.state.json::graph_sha` or `last_indexed_commit` drift is detected.
+
+The committed surface (what teammates check in vs what the preflight regenerates) is:
+
+| Path | Committed? | Owner |
+|---|---|---|
+| `.code-review-graph/graph.db` | No (per-developer; binary + absolute paths inside SQLite) | preflight |
+| `.code-review-graph/launcher.json` | No (machine-local install resolution) | preflight |
+| `.code-review-graph/extraction-manifest.json` | No (per-developer freshness signal) | preflight |
+| `.code-review-graph/.gitignore` | Yes (allowlist over the tool's `*`) | framework template |
+| `.code-review-graphignore` | Yes (project's exclude list; editable) | first init seeds it |
+| `.mcp.json` (Claude) | No (gitignored — local absolute paths) | preflight |
+| `.codex/config.toml` (Codex) | Yes, but the `[mcp_servers.code_graph]` block is stripped by Phase 6 housekeeping; preflight re-emits it locally | preflight + Phase 6 housekeeping |
+| `docs/llm-wiki/wiki/**` | Yes (target of Phase 8.5 wiki refresh + diff reviews) | implement-ticket Phase 8.5 |
+| `docs/llm-wiki/.state.json` | Yes (freshness signals: `graph_sha` + `last_indexed_commit`) | wiki refresh |
+
+If any teammate manually edits the graph DB or its launcher metadata, the next preflight overwrites or no-ops based on the freshness check. Editing the framework allowlist `.gitignore` or `.code-review-graphignore` is fine — the preflight only seeds the latter when missing.
+
+---
+
+## Production debugging
+
+When the preflight fails on a teammate's machine, look at three things in order:
+
+1. **The success marker.** `cat <artifacts-dir>/.preflight-ok` (default artifacts dir: `.claude-temp/preflight/` or `.codex-temp/preflight/`). If it exists and `git_head` matches the local HEAD, the preflight ran cleanly. Subsequent skill phases trust this.
+2. **The failure marker.** `cat <artifacts-dir>/.preflight-failed` carries `{reason, git_head, ran_at}`. Reasons:
+   - `graph_build_failed` — re-run with `bash $FRAMEWORK_PATH/scripts/setup-code-graph.sh` and read the logs.
+   - `wiki_not_initialized` — the project has never been initialised; run `/initialize-project` once and the wiki appears.
+3. **Manual re-run.** `bash $FRAMEWORK_PATH/scripts/ensure-context.sh --artifacts-dir <artifacts-dir>` — same script the skills call, just invoked by hand. Add `--force-graph` to force a Tier 3 rebuild, `--force-wiki` to force a full wiki regeneration.
 
 ---
 
@@ -129,12 +172,16 @@ The script is idempotent: re-running it after a successful build is a no-op exce
 
 | Concern | File |
 |---|---|
-| Graph build + verification | `orchestration/src/services/graph-wiki/code-graph.service.ts` |
-| Tool-catalog fetch | `orchestration/src/services/framework/code-graph/tool-catalog.service.ts` |
+| Graph build + verification (state-first) | `orchestration/src/services/graph-wiki/code-graph.service.ts` |
+| Tool-catalog fetch + disk cache | `orchestration/src/services/framework/code-graph/tool-catalog.service.ts` |
 | Project-level MCP config | `orchestration/src/services/framework/mcp-config.service.ts` |
+| Codex TOML upsert + strip | `orchestration/src/services/framework/codex-mcp-toml.ts` |
 | Phase 0 node | `orchestration/src/nodes/initialize-project/phase0/graph-foundation.node.ts` |
 | Catalog templating | `orchestration/src/nodes/initialize-project/phase1/shared/prompt-builder.ts` |
 | Stop-hook verifier | `orchestration/src/nodes/initialize-project/phase1/shared/hooks/validate-analyzer-json.hook.ts` |
-| Setup script | `scripts/setup-code-graph.sh` |
+| Phase 6 portability housekeeping | `orchestration/src/nodes/initialize-project/phase6/helpers/portability-validator.ts` |
+| Setup script (state-first tiers) | `scripts/setup-code-graph.sh` |
+| Skill preflight entry point | `scripts/ensure-context.sh` |
 | MCP serve wrapper | `scripts/code-review-graph-mcp.sh` |
-| Ignore-file template | `templates/code-review-graphignore` |
+| Project-side ignore template | `templates/code-review-graphignore` |
+| Framework allowlist for graph DB | `templates/code-review-graph-gitignore` |
