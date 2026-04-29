@@ -78,15 +78,18 @@ $create-sdd-ticket --from-input "Add real-time notifications"
 
 ---
 
-## Workflow (7 Phases)
+## Workflow (8 Phases)
 
+0. **Project Context Injection** - Invoke `project-context` skill to load codebase conventions, integration points, and constraints **before** any analysis runs (falls back to `CLAUDE.md` if `project-context` isn't generated yet)
 1. **Parse Input** - Load from text, Jira, or markdown
 2. **Canonical Format** - Transform to standard structure
-3. **Codebase Inference** - Infer missing information from codebase
-4. **Gap Detection** - Identify and resolve remaining gaps
+3. **Codebase Inference** - Infer missing information from codebase (now context-aware)
+4. **Gap Detection** - Identify and resolve remaining gaps with project-grounded questions
 5. **SDD Template** - Format with user stories and BDD scenarios
-6. **INVEST Validation** - Ensure quality criteria met
+6. **INVEST Validation** - Hard gate: tickets failing Independent / Negotiable / Valuable / Estimable / Small / Testable are rewritten before output
 7. **Output Formatting** - Save to markdown or Jira
+
+**Why Phase 0 matters**: clarifying questions and BDD scenarios are grounded in the project's actual conventions, not generic best-practice guesses. The skill won't ask "should errors return 4xx or problem-details?" if the codebase already establishes that convention.
 
 ---
 

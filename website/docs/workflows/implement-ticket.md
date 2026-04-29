@@ -83,24 +83,6 @@ Work in progress, not ready for production. Use the `/implement-ticket` skill in
 
 ---
 
-## Environment Variables
-
-```bash
-# Model tier
-export MODEL_TIER=opus     # Complex changes
-export MODEL_TIER=sonnet   # Default
-export MODEL_TIER=haiku    # Simple fixes
-
-# Authentication
-export ANTHROPIC_API_KEY=sk-ant-your-key  # Claude: if not using Claude Code auth
-export OPENAI_API_KEY=sk-...              # Codex: if not using Codex CLI auth
-
-# Debug
-export DEBUG=true  # Verbose logging
-```
-
----
-
 ## 11-Phase Process
 
 ```mermaid
@@ -188,7 +170,7 @@ As a [user], I want [feature] so that [benefit]
 ### Automatic Validation
 
 - **Code Quality**: Linting, formatting, type checking
-- **Testing**: 80% coverage minimum (configurable), unit/integration/E2E tests
+- **Testing**: Unit, integration, and E2E tests are run with coverage collected; the project's existing coverage thresholds (if any) are respected
 - **Security**: Vulnerability scanning, static analysis
 
 ### Auto-Fix

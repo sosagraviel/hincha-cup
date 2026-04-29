@@ -7,27 +7,6 @@ allowed-tools: Read, Write, Bash, Glob, Grep, Skill
 
 # Create Production PR Skill V2
 
-## ⚠️ Migration Notice
-
-> **Artifact collection has been migrated to the TypeScript orchestration module.**
->
-> ### New Approach
->
-> ```bash
-> cd orchestration
-> npm run collect-artifacts -- --ticket PROJ-123
-> ```
->
-> ### Orchestration Implementation
->
-> - **Artifact Collector**: `orchestration/src/services/implement-ticket/artifact-collector.service.ts`
-> - **Screenshot Service**: `orchestration/src/services/implement-ticket/screenshot.service.ts`
-> - **Test Orchestrator**: `orchestration/src/services/implement-ticket/test-orchestrator.service.ts`
->
-> **References to `utils/artifact-collector.js` below are deprecated.**
-
----
-
 Creates production-ready GitHub Pull Requests with comprehensive artifacts, visual verification results, and automated documentation.
 
 ## Contents
