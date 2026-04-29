@@ -17,11 +17,19 @@ Analyze authentication, authorization, API design patterns, external integration
 
 <discovery_process>
 
+> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block: lean parameters, drill-in caps, no calls to `get_architecture_overview_tool`. Specialise _which_ lean tools you call for each question; never override the defaults.
+
+## Step 0: Cheap orientation via graph
+
+Call `get_minimal_context` with `task: "Map auth, request lifecycles, persistence, and external integrations"`. The response (~100 tokens) gives you top flows and suggested next tools — use it before any other graph call.
+
 ## Step 1: Auth middleware order and request lifecycle via graph
 
-Call `list_flows` to get all named request flows in the codebase. For each flow that looks auth-related (names containing "auth", "guard", "middleware", "request"), call `get_flow({ flow_id })` to retrieve the execution path with middleware/guard nodes in order.
+Call `list_flows` with `{ sort_by: "criticality", limit: 30, detail_level: "minimal" }`. Pick **at most 5** flows by name (those containing "auth", "guard", "middleware", "request", or matching the entry-point of a service). For each picked flow call `get_flow({ flow_id, include_source: false })` to retrieve the execution path with middleware/guard nodes in order. Only set `include_source: true` for the **single** flow whose source you genuinely need to read (cap: 1).
 
 This gives you the auth middleware chain (e.g., `CORS → RateLimiter → JwtGuard → RolesGuard → Handler`) directly, without grepping for JWT/OAuth/session patterns across files.
+
+> **Forbidden:** `get_architecture_overview` — its response cannot be bounded and overflows. Flow data alone (`list_flows` + selective `get_flow`) covers what this analyzer needs.
 
 **Only when list_flows returns empty** — fall back to the file-based approach below:
 
@@ -59,7 +67,7 @@ Use graph flows from Step 1 to identify guard nodes that enforce roles or permis
 Supplement with:
 
 ```
-semantic_search_nodes({ query: "RolesGuard | PermissionsGuard | hasRole | checkPermission | CASL | Casbin", kind: "class", limit: 20 })
+semantic_search_nodes({ query: "RolesGuard | PermissionsGuard | hasRole | checkPermission | CASL | Casbin", kind: "Class", limit: 15, detail_level: "minimal" })
 ```
 
 <authorization_patterns>
@@ -78,7 +86,7 @@ semantic_search_nodes({ query: "RolesGuard | PermissionsGuard | hasRole | checkP
 
 ## Step 3: Map API Design Patterns via graph
 
-Call `semantic_search_nodes({ query: "Controller | Resolver | Router | handler", kind: "class" })` to surface API boundary classes. Use the results to determine REST vs. GraphQL vs. gRPC.
+Call `semantic_search_nodes({ query: "Controller | Resolver | Router | handler", kind: "Class", limit: 15, detail_level: "minimal" })` to surface API boundary classes. Use the results to determine REST vs. GraphQL vs. gRPC.
 
 <api_patterns>
 
@@ -109,31 +117,31 @@ Use `semantic_search_nodes` for actual import sites. Do NOT grep package.json �
 **Payment processors:**
 
 ```
-semantic_search_nodes({ query: "Stripe | PayPal | Square", kind: "import", limit: 20 })
+semantic_search_nodes({ query: "Stripe | PayPal | Square", limit: 15, detail_level: "minimal" })
 ```
 
 **Email services:**
 
 ```
-semantic_search_nodes({ query: "SendGrid | Mailgun | SES | nodemailer", kind: "import", limit: 20 })
+semantic_search_nodes({ query: "SendGrid | Mailgun | SES | nodemailer", limit: 15, detail_level: "minimal" })
 ```
 
 **Cloud storage:**
 
 ```
-semantic_search_nodes({ query: "S3 | GCS | AzureBlob | storage", kind: "import", limit: 20 })
+semantic_search_nodes({ query: "S3 | GCS | AzureBlob | storage", limit: 15, detail_level: "minimal" })
 ```
 
 **Auth providers:**
 
 ```
-semantic_search_nodes({ query: "Auth0 | Firebase | Cognito | Keycloak", kind: "import", limit: 20 })
+semantic_search_nodes({ query: "Auth0 | Firebase | Cognito | Keycloak", limit: 15, detail_level: "minimal" })
 ```
 
 **Monitoring:**
 
 ```
-semantic_search_nodes({ query: "Sentry | Datadog | NewRelic", kind: "import", limit: 20 })
+semantic_search_nodes({ query: "Sentry | Datadog | NewRelic", limit: 15, detail_level: "minimal" })
 ```
 
 **Only when ALL graph import queries return empty** — fall back to scanning dependency manifests for SDK package names.
@@ -181,7 +189,7 @@ Supplement with data transformation patterns only when flow data is insufficient
 Call:
 
 ```
-semantic_search_nodes({ query: "BullMQ | Bull | Celery | Sidekiq | Asynq | Dramatiq | RQ", kind: "import", limit: 30 })
+semantic_search_nodes({ query: "BullMQ | Bull | Celery | Sidekiq | Asynq | Dramatiq | RQ", limit: 15, detail_level: "minimal" })
 ```
 
 If the graph returns import sites, use those for queue and worker identification.
@@ -229,7 +237,7 @@ If the graph returns import sites, use those for queue and worker identification
 Call:
 
 ```
-semantic_search_nodes({ query: "Redis | Memcached | ioredis | createClient | cache.get | cache.set", kind: "function", limit: 30 })
+semantic_search_nodes({ query: "Redis | Memcached | ioredis | createClient | cache.get | cache.set", kind: "Function", limit: 15, detail_level: "minimal" })
 ```
 
 Graph results give you actual cache initialization and usage sites. For cache strategy specifics (read-through / write-behind TTL logic), read the specific handler files the graph identified.
@@ -317,14 +325,16 @@ If single service (not microservices):
 
 ## Self-Verification Checklist
 
-1. **Called list_flows first?** Flow data should drive auth middleware order before any grep
-2. **Called semantic_search_nodes for all external SDK categories?** Graph import sites are primary signal
-3. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
-4. **Auth dependencies found but no flow data?** Fall back to middleware/guard file reads with citation
-5. **External service SDK but no import sites from graph?** Fall back to manifest scanning with citation
-6. **Queue library present but no graph import results?** Search for files with "worker", "job", "processor" in name
-7. **Redis in dependencies but purpose unclear?** Graph cache.get/cache.set sites should clarify usage
-8. **Multiple services but no message broker?** Check if it's truly microservices or modular monolith
+1. **Called `get_minimal_context` first?** It must be the first graph call.
+2. **Used lean parameters everywhere?** `list_flows` with `detail_level: "minimal"`, all `semantic_search_nodes` with `limit: 15` MAX and `detail_level: "minimal"`, `get_flow` with `include_source: false` (only one drill-in with source allowed). No calls to `get_architecture_overview` (forbidden — overflows).
+3. **Called list_flows then drilled into ≤5 flows?** Flow data should drive auth middleware order before any grep.
+4. **Called semantic_search_nodes for all external SDK categories?** Graph import sites are primary signal.
+5. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
+6. **Auth dependencies found but no flow data?** Fall back to middleware/guard file reads with citation
+7. **External service SDK but no import sites from graph?** Fall back to manifest scanning with citation
+8. **Queue library present but no graph import results?** Search for files with "worker", "job", "processor" in name
+9. **Redis in dependencies but purpose unclear?** Graph cache.get/cache.set sites should clarify usage
+10. **Multiple services but no message broker?** Check if it's truly microservices or modular monolith
 
 ## Common Integration Patterns
 

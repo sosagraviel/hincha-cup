@@ -16,51 +16,59 @@ Analyze dependencies, databases, infrastructure tools, CI/CD pipelines, and depl
 
 <discovery_process>
 
-## Step 1: Service inventory via graph (do not re-glob manifests)
+> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block: lean parameters, drill-in caps, no calls to `get_architecture_overview_tool`. Specialise _which_ lean tools you call for each question; never override the defaults.
 
-Call `list_communities` to get the same service set the structure-analyzer discovered. Use community names as service IDs. This eliminates the duplicate `**/package.json` glob that the old workflow ran.
+## Step 1: Cheap orientation via graph
+
+Call `get_minimal_context` with `task: "Inventory the tech stack and dependencies"`. The response (~100 tokens) gives you top communities and suggested next tools. Use it to seed Step 2.
+
+## Step 2: Service inventory via graph (do not re-glob manifests)
+
+Call `list_communities` with `detail_level: "minimal"` to get the same service set the structure-analyzer discovered. Use community names as service IDs. This eliminates the duplicate `**/package.json` glob that the old workflow ran.
 
 Record the community list. Subsequent steps use community names to scope graph queries per service.
 
-## Step 2: Identify actually-imported SDK libraries via graph
+## Step 3: Identify actually-imported SDK libraries via graph
 
-For each key dependency category, use `semantic_search_nodes` to find real import sites rather than trusting package.json declarations:
+For each key dependency category, use `semantic_search_nodes` (with `limit: 20` MAX, `detail_level: "minimal"`) to find real import sites rather than trusting package.json declarations:
 
 **Database clients:**
 
 ```
-semantic_search_nodes({ query: "PostgresClient | MongoClient | Pool | createConnection | DataSource | Prisma", kind: "function", limit: 50 })
+semantic_search_nodes({ query: "PostgresClient | MongoClient | Pool | createConnection | DataSource | Prisma", kind: "Function", limit: 20, detail_level: "minimal" })
 ```
 
 **ORM initialization:**
 
 ```
-semantic_search_nodes({ query: "TypeORM | Prisma | Sequelize | SQLAlchemy | GORM | Diesel", kind: "import", limit: 50 })
+semantic_search_nodes({ query: "TypeORM | Prisma | Sequelize | SQLAlchemy | GORM | Diesel", kind: "Class", limit: 20, detail_level: "minimal" })
 ```
 
 **Cache clients:**
 
 ```
-semantic_search_nodes({ query: "Redis | Memcached | ioredis | createClient", kind: "import", limit: 30 })
+semantic_search_nodes({ query: "Redis | Memcached | ioredis | createClient", kind: "Function", limit: 20, detail_level: "minimal" })
 ```
 
 **Authentication libraries:**
 
 ```
-semantic_search_nodes({ query: "passport | jsonwebtoken | jose | auth0 | keycloak", kind: "import", limit: 30 })
+semantic_search_nodes({ query: "passport | jsonwebtoken | jose | auth0 | keycloak", limit: 20, detail_level: "minimal" })
 ```
 
 **Payment / email / monitoring SDKs:**
 
 ```
-semantic_search_nodes({ query: "Stripe | SendGrid | Sentry | Datadog", kind: "import", limit: 30 })
+semantic_search_nodes({ query: "Stripe | SendGrid | Sentry | Datadog", limit: 20, detail_level: "minimal" })
 ```
 
 Only libraries that appear in actual import sites (not just in package.json) should be treated as confirmed usage.
 
-## Step 3: Find Dependency Manifests and Lock Files (Glob — required for version strings)
+> **Forbidden:** `get_architecture_overview` — its response cannot be bounded and overflows. This analyzer does not need it; the steps above cover service inventory and SDK confirmation without it.
 
-For each service identified in Step 1, locate and read its manifest files to extract exact version numbers. The graph confirms usage; manifests provide version pinning details.
+## Step 4: Find Dependency Manifests and Lock Files (Glob — required for version strings)
+
+For each service identified in Step 2, locate and read its manifest files to extract exact version numbers. The graph confirms usage; manifests provide version pinning details.
 
 <manifest_patterns>
 
@@ -90,11 +98,11 @@ Read each manifest to extract dependencies and their versions.
 
 </manifest_patterns>
 
-## Step 4: Comprehensive Dependency Analysis
+## Step 5: Comprehensive Dependency Analysis
 
 <dependency_analysis>
 
-For each service (or root if monorepo), extract and categorize ALL dependencies from the manifests read in Step 3. Cross-reference with the graph import data from Step 2 — mark libraries as "confirmed imported" vs. "declared only" where the graph provided signal.
+For each service (or root if monorepo), extract and categorize ALL dependencies from the manifests read in Step 4. Cross-reference with the graph import data from Step 3 — mark libraries as "confirmed imported" vs. "declared only" where the graph provided signal.
 
 ### JavaScript/TypeScript (package.json)
 
@@ -153,7 +161,7 @@ Read `[dependencies]` (production) and `[dev-dependencies]` (development).
 
 </dependency_analysis>
 
-## Step 5: Identify Databases from Graph + Manifests
+## Step 6: Identify Databases from Graph + Manifests
 
 <database_detection>
 
@@ -187,7 +195,7 @@ For each database client found (prefer graph-confirmed import sites over declare
 
 </database_detection>
 
-## Step 6: Comprehensive CI/CD Pipeline Analysis (Glob — required)
+## Step 7: Comprehensive CI/CD Pipeline Analysis (Glob — required)
 
 <cicd_patterns>
 
@@ -235,7 +243,7 @@ If NO CI/CD config files found, report `"provider": "none"`.
 
 </cicd_patterns>
 
-## Step 7: Infrastructure & Deployment Analysis (Glob — required)
+## Step 8: Infrastructure & Deployment Analysis (Glob — required)
 
 <infrastructure_discovery>
 
@@ -293,7 +301,7 @@ Infrastructure config (Dockerfile, docker-compose, k8s manifests) is not indexed
 
 </infrastructure_discovery>
 
-## Step 8: Environment Configuration Discovery (Glob — required)
+## Step 9: Environment Configuration Discovery (Glob — required)
 
 <environment_analysis>
 
@@ -327,7 +335,7 @@ Read `.env.example` or `.env.template` to find **required environment variable n
 
 </environment_analysis>
 
-## Step 9: External Services Detection
+## Step 10: External Services Detection
 
 <external_services>
 
@@ -358,7 +366,7 @@ Use graph results from Step 2 as primary signal (actual import sites). Supplemen
 
 </external_services>
 
-## Step 10: Build Tools Analysis (Glob — required for config details)
+## Step 11: Build Tools Analysis (Glob — required for config details)
 
 <build_tools>
 
@@ -391,7 +399,7 @@ Read build configuration files (vite.config.ts/js, webpack.config.js, turbo.json
 
 </build_tools>
 
-## Step 11: Enhanced Monorepo Analysis
+## Step 12: Enhanced Monorepo Analysis
 
 <monorepo_analysis>
 
@@ -424,16 +432,17 @@ Read workspace configuration files:
 
 ## Self-Verification Checklist
 
-1. **Called list_communities first?** If yes and got results, service list is in hand without manifest re-glob
-2. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
-3. **Used semantic_search_nodes for database detection?** Graph confirms actual usage vs. declared-only
-4. **Found dependency manifests for all services?** Cross-check against Step 1 community list
-5. **CI/CD detection attempted?** If no config files found, report `"provider": "none"`
-6. **Infrastructure config found?** Check for Dockerfile, docker-compose, k8s configs
-7. **Environment variables extracted?** Read .env.example or .env.template for required var names
-8. **External services detected?** Graph import search should have surfaced Sentry, Keycloak, Auth0, Stripe, etc.
-9. **Build tools identified?** Find vite, webpack, or other bundlers and their config files
-10. **Monorepo analysis complete?** If monorepo, provide tool, workspace manager, and commands
+1. **Called `get_minimal_context` first?** It must be the first graph call. If you skipped it, you almost certainly over-pulled later.
+2. **Used lean parameters everywhere?** `list_communities` with `detail_level: "minimal"`, all `semantic_search_nodes` with `limit: 20` MAX and `detail_level: "minimal"`, no calls to `get_architecture_overview` (forbidden — overflows).
+3. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
+4. **Used semantic_search_nodes for database detection?** Graph confirms actual usage vs. declared-only
+5. **Found dependency manifests for all services?** Cross-check against Step 1 community list
+6. **CI/CD detection attempted?** If no config files found, report `"provider": "none"`
+7. **Infrastructure config found?** Check for Dockerfile, docker-compose, k8s configs
+8. **Environment variables extracted?** Read .env.example or .env.template for required var names
+9. **External services detected?** Graph import search should have surfaced Sentry, Keycloak, Auth0, Stripe, etc.
+10. **Build tools identified?** Find vite, webpack, or other bundlers and their config files
+11. **Monorepo analysis complete?** If monorepo, provide tool, workspace manager, and commands
 
 ## Common Patterns by Ecosystem
 

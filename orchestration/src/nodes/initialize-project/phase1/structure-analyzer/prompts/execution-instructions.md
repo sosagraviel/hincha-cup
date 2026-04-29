@@ -8,22 +8,34 @@ Analyze repository structure and identify all services/packages with their langu
 
 <discovery_process>
 
-## Step 1: Service boundaries via graph
+> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block: lean parameters, drill-in caps, no calls to `get_architecture_overview_tool`. The steps below specialise _which_ lean tools to use for each question — never override the defaults.
 
-Call `list_communities`. The response is your service inventory. Each community is a candidate service.
+## Step 1: Cheap orientation via graph
 
-For each community, call `get_community({ community_name, include_members: true })` to retrieve member files, language tags, and entry points. Record:
+Call `get_minimal_context` with `task: "Map service boundaries and the architectural shape"`. The response (~100 tokens) gives you top communities, top flows, risk, and suggested next tools. Use it to seed your service inventory.
+
+## Step 2: Service inventory via communities
+
+Call `list_communities` with `detail_level: "minimal", min_size: 10, sort_by: "size"`. Each entry becomes a candidate service. Record `name`, `size`, `cohesion`, `dominant_language`. Do NOT pass `detail_level: "standard"` — it returns full member lists per community and overflows.
+
+For up to **8** of the largest/highest-cohesion communities, call `get_community({ community_id, include_members: false })` to get language tags, file count, and the description. Do NOT request `include_members: true` here.
+
+For ≤ **3** communities whose role is genuinely ambiguous (you cannot tell from the name and description whether it's a service or a leaf package), call `get_community({ community_id, include_members: true })`. Use the member list to spot entry points (`main.*`, `index.*`, `app.*`, `server.*`).
+
+Record per service:
 
 - service id (use the community name as a stable id)
-- files (member list)
-- languages (language tags from the payload)
-- entry points (heuristic: members named `main.*`, `index.*`, `app.*`, `server.*`)
+- file count (size from the community payload)
+- languages (`dominant_language` plus language tags when drilled in)
+- entry points (heuristic on member names — only available when you drilled in)
 
-## Step 2: Architecture topology via graph
+## Step 3: Architectural topology via hubs and bridges
 
-Call `get_architecture_overview` once. Use the response to fill the project's top-level shape (monorepo? microservice? layered?). Cross-reference with Step 1's communities — they should align.
+Call `get_hub_nodes({ top_n: 10 })` and `get_bridge_nodes({ top_n: 10 })` for cross-community topology. Hub nodes are the most-connected nodes in the graph; bridge nodes sit on shortest paths between many communities. Cite hub/bridge findings in your `findings.architecture.coupling` (or equivalent) section.
 
-## Step 3: Manifest verification (only when graph is empty)
+> **Forbidden:** `get_architecture_overview` — its response cannot be bounded and overflows. The combination above (`get_minimal_context` + `list_communities` minimal + selective `get_community` + `get_hub_nodes` + `get_bridge_nodes`) is information-equivalent and bounded.
+
+## Manifest fallback (only when the graph is empty)
 
 If Step 1 returned 0 communities — only then fall back to Glob `**/package.json`, `**/pyproject.toml`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`, `**/build.gradle*`, `**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/mix.exs`, `**/pubspec.yaml`. Read the minimum needed to fill the gap.
 
@@ -200,7 +212,7 @@ For each service discovered via the graph (or manifests in fallback), record:
 
 ## Step 8: Architecture Patterns via graph
 
-The architecture overview from Step 2 should already describe the top-level pattern. Use it directly.
+The hub/bridge findings from Step 3 plus the community shapes from Step 2 should already describe the top-level pattern. Use them directly.
 
 Only examine source directory structure manually when the graph returned no pattern information:
 
@@ -214,7 +226,7 @@ Only examine source directory structure manually when the graph returned no patt
 
 ## Step 9: File-placement table via graph
 
-Call `query_graph({ pattern: "files_in", target: "<community>" })` per service from Step 1. Build the file-placement table from the edge results. Avoid Glob for this — the graph already has the membership data.
+Call `query_graph({ pattern: "files_in", target: "<community>", detail_level: "minimal" })` per service from Step 2 (limit yourself to the top ~5 services to stay inside the discipline's drill-in budget). Build the file-placement table from the edge results. Avoid Glob for this — the graph already has the membership data.
 
 Only fall back to Glob-based file mapping when `query_graph` returns empty for all communities.
 
@@ -369,21 +381,22 @@ All service information belongs in the `services` array.
 
 Before outputting results, verify:
 
-1. **Called list_communities first?** If yes and got results, Steps 1-2 are done via graph — don't repeat with Glob
-2. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
-3. **Found at least ONE service?** If graph returned 0 communities AND manifest fallback found nothing, search again
-4. **Detected ALL languages?** Community language tags should cover this; supplement with file-count fallback only for communities with ambiguous language data
-5. **Extracted runtime versions?** Check for .nvmrc, .python-version, go.mod, etc. (graph cannot answer this)
-6. **File placement table has 10-20 rows?** Use graph edge results first; supplement with Glob only for gaps
-7. **Found path aliases?** Read tsconfig.json, jsconfig.json, vite.config, webpack.config (graph cannot answer this)
-8. **Detected database layer?** Check dependencies for pg, psycopg2, mongoose, etc. Find ORM and migration commands
-9. **Marked as monorepo?** Verify ALL workspaces are listed (cross-check workspace config against found manifests)
+1. **Called `get_minimal_context` first?** It must be the first graph call — ~100 tokens, gives you the map. If you skipped it, you almost certainly over-pulled later.
+2. **Used lean parameters everywhere?** `list_communities` with `detail_level: "minimal"`, `get_community` with `include_members: false` by default, no calls to `get_architecture_overview` (forbidden — overflows).
+3. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
+4. **Found at least ONE service?** If graph returned 0 communities AND manifest fallback found nothing, search again
+5. **Detected ALL languages?** Community language tags should cover this; supplement with file-count fallback only for communities with ambiguous language data
+6. **Extracted runtime versions?** Check for .nvmrc, .python-version, go.mod, etc. (graph cannot answer this)
+7. **File placement table has 10-20 rows?** Use graph edge results first; supplement with Glob only for gaps
+8. **Found path aliases?** Read tsconfig.json, jsconfig.json, vite.config, webpack.config (graph cannot answer this)
+9. **Detected database layer?** Check dependencies for pg, psycopg2, mongoose, etc. Find ORM and migration commands
+10. **Marked as monorepo?** Verify ALL workspaces are listed (cross-check workspace config against found manifests)
 
 ## When Discovery Seems Incomplete
 
 If graph communities are empty but code clearly exists:
 
-- Call `get_architecture_overview` to confirm graph is online
+- Call `list_graph_stats_tool` to confirm graph is online (do NOT call `get_architecture_overview` — it is forbidden by the navigation discipline)
 - If that also returns empty, fall back to full manifest discovery
 - Use broader glob patterns: `**/*.{ext1,ext2,ext3}`
 - Try multiple pattern variations (different naming conventions)
