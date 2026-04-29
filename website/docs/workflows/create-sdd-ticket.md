@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 2
 title: Create Implementation-Ready Tickets
 description: Transform ideas into detailed, actionable tickets with AI-powered analysis. Generates complete tickets with user stories, acceptance criteria, and technical notes.
 ---

@@ -1,5 +1,5 @@
 ---
-sidebar_position: 4
+sidebar_position: 3
 title: Implement Ticket Workflow
 description: Transform tickets into production-ready pull requests with AI automation. Complete with working code, tests, quality validation, and documentation.
 ---
