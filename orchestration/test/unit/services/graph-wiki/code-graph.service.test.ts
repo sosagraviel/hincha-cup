@@ -279,6 +279,65 @@ describe('buildCodeGraph', () => {
     expect(updateCalled).toBe(false);
   });
 
+  it('Tier 1 hot path: does NOT invoke setup-code-graph.sh when HEAD already indexed', async () => {
+    // State-first: when graph.db is valid + .state.json's last_indexed_commit
+    // equals the current HEAD, buildCodeGraph must do zero rebuild work. This
+    // is the 6000+-dev hot path.
+    const commit = 'd'.repeat(40);
+    vi.mocked(execSync).mockReturnValue(`${commit}\n`);
+
+    writeGraphState(projectPath, { last_indexed_commit: commit });
+    writeSqliteFile(join(projectPath, '.code-review-graph/graph.db'));
+
+    const spawnCalls: string[] = [];
+    vi.mocked(spawn).mockImplementation((cmd: string, args: readonly string[]) => {
+      spawnCalls.push([cmd, ...args].join(' '));
+      return buildFakeChildProcess(0, '2.2.3.1', '');
+    });
+
+    await buildCodeGraph({ projectPath, frameworkPath });
+
+    const setupInvoked = spawnCalls.some((call) => call.includes('setup-code-graph.sh'));
+    expect(setupInvoked).toBe(false);
+    const buildInvoked = spawnCalls.some((call) => / build\b/.test(call));
+    expect(buildInvoked).toBe(false);
+    const updateInvoked = spawnCalls.some((call) => / update\b/.test(call));
+    expect(updateInvoked).toBe(false);
+  });
+
+  it('Tier 1 hot path: smokeTestCodeGraph (--version) is NOT called', async () => {
+    // The DB already validates and the state matches HEAD. No reason to spawn
+    // `code-review-graph --version` again on every skill invocation.
+    const commit = 'e'.repeat(40);
+    vi.mocked(execSync).mockReturnValue(`${commit}\n`);
+    writeGraphState(projectPath, { last_indexed_commit: commit });
+    writeSqliteFile(join(projectPath, '.code-review-graph/graph.db'));
+    // Pre-seed extraction-manifest so collectGraphStats is also unnecessary.
+    mkdirSync(join(projectPath, '.code-review-graph'), { recursive: true });
+    writeFileSync(
+      join(projectPath, '.code-review-graph/extraction-manifest.json'),
+      JSON.stringify({
+        files_parsed: 10,
+        languages: ['typescript'],
+        tool_version: '2.2.3.1',
+        sha: 'cafebabe',
+        build_time_ms: 1000,
+        created_at: '2026-04-01T00:00:00.000Z',
+      }),
+    );
+
+    const spawnCalls: string[] = [];
+    vi.mocked(spawn).mockImplementation((cmd: string, args: readonly string[]) => {
+      spawnCalls.push([cmd, ...args].join(' '));
+      return buildFakeChildProcess(0, '2.2.3.1', '');
+    });
+
+    await buildCodeGraph({ projectPath, frameworkPath });
+
+    const versionCalls = spawnCalls.filter((c) => c.includes('--version'));
+    expect(versionCalls.length).toBe(0);
+  });
+
   it('runs update when HEAD has moved since last index', async () => {
     const oldCommit = 'a'.repeat(40);
     const newCommit = 'b'.repeat(40);
@@ -345,8 +404,13 @@ describe('buildCodeGraph', () => {
     const updateCalled = spawnCalls.some((call) => call.includes('update'));
     expect(updateCalled).toBe(true);
 
-    const fallbackCalled =
-      spawnCalls.filter((call) => call.includes('setup-code-graph.sh')).length >= 2;
+    // Post-refactor (state-first): on Tier 2 (DB exists, HEAD moved) we skip
+    // the initial setup-code-graph.sh and try `update` directly. When update
+    // fails, `runFullBuild` invokes setup-code-graph.sh — exactly once. The
+    // pre-refactor code called setup twice (initial + fallback). The point
+    // of the test is "we did fall back to a full build", which is captured
+    // by ≥1 setup-code-graph.sh invocation in the Tier 2 path.
+    const fallbackCalled = spawnCalls.some((call) => call.includes('setup-code-graph.sh'));
     expect(fallbackCalled).toBe(true);
 
     const warnEmitted = stderrLines.some((line) => line.includes('WARNING'));
@@ -381,6 +445,47 @@ describe('buildCodeGraph', () => {
     expect(manifest).toHaveProperty('created_at');
     expect(manifest).toHaveProperty('tool_version');
     expect(manifest).toHaveProperty('build_time_ms');
+  });
+
+  it('preserves extraction-manifest.json created_at when content unchanged across runs', async () => {
+    // Tier 1 hot path: same DB, same HEAD → manifest content identical →
+    // created_at must be preserved (committed file does not churn).
+    const commit = 'b'.repeat(40);
+    vi.mocked(execSync).mockReturnValue(`${commit}\n`);
+    writeGraphState(projectPath, { last_indexed_commit: commit });
+    writeSqliteFile(join(projectPath, '.code-review-graph/graph.db'));
+
+    // Mock collectGraphStats to return stable values across runs.
+    vi.mocked(spawn).mockImplementation((cmd: string, args: readonly string[]) => {
+      const callStr = [cmd, ...args].join(' ');
+      if (callStr.includes('--version')) {
+        return buildFakeChildProcess(0, '2.2.3.1', '');
+      }
+      // stats / status calls return JSON the parser handles
+      return buildFakeChildProcess(
+        0,
+        JSON.stringify({ nodes: 10, edges: 20, files: 5, languages: ['typescript'] }),
+        '',
+      );
+    });
+
+    await buildCodeGraph({ projectPath, frameworkPath });
+    const manifestFile = extractionManifestPath(projectPath);
+    const firstManifest = JSON.parse(readFileSync(manifestFile, 'utf-8')) as Record<
+      string,
+      unknown
+    >;
+    const firstCreatedAt = firstManifest.created_at;
+
+    // Wait a tick so the timestamp would differ if rewritten.
+    await new Promise((r) => setTimeout(r, 25));
+
+    await buildCodeGraph({ projectPath, frameworkPath });
+    const secondManifest = JSON.parse(readFileSync(manifestFile, 'utf-8')) as Record<
+      string,
+      unknown
+    >;
+    expect(secondManifest.created_at).toBe(firstCreatedAt);
   });
 
   it('throws when DB fails SQLite validation after setup', async () => {

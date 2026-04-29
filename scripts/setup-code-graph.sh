@@ -158,10 +158,97 @@ build_graph() {
   return 1
 }
 
+update_graph() {
+  log_info "Incrementally updating graph for $PROJECT_PATH"
+  log_info "Output: $CODE_GRAPH_DB_PATH"
+
+  if "${CODE_GRAPH_CMD[@]}" update --repo "$PROJECT_PATH"; then
+    return 0
+  fi
+
+  log_info "Retrying graph update from project directory"
+  if (cd "$PROJECT_PATH" && "${CODE_GRAPH_CMD[@]}" update); then
+    return 0
+  fi
+
+  return 1
+}
+
+# Reads `Built at commit:` from `code-review-graph status --repo <project>` and
+# echoes the SHA on stdout. Empty stdout when the tool fails or the field is
+# absent. Suppresses stderr to keep the log tidy on edge cases.
+graph_built_at_commit() {
+  local out
+  if ! out="$("${CODE_GRAPH_CMD[@]}" status --repo "$PROJECT_PATH" 2>/dev/null)"; then
+    echo ""
+    return
+  fi
+  echo "$out" | awk -F': ' '/^Built at commit:/ {print $2; exit}' | tr -d '[:space:]'
+}
+
+# Returns the current `git rev-parse HEAD` for the project, or empty when not
+# in a git repo / git unavailable. Suppresses stderr.
+git_head_commit() {
+  (cd "$PROJECT_PATH" && git rev-parse HEAD 2>/dev/null) || echo ""
+}
+
+# Decides which work tier the standalone bash entry point needs to do, mirroring
+# the TS-side `decideGraphTier` in code-graph.service.ts. Single source-of-truth
+# discipline: setup-code-graph.sh standalone runs follow the same fast-path tree
+# as Phase 0 of initialize-project and the new ensure-context.sh preflight.
+#
+# Echoes one of:
+#   tier1   graph fresh (DB exists + sqlite-valid + status sha == HEAD)  → no work
+#   tier2   graph stale (DB exists + sqlite-valid + status sha != HEAD)  → update
+#   tier3   graph missing or invalid                                      → full build
+decide_graph_tier() {
+  if [ "${FORCE_REBUILD:-0}" = "1" ]; then
+    echo "tier3"
+    return
+  fi
+  if [ ! -f "$CODE_GRAPH_DB_PATH" ]; then
+    echo "tier3"
+    return
+  fi
+  # Cheap SQLite header check (avoid spawning `code-review-graph` for malformed DBs).
+  local size
+  size="$(wc -c < "$CODE_GRAPH_DB_PATH" 2>/dev/null | tr -d '[:space:]')"
+  if [ "${size:-0}" -lt 100 ]; then
+    echo "tier3"
+    return
+  fi
+  # SQLite header: 16 bytes "SQLite format 3\0". Bash command-substitution
+  # mangles embedded NUL bytes, so compare just the first 15 printable bytes —
+  # any non-SQLite file with that exact prefix is a bigger problem upstream.
+  local magic_prefix
+  magic_prefix="$(head -c 15 "$CODE_GRAPH_DB_PATH" 2>/dev/null)"
+  if [ "$magic_prefix" != "SQLite format 3" ]; then
+    echo "tier3"
+    return
+  fi
+  local built_at head
+  built_at="$(graph_built_at_commit)"
+  head="$(git_head_commit)"
+  if [ -z "$built_at" ] || [ -z "$head" ]; then
+    # Without provable freshness, conservatively rebuild.
+    echo "tier3"
+    return
+  fi
+  # built_at may be a short SHA; compare prefix to be safe.
+  local prefix_len=${#built_at}
+  if [ "${head:0:$prefix_len}" = "$built_at" ]; then
+    echo "tier1"
+  else
+    echo "tier2"
+  fi
+}
+
 write_local_launcher() {
   mkdir -p "$PROJECT_PATH/.code-review-graph"
 
   local launcher="$PROJECT_PATH/.code-review-graph/code-review-graph"
+  local tmp
+  tmp="$(mktemp)"
   {
     echo '#!/bin/bash'
     echo 'set -euo pipefail'
@@ -172,15 +259,23 @@ write_local_launcher() {
     else
       echo 'exec uvx code-review-graph "$@"'
     fi
-  } > "$launcher"
+  } > "$tmp"
 
+  # Compare-then-write: skip the syscall when content matches existing launcher.
+  if [ -f "$launcher" ] && cmp -s "$launcher" "$tmp"; then
+    rm -f "$tmp"
+    chmod +x "$launcher"
+    return 0
+  fi
+  mv "$tmp" "$launcher"
   chmod +x "$launcher"
 }
 
 write_launcher_json() {
   mkdir -p "$PROJECT_PATH/.code-review-graph"
 
-  local command_name args_json resolved_at tool_version
+  local target="$PROJECT_PATH/.code-review-graph/launcher.json"
+  local command_name args_json tool_version
 
   if [ "${#CODE_GRAPH_CMD[@]}" -eq 1 ] && [ "${CODE_GRAPH_CMD[0]}" = "code-review-graph" ]; then
     command_name="code-review-graph"
@@ -201,14 +296,35 @@ write_launcher_json() {
     args_json+="]"
   fi
 
-  resolved_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")"
-
   tool_version="unknown"
   if "${CODE_GRAPH_CMD[@]}" --version >/dev/null 2>&1; then
     tool_version="$("${CODE_GRAPH_CMD[@]}" --version 2>&1 | head -n 1)"
   fi
 
-  cat > "$PROJECT_PATH/.code-review-graph/launcher.json" << EOF
+  # Idempotency: preserve resolved_at when nothing else changed (so the
+  # committed launcher.json doesn't churn every bootstrap run).
+  local resolved_at=""
+  if [ -f "$target" ]; then
+    local existing_command existing_args existing_tool_version existing_resolved_at
+    existing_command="$(awk -F'"' '/"command":/ {print $4; exit}' "$target" 2>/dev/null || echo "")"
+    existing_tool_version="$(awk -F'"' '/"tool_version":/ {print $4; exit}' "$target" 2>/dev/null || echo "")"
+    existing_resolved_at="$(awk -F'"' '/"resolved_at":/ {print $4; exit}' "$target" 2>/dev/null || echo "")"
+    # args is harder to extract via awk reliably; compare the raw JSON line.
+    existing_args="$(awk '/"args":/ {sub(/^[^\[]*/, ""); sub(/,?[[:space:]]*$/, ""); print; exit}' "$target" 2>/dev/null || echo "")"
+    if [ "$existing_command" = "$command_name" ] \
+       && [ "$existing_tool_version" = "$tool_version" ] \
+       && [ "$existing_args" = "$args_json" ] \
+       && [ -n "$existing_resolved_at" ]; then
+      resolved_at="$existing_resolved_at"
+    fi
+  fi
+  if [ -z "$resolved_at" ]; then
+    resolved_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+  cat > "$tmp" << EOF
 {
   "version": "1",
   "command": "$command_name",
@@ -217,6 +333,12 @@ write_launcher_json() {
   "tool_version": "$tool_version"
 }
 EOF
+
+  if [ -f "$target" ] && cmp -s "$target" "$tmp"; then
+    rm -f "$tmp"
+    return 0
+  fi
+  mv "$tmp" "$target"
 }
 
 ensure_ignore_file() {
@@ -238,8 +360,38 @@ main() {
   fi
 
   ensure_ignore_file
+  # ensure_code_review_graph short-circuits in <50ms when `code-review-graph`
+  # is already on PATH; skips uvx/install probing entirely on that hot path.
   ensure_code_review_graph
-  build_graph
+
+  # State-first: pick the cheapest work that gets us to a fresh graph.
+  #   tier1 → no rebuild work; just refresh launcher metadata.
+  #   tier2 → incremental update (~1s on gira).
+  #   tier3 → full rebuild (~4s on gira) or first-time build.
+  local tier
+  tier="$(decide_graph_tier)"
+
+  case "$tier" in
+    tier1)
+      log_info "Graph fresh (already at HEAD); skipping rebuild"
+      ;;
+    tier2)
+      if ! update_graph; then
+        log_info "Incremental update failed; falling back to full build"
+        build_graph
+      fi
+      ;;
+    tier3)
+      build_graph
+      ;;
+    *)
+      log_error "decide_graph_tier returned unexpected value: $tier"
+      exit 1
+      ;;
+  esac
+
+  # Launcher metadata is rewritten only when content differs (idempotent
+  # writers above). Cheap on Tier 1.
   write_local_launcher
   write_launcher_json
 
@@ -248,7 +400,11 @@ main() {
     exit 1
   fi
 
-  log_info "Code graph ready"
+  case "$tier" in
+    tier1) log_info "Code graph ready (no work needed)" ;;
+    tier2) log_info "Code graph ready (incremental update applied)" ;;
+    tier3) log_info "Code graph ready (full build complete)" ;;
+  esac
 }
 
 main "$@"

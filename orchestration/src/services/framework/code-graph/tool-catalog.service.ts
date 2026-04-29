@@ -18,9 +18,11 @@
  * single run does not pay the spawn cost more than once.
  */
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { setTimeout as delay } from 'timers/promises';
 
+import { codeReviewGraphDir, loadExtractionManifest } from '../../graph-wiki/code-graph.service.js';
 import type { CodeGraphTool } from './tool-catalog.types.js';
 
 const CODE_GRAPH_MCP_SERVER_NAME = 'code_graph';
@@ -35,16 +37,99 @@ export interface FetchCodeGraphToolCatalogArgs {
   frameworkPath: string;
 }
 
+interface DiskCacheFile {
+  /** Cache key — `(tool_version, graph_sha)` joined; mismatch invalidates. */
+  key: string;
+  fetched_at: string;
+  tools: CodeGraphTool[];
+}
+
 /**
- * Returns the live MCP tool catalog. Cached per process. Throws PortabilityError
- * if the server fails to start or returns no tools.
+ * Returns the path to the on-disk catalog cache. Lives next to the graph DB
+ * because (a) it shares the artefact's lifecycle and (b) the framework's
+ * `.code-review-graph/.gitignore` allowlist already excludes everything that
+ * isn't explicitly allowed — this file is per-developer, not committed.
+ */
+function diskCachePath(projectPath: string): string {
+  return join(codeReviewGraphDir(projectPath), '.tool-catalog.json');
+}
+
+/**
+ * Disk cache key derived from the on-disk graph state. Two runs that observe
+ * the same `(tool_version, graph_sha)` produce the same key — and the catalog
+ * cannot meaningfully differ between them, so the disk cache is sound.
+ *
+ * Returns null when the manifest is missing/malformed (Tier 3 case where we
+ * have no graph yet anyway; the catalog must be fetched fresh).
+ */
+function deriveCacheKey(projectPath: string): string | null {
+  const m = loadExtractionManifest(projectPath);
+  if (!m) return null;
+  const toolVersion = typeof m.tool_version === 'string' ? m.tool_version : 'unknown';
+  const sha = typeof m.sha === 'string' ? m.sha : 'unknown';
+  if (toolVersion === 'unknown' || sha === 'unknown') return null;
+  return `${toolVersion}::${sha}`;
+}
+
+function readDiskCache(projectPath: string, expectedKey: string): CodeGraphTool[] | null {
+  const path = diskCachePath(projectPath);
+  if (!existsSync(path)) return null;
+  try {
+    const file = JSON.parse(readFileSync(path, 'utf-8')) as DiskCacheFile;
+    if (file.key !== expectedKey) return null;
+    if (!Array.isArray(file.tools)) return null;
+    return file.tools.filter(
+      (t): t is CodeGraphTool => typeof t?.name === 'string' && typeof t?.description === 'string',
+    );
+  } catch {
+    return null;
+  }
+}
+
+function writeDiskCache(projectPath: string, key: string, tools: CodeGraphTool[]): void {
+  const dir = codeReviewGraphDir(projectPath);
+  try {
+    mkdirSync(dir, { recursive: true });
+    const file: DiskCacheFile = {
+      key,
+      fetched_at: new Date().toISOString(),
+      tools,
+    };
+    writeFileSync(diskCachePath(projectPath), JSON.stringify(file, null, 2), 'utf-8');
+  } catch {
+    // Best-effort. Cache miss next run is the worst outcome.
+  }
+}
+
+/**
+ * Returns the live MCP tool catalog.
+ *
+ * Cache hierarchy (cheapest first; each tier short-circuits the rest):
+ *   1. Per-process in-memory cache keyed by `(frameworkPath, projectPath)`.
+ *   2. On-disk cache at `<project>/.code-review-graph/.tool-catalog.json`,
+ *      keyed by `(tool_version, graph_sha)` from the extraction manifest.
+ *      Survives across processes and Phase 0 invocations.
+ *   3. Fresh MCP `tools/list` round-trip — spawns the stdio server, sends
+ *      `initialize` + `tools/list`, parses the response, populates both caches.
+ *
+ * Throws when the server fails to start or returns no tools.
  */
 export async function fetchCodeGraphToolCatalog(
   args: FetchCodeGraphToolCatalogArgs,
 ): Promise<CodeGraphTool[]> {
-  const key = `${args.frameworkPath}::${args.projectPath}`;
-  if (cached && cacheKey === key) {
+  const memoryKey = `${args.frameworkPath}::${args.projectPath}`;
+  if (cached && cacheKey === memoryKey) {
     return cached;
+  }
+
+  const diskKey = deriveCacheKey(args.projectPath);
+  if (diskKey !== null) {
+    const fromDisk = readDiskCache(args.projectPath, diskKey);
+    if (fromDisk && fromDisk.length > 0) {
+      cached = fromDisk;
+      cacheKey = memoryKey;
+      return fromDisk;
+    }
   }
 
   const launcher = join(args.frameworkPath, 'scripts', 'code-review-graph-mcp.sh');
@@ -59,7 +144,10 @@ export async function fetchCodeGraphToolCatalog(
       throw new Error('tool catalog is empty — the MCP server returned zero tools');
     }
     cached = tools;
-    cacheKey = key;
+    cacheKey = memoryKey;
+    if (diskKey !== null) {
+      writeDiskCache(args.projectPath, diskKey, tools);
+    }
     return tools;
   } finally {
     if (child.exitCode === null && child.signalCode === null) {

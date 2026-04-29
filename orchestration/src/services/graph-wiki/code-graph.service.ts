@@ -356,9 +356,30 @@ async function writeGraphState(projectPath: string, frameworkPath: string): Prom
 }
 
 /**
+ * Reads the cached extraction manifest if present, else returns null.
+ * Single source for callers that want stats / SHA / timestamps without
+ * re-running `code-review-graph stats`.
+ */
+export function loadExtractionManifest(projectPath: string): ExtractionManifest | null {
+  const path = join(codeReviewGraphDir(projectPath), 'extraction-manifest.json');
+  if (!existsSync(path)) return null;
+  try {
+    return JSON.parse(readFileSync(path, 'utf-8')) as ExtractionManifest;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Writes `.code-review-graph/extraction-manifest.json` capturing snapshot
  * metadata about the graph build so downstream consumers can verify what was
  * indexed and when.
+ *
+ * **Idempotent.** When the existing manifest's load-bearing fields
+ * (`files_parsed`, `languages`, `tool_version`, `sha`) match the new ones, the
+ * `created_at` and `build_time_ms` are preserved from the existing file —
+ * preventing churn on the committed manifest when a hot-path bootstrap did no
+ * actual rebuild work.
  */
 export function writeExtractionManifest(
   projectPath: string,
@@ -391,16 +412,89 @@ export function writeExtractionManifest(
     toolVersion = 'unknown';
   }
 
+  // Preserve created_at + build_time_ms when the load-bearing content is
+  // identical to the existing manifest. Without this, every bootstrap run
+  // (including pure-cache Tier 1 hot paths) would churn the committed file.
+  const existing = loadExtractionManifest(projectPath);
+  let createdAt = new Date().toISOString();
+  let buildTimeMs = stats.build_time_ms;
+  if (existing) {
+    const sameContent =
+      existing.files_parsed === stats.files &&
+      JSON.stringify(existing.languages ?? null) === JSON.stringify(stats.languages ?? null) &&
+      existing.tool_version === toolVersion &&
+      existing.sha === sha;
+    if (sameContent) {
+      if (typeof existing.created_at === 'string') createdAt = existing.created_at;
+      if (typeof existing.build_time_ms === 'number') buildTimeMs = existing.build_time_ms;
+    }
+  }
+
   const manifest: ExtractionManifest = {
     files_parsed: stats.files,
     languages: stats.languages,
     tool_version: toolVersion,
     sha,
-    build_time_ms: stats.build_time_ms,
-    created_at: new Date().toISOString(),
+    build_time_ms: buildTimeMs,
+    created_at: createdAt,
   };
 
-  writeFileSync(join(dir, 'extraction-manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+  const path = join(dir, 'extraction-manifest.json');
+  const next = JSON.stringify(manifest, null, 2);
+  // Compare-then-write: skip the syscall when nothing changed.
+  if (existsSync(path)) {
+    try {
+      const current = readFileSync(path, 'utf-8');
+      if (current === next || current === `${next}\n`) return;
+    } catch {
+      // unreadable — fall through to write
+    }
+  }
+  writeFileSync(path, next, 'utf-8');
+}
+
+/**
+ * State-first tier check — decides what work `buildCodeGraph` needs to do
+ * given the current on-disk state. **Pure file reads + one git call**; no
+ * subprocess to the graph tool. This is the cheap front-end that lets the
+ * hot path (graph already at HEAD) skip every expensive operation.
+ *
+ *   tier1   → graph is fresh; no rebuild, no smoke test, no manifest churn.
+ *   tier2   → graph exists but stale; run incremental `update` only.
+ *   tier3   → graph missing or invalid; full `build` required.
+ */
+export type GraphTier = 'tier1' | 'tier2' | 'tier3';
+
+export function decideGraphTier(projectPath: string): GraphTier {
+  const dbPath = graphDbPath(projectPath);
+  if (!existsSync(dbPath)) return 'tier3';
+
+  const dbCheck = validateGraphDb(dbPath);
+  if (!dbCheck.ok) return 'tier3';
+
+  const state = loadGraphState(projectPath);
+  const lastIndexed = state?.last_indexed_commit;
+  if (!lastIndexed || lastIndexed === 'unknown') return 'tier3';
+
+  const head = resolveCurrentCommit(projectPath);
+  if (head === 'unknown') return 'tier3';
+
+  return lastIndexed === head ? 'tier1' : 'tier2';
+}
+
+/**
+ * Returns cached `CodeGraphStats` from the existing extraction manifest,
+ * or null when the manifest is missing/malformed. Used by the Tier 1 hot
+ * path to avoid spawning `code-review-graph stats`.
+ */
+function loadCachedStats(projectPath: string): CodeGraphStats | null {
+  const m = loadExtractionManifest(projectPath);
+  if (!m) return null;
+  return {
+    files: m.files_parsed,
+    languages: m.languages,
+    build_time_ms: m.build_time_ms,
+  };
 }
 
 export async function buildCodeGraph(
@@ -414,79 +508,113 @@ export async function buildCodeGraph(
     throw new Error(`Code graph setup script not found: ${setupScriptPath}`);
   }
 
-  await runCommand('bash', [setupScriptPath], {
-    cwd: options.projectPath,
-    env: {
-      ...getCodeGraphEnv(),
-    },
-    timeoutMs: COMMAND_TIMEOUT_MS,
-  });
-  process.env.PATH = getCodeGraphEnv().PATH;
+  // ===== State-first tier check (pure file reads; no graph subprocess) =====
+  const tier = decideGraphTier(options.projectPath);
 
-  if (!existsSync(dbPath)) {
-    throw new Error(`Code graph database was not created: ${dbPath}`);
-  }
+  let buildTimeMs = 0;
 
-  const dbCheck = validateGraphDb(dbPath);
-  if (!dbCheck.ok) {
-    throw new Error(`Graph DB invalid (${dbCheck.sizeBytes} bytes): ${dbCheck.reason}`);
-  }
-
-  let smoke = await smokeTestCodeGraph(options.projectPath, options.frameworkPath);
-  if (!smoke.ok) {
+  // ===== Tier 3: graph missing or invalid → full build via setup script =====
+  // Setup script also auto-installs the tool when needed (uv → uvx → pipx → pip).
+  if (tier === 'tier3') {
+    const start = Date.now();
     await runCommand('bash', [setupScriptPath], {
       cwd: options.projectPath,
-      env: {
-        ...getCodeGraphEnv(),
-        FORCE_REINSTALL: '1',
-      },
+      env: { ...getCodeGraphEnv() },
       timeoutMs: COMMAND_TIMEOUT_MS,
     });
-    smoke = await smokeTestCodeGraph(options.projectPath, options.frameworkPath);
-  }
+    process.env.PATH = getCodeGraphEnv().PATH;
+    buildTimeMs = Date.now() - start;
 
-  if (!smoke.ok) {
-    const hint =
-      'Install uv manually: https://docs.astral.sh/uv/getting-started/installation/ ' +
-      `or rerun: bash ${setupScriptPath}`;
-    throw new Error(
-      `code-review-graph failed verification after autofix attempt.\n` +
-        `Last error: ${smoke.error ?? 'unknown'}\n` +
-        `${hint}`,
-    );
-  }
-
-  const graphState = loadGraphState(options.projectPath);
-  const currentCommit = resolveCurrentCommit(options.projectPath);
-
-  const hasIndexedCommit =
-    graphState !== null &&
-    graphState.last_indexed_commit !== undefined &&
-    graphState.last_indexed_commit !== 'unknown';
-
-  const headMoved = hasIndexedCommit && graphState!.last_indexed_commit !== currentCommit;
-
-  if (existsSync(dbPath) && hasIndexedCommit && headMoved) {
-    const updated = await tryIncrementalUpdate(options.projectPath, options.frameworkPath);
-    if (!updated) {
-      await runFullBuild(options.projectPath, dbPath, options.frameworkPath);
+    if (!existsSync(dbPath)) {
+      throw new Error(`Code graph database was not created: ${dbPath}`);
+    }
+    const postBuildCheck = validateGraphDb(dbPath);
+    if (!postBuildCheck.ok) {
+      throw new Error(
+        `Graph DB invalid (${postBuildCheck.sizeBytes} bytes): ${postBuildCheck.reason}`,
+      );
     }
   }
 
-  await writeGraphState(options.projectPath, options.frameworkPath);
+  // ===== Tier 2: graph stale → incremental update (no full rebuild) =====
+  if (tier === 'tier2') {
+    const start = Date.now();
+    const updated = await tryIncrementalUpdate(options.projectPath, options.frameworkPath);
+    if (!updated) {
+      // tryIncrementalUpdate already logged the reason; fall back to full build.
+      await runFullBuild(options.projectPath, dbPath, options.frameworkPath);
+    }
+    buildTimeMs = Date.now() - start;
+  }
 
-  const stats = await collectGraphStats(
-    dbPath,
-    Date.now() - startedAt,
-    options.projectPath,
-    options.frameworkPath,
-  );
+  // ===== Tier 1: graph fresh; do NOTHING =====
+  // No build, no smoke, no manifest churn. The DB already validated, the
+  // .state.json's last_indexed_commit equals HEAD — there is nothing to do.
+
+  // ===== Smoke once, only when we actually did rebuild work =====
+  // On Tier 1 the existing artefacts already validated; running --version
+  // again is pure waste and slows the hot path that 6000+ devs hit on
+  // every skill invocation.
+  if (tier !== 'tier1') {
+    let smoke = await smokeTestCodeGraph(options.projectPath, options.frameworkPath);
+    if (!smoke.ok) {
+      // Auto-fix: re-run setup with FORCE_REINSTALL to repair corrupt installs.
+      await runCommand('bash', [setupScriptPath], {
+        cwd: options.projectPath,
+        env: {
+          ...getCodeGraphEnv(),
+          FORCE_REINSTALL: '1',
+        },
+        timeoutMs: COMMAND_TIMEOUT_MS,
+      });
+      smoke = await smokeTestCodeGraph(options.projectPath, options.frameworkPath);
+    }
+    if (!smoke.ok) {
+      const hint =
+        'Install uv manually: https://docs.astral.sh/uv/getting-started/installation/ ' +
+        `or rerun: bash ${setupScriptPath}`;
+      throw new Error(
+        `code-review-graph failed verification after autofix attempt.\n` +
+          `Last error: ${smoke.error ?? 'unknown'}\n` +
+          `${hint}`,
+      );
+    }
+  }
+
+  // ===== Persist state — Tier 1 already has correct state; only rewrite on work =====
+  if (tier !== 'tier1') {
+    await writeGraphState(options.projectPath, options.frameworkPath);
+  }
+
+  // ===== Stats — Tier 1 reads cached manifest; Tier 2/3 re-collect =====
+  let stats: CodeGraphStats;
+  if (tier === 'tier1') {
+    const cached = loadCachedStats(options.projectPath);
+    if (cached) {
+      stats = cached;
+    } else {
+      // Manifest missing on a Tier 1 graph (rare: someone deleted it without
+      // touching graph.db). Re-collect now and rewrite.
+      stats = await collectGraphStats(dbPath, 0, options.projectPath, options.frameworkPath);
+    }
+  } else {
+    stats = await collectGraphStats(
+      dbPath,
+      buildTimeMs || Date.now() - startedAt,
+      options.projectPath,
+      options.frameworkPath,
+    );
+  }
+
   const sha = createHash('sha256').update(readFileSync(dbPath)).digest('hex');
 
+  // writeExtractionManifest is idempotent — when content matches existing,
+  // created_at + build_time_ms are preserved and the file is not rewritten.
   writeExtractionManifest(options.projectPath, stats, sha);
 
-  // Verify the code-review-graph CLI is callable (no port involved — MCP is stdio).
-  await verifyCodeGraphCli(options.projectPath, options.frameworkPath);
+  // Note: `verifyCodeGraphCli` was previously called here as a redundant
+  // third smoke — `smokeTestCodeGraph` above already verifies the CLI is
+  // callable. Dropped to keep the hot path under 100 ms.
 
   return {
     code_graph_available: true,
