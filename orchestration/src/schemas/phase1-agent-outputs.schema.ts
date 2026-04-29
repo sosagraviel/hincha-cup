@@ -79,6 +79,15 @@ export const StructureAnalyzerOutputSchema = z
     agent_name: z.literal('structure-architecture-analyzer'),
     timestamp: z.string(),
     graph_queries_used: z.array(z.string()).default([]),
+    /**
+     * Count of graph tool calls whose result exceeded the per-call token cap.
+     * Derived by `applyGraphToolUsageFromSidecar` from the Stop hook's sidecar.
+     * Optional for back-compat (older replays predate Phase 3 of the
+     * graph-navigation redesign and have no value here).
+     */
+    graph_overflow_count: z.number().optional(),
+    /** Sorted unique tool names whose results overflowed; empty array when count = 0. */
+    graph_overflow_tools: z.array(z.string()).optional(),
     findings: z
       .object({
         services: z
@@ -206,6 +215,15 @@ export const TechStackAnalyzerOutputSchema = z
     agent_name: z.literal('tech-stack-dependencies-analyzer'),
     timestamp: z.string(),
     graph_queries_used: z.array(z.string()).default([]),
+    /**
+     * Count of graph tool calls whose result exceeded the per-call token cap.
+     * Derived by `applyGraphToolUsageFromSidecar` from the Stop hook's sidecar.
+     * Optional for back-compat (older replays predate Phase 3 of the
+     * graph-navigation redesign and have no value here).
+     */
+    graph_overflow_count: z.number().optional(),
+    /** Sorted unique tool names whose results overflowed; empty array when count = 0. */
+    graph_overflow_tools: z.array(z.string()).optional(),
     findings: z
       .object({
         // CHANGED: services is now optional - use by_service map with service IDs as keys instead
@@ -334,6 +352,15 @@ export const CodePatternsAnalyzerOutputSchema = z
     agent_name: z.literal('code-patterns-testing-analyzer'),
     timestamp: z.string(),
     graph_queries_used: z.array(z.string()).default([]),
+    /**
+     * Count of graph tool calls whose result exceeded the per-call token cap.
+     * Derived by `applyGraphToolUsageFromSidecar` from the Stop hook's sidecar.
+     * Optional for back-compat (older replays predate Phase 3 of the
+     * graph-navigation redesign and have no value here).
+     */
+    graph_overflow_count: z.number().optional(),
+    /** Sorted unique tool names whose results overflowed; empty array when count = 0. */
+    graph_overflow_tools: z.array(z.string()).optional(),
     findings: z
       .object({
         // CHANGED: services is now optional - use service IDs as keys in testing{}, api_patterns{}, etc. instead
@@ -402,6 +429,13 @@ export const DataFlowsAnalyzerOutputSchema = z.object({
   agent_name: z.literal('data-flows-integrations-analyzer'),
   timestamp: z.string(),
   graph_queries_used: z.array(z.string()).default([]),
+  /**
+   * Count of graph tool calls whose result exceeded the per-call token cap.
+   * Derived by `applyGraphToolUsageFromSidecar` from the Stop hook's sidecar.
+   */
+  graph_overflow_count: z.number().optional(),
+  /** Sorted unique tool names whose results overflowed; empty array when count = 0. */
+  graph_overflow_tools: z.array(z.string()).optional(),
   findings: z
     .object({
       // IMPORTANT: Focus ONLY on infrastructure services (redis, postgres, message queues, email servers)

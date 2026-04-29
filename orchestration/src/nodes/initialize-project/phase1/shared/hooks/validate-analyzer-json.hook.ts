@@ -36,23 +36,78 @@ const CODE_GRAPH_TOOL_PREFIX = 'mcp__code_graph__';
  *      replace whatever the agent put in `graph_queries_used` with the real
  *      list, eliminating the field from agent responsibility entirely.
  */
-function countGraphToolUses(transcript: unknown[]): { count: number; uniqueNames: string[] } {
+/**
+ * MCP server sentinel emitted when a tool result exceeds the per-call token
+ * cap. The full payload is dumped to a sidecar file under `~/.claude/projects/
+ * <slug>/<sessionId>/tool-results/...` and the agent receives this message in
+ * place of the result. Treated as a calling error: the framework counts
+ * overflows so they cannot regress silently.
+ */
+const SPILLOVER_SENTINEL =
+  /Error: result \(\d[\d,]* characters\) exceeds maximum allowed tokens\. Output has been saved to /;
+
+interface GraphToolUseRecord {
+  /** Total mcp__code_graph__* tool_use events across the transcript. */
+  count: number;
+  /** Sorted unique canonical tool names actually called. */
+  uniqueNames: string[];
+  /** One entry per overflowing tool result (sentinel match). */
+  overflows: Array<{ tool: string; callIndex: number }>;
+}
+
+function countGraphToolUses(transcript: unknown[]): GraphToolUseRecord {
   const uses = new Map<string, number>();
+  // Track tool_use events by their `id` so we can attribute a later
+  // overflowing tool_result back to the specific tool that produced it.
+  const useByCallId = new Map<string, { tool: string; callIndex: number }>();
+  let callIndex = 0;
+  const overflows: GraphToolUseRecord['overflows'] = [];
+
   for (const msg of transcript) {
     if (!isObject(msg)) continue;
     const wrapped = isObject(msg.message) ? msg.message : msg;
-    if (wrapped.role !== 'assistant') continue;
     const content = wrapped.content;
     if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      if (!isObject(block) || block.type !== 'tool_use') continue;
-      const name = typeof block.name === 'string' ? block.name : '';
-      if (!name.startsWith(CODE_GRAPH_TOOL_PREFIX)) continue;
-      uses.set(name, (uses.get(name) ?? 0) + 1);
+
+    if (wrapped.role === 'assistant') {
+      for (const block of content) {
+        if (!isObject(block) || block.type !== 'tool_use') continue;
+        const name = typeof block.name === 'string' ? block.name : '';
+        if (!name.startsWith(CODE_GRAPH_TOOL_PREFIX)) continue;
+        uses.set(name, (uses.get(name) ?? 0) + 1);
+        callIndex += 1;
+        if (typeof block.id === 'string' && block.id.length > 0) {
+          useByCallId.set(block.id, { tool: name, callIndex });
+        }
+      }
+    }
+
+    if (wrapped.role === 'user') {
+      for (const block of content) {
+        if (!isObject(block) || block.type !== 'tool_result') continue;
+        const useId = typeof block.tool_use_id === 'string' ? block.tool_use_id : '';
+        const matched = useId ? useByCallId.get(useId) : undefined;
+        if (!matched) continue;
+        // Result content can be a string OR an array of `{type:"text", text}`
+        // blocks. Normalize.
+        const raw = block.content;
+        const text = Array.isArray(raw)
+          ? raw
+              .filter((c): c is { type: string; text: string } => isObject(c) && 'text' in c)
+              .map((c) => String(c.text))
+              .join('\n')
+          : typeof raw === 'string'
+            ? raw
+            : '';
+        if (SPILLOVER_SENTINEL.test(text)) {
+          overflows.push(matched);
+        }
+      }
     }
   }
+
   const total = Array.from(uses.values()).reduce((sum, n) => sum + n, 0);
-  return { count: total, uniqueNames: Array.from(uses.keys()).sort() };
+  return { count: total, uniqueNames: Array.from(uses.keys()).sort(), overflows };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -67,10 +122,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
  * hook's responsibility narrow (block on lies) and makes deterministic
  * `graph_queries_used` easy to verify in Phase 6 validation.
  */
-function writeGraphToolUseSidecar(
-  transcriptPath: string,
-  data: { count: number; uniqueNames: string[] },
-): void {
+function writeGraphToolUseSidecar(transcriptPath: string, data: GraphToolUseRecord): void {
   try {
     const sidecarPath = transcriptPath.replace(/\.jsonl$/, '') + '.graph-tool-uses.json';
     fs.writeFileSync(sidecarPath, JSON.stringify(data, null, 2));

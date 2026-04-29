@@ -51,6 +51,23 @@ export async function consolidationNode(
 
   phaseLogger.info(' ✓ All Phase 1 outputs loaded from disk');
 
+  // Surface graph-tool-result overflows from Phase 1 — every overflow means an
+  // analyzer's tool call exceeded the per-call token cap and the framework
+  // dumped 200+ KB to a sidecar the agent could not usefully consume. Today
+  // these are silent; making them visible is the only way to catch prompt
+  // regressions before they degrade analysis quality across many runs.
+  for (const a of analyzers) {
+    const count = typeof a.graph_overflow_count === 'number' ? a.graph_overflow_count : 0;
+    if (count > 0) {
+      const tools = Array.isArray(a.graph_overflow_tools)
+        ? a.graph_overflow_tools.join(', ')
+        : 'unknown';
+      phaseLogger.warn(
+        ` ⚠ ${a.agent_name ?? 'analyzer'} hit ${count} graph-tool overflow${count === 1 ? '' : 's'} on: ${tools}. Re-tighten parameters in execution-instructions.md (lean defaults, drill-in caps).`,
+      );
+    }
+  }
+
   try {
     // ========================================================================
     // STEP 1: MERGE ANALYSES

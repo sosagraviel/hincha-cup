@@ -175,7 +175,16 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.any(String),
-      JSON.stringify({ ...mockData, graph_queries_used: [] }, null, 2),
+      JSON.stringify(
+        {
+          ...mockData,
+          graph_queries_used: [],
+          graph_overflow_count: 0,
+          graph_overflow_tools: [],
+        },
+        null,
+        2,
+      ),
     );
   });
 

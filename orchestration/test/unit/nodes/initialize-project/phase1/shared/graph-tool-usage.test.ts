@@ -130,4 +130,60 @@ describe('applyGraphToolUsageFromSidecar', () => {
     const out = applyGraphToolUsageFromSidecar({}, projectPath, sessionId);
     expect(out.graph_queries_used).toEqual(['mcp__code_graph__list_flows_tool']);
   });
+
+  describe('graph-tool overflow telemetry', () => {
+    it('reports zero overflows when sidecar has no overflows[] field', () => {
+      const sessionId = '00000000-0000-0000-0000-0000000000ee';
+      writeFileSync(
+        path.join(sidecarDir, `${sessionId}.graph-tool-uses.json`),
+        JSON.stringify({ count: 1, uniqueNames: ['mcp__code_graph__list_flows_tool'] }),
+      );
+
+      const out = applyGraphToolUsageFromSidecar({}, projectPath, sessionId);
+      expect(out.graph_overflow_count).toBe(0);
+      expect(out.graph_overflow_tools).toEqual([]);
+    });
+
+    it('counts overflows and dedupes the tool list', () => {
+      const sessionId = '00000000-0000-0000-0000-0000000000ff';
+      writeFileSync(
+        path.join(sidecarDir, `${sessionId}.graph-tool-uses.json`),
+        JSON.stringify({
+          count: 4,
+          uniqueNames: [
+            'mcp__code_graph__get_architecture_overview_tool',
+            'mcp__code_graph__list_communities_tool',
+          ],
+          overflows: [
+            { tool: 'mcp__code_graph__get_architecture_overview_tool', callIndex: 1 },
+            { tool: 'mcp__code_graph__list_communities_tool', callIndex: 2 },
+            { tool: 'mcp__code_graph__get_architecture_overview_tool', callIndex: 4 },
+          ],
+        }),
+      );
+
+      const out = applyGraphToolUsageFromSidecar({}, projectPath, sessionId);
+      expect(out.graph_overflow_count).toBe(3);
+      expect(out.graph_overflow_tools).toEqual([
+        'mcp__code_graph__get_architecture_overview_tool',
+        'mcp__code_graph__list_communities_tool',
+      ]);
+    });
+
+    it('forces overflow telemetry to zero when sessionId is undefined', () => {
+      const out = applyGraphToolUsageFromSidecar({}, projectPath, undefined);
+      expect(out.graph_overflow_count).toBe(0);
+      expect(out.graph_overflow_tools).toEqual([]);
+    });
+
+    it('forces overflow telemetry to zero when sidecar is missing', () => {
+      const out = applyGraphToolUsageFromSidecar(
+        {},
+        projectPath,
+        '00000000-0000-0000-0000-00000000abcd',
+      );
+      expect(out.graph_overflow_count).toBe(0);
+      expect(out.graph_overflow_tools).toEqual([]);
+    });
+  });
 });

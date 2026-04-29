@@ -8,13 +8,20 @@ import { claudeProjectSlug } from '../../../../services/framework/transcripts/ca
 /**
  * Sidecar contract written by `validate-analyzer-json.hook.ts` next to the
  * Claude session transcript. Source-of-truth for "which graph tools did the
- * analyzer actually call".
+ * analyzer actually call AND which results overflowed".
  *
  * Path: `~/.claude/projects/<claudeProjectSlug(projectPath)>/<sessionId>.graph-tool-uses.json`
  */
 export interface GraphToolUsesSidecar {
   count: number;
   uniqueNames: string[];
+  /**
+   * One entry per overflowing tool result (sentinel match in the transcript).
+   * Optional for back-compat with older sidecars that predate Phase 3 of the
+   * graph-navigation redesign. When the sidecar lacks this field, treat as 0
+   * overflows.
+   */
+  overflows?: Array<{ tool: string; callIndex: number }>;
 }
 
 /**
@@ -52,7 +59,7 @@ export function applyGraphToolUsageFromSidecar(
     logger.warn(
       '[graph_queries_used] No sessionId for analyzer attempt — forcing graph_queries_used=[]',
     );
-    return { ...base, graph_queries_used: [] };
+    return { ...base, graph_queries_used: [], graph_overflow_count: 0, graph_overflow_tools: [] };
   }
 
   const slug = claudeProjectSlug(path.resolve(projectPath));
@@ -68,7 +75,7 @@ export function applyGraphToolUsageFromSidecar(
     logger.warn(
       `[graph_queries_used] Sidecar missing for session ${sessionId} — forcing graph_queries_used=[] (expected at ${sidecarPath})`,
     );
-    return { ...base, graph_queries_used: [] };
+    return { ...base, graph_queries_used: [], graph_overflow_count: 0, graph_overflow_tools: [] };
   }
 
   let parsed: GraphToolUsesSidecar;
@@ -79,12 +86,26 @@ export function applyGraphToolUsageFromSidecar(
     logger.warn(
       `[graph_queries_used] Failed to read sidecar ${sidecarPath}: ${err instanceof Error ? err.message : String(err)} — forcing graph_queries_used=[]`,
     );
-    return { ...base, graph_queries_used: [] };
+    return { ...base, graph_queries_used: [], graph_overflow_count: 0, graph_overflow_tools: [] };
   }
 
   const names = Array.isArray(parsed.uniqueNames)
     ? parsed.uniqueNames.filter((n): n is string => typeof n === 'string' && n.length > 0)
     : [];
 
-  return { ...base, graph_queries_used: [...names].sort() };
+  const overflows = Array.isArray(parsed.overflows) ? parsed.overflows : [];
+  const overflowTools = [
+    ...new Set(
+      overflows
+        .map((o) => (typeof o.tool === 'string' ? o.tool : ''))
+        .filter((t): t is string => t.length > 0),
+    ),
+  ].sort();
+
+  return {
+    ...base,
+    graph_queries_used: [...names].sort(),
+    graph_overflow_count: overflows.length,
+    graph_overflow_tools: overflowTools,
+  };
 }
