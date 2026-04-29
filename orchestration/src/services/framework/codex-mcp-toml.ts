@@ -61,7 +61,14 @@ export function codexMcpServerMatches(
   );
 }
 
-function removeCodeGraphMcpTomlBlock(content: string): string {
+/**
+ * Remove the `[mcp_servers.code_graph]` table (and its body) from a TOML
+ * document. Returns the original content unchanged when the block is absent.
+ *
+ * Exported because the portability housekeeping (Phase 6) needs to strip
+ * absolute-path-bearing args before the validator scans committed files.
+ */
+export function removeCodeGraphMcpTomlBlock(content: string): string {
   const lines = content.split('\n');
   const start = findCodeGraphMcpBlockStart(lines);
   if (start === -1) return content;

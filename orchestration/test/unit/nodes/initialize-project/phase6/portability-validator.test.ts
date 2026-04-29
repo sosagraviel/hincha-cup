@@ -80,4 +80,84 @@ describe('validatePortability — housekeeping', () => {
     expect(result.ok).toBe(false);
     expect(result.violations.some((v) => v.file.endsWith('bad.md'))).toBe(true);
   });
+
+  it('strips [mcp_servers.code_graph] block (with absolute paths) from .codex/config.toml before scanning', () => {
+    const projectPath = buildProject('codex');
+    const cfgPath = join(projectPath, '.codex', 'config.toml');
+    writeFileSync(
+      cfgPath,
+      [
+        '# preserved comment',
+        '',
+        'model = "gpt-5"',
+        '',
+        '[mcp_servers.code_graph]',
+        'command = "bash"',
+        'args = [',
+        '    "/Users/alice/projects/myrepo/qubika-agentic-framework/scripts/code-review-graph-mcp.sh",',
+        '    "serve",',
+        '    "--repo",',
+        '    "/Users/alice/projects/myrepo",',
+        ']',
+        '',
+        '[other_block]',
+        'preserved = true',
+        '',
+      ].join('\n'),
+    );
+
+    const result = validatePortability(projectPath);
+
+    // Block was stripped on disk.
+    const after = readFileSync(cfgPath, 'utf-8');
+    expect(after).not.toContain('[mcp_servers.code_graph]');
+    expect(after).not.toContain('/Users/alice');
+
+    // Surrounding content is preserved.
+    expect(after).toContain('# preserved comment');
+    expect(after).toContain('model = "gpt-5"');
+    expect(after).toContain('[other_block]');
+    expect(after).toContain('preserved = true');
+
+    // Scan reports clean (the only absolute paths were inside the stripped block).
+    expect(result.ok).toBe(true);
+    expect(result.violations).toEqual([]);
+  });
+
+  it('leaves .codex/config.toml byte-identical when no [mcp_servers.code_graph] block is present', () => {
+    const projectPath = buildProject('codex');
+    const cfgPath = join(projectPath, '.codex', 'config.toml');
+    const original = ['model = "gpt-5"', '', '[other]', 'flag = true', ''].join('\n');
+    writeFileSync(cfgPath, original);
+
+    validatePortability(projectPath);
+
+    expect(readFileSync(cfgPath, 'utf-8')).toBe(original);
+  });
+
+  it('preserves sibling [mcp_servers.<other>] blocks while stripping only code_graph', () => {
+    const projectPath = buildProject('codex');
+    const cfgPath = join(projectPath, '.codex', 'config.toml');
+    writeFileSync(
+      cfgPath,
+      [
+        '[mcp_servers.code_graph]',
+        'command = "bash"',
+        'args = ["/Users/alice/x.sh"]',
+        '',
+        '[mcp_servers.atlassian]',
+        'command = "uvx"',
+        'args = ["mcp-atlassian"]',
+        '',
+      ].join('\n'),
+    );
+
+    const result = validatePortability(projectPath);
+    const after = readFileSync(cfgPath, 'utf-8');
+
+    expect(after).not.toContain('[mcp_servers.code_graph]');
+    expect(after).toContain('[mcp_servers.atlassian]');
+    expect(after).toContain('mcp-atlassian');
+    expect(result.ok).toBe(true);
+  });
 });

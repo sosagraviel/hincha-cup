@@ -14,6 +14,7 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { extname, join, relative } from 'path';
 
+import { removeCodeGraphMcpTomlBlock } from '../../../../services/framework/codex-mcp-toml.js';
 import { logger } from '../../../../utils/logger.js';
 import { getAllProviderConfigDirs } from '../../../../utils/provider-paths.js';
 
@@ -81,6 +82,7 @@ export function validatePortability(projectPath: string): PortabilityValidationR
     const root = join(projectPath, configDir);
     if (!existsSync(root)) continue;
     stripStaleFrameworkConfigFields(root, projectPath);
+    stripStaleCodexMcpServerBlock(root, projectPath);
     walkAndScan(
       root,
       projectPath,
@@ -144,6 +146,44 @@ function stripStaleFrameworkConfigFields(configDirRoot: string, projectPath: str
   } catch {
     // Best-effort: if the rewrite fails, the scanner will still report the
     // violation and the developer can fix it manually.
+  }
+}
+
+/**
+ * Surgical strip of the `[mcp_servers.code_graph]` block from
+ * `<config>/config.toml` (Codex). The block carries absolute paths
+ * (`/Users/...` or `/home/...`) that must NOT be committed: the next
+ * `ensure-context.sh` run re-emits the block with the local machine's paths.
+ *
+ * Operates only on `.codex/config.toml` (Codex provider). Compare-then-write:
+ * skips the rewrite when the block is absent, so this is idempotent.
+ *
+ * Surgical = the rest of `config.toml` (model selection, sandbox policy,
+ * other `[mcp_servers.*]` blocks for unrelated servers, etc.) is preserved
+ * byte-for-byte.
+ */
+function stripStaleCodexMcpServerBlock(configDirRoot: string, projectPath: string): void {
+  const filePath = join(configDirRoot, 'config.toml');
+  if (!existsSync(filePath)) return;
+
+  let content: string;
+  try {
+    content = readFileSync(filePath, 'utf-8');
+  } catch {
+    return;
+  }
+
+  const stripped = removeCodeGraphMcpTomlBlock(content);
+  if (stripped === content) return;
+
+  try {
+    writeFileSync(filePath, stripped, 'utf-8');
+    logger.info(
+      `[portability] stripped stale [mcp_servers.code_graph] block from ${relative(projectPath, filePath)} ` +
+        `(ensure-context.sh re-emits it locally with the developer's absolute paths)`,
+    );
+  } catch {
+    // Best-effort: scanner will catch the leak if the rewrite fails.
   }
 }
 

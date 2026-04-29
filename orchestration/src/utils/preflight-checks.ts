@@ -412,6 +412,12 @@ export async function runPreflightChecks(
     frameworkDirName,
   ];
 
+  // Files (no trailing slash) that must also be gitignored. `.mcp.json` is
+  // re-emitted on every `ensure-context.sh` run with the local machine's
+  // absolute path; committing it would push that absolute path to every
+  // teammate.
+  const requiredFileEntries = ['.mcp.json'];
+
   // Check if project has a .gitignore file
   if (!existsSync(gitignorePath)) {
     // Create .gitignore if it doesn't exist
@@ -419,51 +425,64 @@ export async function runPreflightChecks(
       const gitignoreContent = [
         '# AI Agentic Framework files',
         ...requiredEntries.map((entry) => `${entry}/`),
+        ...requiredFileEntries,
         '',
       ].join('\n');
 
       writeFileSync(gitignorePath, gitignoreContent, 'utf-8');
       gitignoreUpdated = true;
-      warnings.push(`Created .gitignore with framework entries: ${requiredEntries.join(', ')}`);
+      warnings.push(
+        `Created .gitignore with framework entries: ${[...requiredEntries, ...requiredFileEntries].join(', ')}`,
+      );
     } catch (error) {
       warnings.push(
         `Unable to create .gitignore file: ${(error as Error).message}\n` +
           `Please manually create .gitignore with:\n` +
-          requiredEntries.map((e) => `  ${e}/`).join('\n'),
+          requiredEntries.map((e) => `  ${e}/`).join('\n') +
+          '\n' +
+          requiredFileEntries.map((e) => `  ${e}`).join('\n'),
       );
     }
   } else {
     // .gitignore exists, check if it contains required entries
     try {
       const gitignoreContent = readFileSync(gitignorePath, 'utf-8');
-      const missingEntries: string[] = [];
+      const missingDirEntries: string[] = [];
+      const missingFileEntries: string[] = [];
+
+      const lines = gitignoreContent.split('\n').map((line) => line.trim());
 
       for (const entry of requiredEntries) {
-        // Check if entry exists as a standalone line (not as a substring of another path)
-        // Split into lines and check if any line matches exactly (with or without trailing slash)
-        const lines = gitignoreContent.split('\n');
-        const hasEntry = lines.some((line) => {
-          const trimmedLine = line.trim();
-          return trimmedLine === entry || trimmedLine === `${entry}/`;
-        });
-
-        if (!hasEntry) {
-          missingEntries.push(entry);
-        }
+        const hasEntry = lines.some((line) => line === entry || line === `${entry}/`);
+        if (!hasEntry) missingDirEntries.push(entry);
       }
 
-      if (missingEntries.length > 0) {
+      for (const entry of requiredFileEntries) {
+        const hasEntry = lines.some((line) => line === entry);
+        if (!hasEntry) missingFileEntries.push(entry);
+      }
+
+      if (missingDirEntries.length > 0 || missingFileEntries.length > 0) {
         try {
-          const entriesToAdd = ['', ...missingEntries.map((entry) => `${entry}/`)].join('\n');
+          const entriesToAdd = [
+            '',
+            ...missingDirEntries.map((entry) => `${entry}/`),
+            ...missingFileEntries,
+          ].join('\n');
 
           appendFileSync(gitignorePath, entriesToAdd + '\n', 'utf-8');
           gitignoreUpdated = true;
-          warnings.push(`Added missing entries to .gitignore: ${missingEntries.join(', ')}`);
+          warnings.push(
+            `Added missing entries to .gitignore: ${[...missingDirEntries, ...missingFileEntries].join(', ')}`,
+          );
         } catch (error) {
           warnings.push(
             `Unable to update .gitignore: ${(error as Error).message}\n` +
               `Please manually add to .gitignore:\n` +
-              missingEntries.map((e) => `  ${e}/`).join('\n'),
+              missingDirEntries.map((e) => `  ${e}/`).join('\n') +
+              (missingFileEntries.length > 0
+                ? '\n' + missingFileEntries.map((e) => `  ${e}`).join('\n')
+                : ''),
           );
         }
       }
@@ -471,7 +490,9 @@ export async function runPreflightChecks(
       warnings.push(
         `Unable to read .gitignore: ${(error as Error).message}\n` +
           `Please ensure .gitignore contains:\n` +
-          requiredEntries.map((e) => `  ${e}/`).join('\n'),
+          requiredEntries.map((e) => `  ${e}/`).join('\n') +
+          '\n' +
+          requiredFileEntries.map((e) => `  ${e}`).join('\n'),
       );
     }
   }
