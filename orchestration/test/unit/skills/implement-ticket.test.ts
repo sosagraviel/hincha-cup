@@ -28,9 +28,23 @@ function extractDependencyChainBlock(content: string): string {
 }
 
 function extractPhase0Section(content: string): string {
-  const start = content.indexOf('### Phase 0: Preflight Validation');
-  const end = content.indexOf('CONTINUE WITH Phase 1');
+  // The Phase 0 heading was generalised when the auto-bootstrap preflight
+  // landed; match the new heading first, fall back to the old one for any
+  // legacy variants we might encounter.
+  const headings = [
+    '### Phase 0: Preflight (MANDATORY — Auto-bootstrap + Validation)',
+    '### Phase 0: Preflight Validation',
+  ];
+  let start = -1;
+  for (const heading of headings) {
+    const idx = content.indexOf(heading);
+    if (idx >= 0) {
+      start = idx;
+      break;
+    }
+  }
   if (start === -1) return '';
+  const end = content.indexOf('CONTINUE WITH Phase 1');
   if (end === -1) {
     // Codex variant uses Expected outputs / Constraint pattern instead
     const endAlt = content.indexOf('### Phase 1:', start);
@@ -189,6 +203,36 @@ describe('SKILL.claude.md — Phase F regression', () => {
     });
   });
 
+  describe('Phase 0 preflight — deterministic auto-bootstrap (locked wording)', () => {
+    it('Phase 0 invokes ensure-context.sh as its first step', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toMatch(
+        /bash\s+"?\$FRAMEWORK_PATH\/scripts\/ensure-context\.sh"?\s+--artifacts-dir\s+"?\$ARTIFACTS_DIR"?/,
+      );
+    });
+
+    it('Phase 0 mandates STOP when ensure-context.sh exits non-zero', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toMatch(/STOP/);
+      expect(section).toMatch(/exits non-zero/);
+    });
+
+    it('Phase 0 documents the success marker .preflight-ok', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toContain('.preflight-ok');
+    });
+
+    it('Phase 0 documents the failure marker .preflight-failed', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toContain('.preflight-failed');
+    });
+
+    it('Phase 0 carries the auto-bootstrap MANDATORY tag in its heading', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toMatch(/Phase 0:\s+Preflight\s+\(MANDATORY/);
+    });
+  });
+
   describe('Phase 9 has Phase 8.5 prerequisite', () => {
     it('Phase 9 section confirms Phase 8.5 completion before proceeding', () => {
       const section = extractPhase9Section(content);
@@ -322,6 +366,36 @@ describe('SKILL.codex.md — Phase F regression (symmetric)', () => {
     it('Phase 0 references Phase 8.5 as the self-healing mechanism', () => {
       const section = extractPhase0Section(content);
       expect(section).toContain('Phase 8.5');
+    });
+  });
+
+  describe('Phase 0 preflight — deterministic auto-bootstrap (locked wording)', () => {
+    it('Phase 0 invokes ensure-context.sh as its first step', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toMatch(
+        /bash\s+"?\$FRAMEWORK_PATH\/scripts\/ensure-context\.sh"?\s+--artifacts-dir\s+"?\$ARTIFACTS_DIR"?/,
+      );
+    });
+
+    it('Phase 0 mandates STOP when ensure-context.sh exits non-zero', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toMatch(/STOP/);
+      expect(section).toMatch(/exits non-zero/);
+    });
+
+    it('Phase 0 documents the success marker .preflight-ok', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toContain('.preflight-ok');
+    });
+
+    it('Phase 0 documents the failure marker .preflight-failed', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toContain('.preflight-failed');
+    });
+
+    it('Phase 0 carries the auto-bootstrap MANDATORY tag in its heading', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toMatch(/Phase 0:\s+Preflight\s+\(MANDATORY/);
     });
   });
 

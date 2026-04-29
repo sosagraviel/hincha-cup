@@ -14,43 +14,82 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
     content = readFileSync(SKILL_PATH, 'utf-8');
   });
 
-  describe('Phase 0.5 existence', () => {
-    it('contains Phase 0.5 heading', () => {
-      expect(content).toContain('### Phase 0.5: Wiki & Graph Context Preload');
+  describe('Phase 0.2 existence (formerly Phase 0.5)', () => {
+    it('contains Phase 0.2 heading', () => {
+      expect(content).toContain('### Phase 0.2: Wiki & Graph Context Preload');
     });
 
-    it('Phase 0.5 appears between Phase 0 and Phase 1', () => {
-      const phase0Idx = content.indexOf('### Phase 0: Inject Project Context');
-      const phase05Idx = content.indexOf('### Phase 0.5: Wiki & Graph Context Preload');
+    it('Phase 0 → 0.1 → 0.2 → 1 ordering is preserved', () => {
+      const phase0Idx = content.indexOf('### Phase 0: Preflight (MANDATORY');
+      const phase01Idx = content.indexOf('### Phase 0.1: Inject Project Context');
+      const phase02Idx = content.indexOf('### Phase 0.2: Wiki & Graph Context Preload');
       const phase1Idx = content.indexOf('### Phase 1: Parse Input Source');
 
       expect(phase0Idx).toBeGreaterThanOrEqual(0);
-      expect(phase05Idx).toBeGreaterThan(phase0Idx);
-      expect(phase1Idx).toBeGreaterThan(phase05Idx);
+      expect(phase01Idx).toBeGreaterThan(phase0Idx);
+      expect(phase02Idx).toBeGreaterThan(phase01Idx);
+      expect(phase1Idx).toBeGreaterThan(phase02Idx);
     });
 
-    it('Phase 0.5 references docs/llm-wiki/wiki/', () => {
+    it('Phase 0.2 references docs/llm-wiki/wiki/', () => {
       expect(content).toContain('docs/llm-wiki/wiki/');
     });
 
-    it('Phase 0.5 includes WIKI_CORE collection step', () => {
+    it('Phase 0.2 includes WIKI_CORE collection step', () => {
       expect(content).toContain('WIKI_CORE');
     });
 
-    it('Phase 0.5 defers Tier 1 to the wiki router (CLAUDE.md / AGENTS.md)', () => {
-      // Phase 0.5 must read the project's own wiki router doc rather than walking
+    it('Phase 0.2 defers Tier 1 to the wiki router (CLAUDE.md / AGENTS.md)', () => {
+      // Phase 0.2 must read the project's own wiki router doc rather than walking
       // every page's frontmatter. Anti-regression for the Karpathy router redesign.
       expect(content).toMatch(/Read `docs\/llm-wiki\/(CLAUDE|AGENTS)\.md`/);
       expect(content).not.toMatch(/frontmatter only/i);
       expect(content).not.toContain('WIKI_SUMMARY_INDEX');
     });
 
-    it('Phase 0.5 includes mcp__code_graph__get_minimal_context_tool call', () => {
+    it('Phase 0.2 includes mcp__code_graph__get_minimal_context_tool call', () => {
       expect(content).toContain('mcp__code_graph__get_minimal_context_tool');
     });
 
-    it('Phase 0.5 documents the wiki-context.md persistence path', () => {
+    it('Phase 0.2 documents the wiki-context.md persistence path', () => {
       expect(content).toContain('wiki-context.md');
+    });
+  });
+
+  describe('Phase 0 preflight — deterministic auto-bootstrap (locked wording)', () => {
+    function extractPhase0(): string {
+      const start = content.indexOf('### Phase 0: Preflight (MANDATORY');
+      const end = content.indexOf('### Phase 0.1: Inject Project Context');
+      if (start === -1 || end === -1) return '';
+      return content.slice(start, end);
+    }
+
+    it('Phase 0 heading exists with the MANDATORY tag', () => {
+      const section = extractPhase0();
+      expect(section).toMatch(/Phase 0:\s+Preflight\s+\(MANDATORY/);
+    });
+
+    it('Phase 0 invokes ensure-context.sh as its first concrete step', () => {
+      const section = extractPhase0();
+      expect(section).toMatch(
+        /bash\s+"?\$FRAMEWORK_PATH\/scripts\/ensure-context\.sh"?[^\n]*--artifacts-dir/,
+      );
+    });
+
+    it('Phase 0 mandates STOP when ensure-context.sh exits non-zero', () => {
+      const section = extractPhase0();
+      expect(section).toMatch(/STOP/);
+      expect(section).toContain('exits non-zero');
+    });
+
+    it('Phase 0 documents the success marker .preflight-ok', () => {
+      const section = extractPhase0();
+      expect(section).toContain('.preflight-ok');
+    });
+
+    it('Phase 0 forwards --skip-wiki to the preflight when set', () => {
+      const section = extractPhase0();
+      expect(section).toContain('--skip-wiki');
     });
   });
 
@@ -84,12 +123,12 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
       expect(invocationSection).toContain('--skip-wiki');
     });
 
-    it('--skip-wiki is also documented within Phase 0.5', () => {
-      const phase05Section = content.slice(
-        content.indexOf('### Phase 0.5:'),
+    it('--skip-wiki is also documented within Phase 0.2', () => {
+      const phase02Section = content.slice(
+        content.indexOf('### Phase 0.2:'),
         content.indexOf('### Phase 1:'),
       );
-      expect(phase05Section).toContain('--skip-wiki');
+      expect(phase02Section).toContain('--skip-wiki');
     });
   });
 
@@ -232,7 +271,7 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
 
     it('LLM wiki note describes soft-optional fallback', () => {
       expect(content).toContain(
-        'LLM wiki: required in Phase 0.5 when available; soft-optional when missing',
+        'LLM wiki: required in Phase 0.2 when available; soft-optional when missing',
       );
     });
   });
@@ -381,24 +420,24 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
   });
 
   describe('graph navigation discipline cross-reference', () => {
-    it('Phase 0.5 cites the canonical discipline section in CLAUDE.md / AGENTS.md', () => {
-      const phase05 = content.slice(
-        content.indexOf('### Phase 0.5:'),
+    it('Phase 0.2 cites the canonical discipline section in CLAUDE.md / AGENTS.md', () => {
+      const phase02 = content.slice(
+        content.indexOf('### Phase 0.2:'),
         content.indexOf('### Phase 1:'),
       );
-      expect(phase05).toMatch(/Graph navigation discipline/);
+      expect(phase02).toMatch(/Graph navigation discipline/);
       // Names both provider-specific files so Codex users see the right path.
-      expect(phase05).toContain('.claude/CLAUDE.md');
-      expect(phase05).toContain('.codex/AGENTS.md');
+      expect(phase02).toContain('.claude/CLAUDE.md');
+      expect(phase02).toContain('.codex/AGENTS.md');
     });
 
-    it('Phase 0.5 names the forbidden tool', () => {
-      const phase05 = content.slice(
-        content.indexOf('### Phase 0.5:'),
+    it('Phase 0.2 names the forbidden tool', () => {
+      const phase02 = content.slice(
+        content.indexOf('### Phase 0.2:'),
         content.indexOf('### Phase 1:'),
       );
-      expect(phase05).toContain('mcp__code_graph__get_architecture_overview_tool');
-      expect(phase05).toMatch(/forbidden/i);
+      expect(phase02).toContain('mcp__code_graph__get_architecture_overview_tool');
+      expect(phase02).toMatch(/forbidden/i);
     });
   });
 });

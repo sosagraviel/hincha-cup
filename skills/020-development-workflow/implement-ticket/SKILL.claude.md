@@ -1,7 +1,7 @@
 ---
 name: implement-ticket
-version: 3.4.0
-last-updated: 2026-04-24
+version: 3.5.0
+last-updated: 2026-04-29
 description: Implements a ticket end-to-end through 13-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 disable-model-invocation: true
@@ -68,12 +68,12 @@ BEFORE starting any phase work, you MUST create the full task list using TaskCre
 
 Create each task using TaskCreate with these exact values:
 
-1. Phase 0: Preflight Validation
-   subject: "Phase 0: Preflight Validation"
-   activeForm: "Validating environment"
-   Steps: Check git status, verify test commands work, verify build succeeds, detect primary language and stack, verify `.code-review-graph/graph.db` exists, verify project `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible, verify `docs/llm-wiki/CLAUDE.md` exists, verify `docs/llm-wiki/wiki/` exists with the five core files (`index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`), verify at least one `docs/llm-wiki/wiki/services/*.md` exists, check `graph_version` and `graph_commit` freshness in each wiki file and WARN (not fail) if stale.
-   Expected outputs: git is clean, tests pass, build succeeds, graph DB exists, project MCP config exists, graph tools are visible in the active Claude Code session, graph-aware agents are present, LLM wiki is present and well-formed; staleness warnings surfaced if applicable
-   Constraint: If any structural check fails, STOP and report. Staleness warnings do not block Phase 1 — Phase 8.5 resolves them automatically.
+1. Phase 0: Preflight (Auto-bootstrap + Validation)
+   subject: "Phase 0: Preflight (Auto-bootstrap + Validation)"
+   activeForm: "Running deterministic preflight (auto-bootstrap + validation)"
+   Steps: (a) Run `bash $FRAMEWORK_PATH/scripts/ensure-context.sh --artifacts-dir "$ARTIFACTS_DIR"` — this auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or updates the graph, refreshes the wiki if stale, re-emits `.mcp.json`, and writes a success marker `$ARTIFACTS_DIR/.preflight-ok`. <3 s on the hot path. (b) If the script exits non-zero, STOP and surface its output verbatim — failure marker `$ARTIFACTS_DIR/.preflight-failed` carries `{reason, git_head, ran_at}`. (c) Defensive double-check: check git status, verify test commands work, verify build succeeds, detect primary language and stack, assert `.code-review-graph/graph.db`, assert `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools, assert `docs/llm-wiki/CLAUDE.md`, assert `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES,DATA-FLOWS,PATTERNS}.md` exist, assert at least one `docs/llm-wiki/wiki/services/*.md` exists, check `graph_version` + `graph_commit` freshness in each wiki file and WARN (not fail) if stale.
+   Expected outputs: `$ARTIFACTS_DIR/.preflight-ok` exists and carries the current `git_head`, git is clean, tests pass, build succeeds, graph DB exists, project MCP config exists, graph tools are visible in the active Claude Code session, graph-aware agents are present, LLM wiki is present and well-formed; staleness warnings surfaced if applicable
+   Constraint: If `ensure-context.sh` exits non-zero, STOP and surface its output. If any defensive assertion fails despite a fresh marker, delete the marker and rerun `ensure-context.sh` once; if it still fails, STOP. Staleness warnings do not block Phase 1 — Phase 8.5 resolves them automatically.
 
 2. Phase 1: Context Gathering
    subject: "Phase 1: Context Gathering"
@@ -184,23 +184,47 @@ After creating all 13 tasks, use TaskUpdate to chain dependencies:
 
 Execute each phase sequentially. Do not proceed to the next phase until the current phase is marked completed. For each phase, follow the Steps and verify Expected outputs listed above.
 
-### Phase 0: Preflight Validation
+**Preflight marker check (Phase 1 onward):** at the start of every phase from Phase 1, assert `test -f "$ARTIFACTS_DIR/.preflight-ok"` exits 0. If the marker is missing, return to Phase 0 and rerun the preflight. The marker contains the `git_head` at preflight time — subsequent phases trust it as the authoritative graph + wiki freshness signal.
+
+### Phase 0: Preflight (MANDATORY — Auto-bootstrap + Validation)
+
+This phase has two parts. **Part A (auto-bootstrap) is mandatory and runs first.** Part B (defensive double-check) is a belt-and-suspenders verification that the bootstrap succeeded.
+
+**Part A — auto-bootstrap.** Run the deterministic preflight before doing anything else in this phase:
+
+```bash
+ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"
+bash "$FRAMEWORK_PATH/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR"
+```
+
+What the script does (handled automatically; you do not need to do any of this manually):
+
+- Auto-installs `uv` / `uvx` / `code-review-graph` via the framework's existing fallback chain (`uv tool install` → `bootstrap_uv` → `pipx` → `pip`).
+- Builds the code graph if missing, incrementally updates it if the local commit moved, or no-ops if it is already at HEAD (<3 s on the hot path).
+- Re-emits `.mcp.json` with `mcpServers.code_graph` pointed at this machine's local framework path. Compare-then-write — no-op when content already matches.
+- Refreshes the LLM wiki if `graph_sha` or `last_indexed_commit` drift is detected.
+- Writes a JSON success marker at `$ARTIFACTS_DIR/.preflight-ok` carrying `{git_head, graph_sha, wiki_*, provider, preflight_ran_at}`.
+
+**If the script exits non-zero, STOP.** Surface its output verbatim to the user. Do NOT continue to Part B or any later phase. Failure modes (with structured marker `$ARTIFACTS_DIR/.preflight-failed`):
+
+- `graph_build_failed` — surface the script's tail; the user will rerun.
+- `wiki_not_initialized` — `docs/llm-wiki/wiki/index.md` is missing; tell the user to run `/initialize-project` once.
+
+**Part B — defensive double-check.** With the preflight marker present, the following assertions are belt-and-suspenders. They cannot fail because Part A just made them true; if any do, the marker file is corrupt and Part A must be rerun.
 
 - Check git status (no uncommitted changes)
 - Verify tests pass in current state
 - Validate build succeeds
 - Detect primary language and stack
-- Verify `.code-review-graph/graph.db` exists at the project root
-- Verify project root `.mcp.json` has `mcpServers.code_graph`
+- Assert `.code-review-graph/graph.db` exists at the project root
+- Assert project root `.mcp.json` has `mcpServers.code_graph`
 - Verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible in this Claude Code session
 - Verify generated planner and implementer agents expose exact `mcp__code_graph__*_tool` entries in their frontmatter, not only the broad `mcp__code_graph` server alias
-- Verify `docs/llm-wiki/CLAUDE.md` exists (confirms initialization ran for the Claude Code provider)
-- Verify `docs/llm-wiki/wiki/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`
-- Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-review-graph/graph.db)`; if any page's `graph_version` does not match, WARN the user and suggest `/wiki-refresh`. Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN and suggest `/wiki-refresh --since <graph_commit>`. Do not block the workflow on stale wiki — Phase 8.5 refreshes it. But the user should see one clear warning line before planning begins.
+- Assert `docs/llm-wiki/CLAUDE.md` exists (confirms initialization ran for the Claude Code provider)
+- Assert `docs/llm-wiki/wiki/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`
+- Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-review-graph/graph.db)`; if any page's `graph_version` does not match, WARN the user (Phase 8.5 will refresh it). Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN. Do not block the workflow on stale wiki — Phase 8.5 refreshes it.
 
-CRITICAL: If any check fails, STOP. Report the failure. Do not continue. Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures — Phase 8.5 will resolve them automatically.
-
-For graph or wiki failures, tell the user to rerun `/initialize-project` or resource sync so `.code-review-graph/graph.db`, project `.mcp.json`, graph-aware `.claude/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Claude Code, approve the project MCP server if prompted, and verify `code_graph` with `/mcp`.
+CRITICAL: If any Part B assertion fails despite a present `.preflight-ok` marker, treat the marker as stale: delete it and rerun Part A. If the assertion still fails after a fresh Part A, STOP and report the inconsistency. Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures — Phase 8.5 will resolve them automatically.
 
 CONTINUE WITH Phase 1.
 

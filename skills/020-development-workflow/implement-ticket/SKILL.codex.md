@@ -1,7 +1,7 @@
 ---
 name: implement-ticket
-version: 3.4.0
-last-updated: 2026-04-24
+version: 3.5.0
+last-updated: 2026-04-29
 description: Implements a ticket end-to-end through a wiki-aware and graph-aware 13-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 disable-model-invocation: true
@@ -94,25 +94,49 @@ Rules:
 
 Execute each phase sequentially. Do not proceed to the next phase until the current phase has emitted a `completed` record. For each phase: perform the Steps, verify the Expected outputs, then mark completed.
 
-### Phase 0: Preflight Validation
+**Preflight marker check (Phase 1 onward):** at the start of every phase from Phase 1, assert `test -f "$ARTIFACTS_DIR/.preflight-ok"` exits 0. If the marker is missing, emit `failed` for that phase and return to Phase 0 to rerun the preflight. The marker contains the `git_head` at preflight time — subsequent phases trust it as the authoritative graph + wiki freshness signal.
+
+### Phase 0: Preflight (MANDATORY — Auto-bootstrap + Validation)
+
+This phase has two parts. **Part A (auto-bootstrap) is mandatory and runs first.** Part B (defensive double-check) is a belt-and-suspenders verification that the bootstrap succeeded.
+
+**Part A — auto-bootstrap.** Run the deterministic preflight before doing anything else in this phase:
+
+```bash
+ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"
+bash "$FRAMEWORK_PATH/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR"
+```
+
+What the script does (handled automatically; you do not need to do any of this manually):
+
+- Auto-installs `uv` / `uvx` / `code-review-graph` via the framework's existing fallback chain (`uv tool install` → `bootstrap_uv` → `pipx` → `pip`).
+- Builds the code graph if missing, incrementally updates it if the local commit moved, or no-ops if it is already at HEAD (<3 s on the hot path).
+- Re-emits `.codex/config.toml`'s `[mcp_servers.code_graph]` block with this machine's local framework path. Compare-then-write — no-op when content already matches.
+- Refreshes the LLM wiki if `graph_sha` or `last_indexed_commit` drift is detected.
+- Writes a JSON success marker at `$ARTIFACTS_DIR/.preflight-ok` carrying `{git_head, graph_sha, wiki_*, provider, preflight_ran_at}`.
+
+**If the script exits non-zero, emit `failed` and STOP.** Surface its output verbatim to the user. Do NOT continue to Part B or any later phase. Failure modes (with structured marker `$ARTIFACTS_DIR/.preflight-failed`):
+
+- `graph_build_failed` — surface the script's tail; the user will rerun.
+- `wiki_not_initialized` — `docs/llm-wiki/wiki/index.md` is missing; tell the user to run `/initialize-project` once.
+
+**Part B — defensive double-check.** With the preflight marker present, the following assertions are belt-and-suspenders. They cannot fail because Part A just made them true; if any do, the marker file is corrupt and Part A must be rerun.
 
 Steps:
 - Check git status (no uncommitted changes).
 - Verify tests pass in current state.
 - Validate build succeeds.
 - Detect primary language and stack from `{{CONFIG_DIR}}/framework-config.json`.
-- Verify `.code-review-graph/graph.db` exists at the project root.
+- Assert `.code-review-graph/graph.db` exists at the project root.
 - Verify the active Codex session exposes `mcp__code_graph__*` tools.
-- Verify `docs/llm-wiki/AGENTS.md` exists (confirms initialization ran for the Codex provider).
-- Verify `docs/llm-wiki/wiki/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`.
-- Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-review-graph/graph.db)`; if any page's `graph_version` does not match, WARN the user and suggest `/wiki-refresh`. Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN and suggest `/wiki-refresh --since <graph_commit>`. Do not block the workflow on stale wiki — Phase 8.5 refreshes it. But the user should see one clear warning line before planning begins.
+- Assert `docs/llm-wiki/AGENTS.md` exists (confirms initialization ran for the Codex provider).
+- Assert `docs/llm-wiki/wiki/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`.
+- Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-review-graph/graph.db)`; if any page's `graph_version` does not match, WARN the user (Phase 8.5 will refresh it). Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN. Do not block the workflow on stale wiki — Phase 8.5 refreshes it.
 - If `framework-config.json > wiki.services` is non-empty, verify at least one matching file exists under `docs/llm-wiki/wiki/services/`.
 
-Expected outputs: git clean, tests pass, build succeeds, graph DB exists, graph MCP tools are visible, LLM wiki is present and well-formed; staleness warnings surfaced if applicable.
+Expected outputs: `$ARTIFACTS_DIR/.preflight-ok` exists and carries the current `git_head`; git clean, tests pass, build succeeds, graph DB exists, graph MCP tools are visible, LLM wiki is present and well-formed; staleness warnings surfaced if applicable.
 
-Constraint: If any structural check fails, emit `failed` and STOP. Do not continue. Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures — Phase 8.5 will resolve them automatically.
-
-For graph or wiki failures, tell the user to rerun `/initialize-project` or resource sync so `.code-review-graph/graph.db`, `{{CONFIG_DIR}}/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Codex and confirm `mcp__code_graph__*` tools are visible before retrying.
+Constraint: If `ensure-context.sh` exits non-zero, emit `failed` and STOP. If any defensive assertion fails despite a fresh marker, delete the marker and rerun Part A once; if the assertion still fails, emit `failed` and STOP. Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures — Phase 8.5 will resolve them automatically.
 
 ### Phase 1: Context Gathering
 

@@ -43,7 +43,7 @@ Optional flags:
 - `--project-key <KEY>`
 - `--issue-type <TYPE>` where supported values are `Story`, `Task`, `Bug`
 - `--priority <PRIORITY>` where supported values are `High`, `Medium`, `Low`
-- `--skip-wiki`: bypass Phase 0.5 wiki and graph preload (useful for freshly-cloned projects or offline environments)
+- `--skip-wiki`: bypass Phase 0.2 wiki and graph preload (useful for freshly-cloned projects or offline environments) — also forwarded to the Phase 0 preflight
 
 If no output flag is provided, display the completed canonical ticket without saving.
 
@@ -66,7 +66,37 @@ Exactly one input mode is required.
 
 ## Workflow
 
-### Phase 0: Inject Project Context
+### Phase 0: Preflight (MANDATORY — do not skip)
+
+Before any other phase — before reading the ticket source, before consulting the wiki, before asking gap questions — run the deterministic preflight bootstrap:
+
+```bash
+ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/<draft-id>"
+PREFLIGHT_ARGS=()
+[ -n "${SKIP_WIKI:-}" ] && PREFLIGHT_ARGS+=("--skip-wiki")
+bash "$FRAMEWORK_PATH/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR" "${PREFLIGHT_ARGS[@]}"
+```
+
+What the script does (handled automatically; you do not need to do any of this manually):
+
+- Auto-installs `uv` / `uvx` / `code-review-graph` via the framework's existing fallback chain (`uv tool install` → `bootstrap_uv` → `pipx` → `pip`).
+- Builds the code graph if missing, incrementally updates it if the local commit moved, or no-ops if it is already at HEAD.
+- Re-emits `.mcp.json` (Claude) / `.codex/config.toml` (Codex) with the local machine's absolute framework path.
+- Refreshes the LLM wiki if `graph_sha` or `last_indexed_commit` drift is detected.
+- Writes a JSON success marker at `$ARTIFACTS_DIR/.preflight-ok` carrying `{git_head, graph_sha, wiki_*, provider, preflight_ran_at}`.
+
+Behaviour:
+
+- Hot path (graph + wiki already current): exits 0 in <3 seconds.
+- Cold path: full graph build (~4 s on a small repo) plus wiki refresh (~30–90 s if stale).
+
+**If the script exits non-zero, STOP.** Surface its output verbatim to the user. Do NOT continue to Phase 0.1, 0.2, or any later phase.
+
+If it exits 0, the graph at `.code-review-graph/graph.db` and the wiki at `docs/llm-wiki/` are guaranteed current as of the local `git HEAD`. Subsequent phases assert `test -f "$ARTIFACTS_DIR/.preflight-ok"` before doing anything; if the marker is missing, return to Phase 0.
+
+The `--skip-wiki` flag (passed to `/create-sdd-ticket` itself) is forwarded to this preflight as `--skip-wiki`. Use only when explicitly told to.
+
+### Phase 0.1: Inject Project Context
 
 Invoke the `project-context` skill. **This skill is generated per target project** by `/initialize-project` Phase 5 and lives at `{{CONFIG_DIR}}/skills/project-context/SKILL.md` — its content is target-project-specific architectural narrative, not framework knowledge.
 
@@ -78,13 +108,15 @@ Use it for:
 - project-specific gotchas that should influence gap detection
 - file-placement guide (where things go in this codebase)
 
-If the generated `project-context` skill is missing (project not yet initialized), fall back to `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` (the project's `CLAUDE.md` / `AGENTS.md`) and explicit codebase inspection, but still treat project-context collection as required work before continuing. Phase 0 produces **narrative**, not authoritative structural data — Phase 0.5 below is the structural authority.
+If the generated `project-context` skill is missing (project not yet initialized), fall back to `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` (the project's `CLAUDE.md` / `AGENTS.md`) and explicit codebase inspection, but still treat project-context collection as required work before continuing. Phase 0.1 produces **narrative**, not authoritative structural data — Phase 0.2 below is the structural authority.
 
-### Phase 0.5: Wiki & Graph Context Preload
+Before doing anything in this phase, verify the preflight marker: `test -f "$ARTIFACTS_DIR/.preflight-ok"` exits 0. If not, return to Phase 0.
 
-Phases 0 and 0.5 are **complementary, not redundant**. Both inject target-project context, but they differ in shape and authority:
+### Phase 0.2: Wiki & Graph Context Preload
 
-| | Phase 0 — `project-context` | Phase 0.5 — LLM wiki + graph |
+Phase 0.1 and Phase 0.2 are **complementary, not redundant**. Both inject target-project context, but they differ in shape and authority:
+
+| | Phase 0.1 — `project-context` | Phase 0.2 — LLM wiki + graph |
 |---|---|---|
 | Shape | narrative prose (synthesis output) | structured graph-backed docs + summary index |
 | Authority | high for conventions, gotchas, file-placement, named patterns | **highest** for architecture, service boundaries, data flows, and any structural fact derivable from the AST |
@@ -107,9 +139,9 @@ If `docs/llm-wiki/` exists, defer retrieval to the wiki's own router. The router
 
 **Tier discipline:** start with the router → 1–3 page bodies → at most one graph call. Never read every wiki page; the index entry summary is sufficient unless the user's question matches the page's topic. Stop wikilink traversal at depth 2.
 
-**Fallback:** if `docs/llm-wiki/` is missing (project not yet initialized), log `wiki unavailable — falling back to project-context only` and continue with Phase 0's narrative only. Do NOT fail the skill. Do NOT call graph tools if the graph MCP server is unavailable.
+**Fallback:** if `docs/llm-wiki/` is missing (project not yet initialized), log `wiki unavailable — falling back to project-context only` and continue with Phase 0.1's narrative only. Do NOT fail the skill. Do NOT call graph tools if the graph MCP server is unavailable.
 
-Optional flag: pass `--skip-wiki` to bypass Phase 0.5 entirely (useful for freshly-cloned projects or offline environments). When `--skip-wiki` is present, log `wiki unavailable — falling back to project-context only` and proceed directly to Phase 1. Use this only when the wiki is known to be drift-prone — the framework's default assumption is that the wiki is fresher than `project-context`.
+Optional flag: pass `--skip-wiki` to bypass Phase 0.2 entirely (useful for freshly-cloned projects or offline environments). When `--skip-wiki` is present, log `wiki unavailable — falling back to project-context only` and proceed directly to Phase 1. Use this only when the wiki is known to be drift-prone — the framework's default assumption is that the wiki is fresher than `project-context`.
 
 ### Phase 1: Parse Input Source
 
@@ -124,7 +156,7 @@ Validate the canonical ticket against the SDD requirements and, for every missin
 
 Required inference order:
 
-1. Consult `WIKI_CORE` (the 1–3 page bodies loaded by Phase 0.5); every question the wiki already answers is removed from the gap list. If a matched page references a related page via `**Related:** [[...]]` and that related page is on-topic, expand it (depth ≤ 2).
+1. Consult `WIKI_CORE` (the 1–3 page bodies loaded by Phase 0.2); every question the wiki already answers is removed from the gap list. If a matched page references a related page via `**Related:** [[...]]` and that related page is on-topic, expand it (depth ≤ 2).
 2. Graph queries — classify each remaining gap by question type and route to the matching tool (e.g. `mcp__code_graph__semantic_search_nodes_tool` for symbol lookups, `mcp__code_graph__query_graph_tool` for relationships). Do NOT default to `semantic_search_nodes_tool` for everything. See the routing table below; cap at 6 graph queries total for this step.
 3. Search `project-context` skill content and `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`.
 4. Codebase grep + related file inspection (narrowed by graph node paths from step 2 when available; reuse cached graph results instead of re-querying).
@@ -138,7 +170,7 @@ Required inference order:
    | data_flow | "Does the request flow auth → users?" / "What's the request lifecycle for `/api/login`?" | `mcp__code_graph__list_flows_tool` then `mcp__code_graph__get_flow_tool` | execution paths |
    | boundary | "Are `users` and `auth` in the same service?" / "Which service owns `RateLimiter`?" | `mcp__code_graph__list_communities_tool` + `mcp__code_graph__get_community_tool` | community membership |
    | impact | "If we change `User` model, what's affected?" | `mcp__code_graph__get_impact_radius_tool` | blast radius |
-   | overview | "What's the architectural shape?" | `mcp__code_graph__get_architecture_overview` | top-level topology (rare in gap detection — usually answered by Phase 0.5 wiki preload) |
+   | overview | "What's the architectural shape?" | `mcp__code_graph__get_architecture_overview` | top-level topology (rare in gap detection — usually answered by Phase 0.2 wiki preload) |
 
    Pick exactly ONE tool per gap. If the gap is ambiguous, prefer the cheaper tool (`semantic_search_nodes_tool` → `query_graph_tool` → `list_flows_tool`/`get_flow_tool` → `get_impact_radius_tool`). Cap at 6 graph queries total for Phase 2 — beyond that, fall back to grep.
 
@@ -611,14 +643,15 @@ Before finalizing, validate:
 
 ## Integration Notes
 
-- `project-context`: required in Phase 0
+- `project-context`: required in Phase 0.1
 - `fetch-ticket-context`: useful when Jira input needs enrichment
 - `implement-ticket`: the resulting markdown or Jira ticket should be directly implementable
 - `ui-testing` and `ui-visual-testing`: used when UI work is detected and testing expectations need to be injected
-- LLM wiki: required in Phase 0.5 when available; soft-optional when missing
+- LLM wiki: required in Phase 0.2 when available; soft-optional when missing
 
 ## Version History
 
+- **3.5.0** (2026-04-29): mandatory Phase 0 deterministic preflight (`bash $FRAMEWORK_PATH/scripts/ensure-context.sh`) auto-installs the graph + wiki dependencies and refreshes both before any context loading runs. Existing project-context and wiki preload phases renumbered to 0.1 and 0.2; each now asserts `$ARTIFACTS_DIR/.preflight-ok` before doing work
 - **3.4.0** (2026-04-27): clarified Phase 0 vs Phase 0.5 (§8) — both inject target-project context but in complementary shapes (narrative vs structured/graph-backed); explicit conflict-resolution rule (wiki wins on structural facts); confidence-aware Tier 3 page selection; `project-context` documented as target-project-generated, not framework knowledge
 - **3.3.0** (2026-04-24): objective INVEST "Small" scope check via get_impact_radius_tool (§6) — Phase 5a queries blast radius before subjective evaluation; `metadata.scope_impact` records impacted_services/impacted_files/max_depth; split recommendations cite actual numbers; fallback logs `graph unavailable for scope check`
 - **3.2.0** (2026-04-24): multi-tool graph routing in Phase 2 gap detection (§5 of OPTIMIZATION_REVIEW) — question-class classifier table routes symbol_lookup, relationship, data_flow, boundary, impact, and overview gaps to the correct graph MCP tool; `graphEvidence` reshaped to array of `{tool, params, finding}` entries; 6-query cap enforced
