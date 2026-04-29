@@ -181,6 +181,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
           graph_queries_used: [],
           graph_overflow_count: 0,
           graph_overflow_tools: [],
+          soft_warning: [],
         },
         null,
         2,

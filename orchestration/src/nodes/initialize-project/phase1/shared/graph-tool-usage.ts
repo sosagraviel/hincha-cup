@@ -22,6 +22,84 @@ export interface GraphToolUsesSidecar {
    * overflows.
    */
   overflows?: Array<{ tool: string; callIndex: number }>;
+  /**
+   * Per-tool call counts for graph tools (e.g.
+   * `{ "mcp__code_graph__semantic_search_nodes_tool": 16 }`). Drives the
+   * `graph_search_overuse` soft warning. Optional for back-compat — older
+   * sidecars predate the gira-init-run audit Phase E and have no value.
+   */
+  nameCounts?: Record<string, number>;
+  /**
+   * Total non-graph tool_use events (Read/Glob/Grep/Bash/etc.). Drives the
+   * `low_graph_ratio` soft warning. Optional for back-compat.
+   */
+  nonGraphCount?: number;
+}
+
+/**
+ * Per-analyzer soft caps for total tool calls. Exceeding the cap surfaces a
+ * `tool_call_budget_exceeded` soft warning in the persisted output but does
+ * NOT fail the run. Caps were derived from the gira-run distribution
+ * (51/57/52/43 across the four analyzers) — the goal is to nudge the
+ * agent toward graph-first behaviour, not enforce a hard limit. Stack-
+ * agnostic: the values are wall-clock budgets, not language-specific.
+ */
+export const PER_ANALYZER_TOOL_CALL_CAPS: Record<string, number> = {
+  'structure-architecture-analyzer': 25,
+  'tech-stack-dependencies-analyzer': 20,
+  'code-patterns-testing-analyzer': 25,
+  'data-flows-integrations-analyzer': 30,
+};
+
+/**
+ * Threshold for `graph_search_overuse`: more than 8 semantic_search calls
+ * in a single analyzer run is a code smell — the agent is brute-forcing
+ * the graph instead of drilling top-down.
+ */
+const SEMANTIC_SEARCH_OVERUSE_THRESHOLD = 8;
+
+/**
+ * Threshold for `low_graph_ratio`: when graph_call_count / total_tool_calls
+ * is below 0.4 the analyzer is grep-spamming over the graph. The graph is
+ * the language-agnostic primitive; non-graph tools should be the minority
+ * of calls, not the majority.
+ */
+const LOW_GRAPH_RATIO_THRESHOLD = 0.4;
+
+/**
+ * Compute the soft-warning list for an analyzer run. Returns sorted unique
+ * strings drawn from a fixed vocabulary so downstream consumers can switch
+ * on them. Empty array when no signal fires.
+ *
+ * Stack-agnostic — every check is a pure number comparison.
+ */
+export function computeSoftWarnings(
+  agentName: string,
+  graphCount: number,
+  nonGraphCount: number,
+  nameCounts: Record<string, number>,
+): string[] {
+  const warnings = new Set<string>();
+  const total = graphCount + nonGraphCount;
+
+  if (total > 0) {
+    const ratio = graphCount / total;
+    if (ratio < LOW_GRAPH_RATIO_THRESHOLD) {
+      warnings.add('low_graph_ratio');
+    }
+  }
+
+  const semanticSearchCount = nameCounts['mcp__code_graph__semantic_search_nodes_tool'] ?? 0;
+  if (semanticSearchCount > SEMANTIC_SEARCH_OVERUSE_THRESHOLD) {
+    warnings.add('graph_search_overuse');
+  }
+
+  const cap = PER_ANALYZER_TOOL_CALL_CAPS[agentName];
+  if (typeof cap === 'number' && total > cap) {
+    warnings.add('tool_call_budget_exceeded');
+  }
+
+  return Array.from(warnings).sort();
 }
 
 /**
@@ -51,6 +129,7 @@ export function applyGraphToolUsageFromSidecar(
   data: unknown,
   projectPath: string,
   sessionId: string | undefined,
+  agentName?: string,
 ): Record<string, unknown> {
   const base: Record<string, unknown> =
     typeof data === 'object' && data !== null ? { ...(data as Record<string, unknown>) } : {};
@@ -59,7 +138,13 @@ export function applyGraphToolUsageFromSidecar(
     logger.warn(
       '[graph_queries_used] No sessionId for analyzer attempt — forcing graph_queries_used=[]',
     );
-    return { ...base, graph_queries_used: [], graph_overflow_count: 0, graph_overflow_tools: [] };
+    return {
+      ...base,
+      graph_queries_used: [],
+      graph_overflow_count: 0,
+      graph_overflow_tools: [],
+      soft_warning: [],
+    };
   }
 
   const slug = claudeProjectSlug(path.resolve(projectPath));
@@ -75,7 +160,13 @@ export function applyGraphToolUsageFromSidecar(
     logger.warn(
       `[graph_queries_used] Sidecar missing for session ${sessionId} — forcing graph_queries_used=[] (expected at ${sidecarPath})`,
     );
-    return { ...base, graph_queries_used: [], graph_overflow_count: 0, graph_overflow_tools: [] };
+    return {
+      ...base,
+      graph_queries_used: [],
+      graph_overflow_count: 0,
+      graph_overflow_tools: [],
+      soft_warning: [],
+    };
   }
 
   let parsed: GraphToolUsesSidecar;
@@ -86,7 +177,13 @@ export function applyGraphToolUsageFromSidecar(
     logger.warn(
       `[graph_queries_used] Failed to read sidecar ${sidecarPath}: ${err instanceof Error ? err.message : String(err)} — forcing graph_queries_used=[]`,
     );
-    return { ...base, graph_queries_used: [], graph_overflow_count: 0, graph_overflow_tools: [] };
+    return {
+      ...base,
+      graph_queries_used: [],
+      graph_overflow_count: 0,
+      graph_overflow_tools: [],
+      soft_warning: [],
+    };
   }
 
   const names = Array.isArray(parsed.uniqueNames)
@@ -102,10 +199,21 @@ export function applyGraphToolUsageFromSidecar(
     ),
   ].sort();
 
+  // Soft warnings (non-blocking telemetry) — derived from sidecar data
+  // when present. When the sidecar predates the gira-init-run audit
+  // Phase E (no nameCounts / nonGraphCount), softWarning is empty.
+  const nameCounts = (parsed.nameCounts ?? {}) as Record<string, number>;
+  const nonGraphCount = typeof parsed.nonGraphCount === 'number' ? parsed.nonGraphCount : 0;
+  const softWarnings =
+    agentName && (parsed.nameCounts !== undefined || parsed.nonGraphCount !== undefined)
+      ? computeSoftWarnings(agentName, parsed.count ?? 0, nonGraphCount, nameCounts)
+      : [];
+
   return {
     ...base,
     graph_queries_used: [...names].sort(),
     graph_overflow_count: overflows.length,
     graph_overflow_tools: overflowTools,
+    soft_warning: softWarnings,
   };
 }

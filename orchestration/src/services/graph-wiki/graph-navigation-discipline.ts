@@ -48,7 +48,7 @@ Call \`mcp__code_graph__get_minimal_context_tool({ task: "<your goal>" })\` firs
 | Tool | Default this way |
 |---|---|
 | \`mcp__code_graph__list_communities_tool\` | \`{ detail_level: "minimal", min_size: 10, sort_by: "size" }\`. **NEVER** \`detail_level: "standard"\` — that returns full member lists per community and overflows on graphs with > 10 communities. |
-| \`mcp__code_graph__get_community_tool\` | \`{ include_members: false }\` by default. Only set \`true\` for ≤3 specific communities you have a concrete reason to drill into. |
+| \`mcp__code_graph__get_community_tool\` | \`{ include_members: false }\` by default. Even with \`include_members: false\`, the response can still overflow on **wide** communities (≳40 members) because the tool returns description + per-language tags. When you see an overflow sentinel from this tool, switch to \`query_graph_tool({ pattern: "file_summary", target: <community>, detail_level: "minimal" })\` instead. Only set \`include_members: true\` for ≤3 specific communities ≤30 members each. |
 | \`mcp__code_graph__list_flows_tool\` | \`{ detail_level: "minimal", limit: 30, sort_by: "criticality" }\`. |
 | \`mcp__code_graph__get_flow_tool\` | \`{ include_source: false }\` by default. \`include_source: true\` only for the single flow whose source you genuinely need (cap: 1). |
 | \`mcp__code_graph__semantic_search_nodes_tool\` | \`{ limit: 20 }\` MAX. Use \`kind\` to filter (\`Class\` / \`Function\` / \`File\` / \`Type\` / \`Test\`). \`detail_level: "minimal"\` when surveying. |

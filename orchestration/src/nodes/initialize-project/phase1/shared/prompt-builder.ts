@@ -18,6 +18,7 @@ import {
 } from '../../../../services/graph-wiki/graph-navigation-discipline.js';
 import type { CodeGraphStats } from '../../../../state/schemas/initialize-project.schema.js';
 import type { AuthoritativeService } from './authoritative-services.js';
+import { PER_ANALYZER_TOOL_CALL_CAPS } from './graph-tool-usage.js';
 
 /**
  * Heuristic: a graph is "large" if it has > 200 files OR > 1000 functions.
@@ -85,6 +86,22 @@ export function buildPhase1AnalyzerPrompt(
 
   if (graphContext) {
     parts.push('', buildContentSection('Code Graph Context', buildGraphContext(graphContext)));
+  }
+
+  // Per-analyzer soft tool-call cap. Non-blocking — exceeding the cap
+  // surfaces a `tool_call_budget_exceeded` soft warning in the persisted
+  // output and nudges the agent on the next attempt. See gira-init-run
+  // audit findings F10 / F11 / F27 (data-flows-analyzer alone made 52
+  // tool calls in 57 turns; no cap = no nudge).
+  const cap = PER_ANALYZER_TOOL_CALL_CAPS[agentName];
+  if (typeof cap === 'number') {
+    parts.push(
+      '',
+      buildContentSection(
+        'Tool Budget Guidance',
+        `You are not strictly limited to ${cap} tool calls, but exceeding ${cap} substantially without producing new findings is a code smell — pause and pick the most informative remaining query. The framework records a non-blocking \`tool_call_budget_exceeded\` warning in your persisted output when total Read/Glob/Grep/Bash + graph calls cross this threshold. The graph is the language-agnostic primitive — favour it over Glob/Read for any structural or relational question.`,
+      ),
+    );
   }
 
   if (executionInstructions) {

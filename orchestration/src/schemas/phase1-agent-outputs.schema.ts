@@ -94,6 +94,14 @@ export const StructureAnalyzerOutputSchema = z
     graph_overflow_count: z.number().optional(),
     /** Sorted unique tool names whose results overflowed; empty array when count = 0. */
     graph_overflow_tools: z.array(z.string()).optional(),
+    /**
+     * Soft warnings emitted by `applyGraphToolUsageFromSidecar` after
+     * comparing the analyzer's tool-call distribution against per-analyzer
+     * caps and graph-first thresholds. Non-blocking; values come from a
+     * fixed vocabulary: `low_graph_ratio`, `graph_search_overuse`,
+     * `tool_call_budget_exceeded`. See gira-init-run audit Phase E.
+     */
+    soft_warning: z.array(z.string()).optional(),
     findings: z
       .object({
         services: z
@@ -230,6 +238,14 @@ export const TechStackAnalyzerOutputSchema = z
     graph_overflow_count: z.number().optional(),
     /** Sorted unique tool names whose results overflowed; empty array when count = 0. */
     graph_overflow_tools: z.array(z.string()).optional(),
+    /**
+     * Soft warnings emitted by `applyGraphToolUsageFromSidecar` after
+     * comparing the analyzer's tool-call distribution against per-analyzer
+     * caps and graph-first thresholds. Non-blocking; values come from a
+     * fixed vocabulary: `low_graph_ratio`, `graph_search_overuse`,
+     * `tool_call_budget_exceeded`. See gira-init-run audit Phase E.
+     */
+    soft_warning: z.array(z.string()).optional(),
     findings: z
       .object({
         // FORBIDDEN: the `services` array is no longer accepted on this analyzer.
@@ -372,6 +388,14 @@ export const CodePatternsAnalyzerOutputSchema = z
     graph_overflow_count: z.number().optional(),
     /** Sorted unique tool names whose results overflowed; empty array when count = 0. */
     graph_overflow_tools: z.array(z.string()).optional(),
+    /**
+     * Soft warnings emitted by `applyGraphToolUsageFromSidecar` after
+     * comparing the analyzer's tool-call distribution against per-analyzer
+     * caps and graph-first thresholds. Non-blocking; values come from a
+     * fixed vocabulary: `low_graph_ratio`, `graph_search_overuse`,
+     * `tool_call_budget_exceeded`. See gira-init-run audit Phase E.
+     */
+    soft_warning: z.array(z.string()).optional(),
     findings: z
       .object({
         // FORBIDDEN: see TechStackAnalyzerOutputSchema for the rationale.

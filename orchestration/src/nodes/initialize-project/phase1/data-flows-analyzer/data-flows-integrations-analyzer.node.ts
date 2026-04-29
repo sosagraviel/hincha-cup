@@ -113,7 +113,12 @@ export async function dataFlowsIntegrationsAnalyzerNode(
 
     // Overwrite agent-supplied graph_queries_used with the canonical sorted
     // list of `mcp__code_graph__*_tool` names from the Stop hook's sidecar.
-    const persisted = applyGraphToolUsageFromSidecar(validatedData, state.project_path, sessionId);
+    const persisted = applyGraphToolUsageFromSidecar(
+      validatedData,
+      state.project_path,
+      sessionId,
+      agentName,
+    );
 
     writeFileSync(outputPath, JSON.stringify(persisted, null, 2));
 

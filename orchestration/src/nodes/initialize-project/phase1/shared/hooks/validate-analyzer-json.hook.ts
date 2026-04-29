@@ -64,12 +64,26 @@ interface GraphToolUseRecord {
   count: number;
   /** Sorted unique canonical tool names actually called. */
   uniqueNames: string[];
+  /**
+   * Per-tool call counts for graph tools (key = full
+   * `mcp__code_graph__<name>` string). Surfaces oversearch (e.g.
+   * semantic_search_nodes_tool > 8). See gira-init-run audit F27.
+   */
+  nameCounts: Record<string, number>;
+  /**
+   * Total non-graph tool_use events (Read / Glob / Grep / Bash / Edit /
+   * Write / etc.). Used to compute the graph_call_ratio soft warning so
+   * analyzers that grep-spam over the graph get nudged on retry. See
+   * gira-init-run audit F10.
+   */
+  nonGraphCount: number;
   /** One entry per overflowing tool result (sentinel match). */
   overflows: Array<{ tool: string; callIndex: number }>;
 }
 
 function countGraphToolUses(transcript: unknown[]): GraphToolUseRecord {
   const uses = new Map<string, number>();
+  let nonGraphCount = 0;
   // Track tool_use events by their `id` so we can attribute a later
   // overflowing tool_result back to the specific tool that produced it.
   const useByCallId = new Map<string, { tool: string; callIndex: number }>();
@@ -86,11 +100,17 @@ function countGraphToolUses(transcript: unknown[]): GraphToolUseRecord {
       for (const block of content) {
         if (!isObject(block) || block.type !== 'tool_use') continue;
         const name = typeof block.name === 'string' ? block.name : '';
-        if (!name.startsWith(CODE_GRAPH_TOOL_PREFIX)) continue;
-        uses.set(name, (uses.get(name) ?? 0) + 1);
-        callIndex += 1;
-        if (typeof block.id === 'string' && block.id.length > 0) {
-          useByCallId.set(block.id, { tool: name, callIndex });
+        if (!name) continue;
+        if (name.startsWith(CODE_GRAPH_TOOL_PREFIX)) {
+          uses.set(name, (uses.get(name) ?? 0) + 1);
+          callIndex += 1;
+          if (typeof block.id === 'string' && block.id.length > 0) {
+            useByCallId.set(block.id, { tool: name, callIndex });
+          }
+        } else {
+          // Read / Glob / Grep / Bash / Edit / Write / NotebookEdit / etc.
+          // Counted to compute graph_call_ratio downstream.
+          nonGraphCount += 1;
         }
       }
     }
@@ -120,7 +140,15 @@ function countGraphToolUses(transcript: unknown[]): GraphToolUseRecord {
   }
 
   const total = Array.from(uses.values()).reduce((sum, n) => sum + n, 0);
-  return { count: total, uniqueNames: Array.from(uses.keys()).sort(), overflows };
+  const nameCounts: Record<string, number> = {};
+  for (const [name, n] of uses.entries()) nameCounts[name] = n;
+  return {
+    count: total,
+    uniqueNames: Array.from(uses.keys()).sort(),
+    nameCounts,
+    nonGraphCount,
+    overflows,
+  };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
