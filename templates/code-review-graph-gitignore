@@ -1,0 +1,9 @@
+# Managed by ai-agentic-framework — overrides the tool's auto-generated `*`.
+#
+# The graph DB and per-developer state are intentionally NOT committed; the
+# lightweight metadata that lets every developer rebuild quickly IS committed.
+# See docs/CODE_GRAPH.md "Team onboarding" for the rationale.
+*
+!.gitignore
+!launcher.json
+!extraction-manifest.json

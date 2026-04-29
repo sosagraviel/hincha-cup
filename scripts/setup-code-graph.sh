@@ -353,6 +353,21 @@ ensure_ignore_file() {
   fi
 }
 
+# Override the upstream tool's `.code-review-graph/.gitignore: *` with a
+# framework-managed allowlist. The graph DB stays per-developer (binary +
+# absolute paths inside SQLite); only the lightweight metadata that lets every
+# teammate rebuild quickly is committed. Compare-then-write — idempotent.
+ensure_managed_gitignore() {
+  local source="$FRAMEWORK_PATH/templates/code-review-graph-gitignore"
+  local target="$PROJECT_PATH/.code-review-graph/.gitignore"
+  [ -f "$source" ] || return 0
+  mkdir -p "$PROJECT_PATH/.code-review-graph"
+  if [ -f "$target" ] && cmp -s "$source" "$target"; then
+    return 0
+  fi
+  cp "$source" "$target"
+}
+
 main() {
   if [ ! -d "$PROJECT_PATH" ]; then
     log_error "Project path does not exist: $PROJECT_PATH"
@@ -394,6 +409,9 @@ main() {
   # writers above). Cheap on Tier 1.
   write_local_launcher
   write_launcher_json
+  # Override the tool's auto-emitted `*` gitignore with our allowlist (the
+  # tool re-emits `*` on every build, so we re-sync after every tier 2/3 run).
+  ensure_managed_gitignore
 
   if [ ! -f "$CODE_GRAPH_DB_PATH" ]; then
     log_error "Expected graph database was not created: $CODE_GRAPH_DB_PATH"
