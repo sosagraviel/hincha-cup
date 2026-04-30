@@ -85,39 +85,24 @@
       "path": "030-quality-assurance/jest-coverage-automation",
       "description": "Jest testing framework automation",
       "trigger_mode": "triggered",
-      "triggers": [
-        "jest"
-      ],
-      "compatible_languages": [
-        "typescript",
-        "javascript"
-      ]
+      "triggers": ["jest"],
+      "compatible_languages": ["typescript", "javascript"]
     },
     {
       "name": "playwright-e2e-automation",
       "path": "030-quality-assurance/playwright-e2e-automation",
       "description": "Playwright E2E testing automation",
       "trigger_mode": "triggered",
-      "triggers": [
-        "playwright",
-        "@playwright/test"
-      ],
-      "compatible_languages": [
-        "typescript",
-        "javascript"
-      ]
+      "triggers": ["playwright", "@playwright/test"],
+      "compatible_languages": ["typescript", "javascript"]
     },
     {
       "name": "pytest-patterns",
       "path": "030-quality-assurance/pytest-patterns",
       "description": "Pytest testing patterns for Python",
       "trigger_mode": "triggered",
-      "triggers": [
-        "pytest"
-      ],
-      "compatible_languages": [
-        "python"
-      ]
+      "triggers": ["pytest"],
+      "compatible_languages": ["python"]
     },
     {
       "name": "ui-testing",
@@ -133,10 +118,7 @@
         "nuxt",
         "svelte"
       ],
-      "compatible_languages": [
-        "typescript",
-        "javascript"
-      ],
+      "compatible_languages": ["typescript", "javascript"],
       "is_linkable_to_agents": true
     },
     {
@@ -153,10 +135,7 @@
         "nuxt",
         "svelte"
       ],
-      "compatible_languages": [
-        "typescript",
-        "javascript"
-      ],
+      "compatible_languages": ["typescript", "javascript"],
       "is_linkable_to_agents": true
     },
     {
@@ -173,9 +152,7 @@
       "path": "040-integrations/jira",
       "description": "Jira integration and workflows",
       "trigger_mode": "triggered",
-      "triggers": [
-        "jira"
-      ],
+      "triggers": ["jira"],
       "compatible_languages": [],
       "is_linkable_to_agents": false
     },
@@ -184,9 +161,7 @@
       "path": "040-integrations/mastering-confluence",
       "description": "Confluence documentation management",
       "trigger_mode": "triggered",
-      "triggers": [
-        "confluence"
-      ],
+      "triggers": ["confluence"],
       "compatible_languages": [],
       "is_linkable_to_agents": false
     },
@@ -202,9 +177,7 @@
       "path": "040-integrations/notion-document-manager",
       "description": "Notion document management",
       "trigger_mode": "triggered",
-      "triggers": [
-        "notion"
-      ],
+      "triggers": ["notion"],
       "compatible_languages": [],
       "is_linkable_to_agents": false
     },
@@ -222,10 +195,7 @@
         "nuxt",
         "svelte"
       ],
-      "compatible_languages": [
-        "typescript",
-        "javascript"
-      ],
+      "compatible_languages": ["typescript", "javascript"],
       "is_linkable_to_agents": true
     },
     {
@@ -233,182 +203,112 @@
       "path": "050-language-frameworks/mastering-typescript",
       "description": "TypeScript development patterns and best practices",
       "trigger_mode": "triggered",
-      "triggers": [
-        "typescript"
-      ],
-      "compatible_languages": [
-        "typescript"
-      ]
+      "triggers": ["typescript"],
+      "compatible_languages": ["typescript"]
     },
     {
       "name": "mastering-python-skill",
       "path": "050-language-frameworks/mastering-python-skill",
       "description": "Python development patterns and best practices",
       "trigger_mode": "triggered",
-      "triggers": [
-        "python"
-      ],
-      "compatible_languages": [
-        "python"
-      ]
+      "triggers": ["python"],
+      "compatible_languages": ["python"]
     },
     {
       "name": "mastering-go-skill",
       "path": "050-language-frameworks/mastering-go-skill",
       "description": "Go development patterns and best practices",
       "trigger_mode": "triggered",
-      "triggers": [
-        "go"
-      ],
-      "compatible_languages": [
-        "go"
-      ]
+      "triggers": ["go"],
+      "compatible_languages": ["go"]
     },
     {
       "name": "mastering-java-skill",
       "path": "050-language-frameworks/mastering-java-skill",
       "description": "Java development patterns and best practices",
       "trigger_mode": "triggered",
-      "triggers": [
-        "java"
-      ],
-      "compatible_languages": [
-        "java"
-      ]
+      "triggers": ["java"],
+      "compatible_languages": ["java"]
     },
     {
       "name": "mastering-ruby-skill",
       "path": "050-language-frameworks/mastering-ruby-skill",
       "description": "Ruby development patterns and best practices",
       "trigger_mode": "triggered",
-      "triggers": [
-        "ruby"
-      ],
-      "compatible_languages": [
-        "ruby"
-      ]
+      "triggers": ["ruby"],
+      "compatible_languages": ["ruby"]
     },
     {
       "name": "mastering-rust-skill",
       "path": "050-language-frameworks/mastering-rust-skill",
       "description": "Rust development patterns and best practices",
       "trigger_mode": "triggered",
-      "triggers": [
-        "rust"
-      ],
-      "compatible_languages": [
-        "rust"
-      ]
-    },
-    {
-      "name": "mastering-dotnet-skill",
-      "path": "050-language-frameworks/mastering-dotnet-skill",
-      "description": "C# and .NET development patterns, ASP.NET Core, Entity Framework Core, clean architecture, and best practices",
-      "trigger_mode": "triggered",
-      "triggers": [
-        "csharp",
-        "dotnet"
-      ],
-      "compatible_languages": [
-        "csharp"
-      ]
+      "triggers": ["rust"],
+      "compatible_languages": ["rust"]
     },
     {
       "name": "mastering-scala-skill",
       "path": "050-language-frameworks/mastering-scala-skill",
       "description": "Scala 3 development patterns, functional programming, effect systems (Cats Effect, ZIO), and best practices",
       "trigger_mode": "triggered",
-      "triggers": [
-        "scala"
-      ],
-      "compatible_languages": [
-        "scala"
-      ]
+      "triggers": ["scala"],
+      "compatible_languages": ["scala"]
+    },
+    {
+      "name": "mastering-dotnet-skill",
+      "path": "050-language-frameworks/mastering-dotnet-skill",
+      "description": "C# and .NET development patterns, ASP.NET Core, Entity Framework Core, clean architecture, and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["csharp", "dotnet"],
+      "compatible_languages": ["csharp"]
     },
     {
       "name": "react-frontend",
       "path": "050-language-frameworks/react-frontend",
       "description": "React frontend development patterns",
       "trigger_mode": "triggered",
-      "triggers": [
-        "react",
-        "next",
-        "nextjs"
-      ],
-      "compatible_languages": [
-        "typescript",
-        "javascript"
-      ]
+      "triggers": ["react", "next", "nextjs"],
+      "compatible_languages": ["typescript", "javascript"]
     },
     {
       "name": "vue-frontend",
       "path": "050-language-frameworks/vue-frontend",
       "description": "Vue.js frontend development patterns",
       "trigger_mode": "triggered",
-      "triggers": [
-        "vue"
-      ],
-      "compatible_languages": [
-        "typescript",
-        "javascript"
-      ]
+      "triggers": ["vue"],
+      "compatible_languages": ["typescript", "javascript"]
     },
     {
       "name": "mastering-nextjs",
       "path": "050-language-frameworks/mastering-nextjs",
       "description": "Next.js framework patterns and best practices",
       "trigger_mode": "triggered",
-      "triggers": [
-        "next",
-        "nextjs"
-      ],
-      "compatible_languages": [
-        "typescript",
-        "javascript"
-      ]
+      "triggers": ["next", "nextjs"],
+      "compatible_languages": ["typescript", "javascript"]
     },
     {
       "name": "mastering-vitest",
       "path": "050-language-frameworks/mastering-vitest",
       "description": "Vitest testing patterns and best practices",
       "trigger_mode": "triggered",
-      "triggers": [
-        "vitest"
-      ],
-      "compatible_languages": [
-        "typescript",
-        "javascript"
-      ]
+      "triggers": ["vitest"],
+      "compatible_languages": ["typescript", "javascript"]
     },
     {
       "name": "atomic-design-react",
       "path": "050-language-frameworks/atomic-design-react",
       "description": "Atomic Design methodology for React applications",
       "trigger_mode": "triggered",
-      "triggers": [
-        "react",
-        "next",
-        "nextjs"
-      ],
-      "compatible_languages": [
-        "typescript",
-        "javascript"
-      ]
+      "triggers": ["react", "next", "nextjs"],
+      "compatible_languages": ["typescript", "javascript"]
     },
     {
       "name": "mastering-langgraph-agent-skill",
       "path": "050-language-frameworks/mastering-langgraph-agent-skill",
       "description": "LangGraph agent development patterns",
       "trigger_mode": "triggered",
-      "triggers": [
-        "langgraph",
-        "@langchain/langgraph"
-      ],
-      "compatible_languages": [
-        "typescript",
-        "javascript",
-        "python"
-      ]
+      "triggers": ["langgraph", "@langchain/langgraph"],
+      "compatible_languages": ["typescript", "javascript", "python"]
     },
     {
       "name": "design-doc-mermaid",
@@ -421,10 +321,7 @@
       "path": "070-infrastructure/developing-with-docker",
       "description": "Docker development and containerization",
       "trigger_mode": "triggered",
-      "triggers": [
-        "docker",
-        "dockerfile"
-      ],
+      "triggers": ["docker", "dockerfile"],
       "is_linkable_to_agents": true
     },
     {
@@ -432,15 +329,8 @@
       "path": "080-cloud-platforms/mastering-aws-cdk",
       "description": "AWS CDK infrastructure as code",
       "trigger_mode": "triggered",
-      "triggers": [
-        "aws-cdk",
-        "@aws-cdk"
-      ],
-      "compatible_languages": [
-        "typescript",
-        "javascript",
-        "python"
-      ],
+      "triggers": ["aws-cdk", "@aws-cdk"],
+      "compatible_languages": ["typescript", "javascript", "python"],
       "is_linkable_to_agents": true
     },
     {
@@ -448,9 +338,7 @@
       "path": "080-cloud-platforms/mastering-aws-cli",
       "description": "AWS CLI commands and automation",
       "trigger_mode": "triggered",
-      "triggers": [
-        "aws"
-      ],
+      "triggers": ["aws"],
       "is_linkable_to_agents": true
     },
     {
@@ -458,10 +346,7 @@
       "path": "080-cloud-platforms/mastering-gcloud-commands",
       "description": "Google Cloud CLI commands and workflows",
       "trigger_mode": "triggered",
-      "triggers": [
-        "gcloud",
-        "google-cloud"
-      ],
+      "triggers": ["gcloud", "google-cloud"],
       "is_linkable_to_agents": true
     },
     {
@@ -469,13 +354,8 @@
       "path": "080-cloud-platforms/using-firebase",
       "description": "Firebase development patterns",
       "trigger_mode": "triggered",
-      "triggers": [
-        "firebase"
-      ],
-      "compatible_languages": [
-        "typescript",
-        "javascript"
-      ]
+      "triggers": ["firebase"],
+      "compatible_languages": ["typescript", "javascript"]
     },
     {
       "name": "project-context",
