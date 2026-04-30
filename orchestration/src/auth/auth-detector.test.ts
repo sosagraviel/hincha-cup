@@ -31,6 +31,10 @@ describe('auth-detector', () => {
     delete process.env.GOOGLE_API_KEY;
     delete process.env.PROVIDER;
     delete process.env.FRAMEWORK_PATH;
+    delete process.env.CLAUDE_CODE_USE_FOUNDRY;
+    delete process.env.CLAUDE_CODE_USE_BEDROCK;
+    delete process.env.CLAUDE_CODE_USE_VERTEX;
+    delete process.env.ANTHROPIC_FOUNDRY_RESOURCE;
 
     vi.clearAllMocks();
 
@@ -200,6 +204,103 @@ describe('auth-detector', () => {
       expect(result.hasClaudeCLI).toBe(true);
     });
 
+    it('should accept Azure AI Foundry gateway without ANTHROPIC_API_KEY or claude login', async () => {
+      process.env.CLAUDE_CODE_USE_FOUNDRY = '1';
+      process.env.ANTHROPIC_FOUNDRY_RESOURCE = 'my-foundry-resource';
+
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        if (cmd === 'which claude') return Buffer.from('/usr/local/bin/claude');
+        if (cmd === 'claude --version') return Buffer.from('2.1.0');
+        throw new Error('Command failed');
+      });
+
+      const result = await detectAuthMode();
+
+      expect(result.mode).toBe(AuthMode.CLAUDE_CLI);
+      expect(result.provider).toBe('anthropic');
+      expect(result.hasAPIKey).toBe(false);
+    });
+
+    it('should ignore CLAUDE_CODE_USE_FOUNDRY without ANTHROPIC_FOUNDRY_RESOURCE', async () => {
+      process.env.CLAUDE_CODE_USE_FOUNDRY = '1';
+      // ANTHROPIC_FOUNDRY_RESOURCE intentionally not set
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('Command not found');
+      });
+
+      const result = await detectAuthMode();
+
+      expect(result.mode).toBe(AuthMode.NONE);
+    });
+
+    it('should accept AWS Bedrock gateway without ANTHROPIC_API_KEY', async () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = '1';
+
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        if (cmd === 'which claude') return Buffer.from('/usr/local/bin/claude');
+        if (cmd === 'claude --version') return Buffer.from('2.1.0');
+        throw new Error('Command failed');
+      });
+
+      const result = await detectAuthMode();
+
+      expect(result.mode).toBe(AuthMode.CLAUDE_CLI);
+      expect(result.provider).toBe('anthropic');
+      expect(result.hasAPIKey).toBe(false);
+    });
+
+    it('should accept Google Vertex AI gateway without ANTHROPIC_API_KEY', async () => {
+      process.env.CLAUDE_CODE_USE_VERTEX = '1';
+
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        if (cmd === 'which claude') return Buffer.from('/usr/local/bin/claude');
+        if (cmd === 'claude --version') return Buffer.from('2.1.0');
+        throw new Error('Command failed');
+      });
+
+      const result = await detectAuthMode();
+
+      expect(result.mode).toBe(AuthMode.CLAUDE_CLI);
+      expect(result.provider).toBe('anthropic');
+      expect(result.hasAPIKey).toBe(false);
+    });
+
+    it('should fail with a clear error if a Claude gateway is configured but Claude CLI is missing', async () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = '1';
+
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('Command not found');
+      });
+
+      await expect(detectAuthMode()).rejects.toThrow(
+        /AWS Bedrock is configured for Claude, but Claude CLI is not installed/,
+      );
+    });
+
+    it('should accept gateway under explicit PROVIDER=claude without ANTHROPIC_API_KEY', async () => {
+      process.env.PROVIDER = 'claude';
+      process.env.CLAUDE_CODE_USE_FOUNDRY = '1';
+      process.env.ANTHROPIC_FOUNDRY_RESOURCE = 'my-foundry-resource';
+
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        if (cmd === 'which claude') return Buffer.from('/usr/local/bin/claude');
+        if (cmd === 'claude --version') return Buffer.from('2.1.0');
+        throw new Error('Command failed');
+      });
+
+      const result = await detectAuthMode();
+
+      expect(result.mode).toBe(AuthMode.CLAUDE_CLI);
+      expect(result.provider).toBe('anthropic');
+      expect(result.hasAPIKey).toBe(false);
+    });
+
     it('should return NONE when no authentication is available', async () => {
       const { execSync } = await import('child_process');
       vi.mocked(execSync).mockImplementation(() => {
@@ -319,6 +420,22 @@ describe('auth-detector', () => {
 
       expect(message).toContain('Install and authenticate Claude CLI');
       expect(message).toContain('https://code.claude.com');
+    });
+
+    it('should include cloud-provider gateway instructions', () => {
+      const authConfig = {
+        mode: AuthMode.NONE,
+        hasClaudeCLI: false,
+        hasCodexCLI: false,
+        hasAPIKey: false,
+      };
+
+      const message = getAuthErrorMessage(authConfig);
+
+      expect(message).toContain('CLAUDE_CODE_USE_FOUNDRY');
+      expect(message).toContain('ANTHROPIC_FOUNDRY_RESOURCE');
+      expect(message).toContain('CLAUDE_CODE_USE_BEDROCK');
+      expect(message).toContain('CLAUDE_CODE_USE_VERTEX');
     });
 
     it('should always include API key instructions', () => {

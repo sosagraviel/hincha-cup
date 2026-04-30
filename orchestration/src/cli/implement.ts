@@ -11,8 +11,22 @@ import { MemorySaver } from '@langchain/langgraph';
 import type { ImplementTicketState } from '../state/schemas/implement-ticket.schema.js';
 import { Provider } from '../providers/types.js';
 import { setActiveProvider, resolveTempPath } from '../utils/provider-paths.js';
+import { loadClaudeSettingsEnv } from '../auth/claude-settings-loader.js';
 
 const logger = new Logger('implement-ticket');
+
+// Apply ~/.claude/settings.json env block to process.env BEFORE any auth detection or
+// provider auto-detection runs. The Claude CLI reads this file natively, but the framework's
+// parent Node process does not — running this here keeps settings.json as a single source of
+// truth for both layers.
+const __settingsResult = loadClaudeSettingsEnv();
+if (__settingsResult.warning) {
+  logger.warn(`Claude settings: ${__settingsResult.warning}`);
+} else if (__settingsResult.appliedKeys.length > 0) {
+  logger.info(
+    `Loaded ${__settingsResult.appliedKeys.length} env var(s) from ${__settingsResult.settingsPath}: ${__settingsResult.appliedKeys.join(', ')}`,
+  );
+}
 
 function parseProvider(providerValue?: string): Provider | undefined {
   if (!providerValue) {
