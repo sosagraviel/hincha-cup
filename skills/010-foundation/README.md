@@ -26,10 +26,14 @@ Foundation skills establish the baseline workspace for new work — either by bo
 
 ## Related Artifacts (Not Static Skills)
 
-Two foundation-level capabilities are implemented as orchestration pipelines / generated output rather than static skill folders:
+The following foundation-level capabilities are implemented as orchestration pipelines / generated output rather than static skill folders:
 
-- **`initialize-project`**: Implemented as the TypeScript orchestration CLI (see `orchestration/src/graphs/initialize-project.graph.ts`). Run via `./scripts/initialize-project.sh <project-path>`. Produces `.claude/CLAUDE.md` and a generated `project-context` skill tailored to the target codebase.
-- **`project-context`**: Generated per project by `initialize-project`. Lives in each target project's `.claude/skills/project-context/SKILL.md` — not a reusable skill folder in this repo.
+- **`initialize-project`**: Implemented as the TypeScript orchestration CLI (see `orchestration/src/graphs/initialize-project.graph.ts`). Run via `./scripts/initialize-project.sh <project-path>`. Produces `.claude/CLAUDE.md` plus three prescriptive convention skills plus a graph-grounded LLM wiki tailored to the target codebase.
+- **`code-conventions`** / **`multi-file-workflows`** / **`testing-conventions`**: Generated per project by `initialize-project`'s Phase 3 synthesis. Live in each target project's `.claude/skills/<name>/SKILL.md` (or `.codex/skills/<name>/SKILL.md` on Codex) — not reusable skill folders in this repo. Together they replace the legacy monolithic `project-context` skill, splitting it along a strict descriptive/prescriptive line:
+  - **`code-conventions`** — gotchas with WRONG/CORRECT examples, naming rules, error handling, data-layer patterns
+  - **`multi-file-workflows`** — ordered checklists for cross-cutting changes (add endpoint, add entity, etc.)
+  - **`testing-conventions`** — what to mock and what not, fixture conventions, coverage expectations, example test code
+- **Architectural narrative**: The descriptive prose section emitted by Phase 3 synthesis. Persisted to `.<provider>-temp/initialize-project/architectural-narrative.md` and consumed by the Phase 4b wiki-generator to produce `docs/llm-wiki/wiki/ARCHITECTURE.md` and per-service docs. Not a skill — descriptive content lives in the wiki, not in a skill body.
 
 ## Workflow
 

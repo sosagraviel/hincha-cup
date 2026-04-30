@@ -10,12 +10,10 @@ import {
 import { getActiveProvider } from '../../../../utils/provider-paths.js';
 import { getInitializeProjectPhase } from '../../../../services/framework/debug-store/index.js';
 
-export type CoreDocSlot = 'architecture' | 'data_flows' | 'patterns';
+export type CoreDocSlot = 'architecture';
 
 const SLOT_LABEL: Record<CoreDocSlot, string> = {
   architecture: 'ARCHITECTURE.md',
-  data_flows: 'DATA-FLOWS.md',
-  patterns: 'PATTERNS.md',
 };
 
 export async function runCoreDocNode(

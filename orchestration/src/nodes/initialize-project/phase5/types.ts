@@ -21,11 +21,20 @@ export interface AgentMetadata {
 }
 
 /**
- * Generated agent result
+ * Generated agent result.
+ *
+ * `assignedSkills` carries the resolved-skill list that was attached to
+ * this agent at generation time. It is consumed by the Codex skill-body
+ * inliner (see helpers/codex-skill-inliner.ts) which embeds each skill's
+ * on-disk body into the agent prompt at write time — Codex does not
+ * auto-load skills from frontmatter the way Claude Code does, so the
+ * bridge has to ship the bodies in the agent file itself. Empty for
+ * agents that don't carry skills (e.g., visual-verifier).
  */
 export interface GeneratedAgent extends AgentMetadata {
   content: string;
   path: string;
+  assignedSkills?: ResolvedSkill[];
 }
 
 /**

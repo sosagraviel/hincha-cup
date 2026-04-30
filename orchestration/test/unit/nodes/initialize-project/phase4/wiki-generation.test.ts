@@ -111,8 +111,6 @@ describe('wikiGenerationNode (finalization)', () => {
           graphVersion: 'deadbeef',
         },
         architecture: buildCoreDoc('ARCHITECTURE.md', 'architecture'),
-        data_flows: buildCoreDoc('DATA-FLOWS.md', 'data-flow'),
-        patterns: buildCoreDoc('PATTERNS.md', 'pattern'),
         service_docs: [buildCoreDoc('services/api.md', 'service')],
       },
       phase1_retry_tracking: {},
@@ -129,7 +127,7 @@ describe('wikiGenerationNode (finalization)', () => {
     });
   });
 
-  it('writes ARCHITECTURE, SERVICES (catalog), DATA-FLOWS, PATTERNS, service docs, and index under docs/llm-wiki/', async () => {
+  it('writes ARCHITECTURE, SERVICES (catalog), service docs, and index under docs/llm-wiki/', async () => {
     const result = await wikiGenerationNode(state);
 
     expect(fs.mkdirSync).toHaveBeenCalledWith('/test/project/docs/llm-wiki', {
@@ -140,10 +138,12 @@ describe('wikiGenerationNode (finalization)', () => {
 
     expect(writtenPaths.some((p) => p.includes('ARCHITECTURE.md'))).toBe(true);
     expect(writtenPaths.some((p) => p.includes('SERVICES.md'))).toBe(true);
-    expect(writtenPaths.some((p) => p.includes('DATA-FLOWS.md'))).toBe(true);
-    expect(writtenPaths.some((p) => p.includes('PATTERNS.md'))).toBe(true);
     expect(writtenPaths.some((p) => p.includes('index.md'))).toBe(true);
     expect(writtenPaths.some((p) => p.includes('services/api.md'))).toBe(true);
+    // DATA-FLOWS.md and PATTERNS.md are intentionally NOT written — flows
+    // are now per-service, patterns are prescriptive (live in skills).
+    expect(writtenPaths.some((p) => p.includes('DATA-FLOWS.md'))).toBe(false);
+    expect(writtenPaths.some((p) => p.includes('PATTERNS.md'))).toBe(false);
     expect(result.current_phase).toBe('phase4_wiki_generation');
     expect(result.llm_wiki_path).toBe('/test/project/docs/llm-wiki');
     expect(result.phase4_wiki_generation?.llm_wiki_written).toBe(true);
@@ -171,7 +171,9 @@ describe('wikiGenerationNode (finalization)', () => {
     expect(content).toContain('document_type: services');
     expect(content).toContain('[**api**](services/api.md)');
     expect(content).toContain('[ARCHITECTURE.md](ARCHITECTURE.md)');
-    expect(content).toContain('[DATA-FLOWS.md](DATA-FLOWS.md)');
+    // Cross-cutting DATA-FLOWS.md and PATTERNS.md were retired in H4.
+    expect(content).not.toContain('DATA-FLOWS.md');
+    expect(content).not.toContain('PATTERNS.md');
   });
 
   it('appends LLM wiki context guidance to CLAUDE.md (and only CLAUDE.md)', async () => {
@@ -240,6 +242,8 @@ describe('wikiGenerationNode (finalization)', () => {
     const result = await wikiGenerationNode(broken);
 
     expect(result.current_phase).toBe('failed');
-    expect(result.errors?.some((e) => e.includes('core wiki docs are missing'))).toBe(true);
+    expect(result.errors?.some((e) => e.includes('Core wiki doc (architecture) is missing'))).toBe(
+      true,
+    );
   });
 });

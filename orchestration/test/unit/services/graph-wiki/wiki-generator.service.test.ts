@@ -148,10 +148,12 @@ describe('wiki-generator.service', () => {
       .filter((f) => f.startsWith('wiki/'));
     expect(wikiFilenames).toContain('wiki/ARCHITECTURE.md');
     expect(wikiFilenames).toContain('wiki/SERVICES.md');
-    expect(wikiFilenames).toContain('wiki/DATA-FLOWS.md');
-    expect(wikiFilenames).toContain('wiki/PATTERNS.md');
     expect(wikiFilenames).toContain('wiki/index.md');
     expect(wikiFilenames).toContain('wiki/services/api.md');
+    // Cross-cutting DATA-FLOWS.md / PATTERNS.md retired in H4 — flows are
+    // now per-service, patterns are prescriptive (in convention skills).
+    expect(wikiFilenames).not.toContain('wiki/DATA-FLOWS.md');
+    expect(wikiFilenames).not.toContain('wiki/PATTERNS.md');
   });
 
   it('prompts are closed-book: no graph-first directive, no MCP tool names', async () => {
@@ -327,14 +329,15 @@ describe('wiki-generator.service', () => {
     expect(index).toContain('## Architecture');
     expect(index).toContain('## Services catalog');
     expect(index).toContain('## Per-service docs');
-    expect(index).toContain('## Data flows');
-    expect(index).toContain('## Patterns');
+    // Cross-cutting Data flows / Patterns groups retired in H4.
+    expect(index).not.toContain('## Data flows');
+    expect(index).not.toContain('## Patterns');
 
     expect(index).toContain('[ARCHITECTURE](ARCHITECTURE.md)');
     expect(index).toContain('[SERVICES](SERVICES.md)');
-    expect(index).toContain('[DATA-FLOWS](DATA-FLOWS.md)');
-    expect(index).toContain('[PATTERNS](PATTERNS.md)');
     expect(index).toContain('[api](services/api.md)');
+    expect(index).not.toContain('[DATA-FLOWS](DATA-FLOWS.md)');
+    expect(index).not.toContain('[PATTERNS](PATTERNS.md)');
 
     // Inline metadata: document_type + confidence + tags
     expect(index).toMatch(/architecture, confidence:/);
@@ -362,11 +365,7 @@ describe('wiki-generator.service', () => {
 
     const result = await service.generateAll();
     const interestingPages = result.files.filter(
-      (f) =>
-        f.filename === 'wiki/ARCHITECTURE.md' ||
-        f.filename === 'wiki/DATA-FLOWS.md' ||
-        f.filename === 'wiki/PATTERNS.md' ||
-        f.filename === 'wiki/services/api.md',
+      (f) => f.filename === 'wiki/ARCHITECTURE.md' || f.filename === 'wiki/services/api.md',
     );
     expect(interestingPages.length).toBeGreaterThan(0);
     for (const page of interestingPages) {
@@ -376,26 +375,25 @@ describe('wiki-generator.service', () => {
     }
   });
 
-  it('runs the 3 core docs concurrently (not sequentially)', async () => {
-    let inFlight = 0;
-    let peak = 0;
+  it('renders the only remaining core doc (ARCHITECTURE.md) once', async () => {
+    // After H4, ARCHITECTURE.md is the sole cross-cutting LLM-generated wiki
+    // page. The previous test asserted that the three core docs ran in
+    // parallel; with only one core doc, parallelism is moot — this test
+    // just confirms the path executes and emits the page.
+    const invocations: string[] = [];
 
     const service = new WikiGeneratorService({
       ...buildInput(),
       agentInvoker: async ({ filename }: WikiAgentInvocation) => {
         const isCore = !filename.startsWith('services/');
-        if (isCore) {
-          inFlight++;
-          peak = Math.max(peak, inFlight);
-        }
-        await new Promise((r) => setTimeout(r, 15));
-        if (isCore) inFlight--;
+        if (isCore) invocations.push(filename);
         return `# ${filename}`;
       },
     });
 
-    await service.generateAll();
-    expect(peak).toBeGreaterThanOrEqual(2);
+    const result = await service.generateAll();
+    expect(invocations).toEqual(['ARCHITECTURE.md']);
+    expect(result.files.some((f) => f.filename === 'wiki/ARCHITECTURE.md')).toBe(true);
   });
 
   it('runs service docs concurrently and preserves input order', async () => {

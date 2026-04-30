@@ -262,7 +262,7 @@ Invoke `/doc-updater` skill. Do not skip this even if you think no docs need upd
 
 - Analyze changed files for doc impact.
 - Apply the maintenance test (update only if truly needed).
-- Update `{{INSTRUCTION_FILE}}` and project-context surgically if needed.
+- Update `{{INSTRUCTION_FILE}}` and the relevant convention skill (`code-conventions` / `multi-file-workflows` / `testing-conventions`) surgically if needed; descriptive context flows to the wiki via Phase 8.5, not into a skill body.
 
 Expected outputs: doc-updater ran and produced an analysis.
 

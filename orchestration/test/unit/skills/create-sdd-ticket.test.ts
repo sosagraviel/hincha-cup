@@ -21,7 +21,7 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
 
     it('Phase 0 → 0.1 → 0.2 → 1 ordering is preserved', () => {
       const phase0Idx = content.indexOf('### Phase 0: Preflight (MANDATORY');
-      const phase01Idx = content.indexOf('### Phase 0.1: Inject Project Context');
+      const phase01Idx = content.indexOf('### Phase 0.1: Inject Project Conventions');
       const phase02Idx = content.indexOf('### Phase 0.2: Wiki & Graph Context Preload');
       const phase1Idx = content.indexOf('### Phase 1: Parse Input Source');
 
@@ -59,7 +59,7 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
   describe('Phase 0 preflight — deterministic auto-bootstrap (locked wording)', () => {
     function extractPhase0(): string {
       const start = content.indexOf('### Phase 0: Preflight (MANDATORY');
-      const end = content.indexOf('### Phase 0.1: Inject Project Context');
+      const end = content.indexOf('### Phase 0.1: Inject Project Conventions');
       if (start === -1 || end === -1) return '';
       return content.slice(start, end);
     }
@@ -95,12 +95,15 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
 
   describe('fallback behavior', () => {
     it('contains exact fallback log string required by tests', () => {
-      expect(content).toContain('wiki unavailable — falling back to project-context only');
+      expect(content).toContain(
+        'wiki unavailable — falling back to convention skills + CLAUDE.md only',
+      );
     });
 
     it('fallback log string appears at least twice (missing wiki + --skip-wiki paths)', () => {
       const occurrences = (
-        content.match(/wiki unavailable — falling back to project-context only/g) ?? []
+        content.match(/wiki unavailable — falling back to convention skills \+ CLAUDE\.md only/g) ??
+        []
       ).length;
       expect(occurrences).toBeGreaterThanOrEqual(2);
     });

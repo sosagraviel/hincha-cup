@@ -26,12 +26,14 @@ export function buildCoreSpecs(options: WikiGeneratorServiceOptions): WikiDocume
   // run", etc.) BEFORE every downstream slicer so no consumer can reintroduce
   // it. See wiki-input-sanitizer.ts + plans/2026-04-29-gira-init-run-audit-refactor
   // finding F15.
+  //
+  // Only ARCHITECTURE.md is rendered as a cross-cutting LLM-generated wiki
+  // page. Data flows are now described per-service in `wiki/services/<id>.md`
+  // (where they have actual context), and patterns moved to the prescriptive
+  // `code-conventions` and `testing-conventions` skills (where they belong —
+  // patterns describe what to DO, not what IS).
   const sanitizedUpstream = sanitizeWikiUpstream(digestedUpstream);
-  return [
-    architectureSpec(analyzers, stackProfile, graph, sanitizedUpstream),
-    dataFlowsSpec(analyzers, stackProfile, sanitizedUpstream),
-    patternsSpec(analyzers, stackProfile, sanitizedUpstream),
-  ];
+  return [architectureSpec(analyzers, stackProfile, graph, sanitizedUpstream)];
 }
 
 export function buildServiceSpec(
@@ -68,14 +70,67 @@ export function buildServiceSpec(
     filename: `services/${slugifyServiceId(serviceId)}.md`,
     documentType: 'service',
     title: `Service: ${serviceId}`,
+    // All four Phase 1 analyzers feed per-service docs now. Data-flows and
+    // code-patterns analyzer queries are attributed here because their
+    // findings are the structural ground truth for the per-service Request
+    // Lifecycle / Integrations / Patterns sections (the cross-cutting
+    // DATA-FLOWS.md and PATTERNS.md pages were retired in H4 — that content
+    // moved here, where it has actual context).
     graphQueriesUsed: normalizeGraphQueriesUsed([
       ...((analyzers.structure_architecture?.graph_queries_used ?? []) as string[]),
       ...((analyzers.tech_stack_dependencies?.graph_queries_used ?? []) as string[]),
+      ...((analyzers.code_patterns_testing?.graph_queries_used ?? []) as string[]),
+      ...((analyzers.data_flows_integrations?.graph_queries_used ?? []) as string[]),
     ]),
     promptFocus: [
       `Document only the "${serviceId}" service.`,
       'Use the service-scoped analyzer slice as the inventory of facts about this service.',
-      'Cover purpose, entry points, dependencies, and any data-flow or pattern signals that mention this service.',
+      '',
+      'Required sections (omit a section ONLY when the analyzer slice has nothing to say about it):',
+      '',
+      '  ## Purpose',
+      '    One paragraph: what this service is responsible for.',
+      '',
+      '  ## Public API / Surface',
+      '    What other services/clients call this service. List entry points,',
+      '    HTTP route bases, exposed event topics, public SDK functions, etc.',
+      '    DO NOT enumerate every endpoint — call out the surface shape and',
+      '    a representative subset. Cite analyzer evidence.',
+      '',
+      '  ## Internal Architecture',
+      '    Layered structure inside this service: controllers → services → repos,',
+      '    middleware order, guards/filters, dependency-injection container,',
+      "    background workers, etc. Use the structure-analyzer's slice.",
+      '',
+      '  ## Request Lifecycle (or Job Lifecycle)',
+      '    Step-by-step flow for a typical request through this service. For',
+      '    queue/worker services, describe the job pipeline instead. Use the',
+      "    data-flows-analyzer's slice.",
+      '',
+      '  ## Data Layer',
+      '    Persistence backends this service owns or talks to (DB, cache, queue,',
+      '    object store), with table/key namespaces if discoverable. Use the',
+      '    tech-stack and data-flows analyzer slices.',
+      '',
+      '  ## Integrations',
+      '    External services / APIs / message buses this service depends on, plus',
+      "    inbound integrations (webhooks, etc.). Use the data-flows analyzer's",
+      '    slice. Cross-reference [[wikilinks]] to other service docs when this',
+      '    service calls another service in the project.',
+      '',
+      '  ## Service-Specific Patterns',
+      '    Recurring implementation patterns observed *inside this service* —',
+      '    e.g. repository pattern, command bus, saga pattern, finite state',
+      "    machine. Use the code-patterns-testing analyzer's slice. DO NOT",
+      "    write prescriptive 'should/must' rules — those belong in the",
+      '    code-conventions skill, not the wiki. Describe what IS, not what',
+      '    to DO.',
+      '',
+      'For very large services (≥ ~50 entry points or ≥ ~30 modules), you MAY',
+      'add `## Sub-Areas` with one short paragraph per major sub-area (e.g.',
+      '"Auth", "Reporting", "Webhooks") so consumers can locate the right',
+      'corner of the service without paging the whole doc.',
+      '',
       `Service docs live under docs/llm-wiki/wiki/services/. Output filename: services/${slugifyServiceId(serviceId)}.md`,
     ],
     sourceContext: {
@@ -244,90 +299,17 @@ function architectureSpec(
   };
 }
 
-function dataFlowsSpec(
-  analyzers: WikiAnalyzerOutputs,
-  stackProfile: unknown,
-  digestedUpstream: WikiDigestedUpstream | undefined,
-): WikiDocumentSpec {
-  return {
-    filename: 'DATA-FLOWS.md',
-    documentType: 'data-flow',
-    title: 'Data Flows',
-    graphQueriesUsed: normalizeGraphQueriesUsed(
-      (analyzers.data_flows_integrations?.graph_queries_used ?? []) as string[],
-    ),
-    promptFocus: [
-      'Describe request lifecycles, auth, persistence, integrations, and middleware ordering.',
-      'Use `data_flows_integrations` analyzer findings as the structural ground truth.',
-      'Highlight the highest-signal flows in narrative markdown — do not enumerate every endpoint.',
-      'Data flow docs live under docs/llm-wiki/wiki/. Output filename: DATA-FLOWS.md',
-    ],
-    sourceContext: {
-      data_flows_integrations: analyzers.data_flows_integrations,
-      stack_profile: stackProfile,
-    },
-    digestedUpstream: scopeDigestedUpstream(digestedUpstream, [
-      'data flow',
-      'request',
-      'auth',
-      'middleware',
-      'persistence',
-      'integration',
-      'flow',
-      'lifecycle',
-    ]),
-    tags: deriveCoreTags('data-flow', stackProfile),
-  };
-}
-
-function patternsSpec(
-  analyzers: WikiAnalyzerOutputs,
-  stackProfile: unknown,
-  digestedUpstream: WikiDigestedUpstream | undefined,
-): WikiDocumentSpec {
-  return {
-    filename: 'PATTERNS.md',
-    documentType: 'pattern',
-    title: 'Patterns',
-    graphQueriesUsed: normalizeGraphQueriesUsed(
-      (analyzers.code_patterns_testing?.graph_queries_used ?? []) as string[],
-    ),
-    promptFocus: [
-      'Describe recurring implementation patterns, conventions, code style, and testing approach.',
-      'Use `code_patterns_testing` analyzer findings as the structural ground truth.',
-      'Call out patterns observed at scale — not one-off exceptions.',
-      'Pattern docs live under docs/llm-wiki/wiki/. Output filename: PATTERNS.md',
-    ],
-    sourceContext: {
-      code_patterns_testing: analyzers.code_patterns_testing,
-      stack_profile: stackProfile,
-    },
-    digestedUpstream: scopeDigestedUpstream(digestedUpstream, [
-      'pattern',
-      'convention',
-      'testing',
-      'test',
-      'style',
-      'lint',
-      'quality',
-    ]),
-    tags: deriveCoreTags('pattern', stackProfile),
-  };
-}
-
 /**
- * Curated tag set for core docs. Pulls the project's main languages from the
- * stack profile services so the architecture/data-flows/patterns index entries
- * can be filtered by stack at a glance. Bounded to ~5 tags per page.
+ * Curated tag set for the architecture page. Pulls the project's main
+ * languages from the stack profile services so the index entry can be
+ * filtered by stack at a glance. Bounded to ~5 tags.
+ *
+ * The previous version supported `'data-flow'` and `'pattern'` document
+ * types; both were retired alongside DATA-FLOWS.md / PATTERNS.md.
  */
-function deriveCoreTags(
-  documentType: 'architecture' | 'data-flow' | 'pattern',
-  stackProfile: unknown,
-): string[] {
+function deriveCoreTags(documentType: 'architecture', stackProfile: unknown): string[] {
   const seedByType: Record<typeof documentType, string[]> = {
     architecture: ['architecture', 'topology'],
-    'data-flow': ['data-flow', 'integrations'],
-    pattern: ['patterns', 'testing'],
   };
   const tags: string[] = [...seedByType[documentType]];
 

@@ -141,8 +141,6 @@ export const Phase4WikiDocsSchema = z.object({
     })
     .optional(),
   architecture: z.any().optional(),
-  data_flows: z.any().optional(),
-  patterns: z.any().optional(),
   service_docs: z.array(z.any()).optional(),
 });
 

@@ -12,8 +12,6 @@ import { synthesisNode } from '../nodes/initialize-project/phase3/synthesis.node
 import { contextGenerationNode } from '../nodes/initialize-project/phase4/context-generation.node.js';
 import { wikiPreparationNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-preparation.node.js';
 import { wikiArchitectureDocNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-architecture.node.js';
-import { wikiDataflowsDocNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-dataflows.node.js';
-import { wikiPatternsDocNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-patterns.node.js';
 import { wikiServiceDocsNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-service-docs.node.js';
 import { wikiGenerationNode } from '../nodes/initialize-project/phase4/wiki-generation.node.js';
 import { resourcesNode } from '../nodes/initialize-project/phase5/resources.node.js';
@@ -76,7 +74,13 @@ export function routeAfterWikiPreparation(state: InitializeProjectState): string
     return END;
   }
 
-  return ['wiki_architecture_doc', 'wiki_dataflows_doc', 'wiki_patterns_doc'];
+  // Only ARCHITECTURE.md is rendered as a cross-cutting LLM-generated wiki
+  // page. DATA-FLOWS.md and PATTERNS.md were retired in the H4 split: data
+  // flows are now described per-service in `wiki/services/<id>.md` (where
+  // they have actual context), and patterns moved to the prescriptive
+  // `code-conventions` and `testing-conventions` skills (where they belong
+  // — patterns are about what to DO, not what IS).
+  return 'wiki_architecture_doc';
 }
 
 /**
@@ -91,10 +95,12 @@ export function routeAfterWikiPreparation(state: InitializeProjectState): string
  * PHASE 4: Generate CLAUDE.md plus three prescriptive convention skills
  *   (code-conventions, multi-file-workflows, testing-conventions) and
  *   persist the architectural narrative for the wiki-generator
- * PHASE 4b: Generate docs/llm-wiki wiki via parallel subgraph:
- *   wiki_preparation → [architecture, data-flow, pattern] in parallel →
- *   wiki_service_docs (N concurrent per-service LLM calls) →
- *   wiki_generation (deterministic SERVICES.md catalog + index + disk writes)
+ * PHASE 4b: Generate docs/llm-wiki wiki via subgraph:
+ *   wiki_preparation → wiki_architecture_doc → wiki_service_docs (N
+ *   concurrent per-service LLM calls) → wiki_generation (deterministic
+ *   SERVICES.md catalog + index + disk writes). Cross-cutting DATA-FLOWS.md
+ *   and PATTERNS.md were retired — flows are now per-service, patterns are
+ *   prescriptive and live in the convention skills.
  * PHASE 5: Copy skills and resources
  * PHASE 6: Final validation
  *
@@ -111,8 +117,6 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addNode('context_generation', contextGenerationNode)
   .addNode('wiki_preparation', wikiPreparationNode)
   .addNode('wiki_architecture_doc', wikiArchitectureDocNode)
-  .addNode('wiki_dataflows_doc', wikiDataflowsDocNode)
-  .addNode('wiki_patterns_doc', wikiPatternsDocNode)
   .addNode('wiki_service_docs', wikiServiceDocsNode)
   .addNode('wiki_generation', wikiGenerationNode)
   .addNode('resources', resourcesNode)
@@ -136,10 +140,8 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   // Phase 4b: wiki preparation fans out to 3 parallel core-doc nodes
   .addEdge('context_generation', 'wiki_preparation')
   .addConditionalEdges('wiki_preparation', routeAfterWikiPreparation)
-  // Core-doc nodes converge on the service-docs node
+  // Architecture doc converges on the service-docs node
   .addEdge('wiki_architecture_doc', 'wiki_service_docs')
-  .addEdge('wiki_dataflows_doc', 'wiki_service_docs')
-  .addEdge('wiki_patterns_doc', 'wiki_service_docs')
   // Service docs → finalization → resources
   .addEdge('wiki_service_docs', 'wiki_generation')
   .addEdge('wiki_generation', 'resources')

@@ -145,7 +145,7 @@ The following are explicitly NOT part of this ticket:
 ### Documentation
 - [ ] API endpoints documented (if applicable)
 - [ ] README updated (if user-facing feature)
-- [ ] Technical decisions logged in project-context skill
+- [ ] Prescriptive rules added to the relevant convention skill (`code-conventions`, `multi-file-workflows`, or `testing-conventions`); descriptive context flows to `docs/llm-wiki/` via `/wiki-refresh`
 
 ### Review & Deployment
 - [ ] Code reviewed and approved

@@ -1,13 +1,27 @@
 ---
 name: doc-updater
-description: Maintain project documentation accuracy after code changes by analyzing changed files and updating only necessary sections of the project instruction file and project-context skill. Use after implementing a ticket, after significant code changes, or when architectural patterns, file placement conventions, or technologies change.
+description: Maintain project documentation accuracy after code changes by analyzing changed files and updating only necessary sections of the project instruction file and the three prescriptive convention skills (code-conventions, multi-file-workflows, testing-conventions). Use after implementing a ticket, after significant code changes, or when architectural patterns, file placement conventions, or technologies change.
 ---
 
 # Documentation Updater Skill
 
 ## Purpose
 
-Maintain `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` and `{{CONFIG_DIR}}/skills/project-context/SKILL.md` accuracy after code changes by analyzing changed files and updating only necessary documentation sections.
+Maintain `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` and the three prescriptive convention skills under `{{CONFIG_DIR}}/skills/` (`code-conventions/SKILL.md`, `multi-file-workflows/SKILL.md`, `testing-conventions/SKILL.md`) after code changes by analyzing changed files and updating only the necessary sections.
+
+**What this skill does NOT touch:**
+
+- `docs/llm-wiki/` — refreshed by the `/wiki-refresh` workflow (graph-grounded)
+- The architectural narrative — descriptive prose lives in the wiki, not in skills
+- Per-endpoint / per-entity inventories — those are discoverable from code
+
+**Descriptive vs. prescriptive line (load-bearing):**
+
+- CLAUDE.md is a **cheat-sheet**: file placement, commands, tech stack
+- The three skills are **prescriptive**: rules, examples, checklists
+- The wiki is **descriptive**: system shape, service inventory, flows
+
+If a fact you'd update is descriptive, it belongs in the wiki — run `/wiki-refresh` instead.
 
 ## When to Use
 
@@ -43,7 +57,7 @@ This skill expects to be called from implement-ticket Phase 7 with:
 {
   "todos": [
     {
-      "content": "Read current {{INSTRUCTION_FILE}} and project-context",
+      "content": "Read current {{INSTRUCTION_FILE}} and the three convention skills",
       "status": "in_progress",
       "activeForm": "Reading current documentation"
     }
@@ -59,8 +73,16 @@ echo "=== Current {{INSTRUCTION_FILE}} ==="
 cat {{CONFIG_DIR}}/{{INSTRUCTION_FILE}}
 
 echo ""
-echo "=== Current project-context/SKILL.md ==="
-cat {{CONFIG_DIR}}/skills/project-context/SKILL.md
+echo "=== Current code-conventions/SKILL.md ==="
+cat {{CONFIG_DIR}}/skills/code-conventions/SKILL.md
+
+echo ""
+echo "=== Current multi-file-workflows/SKILL.md ==="
+cat {{CONFIG_DIR}}/skills/multi-file-workflows/SKILL.md
+
+echo ""
+echo "=== Current testing-conventions/SKILL.md ==="
+cat {{CONFIG_DIR}}/skills/testing-conventions/SKILL.md
 ```
 
 <TodoWrite>
@@ -68,7 +90,7 @@ cat {{CONFIG_DIR}}/skills/project-context/SKILL.md
 {
   "todos": [
     {
-      "content": "Read current {{INSTRUCTION_FILE}} and project-context",
+      "content": "Read current {{INSTRUCTION_FILE}} and the three convention skills",
       "status": "completed",
       "activeForm": "Reading current documentation"
     }
@@ -171,37 +193,67 @@ Categorize changes:
    - Port mappings changed
    - New services deployed
 
-#### project-context/SKILL.md Updates Needed When:
+#### code-conventions/SKILL.md Updates Needed When:
 
-1. **Request Lifecycle Changed**:
-   - New middleware added
-   - Guard/interceptor order changed
-   - Authentication flow modified
+Prescriptive code rules — gotchas, naming, error-handling, data-layer
+patterns. Update when:
 
-2. **Authentication/Authorization Changed**:
-   - New auth mechanism
-   - RBAC/policy changes
-   - Token handling modified
+1. **New Gotcha Discovered**:
+   - A bug fix surfaced a non-obvious pattern that's easy to get wrong
+   - Add a `### Title` block with WRONG/CORRECT code examples
 
-3. **Real-Time Architecture Changed**:
-   - WebSocket event flow modified
-   - New event types
-   - Subscription management changed
+2. **Naming Convention Changed**:
+   - File naming convention modified
+   - Identifier convention modified
 
-4. **Error Handling Changed**:
-   - New exception types
-   - Global error handler modified
-   - Error transformation changed
+3. **Error Handling Pattern Changed**:
+   - New exception type or handler added that needs prescriptive rules
+   - Error response format changed
 
-5. **Data Flow Patterns Changed**:
-   - New repository pattern
-   - DTO transformation logic
-   - Response serialization changed
+4. **Data-Layer Rule Changed**:
+   - Repository / DAO pattern modified
+   - Transaction handling rule changed (e.g., new wrapping requirement)
 
-6. **Non-Obvious Patterns Added**:
-   - New guard stacking rules
-   - New decorator requirements
-   - New multi-file update checklist
+If the change is **descriptive** ("there is a global error handler"),
+it belongs in the wiki — run `/wiki-refresh` instead. This skill carries
+**prescriptive** rules only ("ALWAYS wrap order writes in a transaction").
+
+#### multi-file-workflows/SKILL.md Updates Needed When:
+
+Cross-cutting checklists — ordered steps for changes that touch many
+files. Update when:
+
+1. **New Multi-File Workflow Discovered**:
+   - The implementation surfaced an "and you must also update X" rule
+   - Add a `## Workflow Name` heading + numbered steps + gotcha note
+
+2. **Existing Workflow Changed**:
+   - A new file is now part of an existing workflow (e.g., a new barrel export)
+   - The order of steps in an existing workflow matters and changed
+
+#### testing-conventions/SKILL.md Updates Needed When:
+
+Prescriptive test rules with example code. Update when:
+
+1. **New "Do Not Mock" Rule Added**:
+   - Test failure or production incident proved a class shouldn't be mocked
+
+2. **New Fixture Convention Added**:
+   - A reusable fixture / builder pattern emerged
+
+3. **Coverage Expectation Changed**:
+   - Threshold moved, or per-area coverage rule introduced
+
+4. **New Test Pattern Added**:
+   - Update the example code in the relevant section
+
+#### Architectural Narrative Updates (NOT this skill)
+
+If the change is **descriptive** — service boundaries shifted, request
+lifecycle steps changed, a new external integration was added — that
+content lives in `docs/llm-wiki/wiki/ARCHITECTURE.md` (or per-service
+docs). **Do not update those here.** Run `/wiki-refresh` instead; it
+re-runs the graph-grounded wiki generator over the current code.
 
 #### Apply the Maintenance Test
 
@@ -372,52 +424,75 @@ For each update in `updates.claudeMd`:
    - Update if docker-compose.yml services changed
    - Update if port mappings changed
 
-#### Update project-context/SKILL.md
+#### Update the Three Convention Skills
 
-For each update in `updates.projectContext`:
+For each update in `updates.codeConventions` /
+`updates.multiFileWorkflows` / `updates.testingConventions`:
 
-1. Use the Edit tool to apply changes:
+1. Use the Edit tool to apply changes to the appropriate skill body:
 
    ```
    Edit({
-     file_path: '{{CONFIG_DIR}}/skills/project-context/SKILL.md',
+     file_path: '{{CONFIG_DIR}}/skills/code-conventions/SKILL.md',
      old_string: update.before,
-     new_string: update.after
+     new_string: update.after,
    })
    ```
 
-2. Verify the edit was successful
+   ```
+   Edit({
+     file_path: '{{CONFIG_DIR}}/skills/multi-file-workflows/SKILL.md',
+     old_string: update.before,
+     new_string: update.after,
+   })
+   ```
 
-**Update Strategy by Section**:
+   ```
+   Edit({
+     file_path: '{{CONFIG_DIR}}/skills/testing-conventions/SKILL.md',
+     old_string: update.before,
+     new_string: update.after,
+   })
+   ```
 
-1. **Request Lifecycle**:
-   - Update if middleware/guards added
-   - Update if order of execution changed
-   - Include file paths for all steps
+2. Verify the edit was successful.
 
-2. **Authentication Flow**:
-   - Update if auth mechanism changed
-   - Update if session management changed
-   - Document caching strategy changes
+**Update Strategy by Skill**:
 
-3. **Authorization Pattern**:
-   - Update if guard stacking changed
-   - Update if RBAC policy evaluation changed
-   - Document new decorator requirements
+`code-conventions/SKILL.md`:
 
-4. **Error Handling Chain**:
-   - Update if new exception types added
-   - Update if global error handler behavior changed
-   - Document fail-fast behaviors
+1. **Gotchas section** — add a new `### Title` block with a one-line
+   description and WRONG/CORRECT fenced code examples. Keep examples
+   minimal and self-contained.
+2. **Naming** — update the rule, keep the rationale to one line.
+3. **Error Handling** — update the rule with one-line rationale.
+4. **Data Layer Rules** — update the rule with one-line rationale.
 
-5. **Real-Time Architecture**:
-   - Update if WebSocket event flow changed
-   - Update if subscription management changed
-   - Document full event pipeline
+`multi-file-workflows/SKILL.md`:
 
-6. **Multi-File Patterns**:
-   - Update if new checklist needed (e.g., "when adding a new module")
-   - Document non-obvious multi-file dependencies
+1. **Existing workflow** — modify the numbered steps in place; preserve
+   step ordering.
+2. **New workflow** — add a `## Adding a new <thing>` heading with
+   numbered steps and a `> Gotcha:` line where wrong order causes bugs.
+3. Keep checklists concrete: real file paths, `{placeholder}` for
+   varying segments only.
+
+`testing-conventions/SKILL.md`:
+
+1. **Philosophy** — add or modify a "do test" / "do NOT test" bullet.
+2. **Unit / Integration / E2E patterns** — update the example test code
+   to match the new pattern.
+3. **What NOT to Mock** — add a bullet with one-line rationale (often
+   "incident X showed mocking Y masks failures").
+4. **Fixture Conventions** — update naming / location rules with the
+   example.
+
+**If a fact you'd want to add is descriptive** ("the system uses RabbitMQ
+for jobs", "auth is OAuth2 PKCE"), it belongs in the wiki, not in a
+skill. Run `/wiki-refresh` instead — the wiki-generator re-runs over
+the current graph and analyzers, producing a fresh
+`docs/llm-wiki/wiki/ARCHITECTURE.md` and per-service docs. Do not
+duplicate descriptive content into skills.
 
 <TodoWrite>
 ```json
@@ -458,8 +533,16 @@ echo "=== Updated {{INSTRUCTION_FILE}} ==="
 cat {{CONFIG_DIR}}/{{INSTRUCTION_FILE}}
 
 echo ""
-echo "=== Updated project-context/SKILL.md ==="
-cat {{CONFIG_DIR}}/skills/project-context/SKILL.md
+echo "=== Updated code-conventions/SKILL.md ==="
+cat {{CONFIG_DIR}}/skills/code-conventions/SKILL.md
+
+echo ""
+echo "=== Updated multi-file-workflows/SKILL.md ==="
+cat {{CONFIG_DIR}}/skills/multi-file-workflows/SKILL.md
+
+echo ""
+echo "=== Updated testing-conventions/SKILL.md ==="
+cat {{CONFIG_DIR}}/skills/testing-conventions/SKILL.md
 ```
 
 Verify:
@@ -468,9 +551,13 @@ Verify:
 - ✅ Existing structure preserved
 - ✅ No exhaustive lists added
 - ✅ All referenced paths exist (use Glob to verify)
-- ✅ Changes pass maintenance test
-- ✅ {{INSTRUCTION_FILE}} remains concise (<300 lines)
-- ✅ project-context remains concise (<250 lines)
+- ✅ Changes pass the maintenance test
+- ✅ Each file remains within its line bounds:
+  - {{INSTRUCTION_FILE}} 30–250 lines
+  - code-conventions/SKILL.md 30–250 lines
+  - multi-file-workflows/SKILL.md 20–200 lines
+  - testing-conventions/SKILL.md 25–200 lines
+- ✅ No descriptive prose leaked into the skills (descriptive belongs in the wiki)
 
 <TodoWrite>
 ```json
@@ -517,15 +604,19 @@ Verify:
       "sections": [],
       "reason": "Changes are implementation details, no architectural patterns affected"
     },
-    "projectContext": {
+    "codeConventions": {
       "updateNeeded": false,
       "sections": [],
-      "reason": "No hard-to-discover knowledge changed"
-    }
+      "reason": "No new gotchas or rule changes"
+    },
+    "multiFileWorkflows": { "updateNeeded": false, "sections": [], "reason": "No new cross-file workflow" },
+    "testingConventions": { "updateNeeded": false, "sections": [], "reason": "No new test rule" }
   },
   "updates": {
     "claudeMd": [],
-    "projectContext": []
+    "codeConventions": [],
+    "multiFileWorkflows": [],
+    "testingConventions": []
   }
 }
 ```
@@ -541,11 +632,9 @@ Verify:
       "sections": ["File Placement Guide"],
       "reason": "New feature module pattern introduced for profile pages"
     },
-    "projectContext": {
-      "updateNeeded": false,
-      "sections": [],
-      "reason": "No architectural patterns changed"
-    }
+    "codeConventions": { "updateNeeded": false, "sections": [], "reason": "No new gotcha" },
+    "multiFileWorkflows": { "updateNeeded": false, "sections": [], "reason": "No new cross-file workflow" },
+    "testingConventions": { "updateNeeded": false, "sections": [], "reason": "No new test rule" }
   },
   "updates": {
     "claudeMd": [
@@ -557,46 +646,50 @@ Verify:
         "justification": "New profile feature introduced with its own directory structure"
       }
     ],
-    "projectContext": []
+    "codeConventions": [],
+    "multiFileWorkflows": [],
+    "testingConventions": []
   }
 }
 ```
 
-### Example 3: Major Architectural Changes
+### Example 3: New Gotcha + Cross-File Workflow
 
 ```json
 {
   "ticketId": "PROJ-789",
   "changesDetected": {
-    "claudeMd": {
+    "claudeMd": { "updateNeeded": false, "sections": [], "reason": "No cheat-sheet impact" },
+    "codeConventions": {
       "updateNeeded": true,
-      "sections": ["Architecture", "Request Lifecycle"],
-      "reason": "Migration from REST to GraphQL requires major documentation updates"
+      "sections": ["Gotchas"],
+      "reason": "Discovered that the new transaction wrapper must be used for any inventory write — bare repo.save corrupts state on partial failure"
     },
-    "projectContext": {
+    "multiFileWorkflows": {
       "updateNeeded": true,
-      "sections": ["Request Lifecycle", "Error Handling Chain"],
-      "reason": "GraphQL resolver chain is fundamentally different from REST middleware chain"
-    }
+      "sections": ["Adding a new entity"],
+      "reason": "Workflow now also requires registering the entity in the new EntityRegistry"
+    },
+    "testingConventions": { "updateNeeded": false, "sections": [], "reason": "No test rule change" }
   },
-  "recommendation": "Consider running /initialize-project skill to regenerate documentation from scratch",
+  "recommendation": "If descriptive context about the new EntityRegistry is needed, run /wiki-refresh — the wiki, not the skills, is where descriptive prose lives.",
   "updates": {
-    "claudeMd": [
+    "codeConventions": [
       {
-        "section": "Architecture",
-        "action": "update",
-        "before": "REST API with controllers and services",
-        "after": "GraphQL API with resolvers and dataloaders",
-        "justification": "Migrated from REST to GraphQL architecture"
+        "section": "Gotchas",
+        "action": "add",
+        "before": null,
+        "after": "### Inventory writes must go through dataSource.transaction\n\n```typescript\n// WRONG\nawait inventoryRepo.save(inv);\n```\n\n```typescript\n// CORRECT\nreturn dataSource.transaction(async (m) => m.save(Inventory, inv));\n```",
+        "justification": "Production incident PROJ-789 surfaced this rule"
       }
     ],
-    "projectContext": [
+    "multiFileWorkflows": [
       {
-        "section": "Request Lifecycle",
+        "section": "Adding a new entity",
         "action": "update",
-        "before": "1. Request → Middleware → Controller → Service",
-        "after": "1. Request → Context Builder → Resolver → Dataloader → Service",
-        "justification": "GraphQL resolver chain replaces REST controller flow"
+        "before": "1. Create migration\n2. Update entity class",
+        "after": "1. Create migration\n2. Update entity class\n3. Register in `apps/api/src/entity-registry.ts`",
+        "justification": "EntityRegistry now required"
       }
     ]
   }
@@ -614,7 +707,7 @@ Your documentation update is successful if:
 - ✅ No exhaustive lists added
 - ✅ All referenced paths exist in codebase
 - ✅ Changes pass the maintenance test
-- ✅ Documentation remains concise ({{INSTRUCTION_FILE}} <300 lines, project-context <250 lines)
+- ✅ Documentation remains within line bounds ({{INSTRUCTION_FILE}} 30–250 lines; code-conventions 30–250; multi-file-workflows 20–200; testing-conventions 25–200)
 - ✅ Updates accurately reflect code changes
 - ✅ Hard-to-discover knowledge is preserved
 

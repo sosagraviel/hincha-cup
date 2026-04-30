@@ -178,13 +178,13 @@ End every completion summary with this section. Emit one JSON object per line in
 
 ```jsonl
 {"file_path":"src/auth/oauth.py","suggested_page":"services/auth.md","action":"update","reason":"added GoogleOAuthProvider class"}
-{"file_path":"src/auth/oauth.py","suggested_page":"PATTERNS.md","action":"update","reason":"introduces OAuth retry pattern"}
+{"file_path":"src/auth/oauth.py","suggested_page":"services/auth.md","action":"update","reason":"introduces OAuth retry pattern in service-specific patterns section"}
 ```
 ````
 
 Requirements:
 - One JSON object per line.
-- Required keys: `file_path` (relative to project root), `suggested_page` (relative to `docs/llm-wiki/wiki/` — e.g. `services/auth.md`, `PATTERNS.md`), `action` (one of `add`, `update`, `deprecate`), `reason` (≤120 chars).
+- Required keys: `file_path` (relative to project root), `suggested_page` (relative to `docs/llm-wiki/wiki/` — e.g. `services/auth.md`, `ARCHITECTURE.md`; the cross-cutting `DATA-FLOWS.md` / `PATTERNS.md` pages were retired in favor of per-service docs and prescriptive convention skills), `action` (one of `add`, `update`, `deprecate`), `reason` (≤120 chars).
 - If no wiki pages were impacted (no-op ticket, pure config change), emit an empty fenced block:
 
 ````markdown

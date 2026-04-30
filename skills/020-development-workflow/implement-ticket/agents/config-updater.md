@@ -246,7 +246,7 @@ If config update fails:
 
 ## Skills Required
 
-- `update-project-context` - For understanding project structure
+- `code-conventions` / `multi-file-workflows` / `testing-conventions` — for prescriptive context about how this project is built
 - `mastering-git-cli` - For analyzing changed files
 
 ## Usage in implement-ticket
@@ -257,7 +257,7 @@ This agent is invoked during Phase 8:
 # Phase 8: Documentation Update
 echo "Phase 8: Documentation Update"
 
-# Step 1: Update CLAUDE.md and project-context if needed
+# Step 1: Update CLAUDE.md and the convention skills if needed
 # (existing logic)
 
 # Step 2: Check for stack changes and update config

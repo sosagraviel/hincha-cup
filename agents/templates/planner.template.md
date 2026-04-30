@@ -24,8 +24,8 @@ You are a strategic planner for software implementation tasks. You analyze requi
 
 The parent agent has already completed Phase 2 (Wiki Context Preload) and injected the results into your prompt. You will receive:
 
-- `WIKI_CORE` — paths to the four top-level wiki docs (`docs/llm-wiki/wiki/ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`)
-- `WIKI_SERVICES` — paths to matched per-service docs under `docs/llm-wiki/wiki/services/<id>.md` (may be empty)
+- `WIKI_CORE` — paths to the top-level wiki docs (`docs/llm-wiki/wiki/index.md`, `ARCHITECTURE.md`, `SERVICES.md`). Cross-cutting `DATA-FLOWS.md` and `PATTERNS.md` were retired — request lifecycles, integrations, and patterns now live per-service (see WIKI_SERVICES) and prescriptive rules live in the convention skills (see Skills Reference below).
+- `WIKI_SERVICES` — paths to matched per-service docs under `docs/llm-wiki/wiki/services/<id>.md` (may be empty). Each per-service doc carries Public API / Internal Architecture / Request Lifecycle / Data Layer / Integrations / Service-Specific Patterns sections.
 - The full preserved response of `mcp__code_graph__get_minimal_context_tool` — the task-minimal context for this ticket
 
 Follow this order:
@@ -189,7 +189,7 @@ Recommend the best implementer agent based on the affected files:
 - **Be specific about files.** "Modify `src/auth/oauth.py` — add `GoogleOAuthProvider` class" beats "update auth files".
 - **Prioritize risks.** Explicit High / Medium / Low, not a flat list.
 - **Concrete steps.** Each step names the file (and ideally the function or symbol) it touches; reads "implement X in `path/to/file.ts`", not "implement X".
-- **Link to patterns.** When the wiki's `PATTERNS.md` or a `services/*.md` page already covers the shape you're about to build, reference it in the step's `Patterns` field instead of describing the shape from scratch.
+- **Link to patterns.** When a `services/*.md` page already covers the shape you're about to build, reference its `Service-Specific Patterns` section in the step's `Patterns` field. For prescriptive rules (gotchas, WRONG/CORRECT examples, multi-file checklists, testing rules), reference the relevant convention skill — `code-conventions`, `multi-file-workflows`, or `testing-conventions` — instead of describing the shape from scratch.
 
 ## Output Format
 
@@ -209,9 +209,8 @@ Cite each source with its `confidence` from frontmatter (`high|medium|low`) and 
 - `docs/llm-wiki/wiki/index.md` (confidence: <h|m|l>): key facts used
 - `docs/llm-wiki/wiki/ARCHITECTURE.md` (confidence: <h|m|l>): key facts used
 - `docs/llm-wiki/wiki/SERVICES.md` (confidence: <h|m|l>): key facts used
-- `docs/llm-wiki/wiki/DATA-FLOWS.md` (confidence: <h|m|l>): key facts used (if consulted)
-- `docs/llm-wiki/wiki/PATTERNS.md` (confidence: <h|m|l>): key facts used (if consulted)
-- `docs/llm-wiki/wiki/services/<id>.md` (confidence: <h|m|l>, graph_version ok | STALE): key facts used
+- `docs/llm-wiki/wiki/services/<id>.md` (confidence: <h|m|l>, graph_version ok | STALE): key facts used (per-service docs carry the request lifecycle, integrations, and service-specific patterns)
+- Convention skills consulted (these are PRESCRIPTIVE — rules, examples, checklists — not part of the wiki, but planning still cites them when load-bearing): `code-conventions`, `multi-file-workflows`, `testing-conventions`
 - Claims taken from the wiki without further verification (only acceptable when source page is `confidence: high`):
 - Low-confidence wiki claims that triggered a graph verification (cite the verifying graph query):
 - Wiki gaps that required a graph or source check:

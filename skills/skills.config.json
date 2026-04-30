@@ -321,6 +321,13 @@
       "trigger_mode": "always"
     },
     {
+      "name": "ingest-external-docs",
+      "path": "060-documentation/ingest-external-docs",
+      "description": "Stage external descriptive docs (PDFs, Confluence/Notion exports, ADRs) under docs/llm-wiki/raw/external/ for the wiki-generator to absorb on the next /wiki-refresh. Export-first; opt-in via wiki.cache_external in framework-config.json.",
+      "trigger_mode": "always",
+      "is_linkable_to_agents": false
+    },
+    {
       "name": "developing-with-docker",
       "path": "070-infrastructure/developing-with-docker",
       "description": "Docker development and containerization",

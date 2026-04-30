@@ -6,7 +6,7 @@ Skills for code quality checks, security reviews, automated testing, and pull re
 
 - **code-quality-check**: Automated quality verification with linters, type checkers, and test coverage (80%+ threshold)
 - **create-pr**: Create production-ready GitHub Pull Requests with artifacts (screenshots, videos, coverage)
-- **doc-updater**: Maintain `.claude/CLAUDE.md` and `project-context` accuracy after code changes
+- **doc-updater**: Maintain `.claude/CLAUDE.md` and the three generated convention skills (`code-conventions`, `multi-file-workflows`, `testing-conventions`) accuracy after code changes
 - **jest-coverage-automation**: AI-powered Jest test generation and coverage improvement until thresholds are met
 - **playwright-e2e-automation**: Multi-step Playwright E2E test automation using Planner, Implementer, and Healer agents
 - **pr-reviewer**: Comprehensive GitHub Pull Request code review with structured feedback for review-loop integration

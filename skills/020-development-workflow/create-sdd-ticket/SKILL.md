@@ -96,34 +96,37 @@ If it exits 0, the graph at `.code-review-graph/graph.db` and the wiki at `docs/
 
 The `--skip-wiki` flag (passed to `/create-sdd-ticket` itself) is forwarded to this preflight as `--skip-wiki`. Use only when explicitly told to.
 
-### Phase 0.1: Inject Project Context
+### Phase 0.1: Inject Project Conventions
 
-Invoke the `project-context` skill. **This skill is generated per target project** by `/initialize-project` Phase 5 and lives at `{{CONFIG_DIR}}/skills/project-context/SKILL.md` — its content is target-project-specific architectural narrative, not framework knowledge.
+Read the three prescriptive convention skill bodies that Phase 3 synthesis emitted for this project:
 
-Use it for:
+- `{{CONFIG_DIR}}/skills/code-conventions/SKILL.md` — gotchas with WRONG/CORRECT examples, naming rules, error handling, data-layer patterns
+- `{{CONFIG_DIR}}/skills/multi-file-workflows/SKILL.md` — ordered checklists for cross-cutting changes (add endpoint, add entity, etc.)
+- `{{CONFIG_DIR}}/skills/testing-conventions/SKILL.md` — what to mock and not, fixture conventions, coverage expectations, example tests
 
-- conventions and patterns already used in the codebase
-- integration points and known constraints
-- naming, testing, and deployment expectations
-- project-specific gotchas that should influence gap detection
-- file-placement guide (where things go in this codebase)
+These are **prescriptive** — rules, examples, checklists. Use them for:
 
-If the generated `project-context` skill is missing (project not yet initialized), fall back to `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` (the project's `CLAUDE.md` / `AGENTS.md`) and explicit codebase inspection, but still treat project-context collection as required work before continuing. Phase 0.1 produces **narrative**, not authoritative structural data — Phase 0.2 below is the structural authority.
+- conventions and patterns the project requires
+- gotchas that should influence gap detection
+- multi-file change checklists that may inform "what else needs touching"
+- test expectations that affect ticket sizing
+
+If any of these skills is missing (project not yet initialized), fall back to `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` (CLAUDE.md / AGENTS.md cheat-sheet) and explicit codebase inspection, but still treat convention loading as required work before continuing. Phase 0.1 carries **prescriptive** rules; descriptive context (what the system IS) comes from Phase 0.2 — the wiki.
 
 Before doing anything in this phase, verify the preflight marker: `test -f "$ARTIFACTS_DIR/.preflight-ok"` exits 0. If not, return to Phase 0.
 
 ### Phase 0.2: Wiki & Graph Context Preload
 
-Phase 0.1 and Phase 0.2 are **complementary, not redundant**. Both inject target-project context, but they differ in shape and authority:
+Phase 0.1 and Phase 0.2 are **complementary, not redundant**. They divide along a strict descriptive/prescriptive line:
 
-| | Phase 0.1 — `project-context` | Phase 0.2 — LLM wiki + graph |
+| | Phase 0.1 — convention skills | Phase 0.2 — LLM wiki + graph |
 |---|---|---|
-| Shape | narrative prose (synthesis output) | structured graph-backed docs + summary index |
-| Authority | high for conventions, gotchas, file-placement, named patterns | **highest** for architecture, service boundaries, data flows, and any structural fact derivable from the AST |
-| Freshness | refreshed only on full `/initialize-project` re-runs | refreshed every PR via `/implement-ticket` Phase 8.5; `graph_commit` frontmatter shows currency |
-| Cost | one skill invocation | router (≤150 lines) + 1–3 page bodies + at most one optional graph call |
+| Shape | prescriptive rules / checklists / WRONG-CORRECT examples | descriptive structured docs + summary index |
+| Authority | **highest** for "how do we DO this here" — conventions, gotchas, multi-file checklists, test rules | **highest** for "what IS this system" — architecture, service boundaries, data flows, any structural fact derivable from the AST |
+| Freshness | regenerated on `/initialize-project` re-runs | refreshed every PR via `/implement-ticket` Phase 8.5; `graph_commit` frontmatter shows currency |
+| Cost | three skill body reads (already in agent context if `skills:` frontmatter is wired) | router (≤150 lines) + 1–3 page bodies + at most one optional graph call |
 
-**Conflict-resolution rule** when both speak to the same fact: **the wiki wins** (graph-grounded + freshest). Use `project-context` for narrative gotchas, build/test commands, and conventions the wiki doesn't carry.
+**No conflict by construction** — the descriptive/prescriptive split means each fact lives in exactly one place. If a fact appears in both (rare regression), the wiki wins for descriptive claims and the convention skills win for prescriptive rules.
 
 If `docs/llm-wiki/` exists, defer retrieval to the wiki's own router. The router is project-specific and lists every available page with its summary inline; you do not need to walk frontmatter.
 
@@ -139,9 +142,9 @@ If `docs/llm-wiki/` exists, defer retrieval to the wiki's own router. The router
 
 **Tier discipline:** start with the router → 1–3 page bodies → at most one graph call. Never read every wiki page; the index entry summary is sufficient unless the user's question matches the page's topic. Stop wikilink traversal at depth 2.
 
-**Fallback:** if `docs/llm-wiki/` is missing (project not yet initialized), log `wiki unavailable — falling back to project-context only` and continue with Phase 0.1's narrative only. Do NOT fail the skill. Do NOT call graph tools if the graph MCP server is unavailable.
+**Fallback:** if `docs/llm-wiki/` is missing (project not yet initialized), log `wiki unavailable — falling back to convention skills + CLAUDE.md only` and continue with Phase 0.1's prescriptive context only. Do NOT fail the skill. Do NOT call graph tools if the graph MCP server is unavailable.
 
-Optional flag: pass `--skip-wiki` to bypass Phase 0.2 entirely (useful for freshly-cloned projects or offline environments). When `--skip-wiki` is present, log `wiki unavailable — falling back to project-context only` and proceed directly to Phase 1. Use this only when the wiki is known to be drift-prone — the framework's default assumption is that the wiki is fresher than `project-context`.
+Optional flag: pass `--skip-wiki` to bypass Phase 0.2 entirely (useful for freshly-cloned projects or offline environments). When `--skip-wiki` is present, log `wiki unavailable — falling back to convention skills + CLAUDE.md only` and proceed directly to Phase 1. Use this only when the wiki is known to be drift-prone — the framework's default assumption is that the wiki is fresher than any prescriptive skill body.
 
 ### Phase 1: Parse Input Source
 
@@ -158,7 +161,7 @@ Required inference order:
 
 1. Consult `WIKI_CORE` (the 1–3 page bodies loaded by Phase 0.2); every question the wiki already answers is removed from the gap list. If a matched page references a related page via `**Related:** [[...]]` and that related page is on-topic, expand it (depth ≤ 2).
 2. Graph queries — classify each remaining gap by question type and route to the matching tool (e.g. `mcp__code_graph__semantic_search_nodes_tool` for symbol lookups, `mcp__code_graph__query_graph_tool` for relationships). Do NOT default to `semantic_search_nodes_tool` for everything. See the routing table below; cap at 6 graph queries total for this step.
-3. Search `project-context` skill content and `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`.
+3. Search the three convention skill bodies (`code-conventions`, `multi-file-workflows`, `testing-conventions`) and `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` for prescriptive context.
 4. Codebase grep + related file inspection (narrowed by graph node paths from step 2 when available; reuse cached graph results instead of re-querying).
 5. Inspect existing tickets or drafts for precedents.
 6. Only if 1–5 fail, add the item to the question batch.
@@ -469,8 +472,9 @@ Then [outcome]
 
 Ask questions only when the answer cannot be reliably inferred from:
 
-- the `project-context` skill
+- the three convention skills (`code-conventions`, `multi-file-workflows`, `testing-conventions`)
 - `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`
+- the LLM wiki under `docs/llm-wiki/`
 - repository structure and nearby implementations
 - existing tickets or drafts
 - visible integration and testing patterns
@@ -643,7 +647,7 @@ Before finalizing, validate:
 
 ## Integration Notes
 
-- `project-context`: required in Phase 0.1
+- `code-conventions` / `multi-file-workflows` / `testing-conventions`: required in Phase 0.1 (the three prescriptive skills generated by `/initialize-project`)
 - `fetch-ticket-context`: useful when Jira input needs enrichment
 - `implement-ticket`: the resulting markdown or Jira ticket should be directly implementable
 - `ui-testing` and `ui-visual-testing`: used when UI work is detected and testing expectations need to be injected
@@ -651,11 +655,12 @@ Before finalizing, validate:
 
 ## Version History
 
-- **3.5.0** (2026-04-29): mandatory Phase 0 deterministic preflight (`bash $FRAMEWORK_PATH/scripts/ensure-context.sh`) auto-installs the graph + wiki dependencies and refreshes both before any context loading runs. Existing project-context and wiki preload phases renumbered to 0.1 and 0.2; each now asserts `$ARTIFACTS_DIR/.preflight-ok` before doing work
-- **3.4.0** (2026-04-27): clarified Phase 0 vs Phase 0.5 (§8) — both inject target-project context but in complementary shapes (narrative vs structured/graph-backed); explicit conflict-resolution rule (wiki wins on structural facts); confidence-aware Tier 3 page selection; `project-context` documented as target-project-generated, not framework knowledge
+- **3.6.0** (2026-04-29): replaced Phase 0.1's monolithic `project-context` skill with the three prescriptive convention skills (`code-conventions`, `multi-file-workflows`, `testing-conventions`); descriptive content now lives only in the wiki (Phase 0.2)
+- **3.5.0** (2026-04-29): mandatory Phase 0 deterministic preflight (`bash $FRAMEWORK_PATH/scripts/ensure-context.sh`) auto-installs the graph + wiki dependencies and refreshes both before any context loading runs. Existing convention-skills and wiki preload phases renumbered to 0.1 and 0.2; each now asserts `$ARTIFACTS_DIR/.preflight-ok` before doing work
+- **3.4.0** (2026-04-27): clarified Phase 0 vs Phase 0.5 (§8) — both inject target-project context but in complementary shapes (prescriptive vs descriptive/graph-backed); explicit conflict-resolution rule (wiki wins on structural facts); confidence-aware Tier 3 page selection; per-project skills documented as target-project-generated, not framework knowledge
 - **3.3.0** (2026-04-24): objective INVEST "Small" scope check via get_impact_radius_tool (§6) — Phase 5a queries blast radius before subjective evaluation; `metadata.scope_impact` records impacted_services/impacted_files/max_depth; split recommendations cite actual numbers; fallback logs `graph unavailable for scope check`
 - **3.2.0** (2026-04-24): multi-tool graph routing in Phase 2 gap detection (§5 of OPTIMIZATION_REVIEW) — question-class classifier table routes symbol_lookup, relationship, data_flow, boundary, impact, and overview gaps to the correct graph MCP tool; `graphEvidence` reshaped to array of `{tool, params, finding}` entries; 6-query cap enforced
 - **3.1.0** (2026-04-24): wiki + graph aware Phase 0.5, inference-order rewrite, `wikiEvidence`/`graphEvidence` in canonical ticket structure, `--skip-wiki` flag, updated Quality Checks
-- **3.0.0** (2026-04-15): unified command and skill behavior into one directly invokable skill, restored Phase 0 project-context injection, and removed slash-command duplication
+- **3.0.0** (2026-04-15): unified command and skill behavior into one directly invokable skill, restored Phase 0 prescriptive-context injection, and removed slash-command duplication
 - **2.0.0** (2026-03-08): added multiple input and output modes plus intelligent gap detection
 - **1.0.0** (2026-03-02): initial release

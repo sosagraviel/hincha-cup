@@ -30,39 +30,39 @@ describe('initializeProjectGraph routing', () => {
     expect(routeToPhase({ ...baseState, start_phase: 4 })).toBe('context_generation');
   });
 
-  it('routes context_generation through the parallel wiki subgraph into resources', () => {
+  it('routes context_generation through the wiki subgraph into resources', () => {
     const graph = initializeProjectGraph as any;
     const edges = Array.from(graph.allEdges).map((edge) => (edge as string[]).join('->'));
 
-    // All wiki subgraph nodes are registered.
+    // Wiki subgraph nodes that survived H4 are registered.
     for (const name of [
       'wiki_preparation',
       'wiki_architecture_doc',
-      'wiki_dataflows_doc',
-      'wiki_patterns_doc',
       'wiki_service_docs',
       'wiki_generation',
     ]) {
       expect(Object.keys(graph.nodes)).toContain(name);
     }
 
-    // Phase 4 chains: context_generation → wiki_preparation → (3 core docs) → service docs → finalization → resources.
+    // The wiki_dataflows_doc and wiki_patterns_doc nodes were retired in H4
+    // along with the cross-cutting DATA-FLOWS.md and PATTERNS.md pages.
+    expect(Object.keys(graph.nodes)).not.toContain('wiki_dataflows_doc');
+    expect(Object.keys(graph.nodes)).not.toContain('wiki_patterns_doc');
+
+    // Phase 4 chains: context_generation → wiki_preparation → wiki_architecture_doc
+    // → wiki_service_docs → wiki_generation → resources.
     expect(edges).toContain('context_generation->wiki_preparation');
     expect(edges).toContain('wiki_architecture_doc->wiki_service_docs');
-    expect(edges).toContain('wiki_dataflows_doc->wiki_service_docs');
-    expect(edges).toContain('wiki_patterns_doc->wiki_service_docs');
     expect(edges).toContain('wiki_service_docs->wiki_generation');
     expect(edges).toContain('wiki_generation->resources');
     expect(edges).not.toContain('context_generation->resources');
     expect(edges).not.toContain('context_generation->wiki_generation');
   });
 
-  it('fans wiki_preparation out to the 3 core-doc nodes', () => {
-    expect(routeAfterWikiPreparation({ ...baseState, current_phase: 'phase4_context' })).toEqual([
+  it('routes wiki_preparation directly to the architecture core-doc node (single-doc subgraph after H4)', () => {
+    expect(routeAfterWikiPreparation({ ...baseState, current_phase: 'phase4_context' })).toBe(
       'wiki_architecture_doc',
-      'wiki_dataflows_doc',
-      'wiki_patterns_doc',
-    ]);
+    );
   });
 
   it('stops the wiki subgraph when preparation fails', () => {

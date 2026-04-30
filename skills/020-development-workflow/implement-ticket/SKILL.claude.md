@@ -127,7 +127,7 @@ Create each task using TaskCreate with these exact values:
 9. Phase 8: Documentation Update
    subject: "Phase 8: Documentation Update"
    activeForm: "Updating documentation"
-   Steps: MUST invoke /doc-updater skill, analyze changed files for doc impact, apply maintenance test, update {{INSTRUCTION_FILE}} and project-context if needed
+   Steps: MUST invoke /doc-updater skill, analyze changed files for doc impact, apply maintenance test, update {{INSTRUCTION_FILE}} and the relevant convention skill (`code-conventions` / `multi-file-workflows` / `testing-conventions`) if needed
    Expected outputs: doc-updater skill was invoked and analysis completed
    Constraint: Do not proceed if doc-updater was not invoked.
 
@@ -330,7 +330,7 @@ CRITICAL: You MUST invoke `/doc-updater` skill. Do not skip this even if you thi
 
 - Analyze changed files for doc impact
 - Apply maintenance test (only update if truly needed)
-- Update {{INSTRUCTION_FILE}} and project-context surgically if needed
+- Update {{INSTRUCTION_FILE}} and the relevant convention skill (`code-conventions` / `multi-file-workflows` / `testing-conventions`) surgically if needed; descriptive context flows to the wiki via Phase 8.5, not into a skill body
 
 CONTINUE WITH Phase 8.5.
 

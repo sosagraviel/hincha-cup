@@ -147,8 +147,6 @@ describe('validationNode', () => {
         '/test/project/docs/llm-wiki/wiki/index.md',
         '/test/project/docs/llm-wiki/wiki/ARCHITECTURE.md',
         '/test/project/docs/llm-wiki/wiki/SERVICES.md',
-        '/test/project/docs/llm-wiki/wiki/DATA-FLOWS.md',
-        '/test/project/docs/llm-wiki/wiki/PATTERNS.md',
       ],
       timestamp: '2024-01-01T00:00:00Z',
     };
@@ -157,7 +155,9 @@ describe('validationNode', () => {
 
     expect(result.current_phase).toBe('complete');
     expect(result.llm_wiki_path).toBe('/test/project/docs/llm-wiki');
-    expect(result.llm_wiki_files).toHaveLength(6);
+    // After H4 the cross-cutting wiki shrank to: index.md + ARCHITECTURE.md
+    // + SERVICES.md (catalog) + per-service docs (none in this fixture).
+    expect(result.llm_wiki_files).toHaveLength(4);
   });
 
   it('should fail if wiki state is present but a core wiki file is missing', async () => {
@@ -168,15 +168,15 @@ describe('validationNode', () => {
       timestamp: '2024-01-01T00:00:00Z',
     };
     vi.mocked(fs.existsSync).mockImplementation(
-      (path: any) => !String(path).includes('PATTERNS.md'),
+      (path: any) => !String(path).includes('ARCHITECTURE.md'),
     );
 
     const result = await validationNode(mockState);
 
     expect(result.current_phase).toBe('failed');
-    expect(result.errors?.some((error) => error.includes('docs/llm-wiki/wiki/PATTERNS.md'))).toBe(
-      true,
-    );
+    expect(
+      result.errors?.some((error) => error.includes('docs/llm-wiki/wiki/ARCHITECTURE.md')),
+    ).toBe(true);
   });
 
   it('should fail if CLAUDE.md path not set', async () => {

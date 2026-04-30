@@ -2,21 +2,19 @@ import type { CodeGraphStats } from '../../state/schemas/initialize-project.sche
 import type { Provider } from '../../providers/types.js';
 import type { PhaseSlot } from '../framework/debug-store/index.js';
 
-export const LLM_WIKI_FILE_NAMES = [
-  'index.md',
-  'ARCHITECTURE.md',
-  'SERVICES.md',
-  'DATA-FLOWS.md',
-  'PATTERNS.md',
-] as const;
+export const LLM_WIKI_FILE_NAMES = ['index.md', 'ARCHITECTURE.md', 'SERVICES.md'] as const;
 
-// Core docs that are LLM-generated in parallel. SERVICES.md is intentionally
-// excluded — it is now a deterministic catalog assembled in the finalization step.
-export const LLM_WIKI_CORE_GENERATION_ORDER = [
-  'ARCHITECTURE.md',
-  'DATA-FLOWS.md',
-  'PATTERNS.md',
-] as const;
+// Core docs that are LLM-generated. The previous `DATA-FLOWS.md` and
+// `PATTERNS.md` cross-cutting wiki pages were retired:
+//   - Data flows: now described per-service in `wiki/services/<id>.md`
+//     where they have actual context. A cross-cutting flow doc duplicated
+//     facts the per-service docs already carry.
+//   - Patterns: prescriptive content, moved to the `code-conventions` and
+//     `testing-conventions` skills (where rules belong). The wiki carries
+//     descriptive prose only — what IS, not what to DO.
+// SERVICES.md is intentionally excluded from this list — it is a
+// deterministic catalog assembled in the finalization step, not LLM-generated.
+export const LLM_WIKI_CORE_GENERATION_ORDER = ['ARCHITECTURE.md'] as const;
 
 export const LLM_WIKI_CONTEXT_START = '<!-- LLM_WIKI_START -->';
 export const LLM_WIKI_CONTEXT_END = '<!-- LLM_WIKI_END -->';
@@ -54,7 +52,7 @@ export const REQUIRED_ANALYZERS = [
   'data_flows_integrations',
 ] as const;
 
-export type CoreLlmDocumentType = 'architecture' | 'data-flow' | 'pattern';
+export type CoreLlmDocumentType = 'architecture';
 
 export type CoreWikiFileName = (typeof LLM_WIKI_FILE_NAMES)[number];
 export type SchemaFileName = (typeof ALL_SCHEMA_FILENAMES)[number];
@@ -76,14 +74,7 @@ export interface WikiSource {
 }
 
 export interface WikiPageFrontmatter {
-  document_type:
-    | 'architecture'
-    | 'data-flow'
-    | 'pattern'
-    | 'service'
-    | 'services'
-    | 'index'
-    | 'schema';
+  document_type: 'architecture' | 'service' | 'services' | 'index' | 'schema';
   generated_at: string;
   generated_by: string;
   graph_version: string;

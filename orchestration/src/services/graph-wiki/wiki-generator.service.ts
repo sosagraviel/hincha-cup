@@ -173,7 +173,8 @@ export class WikiGeneratorService {
       '',
       'Catalog of services detected in this project. Each entry links to a dedicated',
       'service document under `services/`. See [ARCHITECTURE.md](ARCHITECTURE.md) for',
-      'cross-service relationships and [DATA-FLOWS.md](DATA-FLOWS.md) for execution flows.',
+      'cross-service relationships. Per-service request lifecycles and integrations',
+      'live inside the matching `services/<id>.md` page.',
       '',
       rows.length > 0 ? rows.join('\n') : '- No services detected.',
       '',
@@ -191,7 +192,7 @@ export class WikiGeneratorService {
         graph_commit: graphCommit,
         graph_queries_used: [],
         sources: [],
-        related: ['wiki/ARCHITECTURE.md', 'wiki/DATA-FLOWS.md'],
+        related: ['wiki/ARCHITECTURE.md'],
         last_verified: generatedAt,
         tags: ['services', 'catalog'],
       }),
@@ -334,6 +335,15 @@ export class WikiGeneratorService {
 
   /**
    * Copy root-level markdown files from the project into raw/snapshots/, stamping each with sha256.
+   *
+   * Also forwards any externally-ingested docs from
+   * `<projectPath>/docs/llm-wiki/raw/external/` through to the output. The
+   * `/ingest-external-docs` skill stages PDFs / Confluence exports / ADRs there
+   * with content-addressed filenames; the wiki-generator preserves them
+   * verbatim so the on-disk wiki survives a regeneration without losing
+   * externally-authored context. The wiki agent absorbs the content into
+   * per-service docs via the digestedUpstream pipeline (a future iteration
+   * will read these files into `digestedUpstream` automatically).
    */
   collectRawSnapshots(projectPath: string): GeneratedWikiFile[] {
     const rootMarkdownFiles = ['README.md', 'CONTRIBUTING.md'];
@@ -372,6 +382,30 @@ export class WikiGeneratorService {
       }
     } catch {}
 
+    // Pass through externally-ingested docs from the prior /wiki-refresh run
+    // (or from an explicit /ingest-external-docs invocation). The skill drops
+    // these under `<projectPath>/docs/llm-wiki/raw/external/`; the
+    // wiki-generator forwards them with their original filenames so the on-disk
+    // path survives regeneration.
+    const externalRoot = join(projectPath, 'docs', 'llm-wiki', 'raw', 'external');
+    if (existsSync(externalRoot)) {
+      try {
+        const externalEntries = readdirSync(externalRoot, { withFileTypes: true });
+        for (const entry of externalEntries) {
+          if (!entry.isFile()) continue;
+          // Forward any committed file. The skill is responsible for the
+          // content shape (`.md` for markdown, raw bytes for diagrams);
+          // we don't second-guess the staging contract.
+          const filePath = join(externalRoot, entry.name);
+          const content = readFileSync(filePath, 'utf-8');
+          files.push({
+            filename: `raw/external/${entry.name}` as `raw/${string}`,
+            content,
+          });
+        }
+      } catch {}
+    }
+
     return files;
   }
 
@@ -385,11 +419,16 @@ export class WikiGeneratorService {
     const { generatedAt, graphVersion, graphCommit } = this.computeMetadata();
     const projectName = basename(this.options.projectPath);
 
-    const [architecture, dataFlows, patterns] = await Promise.all([
-      this.generateCoreDoc('architecture', generatedAt, graphVersion, graphCommit),
-      this.generateCoreDoc('data-flow', generatedAt, graphVersion, graphCommit),
-      this.generateCoreDoc('pattern', generatedAt, graphVersion, graphCommit),
-    ]);
+    // ARCHITECTURE.md is the only cross-cutting LLM-generated wiki page.
+    // The previous DATA-FLOWS.md and PATTERNS.md were retired:
+    //   - data flows now live per-service in wiki/services/<id>.md
+    //   - patterns are prescriptive, in code-conventions / testing-conventions skills
+    const architecture = await this.generateCoreDoc(
+      'architecture',
+      generatedAt,
+      graphVersion,
+      graphCommit,
+    );
 
     const serviceDocs = await this.generateServiceDocsConcurrent(
       generatedAt,
@@ -406,23 +445,10 @@ export class WikiGeneratorService {
     // Build the index AFTER every other page so it can read each page's
     // frontmatter (summary / confidence / tags / related) and emit the summary
     // catalog inline. Tier 1 retrieval becomes one read, not N.
-    const indexInputPages: GeneratedWikiFile[] = [
-      architecture,
-      servicesCatalog,
-      dataFlows,
-      patterns,
-      ...serviceDocs,
-    ];
+    const indexInputPages: GeneratedWikiFile[] = [architecture, servicesCatalog, ...serviceDocs];
     const index = this.buildIndex(indexInputPages, generatedAt, graphVersion, graphCommit);
 
-    const wikiPages: GeneratedWikiFile[] = [
-      architecture,
-      servicesCatalog,
-      dataFlows,
-      patterns,
-      ...serviceDocs,
-      index,
-    ];
+    const wikiPages: GeneratedWikiFile[] = [architecture, servicesCatalog, ...serviceDocs, index];
 
     const rawSnapshots = this.collectRawSnapshots(this.options.projectPath);
     const rawManifest = this.buildRawManifest([]);
@@ -580,12 +606,7 @@ export class WikiGeneratorService {
         graph_commit: graphCommit,
         graph_queries_used: graphQueriesUsed,
         sources: [],
-        related: [
-          'wiki/ARCHITECTURE.md',
-          'wiki/SERVICES.md',
-          'wiki/DATA-FLOWS.md',
-          'wiki/PATTERNS.md',
-        ],
+        related: ['wiki/ARCHITECTURE.md', 'wiki/SERVICES.md'],
         last_verified: generatedAt,
       }),
     };
@@ -605,8 +626,6 @@ const INDEX_GROUP_ORDER: ReadonlyArray<{ documentType: string; heading: string }
   { documentType: 'architecture', heading: 'Architecture' },
   { documentType: 'services', heading: 'Services catalog' },
   { documentType: 'service', heading: 'Per-service docs' },
-  { documentType: 'data-flow', heading: 'Data flows' },
-  { documentType: 'pattern', heading: 'Patterns' },
 ];
 
 function readIndexEntry(page: GeneratedWikiFile): IndexEntry | null {
@@ -716,7 +735,7 @@ function buildSchemaDocBody(
     '',
     `This directory is the LLM-owned knowledge base for **${projectName}**. ${serviceCount === 0 ? 'No services were detected.' : `${serviceCount} service${serviceCount === 1 ? '' : 's'}: ${serviceList}.`}`,
     '',
-    'Top-level docs under `wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`. Per-service docs under `wiki/services/<id>.md`. Every page carries summary / document_type / confidence / tags / related frontmatter; `index.md` aggregates that frontmatter inline so a single read serves Tier 1 retrieval.',
+    'Top-level docs under `wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`. Per-service docs under `wiki/services/<id>.md` (each carries the service-specific request lifecycle, integrations, and data flows). Every page carries summary / document_type / confidence / tags / related frontmatter; `index.md` aggregates that frontmatter inline so a single read serves Tier 1 retrieval. Prescriptive content (conventions, multi-file workflows, testing rules) lives in `.claude/skills/code-conventions/`, `.claude/skills/multi-file-workflows/`, and `.claude/skills/testing-conventions/` — not in the wiki.',
     '',
     '## How to query (decision table)',
     '',
@@ -724,8 +743,8 @@ function buildSchemaDocBody(
     '|---|---|---|',
     '| architecture, topology, monorepo shape | `wiki/index.md` (summaries) → `wiki/ARCHITECTURE.md` | `wiki/services/<id>.md` for service-specific detail |',
     '| a specific service | `wiki/SERVICES.md` (catalog) | `wiki/services/<id>.md` |',
-    '| request lifecycle, auth, middleware | `wiki/index.md` → `wiki/DATA-FLOWS.md` | `wiki/services/<id>.md` for service-specific flows |',
-    '| testing, conventions, code style | `wiki/PATTERNS.md` | — |',
+    '| request lifecycle, auth, middleware, integrations | `wiki/SERVICES.md` (find the relevant service) | `wiki/services/<id>.md` (per-service flow + integrations live there) |',
+    '| testing rules, code conventions, multi-file workflows (prescriptive) | `.claude/skills/testing-conventions/SKILL.md` / `code-conventions/SKILL.md` / `multi-file-workflows/SKILL.md` | — (these live OUTSIDE the wiki — wiki is descriptive only) |',
     '| "I don\'t know which page" | `grep -i "<term>" wiki/index.md`, then read matched pages | follow `[[wikilinks]]` in matched pages, depth ≤ 2 |',
     '',
     '## Tier discipline',
