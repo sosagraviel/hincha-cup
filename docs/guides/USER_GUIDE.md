@@ -571,7 +571,7 @@ A: Framework generates PRs, but **human review is still required**:
 **Q: How does it handle different tech stacks?**
 
 A: **Automatically**:
-- Detects languages (TypeScript, Python, Go, Java, Scala, Rust, Ruby, etc.)
+- Detects languages (TypeScript, Python, Go, Java, Scala, C#, Rust, Ruby, etc.)
 - Identifies frameworks (React, Django, NestJS, Spring Boot, etc.)
 - Adapts to YOUR patterns and conventions
 

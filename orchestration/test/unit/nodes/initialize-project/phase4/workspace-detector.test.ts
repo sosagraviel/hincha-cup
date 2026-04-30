@@ -248,6 +248,33 @@ describe('workspace-detector', () => {
       expect(result.workspaces[0].type).toBe('composer');
     });
 
+    it('should detect .NET workspace from a lone global.json via the lock-file fallback', async () => {
+      await writeFile(join(testDir, 'global.json'), JSON.stringify({ sdk: { version: '8.0.0' } }));
+
+      const result = await detectWorkspaces(testDir);
+
+      expect(result.workspaces).toHaveLength(1);
+      expect(result.workspaces[0].manifest_file).toBe('global.json');
+      expect(result.workspaces[0].language).toBe('csharp');
+      expect(result.workspaces[0].type).toBe('dotnet');
+      expect(result.is_monorepo).toBe(false);
+    });
+
+    it('should not flip is_monorepo when global.json coexists with another primary manifest', async () => {
+      // global.json is intentionally NOT in PRIMARY_MANIFESTS — it's an SDK pin
+      // that frequently sits alongside a real workspace root (e.g., a frontend
+      // package.json in a repo that also uses `dotnet tool install`).
+      await writeFile(join(testDir, 'package.json'), JSON.stringify({ name: 'app' }));
+      await writeFile(join(testDir, 'global.json'), JSON.stringify({ sdk: { version: '8.0.0' } }));
+
+      const result = await detectWorkspaces(testDir);
+
+      expect(result.workspaces).toHaveLength(1);
+      expect(result.workspaces[0].manifest_file).toBe('package.json');
+      expect(result.is_monorepo).toBe(false);
+      expect(result.total_workspaces).toBe(1);
+    });
+
     it('should handle complex monorepo structure', async () => {
       // Root
       await writeFile(join(testDir, 'package.json'), JSON.stringify({ name: 'monorepo-root' }));

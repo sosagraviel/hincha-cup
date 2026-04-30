@@ -319,6 +319,28 @@ describe('CommandResolverService', () => {
       expect(result.some((cmd) => cmd.includes('mvn') || cmd.includes('gradle'))).toBe(true);
     });
 
+    it('should handle csharp test fallbacks', () => {
+      const csharpConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'csharp',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const csharpService = new CommandResolverService(csharpConfig as any);
+      const result = csharpService.getTestCommand('unit');
+      expect(result.some((cmd) => cmd.includes('dotnet test'))).toBe(true);
+    });
+
     it('should handle scala test fallbacks', () => {
       const scalaConfig = {
         project_name: 'test',
@@ -567,6 +589,28 @@ describe('CommandResolverService', () => {
       const javaService = new CommandResolverService(javaConfig as any);
       const result = javaService.getBuildCommand();
       expect(result.some((cmd) => cmd.includes('mvn') || cmd.includes('gradle'))).toBe(true);
+    });
+
+    it('should handle csharp build', () => {
+      const csharpConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'csharp',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const csharpService = new CommandResolverService(csharpConfig as any);
+      const result = csharpService.getBuildCommand();
+      expect(result.some((cmd) => cmd.includes('dotnet build'))).toBe(true);
     });
 
     it('should handle scala build', () => {
@@ -868,6 +912,28 @@ describe('CommandResolverService', () => {
       expect(result.some((cmd) => cmd.includes('cargo clippy'))).toBe(true);
     });
 
+    it('should get lint command for csharp', () => {
+      const csharpConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'csharp',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const csharpService = new CommandResolverService(csharpConfig as any);
+      const result = csharpService.getLintCommand();
+      expect(result.some((cmd) => cmd.includes('dotnet format'))).toBe(true);
+    });
+
     it('should get lint command for scala', () => {
       const scalaConfig = {
         project_name: 'test',
@@ -988,6 +1054,28 @@ describe('CommandResolverService', () => {
       const rustService = new CommandResolverService(rustConfig as any);
       const result = rustService.getFormatCommand();
       expect(result.some((cmd) => cmd.includes('cargo fmt') || cmd.includes('rustfmt'))).toBe(true);
+    });
+
+    it('should get format command for csharp', () => {
+      const csharpConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'csharp',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const csharpService = new CommandResolverService(csharpConfig as any);
+      const result = csharpService.getFormatCommand();
+      expect(result.some((cmd) => cmd.includes('dotnet format'))).toBe(true);
     });
 
     it('should get format command for scala', () => {
@@ -1170,6 +1258,28 @@ describe('CommandResolverService', () => {
       const rustService = new CommandResolverService(rustConfig as any);
       const result = rustService.getPackageManager();
       expect(result).toBe('cargo');
+    });
+
+    it('should return dotnet for csharp', () => {
+      const csharpConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'csharp',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const csharpService = new CommandResolverService(csharpConfig as any);
+      const result = csharpService.getPackageManager();
+      expect(result).toBe('dotnet');
     });
 
     it('should return sbt for scala', () => {
