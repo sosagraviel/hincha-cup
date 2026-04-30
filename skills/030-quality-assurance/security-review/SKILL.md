@@ -1,6 +1,6 @@
 ---
 name: security-review
-description: Automated security scanning and OWASP Top 10 verification. Use when asked to "security review", "security scan", "check for vulnerabilities", "OWASP check", or before creating a PR. Runs language-specific security scanners (bandit/pip-audit for Python, npm audit/eslint security for TypeScript), checks for secrets, SQL injection, XSS, and produces detailed security report with structured JSON for Phase 9 review loop integration.
+description: Automated security scanning and OWASP Top 10 verification. Use when asked to "security review", "security scan", "check for vulnerabilities", "OWASP check", or before creating a PR. Runs language-specific security scanners (bandit/pip-audit for Python, npm audit/eslint security for TypeScript, brakeman/bundler-audit for Ruby/Rails), checks for secrets, SQL injection, XSS, and produces detailed security report with structured JSON for Phase 9 review loop integration.
 argument-hint: '[optional: path/to/code]'
 allowed-tools: Read, Write, Bash, Glob, Grep
 ---
@@ -93,8 +93,8 @@ The skill reads/writes artifacts in the standardized directory structure:
 
 This skill performs security reviews by:
 
-1. **Detecting project language** - Python, TypeScript, JavaScript
-2. **Running security scanners** - Language-specific tools (bandit, npm audit, etc.)
+1. **Detecting project language** - Python, TypeScript, JavaScript, Ruby/Rails
+2. **Running security scanners** - Language-specific tools (bandit, npm audit, brakeman, bundler-audit, etc.)
 3. **Checking for secrets** - API keys, passwords, tokens in code
 4. **Validating input handling** - SQL injection, XSS, command injection
 5. **OWASP Top 10 verification** - Industry-standard security checklist
@@ -172,6 +172,38 @@ detect_language_and_tools() {
         echo "Available tools: $TOOLS"
     fi
 
+    # Ruby / Rails detection
+    if [[ -f "Gemfile" ]]; then
+        LANGUAGE="ruby"
+
+        # Detect Rails — Brakeman is Rails-specific and produces noise on plain Ruby/Sinatra
+        IS_RAILS=false
+        if [[ -f "config/application.rb" ]] || grep -qE '^\s*gem\s+["\x27]rails["\x27]' Gemfile 2>/dev/null; then
+            IS_RAILS=true
+        fi
+
+        # Always prefer `bundle exec` when Gemfile.lock is present so we run the
+        # gem versions pinned by the project (avoids drift with system-wide gems).
+        # Mirrors the same pattern used by code-quality-check.
+        BUNDLE_PREFIX=""
+        if [[ -f "Gemfile.lock" ]] && command -v bundle &>/dev/null; then
+            BUNDLE_PREFIX="bundle exec "
+        fi
+
+        # Check for security tools — try bundler-resolved gem first, then system-wide.
+        TOOLS=""
+        if [[ "$IS_RAILS" == "true" ]] && { (bundle exec brakeman --version &>/dev/null) || command -v brakeman &>/dev/null; }; then
+            TOOLS="$TOOLS brakeman"
+        fi
+        if (bundle exec bundle-audit --version &>/dev/null) || command -v bundle-audit &>/dev/null; then
+            TOOLS="$TOOLS bundler-audit"
+        fi
+
+        echo "Language: Ruby"
+        echo "Rails project: $IS_RAILS"
+        echo "Available tools: $TOOLS"
+    fi
+
     if [[ -z "$LANGUAGE" ]]; then
         echo "Warning: Cannot detect project language"
         echo "Running generic security checks only"
@@ -221,6 +253,31 @@ install_security_tools() {
                 echo "Installing eslint-plugin-security..."
                 npm install --save-dev eslint-plugin-security
             fi
+        fi
+    fi
+
+    if [[ "$lang" == "ruby" ]]; then
+        # Ensure bundler is present (needed even just to run `bundle exec`)
+        if ! command -v bundle &>/dev/null; then
+            echo "Installing bundler..."
+            gem install bundler
+        fi
+
+        # Install Brakeman only on Rails projects (it's Rails-specific SAST).
+        # Skip global install if the project already pins it via bundler.
+        if [[ "$IS_RAILS" == "true" ]] \
+            && ! (bundle exec brakeman --version &>/dev/null) \
+            && ! command -v brakeman &>/dev/null; then
+            echo "Installing brakeman..."
+            gem install brakeman
+        fi
+
+        # Install bundler-audit (dependency vulnerability scanner).
+        # Skip global install if bundler already resolves it.
+        if ! (bundle exec bundle-audit --version &>/dev/null) \
+            && ! command -v bundle-audit &>/dev/null; then
+            echo "Installing bundler-audit..."
+            gem install bundler-audit
         fi
     fi
 
@@ -314,6 +371,55 @@ EOF
     fi
 
     echo "TypeScript/JavaScript security scans complete"
+}
+```
+
+#### 3c. Ruby / Rails Security Scan
+
+```bash
+run_ruby_security_scan() {
+    local jira_key="$1"
+    local artifacts_dir=".claude/artifacts/$jira_key/security/scanner-outputs"
+    mkdir -p "$artifacts_dir"
+
+    echo "Running Ruby/Rails security scans..."
+
+    # 1. Brakeman - Rails-specific static analysis (skipped on non-Rails Ruby projects).
+    # Use ${BUNDLE_PREFIX} so the version pinned in the project's Gemfile wins.
+    if [[ "$IS_RAILS" == "true" ]] \
+        && { (bundle exec brakeman --version &>/dev/null) || command -v brakeman &>/dev/null; }; then
+        echo "Running brakeman..."
+        ${BUNDLE_PREFIX}brakeman -q --no-progress --format json \
+            -o "$artifacts_dir/brakeman-report.json" . 2>&1 || true
+
+        # Parse results
+        brakeman_warnings=$(jq '.warnings | length' "$artifacts_dir/brakeman-report.json" 2>/dev/null || echo "0")
+        echo "Brakeman found $brakeman_warnings warnings"
+    elif [[ "$IS_RAILS" != "true" ]]; then
+        echo "Skipping Brakeman (project is not Rails)"
+    fi
+
+    # 2. bundler-audit - Dependency vulnerabilities
+    if (bundle exec bundle-audit --version &>/dev/null) || command -v bundle-audit &>/dev/null; then
+        echo "Running bundle-audit..."
+        ${BUNDLE_PREFIX}bundle-audit update --quiet 2>/dev/null || true
+        ${BUNDLE_PREFIX}bundle-audit check --format json > "$artifacts_dir/bundler-audit-report.json" 2>&1 || true
+
+        # Parse results. bundler-audit < 0.10 silently ignores `--format json`
+        # and emits plain text; reporting "0 vulnerable gems" in that case
+        # would be a false negative, so detect non-JSON output and surface
+        # an INCONCLUSIVE state instead.
+        if jq -e empty "$artifacts_dir/bundler-audit-report.json" &>/dev/null; then
+            bundler_vulns=$(jq '.results | length' "$artifacts_dir/bundler-audit-report.json" 2>/dev/null || echo "0")
+            echo "bundle-audit found $bundler_vulns vulnerable gems"
+        else
+            bundler_vulns="inconclusive"
+            installed_version=$(${BUNDLE_PREFIX}bundle-audit --version 2>/dev/null | head -n1)
+            echo "bundle-audit: INCONCLUSIVE (output is not valid JSON — likely an older bundler-audit; got: ${installed_version:-unknown}). Upgrade to bundler-audit >= 0.10 to enable JSON parsing."
+        fi
+    fi
+
+    echo "Ruby/Rails security scans complete"
 }
 ```
 
@@ -476,6 +582,8 @@ check_injection_vulnerabilities() {
         "execute.*%.*"
         "execute.*f['\"].*{.*}.*['\"]"
         "raw.*SELECT.*WHERE"
+        "\.where\(['\"].*#\{.*\}.*['\"]"
+        "\.find_by_sql\(['\"].*#\{"
     )
 
     for pattern in "${sql_patterns[@]}"; do
@@ -491,6 +599,9 @@ check_injection_vulnerabilities() {
         "subprocess.*shell=True"
         "exec.*input\|request"
         "eval.*input\|request"
+        "system\(['\"].*#\{.*params"
+        "%x\[.*#\{.*params"
+        "\`.*#\{.*params.*\`"
     )
 
     for pattern in "${cmd_patterns[@]}"; do
@@ -505,6 +616,9 @@ check_injection_vulnerabilities() {
         "dangerouslySetInnerHTML"
         "innerHTML.*=.*"
         "\.html\(.*request\|input"
+        "raw\(.*params"
+        "params.*\.html_safe"
+        "<%==\s*params"
     )
 
     for pattern in "${xss_patterns[@]}"; do
@@ -955,6 +1069,27 @@ npx eslint . --plugin security
 snyk test
 ```
 
+### Ruby/Rails Scanners
+
+| Tool              | Purpose                                       | Installation                |
+| ----------------- | --------------------------------------------- | --------------------------- |
+| **brakeman**      | Static code analysis for Rails security       | `gem install brakeman`      |
+| **bundler-audit** | Audit Gemfile.lock for known vulnerabilities  | `gem install bundler-audit` |
+| **rubocop**       | Static security checks via Security cops      | `gem install rubocop`       |
+
+**Usage:**
+
+```bash
+# Brakeman
+brakeman -q --format json
+
+# bundler-audit
+bundle-audit update && bundle-audit check
+
+# RuboCop Security
+rubocop --only Security
+```
+
 ## OWASP Top 10 Checks
 
 ### A01: Broken Access Control
@@ -971,13 +1106,16 @@ grep -rn "app.get\|app.post" . --include="*.ts" | grep -v "auth\|guard"
 # SQL Injection
 grep -rn "execute.*+" . --include="*.py"
 grep -rn "query.*${" . --include="*.ts"
+grep -rn "\.where(\"[^?]*#{\|find_by_sql(\".*#{" . --include="*.rb"
 
 # Command Injection
 grep -rn "os.system\|subprocess.*shell=True" . --include="*.py"
 grep -rn "exec\|eval.*request" . --include="*.ts"
+grep -rn "system(\".*#{.*params\|%x\[.*#{.*params" . --include="*.rb"
 
 # XSS
 grep -rn "dangerouslySetInnerHTML\|innerHTML" . --include="*.tsx"
+grep -rn "raw(.*params\|params.*\.html_safe\|<%==" . --include="*.erb" --include="*.rb"
 ```
 
 ### A02: Cryptographic Failures
@@ -995,6 +1133,9 @@ pip-audit
 
 # TypeScript
 npm audit
+
+# Ruby
+bundle-audit update && bundle-audit check
 ```
 
 ### A07: Authentication Failures
@@ -1200,6 +1341,10 @@ pip-audit --fix
 
 # TypeScript
 npm audit fix
+
+# Ruby
+bundle-audit check                # list vulnerable gems
+bundle update <gem_name>          # update specific gem (no auto-fix in Ruby)
 ```
 
 ## Examples
@@ -1388,5 +1533,8 @@ npm install next@latest
 
 - Bandit Documentation: https://bandit.readthedocs.io/
 - npm audit: https://docs.npmjs.com/cli/v8/commands/npm-audit
+- Brakeman: https://brakemanscanner.org/
+- bundler-audit: https://github.com/rubysec/bundler-audit
 - OWASP Top 10: https://owasp.org/www-project-top-ten/
 - Python Security Best Practices: `{{CONFIG_DIR}}/skills/mastering-python-skill/references/production/security.md`
+- Ruby Security Best Practices: `{{CONFIG_DIR}}/skills/mastering-ruby-skill/references/security.md`

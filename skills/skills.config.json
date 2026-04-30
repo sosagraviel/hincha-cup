@@ -233,9 +233,9 @@
     {
       "name": "mastering-ruby-skill",
       "path": "050-language-frameworks/mastering-ruby-skill",
-      "description": "Ruby development patterns and best practices",
+      "description": "Ruby language and Rails framework patterns: idioms, metaprogramming, testing, tooling, ActiveRecord, Hotwire, Solid Stack, Kamal deployment",
       "trigger_mode": "triggered",
-      "triggers": ["ruby"],
+      "triggers": ["ruby", "rspec", "rubocop", "bundler", "minitest", "rails", "ruby-on-rails", "activerecord", "hotwire", "turbo-rails", "stimulus-rails", "sidekiq", "solid_queue", "devise", "pundit"],
       "compatible_languages": ["ruby"]
     },
     {

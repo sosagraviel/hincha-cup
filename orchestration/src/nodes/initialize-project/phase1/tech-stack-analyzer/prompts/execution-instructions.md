@@ -422,37 +422,37 @@ From file names and CI/CD configs, identify which environments exist:
 - **Auth0:** `@auth0/auth0-react`, `auth0`
 - **Firebase Auth:** `firebase`, `@angular/fire`
 - **AWS Cognito:** `@aws-sdk/client-cognito-identity`
-- **OAuth providers:** `passport-google-oauth20`, `passport-github2`
+- **OAuth providers:** `passport-google-oauth20`, `passport-github2`, `omniauth-google-oauth2`, `omniauth-github`
 
 ### Monitoring & Error Tracking
 
-- **Sentry:** `@sentry/node`, `@sentry/react`, `@sentry/nestjs`
-- **Datadog:** `dd-trace`, `@datadog/browser-rum`
-- **New Relic:** `newrelic`
+- **Sentry:** `@sentry/node`, `@sentry/react`, `@sentry/nestjs`, `sentry-ruby`, `sentry-rails`
+- **Datadog:** `dd-trace`, `@datadog/browser-rum`, `datadog`
+- **New Relic:** `newrelic`, `newrelic_rpm`
 - **LogRocket:** `logrocket`
 
 ### Payment Processing
 
 - **Stripe:** `stripe`, `@stripe/stripe-js`
-- **PayPal:** `@paypal/checkout-server-sdk`
+- **PayPal:** `@paypal/checkout-server-sdk`, `paypal-checkout-sdk`, `paypal-server-sdk`
 
 ### Email Services
 
-- **SendGrid:** `@sendgrid/mail`
-- **Mailgun:** `mailgun-js`
-- **AWS SES:** `@aws-sdk/client-ses`
+- **SendGrid:** `@sendgrid/mail`, `sendgrid-ruby`
+- **Mailgun:** `mailgun-js`, `mailgun-ruby`
+- **AWS SES:** `@aws-sdk/client-ses`, `aws-sdk-ses`
 - **MailHog:** (dev tool, found in docker-compose)
 
 ### Cloud Services
 
-- **AWS SDK:** `@aws-sdk/*`, `boto3`, `aws-sdk-go-v2`
+- **AWS SDK:** `@aws-sdk/*`, `boto3`, `aws-sdk-go-v2`, `aws-sdk-s3`, `aws-sdk-dynamodb`, `aws-sdk-rails`
 - **Google Cloud:** `@google-cloud/*`, `google-cloud-*`
-- **Azure:** `@azure/*`
+- **Azure:** `@azure/*`, `azure-storage-blob`
 
 ### Search & Analytics
 
-- **Algolia:** `algoliasearch`
-- **Elasticsearch:** `@elastic/elasticsearch`
+- **Algolia:** `algoliasearch`, `algoliasearch-rails`
+- **Elasticsearch:** `@elastic/elasticsearch`, `elasticsearch-rails`, `elasticsearch-model`
 
 **For each detected service, report:**
 
@@ -524,6 +524,7 @@ Read build configuration files:
 - **Go:** Built-in `go build`, `Makefile`
 - **Rust:** Built-in `cargo build`
 - **Java:** Maven (`pom.xml`), Gradle (`build.gradle`)
+- **Ruby:** Bundler (`Gemfile`), Rake (`Rakefile`)
 
 **Report format:**
 
@@ -655,6 +656,12 @@ If not a monorepo:
 - Dependencies in Cargo.toml with [dependencies], locked in Cargo.lock
 - Testing: built-in `cargo test`
 - Web frameworks: axum, rocket, actix-web
+
+**Ruby:**
+
+- Dependencies in Gemfile, versions locked in Gemfile.lock (Bundler)
+- Testing: rspec, minitest, capybara
+- Web frameworks: rails, sinatra
 
 </critical_thinking>
 

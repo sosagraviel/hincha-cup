@@ -211,6 +211,88 @@ describe('CommandResolverService', () => {
       expect(result.some((cmd) => cmd.includes('cargo test'))).toBe(true);
     });
 
+    it('should handle rspec framework', () => {
+      const rspecConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: { testing: 'rspec' },
+              file_count: 100,
+              testing: {
+                unit: { framework: 'rspec' },
+              },
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const rspecService = new CommandResolverService(rspecConfig as any);
+      const result = rspecService.getTestCommand('unit');
+      expect(result.some((cmd) => cmd.includes('rspec'))).toBe(true);
+    });
+
+    it('should handle minitest framework', () => {
+      const minitestConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: { testing: 'minitest' },
+              file_count: 100,
+              testing: {
+                unit: { framework: 'minitest' },
+              },
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const minitestService = new CommandResolverService(minitestConfig as any);
+      const result = minitestService.getTestCommand('unit');
+      expect(result.some((cmd) => cmd.includes('rails test') || cmd.includes('rake test'))).toBe(
+        true,
+      );
+    });
+
+    it('should handle capybara for e2e (system tests)', () => {
+      const capybaraConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: { testing: 'capybara' },
+              file_count: 100,
+              testing: {
+                e2e: { framework: 'capybara' },
+              },
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const capybaraService = new CommandResolverService(capybaraConfig as any);
+      const result = capybaraService.getTestCommand('e2e');
+      expect(result.some((cmd) => cmd.includes('system') || cmd.includes('test:system'))).toBe(
+        true,
+      );
+    });
+
     it('should handle junit framework', () => {
       const junitConfig = {
         project_name: 'test',
@@ -439,6 +521,31 @@ describe('CommandResolverService', () => {
       expect(result.some((cmd) => cmd.includes('cargo build'))).toBe(true);
     });
 
+    it('should return empty array for ruby (interpreted language, no build step)', () => {
+      const rubyConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const rubyService = new CommandResolverService(rubyConfig as any);
+      const result = rubyService.getBuildCommand();
+      // Ruby/Rails is interpreted; assets:precompile is deploy, gem build is
+      // packaging. Neither belongs in implement-ticket's build phase.
+      expect(result).toEqual([]);
+    });
+
     it('should handle java build', () => {
       const javaConfig = {
         project_name: 'test',
@@ -586,6 +693,29 @@ describe('CommandResolverService', () => {
       expect(result).toContain('go mod download');
     });
 
+    it('should handle bundler package manager (ruby)', () => {
+      const bundlerConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const bundlerService = new CommandResolverService(bundlerConfig as any);
+      const result = bundlerService.getInstallCommand();
+      expect(result).toBe('bundle install');
+    });
+
     it('should handle cargo package manager', () => {
       const cargoConfig = {
         project_name: 'test',
@@ -692,6 +822,29 @@ describe('CommandResolverService', () => {
       );
     });
 
+    it('should get lint command for ruby (rubocop)', () => {
+      const rubyConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const rubyService = new CommandResolverService(rubyConfig as any);
+      const result = rubyService.getLintCommand();
+      expect(result.some((cmd) => cmd.includes('rubocop'))).toBe(true);
+    });
+
     it('should get lint command for rust', () => {
       const rustConfig = {
         project_name: 'test',
@@ -789,6 +942,29 @@ describe('CommandResolverService', () => {
       const goService = new CommandResolverService(goConfig as any);
       const result = goService.getFormatCommand();
       expect(result.some((cmd) => cmd.includes('gofmt') || cmd.includes('go fmt'))).toBe(true);
+    });
+
+    it('should get format command for ruby (rubocop -a)', () => {
+      const rubyConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const rubyService = new CommandResolverService(rubyConfig as any);
+      const result = rubyService.getFormatCommand();
+      expect(result.some((cmd) => cmd.includes('rubocop -a'))).toBe(true);
     });
 
     it('should get format command for rust', () => {
@@ -950,6 +1126,28 @@ describe('CommandResolverService', () => {
       const goService = new CommandResolverService(goConfig as any);
       const result = goService.getPackageManager();
       expect(result).toBe('go');
+    });
+
+    it('should return bundler for ruby', () => {
+      const rubyConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const rubyService = new CommandResolverService(rubyConfig as any);
+      const result = rubyService.getPackageManager();
+      expect(result).toBe('bundler');
     });
 
     it('should return cargo for rust', () => {
