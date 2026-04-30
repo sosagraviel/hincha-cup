@@ -255,6 +255,14 @@
       "compatible_languages": ["scala"]
     },
     {
+      "name": "mastering-swift-skill",
+      "path": "050-language-frameworks/mastering-swift-skill",
+      "description": "Swift development patterns and best practices",
+      "trigger_mode": "triggered",
+      "triggers": ["swift"],
+      "compatible_languages": ["swift"]
+    },
+    {
       "name": "react-frontend",
       "path": "050-language-frameworks/react-frontend",
       "description": "React frontend development patterns",

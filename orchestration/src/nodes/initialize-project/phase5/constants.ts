@@ -85,6 +85,13 @@ export const COMMAND_DEFAULTS: Record<string, CommandSet> = {
     test: 'bundle exec rspec',
     build: 'bundle install',
   },
+  swift: {
+    lint: "swiftlint lint",
+    format: "swiftformat .",
+    typecheck: "xcodebuild build -destination 'platform=iOS Simulator,name=iPhone 16'",
+    test: "xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 16'",
+    build: "xcodebuild build -destination 'platform=iOS Simulator,name=iPhone 16'",
+  },
 };
 
 // ============================================================================
@@ -106,4 +113,5 @@ export const SUPPORTED_IMPLEMENTER_LANGUAGES = [
   'csharp',
   'php',
   'ruby',
+  'swift',
 ];

@@ -166,6 +166,8 @@ export class CommandResolverService {
         fallbacks.push('mvn test', 'gradle test');
       } else if (language === 'scala') {
         fallbacks.push('sbt test');
+      } else if (language === 'swift') {
+        fallbacks.push(`xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 16'`);
       }
     } else if (type === 'e2e') {
       if (language === 'typescript' || language === 'javascript') {
@@ -196,6 +198,9 @@ export class CommandResolverService {
       commands.push('mvn compile', 'gradle build');
     } else if (primaryLang === 'scala') {
       commands.push('sbt compile', 'sbt package');
+    } else if (primaryLang === 'swift') {
+      const destination = `'platform=iOS Simulator,name=iPhone 16'`;
+      commands.push(`xcodebuild build -destination ${destination}`, `xcodebuild build -configuration Release -destination ${destination}`);
     }
 
     return commands.filter(Boolean);
@@ -218,6 +223,8 @@ export class CommandResolverService {
       commands.push('cargo clippy', 'cargo clippy --all-targets');
     } else if (primaryLang === 'scala') {
       commands.push('sbt scalafmtCheckAll', 'sbt "scalafixAll --check"');
+    } else if (primaryLang === 'swift') {
+      commands.push('swiftlint lint', 'swiftlint');
     }
 
     return commands.filter(Boolean);
@@ -240,6 +247,8 @@ export class CommandResolverService {
       commands.push('cargo fmt', 'rustfmt **/*.rs');
     } else if (primaryLang === 'scala') {
       commands.push('sbt scalafmtAll');
+    } else if (primaryLang === 'swift') {
+      commands.push('swiftformat .', 'swift-format format -i -r .');
     }
 
     return commands.filter(Boolean);
@@ -409,6 +418,8 @@ export class CommandResolverService {
       return 'sbt';
     } else if (primaryLang === 'java') {
       return 'mvn';
+    } else if (primaryLang === 'swift') {
+      return 'swift';
     }
 
     return 'npm'; // Safe default
@@ -437,6 +448,8 @@ export class CommandResolverService {
         return 'sbt update';
       case 'mvn':
         return 'mvn dependency:resolve';
+      case 'swift':
+        return 'swift package resolve';
       default:
         return 'npm install';
     }
