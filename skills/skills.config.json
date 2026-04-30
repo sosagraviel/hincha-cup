@@ -8,24 +8,6 @@
       "trigger_mode": "always"
     },
     {
-      "name": "analyze-requirements",
-      "path": "020-development-workflow/analyze-requirements",
-      "description": "Requirements analysis and clarification patterns",
-      "trigger_mode": "always"
-    },
-    {
-      "name": "architect-agent",
-      "path": "020-development-workflow/architect-agent",
-      "description": "Software architecture and design patterns",
-      "trigger_mode": "always"
-    },
-    {
-      "name": "code-implementation",
-      "path": "020-development-workflow/code-implementation",
-      "description": "Code implementation best practices",
-      "trigger_mode": "always"
-    },
-    {
       "name": "create-sdd-ticket",
       "path": "020-development-workflow/create-sdd-ticket",
       "description": "Software Design Document ticket creation",
@@ -55,12 +37,6 @@
       "description": "Git version control operations: git status, git log, git diff, commits, branches, merge conflicts, rebase, stash, cherry-pick, git history, worktrees, submodules, and repository troubleshooting. Use for git commands, branch management, merge strategies, conflict resolution, commit history, viewing changes, checking repository state, and git workflows.",
       "trigger_mode": "always",
       "is_linkable_to_agents": true
-    },
-    {
-      "name": "code-quality-check",
-      "path": "030-quality-assurance/code-quality-check",
-      "description": "Code quality and linting validation",
-      "trigger_mode": "always"
     },
     {
       "name": "create-pr",

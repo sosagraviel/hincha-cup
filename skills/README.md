@@ -38,13 +38,11 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 
 | Skill | Purpose |
 |-------|---------|
-| analyze-requirements | Jira ticket analysis → implementation plan with file changes, risks, and steps |
-| architect-agent | Coordinate planning, delegation, and evaluation across architect and code agent workspaces |
-| code-implementation | Language-aware implementation orchestrator (auto-detects Python/TypeScript) |
 | create-sdd-ticket | Generate specification-driven development (SDD) tickets with gap detection |
-| implement-ticket | End-to-end ticket orchestrator: analyze → implement → quality → security → PR |
+| implement-ticket | End-to-end ticket orchestrator: plan → implement → test → review → PR |
 | mastering-git-cli | Git expertise — branches, commits, merges, rebases, worktrees, conflict resolution |
 | skill-creator | Create, modify, improve, and eval skills |
+| wiki-refresh | Incrementally refresh `docs/llm-wiki/` after code changes; runs as Phase 8.5 of `/implement-ticket` |
 
 **When to use**: Implementing features, fixing bugs, daily coding tasks
 
@@ -55,7 +53,6 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 
 | Skill | Purpose |
 |-------|---------|
-| code-quality-check | Linting, type checking, test coverage (80%+ threshold) |
 | create-pr | GitHub PR with conventional commits, descriptions, artifacts |
 | doc-updater | Maintain `CLAUDE.md` and the three generated convention skills (`code-conventions`, `multi-file-workflows`, `testing-conventions`) accuracy after code changes |
 | jest-coverage-automation | AI-powered Jest test generation and coverage improvement |
@@ -233,13 +230,19 @@ Only create new groups when:
 
 ### New Feature Implementation
 ```
-1. 040/fetch-ticket-context  → Get full context
-2. 020/analyze-requirements  → Plan implementation
-3. 020/code-implementation   → Write code
-4. 030/code-quality-check    → Verify quality
-5. 030/security-review       → Check security
-6. 030/create-pr             → Submit for review
+1. 020/create-sdd-ticket     → Draft SDD ticket with gap detection (optional pre-step)
+2. 020/implement-ticket      → End-to-end orchestrator. Runs Phases 0–11:
+                                preflight → context → wiki preload → plan
+                                → implement → test → visual → docs → wiki
+                                → PR → review (pr-reviewer + security-review)
+                                → cleanup
 ```
+
+The legacy `analyze-requirements` / `code-implementation` /
+`code-quality-check` skills were removed in the 2026-04-30 flow-cleanup
+pass — every step they performed now lives inside `/implement-ticket`'s
+phase pipeline, fed by Phase 1's analyzer outputs and the canonical
+artifact tree at `<TEMP_DIR>/tickets/<TICKET_ID>/artifacts/`.
 
 ### Parallel Ticket Kickoff
 ```
