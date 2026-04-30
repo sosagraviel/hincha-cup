@@ -1,17 +1,53 @@
 ---
 name: fetch-ticket-context
-description: Fetch complete context for a Jira ticket including external documentation from Notion, Confluence, and linked resources. Use when starting ticket implementation to gather all requirements.
+description: Gather all context for a ticket — body, comments, linked URLs (Confluence / Notion / Figma frames when reachable), attachments, related issues — and write it to the canonical context artifact path. Context-gathering ONLY; does not plan, analyze requirements, or recommend implementation.
 argument-hint: "JIRA-URL-OR-KEY [--refresh-external]"
 ---
 
 # Fetch Ticket Context
 
-Comprehensive skill for gathering all context needed to implement a Jira ticket, including:
+## Scope (load-bearing)
 
-- Jira ticket details (summary, description, acceptance criteria)
-- External documentation (Notion, Confluence, Figma, etc.)
-- Linked issues and dependencies
-- Sprint/epic context
+This skill **only gathers context**. It does NOT plan, perform
+requirements analysis, generate BDD scenarios, propose implementation
+steps, or recommend code changes. Planning is the planner agent's job
+(Phase 3 of `/implement-ticket`); implementation is the
+`implementer-{lang}` agent's job (Phase 5).
+
+Concretely the skill produces ONE artifact at the canonical path:
+
+```
+$ARTIFACTS_DIR/context/ticket-context.md
+```
+
+(where `$ARTIFACTS_DIR = <projectPath>/<TEMP_DIR>/tickets/<TICKET_ID>/artifacts/`).
+
+The artifact contains the following sections, in this exact order:
+
+1. `## Ticket` — id, title, type, status, priority, assignee, sprint, epic, labels
+2. `## Description` — body verbatim
+3. `## Acceptance Criteria` — extracted as a list (best effort; mark
+   `(not specified)` when the field is empty)
+4. `## Comments` — chronological, each with author + timestamp
+5. `## Linked Resources` — every URL found in description / comments,
+   paired with fetched content for Confluence / Notion / Figma frames
+   when the integration is reachable. Mark unreachable links explicitly
+   (`⚠️ unreachable: 403 / 404 / network`).
+6. `## Attachments` — any attached files copied to
+   `$ARTIFACTS_DIR/context/attachments/<filename>` with an inline
+   reference (no inline base64 dumps).
+7. `## Related Tickets` — Blocking / Depends on / Blocked by, ids only
+
+Out of scope and explicitly forbidden:
+
+- ❌ Generating an implementation plan or step list
+- ❌ Producing risk assessments, BDD scenarios, INVEST checks
+- ❌ Recommending an implementer agent or files to create
+- ❌ Writing anywhere outside `$ARTIFACTS_DIR/context/`
+
+The Phase 1 caller in `/implement-ticket` and the optional Phase 0.5
+caller in `/create-sdd-ticket` both consume the artifact at the path
+above; downstream phases never re-fetch.
 
 ## Prerequisites
 
@@ -212,21 +248,29 @@ fi
 
 ### Phase 5: Compose Full Context
 
+The skill writes to the canonical artifact path. `$ARTIFACTS_DIR` is set
+by the caller (`/implement-ticket` Phase 1 sets it; standalone callers
+should set it before invoking this skill):
+
 ```bash
-# Create comprehensive context document
-context_file="/tmp/context_${JIRA_KEY}.md"
+# $ARTIFACTS_DIR = <projectPath>/<TEMP_DIR>/tickets/<TICKET_ID>/artifacts/
+context_file="$ARTIFACTS_DIR/context/ticket-context.md"
+mkdir -p "$(dirname "$context_file")"
 
 cat > "$context_file" <<EOF
 # Context for $JIRA_KEY: $summary
 
-## Jira Ticket Details
+## Ticket
 
-**Summary:** $summary
-**Priority:** $priority
-**Assignee:** $assignee
-**Sprint:** $sprint
-**Epic:** $epic_link
-**Labels:** $labels
+- **id:** $JIRA_KEY
+- **title:** $summary
+- **type:** $issuetype
+- **status:** $status
+- **priority:** $priority
+- **assignee:** $assignee
+- **sprint:** $sprint
+- **epic:** $epic_link
+- **labels:** $labels
 
 ## Description
 
@@ -236,31 +280,44 @@ $description
 
 $acceptance_criteria
 
----
+## Comments
 
-$(cat /tmp/context_${JIRA_KEY}_external.md 2>/dev/null || echo "No external docs")
+$(format_comments "$ticket_data")
 
+## Linked Resources
+
+$(cat "$ARTIFACTS_DIR/context/_external-fragments.md" 2>/dev/null || echo "No external links found.")
+
+## Attachments
+
+$(format_attachments "$ticket_data" "$ARTIFACTS_DIR/context/attachments")
+
+## Related Tickets
+
+$(format_related_tickets "$ticket_data")
 EOF
 
-echo "✓ Full context compiled: $context_file"
-cat "$context_file"
+echo "✓ Context written to: $context_file"
 ```
 
 ## Output Format
 
-The skill produces a comprehensive context document with this structure:
+Single artifact at `$ARTIFACTS_DIR/context/ticket-context.md`. Example:
 
 ```markdown
 # Context for PROJ-123: Implement OAuth2 authentication
 
-## Jira Ticket Details
+## Ticket
 
-**Summary:** Implement OAuth2 authentication
-**Priority:** High
-**Assignee:** Jane Doe
-**Sprint:** Sprint 15
-**Epic:** PROJ-100 (Authentication Epic)
-**Labels:** backend, security, authentication
+- **id:** PROJ-123
+- **title:** Implement OAuth2 authentication
+- **type:** Story
+- **status:** In Progress
+- **priority:** High
+- **assignee:** Jane Doe
+- **sprint:** Sprint 15
+- **epic:** PROJ-100 (Authentication Epic)
+- **labels:** backend, security, authentication
 
 ## Description
 
@@ -273,31 +330,45 @@ Implement OAuth2 authentication flow following the industry standard...
 - Session management is secure
 - All security tests pass
 
----
+## Comments
 
-### Notion Document: Design Specification
+**2026-04-15 14:32 — Jane Doe:**
+> Confirmed with security team: PKCE flow is mandatory for SPAs.
 
-[Full Notion content fetched and included here...]
+**2026-04-16 09:01 — Bob Smith:**
+> Linked the OAuth provider matrix in Confluence (see Linked Resources).
 
-### Confluence Page: API Documentation
+## Linked Resources
 
+### Confluence: OAuth Provider Matrix
+URL: https://acme.atlassian.net/wiki/spaces/ENG/pages/12345
 [Full Confluence content fetched and included here...]
 
-### Figma Design: Login Flow Mockups
+### Notion: Design Specification
+URL: https://notion.so/acme/oauth-redesign-abc123
+[Full Notion content fetched and included here...]
 
-⚠️ Manual review required: https://figma.com/file/...
+### Figma: Login Flow Mockups
+URL: https://figma.com/file/login-flow
+⚠️ Manual review required (Figma frames cached at $ARTIFACTS_DIR/context/figma/login-flow/).
 
-### Related Jira Tickets
+### Loom: Walkthrough recording
+URL: https://loom.com/share/xyz
+⚠️ unreachable: no Loom integration
 
-**Blocking:**
+## Attachments
 
-- PROJ-120: Set up OAuth providers
-- PROJ-121: Configure redirect URIs
+- [oauth-sequence-diagram.png]($ARTIFACTS_DIR/context/attachments/oauth-sequence-diagram.png)
 
-**Depends on:**
+## Related Tickets
 
-- PROJ-99: User database schema
+**Blocking:** PROJ-120, PROJ-121
+**Depends on:** PROJ-99
+**Blocked by:** (none)
 ```
+
+Downstream phases consume this artifact path; nobody re-fetches the
+ticket from Jira.
 
 ## Error Handling
 
