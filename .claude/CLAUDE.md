@@ -54,10 +54,19 @@ When you (or any downstream agent) are asked to add a feature, fix a bug, or ext
 
 ## Architecture
 
-Two LangGraph workflows:
+Two LangGraph workflows live in `orchestration/`:
 
-- **`initialize-project`** — 6-phase pipeline: Phase 1 (4 parallel analyzers) → Phase 2 (consolidation) → Phase 3 (synthesis) → Phase 4 (context generation) → Phase 5 (resources + agent generation) → Phase 6 (validation)
-- **`implement-ticket`** — 11-phase sequential pipeline: preflight → context → planning → environment → implementation → testing → visual → docs → PR → review → cleanup
+- **`initialize-project`** — 6-phase pipeline: Phase 1 (4 parallel analyzers) → Phase 2 (consolidation) → Phase 3 (synthesis) → Phase 4 (context generation + wiki generation) → Phase 5 (resources + agent generation) → Phase 6 (validation).
+- **`wiki-refresh`** — incremental refresh of `docs/llm-wiki/` triggered by `/implement-ticket` Phase 8.5 and on demand via `pnpm --filter orchestration refresh-wiki`.
+
+The active **`implement-ticket`** entry point is the **skill** at
+`skills/020-development-workflow/implement-ticket/SKILL.{claude,codex}.md`
+— directly invokable via the Skill tool (frontmatter
+`user-invokable: true` + `disable-model-invocation: true`). It runs as
+instructions Claude Code (or Codex CLI) follows phase by phase; there is
+no LangGraph orchestration involved. The previous orchestration
+`implement-ticket` graph + 11 phase nodes + CLI were deleted in the
+2026-04-30 flow-cleanup pass — they were marked WIP and never used.
 
 Agents run as Claude CLI subprocesses (`cli-agent-impl.ts`) in CLI auth mode, or as in-process DeepAgents (`deep-agent-impl.ts`) in API key mode. Auth mode is auto-detected at runtime via `auth-detector.ts`.
 
@@ -65,23 +74,21 @@ All phase outputs are persisted to `.claude-temp/initialize-project/phase1-outpu
 
 Per-attempt debug artifacts (prompts, outputs, stdout/stderr, native transcripts, rendered HTML) are always written under `.<provider>-temp/<workflow>/debug/runs/<runId>/`. See `services/framework/debug-store/` for the store and `services/framework/transcripts/` for transcript capture/rendering. `--debug` is a verbosity knob; capture is always on. `--keep-runs <n>` (default 10) controls retention.
 
-**Note**: The orchestration `implement-ticket` workflow is work-in-progress and not currently in use. The active implementation is the `implement-ticket` skill at `skills/020-development-workflow/implement-ticket/SKILL.md`, which is directly invokable via the Skill tool (frontmatter `user-invokable: true` + `disable-model-invocation: true`). Unless explicitly specified otherwise, "implement-ticket" refers to this skill.
-
 ## File Placement Guide
 
 | File Type | Location Pattern | Notes |
 |-----------|-----------------|-------|
-| CLI entry points | `orchestration/src/cli/*.ts` | `initialize.ts`, `implement.ts` — Commander.js |
-| LangGraph workflow graphs | `orchestration/src/graphs/*.graph.ts` | Defines node topology and edges |
+| CLI entry points | `orchestration/src/cli/*.ts` | `initialize.ts`, `refresh-wiki.ts`, `lint-wiki.ts`, `aggregate-metrics.ts` — Commander.js |
+| LangGraph workflow graphs | `orchestration/src/graphs/*.graph.ts` | Two graphs: `initialize-project.graph.ts`, `wiki-refresh.graph.ts` |
 | LangGraph state schemas | `orchestration/src/state/schemas/*.schema.ts` | Zod + LangGraph `Annotation`; custom reducers for parallel Phase 1 |
 | Phase 1 analyzer nodes | `orchestration/src/nodes/initialize-project/phase1/**/*.node.ts` | 4 nodes run in parallel |
 | Phase 1 analyzer prompts | `orchestration/src/nodes/initialize-project/phase1/**/prompts/*.md` | `agent.md` + `execution-instructions.md` per analyzer |
 | Phase 1 shared prompt builder | `orchestration/src/nodes/initialize-project/phase1/shared/prompt-builder.ts` | Assembles excluded-dirs + project-path + output-format + execution-instructions tags |
 | Phase 2–6 nodes | `orchestration/src/nodes/initialize-project/phase[2-6]/**/*.ts` | Consolidation → synthesis → generation → resources → validation |
-| Implement-ticket nodes | `orchestration/src/nodes/implement-ticket/phase[0-10].node.ts` | Sequential 11-phase pipeline |
 | Phase 1 output schemas | `orchestration/src/schemas/phase1-agent-outputs.schema.ts` | Schema registry with `getSchemaForAgent()` lookup |
 | Stack profile schema | `orchestration/src/schemas/stack-profile.schema.ts` | Service-centric; output to `framework-config.json` by Phase 4 |
-| Business logic services | `orchestration/src/services/**/*.service.ts` | Grouped under `implement-ticket/` and `framework/` |
+| Business logic services | `orchestration/src/services/**/*.service.ts` | Grouped under `framework/` and `graph-wiki/` |
+| `implement-ticket` skill (active) | `skills/020-development-workflow/implement-ticket/SKILL.{claude,codex}.md` | The active 13-phase orchestrator. Invoked via the Skill tool — runs as instructions Claude/Codex follows; no LangGraph involvement. |
 | Agent factory | `orchestration/src/utils/shared/agent-factory/` | `cli-agent-impl.ts` vs `deep-agent-impl.ts` selected by auth-detector |
 | Debug store | `orchestration/src/services/framework/debug-store/` | Always-on per-attempt artifact capture: `.<provider>-temp/<workflow>/debug/runs/<runId>/<phaseId>/<agent>/attempt-<N>/<sessionId>/` |
 | Transcript parsers + renderer | `orchestration/src/services/framework/transcripts/` | Claude JSONL + Codex rollout JSONL + DeepAgents synth → normalized events → self-contained HTML |
@@ -114,7 +121,7 @@ Per-attempt debug artifacts (prompts, outputs, stdout/stderr, native transcripts
 | Format check | `pnpm --filter orchestration format:check` |
 | Typecheck | `pnpm --filter orchestration typecheck` |
 | Run initialize-project | `./scripts/initialize-project.sh <project-path>` |
-| Run implement-ticket | `./scripts/implement-ticket.sh <ticket-id>` |
+| Run implement-ticket | Invoke `/implement-ticket` via the Skill tool (Claude Code or Codex CLI) — there is no shell entry point any more. |
 | Sync framework resources | `./scripts/sync-framework-resources.sh` |
 
 ## Key Conventions

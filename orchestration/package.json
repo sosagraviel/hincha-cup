@@ -16,7 +16,6 @@
     "typecheck": "tsc --noEmit",
     "dev": "tsx",
     "initialize": "tsx src/cli/initialize.ts",
-    "implement": "tsx src/cli/implement.ts",
     "refresh-wiki": "tsx src/cli/refresh-wiki.ts",
     "lint-wiki": "tsx src/cli/lint-wiki.ts",
     "sync-framework-resources": "tsx src/scripts/sync-framework-resources.ts",
