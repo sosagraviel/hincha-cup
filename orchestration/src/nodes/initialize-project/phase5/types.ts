@@ -52,6 +52,19 @@ export interface AgentSkillAssignments {
 
 /**
  * Skill Config Schema
+ *
+ * `agent_roles` controls which generated agents inherit this skill via the
+ * `skills:` frontmatter. Two roles exist today: `planner` and
+ * `implementer`. When the field is omitted, the skill defaults to BOTH
+ * roles (backwards compatible). Skills that are tooling-only (test
+ * runners, container helpers, cloud CLIs) declare `["implementer"]` so
+ * they don't bloat the planner's preloaded context with bodies the
+ * planner can't and won't run.
+ *
+ * `is_linkable_to_agents: false` overrides `agent_roles` — a skill that
+ * is not linkable to any agent (Confluence / Notion / Jira fetchers,
+ * external-doc ingestion) is copied to disk but never attached to any
+ * generated agent regardless of `agent_roles`.
  */
 export const SkillConfigSchema = z.object({
   name: z.string(),
@@ -61,6 +74,7 @@ export const SkillConfigSchema = z.object({
   trigger_mode: z.enum(['always', 'triggered', 'generated']).default('triggered'),
   compatible_languages: z.array(z.string()).optional(),
   is_linkable_to_agents: z.boolean().optional(),
+  agent_roles: z.array(z.enum(['planner', 'implementer'])).optional(),
 });
 
 export type SkillConfig = z.infer<typeof SkillConfigSchema>;
@@ -68,6 +82,11 @@ export type SkillConfig = z.infer<typeof SkillConfigSchema>;
 export const SkillsConfigFileSchema = z.object({
   skills: z.array(SkillConfigSchema),
 });
+
+/**
+ * Agent roles a skill can attach to. See SkillConfigSchema for semantics.
+ */
+export type AgentRole = 'planner' | 'implementer';
 
 /**
  * Resolved skill with reason
@@ -81,6 +100,14 @@ export interface ResolvedSkill {
   compatible_languages?: string[];
   trigger_mode?: 'always' | 'triggered' | 'generated';
   is_linkable_to_agents?: boolean;
+  /**
+   * Roles this skill should attach to via `skills:` frontmatter on
+   * generated agents. When omitted, defaults to BOTH `planner` and
+   * `implementer` (backwards compatible). Skills annotated as
+   * `["implementer"]` keep their bodies out of the planner's preloaded
+   * context — see plan.md §B.
+   */
+  agent_roles?: AgentRole[];
 }
 
 /**

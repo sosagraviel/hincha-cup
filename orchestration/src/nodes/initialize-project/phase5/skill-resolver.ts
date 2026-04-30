@@ -54,6 +54,7 @@ export function resolveSkills(stackProfile: StackProfile, frameworkPath: string)
         compatible_languages: skill.compatible_languages,
         trigger_mode: skill.trigger_mode,
         is_linkable_to_agents: skill.is_linkable_to_agents,
+        agent_roles: skill.agent_roles,
       });
       continue;
     }
@@ -70,6 +71,7 @@ export function resolveSkills(stackProfile: StackProfile, frameworkPath: string)
         compatible_languages: skill.compatible_languages,
         trigger_mode: skill.trigger_mode,
         is_linkable_to_agents: skill.is_linkable_to_agents,
+        agent_roles: skill.agent_roles,
       });
     }
   }

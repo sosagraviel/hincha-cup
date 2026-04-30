@@ -36,7 +36,8 @@
       "path": "020-development-workflow/mastering-git-cli",
       "description": "Git version control operations: git status, git log, git diff, commits, branches, merge conflicts, rebase, stash, cherry-pick, git history, worktrees, submodules, and repository troubleshooting. Use for git commands, branch management, merge strategies, conflict resolution, commit history, viewing changes, checking repository state, and git workflows.",
       "trigger_mode": "always",
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "create-pr",
@@ -74,7 +75,8 @@
       "description": "Jest testing framework automation",
       "trigger_mode": "triggered",
       "triggers": ["jest"],
-      "compatible_languages": ["typescript", "javascript"]
+      "compatible_languages": ["typescript", "javascript"],
+      "agent_roles": ["implementer"]
     },
     {
       "name": "playwright-e2e-automation",
@@ -82,7 +84,8 @@
       "description": "Playwright E2E testing automation",
       "trigger_mode": "triggered",
       "triggers": ["playwright", "@playwright/test"],
-      "compatible_languages": ["typescript", "javascript"]
+      "compatible_languages": ["typescript", "javascript"],
+      "agent_roles": ["implementer"]
     },
     {
       "name": "pytest-patterns",
@@ -90,7 +93,8 @@
       "description": "Pytest testing patterns for Python",
       "trigger_mode": "triggered",
       "triggers": ["pytest"],
-      "compatible_languages": ["python"]
+      "compatible_languages": ["python"],
+      "agent_roles": ["implementer"]
     },
     {
       "name": "ui-testing",
@@ -107,7 +111,8 @@
         "svelte"
       ],
       "compatible_languages": ["typescript", "javascript"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "ui-visual-testing",
@@ -124,7 +129,8 @@
         "svelte"
       ],
       "compatible_languages": ["typescript", "javascript"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "fetch-ticket-context",
@@ -158,7 +164,8 @@
       "path": "040-integrations/mastering-github-cli",
       "description": "GitHub CLI (gh) for viewing GitHub Actions logs, workflow run outputs, CI/CD failures, action results, workflow status, PR checks, downloading artifacts, monitoring workflows, checking run logs, viewing workflow failures, repository operations, issues, pull requests, and GitHub automation. Use for GitHub Actions, workflow logs, CI logs, action outputs, workflow monitoring, gh run commands, gh workflow commands, and GitHub repository management.",
       "trigger_mode": "always",
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "notion-document-manager",
@@ -272,7 +279,8 @@
       "description": "Vitest testing patterns and best practices",
       "trigger_mode": "triggered",
       "triggers": ["vitest"],
-      "compatible_languages": ["typescript", "javascript"]
+      "compatible_languages": ["typescript", "javascript"],
+      "agent_roles": ["implementer"]
     },
     {
       "name": "atomic-design-react",
@@ -288,7 +296,8 @@
       "description": "LangGraph agent development patterns",
       "trigger_mode": "triggered",
       "triggers": ["langgraph", "@langchain/langgraph"],
-      "compatible_languages": ["typescript", "javascript", "python"]
+      "compatible_languages": ["typescript", "javascript", "python"],
+      "agent_roles": ["implementer"]
     },
     {
       "name": "design-doc-mermaid",
@@ -309,7 +318,8 @@
       "description": "Docker development and containerization",
       "trigger_mode": "triggered",
       "triggers": ["docker", "dockerfile"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "mastering-aws-cdk",
@@ -318,7 +328,8 @@
       "trigger_mode": "triggered",
       "triggers": ["aws-cdk", "@aws-cdk"],
       "compatible_languages": ["typescript", "javascript", "python"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "mastering-aws-cli",
@@ -326,7 +337,8 @@
       "description": "AWS CLI commands and automation",
       "trigger_mode": "triggered",
       "triggers": ["aws"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "mastering-gcloud-commands",
@@ -334,7 +346,8 @@
       "description": "Google Cloud CLI commands and workflows",
       "trigger_mode": "triggered",
       "triggers": ["gcloud", "google-cloud"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "using-firebase",
@@ -342,7 +355,8 @@
       "description": "Firebase development patterns",
       "trigger_mode": "triggered",
       "triggers": ["firebase"],
-      "compatible_languages": ["typescript", "javascript"]
+      "compatible_languages": ["typescript", "javascript"],
+      "agent_roles": ["implementer"]
     },
     {
       "name": "code-conventions",

@@ -1,13 +1,29 @@
 /**
  * Skill Assigner
  *
- * Assign skills to agents based on configuration
+ * Assign skills to agents based on configuration.
+ *
+ * Each skill in skills.config.json may declare `agent_roles` as a subset
+ * of `["planner", "implementer"]`. When the field is omitted the skill
+ * defaults to BOTH roles (backwards compatible). The assigner filters
+ * the candidate list per role so the planner does NOT inherit
+ * tooling-only skill bodies (test runners, container helpers, cloud
+ * CLIs) that bloat its context for zero gain — see plan.md §B.
  */
 
 import { join } from 'path';
 import type { StackProfile } from '../../../../schemas/index.js';
-import type { ResolvedSkill, AgentSkillAssignments } from '../types.js';
+import type { AgentRole, ResolvedSkill, AgentSkillAssignments } from '../types.js';
 import { getLanguagesFromStackProfile } from './stack-extractor.js';
+
+/**
+ * Returns true when the skill's `agent_roles` allows this role. A skill
+ * with no `agent_roles` field defaults to BOTH roles.
+ */
+function attachesToRole(skill: ResolvedSkill, role: AgentRole): boolean {
+  if (!skill.agent_roles || skill.agent_roles.length === 0) return true;
+  return skill.agent_roles.includes(role);
+}
 
 /**
  * Assign skills to agents based on configuration
@@ -42,21 +58,32 @@ export function assignSkillsToAgents(
 
     // Only process "triggered" skills for linking
     if (skill.trigger_mode === 'triggered') {
+      const attachesToPlanner = attachesToRole(skill, 'planner');
+      const attachesToImplementer = attachesToRole(skill, 'implementer');
+
       if (skill.compatible_languages && skill.compatible_languages.length > 0) {
         // Language or framework skill
-        assignments.planner.push(skill); // Planner gets all language/framework skills
+        if (attachesToPlanner) {
+          assignments.planner.push(skill);
+        }
 
-        for (const compatLang of skill.compatible_languages) {
-          const agentName = `implementer-${compatLang}`;
-          if (assignments[agentName]) {
-            assignments[agentName].push(skill);
+        if (attachesToImplementer) {
+          for (const compatLang of skill.compatible_languages) {
+            const agentName = `implementer-${compatLang}`;
+            if (assignments[agentName]) {
+              assignments[agentName].push(skill);
+            }
           }
         }
       } else {
         // Infrastructure skill (docker, aws-cli) with empty compatible_languages
         // At this point, is_linkable_to_agents is NOT false (already filtered above)
-        assignments.planner.push(skill);
-        assignments['implementer-generic'].push(skill);
+        if (attachesToPlanner) {
+          assignments.planner.push(skill);
+        }
+        if (attachesToImplementer) {
+          assignments['implementer-generic'].push(skill);
+        }
       }
     }
   }
