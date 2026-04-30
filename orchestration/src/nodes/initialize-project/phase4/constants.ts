@@ -55,6 +55,11 @@ export const MANIFEST_FILES: Record<string, ManifestInfo> = {
   'build.gradle': { language: 'java', type: 'gradle' },
   'build.gradle.kts': { language: 'kotlin', type: 'gradle' },
   'build.sbt': { language: 'scala', type: 'sbt' },
+  // Intentionally NOT in PRIMARY_MANIFESTS: global.json is an SDK-version pin
+  // that frequently coexists with other primary manifests (e.g., package.json
+  // in repos that just need `dotnet tool install`). Treating it as primary
+  // would flip is_monorepo to true on hybrid repos. Real .NET workspace roots
+  // are detected via *.csproj/*.sln by the Phase 1 LLM analyzers.
   'global.json': { language: 'csharp', type: 'dotnet' },
   Gemfile: { language: 'ruby', type: 'bundler' },
   'composer.json': { language: 'php', type: 'composer' },
@@ -82,7 +87,6 @@ export const PRIMARY_MANIFESTS = new Set([
   'build.gradle',
   'build.gradle.kts',
   'build.sbt',
-  'global.json',
   'Gemfile',
   'composer.json',
   'Package.swift',
