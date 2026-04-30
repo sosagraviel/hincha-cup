@@ -230,10 +230,23 @@ CONTINUE WITH Phase 1.
 
 ### Phase 1: Context Gathering
 
-- If `--from-jira`: MUST invoke `/fetch-ticket-context` to gather Jira/Confluence context
-- If `--from-markdown`: read the SDD ticket file
-- If `--from-input`: use description directly
-- Extract requirements and acceptance criteria
+Produce a single canonical artifact at
+`$ARTIFACTS_DIR/context/ticket-context.md` regardless of input source.
+Every later phase reads from that path; nobody re-fetches from Jira / re-reads
+the SDD markdown / re-parses `--from-input`.
+
+- If `--from-jira <TICKET-ID>`: MUST invoke `/fetch-ticket-context` (the
+  skill writes to the canonical path automatically).
+- If `--from-markdown <PATH>`: copy the SDD ticket file to
+  `$ARTIFACTS_DIR/context/ticket-context.md` (preserve the original
+  body verbatim; add a one-line frontmatter `source: <PATH>`).
+- If `--from-input "description"`: render the description into the same
+  canonical file under a `## Description` heading; add `## Ticket` with
+  a synthetic id (`AD-HOC-<timestamp>`).
+
+CRITICAL: this phase does NOT plan, analyze requirements, or recommend
+implementer agents — those are the planner's job in Phase 3. Phase 1's
+only product is the canonical context artifact.
 
 CONTINUE WITH Phase 2.
 
@@ -263,14 +276,34 @@ CONTINUE WITH Phase 3.
 
 ### Phase 3: Planning
 
-Spawn `planner` via `Task(subagent_type: "planner", prompt: ...)`. Keep the prompt short — the planner's system prompt already covers methodology. Include only:
-- Ticket ID and one-line summary
-- Input paths: Phase 1 ticket context, `$ARTIFACTS_DIR/context/wiki-context.md`
-- Reminder: use the wikis to plan, use `mcp__code_graph` to verify impacts and explore intelligently; do not re-run `get_minimal_context_tool` (already in wiki-context.md).
+Spawn `planner` via `Task(subagent_type: "planner", prompt: ...)`. Keep
+the prompt short — the planner's system prompt already covers
+methodology. Include only:
 
-Persist the planner's returned markdown verbatim to `$ARTIFACTS_DIR/plans/implementation-plan.md`.
+- Ticket ID and one-line summary.
+- Input paths (PATHS, not bodies): `$ARTIFACTS_DIR/context/ticket-context.md`,
+  `$ARTIFACTS_DIR/context/wiki-context.md`.
+- Hard rules — re-call ban:
+  - Do NOT re-call `mcp__code_graph__get_minimal_context_tool`. Phase 2
+    already invoked it (at most once); the full payload is in
+    `wiki-context.md` under `## get_minimal_context_tool Payload` if it
+    ran. Reference that payload by section name; do not regenerate it.
+  - Do NOT re-fetch the ticket from Jira. The body, comments, and linked
+    resources are in `ticket-context.md`.
+- Targeted graph queries the planner MAY run when the wiki bodies do not
+  resolve a load-bearing question: `mcp__code_graph__semantic_search_nodes_tool`,
+  `mcp__code_graph__get_impact_radius_tool`,
+  `mcp__code_graph__query_graph_tool` (callers_of / imports_of / tests_for).
+  `mcp__code_graph__get_architecture_overview_tool` is forbidden (response
+  cannot be bounded — see graph navigation discipline).
 
-Verify: plan file exists, contains `Wiki Evidence` and `Graph Evidence`, test strategy and target files are named, and contains a `Recommended Implementer` section naming exactly one of `implementer-typescript` | `implementer-python` | `implementer-generic`.
+Persist the planner's returned markdown verbatim to
+`$ARTIFACTS_DIR/plans/implementation-plan.md`.
+
+Verify: plan file exists, contains `Wiki Evidence` and `Graph Evidence`,
+test strategy and target files are named, and contains a
+`Recommended Implementer` section naming exactly one of
+`implementer-typescript` | `implementer-python` | `implementer-generic`.
 
 CONTINUE WITH Phase 4.
 
@@ -285,10 +318,38 @@ CONTINUE WITH Phase 5.
 
 ### Phase 5: Implementation
 
-Spawn the stack-specific `implementer-{lang}` via `Task(subagent_type: <picked-from-plan>, prompt: ...)`. Pick the subagent_type from the planner's `Recommended Implementer`. Keep the prompt short — the implementer's system prompt already covers methodology. Include only:
-- Ticket ID and one-line summary
-- Input paths: `$ARTIFACTS_DIR/plans/implementation-plan.md`, `$ARTIFACTS_DIR/context/wiki-context.md`
-- Reminder: consult the cited `WIKI_CORE` pages (including any service docs already matched by the wiki router) for conventions; use `mcp__code_graph` to verify impacts before touching anything the plan flags high-risk; reuse the plan's `Graph Evidence` — do not re-run those queries.
+Spawn the stack-specific `implementer-{lang}` via
+`Task(subagent_type: <picked-from-plan>, prompt: ...)`. Pick the
+subagent_type from the planner's `Recommended Implementer`. Keep the
+prompt short — the implementer's system prompt already covers methodology.
+Include only:
+
+- Ticket ID and one-line summary.
+- Input paths (PATHS, not bodies):
+  `$ARTIFACTS_DIR/plans/implementation-plan.md`,
+  `$ARTIFACTS_DIR/context/wiki-context.md`,
+  `$ARTIFACTS_DIR/context/ticket-context.md`.
+- Hard rules — re-call ban:
+  - Do NOT re-call `mcp__code_graph__get_minimal_context_tool`. The
+    Phase 2 payload (when present) is referenced in the plan; the
+    planner already consumed it. Re-running it costs tokens for no new
+    information.
+  - Do NOT re-read full wiki page bodies whose relevant excerpts are
+    already inlined in the plan's `Wiki Evidence` section. Read the
+    full body ONLY when the plan's `Implementation Steps` flags a
+    specific edit as high-risk and cites a section the excerpt didn't
+    cover.
+  - Do NOT re-run any graph query the plan already documents in
+    `Graph Evidence`. Reuse those findings.
+- Fresh graph checks the implementer MAY run, only when the plan flags
+  an edit as high-risk OR when source code reality contradicts the
+  plan's evidence: `mcp__code_graph__get_impact_radius_tool` (before
+  touching shared utilities or public APIs),
+  `mcp__code_graph__query_graph_tool` (single targeted relationship
+  question — callers / imports / tests),
+  `mcp__code_graph__semantic_search_nodes_tool` (only when the plan
+  lacks a symbol). `mcp__code_graph__get_architecture_overview_tool` is
+  forbidden.
 
 Verify: code changes exist; completion summary lists wiki pages consulted and any fresh graph checks; completion summary contains a `## Wiki Delta Hints` JSONL fenced block (may be empty, but section must be present).
 

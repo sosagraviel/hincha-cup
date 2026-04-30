@@ -140,16 +140,26 @@ Constraint: If `ensure-context.sh` exits non-zero, emit `failed` and STOP. If an
 
 ### Phase 1: Context Gathering
 
+Produce a single canonical artifact at
+`$ARTIFACTS_DIR/context/ticket-context.md` regardless of input source.
+Every later phase reads from that path; nobody re-fetches from Jira /
+re-reads the SDD markdown / re-parses `--from-input`.
+
 Steps:
-- If `--from-jira`: invoke `/fetch-ticket-context` to gather Jira/Confluence context.
-- If `--from-markdown`: read the SDD ticket file.
-- If `--from-input`: use the description directly.
-- Extract requirements and acceptance criteria.
-- Persist to `$ARTIFACTS_DIR/context/ticket-context.md`.
+- If `--from-jira <TICKET-ID>`: invoke `/fetch-ticket-context` (the skill
+  writes to the canonical path automatically).
+- If `--from-markdown <PATH>`: copy the SDD ticket file to
+  `$ARTIFACTS_DIR/context/ticket-context.md` (preserve the original body
+  verbatim; add a one-line frontmatter `source: <PATH>`).
+- If `--from-input "description"`: render the description into the same
+  canonical file under `## Description`; add `## Ticket` with a
+  synthetic id (`AD-HOC-<timestamp>`).
 
-Expected outputs: `$ARTIFACTS_DIR/context/ticket-context.md` exists and contains requirements and acceptance criteria.
+Constraint: this phase does NOT plan, analyze requirements, or recommend
+implementer agents — those are the planner's job in Phase 3. Phase 1's
+only product is the canonical context artifact.
 
-Constraint: Do not proceed if requirements could not be extracted.
+Expected outputs: `$ARTIFACTS_DIR/context/ticket-context.md` exists.
 
 ### Phase 2: Wiki Context Preload
 
@@ -177,11 +187,28 @@ Constraint: Do not proceed if `wiki-context.md` is missing or the router could n
 
 ### Phase 3: Planning
 
-Apply the planner role prompt: read `{{CONFIG_DIR}}/agents/planner.md` and follow it as your active persona. Feed it:
-- The ticket context from `$ARTIFACTS_DIR/context/ticket-context.md`.
-- The wiki context from `$ARTIFACTS_DIR/context/wiki-context.md` (`WIKI_INDEX_SNAPSHOT`, `WIKI_CORE`, and the optional `get_minimal_context_tool` payload when present).
+Apply the planner role prompt: read `{{CONFIG_DIR}}/agents/planner.md`
+and follow it as your active persona. Feed it the canonical artifact
+PATHS (not bodies):
+- `$ARTIFACTS_DIR/context/ticket-context.md`
+- `$ARTIFACTS_DIR/context/wiki-context.md` (`WIKI_INDEX_SNAPSHOT`,
+  `WIKI_CORE`, and `## get_minimal_context_tool Payload` when present).
 
-Reminder: use the wikis to plan, use `mcp__code_graph` tools to verify impacts and explore intelligently; do not re-run `get_minimal_context_tool` (already in `wiki-context.md`).
+Hard rules — re-call ban:
+- Do NOT re-call `mcp__code_graph__get_minimal_context_tool`. Phase 2
+  already invoked it (at most once); the full payload is in
+  `wiki-context.md` under `## get_minimal_context_tool Payload` if it
+  ran. Reference that payload by section name; do not regenerate it.
+- Do NOT re-fetch the ticket from Jira. The body, comments, and linked
+  resources are in `ticket-context.md`.
+
+Targeted graph queries the planner MAY run when the wiki bodies do not
+resolve a load-bearing question:
+`mcp__code_graph__semantic_search_nodes_tool`,
+`mcp__code_graph__get_impact_radius_tool`,
+`mcp__code_graph__query_graph_tool` (callers_of / imports_of / tests_for).
+`mcp__code_graph__get_architecture_overview_tool` is forbidden (response
+cannot be bounded — see graph navigation discipline).
 
 Produce an `Implementation Plan` containing:
 - Implementation strategy.
@@ -211,13 +238,35 @@ Constraint: None.
 
 ### Phase 5: Implementation
 
-Apply the implementer role prompt: read `{{CONFIG_DIR}}/agents/<recommended-implementer>.md` where `<recommended-implementer>` is the value from the planner's `Recommended Implementer` section (`implementer-typescript`, `implementer-python`, or `implementer-generic`).
+Apply the implementer role prompt: read
+`{{CONFIG_DIR}}/agents/<recommended-implementer>.md` where
+`<recommended-implementer>` is the value from the planner's
+`Recommended Implementer` section (`implementer-typescript`,
+`implementer-python`, or `implementer-generic`).
 
-Feed the role prompt:
-- The plan from `$ARTIFACTS_DIR/plans/implementation-plan.md`.
-- The wiki context from `$ARTIFACTS_DIR/context/wiki-context.md`.
+Feed the role prompt the canonical artifact PATHS (not bodies):
+- `$ARTIFACTS_DIR/plans/implementation-plan.md`
+- `$ARTIFACTS_DIR/context/wiki-context.md`
+- `$ARTIFACTS_DIR/context/ticket-context.md`
 
-Reminder: consult the cited `WIKI_CORE` pages (including any service docs already matched by the wiki router) for conventions; use `mcp__code_graph` to verify impacts before touching anything the plan flags high-risk; reuse the plan's `Graph Evidence` — do not re-run those queries.
+Hard rules — re-call ban:
+- Do NOT re-call `mcp__code_graph__get_minimal_context_tool`. The Phase
+  2 payload (when present) is referenced in the plan; the planner
+  already consumed it. Re-running it costs tokens for no new
+  information.
+- Do NOT re-read full wiki page bodies whose relevant excerpts are
+  already inlined in the plan's `Wiki Evidence` section. Read the full
+  body ONLY when the plan's `Implementation Steps` flags a specific
+  edit as high-risk and cites a section the excerpt didn't cover.
+- Do NOT re-run any graph query the plan already documents in
+  `Graph Evidence`. Reuse those findings.
+
+Fresh graph checks the implementer MAY run, only when the plan flags an
+edit as high-risk OR when source code reality contradicts the plan's
+evidence: `mcp__code_graph__get_impact_radius_tool`,
+`mcp__code_graph__query_graph_tool`,
+`mcp__code_graph__semantic_search_nodes_tool`.
+`mcp__code_graph__get_architecture_overview_tool` is forbidden.
 
 - Follow project conventions from `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`.
 - Create/modify files exactly as listed in the plan.
