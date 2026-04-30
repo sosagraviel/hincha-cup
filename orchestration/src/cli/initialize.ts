@@ -17,6 +17,7 @@ import { setActiveProvider, resolveTempPath } from '../utils/provider-paths.js';
 import { resetLLMFactory } from '../llm/llm-factory.js';
 import { DebugStore, setActiveDebugStore } from '../services/framework/debug-store/index.js';
 import { renderRunIndexHtml } from '../services/framework/transcripts/index.js';
+import { loadClaudeSettingsEnv } from '../auth/claude-settings-loader.js';
 
 // Get the directory where this CLI script is located
 // This file is at: <framework>/orchestration/dist/cli/initialize.js
@@ -61,6 +62,19 @@ program
     if (options.debug) {
       process.env.FRAMEWORK_DEBUG = '1';
     }
+
+    // Apply ~/.claude/settings.json env block to process.env BEFORE any auth detection.
+    // The Claude CLI reads this file natively, but the framework's parent process does not —
+    // running this here keeps settings.json as the single source of truth for both layers.
+    const settingsResult = loadClaudeSettingsEnv();
+    if (settingsResult.warning) {
+      logger.warn(`Claude settings: ${settingsResult.warning}`);
+    } else if (settingsResult.appliedKeys.length > 0) {
+      logger.info(
+        `Loaded ${settingsResult.appliedKeys.length} env var(s) from ${settingsResult.settingsPath}: ${settingsResult.appliedKeys.join(', ')}`,
+      );
+    }
+
     let isShuttingDown = false;
 
     const cleanup = (signal: string) => {
