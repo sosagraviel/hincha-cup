@@ -11,13 +11,12 @@
  *      frontmatter (`sources:` + `confidence:`); inline `^[id]` is
  *      non-standard markdown (GitHub strips it; Obsidian's `^[content]`
  *      extension treats the brackets as the footnote BODY, not an id, so
- *      `^[project-context]` would render as a footnote whose entire text
- *      is literally "project-context" — a citation that says nothing).
- *      Pages must also be self-contained — references like
- *      `^[claude-md]` / `^[project-context]` would point OUTSIDE the wiki
- *      tree to files like `.claude/CLAUDE.md` or
- *      `.claude/skills/project-context/SKILL.md`, breaking the wiki's
- *      "follow [[wikilinks]] only" navigation contract.
+ *      `^[architectural-narrative]` would render as a footnote whose
+ *      entire text is literally "architectural-narrative" — a citation
+ *      that says nothing). Pages must also be self-contained —
+ *      references like `^[claude-md]` would point OUTSIDE the wiki tree
+ *      to a file like `.claude/CLAUDE.md`, breaking the wiki's "follow
+ *      [[wikilinks]] only" navigation contract.
  *   3. No framework-internal jargon ("automated run", "exceeded token
  *      limit", "tool result overflow", "the X tool overflowed", etc.)
  *      leaking into user-facing prose. Wiki readers are developers

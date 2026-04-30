@@ -10,6 +10,9 @@
  *    strips such phrases from the upstream BEFORE the wiki agent sees them.
  *    See plans/2026-04-29-gira-init-run-audit-refactor.md finding F15.
  *
+ * Note: applied to synthesis, CLAUDE.md, and the architectural narrative —
+ * the three text-bearing fields of `WikiDigestedUpstream`.
+ *
  * 2. **Per-service upstream slicing must keep the prompt cheap.** When
  *    generating a service doc, the prompt should not carry every paragraph
  *    of the synthesis narrative — it should keep only sections that mention
@@ -22,8 +25,8 @@ import type { WikiDigestedUpstream } from './types.js';
 /**
  * Phrases that read as framework-internal noise in user-facing wiki prose.
  * Each pattern is a regex applied with the `g` flag against synthesis,
- * CLAUDE.md, and project-context excerpts. Hit phrases are replaced with
- * an empty string and the surrounding whitespace is collapsed; the agent
+ * CLAUDE.md, and architectural-narrative excerpts. Hit phrases are replaced
+ * with an empty string and the surrounding whitespace is collapsed; the agent
  * never sees them.
  *
  * Curated and stack-agnostic — these are framework-runtime artefacts, not
@@ -74,7 +77,7 @@ export function sanitizeWikiUpstream(
   return {
     synthesis: stripFrameworkInternalJargon(upstream.synthesis),
     claudeMd: stripFrameworkInternalJargon(upstream.claudeMd),
-    projectContext: stripFrameworkInternalJargon(upstream.projectContext),
+    architecturalNarrative: stripFrameworkInternalJargon(upstream.architecturalNarrative),
   };
 }
 
@@ -190,8 +193,8 @@ export function scopeUpstreamForService(
   return {
     synthesis: upstream.synthesis ? scopeMarkdownToTokens(upstream.synthesis, tokens) : undefined,
     claudeMd: upstream.claudeMd ? scopeMarkdownToTokens(upstream.claudeMd, tokens) : undefined,
-    projectContext: upstream.projectContext
-      ? scopeMarkdownToTokens(upstream.projectContext, tokens)
+    architecturalNarrative: upstream.architecturalNarrative
+      ? scopeMarkdownToTokens(upstream.architecturalNarrative, tokens)
       : undefined,
   };
 }

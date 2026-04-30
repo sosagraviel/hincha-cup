@@ -34,7 +34,11 @@ export function resolveSkills(stackProfile: StackProfile, frameworkPath: string)
   const resolved: ResolvedSkill[] = [];
 
   for (const skill of skills) {
-    // Skip generated skills (like project-context)
+    // Skip generated skills — those are emitted per-project by Phase 3
+    // synthesis (currently: code-conventions, multi-file-workflows,
+    // testing-conventions). Their bodies live at
+    // <project>/.claude/skills/<name>/SKILL.md and are attached to agents
+    // by the skill-assigner, not by resolveSkills.
     if (skill.trigger_mode === 'generated') {
       continue;
     }
@@ -70,8 +74,10 @@ export function resolveSkills(stackProfile: StackProfile, frameworkPath: string)
     }
   }
 
-  // NOTE: project-context is NOT added here because it's marked as "generated"
-  // Agents will add it manually after filtering to ensure it's always included
+  // NOTE: the three generated convention skills (code-conventions,
+  // multi-file-workflows, testing-conventions) are NOT added here —
+  // skill-assigner injects them onto every agent's allowlist after
+  // resolveSkills returns.
   return resolved;
 }
 

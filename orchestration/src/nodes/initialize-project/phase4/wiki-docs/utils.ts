@@ -41,15 +41,17 @@ export function readStackProfile(tempDir: string, state: InitializeProjectState)
 export function resolveWikiPaths(state: InitializeProjectState): {
   tempDir: string;
   claudeMdPath: string;
-  projectContextPath: string;
+  architecturalNarrativePath: string;
   phase1Dir: string;
 } {
   const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
   const claudeMdPath = state.claude_md_path || join(state.project_path, '.claude', 'CLAUDE.md');
-  const projectContextPath =
-    state.project_context_path ||
-    join(state.project_path, '.claude', 'skills', 'project-context', 'SKILL.md');
+  // Architectural narrative is the descriptive-prose section emitted by Phase
+  // 3 synthesis and written to disk by Phase 4a. The wiki-generator consumes
+  // it via digestedUpstream; it is NOT a skill (skills are prescriptive only).
+  const architecturalNarrativePath =
+    state.architectural_narrative_path || join(tempDir, 'architectural-narrative.md');
   const phase1Dir = join(tempDir, 'phase1-outputs');
 
-  return { tempDir, claudeMdPath, projectContextPath, phase1Dir };
+  return { tempDir, claudeMdPath, architecturalNarrativePath, phase1Dir };
 }

@@ -1,12 +1,23 @@
 /**
  * COMPREHENSIVE SYNTHESIS VALIDATOR
  *
- * This validator is the main quality gate for the AI Agentic Framework synthesis output.
- * Used by 600+ projects and 6000+ developers.
+ * This validator is the main quality gate for the AI Agentic Framework
+ * synthesis output. Used by 600+ projects and 6000+ developers.
  *
  * MUST be identical in BOTH:
- * - agents/hooks/validate-synthesis.ts (stop hook)
- * - src/nodes/initialize-project/phase3/synthesis.node.ts (external validator)
+ * - phase3/hooks/validate-synthesis.hook.ts (Claude stop hook)
+ * - phase3/synthesis.node.ts (external validator used by both providers)
+ *
+ * Phase 3 synthesis emits FIVE sections (see `types.ts` header for the full
+ * contract). The validator checks:
+ *   - Output is markdown, not JSON.
+ *   - No preamble / Write-tool descriptions.
+ *   - Total length floor.
+ *   - All five section headers present in the prescribed order.
+ *   - CLAUDE.md body validity (cheat-sheet shape).
+ *   - Each prescriptive skill body's validity (frontmatter + name + H1 +
+ *     code-examples-where-required).
+ *   - Each section within its line-count bounds.
  *
  * @module synthesis-validator
  */
@@ -17,21 +28,35 @@ import { detectJSONFormat } from './detect-json-format.js';
 import { detectPreambleText } from './detect-preamble-text.js';
 import { detectWriteToolUsage } from './detect-write-tool-usage.js';
 import { validateClaudeMdContent } from './validate-claude-md-content.js';
-import { validateProjectContextContent } from './validate-project-context-content.js';
+import { validateSkillContent } from './validate-skill-content.js';
 import { validateLineCount } from './validate-line-count.js';
 import { extractSynthesisMarkdown } from './extract-synthesis-markdown.js';
 import { formatErrorsForAgent } from './format-errors-for-agent.js';
 
+const REQUIRED_FORMAT_HINT = [
+  '📋 REQUIRED FORMAT (in this exact order, separated by --- on its own line):',
+  '   # CLAUDE.md Content',
+  '   …',
+  '   ---',
+  '   # code-conventions/SKILL.md Content',
+  '   ---',
+  '   name: code-conventions',
+  '   ---',
+  '   # Code conventions',
+  '   …',
+  '   ---',
+  '   # multi-file-workflows/SKILL.md Content',
+  '   …',
+  '   ---',
+  '   # testing-conventions/SKILL.md Content',
+  '   …',
+  '   ---',
+  '   # Architectural Narrative Content',
+  '   …',
+];
+
 /**
  * Comprehensive validator for synthesis agent output.
- *
- * Validates that the output:
- * 1. Is NOT JSON format
- * 2. Has the required section structure
- * 3. Contains valid markdown content
- * 4. Meets line count requirements
- * 5. Has proper YAML frontmatter in project-context
- * 6. Does not contain preamble or meta-descriptions
  *
  * @param output - Raw output from synthesis agent
  * @returns Validation result with specific, actionable errors
@@ -53,22 +78,9 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
         '   Your response contains no content.',
         '',
         '🟢 HOW TO FIX:',
-        '   Output the complete markdown content starting with "# CLAUDE.md Content"',
+        '   Output the complete markdown content starting with "# CLAUDE.md Content".',
         '',
-        '📋 REQUIRED FORMAT:',
-        '   # CLAUDE.md Content',
-        '   ',
-        '   [Your CLAUDE.md markdown here - 30-250 lines]',
-        '   ',
-        '   ---',
-        '   ',
-        '   # project-context/SKILL.md Content',
-        '   ',
-        '   ---',
-        '   name: project-context',
-        '   ---',
-        '   ',
-        '   [Your project-context markdown here - 50-600 lines]',
+        ...REQUIRED_FORMAT_HINT,
       ],
     };
   }
@@ -80,7 +92,6 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
   const jsonError = detectJSONFormat(trimmedOutput);
   if (jsonError) {
     errors.push(jsonError);
-    // Don't return early - collect all errors for comprehensive feedback
   }
 
   // ========================================================================
@@ -108,56 +119,41 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
       '',
       '🔴 WHAT WENT WRONG:',
       '   Your output is significantly shorter than expected.',
-      '   A proper synthesis should have substantial content for both files.',
+      '   A proper synthesis emits five non-trivial sections.',
       '',
       '🟢 HOW TO FIX:',
-      '   - CLAUDE.md should be 30-250 lines with tech stack, file placement, commands',
-      '   - project-context should be 50-600 lines with architecture, workflows, gotchas',
+      '   - CLAUDE.md: 30–250 lines (cheat-sheet)',
+      '   - code-conventions: 30–250 lines (rules + WRONG/CORRECT examples)',
+      '   - multi-file-workflows: 20–200 lines (ordered checklists)',
+      '   - testing-conventions: 25–200 lines (test rules + examples)',
+      '   - Architectural Narrative: 30–400 lines (cross-cutting prose for the wiki)',
     );
   }
 
   // ========================================================================
-  // CHECK 6: Extract and validate sections
+  // CHECK 6: Extract and validate sections (all five must be present, in
+  // order, well-bounded by their headers + the `---` separators)
   // ========================================================================
   const extracted = extractSynthesisMarkdown(output);
 
   if (!extracted) {
     errors.push(
-      'CANNOT FIND REQUIRED SECTIONS',
+      'CANNOT FIND ALL FIVE REQUIRED SECTIONS',
       '',
       '🔴 WHAT WENT WRONG:',
-      '   Could not locate the required section markers in your output.',
+      '   Could not locate every required section header in your output, OR',
+      '   the sections are not in the prescribed order.',
       '',
-      '🟡 REQUIRED MARKERS (in order):',
-      '   1. "# CLAUDE.md Content" - Section header for CLAUDE.md',
-      '   2. "---" - Separator (three dashes on its own line)',
-      '   3. "# project-context/SKILL.md Content" - Section header for project-context',
+      '🟡 REQUIRED HEADERS (in this exact order, each on its own line, with',
+      '   `---` separators between sections):',
+      '   1. "# CLAUDE.md Content" (or "# AGENTS.md Content" on Codex)',
+      '   2. "# code-conventions/SKILL.md Content"',
+      '   3. "# multi-file-workflows/SKILL.md Content"',
+      '   4. "# testing-conventions/SKILL.md Content"',
+      '   5. "# Architectural Narrative Content"',
       '',
-      '🟢 HOW TO FIX:',
-      '   Your ENTIRE response must use this EXACT structure:',
-      '',
-      '   # CLAUDE.md Content',
-      '',
-      '   # ProjectName',
-      '   ',
-      '   ## Tech Stack',
-      '   - TypeScript 5.3',
-      '   ... (more content, 30-250 lines total)',
-      '   ',
-      '   ---',
-      '   ',
-      '   # project-context/SKILL.md Content',
-      '   ',
-      '   ---',
-      '   name: project-context',
-      '   description: Deep architectural knowledge',
-      '   ---',
-      '   ',
-      '   # Project Context: ProjectName',
-      '   ... (more content, 50-600 lines total)',
+      ...REQUIRED_FORMAT_HINT,
     );
-
-    // Can't validate further without sections
     return { valid: false, errors: formatErrorsForAgent(errors) };
   }
 
@@ -168,98 +164,127 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
   errors.push(...claudeErrors);
 
   // ========================================================================
-  // CHECK 8: Validate project-context content
+  // CHECK 8: Validate each prescriptive skill body
   // ========================================================================
-  const contextErrors = validateProjectContextContent(extracted.projectContext);
-  errors.push(...contextErrors);
+  errors.push(
+    ...validateSkillContent(extracted.codeConventions, {
+      skillLabel: 'code-conventions',
+      expectedName: 'code-conventions',
+      requiresCodeExamples: true,
+    }),
+  );
+  errors.push(
+    ...validateSkillContent(extracted.multiFileWorkflows, {
+      skillLabel: 'multi-file-workflows',
+      expectedName: 'multi-file-workflows',
+      requiresCodeExamples: false,
+    }),
+  );
+  errors.push(
+    ...validateSkillContent(extracted.testingConventions, {
+      skillLabel: 'testing-conventions',
+      expectedName: 'testing-conventions',
+      requiresCodeExamples: true,
+    }),
+  );
 
   // ========================================================================
-  // CHECK 9: Validate line counts
+  // CHECK 9: Architectural narrative is text only, no schema; just non-empty
   // ========================================================================
-  const claudeLineResult = validateLineCount(
-    extracted.claudemd,
-    LIMITS.CLAUDE_MD.MIN_LINES,
-    LIMITS.CLAUDE_MD.MAX_LINES,
-    'CLAUDE.md',
-  );
-  if (!claudeLineResult.valid) {
-    if (claudeLineResult.lineCount < claudeLineResult.minRequired) {
-      errors.push(
-        `CLAUDE.md CONTENT TOO SHORT (${claudeLineResult.lineCount} lines, minimum ${claudeLineResult.minRequired})`,
-        '',
-        '🔴 WHAT WENT WRONG:',
-        `   CLAUDE.md has only ${claudeLineResult.lineCount} lines but needs at least ${claudeLineResult.minRequired}.`,
-        '',
-        '🟢 HOW TO FIX:',
-        '   CLAUDE.md must include these sections with sufficient detail:',
-        '   - # ProjectName (1 line)',
-        '   - ## Tech Stack (5-10 lines with exact versions)',
-        '   - ## File Placement Guide (10-15 rows in table format)',
-        '   - ## Directory Structure (5-10 lines with annotations)',
-        '   - ## Essential Commands (5-10 rows in table format)',
-        '   - ## Services & Ports (if applicable)',
-        '   - ## Path Aliases (if applicable)',
-      );
-    } else {
-      errors.push(
-        `CLAUDE.md CONTENT TOO LONG (${claudeLineResult.lineCount} lines, maximum ${claudeLineResult.maxAllowed})`,
-        '',
-        '🔴 WHAT WENT WRONG:',
-        `   CLAUDE.md has ${claudeLineResult.lineCount} lines but maximum is ${claudeLineResult.maxAllowed}.`,
-        '',
-        '🟢 HOW TO FIX:',
-        '   CLAUDE.md should be a QUICK REFERENCE only. Remove:',
-        '   - Architecture explanations (put in project-context)',
-        '   - Request lifecycle details (put in project-context)',
-        '   - Code examples (put in project-context)',
-        '   - Any "why" explanations (put in project-context)',
-        '   - Reduce File Placement Guide to 15-20 most common types',
-      );
-    }
+  if (!extracted.architecturalNarrative || !extracted.architecturalNarrative.trim()) {
+    errors.push(
+      'ARCHITECTURAL NARRATIVE IS EMPTY',
+      '',
+      '🔴 WHAT WENT WRONG:',
+      '   The Architectural Narrative section emitted no content. The wiki',
+      '   generator needs this prose to compile ARCHITECTURE.md and the',
+      '   per-service docs.',
+      '',
+      '🟢 HOW TO FIX:',
+      '   After the four file-bound sections, emit `# Architectural Narrative',
+      '   Content` followed by descriptive prose: monorepo / multi-repo shape,',
+      '   service boundaries, cross-service flow narrative, request lifecycles,',
+      '   integration points. Stay descriptive (what IS) — prescriptive rules',
+      '   belong in the conventions skills, not here.',
+    );
   }
 
-  const contextLineResult = validateLineCount(
-    extracted.projectContext,
-    LIMITS.PROJECT_CONTEXT.MIN_LINES,
-    LIMITS.PROJECT_CONTEXT.MAX_LINES,
-    'project-context',
-  );
-  if (!contextLineResult.valid) {
-    if (contextLineResult.lineCount < contextLineResult.minRequired) {
-      errors.push(
-        `PROJECT-CONTEXT CONTENT TOO SHORT (${contextLineResult.lineCount} lines, minimum ${contextLineResult.minRequired})`,
-        '',
-        '🔴 WHAT WENT WRONG:',
-        `   project-context has only ${contextLineResult.lineCount} lines but needs at least ${contextLineResult.minRequired}.`,
-        '',
-        '🟢 HOW TO FIX:',
-        '   project-context must include these sections:',
-        '   - YAML frontmatter (name: project-context)',
-        '   - # Project Context: ProjectName',
-        '   - ## When to Use This Skill',
-        '   - ## Architecture Deep Dive',
-        '   - ## Request Lifecycle (for backends)',
-        '   - ## Authentication & Authorization (if applicable)',
-        '   - ## Critical Workflows (with ALL files to modify)',
-        '   - ## Gotchas & Non-Obvious Patterns (with code examples)',
-        '   - ## Testing Strategy (with example code)',
-        '   - ## Multi-File Change Checklists',
-      );
-    } else {
-      errors.push(
-        `PROJECT-CONTEXT CONTENT TOO LONG (${contextLineResult.lineCount} lines, maximum ${contextLineResult.maxAllowed})`,
-        '',
-        '🔴 WHAT WENT WRONG:',
-        `   project-context has ${contextLineResult.lineCount} lines but maximum is ${contextLineResult.maxAllowed}.`,
-        '',
-        '🟢 HOW TO FIX:',
-        '   Focus on what is HARD TO DISCOVER. Remove:',
-        '   - Full endpoint lists (AI can grep these)',
-        '   - Entity field listings (AI can read the code)',
-        '   - Module directory inventories (AI can ls)',
-        '   - Environment variable tables (AI can read .env.example)',
-        '   Keep only: non-obvious patterns, multi-step flows, gotchas',
-      );
+  // ========================================================================
+  // CHECK 10: Validate per-section line counts
+  // ========================================================================
+  const lineCountChecks: Array<{
+    label: string;
+    body: string;
+    min: number;
+    max: number;
+    purpose: string;
+  }> = [
+    {
+      label: 'CLAUDE.md',
+      body: extracted.claudemd,
+      min: LIMITS.CLAUDE_MD.MIN_LINES,
+      max: LIMITS.CLAUDE_MD.MAX_LINES,
+      purpose:
+        'cheat-sheet (tech stack, file placement, commands). Move architecture / workflows / examples to the conventions skills or Architectural Narrative.',
+    },
+    {
+      label: 'code-conventions',
+      body: extracted.codeConventions,
+      min: LIMITS.CODE_CONVENTIONS.MIN_LINES,
+      max: LIMITS.CODE_CONVENTIONS.MAX_LINES,
+      purpose:
+        'gotchas with WRONG/CORRECT examples + error handling + naming + data-layer rules. Keep purely prescriptive; move descriptive narrative to the Architectural Narrative section.',
+    },
+    {
+      label: 'multi-file-workflows',
+      body: extracted.multiFileWorkflows,
+      min: LIMITS.MULTI_FILE_WORKFLOWS.MIN_LINES,
+      max: LIMITS.MULTI_FILE_WORKFLOWS.MAX_LINES,
+      purpose:
+        'ordered checklists for cross-cutting changes. Each checklist is a numbered list of file edits.',
+    },
+    {
+      label: 'testing-conventions',
+      body: extracted.testingConventions,
+      min: LIMITS.TESTING_CONVENTIONS.MIN_LINES,
+      max: LIMITS.TESTING_CONVENTIONS.MAX_LINES,
+      purpose:
+        'test rules with example code: what to mock / not mock, fixture conventions, coverage expectations.',
+    },
+    {
+      label: 'architectural-narrative',
+      body: extracted.architecturalNarrative,
+      min: LIMITS.ARCHITECTURAL_NARRATIVE.MIN_LINES,
+      max: LIMITS.ARCHITECTURAL_NARRATIVE.MAX_LINES,
+      purpose:
+        'cross-cutting descriptive prose consumed by the wiki generator. Stay descriptive (what IS). No prescriptive rules here.',
+    },
+  ];
+
+  for (const check of lineCountChecks) {
+    const result = validateLineCount(check.body, check.min, check.max, check.label);
+    if (!result.valid) {
+      if (result.lineCount < result.minRequired) {
+        errors.push(
+          `${check.label.toUpperCase()} CONTENT TOO SHORT (${result.lineCount} lines, minimum ${result.minRequired})`,
+          '',
+          '🔴 WHAT WENT WRONG:',
+          `   ${check.label} has only ${result.lineCount} lines but needs at least ${result.minRequired}.`,
+          '',
+          '🟢 HOW TO FIX:',
+          `   ${check.label} should cover: ${check.purpose}`,
+        );
+      } else {
+        errors.push(
+          `${check.label.toUpperCase()} CONTENT TOO LONG (${result.lineCount} lines, maximum ${result.maxAllowed})`,
+          '',
+          '🔴 WHAT WENT WRONG:',
+          `   ${check.label} has ${result.lineCount} lines but maximum is ${result.maxAllowed}.`,
+          '',
+          '🟢 HOW TO FIX:',
+          `   ${check.label} should cover: ${check.purpose}`,
+        );
+      }
     }
   }
 
@@ -284,5 +309,9 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
 }
 
 // Re-export types for convenience
-export type { SynthesisValidationResult, LineCountResult } from './types.js';
+export type {
+  SynthesisValidationResult,
+  LineCountResult,
+  ExtractedSynthesisSections,
+} from './types.js';
 export { extractSynthesisMarkdown } from './extract-synthesis-markdown.js';

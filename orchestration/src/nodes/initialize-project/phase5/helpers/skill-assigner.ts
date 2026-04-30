@@ -61,21 +61,47 @@ export function assignSkillsToAgents(
     }
   }
 
-  // IMPORTANT: Manually add project-context to planner + all implementers
-  // project-context has trigger_mode="generated" so it's NOT in resolvedSkills
-  // NOTE: project-context is saved at root of .claude/skills/ (not in 010-foundation/)
-  const projectContextSkill: ResolvedSkill = {
-    name: 'project-context',
-    path: join(frameworkPath, 'skills/010-foundation/project-context'),
-    relative_path: 'project-context',
-    reason: 'Always included',
-    description: 'Project-specific architecture and patterns',
-  };
+  // IMPORTANT: Manually attach the three prescriptive convention skills that
+  // Phase 3 synthesis emits per project. Each is `trigger_mode="generated"`,
+  // so they are written to disk by Phase 4a but NOT loaded by skill-resolver
+  // (resolveSkills explicitly skips generated skills). They are stack-agnostic
+  // by construction — every project gets all three regardless of language —
+  // and replace the old monolithic project-context skill.
+  //
+  // The bodies live at <project>/.claude/skills/<name>/SKILL.md (or .codex/
+  // on Codex). The `path` field below is informational only; the on-disk
+  // bodies are read by Claude's subagent skill-preload mechanic via the
+  // `skills:` frontmatter line on each generated agent.
+  const generatedConventionSkills: ResolvedSkill[] = [
+    {
+      name: 'code-conventions',
+      path: join(frameworkPath, 'skills/010-foundation/code-conventions'),
+      relative_path: 'code-conventions',
+      reason: 'Generated per project — prescriptive code-style + gotchas',
+      description: 'Project-specific coding conventions, gotchas, and WRONG/CORRECT examples',
+    },
+    {
+      name: 'multi-file-workflows',
+      path: join(frameworkPath, 'skills/010-foundation/multi-file-workflows'),
+      relative_path: 'multi-file-workflows',
+      reason: 'Generated per project — prescriptive cross-file checklists',
+      description: 'Ordered checklists for cross-cutting changes (add endpoint, add entity, etc.)',
+    },
+    {
+      name: 'testing-conventions',
+      path: join(frameworkPath, 'skills/010-foundation/testing-conventions'),
+      relative_path: 'testing-conventions',
+      reason: 'Generated per project — prescriptive testing rules',
+      description: 'Project-specific testing conventions, fixtures, mocking rules, and examples',
+    },
+  ];
 
-  assignments.planner.push(projectContextSkill);
-  assignments['implementer-generic'].push(projectContextSkill);
-  for (const lang of languages) {
-    assignments[`implementer-${lang}`].push(projectContextSkill);
+  for (const skill of generatedConventionSkills) {
+    assignments.planner.push(skill);
+    assignments['implementer-generic'].push(skill);
+    for (const lang of languages) {
+      assignments[`implementer-${lang}`].push(skill);
+    }
   }
 
   return assignments;

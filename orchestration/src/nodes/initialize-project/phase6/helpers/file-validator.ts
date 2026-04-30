@@ -1,7 +1,8 @@
 /**
  * File Validator
  *
- * Validates markdown files (CLAUDE.md and project-context/SKILL.md)
+ * Validates generated markdown files: CLAUDE.md / AGENTS.md and the three
+ * prescriptive convention skills emitted by Phase 3 synthesis.
  */
 
 import { existsSync, readFileSync } from 'fs';

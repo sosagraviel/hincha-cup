@@ -143,8 +143,11 @@ export type WikiAgentInvoker = (invocation: WikiAgentInvocation) => Promise<stri
  * disk before Phase 4b runs:
  *   - analyzer JSONs in `.<provider>-temp/initialize-project/phase1-outputs/`
  *   - `synthesis-raw.md` in `.<provider>-temp/initialize-project/`
- *   - generated CLAUDE.md / AGENTS.md at the project root
- *   - generated project-context/SKILL.md under `.<provider>/skills/`
+ *   - generated CLAUDE.md / AGENTS.md under `.<provider>/`
+ *   - `architectural-narrative.md` in `.<provider>-temp/initialize-project/`
+ *     (the descriptive section emitted by Phase 3 synthesis — replaces the
+ *     old monolithic project-context skill, which is now split into
+ *     prescriptive convention skills not consumed by the wiki).
  *
  * The wiki-generator agent has no filesystem access — these strings are the
  * sole source of truth for every page it renders.
@@ -152,7 +155,7 @@ export type WikiAgentInvoker = (invocation: WikiAgentInvocation) => Promise<stri
 export interface WikiDigestedUpstream {
   synthesis?: string;
   claudeMd?: string;
-  projectContext?: string;
+  architecturalNarrative?: string;
 }
 
 export interface WikiGeneratorServiceOptions {
@@ -215,7 +218,7 @@ export interface WikiDocumentSpec {
   /**
    * Structured upstream context the agent synthesizes from. Includes the
    * relevant analyzer slice, stack profile slice, and (for core docs) sliced
-   * narrative from synthesis / CLAUDE.md / project-context.
+   * narrative from synthesis / CLAUDE.md / architectural-narrative.
    */
   sourceContext: Record<string, unknown>;
   /**
@@ -226,7 +229,7 @@ export interface WikiDocumentSpec {
   digestedUpstream?: {
     synthesis?: string;
     claudeMd?: string;
-    projectContext?: string;
+    architecturalNarrative?: string;
   };
   /**
    * Curated tags rendered into the page frontmatter (`tags:` field). Used by

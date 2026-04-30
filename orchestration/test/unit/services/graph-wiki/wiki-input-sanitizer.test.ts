@@ -65,12 +65,12 @@ describe('sanitizeWikiUpstream', () => {
     const input = {
       synthesis: 'A: the foo tool overflowed during the automated run.',
       claudeMd: 'B: nothing internal here.',
-      projectContext: 'C: tool result overflow.',
+      architecturalNarrative: 'C: tool result overflow.',
     };
     const out = sanitizeWikiUpstream(input);
     expect(out?.synthesis).not.toMatch(/foo tool overflowed/i);
     expect(out?.claudeMd).toBe('B: nothing internal here.');
-    expect(out?.projectContext).not.toMatch(/tool result overflow/i);
+    expect(out?.architecturalNarrative).not.toMatch(/tool result overflow/i);
   });
 });
 
@@ -184,11 +184,12 @@ Other body.`;
 });
 
 describe('scopeUpstreamForService — end-to-end per-service slicing', () => {
-  it('narrows synthesis + claudeMd + projectContext to per-service relevance', () => {
+  it('narrows synthesis + claudeMd + architecturalNarrative to per-service relevance', () => {
     const upstream = {
       synthesis: '# Project\n\n## api\n\napi notes\n\n## web\n\nweb notes',
       claudeMd: '## api commands\n\nrun npm test\n\n## web commands\n\nrun npm dev',
-      projectContext: '## api conventions\n\nuse REST\n\n## web conventions\n\nuse React Router',
+      architecturalNarrative:
+        '## api architecture\n\nuse REST\n\n## web architecture\n\nuses React Router',
     };
     const out = scopeUpstreamForService(upstream, {
       id: 'api',
@@ -198,20 +199,20 @@ describe('scopeUpstreamForService — end-to-end per-service slicing', () => {
     expect(out?.synthesis).not.toContain('web notes');
     expect(out?.claudeMd).toContain('run npm test');
     expect(out?.claudeMd).not.toContain('run npm dev');
-    expect(out?.projectContext).toContain('use REST');
-    expect(out?.projectContext).not.toContain('React Router');
+    expect(out?.architecturalNarrative).toContain('use REST');
+    expect(out?.architecturalNarrative).not.toContain('React Router');
   });
 
   it('returns the same shape with empty strings when no section mentions the service', () => {
     const upstream = {
       synthesis: '## web\n\nweb notes only',
       claudeMd: '## web commands\n\nnpm dev',
-      projectContext: '## generic\n\nno service mention',
+      architecturalNarrative: '## generic\n\nno service mention',
     };
     const out = scopeUpstreamForService(upstream, { id: 'unrelated-service' });
     expect(out?.synthesis).toBe('');
     expect(out?.claudeMd).toBe('');
-    expect(out?.projectContext).toBe('');
+    expect(out?.architecturalNarrative).toBe('');
   });
 
   it('passes undefined through', () => {

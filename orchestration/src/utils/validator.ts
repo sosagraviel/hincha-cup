@@ -195,65 +195,17 @@ export function extractJSON(output: string): string {
 }
 
 /**
- * Extract synthesis markdown sections from agent output
+ * Re-export the canonical synthesis extractor.
  *
- * Handles preamble text (like "Let me output..." or explanations) by finding
- * the actual section markers anywhere in the text. Similar to extractJSON resilience.
- *
- * Agents sometimes add conversational text before the actual output:
- * - "The validation hook requires my response to follow a specific format. Let me output..."
- * - "I see I need to follow the format. Here it is:"
- * - Tool use blocks before the actual content
- *
- * This function finds the section headers regardless of preamble.
- *
- * @param output - Raw output from synthesis agent
- * @returns Object with claudemd and projectContext content, or null if not found
+ * Phase 3 synthesis emits five sections (CLAUDE.md + 3 prescriptive skills +
+ * an architectural narrative); the splitter lives at
+ * `phase3/validators/extract-synthesis-markdown.ts` so the validator and the
+ * extractor share a single source of truth. This re-export exists only to
+ * keep `phase4/helpers/synthesis-extractor.ts`'s import path stable; new
+ * callers should import directly from the validators module.
  */
-export function extractSynthesisMarkdown(output: string): {
-  claudemd: string;
-  projectContext: string;
-} | null {
-  // Accept both providers' instruction-file headers: Claude emits
-  // "# CLAUDE.md Content", Codex emits "# AGENTS.md Content".
-  const CLAUDE_HEADER = '# CLAUDE.md Content';
-  const AGENTS_HEADER = '# AGENTS.md Content';
-  const CONTEXT_HEADER = '# project-context/SKILL.md Content';
-
-  let headerIndex = output.indexOf(CLAUDE_HEADER);
-  let headerLength = CLAUDE_HEADER.length;
-
-  if (headerIndex === -1) {
-    headerIndex = output.indexOf(AGENTS_HEADER);
-    headerLength = AGENTS_HEADER.length;
-  }
-
-  if (headerIndex === -1) {
-    return null;
-  }
-
-  // Find "---" separator on its own line after the instruction-file content
-  const separatorMatch = output.slice(headerIndex).match(/\n---\s*\n/);
-  if (!separatorMatch || separatorMatch.index === undefined) {
-    return null;
-  }
-
-  // Find project-context header AFTER the separator so a stray marker inside
-  // the instruction-file body can't be mistaken for the skill section.
-  const contextHeaderIndex = output.indexOf(CONTEXT_HEADER, headerIndex + separatorMatch.index);
-  if (contextHeaderIndex === -1) {
-    return null;
-  }
-
-  const claudeStartIndex = headerIndex + headerLength;
-  const claudeEndIndex = headerIndex + separatorMatch.index;
-  const claudemd = output.slice(claudeStartIndex, claudeEndIndex).trim();
-
-  const contextStartIndex = contextHeaderIndex + CONTEXT_HEADER.length;
-  const projectContext = output.slice(contextStartIndex).trim();
-
-  return { claudemd, projectContext };
-}
+export { extractSynthesisMarkdown } from '../nodes/initialize-project/phase3/validators/extract-synthesis-markdown.js';
+export type { ExtractedSynthesisSections } from '../nodes/initialize-project/phase3/validators/types.js';
 
 /**
  * Extract a balanced JSON object from a string starting at a given position.

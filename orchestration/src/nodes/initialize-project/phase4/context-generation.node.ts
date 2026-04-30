@@ -32,16 +32,18 @@ import { FrameworkConfigSchema } from '../../../schemas/framework-config.schema.
 /**
  * Phase 4: Context Generation Node
  *
- * This node:
- * - Extracts CLAUDE.md and project-context content from Phase 3 synthesis using regex
- * - Runs stack detection using existing utilities
- * - Generates framework-config.json with all phase outputs
- * - Writes all files to project directory
+ * Splits the Phase 3 synthesis blob into its five sections and persists them:
+ *   1. CLAUDE.md (or AGENTS.md on Codex) → `<project>/.claude/CLAUDE.md`
+ *   2. code-conventions/SKILL.md         → `<project>/.claude/skills/code-conventions/SKILL.md`
+ *   3. multi-file-workflows/SKILL.md     → `<project>/.claude/skills/multi-file-workflows/SKILL.md`
+ *   4. testing-conventions/SKILL.md      → `<project>/.claude/skills/testing-conventions/SKILL.md`
+ *   5. Architectural Narrative           → `<tempDir>/architectural-narrative.md`
+ *      (descriptive prose; consumed by the wiki-generator in Phase 4b. It is
+ *      NOT a skill.)
  *
- * Features:
- * - Fast regex-based extraction (no LLM calls)
- * - Deterministic and reliable
- * - Matches bash flow implementation
+ * Then runs the stack-detection / file-counting / workspace-detection
+ * utilities and writes `framework-config.json`. Pure regex extraction — no
+ * LLM calls in this node.
  *
  * @param state - Current workflow state
  * @returns Updated state with context generation results
@@ -71,17 +73,26 @@ export async function contextGenerationNode(
       state.project_path,
       phaseLogger,
     );
-    const claudeMdContent = synthesisResult.claudeMdContent;
-    const claudeMdPath = synthesisResult.claudeMdPath;
-    const projectContextContent = synthesisResult.projectContextContent;
-    const projectContextPath = synthesisResult.projectContextPath;
+    const {
+      claudeMdContent,
+      claudeMdPath,
+      codeConventionsContent,
+      codeConventionsPath,
+      multiFileWorkflowsContent,
+      multiFileWorkflowsPath,
+      testingConventionsContent,
+      testingConventionsPath,
+      architecturalNarrative,
+    } = synthesisResult;
 
-    const claudeMdLines = claudeMdContent.split('\n').length;
-    const projectContextLines = projectContextContent.split('\n').length;
-    phaseLogger.success(`✓ Extracted CLAUDE.md (${claudeMdLines} lines)`);
-    phaseLogger.success(`✓ Extracted project-context/SKILL.md (${projectContextLines} lines)`);
-    phaseLogger.success(`✓ Written: ${claudeMdPath}`);
-    phaseLogger.success(`✓ Written: ${projectContextPath}`);
+    // Persist the architectural narrative to <tempDir>/architectural-narrative.md
+    // so the wiki-preparation node (Phase 4b) can read it from disk like every
+    // other upstream artifact. The narrative is descriptive prose only — no
+    // YAML frontmatter, no skill semantics — so it lives in the run's temp
+    // directory rather than under .claude/skills/.
+    const architecturalNarrativePath = join(tempDir, 'architectural-narrative.md');
+    writeFileSync(architecturalNarrativePath, architecturalNarrative, 'utf-8');
+    phaseLogger.success(`✓ Written: ${architecturalNarrativePath}`);
 
     // Read Phase 1 analysis files from disk (not from state)
     phaseLogger.info(' Loading Phase 1 analysis from disk...');
@@ -329,19 +340,25 @@ export async function contextGenerationNode(
         validation_passed: true,
         extracted_files: {
           claude_md: claudeMdContent,
-          project_context_md: projectContextContent,
+          code_conventions_md: codeConventionsContent,
+          multi_file_workflows_md: multiFileWorkflowsContent,
+          testing_conventions_md: testingConventionsContent,
         },
       },
       phase4_context: {
         claude_md_written: true,
-        project_context_written: true,
+        conventions_skills_written: true,
+        architectural_narrative_written: true,
         stack_profile: stackProfile,
         framework_config_generated: true,
         timestamp: new Date().toISOString(),
       },
       framework_config_path: configPath,
       claude_md_path: claudeMdPath,
-      project_context_path: projectContextPath,
+      code_conventions_path: codeConventionsPath,
+      multi_file_workflows_path: multiFileWorkflowsPath,
+      testing_conventions_path: testingConventionsPath,
+      architectural_narrative_path: architecturalNarrativePath,
       current_phase: 'phase4_context',
     };
   } catch (error) {

@@ -88,7 +88,9 @@ export function routeAfterWikiPreparation(state: InitializeProjectState): string
  *   services[] injected as authoritative input.
  * PHASE 2: Consolidate findings and identify gaps
  * PHASE 3: Run Opus synthesis agent for comprehensive analysis
- * PHASE 4: Generate CLAUDE.md and project-context/SKILL.md
+ * PHASE 4: Generate CLAUDE.md plus three prescriptive convention skills
+ *   (code-conventions, multi-file-workflows, testing-conventions) and
+ *   persist the architectural narrative for the wiki-generator
  * PHASE 4b: Generate docs/llm-wiki wiki via parallel subgraph:
  *   wiki_preparation → [architecture, data-flow, pattern] in parallel →
  *   wiki_service_docs (N concurrent per-service LLM calls) →

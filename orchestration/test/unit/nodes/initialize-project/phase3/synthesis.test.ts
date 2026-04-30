@@ -37,6 +37,13 @@ vi.mock('../../../../../src/utils/enhanced-retry.js', () => ({
 }));
 
 // Helper to generate valid synthesis output with proper line counts
+/**
+ * Build a five-section synthesis blob that passes the post-Phase-3
+ * validators: CLAUDE.md cheat-sheet, three prescriptive convention skills
+ * (each with YAML frontmatter and the canonical name slug; code-conventions
+ * and testing-conventions carry a fenced code block), and an architectural
+ * narrative for the wiki-generator.
+ */
 function generateValidSynthesis() {
   const claudeContent = [
     '# TestProject',
@@ -52,47 +59,127 @@ function generateValidSynthesis() {
     '| Controller | src/controllers/ | user.controller.ts |',
     '| Service | src/services/ | user.service.ts |',
     '',
+    '## Directory Structure',
+    'src/',
+    '  controllers/',
+    '  services/',
+    '',
     '## Essential Commands',
     '| Task | Command |',
     '|------|---------|',
     '| Dev | npm run dev |',
     '| Test | npm test |',
-    ...Array.from({ length: 12 }, (_, i) => `Additional line ${i + 1}`),
+    ...Array.from({ length: 12 }, (_, i) => `Additional cheat-sheet line ${i + 1}`),
   ].join('\n');
 
-  const contextContent = [
+  const codeConventions = [
     '---',
-    'name: project-context',
-    'description: Deep architectural knowledge',
+    'name: code-conventions',
+    'description: Project-specific coding conventions, gotchas, and WRONG/CORRECT examples',
     '---',
     '',
-    '# Project Context: TestProject',
+    '# Code Conventions',
     '',
-    '## When to Use This Skill',
-    '- When implementing features',
-    '',
-    '## Architecture',
-    'The system uses layered architecture.',
+    '## Naming',
+    '- camelCase for variables',
     '',
     '## Gotchas',
+    '',
     '```typescript',
-    '// Wrong',
-    'const bad = null;',
-    '// Correct',
-    'const good = value;',
+    '// WRONG',
+    'await orderRepo.save(order);',
     '```',
-    ...Array.from({ length: 30 }, (_, i) => `Additional context line ${i + 1}`),
+    '',
+    '```typescript',
+    '// CORRECT',
+    'return dataSource.transaction(async (m) => m.save(Order, order));',
+    '```',
+    ...Array.from({ length: 35 }, (_, i) => `- additional rule ${i + 1}`),
   ].join('\n');
 
-  return `# CLAUDE.md Content
+  const multiFileWorkflows = [
+    '---',
+    'name: multi-file-workflows',
+    'description: Ordered checklists for cross-cutting changes',
+    '---',
+    '',
+    '# Multi-File Workflows',
+    '',
+    '## Adding a new API endpoint',
+    '1. Create controller method',
+    '2. Add service method',
+    '3. Create DTO',
+    ...Array.from({ length: 25 }, (_, i) => `- additional checklist step ${i + 1}`),
+  ].join('\n');
 
-${claudeContent}
+  const testingConventions = [
+    '---',
+    'name: testing-conventions',
+    'description: Project-specific testing conventions, fixtures, and examples',
+    '---',
+    '',
+    '# Testing Conventions',
+    '',
+    '## Philosophy',
+    '- Test behavior, not implementation',
+    '',
+    '## Unit Test Patterns',
+    '',
+    '```typescript',
+    "describe('UserService', () => {",
+    "  it('creates a user', async () => {",
+    '    const u = await service.create({ email: "a@b.com" });',
+    '    expect(u.id).toBeDefined();',
+    '  });',
+    '});',
+    '```',
+    ...Array.from({ length: 25 }, (_, i) => `- additional testing rule ${i + 1}`),
+  ].join('\n');
 
----
+  const architecturalNarrative = [
+    '# Architectural Narrative',
+    '',
+    '## Repository Shape',
+    'Monorepo with one backend service and one web frontend.',
+    '',
+    '## Service Inventory',
+    '- api: TypeScript backend',
+    '- web: TypeScript frontend',
+    '',
+    '## Cross-Service Flows',
+    'The web frontend calls api over HTTP.',
+    ...Array.from({ length: 35 }, (_, i) => `Additional narrative paragraph ${i + 1}`),
+  ].join('\n');
 
-# project-context/SKILL.md Content
-
-${contextContent}`;
+  return [
+    '# CLAUDE.md Content',
+    '',
+    claudeContent,
+    '',
+    '---',
+    '',
+    '# code-conventions/SKILL.md Content',
+    '',
+    codeConventions,
+    '',
+    '---',
+    '',
+    '# multi-file-workflows/SKILL.md Content',
+    '',
+    multiFileWorkflows,
+    '',
+    '---',
+    '',
+    '# testing-conventions/SKILL.md Content',
+    '',
+    testingConventions,
+    '',
+    '---',
+    '',
+    '# Architectural Narrative Content',
+    '',
+    architecturalNarrative,
+  ].join('\n');
 }
 
 describe('synthesisNode', () => {

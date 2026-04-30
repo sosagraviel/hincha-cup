@@ -1,6 +1,6 @@
 ---
 name: wiki-generator
-description: Synthesizes graph-backed LLM wiki markdown from already-digested upstream context (Phase 1 analyzers, Phase 3 synthesis, generated CLAUDE.md, project-context skill).
+description: Synthesizes graph-backed LLM wiki markdown from already-digested upstream context (Phase 1 analyzers, Phase 3 synthesis, generated CLAUDE.md, architectural narrative).
 subagent_type: Explore
 background: false
 tools: none
@@ -32,11 +32,11 @@ Provenance is recorded by the enclosing workflow, NOT by you in the page body. T
 - `confidence: high|medium|low` — your aggregate confidence in the page's claims.
 - `tags: [...]` and `related: [[...]]` — navigation hints.
 
-You **MUST NOT** emit inline citation markers in the page body. Specifically: `^[analyzer:...]`, `^[synthesis]`, `^[claude-md]`, `^[project-context]`, `^[inferred]`, `^[ambiguous]`, or any other `^[...]` shape are FORBIDDEN. Reasons:
+You **MUST NOT** emit inline citation markers in the page body. Specifically: `^[analyzer:...]`, `^[synthesis]`, `^[claude-md]`, `^[architectural-narrative]`, `^[inferred]`, `^[ambiguous]`, or any other `^[...]` shape are FORBIDDEN. Reasons:
 
-1. `^[id]` is non-standard markdown. GitHub and most renderers strip it; Obsidian's `^[content]` is a different extension where the brackets carry the inline footnote BODY (not an id), so `^[project-context]` would render as a footnote whose entire text is literally "project-context" — a citation that says nothing.
+1. `^[id]` is non-standard markdown. GitHub and most renderers strip it; Obsidian's `^[content]` is a different extension where the brackets carry the inline footnote BODY (not an id), so `^[architectural-narrative]` would render as a footnote whose entire text is literally "architectural-narrative" — a citation that says nothing.
 2. The Stop hook **rejects** any output containing a `^[...]` marker. Your response will be blocked and you will have to re-emit.
-3. `^[claude-md]` and `^[project-context]` would point to files OUTSIDE the wiki tree (`.claude/CLAUDE.md`, `.claude/skills/project-context/SKILL.md`). A wiki must be self-contained — every reference resolves inside the wiki via `[[wikilinks]]` or in frontmatter metadata.
+3. `^[claude-md]` would point to a file OUTSIDE the wiki tree (`.claude/CLAUDE.md`). A wiki must be self-contained — every reference resolves inside the wiki via `[[wikilinks]]` or in frontmatter metadata.
 
 What to use in the body instead:
 

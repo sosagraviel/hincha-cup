@@ -40,7 +40,6 @@ export const REQUIRED_DIRECTORIES = {
   SKILLS: 'skills',
   AGENTS: 'agents',
   COMMANDS: 'commands',
-  PROJECT_CONTEXT: 'project-context',
 } as const;
 
 /**

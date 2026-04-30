@@ -192,13 +192,12 @@ export interface StackProfileValidationResult {
 // ============================================================================
 
 /**
- * Result of synthesis content extraction and writing
+ * Result of synthesis content extraction and writing.
+ *
+ * Phase 3 synthesis emits five sections; Phase 4 writes the four file-bound
+ * sections (CLAUDE.md + three prescriptive convention skills) and surfaces
+ * the architectural narrative as in-memory prose for the wiki-generator.
+ *
+ * Authoritative shape lives in `helpers/synthesis-extractor.ts`.
  */
-export interface SynthesisExtractionResult {
-  claudeMdContent: string;
-  projectContextContent: string;
-  claudeMdPath: string;
-  projectContextPath: string;
-  claudeMdLines: number;
-  projectContextLines: number;
-}
+export type { SynthesisExtractionResult } from './helpers/synthesis-extractor.js';

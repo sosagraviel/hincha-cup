@@ -362,9 +362,21 @@
       "compatible_languages": ["typescript", "javascript"]
     },
     {
-      "name": "project-context",
-      "path": "010-foundation/project-context",
-      "description": "Project-specific architecture and patterns (generated during initialization)",
+      "name": "code-conventions",
+      "path": "010-foundation/code-conventions",
+      "description": "Project-specific coding conventions, gotchas, and WRONG/CORRECT examples (generated during initialization)",
+      "trigger_mode": "generated"
+    },
+    {
+      "name": "multi-file-workflows",
+      "path": "010-foundation/multi-file-workflows",
+      "description": "Ordered checklists for cross-cutting changes — add endpoint, add entity, etc. (generated during initialization)",
+      "trigger_mode": "generated"
+    },
+    {
+      "name": "testing-conventions",
+      "path": "010-foundation/testing-conventions",
+      "description": "Project-specific testing conventions, fixtures, mocking rules, and examples (generated during initialization)",
       "trigger_mode": "generated"
     }
   ]

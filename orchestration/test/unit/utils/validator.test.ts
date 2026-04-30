@@ -1102,95 +1102,101 @@ ${validJSON}
   });
 
   describe('extractSynthesisMarkdown', () => {
-    it('extracts both sections when output uses # CLAUDE.md Content (Claude provider)', () => {
-      const output = [
-        '# CLAUDE.md Content',
+    // The synthesizer emits five sections separated by `---`:
+    //   CLAUDE.md / AGENTS.md, code-conventions, multi-file-workflows,
+    //   testing-conventions, Architectural Narrative.
+    // Build a minimal valid blob inline so the test stays self-contained.
+    function buildFiveSection(opts: { schemaHeader?: string } = {}): string {
+      return [
+        opts.schemaHeader ?? '# CLAUDE.md Content',
         '',
         '# MyProject',
         '',
-        'some body',
+        'cheat-sheet body',
         '',
         '---',
         '',
-        '# project-context/SKILL.md Content',
+        '# code-conventions/SKILL.md Content',
         '',
         '---',
-        'name: project-context',
+        'name: code-conventions',
         '---',
         '',
-        'context body',
+        '# Code Conventions',
+        '',
+        'rule body',
+        '',
+        '---',
+        '',
+        '# multi-file-workflows/SKILL.md Content',
+        '',
+        '---',
+        'name: multi-file-workflows',
+        '---',
+        '',
+        '# Multi-File Workflows',
+        '',
+        'checklist body',
+        '',
+        '---',
+        '',
+        '# testing-conventions/SKILL.md Content',
+        '',
+        '---',
+        'name: testing-conventions',
+        '---',
+        '',
+        '# Testing Conventions',
+        '',
+        'testing body',
+        '',
+        '---',
+        '',
+        '# Architectural Narrative Content',
+        '',
+        '# Architectural Narrative',
+        '',
+        'narrative body',
       ].join('\n');
+    }
 
-      const extracted = extractSynthesisMarkdown(output);
+    it('extracts all five sections when output uses # CLAUDE.md Content', () => {
+      const extracted = extractSynthesisMarkdown(buildFiveSection());
       expect(extracted).not.toBeNull();
       expect(extracted!.claudemd).toContain('# MyProject');
-      expect(extracted!.claudemd).toContain('some body');
-      expect(extracted!.projectContext).toContain('name: project-context');
-      expect(extracted!.projectContext).toContain('context body');
+      expect(extracted!.claudemd).toContain('cheat-sheet body');
+      expect(extracted!.codeConventions).toContain('name: code-conventions');
+      expect(extracted!.codeConventions).toContain('rule body');
+      expect(extracted!.multiFileWorkflows).toContain('checklist body');
+      expect(extracted!.testingConventions).toContain('testing body');
+      expect(extracted!.architecturalNarrative).toContain('narrative body');
     });
 
-    it('extracts both sections when output uses # AGENTS.md Content (Codex provider)', () => {
-      const output = [
-        '# AGENTS.md Content',
-        '',
-        '# MyProject',
-        '',
-        'some body',
-        '',
-        '---',
-        '',
-        '# project-context/SKILL.md Content',
-        '',
-        '---',
-        'name: project-context',
-        '---',
-        '',
-        'context body',
-      ].join('\n');
-
-      const extracted = extractSynthesisMarkdown(output);
+    it('accepts # AGENTS.md Content as the schema-doc alias (Codex)', () => {
+      const extracted = extractSynthesisMarkdown(
+        buildFiveSection({ schemaHeader: '# AGENTS.md Content' }),
+      );
       expect(extracted).not.toBeNull();
       expect(extracted!.claudemd).toContain('# MyProject');
-      expect(extracted!.claudemd).toContain('some body');
-      expect(extracted!.projectContext).toContain('context body');
+      expect(extracted!.architecturalNarrative).toContain('narrative body');
     });
 
-    it('returns null when neither header is present', () => {
+    it('returns null when neither schema-doc header is present', () => {
       const output = '# Something Else\n\nbody';
       expect(extractSynthesisMarkdown(output)).toBeNull();
     });
 
-    it('returns null when separator is missing', () => {
-      const output = '# AGENTS.md Content\n\nbody\n\n# project-context/SKILL.md Content\nx';
-      expect(extractSynthesisMarkdown(output)).toBeNull();
+    it('returns null when any of the five required headers is missing', () => {
+      const missingNarrative = buildFiveSection().replace('# Architectural Narrative Content', '');
+      expect(extractSynthesisMarkdown(missingNarrative)).toBeNull();
     });
 
-    it('returns null when project-context header is missing', () => {
-      const output = '# AGENTS.md Content\n\nbody\n\n---\n\nnothing else here';
-      expect(extractSynthesisMarkdown(output)).toBeNull();
-    });
-
-    it('is not fooled by a --- marker inside the instruction body', () => {
-      // A stray "---" in the instruction body followed by project-context
-      // header must still be extracted correctly — the separator search
-      // must consume the first \n---\n, and the context header lookup
-      // must resume from after the separator.
-      const output = [
-        '# AGENTS.md Content',
+    it('returns null when the testing-conventions header is missing', () => {
+      const missingTesting = buildFiveSection().replace(
+        '# testing-conventions/SKILL.md Content',
         '',
-        'intro',
-        '',
-        '---',
-        '',
-        '# project-context/SKILL.md Content',
-        '',
-        'context body',
-      ].join('\n');
-
-      const extracted = extractSynthesisMarkdown(output);
-      expect(extracted).not.toBeNull();
-      expect(extracted!.claudemd).toBe('intro');
-      expect(extracted!.projectContext).toBe('context body');
+      );
+      expect(extractSynthesisMarkdown(missingTesting)).toBeNull();
     });
   });
 });

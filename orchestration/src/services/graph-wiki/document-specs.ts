@@ -201,10 +201,10 @@ function renderDigestedUpstream(upstream: WikiDigestedUpstream): string[] {
     sections.push('--- end: generated CLAUDE.md ---');
     sections.push('');
   }
-  if (upstream.projectContext && upstream.projectContext.trim().length > 0) {
-    sections.push('--- begin: project-context skill (relevant excerpt) ---');
-    sections.push(upstream.projectContext.trim());
-    sections.push('--- end: project-context skill ---');
+  if (upstream.architecturalNarrative && upstream.architecturalNarrative.trim().length > 0) {
+    sections.push('--- begin: architectural narrative (relevant excerpt) ---');
+    sections.push(upstream.architecturalNarrative.trim());
+    sections.push('--- end: architectural narrative ---');
     sections.push('');
   }
   return sections;
@@ -371,8 +371,8 @@ function scopeDigestedUpstream(
     claudeMd: upstream.claudeMd
       ? extractRelevantMarkdownSections(upstream.claudeMd, keywords)
       : undefined,
-    projectContext: upstream.projectContext
-      ? extractRelevantMarkdownSections(upstream.projectContext, keywords)
+    architecturalNarrative: upstream.architecturalNarrative
+      ? extractRelevantMarkdownSections(upstream.architecturalNarrative, keywords)
       : undefined,
   };
 }

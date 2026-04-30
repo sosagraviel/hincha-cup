@@ -14,13 +14,17 @@ export async function wikiPreparationNode(
   phaseLogger.info('Validating wiki inputs and loading analyzers...');
 
   try {
-    const { tempDir, claudeMdPath, projectContextPath, phase1Dir } = resolveWikiPaths(state);
+    const { tempDir, claudeMdPath, architecturalNarrativePath, phase1Dir } =
+      resolveWikiPaths(state);
 
     if (!existsSync(claudeMdPath)) {
       throw new Error(`CLAUDE.md not found: ${claudeMdPath}`);
     }
-    if (!existsSync(projectContextPath)) {
-      throw new Error(`project-context/SKILL.md not found: ${projectContextPath}`);
+    if (!existsSync(architecturalNarrativePath)) {
+      throw new Error(
+        `architectural-narrative.md not found: ${architecturalNarrativePath}. ` +
+          'Phase 4a must persist the synthesis architectural narrative before wiki preparation.',
+      );
     }
     if (!existsSync(phase1Dir)) {
       throw new Error(`Phase 1 outputs directory not found: ${phase1Dir}`);
@@ -32,16 +36,15 @@ export async function wikiPreparationNode(
 
     // Load digested upstream — the wiki-generator agent runs closed-book over
     // these. Phase 3 synthesis lives at <tempDir>/synthesis-raw.md (written by
-    // the synthesis node); CLAUDE.md and project-context/SKILL.md were just
-    // generated in Phase 4a. Missing files are non-fatal — the agent will
-    // surface gaps with `(not determined by analysis)` rather than guess.
+    // the synthesis node); CLAUDE.md and the architectural narrative were
+    // both produced in Phase 4a. The wiki-generator no longer reads
+    // project-context — that monolithic skill was split into prescriptive
+    // convention skills not consumed by the wiki.
     const synthesisPath = join(tempDir, 'synthesis-raw.md');
     const digestedUpstream = {
       synthesis: existsSync(synthesisPath) ? readFileSync(synthesisPath, 'utf-8') : undefined,
       claudeMd: existsSync(claudeMdPath) ? readFileSync(claudeMdPath, 'utf-8') : undefined,
-      projectContext: existsSync(projectContextPath)
-        ? readFileSync(projectContextPath, 'utf-8')
-        : undefined,
+      architecturalNarrative: readFileSync(architecturalNarrativePath, 'utf-8'),
     };
 
     const wiki = new WikiGeneratorService({
@@ -80,7 +83,7 @@ export async function wikiPreparationNode(
         },
       },
       claude_md_path: claudeMdPath,
-      project_context_path: projectContextPath,
+      architectural_narrative_path: architecturalNarrativePath,
       temp_dir: tempDir,
     };
   } catch (error) {

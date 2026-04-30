@@ -1,7 +1,7 @@
 /**
  * Single source of truth for the graph-navigation discipline.
  *
- * One canonical text consumed by five surfaces:
+ * One canonical text consumed by four surfaces:
  *
  *   1. Phase 1 analyzer prompts — embedded by
  *      `nodes/initialize-project/phase1/shared/prompt-builder.ts::buildGraphContext`.
@@ -9,13 +9,15 @@
  *      upserted as a `<!-- GRAPH_DISCIPLINE_START -->` fenced section by
  *      `nodes/initialize-project/phase4/wiki-generation.node.ts`. Visible to
  *      every ambient agent session in the target project.
- *   3. Generated `<project>/.claude/skills/project-context/SKILL.md` (or the
- *      Codex variant) — same upsert mechanism as #2.
- *   4. Wiki router doc (`<project>/docs/llm-wiki/CLAUDE.md` or `AGENTS.md`) —
+ *   3. Wiki router doc (`<project>/docs/llm-wiki/CLAUDE.md` or `AGENTS.md`) —
  *      templated subsection by
  *      `services/graph-wiki/wiki-generator.service.ts::buildSchemaDocBody`.
- *   5. Ticket skills (create-sdd-ticket / implement-ticket) — one-line
+ *   4. Ticket skills (create-sdd-ticket / implement-ticket) — one-line
  *      cross-reference; the skills do NOT duplicate the body.
+ *
+ * The previous fifth surface — the project-context skill — was retired when
+ * Phase 3 synthesis switched to emitting three prescriptive convention skills
+ * (none of which carries the wiki-context section).
  *
  * Any tweak to the discipline propagates to every consumer automatically.
  *

@@ -15,15 +15,18 @@ import { getInitializeProjectPhase } from '../../../services/framework/debug-sto
 /**
  * Phase 3: Opus Synthesis Node
  *
- * This node runs the architect-synthesizer agent (Opus model) which:
- * - Takes consolidated findings from Phase 2
- * - Generates comprehensive project analysis
- * - Creates CLAUDE.md and project-context markdown content
- * - Provides high-level architectural insights
+ * Runs the architect-synthesizer agent (Opus / GPT-5 model) which:
+ * - Takes consolidated findings from Phase 2 as its sole input
+ * - Emits five sections in a single response:
+ *   1. CLAUDE.md (or AGENTS.md on Codex) — cheat-sheet
+ *   2. code-conventions/SKILL.md — prescriptive code rules
+ *   3. multi-file-workflows/SKILL.md — cross-cutting checklists
+ *   4. testing-conventions/SKILL.md — prescriptive test rules
+ *   5. Architectural Narrative — descriptive prose for the wiki-generator
  *
  * Features:
- * - Uses Opus model for deep reasoning
- * - Retry logic with exponential backoff (up to 10 attempts)
+ * - Uses the most capable model for deep reasoning
+ * - Retry logic with exponential backoff
  * - Error feedback for self-correction
  * - Longer timeout (10 minutes)
  *

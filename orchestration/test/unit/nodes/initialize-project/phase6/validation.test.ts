@@ -43,7 +43,10 @@ describe('validationNode', () => {
       current_phase: 'phase5_resources',
       temp_dir: '/test/temp',
       claude_md_path: '/test/project/.claude/CLAUDE.md',
-      project_context_path: '/test/project/.claude/project-context/SKILL.md',
+      code_conventions_path: '/test/project/.claude/skills/code-conventions/SKILL.md',
+      multi_file_workflows_path: '/test/project/.claude/skills/multi-file-workflows/SKILL.md',
+      testing_conventions_path: '/test/project/.claude/skills/testing-conventions/SKILL.md',
+      architectural_narrative_path: '/test/temp/architectural-narrative.md',
       framework_config_path: '/test/project/.claude/framework-config.json',
       phase1_analysis: { all_completed: true },
       phase1_retry_tracking: {},
@@ -56,7 +59,8 @@ describe('validationNode', () => {
       phase4_context: {
         framework_config_generated: true,
         claude_md_written: true,
-        project_context_written: true,
+        conventions_skills_written: true,
+        architectural_narrative_written: true,
         timestamp: '2024-01-01T00:00:00Z',
       },
       errors: [],
@@ -215,18 +219,27 @@ describe('validationNode', () => {
     );
   });
 
-  it('should fail if project-context/SKILL.md not found', async () => {
-    mockState.project_context_path = undefined;
-    // Mock existsSync to return false for SKILL.md
-    vi.mocked(fs.existsSync).mockImplementation((path: any) => !path.includes('SKILL.md'));
+  it('should fail if any of the three convention skills is missing', async () => {
+    mockState.code_conventions_path = undefined;
+    mockState.multi_file_workflows_path = undefined;
+    mockState.testing_conventions_path = undefined;
+    // Mock existsSync to return false for any SKILL.md path
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => !String(path).includes('SKILL.md'));
 
     const result = await validationNode(mockState);
 
     expect(result.errors).toBeDefined();
-    expect(result.errors?.some((e) => e.includes('project-context/SKILL.md not found'))).toBe(true);
+    // At least one of the three convention skills must be reported missing.
+    expect(
+      result.errors?.some((e) =>
+        /code-conventions\/SKILL\.md not found|multi-file-workflows\/SKILL\.md not found|testing-conventions\/SKILL\.md not found/.test(
+          e,
+        ),
+      ),
+    ).toBe(true);
   });
 
-  it('should warn if SKILL.md content is too short', async () => {
+  it('should warn if a convention-skill SKILL.md is too short', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
       if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('CLAUDE.md')) return 'x'.repeat(200);
@@ -240,8 +253,14 @@ describe('validationNode', () => {
     const result = await validationNode(mockState);
 
     expect(result.warnings).toBeDefined();
+    // Each of the three convention skills validates short-content separately;
+    // any of the three reporting "content seems too short" satisfies the contract.
     expect(
-      result.warnings?.some((w) => w.includes('project-context/SKILL.md content seems too short')),
+      result.warnings?.some((w) =>
+        /code-conventions\/SKILL\.md content seems too short|multi-file-workflows\/SKILL\.md content seems too short|testing-conventions\/SKILL\.md content seems too short/.test(
+          w,
+        ),
+      ),
     ).toBe(true);
   });
 

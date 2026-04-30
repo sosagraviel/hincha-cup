@@ -5,8 +5,11 @@ import { z } from 'zod';
  * 6-Phase Architecture:
  * Phase 1: Parallel Analysis (4 agents)
  * Phase 2: Consolidation & Gap Analysis
- * Phase 3: Opus Synthesis
- * Phase 4: Context Generation (CLAUDE.md, project-context)
+ * Phase 3: Opus Synthesis (emits 5 sections: CLAUDE.md + 3 prescriptive
+ *   convention skills + an architectural narrative)
+ * Phase 4: Context Generation (writes CLAUDE.md + 3 skills, persists the
+ *   architectural narrative to <tempDir>/architectural-narrative.md for the
+ *   wiki-generator) and Wiki Generation (LLM-grounded llm-wiki/ pages)
  * Phase 5: Resource Copying
  * Phase 6: Final Validation
  *
@@ -68,10 +71,15 @@ export const Phase2ConsolidationSchema = z.object({
 
 export const Phase3SynthesisSchema = z.object({
   synthesis_content: z.string(), // Raw markdown content
+  // Phase 3 synthesis emits five sections; the four file-bound bodies are
+  // surfaced here (the architectural narrative is persisted to disk for the
+  // wiki-generator and is not duplicated in state).
   extracted_files: z
     .object({
       claude_md: z.string().optional(),
-      project_context_md: z.string().optional(),
+      code_conventions_md: z.string().optional(),
+      multi_file_workflows_md: z.string().optional(),
+      testing_conventions_md: z.string().optional(),
     })
     .optional(),
   timestamp: z.string(),
@@ -84,7 +92,16 @@ export const Phase3SynthesisSchema = z.object({
 
 export const Phase4ContextSchema = z.object({
   claude_md_written: z.boolean().default(false),
-  project_context_written: z.boolean().default(false),
+  // Three prescriptive skills written by Phase 4a:
+  //   <project>/.claude/skills/code-conventions/SKILL.md
+  //   <project>/.claude/skills/multi-file-workflows/SKILL.md
+  //   <project>/.claude/skills/testing-conventions/SKILL.md
+  // (paths use `.codex/` on Codex). All three are required; the boolean is
+  // a single rollup so consumers can gate on "synthesis bodies persisted".
+  conventions_skills_written: z.boolean().default(false),
+  // The fifth synthesis section — descriptive prose for the wiki-generator —
+  // is persisted to <tempDir>/architectural-narrative.md, not as a skill.
+  architectural_narrative_written: z.boolean().default(false),
   stack_profile: z.any().optional(), // Flexible structure - accepts anything (avoids Zod v4 beta bugs)
   framework_config_generated: z.boolean().default(false),
   timestamp: z.string(),
@@ -107,14 +124,18 @@ export const Phase4WikiDocsSchema = z.object({
       generatedAt: z.string(),
       graphVersion: z.string(),
       graphCommit: z.string().optional(),
-      // Digested upstream piped into the closed-book wiki-generator. All three
-      // come from earlier phases of the same workflow; the wiki agent has no
-      // filesystem access, so these strings are its sole narrative source.
+      // Digested upstream piped into the closed-book wiki-generator. All
+      // three come from earlier phases of the same workflow; the wiki agent
+      // has no filesystem access, so these strings are its sole narrative
+      // source. `architecturalNarrative` is the descriptive prose section
+      // emitted by Phase 3 (replaces the old monolithic project-context
+      // skill, which is now split into prescriptive skills not consumed by
+      // the wiki).
       digestedUpstream: z
         .object({
           synthesis: z.string().optional(),
           claudeMd: z.string().optional(),
-          projectContext: z.string().optional(),
+          architecturalNarrative: z.string().optional(),
         })
         .optional(),
     })
@@ -223,7 +244,16 @@ export const InitializeProjectStateSchema = z.object({
   // Final outputs
   framework_config_path: z.string().optional(),
   claude_md_path: z.string().optional(),
-  project_context_path: z.string().optional(),
+  // Per-skill paths for the three prescriptive convention skills emitted by
+  // Phase 3 synthesis. Persisted under `<project>/.claude/skills/<name>/SKILL.md`
+  // (or `.codex/skills/<name>/SKILL.md` on Codex).
+  code_conventions_path: z.string().optional(),
+  multi_file_workflows_path: z.string().optional(),
+  testing_conventions_path: z.string().optional(),
+  // The architectural narrative is descriptive prose persisted to
+  // `<tempDir>/architectural-narrative.md`. The wiki-preparation node reads
+  // it as part of `digestedUpstream` for the wiki-generator.
+  architectural_narrative_path: z.string().optional(),
   llm_wiki_path: z.string().optional(),
   llm_wiki_files: z.array(z.string()).optional(),
 
@@ -425,7 +455,10 @@ export const InitializeProjectAnnotation = Annotation.Root({
   // ============================================================================
   framework_config_path: Annotation<string | undefined>,
   claude_md_path: Annotation<string | undefined>,
-  project_context_path: Annotation<string | undefined>,
+  code_conventions_path: Annotation<string | undefined>,
+  multi_file_workflows_path: Annotation<string | undefined>,
+  testing_conventions_path: Annotation<string | undefined>,
+  architectural_narrative_path: Annotation<string | undefined>,
   llm_wiki_path: Annotation<string | undefined>,
   llm_wiki_files: Annotation<string[] | undefined>,
 

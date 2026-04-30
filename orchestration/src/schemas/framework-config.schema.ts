@@ -29,6 +29,10 @@ export type ResourceInfo = z.infer<typeof ResourceInfoSchema>;
 
 /**
  * Phase 3 Synthesis Schema
+ *
+ * Phase 3 emits five sections; the four file-bound bodies are surfaced under
+ * `extracted_files`. The fifth section (architectural narrative) is consumed
+ * by the wiki-generator and not duplicated into the framework config.
  */
 export const Phase3SynthesisSchema = z
   .object({
@@ -37,7 +41,9 @@ export const Phase3SynthesisSchema = z
     extracted_files: z
       .object({
         claude_md: z.string().optional(),
-        project_context_md: z.string().optional(),
+        code_conventions_md: z.string().optional(),
+        multi_file_workflows_md: z.string().optional(),
+        testing_conventions_md: z.string().optional(),
       })
       .optional(),
     project_understanding: z.any().optional(),

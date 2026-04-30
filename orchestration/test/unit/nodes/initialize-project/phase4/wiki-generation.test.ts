@@ -75,7 +75,7 @@ describe('wikiGenerationNode (finalization)', () => {
       current_phase: 'phase4_context',
       temp_dir: '/test/temp',
       claude_md_path: '/test/project/.claude/CLAUDE.md',
-      project_context_path: '/test/project/.claude/skills/project-context/SKILL.md',
+      architectural_narrative_path: '/test/temp/architectural-narrative.md',
       code_graph_available: true,
       code_graph_path: '/test/project/.code-review-graph/graph.db',
       code_graph_stats: {
@@ -174,41 +174,35 @@ describe('wikiGenerationNode (finalization)', () => {
     expect(content).toContain('[DATA-FLOWS.md](DATA-FLOWS.md)');
   });
 
-  it('appends LLM wiki context guidance to CLAUDE.md and project-context', async () => {
+  it('appends LLM wiki context guidance to CLAUDE.md (and only CLAUDE.md)', async () => {
     await wikiGenerationNode(state);
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       '/test/project/.claude/CLAUDE.md',
       expect.stringContaining('LLM Wiki'),
     );
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
-      '/test/project/.claude/skills/project-context/SKILL.md',
-      expect.stringContaining('docs/llm-wiki/wiki/'),
-    );
+    // The three prescriptive convention skills carry rules only — the wiki
+    // pointer intentionally is NOT upserted into them.
+    const skillWrites = vi
+      .mocked(fs.writeFileSync)
+      .mock.calls.filter(([path]) => String(path).includes('/.claude/skills/'));
+    expect(skillWrites.length).toBe(0);
   });
 
-  it('appends a Graph navigation discipline fenced section to both files', async () => {
+  it('appends a Graph navigation discipline fenced section to CLAUDE.md', async () => {
     await wikiGenerationNode(state);
 
     const claudeWrite = vi
       .mocked(fs.writeFileSync)
       .mock.calls.find(([path]) => String(path) === '/test/project/.claude/CLAUDE.md');
-    const skillWrite = vi
-      .mocked(fs.writeFileSync)
-      .mock.calls.find(
-        ([path]) => String(path) === '/test/project/.claude/skills/project-context/SKILL.md',
-      );
-
-    for (const write of [claudeWrite, skillWrite]) {
-      const body = String(write?.[1]);
-      expect(body).toContain('<!-- GRAPH_DISCIPLINE_START -->');
-      expect(body).toContain('<!-- GRAPH_DISCIPLINE_END -->');
-      expect(body).toContain('## Graph navigation discipline');
-      expect(body).toContain('mcp__code_graph__get_minimal_context_tool');
-      expect(body).toContain('mcp__code_graph__get_architecture_overview_tool');
-      // Both fenced sections coexist — the LLM Wiki section was already there.
-      expect(body).toContain('<!-- LLM_WIKI_START -->');
-    }
+    const body = String(claudeWrite?.[1]);
+    expect(body).toContain('<!-- GRAPH_DISCIPLINE_START -->');
+    expect(body).toContain('<!-- GRAPH_DISCIPLINE_END -->');
+    expect(body).toContain('## Graph navigation discipline');
+    expect(body).toContain('mcp__code_graph__get_minimal_context_tool');
+    expect(body).toContain('mcp__code_graph__get_architecture_overview_tool');
+    // Both fenced sections coexist — the LLM Wiki section is already there.
+    expect(body).toContain('<!-- LLM_WIKI_START -->');
   });
 
   it('replaces the context section on rerun instead of duplicating it', async () => {

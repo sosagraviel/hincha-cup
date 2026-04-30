@@ -176,14 +176,15 @@ describe('wiki-generator.service', () => {
     );
   });
 
-  it('prompts inject the digested upstream narrative (synthesis, CLAUDE.md, project-context)', async () => {
+  it('prompts inject the digested upstream narrative (synthesis, CLAUDE.md, architectural narrative)', async () => {
     const prompts: string[] = [];
     const service = new WikiGeneratorService({
       ...buildInput(),
       digestedUpstream: {
         synthesis: '# Synthesis\n\n## Architecture\nMonorepo shape.\n\n## Patterns\nUnit-tested.\n',
         claudeMd: '# CLAUDE\n\n## Architecture\nNestJS service boundaries.\n',
-        projectContext: '# project-context\n\nNotes about the project.\n',
+        architecturalNarrative:
+          '# Architectural Narrative\n\n## Architecture\nNotes about the project shape.\n',
       },
       agentInvoker: async ({ prompt }: WikiAgentInvocation) => {
         prompts.push(prompt);
@@ -195,7 +196,7 @@ describe('wiki-generator.service', () => {
 
     expect(prompts.some((p) => p.includes('phase 3 synthesis'))).toBe(true);
     expect(prompts.some((p) => p.includes('generated CLAUDE.md'))).toBe(true);
-    expect(prompts.some((p) => p.includes('project-context skill'))).toBe(true);
+    expect(prompts.some((p) => p.includes('architectural narrative'))).toBe(true);
   });
 
   it('service-doc concurrency is bounded (default 3)', async () => {

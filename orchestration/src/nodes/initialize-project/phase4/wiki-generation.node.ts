@@ -44,7 +44,6 @@ export async function wikiGenerationNode(
     }
 
     const claudeMdPath = state.claude_md_path!;
-    const projectContextPath = state.project_context_path!;
     const provider = getActiveProvider();
 
     const wiki = new WikiGeneratorService({
@@ -153,28 +152,19 @@ export async function wikiGenerationNode(
     );
     const disciplineSection = buildGraphDisciplineSection();
 
-    // Both fenced sections are upserted into both files (the project's main
-    // CLAUDE.md/AGENTS.md AND the project-context skill body). Idempotent
-    // across re-runs: the regex replaces the prior section in place rather
-    // than appending duplicates. Order: LLM Wiki first, Graph Discipline
-    // second — they're orthogonal concerns and either can be edited
-    // independently in a future redesign.
+    // Upsert both fenced sections into the project's main schema doc
+    // (CLAUDE.md / AGENTS.md). The wiki context pointer only needs to live in
+    // ONE place — the schema doc that every Claude or Codex agent already
+    // reads at session start. The three prescriptive convention skills
+    // (code-conventions, multi-file-workflows, testing-conventions) carry
+    // prescriptive rules only and intentionally do NOT reference the wiki.
+    // Idempotent across re-runs: the regex replaces the prior section in
+    // place rather than appending duplicates.
     const claudeMdContent = readFileSync(claudeMdPath, 'utf-8');
     writeFileSync(
       claudeMdPath,
       upsertFencedSection(
         upsertLlmWikiContextSection(claudeMdContent, contextSection),
-        disciplineSection,
-        GRAPH_DISCIPLINE_CONTEXT_START,
-        GRAPH_DISCIPLINE_CONTEXT_END,
-      ),
-    );
-
-    const projectContextContent = readFileSync(projectContextPath, 'utf-8');
-    writeFileSync(
-      projectContextPath,
-      upsertFencedSection(
-        upsertLlmWikiContextSection(projectContextContent, contextSection),
         disciplineSection,
         GRAPH_DISCIPLINE_CONTEXT_START,
         GRAPH_DISCIPLINE_CONTEXT_END,
@@ -193,7 +183,6 @@ export async function wikiGenerationNode(
       llm_wiki_path: llmWikiPath,
       llm_wiki_files: writtenFiles,
       claude_md_path: claudeMdPath,
-      project_context_path: projectContextPath,
       current_phase: 'phase4_wiki_generation',
     };
   } catch (error) {

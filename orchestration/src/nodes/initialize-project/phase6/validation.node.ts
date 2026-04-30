@@ -28,7 +28,9 @@ import { validatePortability } from './helpers/portability-validator.js';
  * This node:
  * - Validates all generated files exist
  * - Validates framework-config.json structure
- * - Verifies CLAUDE.md and project-context/SKILL.md are valid markdown
+ * - Verifies CLAUDE.md (or AGENTS.md) and the three prescriptive convention
+ *   skills (code-conventions, multi-file-workflows, testing-conventions) are
+ *   valid markdown
  * - Confirms workflow completed successfully
  *
  * This is the final phase that marks the workflow as complete.
@@ -49,9 +51,31 @@ export async function validationNode(
   try {
     const instructionFilePath = resolveInstructionFilePath(state.project_path);
     const instructionFileName = getInstructionFileName();
-    const projectContextPath =
-      state.project_context_path ||
-      resolveConfigPath(state.project_path, 'skills', 'project-context', 'SKILL.md');
+
+    // The three prescriptive convention skills emitted by Phase 3 synthesis
+    // and written by Phase 4a. All three are required — every project gets
+    // all three regardless of stack.
+    const conventionSkillPaths: Array<{ label: string; path: string }> = [
+      {
+        label: 'code-conventions/SKILL.md',
+        path:
+          state.code_conventions_path ||
+          resolveConfigPath(state.project_path, 'skills', 'code-conventions', 'SKILL.md'),
+      },
+      {
+        label: 'multi-file-workflows/SKILL.md',
+        path:
+          state.multi_file_workflows_path ||
+          resolveConfigPath(state.project_path, 'skills', 'multi-file-workflows', 'SKILL.md'),
+      },
+      {
+        label: 'testing-conventions/SKILL.md',
+        path:
+          state.testing_conventions_path ||
+          resolveConfigPath(state.project_path, 'skills', 'testing-conventions', 'SKILL.md'),
+      },
+    ];
+
     const frameworkConfigPath =
       state.framework_config_path || resolveFrameworkConfigPath(state.project_path);
     const shouldValidateWiki = Boolean(state.llm_wiki_path || state.phase4_wiki_generation);
@@ -68,15 +92,16 @@ export async function validationNode(
       phaseLogger.success(` ✓ ${instructionFileName} validated`);
     }
 
-    // 2. Validate project-context/SKILL.md exists and is valid
-    const projectContextResult = validateMarkdownFile(
-      projectContextPath,
-      'project-context/SKILL.md',
-    );
-    validationErrors.push(...projectContextResult.errors);
-    validationWarnings.push(...projectContextResult.warnings);
-    if (projectContextResult.valid) {
-      phaseLogger.success(' ✓ project-context/SKILL.md validated');
+    // 2. Validate the three prescriptive convention skills exist and are
+    // valid markdown. All three are required — every project gets all three
+    // regardless of stack (the bodies are stack-specific but the set is not).
+    for (const { label, path } of conventionSkillPaths) {
+      const skillResult = validateMarkdownFile(path, label);
+      validationErrors.push(...skillResult.errors);
+      validationWarnings.push(...skillResult.warnings);
+      if (skillResult.valid) {
+        phaseLogger.success(` ✓ ${label} validated`);
+      }
     }
 
     // 3. Validate framework-config.json exists and is valid
@@ -232,7 +257,9 @@ export async function validationNode(
       warnings: [...state.warnings, ...validationWarnings],
       // Set paths in state if they weren't already set (for --start-phase 6)
       claude_md_path: instructionFilePath,
-      project_context_path: projectContextPath,
+      code_conventions_path: state.code_conventions_path || conventionSkillPaths[0].path,
+      multi_file_workflows_path: state.multi_file_workflows_path || conventionSkillPaths[1].path,
+      testing_conventions_path: state.testing_conventions_path || conventionSkillPaths[2].path,
       framework_config_path: frameworkConfigPath,
       llm_wiki_path: shouldValidateWiki ? llmWikiPath : state.llm_wiki_path,
       llm_wiki_files: shouldValidateWiki

@@ -199,7 +199,8 @@ async function createBackup(config: SyncConfig): Promise<string> {
 
   await mkdir(backupDir, { recursive: true });
 
-  // Backup skills (excluding project-context)
+  // Backup skills (including the three generated convention skills, which
+  // live alongside framework-shipped skills in <project>/.claude/skills/)
   const skillsPath = resolveConfigPath(config.projectPath, 'skills');
   if (existsSync(skillsPath)) {
     const backupSkillsPath = join(backupDir, 'skills');

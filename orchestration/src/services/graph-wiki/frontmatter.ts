@@ -31,11 +31,14 @@ export function stripMarkdownFrontmatter(content: string): string {
 
 /**
  * The fenced LLM-Wiki section appended to `<project>/.claude/CLAUDE.md` (or
- * `.codex/AGENTS.md`) and to the project-context skill body. Many sessions
- * never invoke the dedicated ticket skills and rely on this chunk for ambient
- * wiki guidance — so it must name the **router file** as the entry point,
- * not just `index.md`. The router (≤150 lines, decision table + tier
- * discipline + live graph-tool catalog) is what makes Tier 1 retrieval cheap.
+ * `.codex/AGENTS.md`). Many sessions never invoke the dedicated ticket skills
+ * and rely on this chunk for ambient wiki guidance — so it must name the
+ * **router file** as the entry point, not just `index.md`. The router
+ * (≤150 lines, decision table + tier discipline + live graph-tool catalog) is
+ * what makes Tier 1 retrieval cheap. The three prescriptive convention skills
+ * generated alongside CLAUDE.md (code-conventions, multi-file-workflows,
+ * testing-conventions) intentionally do NOT carry this section — they hold
+ * prescriptive rules only and the wiki pointer belongs in one place.
  *
  * `schemaFilename` is provider-aware (`CLAUDE.md` / `AGENTS.md` / `COPILOT.md`)
  * so the chunk points at the file that actually exists for the active provider.

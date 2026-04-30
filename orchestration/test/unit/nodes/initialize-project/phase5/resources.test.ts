@@ -62,7 +62,8 @@ describe('resourcesNode', () => {
       phase4_context: {
         framework_config_generated: true,
         claude_md_written: true,
-        project_context_written: true,
+        conventions_skills_written: true,
+        architectural_narrative_written: true,
         timestamp: '2024-01-01T00:00:00Z',
       },
       errors: [],

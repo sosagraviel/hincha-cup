@@ -509,8 +509,14 @@ program
       if (result.claude_md_path) {
         logger.keyValue('CLAUDE.md', result.claude_md_path, 'green');
       }
-      if (result.project_context_path) {
-        logger.keyValue('project-context/SKILL.md', result.project_context_path, 'green');
+      if (result.code_conventions_path) {
+        logger.keyValue('code-conventions/SKILL.md', result.code_conventions_path, 'green');
+      }
+      if (result.multi_file_workflows_path) {
+        logger.keyValue('multi-file-workflows/SKILL.md', result.multi_file_workflows_path, 'green');
+      }
+      if (result.testing_conventions_path) {
+        logger.keyValue('testing-conventions/SKILL.md', result.testing_conventions_path, 'green');
       }
       if (result.framework_config_path) {
         logger.keyValue('framework-config.json', result.framework_config_path, 'green');
@@ -547,10 +553,13 @@ program
       }
 
       logger.section('Next Steps');
-      logger.info('1. Review CLAUDE.md for project context');
+      logger.info('1. Review CLAUDE.md for the cheat-sheet (file placement, commands, stack)');
       logger.info('2. Check framework-config.json for configuration');
-      logger.info('3. Explore project-context/SKILL.md for project-specific guidance');
-      logger.info('4. Review docs/llm-wiki for graph-backed project notes');
+      logger.info('3. Explore the three convention skills under .claude/skills/:');
+      logger.info('   - code-conventions/SKILL.md (gotchas + WRONG/CORRECT examples)');
+      logger.info('   - multi-file-workflows/SKILL.md (cross-file checklists)');
+      logger.info('   - testing-conventions/SKILL.md (test rules + fixtures)');
+      logger.info('4. Review docs/llm-wiki for the graph-backed architectural narrative');
       logger.blank();
 
       process.exit(0);
