@@ -1,0 +1,46 @@
+#!/usr/bin/env sh
+
+# Git invokes hooks with a minimal, non-interactive shell that does NOT source
+# ~/.zshrc or ~/.bashrc. That means node/pnpm installed under a version manager
+# (nvm, volta, fnm, pnpm-env-manager, homebrew) aren't on PATH, and this hook
+# fails with `pnpm: command not found`.
+#
+# Load them here so the hook works for every contributor.
+
+# --- nvm (default, most common case) -----------------------------------------
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+# shellcheck source=/dev/null
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null 2>&1
+
+# If a .nvmrc exists, make sure the correct node (and its pnpm) is active.
+if command -v nvm >/dev/null 2>&1 && [ -f .nvmrc ]; then
+  nvm use --silent >/dev/null 2>&1 || true
+fi
+
+# --- fallbacks: probe common install locations if pnpm still not found -------
+if ! command -v pnpm >/dev/null 2>&1; then
+  for dir in \
+    "$HOME/.volta/bin" \
+    "$HOME/Library/pnpm" \
+    "$HOME/.local/share/pnpm" \
+    "/opt/homebrew/bin" \
+    "/usr/local/bin"; do
+    if [ -x "$dir/pnpm" ]; then
+      PATH="$dir:$PATH"
+      export PATH
+      break
+    fi
+  done
+fi
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pre-commit: pnpm not found on PATH." >&2
+  echo "  Tried: nvm, volta, \$HOME/Library/pnpm, \$HOME/.local/share/pnpm," >&2
+  echo "         /opt/homebrew/bin, /usr/local/bin." >&2
+  echo "  Install pnpm (\`corepack enable\` or \`npm i -g pnpm\`) and retry." >&2
+  exit 1
+fi
+
+pnpm --filter orchestration lint
+pnpm --filter orchestration format:check
+pnpm --filter orchestration typecheck

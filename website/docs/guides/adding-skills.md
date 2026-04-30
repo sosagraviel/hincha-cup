@@ -8,6 +8,8 @@ description: Extend the framework with custom skills. Skills provide AI agents w
 
 Extend the framework with custom skills. Skills provide AI agents with context and capabilities.
 
+Skills are invoked the same way regardless of the target provider — only the prefix changes: `/skill-name` in Claude Code, `$skill-name` in Codex CLI. When the project is initialized for Codex, skills are written to `.codex/skills/` instead of `.claude/skills/` and the instruction file is `AGENTS.md` instead of `CLAUDE.md`; the skill definitions themselves are identical.
+
 ---
 
 ## Files to Touch
@@ -41,7 +43,7 @@ Extend the framework with custom skills. Skills provide AI agents with context a
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `name` | Yes | Unique identifier (folder name in `.claude/skills/`) |
+| `name` | Yes | Unique identifier (folder name in `.claude/skills/` (or `.codex/skills/`)) |
 | `path` | Yes | Relative from `skills/` directory |
 | `description` | Yes | Human-readable description |
 | `trigger_mode` | Yes | `always` (all projects), `triggered` (stack-based), `generated` (auto-created) |
@@ -175,7 +177,7 @@ cd orchestration
 pnpm initialize -- -p /path/to/test-rust-project -f $(pwd)/..
 
 # Verify
-ls /path/to/test-rust-project/.claude/skills/mastering-rust
+ls /path/to/test-rust-project/.claude/skills/mastering-rust   # or .codex/skills/mastering-rust for Codex
 ```
 
 ---
@@ -189,7 +191,7 @@ ls /path/to/test-rust-project/.claude/skills/mastering-rust
    - `always` → include
    - `triggered` → include if triggers match stack
    - `generated` → skip (created later)
-4. Copy to `.claude/skills/`
+4. Copy to `.claude/skills/` (or `.codex/skills/`)
 5. Update `framework-config.json`
 
 **Matching logic**: `triggers` array uses OR logic - any match includes the skill.
@@ -203,7 +205,7 @@ When adding skills to your own project (not contributing to the framework):
 1. **Create skill in framework**: Add to `skills/` directory
 2. **Register in config**: Add entry to `skills.config.json`
 3. **Re-initialize project**: Run initialization to sync skills
-4. **Verify**: Check `.claude/skills/` in your project
+4. **Verify**: Check `.claude/skills/` (or `.codex/skills/`) in your project
 
 **Example workflow**:
 ```bash
@@ -225,7 +227,7 @@ cd /path/to/your-project
 1. Check `trigger_mode` matches intent
 2. For `triggered`: verify triggers match project stack
 3. Validate JSON: `cat skills.config.json | jq .`
-4. Check detected stack: `cat .claude/framework-config.json | jq .stack_profile`
+4. Check detected stack: `cat .claude/framework-config.json | jq .stack_profile` (use `.codex/framework-config.json` on Codex)
 5. Re-run: `DEBUG=1 pnpm initialize ...`
 
 ### Common mistakes

@@ -2,35 +2,45 @@
 
 ## Overview
 
-The AI Agentic Framework supports **two authentication modes** to provide flexibility for different development scenarios:
+Every agent invocation spawns a provider CLI as a subprocess. Pick a provider and authenticate it with either a subscription login or an API key — both auth sources funnel into the same execution path.
 
-1. **API Key Mode** (Mode 1): Uses DeepAgents.js with direct API keys
-   - Supports: Anthropic, OpenAI, Google
-   - Best for: CI/CD, automation, programmatic access
-   - Requires: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GOOGLE_API_KEY`
+### Claude CLI (Anthropic)
 
-2. **Claude CLI Mode** (Mode 2): Uses Claude CLI with subscription authentication
-   - Supports: Claude Pro/Max subscription
-   - Best for: Interactive development, TOS-compliant usage
-   - Requires: Claude CLI installed and authenticated
+- Reported as `AuthMode.CLAUDE_CLI`
+- Subscription auth: `claude login` (Claude Pro/Max)
+- API-key auth: export `ANTHROPIC_API_KEY` (forwarded into the spawned `claude` process)
+
+### Codex CLI (OpenAI)
+
+- Reported as `AuthMode.CODEX_CLI`
+- Subscription auth: `codex login` (ChatGPT)
+- API-key auth: export `OPENAI_API_KEY` (framework auto-runs `codex login --with-api-key`)
 
 ## Priority Order
 
-The authentication system automatically selects the best available mode:
+The auth detector walks four steps in order (see `orchestration/src/auth/auth-detector.ts`):
 
 ```
-1. API Keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY)
-   ↓ (if none set)
-2. Claude CLI (claude command with authentication)
-   ↓ (if not available)
-3. Error: No authentication available
+1. Explicit PROVIDER env var (claude / anthropic | codex / openai) — STRICT, no fallback
+   ↓ (if not set)
+2. Provider API keys as CLI selectors:
+     ANTHROPIC_API_KEY → Claude CLI
+     OPENAI_API_KEY    → Codex CLI (auto-runs `codex login --with-api-key` if needed)
+   ↓ (if no API key set)
+3. Auto-detect any authenticated CLI: Claude CLI first, then Codex CLI
+   ↓ (if neither is authenticated)
+4. Error: No authentication available
 ```
 
-**API keys take priority** because they provide more control over model selection and cost optimization.
+`GOOGLE_API_KEY` is not supported for the moment — there is no supported Google CLI provider.
+
+> **Important:** If `ANTHROPIC_API_KEY` is set, it takes precedence over any existing Claude CLI subscription authentication. Unset `ANTHROPIC_API_KEY` when you specifically want the framework to use your logged-in Claude CLI account.
+
+When `OPENAI_API_KEY` is set, the framework selects Codex CLI and authenticates it automatically by running the equivalent of `printenv OPENAI_API_KEY | codex login --with-api-key`. Agent execution runs through the Codex CLI subprocess.
 
 ## Architecture Components
 
-### 1. Auth Detector (`src/auth/auth-detector.ts`)
+### 1. Auth Detector (`orchestration/src/auth/auth-detector.ts`)
 
 Detects available authentication methods and returns configuration:
 
@@ -41,32 +51,37 @@ const authConfig = await detectAuthMode();
 
 // Returns:
 {
-  mode: AuthMode.API_KEY | AuthMode.CLAUDE_CLI | AuthMode.NONE,
-  provider?: 'anthropic' | 'openai' | 'google',
+  mode: AuthMode.CLAUDE_CLI | AuthMode.CODEX_CLI | AuthMode.NONE,
+  provider?: 'anthropic' | 'openai',
   hasClaudeCLI: boolean,
+  hasCodexCLI: boolean,
   hasAPIKey: boolean,
-  claudeCLIVersion?: string
+  claudeCLIVersion?: string,
+  codexCLIVersion?: string
 }
 ```
 
-**Detection Logic**:
-- Checks for `ANTHROPIC_API_KEY` → API key mode (anthropic)
-- Checks for `OPENAI_API_KEY` → API key mode (openai)
-- Checks for `GOOGLE_API_KEY` → API key mode (google)
-- Checks for Claude CLI availability → Claude CLI mode
-- Returns NONE if no authentication found
+> `AuthMode.API_KEY` still exists in the enum but is deprecated and never selected automatically. `AgentFactory.createAgent` throws if it sees that mode.
 
-### 2. Hybrid Agent Factory (`src/agents/agent-factory-hybrid.ts`)
+**Detection Logic** (matches `auth-detector.ts`):
+- `PROVIDER=claude|anthropic` → Claude CLI (must be installed and authenticated; accepts subscription or `ANTHROPIC_API_KEY`)
+- `PROVIDER=codex|openai` → Codex CLI (must be installed; auto-runs `codex login --with-api-key` if `OPENAI_API_KEY` is set)
+- `ANTHROPIC_API_KEY` set → Claude CLI
+- `OPENAI_API_KEY` set → Codex CLI (auto-login via `ensureCodexAuthentication`)
+- Otherwise: pick any authenticated CLI (Claude first, then Codex)
+- Returns `NONE` if no authentication found
 
-Creates agents using the appropriate authentication mode:
+### 2. Agent Factory (`orchestration/src/utils/shared/agent-factory/agent-factory.ts`)
+
+Creates agents using the appropriate CLI implementation:
 
 ```typescript
-import { HybridAgentFactory } from './agents/agent-factory-hybrid.js';
+import { AgentFactory } from './utils/shared/agent-factory/agent-factory.js';
 
 // Automatically detects auth mode
-const factory = await HybridAgentFactory.create();
+const factory = await AgentFactory.create();
 
-// Create agent (uses detected auth mode)
+// Create agent (dispatches to Claude CLI or Codex CLI based on the detected provider)
 const agent = await factory.createAgent({
   agentName: 'planner',
   agentFile: 'planner.md',
@@ -82,18 +97,18 @@ const result = await agent.invoke({ input: 'Create a plan' });
 // Returns:
 {
   output: string,
-  mode: AuthMode.API_KEY | AuthMode.CLAUDE_CLI,
+  mode: AuthMode.CLAUDE_CLI | AuthMode.CODEX_CLI,
   executionTimeMs: number
 }
 ```
 
 ## Usage Examples
 
-### Example 1: Automatic Mode Selection
+### Example 1: Automatic Provider Selection
 
 ```typescript
-// No configuration needed - automatically detects best mode
-const factory = await HybridAgentFactory.create();
+// No configuration needed - automatically detects which provider CLI to use
+const factory = await AgentFactory.create();
 console.log(`Using ${factory.getAuthConfig().mode} mode`);
 
 const agent = await factory.createAgent({
@@ -109,16 +124,29 @@ const result = await agent.invoke({
 });
 ```
 
-### Example 2: Switching Between Modes
+### Example 2: Switching Providers
 
 ```bash
-# Use API key mode (priority)
+# Claude CLI with API key
 export ANTHROPIC_API_KEY=sk-ant-...
 npm run orchestrate:init
 
-# Use Claude CLI mode (if no API key)
+# Claude CLI with subscription (unset the key first)
 unset ANTHROPIC_API_KEY
-claude setup-token  # Authenticate CLI
+claude login
+npm run orchestrate:init
+
+# Codex CLI with API key (auto-runs `codex login --with-api-key`)
+export OPENAI_API_KEY=sk-...
+npm run orchestrate:init
+
+# Codex CLI with ChatGPT subscription
+unset OPENAI_API_KEY
+codex login
+npm run orchestrate:init
+
+# Force a specific provider regardless of which keys are set
+export PROVIDER=codex   # or PROVIDER=claude
 npm run orchestrate:init
 ```
 
@@ -134,51 +162,24 @@ const agent = await factory.createAgent({
   timeout: 600000 // 10 minutes for implementers
 });
 
-// Timeout is implemented using Promise.race()
-// Will throw error if agent takes longer than timeout
+// Timeout is enforced via the underlying CLI spawn timeout
+// Will throw error if the CLI process runs longer than timeout
 ```
 
-## API Key Mode Implementation
+## API Key Handling
 
-Uses **DeepAgents.js** with LangChain models:
+When an `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` is present, the framework does **not** execute agents in-process. Instead, it selects the matching provider CLI and lets the CLI itself consume the key:
 
-```typescript
-// Create LLM model
-const llmFactory = getLLMFactory();
-const model = await llmFactory.createModel('sonnet-latest', {
-  agent: 'planner',
-  phase: 'planning'
-});
+- **`ANTHROPIC_API_KEY`** is forwarded via the spawned `claude` subprocess environment. Claude CLI reads it natively.
+- **`OPENAI_API_KEY`** is consumed by `ensureCodexAuthentication()` in `orchestration/src/auth/codex-auth.ts`, which pipes the key into `codex login --with-api-key` over stdin (the key is never interpolated into a shell command). After the login succeeds, the agent runs through the normal Codex CLI subprocess flow.
 
-// Create DeepAgent
-const agent = await createDeepAgent({
-  model: model,
-  systemPrompt: agentInstructions,
-  tools: []
-});
+This keeps both auth sources (subscription login and API key) on the same execution path: a CLI subprocess. There is no longer a separate in-process LangChain / DeepAgents path at runtime.
 
-// Invoke with timeout
-const timeout = 300000;
-const agentPromise = agent.invoke({
-  messages: [{ role: 'user', content: input }]
-});
+## CLI Subprocess Implementation
 
-const timeoutPromise = new Promise((_, reject) => {
-  setTimeout(() => reject(new Error(`Timeout after ${timeout}ms`)), timeout);
-});
+Every agent invocation spawns the matching provider CLI. The Claude path lives in `orchestration/src/utils/shared/agent-factory/cli-agent-impl.ts`; the Codex path lives in `codex-cli-agent-impl.ts` and uses an analogous spawn pattern with one notable difference: Codex supports an internal validation/retry loop within a single session for self-correction before the framework falls back to an external retry.
 
-const result = await Promise.race([agentPromise, timeoutPromise]);
-```
-
-**Features**:
-- ✅ Provider-agnostic (Anthropic, OpenAI, Google)
-- ✅ Tier-based model selection (fast/standard/advanced)
-- ✅ Custom timeout via Promise.race()
-- ✅ Full LangChain ecosystem access
-
-## Claude CLI Mode Implementation
-
-Uses **Claude Code CLI** via child process:
+Claude CLI invocation looks like this:
 
 ```typescript
 const claudeProcess = spawn('claude', [
@@ -231,115 +232,114 @@ claudeProcess.on('close', (code) => {
 - ✅ Built-in timeout via spawn timeout
 - ✅ Automatic error handling
 
-## Environment Setup
+## Provider Setup
 
-### API Key Mode Setup
+Pick the provider you want to use; either auth source (subscription or API key) is valid. The framework bundles both CLIs under `orchestration/node_modules/.bin/`, but you can also install them globally.
 
-```bash
-# Option 1: Anthropic (recommended)
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# Option 2: OpenAI
-export OPENAI_API_KEY=sk-...
-
-# Option 3: Google
-export GOOGLE_API_KEY=...
-```
-
-Get API keys:
-- Anthropic: https://console.anthropic.com/settings/keys
-- OpenAI: https://platform.openai.com/api-keys
-- Google: https://aistudio.google.com/app/apikey
-
-### Claude CLI Mode Setup
+### Claude CLI (Anthropic)
 
 ```bash
-# Install Claude CLI
-npm install -g @anthropic-ai/claude-cli
+# Install
+npm install -g @anthropic-ai/claude-code
 
-# Or via homebrew (macOS)
-brew install claude-cli
+# Auth — pick one:
+claude login                              # subscription (Claude Pro/Max)
+export ANTHROPIC_API_KEY=sk-ant-...       # API key (forwarded to the spawned `claude` process)
 
-# Authenticate
-claude setup-token
-
-# Verify installation
+# Verify
 claude --version
 ```
 
 Documentation: https://code.claude.com/docs/en/authentication
 
+### Codex CLI (OpenAI)
+
+```bash
+# Install
+npm install -g @openai/codex
+
+# Auth — pick one:
+codex login                               # subscription (ChatGPT)
+export OPENAI_API_KEY=sk-...              # API key — framework auto-runs `codex login --with-api-key`
+
+# Verify
+codex --version
+codex login status
+```
+
+Documentation: https://developers.openai.com/codex/cli
+
+`GOOGLE_API_KEY` is intentionally ignored — there is no supported Google CLI provider.
+
+### Forcing a Provider
+
+`PROVIDER=claude` or `PROVIDER=codex` short-circuits detection and pins the framework to a specific CLI. If the requested CLI isn't installed or authenticated, detection fails fast with an actionable error rather than silently falling back.
+
 ## Error Handling
 
 ### No Authentication Available
 
-If no authentication is available, the system throws an error with instructions:
+If no authentication is available, the system throws an error with instructions (text emitted by `getAuthErrorMessage` in `auth-detector.ts`):
 
 ```
 ❌ No authentication available
 
 Please choose one of the following options:
 
-Option 1: Use API Key (recommended for CI/CD and automation)
-  Set one of the following environment variables:
+Option 1: Use a provider CLI with an API key in the environment
+  Set one of the following environment variables before running the CLI:
   export ANTHROPIC_API_KEY=sk-ant-...
   export OPENAI_API_KEY=sk-...
-  export GOOGLE_API_KEY=...
 
-Option 2: Install and authenticate Claude CLI
-  Visit: https://code.claude.com
-  Then run: claude setup-token
+Option 2: Authenticate Codex CLI (uses your ChatGPT subscription)
+  codex login
+
+Option 3: Authenticate Claude CLI (uses your Claude Pro/Max subscription)
+  claude login
 
 For more information, see:
-  - API Keys: https://platform.claude.com
+  - API Keys: https://platform.claude.com or https://platform.openai.com
   - Claude CLI: https://code.claude.com/docs/en/authentication
+  - Codex CLI: https://developers.openai.com/codex/cli
 ```
 
 ### Timeout Handling
 
-Both modes support custom timeouts:
+Both CLI implementations support custom timeouts via the `spawn` timeout parameter:
 
 ```typescript
-// API Key Mode: Promise.race() timeout
-const timeout = 300000; // 5 minutes
-const result = await Promise.race([
-  agentPromise,
-  new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Timeout')), timeout)
-  )
-]);
-
-// Claude CLI Mode: spawn timeout parameter
 const claudeProcess = spawn('claude', [...], {
+  timeout: 300000
+});
+
+// Codex CLI uses the same approach
+const codexProcess = spawn('codex', [...], {
   timeout: 300000
 });
 ```
 
-Error message includes execution time:
-```
-DeepAgent execution failed after 301234ms: Timeout after 300000ms
-Claude CLI execution failed after 301456ms: Process timeout
-```
+Error messages include execution time, e.g. `Claude CLI execution failed after 301456ms: Process timeout`.
 
 ## Testing
 
 ### Unit Tests
 
-All authentication detection and agent creation is tested:
+Authentication detection and agent creation are covered by unit tests:
 
 ```bash
-# Run all tests
-npm test
+# Run all unit tests
+pnpm --filter orchestration test:unit
 
-# Run specific test suite
-npm test -- src/agents/agent-factory-hybrid.test.ts
+# Auth detector specifically
+pnpm --filter orchestration test:unit -- auth/auth-detector.test.ts
 ```
 
 **Test Coverage**:
-- ✅ API key detection (Anthropic, OpenAI, Google)
-- ✅ Claude CLI detection
-- ✅ Priority order (API key > Claude CLI > None)
-- ✅ Agent creation in both modes
+- ✅ API-key-as-CLI-selector detection (Anthropic, OpenAI)
+- ✅ Claude CLI and Codex CLI availability detection
+- ✅ Priority order (`PROVIDER` > API keys > authenticated CLI > error)
+- ✅ Codex auto-login via `ensureCodexAuthentication`
+- ✅ Agent creation for both providers
 - ✅ Timeout handling
 - ✅ Error message generation
 
@@ -348,97 +348,92 @@ npm test -- src/agents/agent-factory-hybrid.test.ts
 Test with real authentication:
 
 ```bash
-# Test API key mode
+# Anthropic via API key (Claude CLI provider)
 export ANTHROPIC_API_KEY=sk-ant-...
-npm test -- test/integration/
+pnpm --filter orchestration test -- test/integration/
 
-# Test Claude CLI mode
+# OpenAI via API key (Codex CLI provider, auto-login)
 unset ANTHROPIC_API_KEY
-claude setup-token
-npm test -- test/integration/
+export OPENAI_API_KEY=sk-...
+pnpm --filter orchestration test -- test/integration/
+
+# Subscription auth (no API keys set)
+unset ANTHROPIC_API_KEY OPENAI_API_KEY
+claude login   # or: codex login
+pnpm --filter orchestration test -- test/integration/
 ```
 
 ## Performance Characteristics
 
-### API Key Mode
+Every agent invocation spawns a provider CLI subprocess, so both providers share the same performance profile.
 
 **Pros**:
-- Fast startup (no process spawn overhead)
-- Direct LangChain integration
-- Full control over model selection
-- Parallel execution support
+- Subscription auth available — no API-key billing required for local development
+- TOS-compliant when used with Claude Pro/Max or ChatGPT subscriptions
+- Built-in rate limiting and rotation handled by the provider CLI
 
 **Cons**:
-- Requires API key management
-- Cost per API call
+- Process spawn overhead (~50–100ms per invocation)
+- Less control over model selection than direct API calls
+- Sequential execution per agent (one CLI process at a time, per agent)
 
-### Claude CLI Mode
+**Codex-specific note**: the Codex CLI implementation in `codex-cli-agent-impl.ts` runs an internal validation/retry loop within a single session before the framework-level retry kicks in, which often hides transient errors from the outer pipeline.
 
-**Pros**:
-- No API key needed
-- Subscription-based (unlimited usage)
-- TOS-compliant
-- Built-in rate limiting
+## Adoption
 
-**Cons**:
-- Process spawn overhead (~50-100ms)
-- Less control over model selection
-- Sequential execution (one process at a time)
+Pick whichever CLI matches the provider you want to use, and either log in for the subscription path or set the matching API key:
 
-## Migration Path
-
-### Existing Code Compatibility
-
-The hybrid architecture is **fully backward compatible** with existing Phase 1 nodes:
-
-```typescript
-// Before (still works)
-const agent = await createAgentFromMarkdown({
-  agentName: 'planner',
-  agentFile: 'planner.md',
-  modelAlias: 'sonnet-latest',
-  projectPath: '/path/to/project',
-  frameworkPath: '/path/to/framework'
-});
-
-// After (same interface, auto-detects mode)
-const result = await agent.invoke({ input: 'Create plan' });
-```
-
-**No changes required** to existing node implementations!
-
-### Gradual Adoption
-
-Teams can adopt gradually:
-1. Start with Claude CLI mode (easiest setup)
-2. Add API keys when ready for production
-3. System automatically switches to API key mode
+1. Install the CLI you want — `claude` (Anthropic) or `codex` (OpenAI). Both are bundled under `orchestration/node_modules/.bin/` after `pnpm install`.
+2. Authenticate: run `claude login` / `codex login` for subscription auth, **or** export `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`.
+3. Run the framework. If both CLIs are authenticated, set `PROVIDER=claude` or `PROVIDER=codex` to pin a choice.
 
 ## Troubleshooting
 
 ### Issue: "No authentication available"
 
 **Solution**:
-1. Check API keys: `echo $ANTHROPIC_API_KEY`
-2. Check Claude CLI: `claude --version`
-3. Authenticate Claude CLI: `claude setup-token`
+1. Check API keys: `echo $ANTHROPIC_API_KEY` / `echo $OPENAI_API_KEY`
+2. Check installed CLIs: `claude --version`, `codex --version`
+3. Authenticate one of them: `claude login` or `codex login`
 
-### Issue: "DeepAgent execution failed"
+### Issue: Claude CLI execution failed
 
 **Possible Causes**:
-- Invalid API key
+- Invalid `ANTHROPIC_API_KEY`
 - Network connectivity
 - Model unavailable
 - Timeout too short
 
 **Solution**:
 ```bash
-# Test API key
+# Validate API key directly
 curl https://api.anthropic.com/v1/messages \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
   -d '{"model":"claude-sonnet-4-5-20250929","max_tokens":1024,"messages":[{"role":"user","content":"test"}]}'
+
+# Or re-authenticate the subscription path
+claude login
+```
+
+### Issue: Codex CLI auto-login failed
+
+If the framework reports `Automatic Codex API-key login failed`, the `codex login --with-api-key` step did not succeed.
+
+**Solution**:
+```bash
+# Verify the CLI is installed and reachable
+codex --version
+
+# Retry the login manually (the framework runs the same command under the hood)
+printenv OPENAI_API_KEY | codex login --with-api-key
+
+# Confirm the resulting state
+codex login status
+
+# Inspect stored credentials if needed
+ls -l ~/.codex/auth.json
 ```
 
 ### Issue: "Claude CLI exited with code 1"
@@ -451,7 +446,7 @@ curl https://api.anthropic.com/v1/messages \
 **Solution**:
 ```bash
 # Re-authenticate
-claude setup-token
+claude login
 
 # Test CLI
 claude --help
@@ -459,19 +454,27 @@ claude --help
 
 ## Best Practices
 
-### 1. Use API Keys for Production
+### 1. Use API Keys for CI/CD
 
 ```bash
-# CI/CD environments
+# Anthropic / Claude CLI in CI
 export ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+npm run orchestrate:init
+
+# OpenAI / Codex CLI in CI (auto-runs `codex login --with-api-key`)
+export OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
 npm run orchestrate:init
 ```
 
-### 2. Use Claude CLI for Development
+### 2. Use Subscription Login for Local Development
 
 ```bash
-# Local development
-claude setup-token
+# Anthropic
+claude login
+npm run orchestrate:init
+
+# OpenAI
+codex login
 npm run orchestrate:init
 ```
 
@@ -512,8 +515,8 @@ try {
 ### Planned Features
 
 1. **Automatic Retry with Fallback**:
-   - Try API key mode first
-   - Fallback to Claude CLI if API fails
+   - Try the selected CLI first
+   - Fallback to the other authenticated CLI if available
    - Transparent to caller
 
 2. **Cost Tracking**:
@@ -533,9 +536,7 @@ try {
 
 ## References
 
-- [DeepAgents.js Documentation](https://docs.langchain.com/oss/javascript/deepagents/overview)
-- [LangChain Models](https://docs.langchain.com/oss/javascript/models/overview)
 - [Claude CLI Documentation](https://code.claude.com/docs/en/authentication)
+- [Codex CLI Documentation](https://developers.openai.com/codex/cli)
 - [Anthropic API](https://docs.anthropic.com/en/api/getting-started)
 - [OpenAI API](https://platform.openai.com/docs/introduction)
-- [Google AI Studio](https://ai.google.dev/)

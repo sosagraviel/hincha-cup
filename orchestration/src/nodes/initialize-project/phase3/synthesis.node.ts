@@ -8,6 +8,9 @@ import { join } from 'path';
 import { logger } from '../../../utils/logger.js';
 import { buildSynthesisPrompt } from './prompt-builder.js';
 import { getFrameworkAgentPath } from '../shared/index.js';
+import { reasoningPrefix } from '../../../utils/shared/context-tags.js';
+import { resolveTempPath } from '../../../utils/provider-paths.js';
+import { getInitializeProjectPhase } from '../../../services/framework/debug-store/index.js';
 
 /**
  * Phase 3: Opus Synthesis Node
@@ -39,7 +42,7 @@ export async function synthesisNode(
   phaseLogger.info(' Starting Opus synthesis...');
 
   // Read Phase 2 consolidation from disk (not from state)
-  const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
+  const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   const consolidationPath = join(tempDir, 'phase2-consolidation.json');
 
   if (!existsSync(consolidationPath)) {
@@ -51,42 +54,6 @@ export async function synthesisNode(
   phaseLogger.success(' ✓ Phase 2 consolidation loaded from disk');
 
   try {
-    // Define agent invocation function with feedback support
-    const agentInvoke = async (
-      feedbackPrompt: string,
-      resumeSessionId?: string,
-    ): Promise<{ output: string; sessionId: string }> => {
-      // Build input prompt using shared utility
-      const contextPrompt = buildSynthesisPrompt(phase2Consolidation, feedbackPrompt);
-
-      // Add ultrathink for deep reasoning
-      // Synthesis analyzes code in depth to fill gaps identified in Phase 2 consolidation
-      // It must NOT assume or guess - it reads actual code to fill missing information
-      const inputPrompt = `ultrathink\n\n${contextPrompt}\n\nSynthesize comprehensive results for: ${state.project_path}`;
-
-      // Create agent using new interface
-      const factory = await AgentFactory.create();
-      const agent = await factory.createAgent({
-        agentName,
-        agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
-        projectPath: state.project_path,
-        frameworkPath: state.framework_path,
-        timeout: 600000, // 10 minutes (agent should use max 10 tool calls, mostly synthesis)
-        resumeSessionId, // Pass session ID for context-preserving retry
-        settingsPath: join(
-          state.framework_path,
-          'orchestration/src/nodes/initialize-project/phase3/settings.json',
-        ),
-      });
-
-      const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()
-
-      return {
-        output: result.output,
-        sessionId: result.sessionId,
-      };
-    };
-
     const validator = (output: string): ValidationResult => {
       // CRITICAL: This validator MUST be IDENTICAL to the stop hook validation
       // Uses the shared comprehensive validator from synthesis-validator.ts
@@ -99,13 +66,61 @@ export async function synthesisNode(
       };
     };
 
+    // Define agent invocation function with feedback support
+    const agentInvoke = async (
+      feedbackPrompt: string,
+      resumeSessionId?: string,
+      attemptNumber?: number,
+    ): Promise<{ output: string; sessionId: string }> => {
+      // Build input prompt using shared utility
+      const contextPrompt = buildSynthesisPrompt(phase2Consolidation, feedbackPrompt);
+
+      // Create agent using new interface
+      const factory = await AgentFactory.create();
+
+      // Provider-aware reasoning prefix (ultrathink for Claude, empty for Codex).
+      // Synthesis reads actual code to fill gaps in Phase 2 consolidation, so deep
+      // reasoning matters — for Codex that's delivered via --config model_reasoning_effort.
+      const inputPrompt = `${reasoningPrefix(factory.getAuthConfig())}${contextPrompt}\n\nSynthesize comprehensive results for: ${state.project_path}`;
+
+      const agent = await factory.createAgent({
+        agentName,
+        agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
+        projectPath: state.project_path,
+        frameworkPath: state.framework_path,
+        timeout: 900000, // 15 minutes (agent should use max 10 tool calls, mostly synthesis)
+        resumeSessionId, // Pass session ID for context-preserving retry
+        phase: getInitializeProjectPhase('phase3'),
+        settingsPath: join(
+          state.framework_path,
+          'orchestration/src/nodes/initialize-project/phase3/settings.json',
+        ),
+        // Internal validation layer for Codex. Claude enforces this via the
+        // stop hook in settings.json; Codex has no blocking-hook equivalent, so
+        // the impl runs this validator after each exec and resumes the session
+        // with feedback on failure. Same function as the external validator.
+        validator,
+      });
+
+      const result = await agent.invoke({ inputPrompt, attemptNumber });
+
+      return {
+        output: result.output,
+        sessionId: result.sessionId,
+      };
+    };
+
     const synthesisPath = join(tempDir, 'synthesis-raw.md');
 
     const synthesisContent = await retryWithEnhancedFeedback<string>(
       agentInvoke,
       validator,
       { ...DEFAULT_RETRY_CONFIG, maxAttempts: 10 },
-      synthesisPath, // Save failed attempts as synthesis-raw.attempt-N.md
+      {
+        projectPath: state.project_path,
+        agentName,
+        phase: getInitializeProjectPhase('phase3'),
+      },
     );
     writeFileSync(synthesisPath, synthesisContent);
 

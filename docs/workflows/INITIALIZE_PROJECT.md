@@ -8,13 +8,12 @@ TypeScript-orchestrated project initialization using LangGraph state machines.
 
 Analyzes codebase and generates AI configuration via 6-phase workflow.
 
-**Output**:
+**Output** (Claude Code layout shown — Codex uses `.codex/` + `AGENTS.md`):
 ```
-.claude/
-├── CLAUDE.md                    # Quick reference
-├── skills/                      # Tech-specific knowledge
+.claude/                         # or .codex/ when provider=codex
+├── CLAUDE.md                    # Quick reference (AGENTS.md in Codex)
+├── skills/                      # Tech-specific knowledge (also the invocation surface)
 ├── agents/                      # AI agents
-├── commands/                    # Workflows
 └── framework-config.json        # Config registry
 ```
 
@@ -48,7 +47,7 @@ const graph = new StateGraph(InitializeProjectAnnotation)
 | 2 | 30-60s | Consolidate analysis results | Sequential |
 | 3 | 1-2min | Synthesize project understanding | Sequential |
 | 4 | 30-60s | Write CLAUDE.md and project-context | Sequential |
-| 5 | 1-2min | Sync skills, agents, commands | Sequential |
+| 5 | 1-2min | Sync skills and agents | Sequential |
 | 6 | 30-60s | Validate configuration | Sequential |
 
 **Total**: 5-10 minutes
@@ -82,8 +81,8 @@ Generates human-readable project understanding from consolidated analysis.
 
 ### Phase 4: File Writing
 
-**Creates**:
-- `.claude/CLAUDE.md` - Quick reference for Claude
+**Creates** (Claude Code layout — Codex writes to `.codex/` with `AGENTS.md` instead):
+- `.claude/CLAUDE.md` - Quick reference for Claude (`.codex/AGENTS.md` for Codex)
 - `.claude/skills/project-context/SKILL.md` - Deep project knowledge
 
 ### Phase 5: Resource Sync
@@ -91,7 +90,6 @@ Generates human-readable project understanding from consolidated analysis.
 **Syncs** (based on detected stack):
 - Skills (`skills.config.json` → `.claude/skills/`)
 - Agents (`agents/templates/` → `.claude/agents/`)
-- Commands (`commands/` → `.claude/commands/`)
 
 **Updates**: `framework-config.json`
 
@@ -206,6 +204,52 @@ cat .claude-temp/initialize/artifacts/phase6-validation.json | jq .errors
 - Small projects (<100 files): 3-5 min
 - Medium projects (100-1000 files): 5-8 min
 - Large projects (1000+ files): 8-12 min
+
+---
+
+## Projects with existing Claude configuration
+
+If your project already has a `CLAUDE.md` at the repository root or a
+`.claude/CLAUDE.md` from a previous setup, `initialize-project` will detect
+this during preflight and emit non-blocking warnings. Initialization will
+continue, but you should understand how Claude Code loads these files before
+proceeding.
+
+### How Claude Code loads CLAUDE.md
+
+Claude Code loads configuration files in this order, concatenating their
+contents into the system context:
+
+1. `./CLAUDE.md` — project root (user-maintained)
+2. `./.claude/CLAUDE.md` — framework-generated (this framework writes here)
+
+When both exist, **both are loaded**. Conflicting instructions (for example,
+two different "tech stack" sections) can produce inconsistent agent behavior.
+
+### What initialize-project does
+
+- **Does NOT** touch `./CLAUDE.md` at the project root.
+- **DOES** write `./.claude/CLAUDE.md` in Phase 4, overwriting any prior file at that path.
+- **Does NOT** auto-merge content. Merging is a manual step.
+
+### Recommended workflow
+
+1. Before running `initialize-project`, back up any existing `./.claude/CLAUDE.md`:
+   ```bash
+   cp .claude/CLAUDE.md .claude/CLAUDE.md.bak
+   ```
+2. Run `initialize-project` as normal. Expect two warnings if both files exist; they are informational and do not block the run.
+3. After completion, diff the generated `./.claude/CLAUDE.md` against your backup and reconcile any custom content you want to keep.
+4. Decide which file is the **source of truth** for each concern:
+   - Framework conventions, tech stack, agent/skill wiring → `./.claude/CLAUDE.md` (framework-owned).
+   - Project-specific rules, team conventions, onboarding notes → `./CLAUDE.md` (user-owned).
+5. Remove duplicated sections from `./CLAUDE.md` so each rule lives in exactly one file.
+
+### Out of scope
+
+- Automatic merging of `CLAUDE.md` files.
+- Automatic backup creation (the framework does not copy your files).
+- Conflict detection for `.claude/skills/` or `.claude/agents/` directories.
 
 ---
 

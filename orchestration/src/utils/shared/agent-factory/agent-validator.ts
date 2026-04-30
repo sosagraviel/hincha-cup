@@ -112,8 +112,8 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     'stop-hook',
   ];
 
-  // Framework-specific fields (not Claude CLI, but we use them internally)
-  const FRAMEWORK_FIELDS = ['subagent_type', 'output_format', 'run_in_background'];
+  // Framework-specific fields (not provider-specific, used internally)
+  const FRAMEWORK_FIELDS = ['subagent_type', 'output_format', 'run_in_background', 'provider'];
 
   const allFields = [...VALID_CLI_FIELDS, ...FRAMEWORK_FIELDS];
 

@@ -1,8 +1,6 @@
 ---
 name: create-sdd-ticket
 description: Generate specification-driven development (SDD) tickets directly from ideas, Jira tickets, or markdown drafts. Use when creating implementation-ready tickets with gap detection, INVEST validation, and BDD scenarios.
-model: sonnet
-user-invokable: true
 argument-hint: '[--from-input "..." | --from-jira JIRA-URL-OR-KEY | --from-markdown PATH] [--save-to-jira BOARD-URL | --save-to-markdown [PATH]]'
 ---
 
@@ -22,7 +20,7 @@ This skill must:
 - infer as much as possible from the codebase before asking questions
 - validate the final ticket against INVEST criteria
 - produce BDD scenarios in Given-When-Then form
-- respect explicit markdown output paths and use `.claude-temp/tickets/<ticket-id>/<ticket-id>.md` only as the default when no markdown path is provided
+- respect explicit markdown output paths and use `{{TEMP_DIR}}/tickets/<ticket-id>/<ticket-id>.md` only as the default when no markdown path is provided
 
 ## Invocation
 
@@ -62,7 +60,7 @@ Exactly one input mode is required.
 
 - `--save-to-jira <BOARD-URL>`: create or update the ticket in Jira
 - `--save-to-markdown <PATH>`: save the ticket exactly to the path provided by the user
-- `--save-to-markdown` with no path: default markdown output to `.claude-temp/tickets/<ticket-id>/<ticket-id>.md`
+- `--save-to-markdown` with no path: default markdown output to `{{TEMP_DIR}}/tickets/<ticket-id>/<ticket-id>.md`
 - no output flag: print the completed canonical ticket for review
 
 ## Workflow
@@ -76,7 +74,7 @@ Before ticket analysis, invoke the `project-context` skill so the workflow has d
 - naming, testing, and deployment expectations
 - project-specific gotchas that should influence gap detection
 
-If the generated project-context skill is missing, fall back to `.claude/CLAUDE.md` and explicit codebase inspection, but still treat project context collection as required work before continuing.
+If the generated project-context skill is missing, fall back to `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` and explicit codebase inspection, but still treat project context collection as required work before continuing.
 
 ### Phase 1: Parse Input Source
 
@@ -91,7 +89,7 @@ Validate the canonical ticket against the SDD requirements and, for every missin
 
 Required inference order:
 
-1. search project context and `.claude/CLAUDE.md`
+1. search project context and `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`
 2. search the codebase for similar features, patterns, validation rules, and architectural precedents
 3. inspect related files and integration points
 4. inspect existing tickets or drafts for precedents
@@ -123,7 +121,7 @@ Question: ${gap.message}
 Context: Searched ${attemptedSources.join(', ')} and did not find a definitive answer
 Example: ${gap.example}
 
-Your answer: **_**
+Your answer: **\_**
 ```
 
 ### Phase 4: Process Answers And Fill Gaps
@@ -157,7 +155,7 @@ If the ticket looks larger than a 1-5 day implementation, provide a concrete spl
 
 - format the completed canonical ticket for the chosen destination
 - if a markdown path is provided, save exactly there
-- if markdown output is requested without a path, default to `.claude-temp/tickets/<ticket-id>/<ticket-id>.md`
+- if markdown output is requested without a path, default to `{{TEMP_DIR}}/tickets/<ticket-id>/<ticket-id>.md`
 - create parent directories when needed
 - if saving to Jira, preserve priority, issue type, and project key when provided
 - return the saved path or Jira key plus a short quality summary
@@ -266,10 +264,10 @@ Use this structure as the mental model for completeness checks:
 Default markdown output path:
 
 ```text
-.claude-temp/tickets/<ticket-id>/<ticket-id>.md
+{{TEMP_DIR}}/tickets/<ticket-id>/<ticket-id>.md
 ```
 
-If the user supplies `--save-to-markdown <PATH>`, save the ticket to that exact path instead of rewriting it into `.claude-temp/tickets/`.
+If the user supplies `--save-to-markdown <PATH>`, save the ticket to that exact path instead of rewriting it into `{{TEMP_DIR}}/tickets/`.
 
 ## Markdown Template Structure
 
@@ -279,19 +277,24 @@ Markdown output should align with [`templates/sdd-ticket-template.md`](./templat
 # PROJ-123: [Title]
 
 ## User Story
+
 **As a** [role]
 **I want** [goal]
 **So that** [benefit]
 
 ## Stakeholders
+
 - Role / name / responsibility
 
 ## Success Criteria
+
 1. [Measurable outcome 1]
 2. [Measurable outcome 2]
 
 ## Acceptance Criteria
+
 ### Scenario 1: [Happy Path]
+
 ```gherkin
 Given [context]
 When [action]
@@ -299,6 +302,7 @@ Then [outcome]
 ```
 
 ## Technical Context
+
 - Current state
 - Proposed changes
 - Technical constraints
@@ -306,18 +310,22 @@ Then [outcome]
 - Architecture decisions
 
 ## Out Of Scope
+
 - [Item]
 
 ## Edge Cases And Error Handling
+
 - Edge cases
 - Error scenarios
 - Validation rules
 
 ## Dependencies
+
 - Blocking
 - Related
 
 ## Definition Of Done
+
 - Code quality
 - Testing
 - Documentation
@@ -336,7 +344,7 @@ Then [outcome]
 Ask questions only when the answer cannot be reliably inferred from:
 
 - the `project-context` skill
-- `.claude/CLAUDE.md`
+- `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`
 - repository structure and nearby implementations
 - existing tickets or drafts
 - visible integration and testing patterns
@@ -356,7 +364,7 @@ Before finalizing, ensure:
 - no placeholder markers remain
 - INVEST validation has been applied
 - BDD scenarios are concrete and testable
-- markdown output guidance uses `.claude-temp/tickets/`
+- markdown output guidance uses `{{TEMP_DIR}}/tickets/`
 - the ticket remains ready for `implement-ticket`
 
 ## Usage Examples
@@ -428,7 +436,7 @@ Question: What specific components will be modified?
 Context: Searched the codebase but found multiple possible implementations
 Example: "Modify UserController, add AuthService, update User model"
 
-Your answer: **_**
+Your answer: **\_**
 ```
 
 ### INVEST Validation Failed
@@ -453,7 +461,7 @@ Estimate: 4 days
 
 ### Jira Output Unavailable
 
-If Jira creation fails, recommend either saving to the user-requested markdown path or, if no path was provided, falling back to `.claude-temp/tickets/`.
+If Jira creation fails, recommend either saving to the user-requested markdown path or, if no path was provided, falling back to `{{TEMP_DIR}}/tickets/`.
 
 Example:
 
@@ -461,9 +469,10 @@ Example:
 ❌ Jira output unavailable
 
 Fallback:
-.claude-temp/tickets/DRAFT-20260415-143022/DRAFT-20260415-143022.md
+{{TEMP_DIR}}/tickets/DRAFT-20260415-143022/DRAFT-20260415-143022.md
 
 Options:
+
 1. Save to markdown now
 2. Re-run later when Jira access is available
 3. Copy the generated content into Jira manually

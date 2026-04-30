@@ -47,10 +47,18 @@ ${BLUE}OPTIONS:${NC}
                          Example: --start-phase 4 (skip phases 1-3)
 
     --timeout SECONDS    Maximum execution time in seconds
-                         Default: 1800 (30 minutes)
+                         Default: 3600 (60 minutes)
+                         Sum of per-phase max timeouts:
+                           Phase 1 parallel analyzers: 30 min
+                           Phase 2 question consolidator: 10 min
+                           Phase 3 synthesis: 15 min
+                           Phase 4-6 generation/validation: 5 min buffer
 
     --clean              Remove temporary files after completion
                          Default: false (keeps .claude-temp/initialize-project for re-running phases)
+
+    --provider PROVIDER  AI provider to use: claude or codex
+                         Default: auto-detect (checks API keys then CLI availability)
 
     --help, -h           Show this help message
 
@@ -60,6 +68,7 @@ ${BLUE}ENVIRONMENT VARIABLES:${NC}
                          Options: fast, standard, advanced, openai, gemini
                          Example: MODEL_TIER=fast ./scripts/initialize-project.sh
 
+    PROVIDER             AI provider override (claude or codex)
     ANTHROPIC_API_KEY    API key for Anthropic (Claude) provider
     OPENAI_API_KEY       API key for OpenAI (GPT) provider
     GOOGLE_API_KEY       API key for Google (Gemini) provider
@@ -78,8 +87,8 @@ ${BLUE}EXAMPLES:${NC}
     # Re-run from phase 4 (skip AI analysis phases 1-3)
     ./qubika-agentic-framework/scripts/initialize-project.sh --start-phase 4
 
-    # With custom timeout (60 minutes)
-    ./qubika-agentic-framework/scripts/initialize-project.sh --timeout 3600
+    # With custom timeout (90 minutes)
+    ./qubika-agentic-framework/scripts/initialize-project.sh --timeout 5400
 
 ${BLUE}WHAT THIS DOES:${NC}
     1. Phase 1: Parallel analysis (4 agents with retry/feedback)
@@ -90,14 +99,22 @@ ${BLUE}WHAT THIS DOES:${NC}
     6. Phase 6: Final validation
 
 ${BLUE}OUTPUT:${NC}
+    claude provider:
     - .claude/CLAUDE.md              Quick reference guide
     - .claude/skills/project-context/ Comprehensive project knowledge
     - .claude/skills/*               Language-specific skills
     - .claude/agents/*               Generated agents
     - .claude/commands/*             Project commands
 
+    codex provider:
+    - .codex/AGENTS.md               Quick reference guide
+    - .codex/skills/project-context/ Comprehensive project knowledge
+    - .codex/skills/*                Language-specific skills
+    - .codex/agents/*                Generated agents
+    - .codex/commands/*              Project commands
+
 ${BLUE}REQUIREMENTS:${NC}
-    - claude CLI (installed and in PATH)
+    - claude CLI or codex CLI (installed and in PATH)
     - node (v14+)
     - npm
     - bash 4.0+
@@ -114,8 +131,9 @@ EOF
 
 SKIP_GAP_QUESTIONS="false"
 START_PHASE=1
-TIMEOUT=1800
+TIMEOUT=3600
 CLEAN_TEMP="false"
+PROVIDER=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -134,6 +152,10 @@ while [[ $# -gt 0 ]]; do
         --clean)
             CLEAN_TEMP="true"
             shift
+            ;;
+        --provider)
+            PROVIDER="$2"
+            shift 2
             ;;
         --help|-h)
             show_help
@@ -159,6 +181,27 @@ done
 if ! [[ "$START_PHASE" =~ ^[1-6]$ ]]; then
     echo -e "${RED}Error: --start-phase must be between 1 and 6${NC}"
     exit 1
+fi
+
+# Validate provider if explicitly set
+if [ -n "$PROVIDER" ] && [ "$PROVIDER" != "claude" ] && [ "$PROVIDER" != "codex" ]; then
+    echo -e "${RED}Error: --provider must be 'claude' or 'codex'${NC}"
+    exit 1
+fi
+
+# Auto-detect provider if not explicitly set
+if [ -z "$PROVIDER" ]; then
+    if [ -n "$ANTHROPIC_API_KEY" ]; then
+        PROVIDER="claude"
+    elif [ -n "$OPENAI_API_KEY" ]; then
+        PROVIDER="codex"
+    elif command -v claude &> /dev/null && claude --version &> /dev/null 2>&1; then
+        PROVIDER="claude"
+    elif command -v codex &> /dev/null && codex --version &> /dev/null 2>&1; then
+        PROVIDER="codex"
+    else
+        PROVIDER="claude"
+    fi
 fi
 
 # ============================================================================
@@ -262,6 +305,7 @@ echo ""
 echo -e "${BLUE}Configuration:${NC}"
 echo "  Project Path:       $PROJECT_PATH"
 echo "  Framework Path:     $FRAMEWORK_PATH"
+echo "  Provider:           $PROVIDER"
 echo "  Start Phase:        $START_PHASE"
 echo "  Skip Gap Questions: $SKIP_GAP_QUESTIONS"
 echo "  Timeout:            ${TIMEOUT}s ($(($TIMEOUT / 60)) minutes)"
@@ -277,11 +321,19 @@ if [ -t 0 ] && [ -z "$CI" ]; then
     echo "  $PROJECT_PATH"
     echo ""
     echo -e "${YELLOW}The following will be created:${NC}"
-    echo "  - .claude/CLAUDE.md"
-    echo "  - .claude/skills/project-context/"
-    echo "  - .claude/skills/* (language-specific)"
-    echo "  - .claude/agents/*"
-    echo "  - .claude/commands/*"
+    if [ "$PROVIDER" = "codex" ]; then
+        echo "  - .codex/AGENTS.md"
+        echo "  - .codex/skills/project-context/"
+        echo "  - .codex/skills/* (language-specific)"
+        echo "  - .codex/agents/*"
+        echo "  - .codex/commands/*"
+    else
+        echo "  - .claude/CLAUDE.md"
+        echo "  - .claude/skills/project-context/"
+        echo "  - .claude/skills/* (language-specific)"
+        echo "  - .claude/agents/*"
+        echo "  - .claude/commands/*"
+    fi
     echo ""
     read -p "Continue? (y/N) " -n 1 -r
     echo ""
@@ -405,6 +457,7 @@ if true; then
     export MODEL_TIER="${MODEL_TIER:-standard}"
     export PROJECT_PATH
     export FRAMEWORK_PATH
+    export PROVIDER
 
     # Run tsx in foreground - CTRL+C will send SIGINT to tsx which has proper handlers
     # CRITICAL: Use node_modules/.bin/tsx directly, NOT npx (npx adds another process layer)
@@ -419,19 +472,22 @@ if true; then
     # NOTE: tsx must run in foreground to preserve stdin access for interactive prompts
     # The gap questions feature requires stdin to be connected to the terminal
 
+    # Build common tsx arguments
+    TSX_ARGS=(
+        "$ORCHESTRATION_CLI"
+        --project-path "$PROJECT_PATH"
+        --framework-path "$FRAMEWORK_PATH"
+        --provider "$PROVIDER"
+    )
+
     # Build tsx command with optional start-phase parameter
     if [ "$START_PHASE" -gt 1 ]; then
         echo -e "${BLUE}Starting from Phase $START_PHASE...${NC}"
         echo ""
-        "$TSX_BIN" "$ORCHESTRATION_CLI" \
-          --project-path "$PROJECT_PATH" \
-          --framework-path "$FRAMEWORK_PATH" \
-          --start-phase "$START_PHASE"
+        "$TSX_BIN" "${TSX_ARGS[@]}" --start-phase "$START_PHASE"
         TSX_EXIT_CODE=$?
     else
-        "$TSX_BIN" "$ORCHESTRATION_CLI" \
-          --project-path "$PROJECT_PATH" \
-          --framework-path "$FRAMEWORK_PATH"
+        "$TSX_BIN" "${TSX_ARGS[@]}"
         TSX_EXIT_CODE=$?
     fi
 
@@ -464,19 +520,35 @@ if [ $EXIT_CODE -eq 0 ]; then
     fi
     echo ""
     echo -e "${GREEN}Generated files:${NC}"
-    echo "  ✓ .claude/CLAUDE.md"
-    echo "  ✓ .claude/skills/project-context/SKILL.md"
-    echo "  ✓ .claude/skills/* (language-specific)"
-    echo "  ✓ .claude/agents/*"
-    echo "  ✓ .claude/commands/*"
+    if [ "$PROVIDER" = "codex" ]; then
+        echo "  ✓ .codex/AGENTS.md"
+        echo "  ✓ .codex/skills/project-context/SKILL.md"
+        echo "  ✓ .codex/skills/* (language-specific)"
+        echo "  ✓ .codex/agents/*"
+        echo "  ✓ .codex/commands/*"
+    else
+        echo "  ✓ .claude/CLAUDE.md"
+        echo "  ✓ .claude/skills/project-context/SKILL.md"
+        echo "  ✓ .claude/skills/* (language-specific)"
+        echo "  ✓ .claude/agents/*"
+        echo "  ✓ .claude/commands/*"
+    fi
     echo ""
     echo -e "${CYAN}Next steps:${NC}"
     echo "  1. cd $PROJECT_PATH"
-    echo "  2. claude  # Start Claude CLI"
-    echo "  3. /project-context  # Load project knowledge"
-    echo "  4. /start-task  # Begin working on tasks"
-    echo ""
-    echo "For quick reference, see: .claude/CLAUDE.md"
+    if [ "$PROVIDER" = "codex" ]; then
+        echo "  2. codex  # Start Codex CLI"
+        echo "  3. /project-context  # Load project knowledge"
+        echo "  4. /start-task  # Begin working on tasks"
+        echo ""
+        echo "For quick reference, see: .codex/AGENTS.md"
+    else
+        echo "  2. claude  # Start Claude CLI"
+        echo "  3. /project-context  # Load project knowledge"
+        echo "  4. /start-task  # Begin working on tasks"
+        echo ""
+        echo "For quick reference, see: .claude/CLAUDE.md"
+    fi
     echo ""
     exit 0
 else
@@ -488,10 +560,21 @@ else
     echo "Duration: ${MINUTES}m ${SECONDS}s"
     echo "Exit code: $EXIT_CODE"
     echo ""
+    if [ "$PROVIDER" = "codex" ]; then
+        TEMP_DIR=".codex-temp"
+    else
+        TEMP_DIR=".claude-temp"
+    fi
     echo -e "${YELLOW}Troubleshooting:${NC}"
-    echo "  1. Check logs in: $PROJECT_PATH/.claude-temp/initialize-project/"
-    echo "  2. Review phase outputs: $PROJECT_PATH/.claude-temp/initialize-project/phase*"
+    echo "  1. Check logs in: $PROJECT_PATH/$TEMP_DIR/initialize-project/"
+    echo "  2. Review phase outputs: $PROJECT_PATH/$TEMP_DIR/initialize-project/phase*"
     echo "  3. Re-run with more verbose output"
+    echo "  4. Verify provider CLI is installed: $PROVIDER --version"
+    if [ "$PROVIDER" = "codex" ]; then
+        echo "  5. Verify OPENAI_API_KEY is set (codex provider)"
+    else
+        echo "  5. Verify ANTHROPIC_API_KEY is set or claude CLI is authenticated"
+    fi
     echo ""
     echo "For help, see: $FRAMEWORK_PATH/docs/INITIALIZE_PROJECT.md"
     echo ""

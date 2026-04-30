@@ -43,10 +43,29 @@ Each manifest file represents a potential service or package. Read each one to e
 
 **Count files by extension to detect ALL languages:**
 
+Prefer Glob with narrow, service-scoped patterns (e.g. `services/**/*.ts`,
+`packages/**/*.py`) over a repo-wide `find`. A raw `find .` will descend into
+`node_modules`, `dist`, the framework directory, and every other path listed in
+the `<excluded_directories>` block, burning the token budget on one call.
+
+If you do use Bash, you MUST exclude every directory from the
+`<excluded_directories>` tag — not just `node_modules` and `.git`. Example
+pattern (extend the `-o -name ...` list to cover every excluded dir for this
+project):
+
 ```bash
-# Use Bash to get file counts by extension
-find . -type f -name "*" | grep -v node_modules | grep -v .git | awk -F. '{print $NF}' | sort | uniq -c
+find . \
+  \( -name node_modules -o -name .git -o -name dist -o -name build \
+     -o -name .next -o -name coverage -o -name .venv -o -name venv \
+     -o -name .claude -o -name .claude-temp -o -name .claude-backups \
+     -o -name .codex  -o -name .codex-temp  -o -name .codex-backups \
+     -o -name qubika-agentic-framework -o -name ai-agentic-framework \
+  \) -prune -o -type f -print \
+  | awk -F. 'NF>1 {print $NF}' | sort | uniq -c | sort -rn | head -30
 ```
+
+Do not replace `-prune` with a single `grep -v` — that only removes one
+pattern and still walks the excluded trees.
 
 **Language identification from extensions:**
 

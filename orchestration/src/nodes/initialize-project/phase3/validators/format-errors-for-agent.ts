@@ -67,7 +67,6 @@ export function formatErrorsForAgent(errors: string[]): string[] {
     '---',
     'name: project-context',
     'description: Deep architectural knowledge',
-    'user-invokable: true',
     '---',
     '',
     '# Project Context: ProjectName',

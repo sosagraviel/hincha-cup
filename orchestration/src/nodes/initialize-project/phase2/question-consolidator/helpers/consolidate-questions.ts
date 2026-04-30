@@ -11,6 +11,8 @@ import {
 import { logger } from '../../../../../utils/logger.js';
 import { buildConsolidationPrompt } from '../prompt-builder.js';
 import { getFrameworkAgentPath } from '../../../shared/index.js';
+import { reasoningPrefix } from '../../../../../utils/shared/context-tags.js';
+import { getInitializeProjectPhase } from '../../../../../services/framework/debug-store/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -46,33 +48,34 @@ export async function consolidateQuestions(
     const agentInvoke = async (
       feedbackPrompt: string,
       resumeSessionId?: string,
+      attemptNumber?: number,
     ): Promise<{ output: string; sessionId: string }> => {
       // Build input prompt using shared utility
       const contextPrompt = buildConsolidationPrompt(gaps, feedbackPrompt);
 
-      // Add ultrathink and consolidation instructions
-      const inputPrompt = `ultrathink
+      // Create agent using new interface
+      const factory = await AgentFactory.create();
 
-${contextPrompt}
+      // Provider-aware reasoning prefix (ultrathink for Claude, empty for Codex)
+      const inputPrompt = `${reasoningPrefix(factory.getAuthConfig())}${contextPrompt}
 
 ${consolidationInstructions}`;
 
-      // Create agent using new interface
-      const factory = await AgentFactory.create();
       const agent = await factory.createAgent({
         agentName: 'question-consolidator',
         agentFilePath: getFrameworkAgentPath(frameworkPath, '06-question-consolidator.md'),
         projectPath,
         frameworkPath,
-        timeout: 300000, // 5 minutes
+        timeout: 600000, // 10 minutes
         resumeSessionId, // Pass session ID for context-preserving retry
+        phase: getInitializeProjectPhase('phase2'),
         settingsPath: join(
           frameworkPath,
           'orchestration/src/nodes/initialize-project/phase2/question-consolidator/settings.json',
         ),
       });
 
-      const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()
+      const result = await agent.invoke({ inputPrompt, attemptNumber });
 
       return {
         output: result.output,
@@ -168,15 +171,15 @@ ${consolidationInstructions}`;
       }
     };
 
-    // Use enhanced retry with progressive feedback
-    // Save failed attempts with .attempt-N-question-consolidation suffix
-    const outputPath = consolidatedPath.replace('.json', '-question-consolidation.json');
-
     const parsed = await retryWithEnhancedFeedback<QuestionConsolidationOutput>(
       agentInvoke,
       validator,
       DEFAULT_RETRY_CONFIG,
-      outputPath, // Pass output path for attempt logging
+      {
+        projectPath,
+        agentName: 'question-consolidator',
+        phase: getInitializeProjectPhase('phase2'),
+      },
     );
 
     consolidationLogger.info('  ✓ Consolidation successful and validated');

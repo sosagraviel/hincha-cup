@@ -341,7 +341,8 @@ Generate comprehensive unit and integration tests for code implementations.
 ```bash
 # Agents are automatically generated during initialization
 # Test by running implement-ticket which uses agents
-/implement-ticket TEST-123
+/implement-ticket TEST-123    # Claude Code
+$implement-ticket TEST-123    # Codex CLI
 ```
 
 ---
@@ -367,16 +368,19 @@ Test your changes on real projects:
 ```bash
 # 1. Test initialization
 cd /path/to/test-project
-/initialize-project
+./qubika-agentic-framework/scripts/initialize-project.sh
+# Or: ./qubika-agentic-framework/scripts/initialize-project.sh --provider codex
 
 # 2. Verify skill detection
-cat .claude/project-context/SKILL.md
+cat .claude/project-context/SKILL.md   # or .codex/project-context/SKILL.md
 
 # 3. Test implementation
-/implement-ticket TEST-123
+/implement-ticket TEST-123    # Claude Code
+$implement-ticket TEST-123    # Codex CLI
 
-# 4. Verify quality gates pass
-/code-quality-check
+# 4. Quality gates run inside /implement-ticket; re-run project scripts manually if needed
+npm run lint:fix
+npx tsc --noEmit
 ```
 
 ---
@@ -404,8 +408,9 @@ git checkout -b feature/add-vue-skill
 ./qubika-agentic-framework/tests/run-integration-tests.sh
 
 # Test on real projects
-/initialize-project
-/implement-ticket TEST-123
+./qubika-agentic-framework/scripts/initialize-project.sh
+/implement-ticket TEST-123    # Claude Code
+$implement-ticket TEST-123    # Codex CLI
 ```
 
 4. **Commit with clear messages**

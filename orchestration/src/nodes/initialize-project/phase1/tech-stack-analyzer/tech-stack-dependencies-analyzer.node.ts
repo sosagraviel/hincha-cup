@@ -10,6 +10,9 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { buildPhase1AnalyzerPrompt } from '../shared/prompt-builder.js';
 import { getFrameworkAgentPath } from '../../shared/index.js';
+import { reasoningPrefix } from '../../../../utils/shared/context-tags.js';
+import { resolveTempPath } from '../../../../utils/provider-paths.js';
+import { getInitializeProjectPhase } from '../../../../services/framework/debug-store/index.js';
 
 /**
  * Analyzes tech stack, programming languages, dependencies, and build tools
@@ -20,13 +23,14 @@ export async function techStackDependenciesAnalyzerNode(
   const agentName = 'tech-stack-dependencies-analyzer';
   const agentFile = '02-tech-stack-dependencies.md';
 
-  const tempDir = state.temp_dir || join(state.project_path, '.claude-temp/initialize-project');
+  const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   mkdirSync(join(tempDir, 'phase1-outputs'), { recursive: true });
 
   try {
     const agentInvoke = async (
       feedbackPrompt: string,
       resumeSessionId?: string,
+      attemptNumber?: number,
     ): Promise<{ output: string; sessionId: string }> => {
       // Build input prompt using shared utility
       const contextPrompt = buildPhase1AnalyzerPrompt(
@@ -36,25 +40,27 @@ export async function techStackDependenciesAnalyzerNode(
         feedbackPrompt, // Feedback for retry
       );
 
-      // Add ultrathink and task instruction to input prompt
-      const inputPrompt = `ultrathink\n\n${contextPrompt}\n\nAnalyze the tech stack and dependencies at: ${state.project_path}`;
-
       // Create agent using new interface
       const factory = await AgentFactory.create();
+
+      // Provider-aware reasoning prefix (ultrathink for Claude, empty for Codex)
+      const inputPrompt = `${reasoningPrefix(factory.getAuthConfig())}${contextPrompt}\n\nAnalyze the tech stack and dependencies at: ${state.project_path}`;
+
       const agent = await factory.createAgent({
         agentName,
         agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
-        timeout: 600000, // 10 minutes
+        timeout: 1800000, // 30 minutes
         resumeSessionId, // Pass session ID for context-preserving retry
+        phase: getInitializeProjectPhase('phase1'),
         settingsPath: join(
           state.framework_path,
           'orchestration/src/nodes/initialize-project/phase1/tech-stack-analyzer/settings.json',
         ),
       });
 
-      const result = await agent.invoke({ inputPrompt }); // Pass inputPrompt to invoke()
+      const result = await agent.invoke({ inputPrompt, attemptNumber });
 
       return {
         output: result.output,
@@ -66,14 +72,17 @@ export async function techStackDependenciesAnalyzerNode(
       return validateAndParseAgentOutput(output, agentName);
     };
 
-    // Define output path for saving both successful and failed attempts
     const outputPath = join(tempDir, 'phase1-outputs', '02-tech-stack-dependencies.json');
 
     const validatedData = await retryWithEnhancedFeedback(
       agentInvoke,
       validator,
       DEFAULT_RETRY_CONFIG,
-      outputPath, // Pass output path for attempt logging
+      {
+        projectPath: state.project_path,
+        agentName,
+        phase: getInitializeProjectPhase('phase1'),
+      },
     );
 
     writeFileSync(outputPath, JSON.stringify(validatedData, null, 2));

@@ -9,8 +9,79 @@ import { Logger } from '../utils/logger.js';
 import { compileImplementTicketGraph } from '../graphs/implement-ticket.graph.js';
 import { MemorySaver } from '@langchain/langgraph';
 import type { ImplementTicketState } from '../state/schemas/implement-ticket.schema.js';
+import { Provider } from '../providers/types.js';
+import { setActiveProvider, resolveTempPath } from '../utils/provider-paths.js';
+import { loadClaudeSettingsEnv } from '../auth/claude-settings-loader.js';
 
 const logger = new Logger('implement-ticket');
+
+// Apply ~/.claude/settings.json env block to process.env BEFORE any auth detection or
+// provider auto-detection runs. The Claude CLI reads this file natively, but the framework's
+// parent Node process does not — running this here keeps settings.json as a single source of
+// truth for both layers.
+const __settingsResult = loadClaudeSettingsEnv();
+if (__settingsResult.warning) {
+  logger.warn(`Claude settings: ${__settingsResult.warning}`);
+} else if (__settingsResult.appliedKeys.length > 0) {
+  logger.info(
+    `Loaded ${__settingsResult.appliedKeys.length} env var(s) from ${__settingsResult.settingsPath}: ${__settingsResult.appliedKeys.join(', ')}`,
+  );
+}
+
+function parseProvider(providerValue?: string): Provider | undefined {
+  if (!providerValue) {
+    return undefined;
+  }
+
+  const providerLower = providerValue.toLowerCase();
+  if (providerLower === 'codex' || providerLower === 'openai') {
+    return Provider.CODEX;
+  }
+
+  if (providerLower === 'claude' || providerLower === 'anthropic') {
+    return Provider.CLAUDE;
+  }
+
+  return undefined;
+}
+
+function detectProvider(projectPathOption?: string, frameworkPathOption?: string): Provider {
+  const envProvider = parseProvider(
+    process.env.LLM_PROVIDER ??
+      process.env.ACTIVE_PROVIDER ??
+      process.env.PROVIDER ??
+      process.env.MODEL_PROVIDER,
+  );
+  if (envProvider) {
+    return envProvider;
+  }
+
+  if (process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+    return Provider.CODEX;
+  }
+
+  if (process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
+    return Provider.CLAUDE;
+  }
+
+  const candidateRoots = [projectPathOption, frameworkPathOption, process.cwd()]
+    .filter((candidate): candidate is string => Boolean(candidate))
+    .map((candidate) => resolve(candidate));
+
+  for (const root of candidateRoots) {
+    if (existsSync(join(root, '.codex'))) {
+      return Provider.CODEX;
+    }
+  }
+
+  for (const root of candidateRoots) {
+    if (existsSync(join(root, '.claude'))) {
+      return Provider.CLAUDE;
+    }
+  }
+
+  return Provider.CLAUDE;
+}
 
 /**
  * CLI Entry Point for Implement-Ticket Workflow
@@ -53,6 +124,7 @@ program
   .option('--from-input', 'Read ticket context from stdin')
   .option('--start-phase <phase>', 'Start from specific phase (0-10)', parseInt)
   .option('--resume', 'Auto-detect last completed phase and resume from next')
+  .option('--provider <provider>', 'Target provider: claude or codex (auto-detected if omitted)')
   .option(
     '--model-tier <tier>',
     'Model tier to use (standard, fast, advanced, openai, gemini)',
@@ -61,6 +133,15 @@ program
   .parse(process.argv);
 
 const options = program.opts();
+
+const activeProvider =
+  parseProvider(options.provider) ?? detectProvider(options.projectPath, options.frameworkPath);
+
+setActiveProvider(activeProvider);
+
+if (activeProvider === Provider.CODEX && options.modelTier === 'standard') {
+  process.env.MODEL_TIER = 'openai';
+}
 
 const projectPath = resolve(options.projectPath);
 const frameworkPath = resolve(options.frameworkPath);
@@ -145,7 +226,7 @@ if (!ticketId || ticketId.trim() === '') {
   process.exit(1);
 }
 
-const tempDir = join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+const tempDir = resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
 let startPhase = 0;
 
 if (options.resume) {

@@ -1,7 +1,7 @@
 # Development artifacts
 node_modules/
 .vscode/
-.husky/
+.husky/_/
 *.log
 *.tmp
 
@@ -42,3 +42,6 @@ coverage
 .claude-temp/
 .claude-backups/
 qubika-agentic-framework/
+
+.codex-temp/
+.codex-backups/

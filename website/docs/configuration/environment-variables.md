@@ -23,12 +23,30 @@ OPENAI_API_KEY=sk-...
 GOOGLE_API_KEY=...
 ```
 
-**Required**: At least one API key OR Claude CLI authentication
+**Required**: At least one API key, a Claude CLI / Codex CLI subscription login, or a Claude enterprise-gateway flag (see below).
 
 **Get API Keys**:
 - [Anthropic API Keys](https://console.anthropic.com/settings/keys)
 - [OpenAI API Keys](https://platform.openai.com/api-keys)
 - [Google AI Studio](https://aistudio.google.com/app/apikey)
+
+### Claude Enterprise Gateways
+
+Route Claude through a cloud-provider deployment instead of `api.anthropic.com`. When any of these are set, neither `claude login` nor `ANTHROPIC_API_KEY` is required — auth uses your cloud-provider credentials.
+
+```bash
+# Azure AI Foundry
+CLAUDE_CODE_USE_FOUNDRY=1
+ANTHROPIC_FOUNDRY_RESOURCE=your-foundry-resource
+
+# AWS Bedrock (plus standard AWS_* credentials)
+CLAUDE_CODE_USE_BEDROCK=1
+
+# Google Vertex AI (plus GOOGLE_APPLICATION_CREDENTIALS)
+CLAUDE_CODE_USE_VERTEX=1
+```
+
+These can also be set in the `env` block of `~/.claude/settings.json` — the framework reads it at startup. See [Authentication](./authentication.md#enterprise-gateways-foundry--bedrock--vertex) for details.
 
 ## Model Configuration
 
@@ -657,8 +675,9 @@ Please set one of the following:
   export OPENAI_API_KEY=sk-...
   export GOOGLE_API_KEY=...
 
-Or authenticate Claude CLI:
-  claude setup-token
+Or authenticate a provider CLI with a subscription:
+  claude login        # Anthropic / Claude CLI
+  codex login         # OpenAI / Codex CLI
 ```
 
 ## Example Configurations

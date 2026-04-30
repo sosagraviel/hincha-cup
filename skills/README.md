@@ -144,12 +144,65 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 
 ---
 
+## Authoring Skills for Multiple Providers
+
+Skills are authored once in this source tree and adapted at sync time for the
+active provider (Claude Code or Codex CLI). Two patterns are supported.
+
+### Pattern A — Placeholder Substitution (light divergence)
+
+Use a single `SKILL.md` with provider-neutral placeholders. The sync pipeline
+substitutes them at copy time based on the active provider.
+
+| Placeholder             | Claude                | Codex              |
+| ----------------------- | --------------------- | ------------------ |
+| `{{CONFIG_DIR}}`        | `.claude`             | `.codex`           |
+| `{{INSTRUCTION_FILE}}`  | `CLAUDE.md`           | `AGENTS.md`        |
+| `{{TEMP_DIR}}`          | `.claude-temp`        | `.codex-temp`      |
+| `{{PROVIDER_NAME}}`     | `Claude Code`         | `Codex CLI`        |
+
+Rules:
+
+- Unknown `{{TOKEN}}` references fail the sync — fail-closed by design.
+- Only `.md` files get substitution; binary assets are copied verbatim.
+- Prefer Pattern A whenever the provider-specific differences are just paths,
+  file names, or provider display strings.
+
+### Pattern B — Dual Source Files (heavy divergence)
+
+Use two files side-by-side when the skill's *semantics* differ per provider
+(for example: one provider can spawn subagents via `Task`, the other cannot):
+
+```
+skills/<category>/<skill>/
+├── SKILL.claude.md        # Claude-specific version
+└── SKILL.codex.md         # Codex-specific version
+```
+
+The sync picks the file matching the active provider and writes it to the
+target project as `SKILL.md`. Placeholder substitution still runs on whichever
+variant was selected.
+
+Rules:
+
+- **Never** keep a plain `SKILL.md` alongside `SKILL.<provider>.md` files —
+  the sync fails on ambiguous source layouts.
+- At least one recognised variant must exist, or the skill is skipped.
+- Use Pattern B sparingly: the two files drift over time, so only split when
+  placeholder substitution can't express the difference.
+
+The canonical example is `020-development-workflow/implement-ticket/` — see
+`SKILL.claude.md` (which uses `TaskCreate` and spawns subagents) and
+`SKILL.codex.md` (which uses file-based JSONL progress tracking and inline
+role prompts instead).
+
 ## Adding New Skills
 
 1. **Determine the correct group** (010-080) based on primary purpose
 2. **Add to group folder**: Create skill in appropriate numbered folder
-3. **Update group README**: Add entry to the table above
-4. **Consider new group**: If none fit, use next available (090, etc.)
+3. **Decide the authoring pattern** (A or B above)
+4. **Update group README**: Add entry to the table above
+5. **Consider new group**: If none fit, use next available (090, etc.)
 
 ### Adding a New Group (090, 100...)
 

@@ -3,6 +3,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { ImplementTicketState } from '../../state/schemas/implement-ticket.schema.js';
 import { ArtifactCollectorService } from '../../services/implement-ticket/artifact-collector.service.js';
+import { resolveTempPath } from '../../utils/provider-paths.js';
 
 /**
  * Phase 8: PR Creation Node
@@ -29,8 +30,7 @@ export async function phase8PRNode(
 ): Promise<Partial<ImplementTicketState>> {
   const ticketId = state.ticket_id;
   const projectPath = state.project_path;
-  const tempDir =
-    state.temp_dir || join(projectPath, '.claude-temp/tickets', ticketId, 'artifacts');
+  const tempDir = state.temp_dir || resolveTempPath(projectPath, 'tickets', ticketId, 'artifacts');
   const phase8Dir = join(tempDir, 'phase8');
 
   console.log('\n[Phase 8: PR Creation] Starting PR creation...');

@@ -1,14 +1,20 @@
 import { execSync } from 'child_process';
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { ensureCodexAuthentication } from './codex-auth.js';
 
 /**
  * Authentication modes supported by the framework
  */
 export enum AuthMode {
-  /** Use API key with LangChain/DeepAgents (full control, tier-based models) */
+  /** Deprecated: LangChain/DeepAgents API-key mode is no longer selected automatically */
   API_KEY = 'api_key',
 
   /** Use Claude CLI with subscription auth (Claude Pro/Max, TOS-compliant) */
   CLAUDE_CLI = 'claude_cli',
+
+  /** Use Codex CLI with subscription auth or OPENAI_API_KEY-backed CLI auth */
+  CODEX_CLI = 'codex_cli',
 
   /** No authentication available */
   NONE = 'none',
@@ -21,26 +27,67 @@ export interface AuthConfig {
   /** Selected authentication mode */
   mode: AuthMode;
 
-  /** Provider for API key mode (anthropic, openai, google) */
+  /** Provider selected for CLI execution (anthropic, openai) */
   provider?: string;
 
   /** Whether Claude CLI is available on the system */
   hasClaudeCLI: boolean;
+
+  /** Whether Codex CLI is available on the system */
+  hasCodexCLI: boolean;
 
   /** Whether an API key is set */
   hasAPIKey: boolean;
 
   /** Version of Claude CLI if available */
   claudeCLIVersion?: string;
+
+  /** Version of Codex CLI if available */
+  codexCLIVersion?: string;
+}
+
+/**
+ * Information about a detected Claude gateway deployment (Foundry / Bedrock / Vertex).
+ *
+ * When any of these are configured, the Claude CLI routes requests through the gateway
+ * using cloud-provider credentials (Azure / AWS / GCP) instead of `api.anthropic.com`,
+ * so neither `claude login` nor `ANTHROPIC_API_KEY` is required for the framework to run.
+ */
+interface ClaudeGateway {
+  type: 'foundry' | 'bedrock' | 'vertex';
+  description: string;
+}
+
+/**
+ * Detect whether the environment is configured to route Claude through a gateway
+ * (Azure AI Foundry, AWS Bedrock, or Google Vertex AI). Returns null if none is set.
+ */
+function detectClaudeGateway(): ClaudeGateway | null {
+  if (process.env.CLAUDE_CODE_USE_FOUNDRY === '1' && process.env.ANTHROPIC_FOUNDRY_RESOURCE) {
+    return {
+      type: 'foundry',
+      description: `Azure AI Foundry (resource: ${process.env.ANTHROPIC_FOUNDRY_RESOURCE})`,
+    };
+  }
+  if (process.env.CLAUDE_CODE_USE_BEDROCK === '1') {
+    return { type: 'bedrock', description: 'AWS Bedrock' };
+  }
+  if (process.env.CLAUDE_CODE_USE_VERTEX === '1') {
+    return { type: 'vertex', description: 'Google Vertex AI' };
+  }
+  return null;
 }
 
 /**
  * Detect available authentication methods and select the best option
  *
  * Priority order:
- * 1. API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY)
- * 2. Claude CLI with subscription authentication
- * 3. None (error state)
+ * 1. Explicit PROVIDER (claude/codex)
+ * 2. Claude gateway env (Foundry / Bedrock / Vertex) — routes through cloud provider
+ * 3. Provider API keys as CLI provider selectors (ANTHROPIC_API_KEY, OPENAI_API_KEY)
+ * 4. Claude CLI with subscription authentication
+ * 5. Codex CLI with subscription authentication
+ * 6. None (error state)
  *
  * @returns Authentication configuration
  *
@@ -48,9 +95,7 @@ export interface AuthConfig {
  * ```typescript
  * const authConfig = await detectAuthMode();
  *
- * if (authConfig.mode === AuthMode.API_KEY) {
- *   console.log(`Using API key for ${authConfig.provider}`);
- * } else if (authConfig.mode === AuthMode.CLAUDE_CLI) {
+ * if (authConfig.mode === AuthMode.CLAUDE_CLI) {
  *   console.log('Using Claude CLI with subscription');
  * } else {
  *   throw new Error('No authentication available');
@@ -58,72 +103,199 @@ export interface AuthConfig {
  * ```
  */
 export async function detectAuthMode(): Promise<AuthConfig> {
-  // Check for Claude CLI availability first (used for both modes)
+  // Check CLI availability for both providers
   const hasClaudeCLI = await isClaudeCLIAvailable();
   const claudeCLIVersion = hasClaudeCLI ? await getClaudeCLIVersion() : undefined;
+  const hasCodexCLI = await isCodexCLIAvailable();
+  const codexCLIVersion = hasCodexCLI ? await getCodexCLIVersion() : undefined;
 
-  // Priority 1: Check for API keys
+  const baseConfig = { hasClaudeCLI, hasCodexCLI, claudeCLIVersion, codexCLIVersion };
+
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
-  const googleKey = process.env.GOOGLE_API_KEY;
 
-  if (anthropicKey) {
+  // Priority 1: Explicit PROVIDER env var — STRICT (no fallback)
+  const explicitProvider = process.env.PROVIDER?.toLowerCase();
+
+  if (explicitProvider === 'codex' || explicitProvider === 'openai') {
+    if (!hasCodexCLI) {
+      const frameworkPath = process.env.FRAMEWORK_PATH || '.';
+      throw new Error(
+        `Provider 'codex' was requested but Codex CLI is not installed.\n\n` +
+          `The framework bundles Codex CLI locally. Install dependencies:\n` +
+          `  cd ${frameworkPath}/orchestration && pnpm install\n\n` +
+          `Then authenticate the local CLI:\n` +
+          `  "${frameworkPath}/orchestration/node_modules/.bin/codex" login`,
+      );
+    }
+    const authResult = ensureCodexCLIAuthentication();
+    if (!authResult.authenticated) {
+      const localPath = resolveLocalCLIPath('codex');
+      const codexCmd = localPath ? `"${localPath}"` : 'codex';
+      const apiKeyLoginFailure = authResult.attemptedApiKeyLogin
+        ? `\n\nAutomatic Codex API-key login failed${authResult.error ? `: ${authResult.error}` : '.'}\n` +
+          `You can retry manually:\n` +
+          `  printenv OPENAI_API_KEY | ${codexCmd} login --with-api-key`
+        : '';
+      throw new Error(
+        `Provider 'codex' was requested but Codex CLI is not authenticated.\n\n` +
+          `Please authenticate:\n` +
+          `  ${codexCmd} login\n\n` +
+          `If you have OPENAI_API_KEY set, the framework will attempt API-key login automatically.` +
+          apiKeyLoginFailure,
+      );
+    }
     return {
-      mode: AuthMode.API_KEY,
+      mode: AuthMode.CODEX_CLI,
+      provider: 'openai',
+      hasAPIKey: !!openaiKey,
+      ...baseConfig,
+    };
+  }
+
+  if (explicitProvider === 'claude' || explicitProvider === 'anthropic') {
+    if (!hasClaudeCLI) {
+      throw new Error(
+        `Provider 'claude' was requested but Claude CLI is not installed.\n\n` +
+          `Install with: npm install -g @anthropic-ai/claude-code\n` +
+          `Or run: cd orchestration && pnpm install\n\n` +
+          `Then authenticate: claude login`,
+      );
+    }
+    const gateway = detectClaudeGateway();
+    if (!gateway && !anthropicKey && !(await isClaudeCLIAuthenticated())) {
+      throw new Error(
+        `Provider 'claude' was requested but Claude CLI is not authenticated.\n\n` +
+          `Please choose one of the following:\n` +
+          `  - Run: claude login\n` +
+          `  - Set ANTHROPIC_API_KEY\n` +
+          `  - Configure a gateway: CLAUDE_CODE_USE_FOUNDRY=1 + ANTHROPIC_FOUNDRY_RESOURCE,\n` +
+          `    CLAUDE_CODE_USE_BEDROCK=1, or CLAUDE_CODE_USE_VERTEX=1`,
+      );
+    }
+    return {
+      mode: AuthMode.CLAUDE_CLI,
       provider: 'anthropic',
-      hasClaudeCLI,
+      hasAPIKey: !!anthropicKey,
+      ...baseConfig,
+    };
+  }
+
+  // Priority 2: Claude gateway (Foundry / Bedrock / Vertex) — auth is handled by the
+  // cloud provider's credentials, not by `claude login` or ANTHROPIC_API_KEY.
+  const gateway = detectClaudeGateway();
+  if (gateway) {
+    if (!hasClaudeCLI) {
+      throw new Error(
+        `${gateway.description} is configured for Claude, but Claude CLI is not installed.\n\n` +
+          `Install with: npm install -g @anthropic-ai/claude-code\n` +
+          `Or run: cd orchestration && pnpm install`,
+      );
+    }
+    return {
+      mode: AuthMode.CLAUDE_CLI,
+      provider: 'anthropic',
+      hasAPIKey: !!anthropicKey,
+      ...baseConfig,
+    };
+  }
+
+  // Priority 3: Provider API keys select the matching CLI implementation.
+  if (anthropicKey) {
+    if (!hasClaudeCLI) {
+      throw new Error(
+        `ANTHROPIC_API_KEY is set, but Claude CLI is not installed.\n\n` +
+          `Install with: npm install -g @anthropic-ai/claude-code\n` +
+          `Or run: cd orchestration && pnpm install`,
+      );
+    }
+
+    return {
+      mode: AuthMode.CLAUDE_CLI,
+      provider: 'anthropic',
       hasAPIKey: true,
-      claudeCLIVersion,
+      ...baseConfig,
     };
   }
 
   if (openaiKey) {
+    if (!hasCodexCLI) {
+      const frameworkPath = process.env.FRAMEWORK_PATH || '.';
+      throw new Error(
+        `OPENAI_API_KEY is set, but Codex CLI is not installed.\n\n` +
+          `The framework bundles Codex CLI locally. Install dependencies:\n` +
+          `  cd ${frameworkPath}/orchestration && pnpm install\n\n` +
+          `Then authenticate with the key in your environment:\n` +
+          `  "${frameworkPath}/orchestration/node_modules/.bin/codex" login`,
+      );
+    }
+
+    const authResult = ensureCodexCLIAuthentication();
+    if (!authResult.authenticated) {
+      const localPath = resolveLocalCLIPath('codex');
+      const codexCmd = localPath ? `"${localPath}"` : 'codex';
+      throw new Error(
+        `OPENAI_API_KEY is set, but Codex CLI is not authenticated.\n\n` +
+          `Automatic Codex API-key login failed${authResult.error ? `: ${authResult.error}` : '.'}\n\n` +
+          `You can retry manually:\n` +
+          `  printenv OPENAI_API_KEY | ${codexCmd} login --with-api-key`,
+      );
+    }
+
     return {
-      mode: AuthMode.API_KEY,
+      mode: AuthMode.CODEX_CLI,
       provider: 'openai',
-      hasClaudeCLI,
       hasAPIKey: true,
-      claudeCLIVersion,
+      ...baseConfig,
     };
   }
 
-  if (googleKey) {
+  // GOOGLE_API_KEY is intentionally ignored: there is no supported Google CLI provider.
+
+  // Priority 4: Auto-detect CLI (Claude first, then Codex)
+  if (hasClaudeCLI && (await isClaudeCLIAuthenticated())) {
     return {
-      mode: AuthMode.API_KEY,
-      provider: 'google',
-      hasClaudeCLI,
-      hasAPIKey: true,
-      claudeCLIVersion,
+      mode: AuthMode.CLAUDE_CLI,
+      provider: 'anthropic',
+      hasAPIKey: false,
+      ...baseConfig,
     };
   }
 
-  // Priority 2: Check for Claude CLI with subscription auth
-  if (hasClaudeCLI) {
-    const isAuthenticated = await isClaudeCLIAuthenticated();
-    if (isAuthenticated) {
-      return {
-        mode: AuthMode.CLAUDE_CLI,
-        provider: 'anthropic',
-        hasClaudeCLI: true,
-        hasAPIKey: false,
-        claudeCLIVersion,
-      };
+  if (hasCodexCLI && (await isCodexCLIAuthenticated())) {
+    return {
+      mode: AuthMode.CODEX_CLI,
+      provider: 'openai',
+      hasAPIKey: false,
+      ...baseConfig,
+    };
+  }
+
+  // Priority 5: No authentication available
+  return { mode: AuthMode.NONE, hasAPIKey: false, ...baseConfig };
+}
+
+/**
+ * Get the resolved path to a CLI binary, checking local bundled first, then global.
+ * Returns the path if found, null if not.
+ */
+function resolveLocalCLIPath(binaryName: string): string | null {
+  const frameworkPath = process.env.FRAMEWORK_PATH;
+  if (frameworkPath) {
+    const localPath = join(frameworkPath, 'orchestration/node_modules/.bin', binaryName);
+    if (existsSync(localPath)) {
+      return localPath;
     }
   }
-
-  // Priority 3: No authentication available
-  return {
-    mode: AuthMode.NONE,
-    hasClaudeCLI,
-    hasAPIKey: false,
-    claudeCLIVersion,
-  };
+  return null;
 }
 
 /**
  * Check if Claude CLI is installed and available in PATH
  */
 export async function isClaudeCLIAvailable(): Promise<boolean> {
+  if (resolveLocalCLIPath('claude')) return true;
+
   try {
     execSync('which claude', { stdio: 'ignore', timeout: 5000 });
     return true;
@@ -137,7 +309,9 @@ export async function isClaudeCLIAvailable(): Promise<boolean> {
  */
 export async function getClaudeCLIVersion(): Promise<string | undefined> {
   try {
-    const output = execSync('claude --version', {
+    const localPath = resolveLocalCLIPath('claude');
+    const cmd = localPath ? `"${localPath}" --version` : 'claude --version';
+    const output = execSync(cmd, {
       encoding: 'utf-8',
       timeout: 5000,
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -155,6 +329,8 @@ export async function getClaudeCLIVersion(): Promise<string | undefined> {
  * If the CLI is not authenticated, it will fail.
  */
 export async function isClaudeCLIAuthenticated(): Promise<boolean> {
+  if (process.env.ANTHROPIC_API_KEY) return true;
+
   try {
     // Try a simple command that requires authentication
     // Using --version should work without auth, but we can try a more specific check
@@ -202,6 +378,54 @@ async function hasClaudeCredentials(): Promise<boolean> {
 }
 
 /**
+ * Check if Codex CLI is installed (local bundled or global)
+ */
+export async function isCodexCLIAvailable(): Promise<boolean> {
+  // Check local bundled first
+  if (resolveLocalCLIPath('codex')) return true;
+
+  // Check global
+  try {
+    execSync('which codex', { stdio: 'ignore', timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get Codex CLI version string
+ */
+export async function getCodexCLIVersion(): Promise<string | undefined> {
+  try {
+    const localPath = resolveLocalCLIPath('codex');
+    const cmd = localPath ? `"${localPath}" --version` : 'codex --version';
+    const output = execSync(cmd, {
+      encoding: 'utf-8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return output.trim();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Check if Codex CLI is authenticated using `codex login status`
+ * Exits 0 when logged in, non-zero otherwise.
+ */
+export async function isCodexCLIAuthenticated(): Promise<boolean> {
+  return ensureCodexCLIAuthentication().authenticated;
+}
+
+function ensureCodexCLIAuthentication() {
+  const localPath = resolveLocalCLIPath('codex');
+  const codexPath = localPath ?? 'codex';
+  return ensureCodexAuthentication(codexPath);
+}
+
+/**
  * Get a user-friendly error message for missing authentication
  */
 export function getAuthErrorMessage(authConfig: AuthConfig): string {
@@ -212,29 +436,53 @@ export function getAuthErrorMessage(authConfig: AuthConfig): string {
     '',
   ];
 
-  // Option 1: API Key (any provider)
-  lines.push('Option 1: Use API Key (recommended for CI/CD and automation)');
-  lines.push('  Set one of the following environment variables:');
+  // Option 1: API keys as CLI provider authentication/selection
+  lines.push('Option 1: Use a provider CLI with an API key in the environment');
+  lines.push('  Set one of the following environment variables before running the CLI:');
   lines.push('  export ANTHROPIC_API_KEY=sk-ant-...');
   lines.push('  export OPENAI_API_KEY=sk-...');
-  lines.push('  export GOOGLE_API_KEY=...');
   lines.push('');
 
-  // Option 2: Claude CLI
-  if (authConfig.hasClaudeCLI) {
-    lines.push('Option 2: Authenticate Claude CLI (uses your Claude Pro/Max subscription)');
-    lines.push('  claude setup-token');
+  // Option 2: Codex CLI
+  if (authConfig.hasCodexCLI) {
+    lines.push('Option 2: Authenticate Codex CLI (uses your ChatGPT subscription)');
+    lines.push('  codex login');
     lines.push('');
   } else {
-    lines.push('Option 2: Install and authenticate Claude CLI');
-    lines.push('  Visit: https://code.claude.com');
-    lines.push('  Then run: claude setup-token');
+    lines.push('Option 2: Install and authenticate Codex CLI');
+    lines.push('  npm install -g @openai/codex');
+    lines.push('  codex login');
     lines.push('');
   }
 
+  // Option 3: Claude CLI
+  if (authConfig.hasClaudeCLI) {
+    lines.push('Option 3: Authenticate Claude CLI (uses your Claude Pro/Max subscription)');
+    lines.push('  claude login');
+    lines.push('');
+  } else {
+    lines.push('Option 3: Install and authenticate Claude CLI');
+    lines.push('  Visit: https://code.claude.com');
+    lines.push('  Then run: claude login');
+    lines.push('');
+  }
+
+  // Option 4: Cloud-provider gateways (Foundry / Bedrock / Vertex)
+  lines.push('Option 4: Route Claude through a cloud-provider gateway');
+  lines.push('  Azure AI Foundry:');
+  lines.push('    export CLAUDE_CODE_USE_FOUNDRY=1');
+  lines.push('    export ANTHROPIC_FOUNDRY_RESOURCE=<your-foundry-resource>');
+  lines.push('  AWS Bedrock:');
+  lines.push('    export CLAUDE_CODE_USE_BEDROCK=1');
+  lines.push('  Google Vertex AI:');
+  lines.push('    export CLAUDE_CODE_USE_VERTEX=1');
+  lines.push('  (Auth uses your Azure / AWS / GCP credentials — no Anthropic account needed.)');
+  lines.push('');
+
   lines.push('For more information, see:');
-  lines.push('  - API Keys: https://platform.claude.com');
+  lines.push('  - API Keys: https://platform.claude.com or https://platform.openai.com');
   lines.push('  - Claude CLI: https://code.claude.com/docs/en/authentication');
+  lines.push('  - Codex CLI: https://developers.openai.com/codex/cli');
 
   return lines.join('\n');
 }

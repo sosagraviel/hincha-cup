@@ -4,27 +4,6 @@ description: Comprehensive GitHub Pull Request code review skill. Use when asked
 ---
 
 # PR Reviewer Skill V2
-
-## ⚠️ Migration Notice
-
-> **Review loop orchestration has been migrated to the TypeScript orchestration module.**
->
-> ### New Approach
->
-> ```bash
-> cd orchestration
-> npm run review-loop -- --ticket PROJ-123
-> ```
->
-> ### Orchestration Implementation
->
-> - **Review Loop Service**: `orchestration/src/services/implement-ticket/review-loop.service.ts`
-> - **PR Review Integration**: Part of `implement-ticket` Phase 9 workflow
->
-> **References to `utils/review-loop-orchestrator.js` below are deprecated.**
-
----
-
 Conduct comprehensive, professional code reviews for GitHub Pull Requests using industry-standard criteria and automated tooling. Integrates with implement-ticket Phase 9 review loop for automated fix iteration.
 
 ## Contents
@@ -272,11 +251,10 @@ Creates three files in `pr_review_dir/pr/`:
 2. **`pr/human.md`** - Clean review for posting (no emojis, em-dashes, line numbers)
 3. **`pr/inline.md`** - Proposed inline comments with code snippets
 
-**Also creates slash commands** in `.claude/commands/`:
+After reviewing and editing `pr/human.md`, post the review manually with `gh`:
 
-- `/send` - Post human.md and approve PR
-- `/send-decline` - Post human.md and request changes
-- `/show` - Open review directory in VS Code
+- Approve and post: `gh pr comment <PR> --repo <OWNER>/<REPO> --body-file pr/human.md && gh pr review <PR> --repo <OWNER>/<REPO> --approve`
+- Request changes and post: `gh pr comment <PR> --repo <OWNER>/<REPO> --body-file pr/human.md && gh pr review <PR> --repo <OWNER>/<REPO> --request-changes`
 
 #### Mode B: Automated (Phase 9 Integration)
 
@@ -659,10 +637,7 @@ python scripts/generate_review_files.py <pr_review_dir> --findings <findings_jso
 - `pr/review.md` - Detailed internal review
 - `pr/human.md` - Clean review for posting
 - `pr/inline.md` - Proposed inline comments with commands
-- `.claude/commands/send.md` - Slash command to approve and post
-- `.claude/commands/send-decline.md` - Slash command to request changes
-- `.claude/commands/show.md` - Slash command to open in VS Code
-- `REVIEW_READY.txt` - Summary of next steps
+- `REVIEW_READY.txt` - Summary of next steps and `gh` commands for posting
 
 ### `scripts/add_inline_comment.py`
 

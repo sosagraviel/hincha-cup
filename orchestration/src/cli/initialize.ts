@@ -12,6 +12,12 @@ import { getLLMFactory } from '../llm/llm-factory.js';
 import { logger } from '../utils/logger.js';
 import { AgentFactory } from '../utils/shared/agent-factory/index.js';
 import { runPreflightChecks } from '../utils/preflight-checks.js';
+import { Provider } from '../providers/types.js';
+import { setActiveProvider, resolveTempPath } from '../utils/provider-paths.js';
+import { resetLLMFactory } from '../llm/llm-factory.js';
+import { DebugStore, setActiveDebugStore } from '../services/framework/debug-store/index.js';
+import { renderRunIndexHtml } from '../services/framework/transcripts/index.js';
+import { loadClaudeSettingsEnv } from '../auth/claude-settings-loader.js';
 
 // Get the directory where this CLI script is located
 // This file is at: <framework>/orchestration/dist/cli/initialize.js
@@ -24,9 +30,7 @@ const program = new Command();
 
 program
   .name('orchestrate:initialize')
-  .description(
-    'Initialize AI Agentic Framework for a project using TypeScript DeepAgents orchestration',
-  )
+  .description('Initialize AI Agentic Framework for a project using TypeScript CLI orchestration')
   .version('1.0.0')
   .option('-p, --project-path <path>', 'Project path to initialize', process.cwd())
   .option(
@@ -40,10 +44,37 @@ program
   )
   .option('--list-models', 'List available model aliases and exit')
   .option('--list-tiers', 'List available tiers and exit')
+  .option('--provider <provider>', 'Target provider: claude or codex (auto-detected if omitted)')
   .option('--resume <thread-id>', 'Resume from checkpoint using thread ID')
   .option('--start-phase <number>', 'Start from specific phase (1-6)', '1')
   .option('--stream', 'Stream real-time progress (not yet implemented)', false)
+  .option(
+    '--debug',
+    'Enable verbose debug capture. Per-attempt transcripts/prompts/outputs are ALWAYS saved under .<provider>-temp/<workflow>/debug/runs/<run-id>/; this flag is kept as a verbosity knob for downstream tooling.',
+    false,
+  )
+  .option(
+    '--keep-runs <n>',
+    'How many debug run folders to keep under .<provider>-temp/<workflow>/debug/runs/ (default: 10)',
+    '10',
+  )
   .action(async (options) => {
+    if (options.debug) {
+      process.env.FRAMEWORK_DEBUG = '1';
+    }
+
+    // Apply ~/.claude/settings.json env block to process.env BEFORE any auth detection.
+    // The Claude CLI reads this file natively, but the framework's parent process does not —
+    // running this here keeps settings.json as the single source of truth for both layers.
+    const settingsResult = loadClaudeSettingsEnv();
+    if (settingsResult.warning) {
+      logger.warn(`Claude settings: ${settingsResult.warning}`);
+    } else if (settingsResult.appliedKeys.length > 0) {
+      logger.info(
+        `Loaded ${settingsResult.appliedKeys.length} env var(s) from ${settingsResult.settingsPath}: ${settingsResult.appliedKeys.join(', ')}`,
+      );
+    }
+
     let isShuttingDown = false;
 
     const cleanup = (signal: string) => {
@@ -85,7 +116,33 @@ program
     });
 
     try {
-      const llmFactory = getLLMFactory();
+      // ================================================================
+      // PROVIDER & TIER SETUP (must happen BEFORE getLLMFactory singleton)
+      // ================================================================
+      if (options.modelTier) {
+        process.env.MODEL_TIER = options.modelTier;
+      }
+
+      if (options.provider) {
+        const providerLower = options.provider.toLowerCase();
+        if (providerLower === 'codex' || providerLower === 'openai') {
+          setActiveProvider(Provider.CODEX);
+          process.env.PROVIDER = 'codex';
+          if (!options.modelTier) {
+            process.env.MODEL_TIER = 'openai';
+          }
+        } else if (providerLower === 'claude' || providerLower === 'anthropic') {
+          setActiveProvider(Provider.CLAUDE);
+          process.env.PROVIDER = 'claude';
+        } else {
+          logger.error(`Unknown provider: ${options.provider}. Use 'claude' or 'codex'.`);
+          process.exit(1);
+        }
+      }
+
+      // Reset factory in case it was created with wrong tier before
+      resetLLMFactory();
+      let llmFactory = getLLMFactory();
 
       if (options.listModels) {
         logger.section('Available Model Aliases');
@@ -109,10 +166,6 @@ program
         logger.keyValue('Usage', 'npm run initialize -- --model-tier fast', 'gray');
         logger.decreaseIndent();
         process.exit(0);
-      }
-
-      if (options.modelTier) {
-        process.env.MODEL_TIER = options.modelTier;
       }
 
       const projectPath = path.resolve(options.projectPath);
@@ -173,12 +226,40 @@ program
       if (preflightResult.claudeVersion) {
         logger.success(`✓ Claude CLI ${preflightResult.claudeVersion}`);
       }
+      if (preflightResult.codexVersion) {
+        logger.success(`✓ Codex CLI ${preflightResult.codexVersion}`);
+      }
+
+      // Auto-detect provider from preflight if not explicitly set
+      if (!options.provider) {
+        if (preflightResult.authMode === 'claude_cli') {
+          setActiveProvider(Provider.CLAUDE);
+          process.env.PROVIDER = 'claude';
+        } else if (preflightResult.authMode === 'codex_cli') {
+          setActiveProvider(Provider.CODEX);
+          process.env.PROVIDER = 'codex';
+          if (!options.modelTier) {
+            process.env.MODEL_TIER = 'openai';
+            resetLLMFactory(); // Tier changed, need to re-create factory
+            llmFactory = getLLMFactory();
+          }
+        }
+        // claude is already the default
+      }
 
       // Show auth mode
-      if (preflightResult.authMode === 'api_key') {
-        logger.success('✓ Authentication: API Keys detected');
-      } else if (preflightResult.authMode === 'claude_cli') {
-        logger.success('✓ Authentication: Claude CLI (subscription)');
+      if (preflightResult.authMode === 'claude_cli') {
+        if (process.env.ANTHROPIC_API_KEY) {
+          logger.success('✓ Authentication: Anthropic API key');
+        } else {
+          logger.success('✓ Authentication: Claude CLI (subscription)');
+        }
+      } else if (preflightResult.authMode === 'codex_cli') {
+        if (process.env.OPENAI_API_KEY) {
+          logger.success('✓ Authentication: OpenAI API key');
+        } else {
+          logger.success('✓ Authentication: Codex CLI (subscription)');
+        }
       }
 
       if (preflightResult.gitignoreUpdated) {
@@ -240,7 +321,44 @@ program
       logger.decreaseIndent();
       logger.blank();
 
-      const tempDir = path.join(projectPath, '.claude-temp/initialize-project');
+      const tempDir = resolveTempPath(projectPath, 'initialize-project');
+
+      // ================================================================
+      // DEBUG STORE — always-on per-run artifact capture
+      // ================================================================
+      const runStartedAt = new Date();
+      const debugStore = await DebugStore.create({
+        projectPath,
+        workflow: 'initialize-project',
+        startedAt: runStartedAt,
+      });
+      setActiveDebugStore(debugStore);
+      await debugStore.updateRunManifest({
+        runId: debugStore.getRunContext().runId,
+        workflow: 'initialize-project',
+        projectPath,
+        frameworkPath,
+        provider: debugStore.getRunContext().provider,
+        model: llmFactory.getModelInfo('structure-architecture-analyzer').alias,
+        modelTier: llmFactory.getCurrentTier(),
+        debug: Boolean(options.debug),
+        startedAt: runStartedAt.toISOString(),
+      });
+      logger.info(
+        `🗂  Debug run: ${debugStore.getRunContext().runId} — artifacts at ${debugStore.getRunContext().runDir}`,
+      );
+
+      const keepRuns = parseInt(options.keepRuns ?? '10', 10) || 10;
+      // Prune oldest runs in the background so we don't delay the workflow.
+      DebugStore.pruneRuns(projectPath, 'initialize-project', keepRuns)
+        .then((deleted) => {
+          if (deleted.length > 0) {
+            logger.info(
+              `🧹 Pruned ${deleted.length} old debug run(s): ${deleted.slice(0, 3).join(', ')}${deleted.length > 3 ? ' …' : ''}`,
+            );
+          }
+        })
+        .catch(() => undefined);
 
       let previousPhaseData = {};
       if (startPhase > 1) {
@@ -390,6 +508,25 @@ program
 
       logger.blank();
 
+      // Finalize debug run — update manifest with end time, render index.html.
+      try {
+        const endedAt = new Date();
+        await debugStore.updateRunManifest({
+          endedAt: endedAt.toISOString(),
+          durationMs: endedAt.getTime() - runStartedAt.getTime(),
+        });
+        const indexHtml = await buildRunIndexHtml(debugStore);
+        const fs = await import('fs/promises');
+        const indexPath = `${debugStore.getRunContext().runDir}/index.html`;
+        await fs.writeFile(indexPath, indexHtml, 'utf-8');
+        logger.info(`🗂  Debug run index: ${indexPath}`);
+        await debugStore.updateLatestPointer().catch(() => undefined);
+      } catch (err) {
+        logger.warn(
+          `Failed to finalize debug run index: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
       logger.section('Initialization Complete');
 
       logger.info('Generated Files:');
@@ -460,5 +597,71 @@ program
       process.exit(1);
     }
   });
+
+/**
+ * Crawl the run folder for every meta.json and assemble a run-wide index HTML.
+ * Only looks at files that the debug store itself wrote, so the output is
+ * internally consistent with the per-attempt HTML pages.
+ */
+async function buildRunIndexHtml(debugStore: DebugStore): Promise<string> {
+  const fs = await import('fs/promises');
+  const pathMod = await import('path');
+  const runDir = debugStore.getRunContext().runDir;
+
+  type AttemptEntry = {
+    metaPath: string;
+    attemptDir: string;
+  };
+  const entries: AttemptEntry[] = [];
+
+  async function walk(dir: string): Promise<void> {
+    let dirents: import('fs').Dirent[] = [];
+    try {
+      dirents = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const d of dirents) {
+      const full = pathMod.join(dir, d.name);
+      if (d.isDirectory()) {
+        await walk(full);
+      } else if (d.isFile() && d.name === 'meta.json') {
+        entries.push({ metaPath: full, attemptDir: dir });
+      }
+    }
+  }
+  await walk(runDir);
+
+  const rows = await Promise.all(
+    entries.map(async (entry) => {
+      try {
+        const content = await fs.readFile(entry.metaPath, 'utf-8');
+        const meta = JSON.parse(content);
+        const htmlRel = pathMod.relative(runDir, entry.attemptDir) + '/transcript.html';
+        const htmlAbs = pathMod.join(entry.attemptDir, 'transcript.html');
+        let exists = true;
+        try {
+          await fs.access(htmlAbs);
+        } catch {
+          exists = false;
+        }
+        return { meta, htmlHref: exists ? htmlRel : null };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  const filtered = rows.filter((r): r is { meta: any; htmlHref: string | null } => r !== null);
+
+  const manifest = (await debugStore.readRunManifest()) ?? {
+    runId: debugStore.getRunContext().runId,
+    workflow: debugStore.getRunContext().workflow,
+    projectPath: debugStore.getRunContext().projectPath,
+    provider: debugStore.getRunContext().provider,
+    debug: false,
+    startedAt: debugStore.getRunContext().startedAt,
+  };
+  return renderRunIndexHtml({ manifest, attempts: filtered });
+}
 
 program.parse();

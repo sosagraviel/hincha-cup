@@ -47,7 +47,15 @@ describe('dataFlowsIntegrationsAnalyzerNode', () => {
         sessionId: 'test-session-123',
       }),
     };
-    mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    mockFactory = {
+      createAgent: vi.fn().mockResolvedValue(mockAgent),
+      getAuthConfig: vi.fn().mockReturnValue({
+        mode: 'claude_cli',
+        hasClaudeCLI: true,
+        hasCodexCLI: false,
+        hasAPIKey: false,
+      }),
+    };
     vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
@@ -64,15 +72,21 @@ describe('dataFlowsIntegrationsAnalyzerNode', () => {
 
   it('should use correct agent configuration', async () => {
     await dataFlowsIntegrationsAnalyzerNode(mockState);
-    expect(mockFactory.createAgent).toHaveBeenCalledWith({
-      agentName: 'data-flows-integrations-analyzer',
-      agentFilePath: expect.stringContaining('data-flows-analyzer/prompts/agent.md'),
-      projectPath: '/test/project',
-      frameworkPath: '/test/framework',
-      timeout: 600000,
-      resumeSessionId: undefined,
-      settingsPath: expect.stringContaining('data-flows-analyzer/settings.json'),
-    });
+    expect(mockFactory.createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: 'data-flows-integrations-analyzer',
+        agentFilePath: expect.stringContaining('data-flows-analyzer/prompts/agent.md'),
+        projectPath: '/test/project',
+        frameworkPath: '/test/framework',
+        timeout: 1800000,
+        resumeSessionId: undefined,
+        settingsPath: expect.stringContaining('data-flows-analyzer/settings.json'),
+        phase: expect.objectContaining({
+          phaseId: 'phase-1-discovery',
+          phaseNumber: 1,
+        }),
+      }),
+    );
   });
 
   it('should write to correct output file', async () => {

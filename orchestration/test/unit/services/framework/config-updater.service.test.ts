@@ -94,7 +94,6 @@ describe('ConfigUpdaterService', () => {
     resource_state: {
       skills: {},
       agents: {},
-      commands: {},
       last_sync: '2024-01-01T00:00:00Z',
     },
     ...overrides,
@@ -370,7 +369,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -397,7 +395,6 @@ describe('ConfigUpdaterService', () => {
             'skill-to-remove': { managed_by_framework: true },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -406,27 +403,6 @@ describe('ConfigUpdaterService', () => {
       vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
 
       const result = await service.removeResourceFromState('skills', 'skill-to-remove');
-
-      expect(result).toBe(true);
-      expect(fsPromises.writeFile).toHaveBeenCalled();
-    });
-
-    it('should remove command from resource state', async () => {
-      const mockConfig = createMockConfig({
-        resource_state: {
-          skills: {},
-          agents: {},
-          commands: {
-            'create-sdd-ticket': { managed_by_framework: true },
-          },
-          last_sync: '2024-01-01T00:00:00Z',
-        },
-      });
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
-      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
-
-      const result = await service.removeResourceFromState('commands', 'create-sdd-ticket');
 
       expect(result).toBe(true);
       expect(fsPromises.writeFile).toHaveBeenCalled();
@@ -525,7 +501,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -553,7 +528,6 @@ describe('ConfigUpdaterService', () => {
               file_hash: 'original-hash',
             },
           },
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -578,7 +552,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -600,7 +573,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });
@@ -624,7 +596,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          commands: {},
           last_sync: '2024-01-01T00:00:00Z',
         },
       });

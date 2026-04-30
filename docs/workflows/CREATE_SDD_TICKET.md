@@ -50,33 +50,46 @@ Performs deep codebase inference for:
 | Jira | `--save-to-jira URL` | `--save-to-jira "<board-url>"` |
 | Display | _(none)_ | Preview only |
 
+### Invoking the Skill
+
+| Provider     | Invoke                | List active skills |
+| ------------ | --------------------- | ------------------ |
+| Claude Code  | `/create-sdd-ticket`  | Auto-discovered    |
+| Codex CLI    | `$create-sdd-ticket`  | `/skills`          |
+
 ### Common Usage
 
 ```bash
-# Text → Markdown (most common)
+# Claude Code — Text → Markdown (most common)
 /create-sdd-ticket --from-input "Add user profile page" --save-to-markdown "./specs/PROF-001.md"
-
 # Enhance Jira ticket
 /create-sdd-ticket --from-jira "PROJ-123" --save-to-jira "<board-url>"
-
 # Complete draft
 /create-sdd-ticket --from-markdown "./draft.md" --save-to-markdown "./final.md"
-
 # Preview only
 /create-sdd-ticket --from-input "Add real-time notifications"
+
+# Codex CLI — same flags, '$' prefix
+$create-sdd-ticket --from-input "Add user profile page" --save-to-markdown "./specs/PROF-001.md"
+$create-sdd-ticket --from-jira "PROJ-123" --save-to-jira "<board-url>"
+$create-sdd-ticket --from-markdown "./draft.md" --save-to-markdown "./final.md"
+$create-sdd-ticket --from-input "Add real-time notifications"
 ```
 
 ---
 
-## Workflow (7 Phases)
+## Workflow (8 Phases)
 
+0. **Project Context Injection** - Invoke `project-context` skill to load codebase conventions, integration points, and constraints **before** any analysis runs (falls back to `CLAUDE.md` if `project-context` isn't generated yet)
 1. **Parse Input** - Load from text, Jira, or markdown
 2. **Canonical Format** - Transform to standard structure
-3. **Codebase Inference** - Infer missing information from codebase
-4. **Gap Detection** - Identify and resolve remaining gaps
+3. **Codebase Inference** - Infer missing information from codebase (now context-aware)
+4. **Gap Detection** - Identify and resolve remaining gaps with project-grounded questions
 5. **SDD Template** - Format with user stories and BDD scenarios
-6. **INVEST Validation** - Ensure quality criteria met
+6. **INVEST Validation** - Hard gate: tickets failing Independent / Negotiable / Valuable / Estimable / Small / Testable are rewritten before output
 7. **Output Formatting** - Save to markdown or Jira
+
+**Why Phase 0 matters**: clarifying questions and BDD scenarios are grounded in the project's actual conventions, not generic best-practice guesses. The skill won't ask "should errors return 4xx or problem-details?" if the codebase already establishes that convention.
 
 ---
 
@@ -154,7 +167,10 @@ So that [benefit]
 ### Quick Text → Markdown
 
 ```bash
+# Claude Code
 /create-sdd-ticket --from-input "Add real-time notifications using WebSockets" --save-to-markdown "./specs/NOTIF-001.md"
+# Codex CLI
+$create-sdd-ticket --from-input "Add real-time notifications using WebSockets" --save-to-markdown "./specs/NOTIF-001.md"
 ```
 
 **Process**:
@@ -168,7 +184,10 @@ So that [benefit]
 ### Enhance Jira Ticket
 
 ```bash
+# Claude Code
 /create-sdd-ticket --from-jira "PROJ-456" --save-to-jira "<board-url>"
+# Codex CLI
+$create-sdd-ticket --from-jira "PROJ-456" --save-to-jira "<board-url>"
 ```
 
 **Process**:
@@ -184,8 +203,8 @@ So that [benefit]
 
 ### Too Many Questions
 **Solution**:
-- Ensure `.claude/CLAUDE.md` is up to date
-- Ensure `.claude/skills/project-context/SKILL.md` exists
+- Ensure `.claude/CLAUDE.md` (or `.codex/AGENTS.md`) is up to date
+- Ensure `.claude/skills/project-context/SKILL.md` (or the Codex equivalent under `.codex/skills/`) exists
 - Add similar features to codebase for inference
 
 ### Ticket Too Large
@@ -198,6 +217,11 @@ So that [benefit]
 **Solution**:
 - Provide detailed input: `--from-input "Add JWT auth using @nestjs/jwt"`
 - Answer technical questions when prompted
+
+### Skill Not Recognized in Codex
+**Solution**:
+- Run `/skills` in the Codex session to list available skills
+- If `create-sdd-ticket` isn't listed, re-sync framework resources and restart the session
 
 ---
 

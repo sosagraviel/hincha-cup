@@ -16,26 +16,24 @@ Common issues and solutions for the AI Agentic Framework.
 
 ```bash
 # 1. Verify setup
-ls .claude/  # Should show CLAUDE.md, skills/, agents/
+ls .claude/   # or .codex/ when using Codex. Should show CLAUDE.md/AGENTS.md, skills/, agents/
 
-# 2. Restart Claude Code
+# 2. Restart the CLI (Claude Code or Codex)
 
 # 3. Re-initialize if needed
 ./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
-### "Command not found"
+### "Skill not found"
 
 ```bash
-# Check .claude directory
-ls .claude/commands/
+# Check available skills on disk
+ls .claude/skills/   # or .codex/skills/
 
-# Should show: implement-ticket.md
+# Should include: implement-ticket, create-sdd-ticket
 
-# Check available skills
-ls .claude/skills/
-
-# Should include: create-sdd-ticket
+# In Codex, list skills loaded in the current session:
+/skills
 
 # Re-initialize if missing
 ./qubika-agentic-framework/scripts/initialize-project.sh
@@ -71,6 +69,12 @@ claude --version
 # If not found, install from https://claude.ai/code
 ```
 
+**Codex CLI**:
+```bash
+codex --version
+# If not found, see https://developers.openai.com/codex/cli
+```
+
 ### Initialization Failures
 
 ```bash
@@ -82,7 +86,7 @@ export DEBUG=true
 df -h .
 
 # Clean and retry
-rm -rf .claude-temp/
+rm -rf .claude-temp/   # use .codex-temp/ when provider=codex
 ./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
@@ -94,7 +98,7 @@ rm -rf .claude-temp/
 
 **"Ticket not found"**:
 ```bash
-# Verify ticket ID format
+# Verify ticket ID format (Claude shown; swap '/' for '$' in Codex)
 /implement-ticket --from-jira PROJ-123  # Correct
 /implement-ticket --from-jira proj123   # Incorrect
 
@@ -105,18 +109,19 @@ ls -la ./specs/feature.md
 **"Planning timeout"**:
 ```bash
 # Use higher capability model
-MODEL_TIER=opus /implement-ticket --from-jira PROJ-123
+MODEL_TIER=opus /implement-ticket --from-jira PROJ-123    # Claude Code
+MODEL_TIER=opus $implement-ticket --from-jira PROJ-123    # Codex CLI
 
 # Break down large tickets
 ```
 
 **"Tests failing"**:
 ```bash
-# Command automatically retries up to 3 times
+# The skill automatically retries up to 3 times
 # Check specific errors in output
 git diff HEAD
 
-# Artifacts preserved for debugging
+# Artifacts preserved for debugging (.claude-temp/ in Claude, .codex-temp/ in Codex)
 ls .claude-temp/tickets/PROJ-123/artifacts/
 ```
 
@@ -125,13 +130,15 @@ ls .claude-temp/tickets/PROJ-123/artifacts/
 **"Too many gap questions"**:
 ```bash
 # Provide more detailed input
-/create-sdd-ticket --from-input "Add CSV export button with async processing and email notification" --save-to-markdown ./specs/export.md
+/create-sdd-ticket --from-input "Add CSV export button with async processing and email notification" --save-to-markdown ./specs/export.md   # Claude Code
+$create-sdd-ticket --from-input "Add CSV export button with async processing and email notification" --save-to-markdown ./specs/export.md   # Codex CLI
 ```
 
 **"Generic ticket"**:
 ```bash
 # Add context and constraints
-/create-sdd-ticket --from-input "Users can't find specific users in 500+ list. Add search by name/email using existing patterns" --save-to-markdown ./specs/search.md
+/create-sdd-ticket --from-input "Users can't find specific users in 500+ list. Add search by name/email using existing patterns" --save-to-markdown ./specs/search.md   # Claude Code
+$create-sdd-ticket --from-input "Users can't find specific users in 500+ list. Add search by name/email using existing patterns" --save-to-markdown ./specs/search.md   # Codex CLI
 ```
 
 ### Quality Gates
@@ -155,7 +162,8 @@ npm test -- --coverage
 **False positives**:
 ```bash
 # Skip for backend changes
-/implement-ticket --from-jira PROJ-123 --skip-visual
+/implement-ticket --from-jira PROJ-123 --skip-visual   # Claude Code
+$implement-ticket --from-jira PROJ-123 --skip-visual   # Codex CLI
 ```
 
 **Screenshot failures**:
@@ -176,17 +184,27 @@ claude auth login
 claude auth status
 ```
 
+### Codex CLI
+
+```bash
+# Re-authenticate
+codex logout
+codex login
+codex login status
+```
+
 ### API Key
 
 ```bash
 # Verify
-echo $ANTHROPIC_API_KEY | cut -c1-10  # Should start with 'sk-ant-api'
+echo $ANTHROPIC_API_KEY | cut -c1-10  # Claude: should start with 'sk-ant-api'
+echo $OPENAI_API_KEY    | cut -c1-10  # Codex:  should start with 'sk-'
 ```
 
 ### Jira Integration
 
 ```bash
-# Check Jira MCP configured in Claude Code
+# Check Jira MCP configured in the provider's config (Claude Code or Codex)
 # Test connection:
 curl -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/2/myself"
 ```
@@ -210,11 +228,13 @@ free -h
 ### Slow Implementation
 
 ```bash
-# Use faster model for simple tasks
+# Claude Code — faster / more capable
 MODEL_TIER=haiku /implement-ticket --from-jira PROJ-123
+MODEL_TIER=opus  /implement-ticket --from-jira PROJ-123
 
-# Higher capability for complex tasks
-MODEL_TIER=opus /implement-ticket --from-jira PROJ-123
+# Codex CLI — same flags, '$' prefix
+MODEL_TIER=haiku $implement-ticket --from-jira PROJ-123
+MODEL_TIER=opus  $implement-ticket --from-jira PROJ-123
 ```
 
 ---
@@ -225,13 +245,15 @@ MODEL_TIER=opus /implement-ticket --from-jira PROJ-123
 
 ```bash
 export DEBUG=true
-/implement-ticket --from-jira PROJ-123
+
+/implement-ticket --from-jira PROJ-123    # Claude Code
+$implement-ticket --from-jira PROJ-123    # Codex CLI
 ```
 
 ### Inspect Artifacts
 
 ```bash
-# Check artifacts (always preserved)
+# Artifacts are always preserved. Use .claude-temp/ in Claude, .codex-temp/ in Codex.
 ls -la .claude-temp/tickets/PROJ-123/artifacts/
 
 # View phase outputs
@@ -242,7 +264,7 @@ cat .claude-temp/tickets/PROJ-123/artifacts/phase*-complete.json
 
 ```bash
 # Validate config
-cat .claude/framework-config.json | jq .
+cat .claude/framework-config.json | jq .   # or .codex/framework-config.json
 
 # Test setup
 ./qubika-agentic-framework/scripts/initialize-project.sh
@@ -255,12 +277,12 @@ cat .claude/framework-config.json | jq .
 ### Self-Diagnosis Checklist
 
 - [ ] Node.js v20+ installed
-- [ ] Claude Code CLI working
+- [ ] Claude Code **or** Codex CLI working
 - [ ] Framework cloned
-- [ ] `.claude/` directory exists
+- [ ] `.claude/` (or `.codex/`) directory exists
 - [ ] Authentication working
 - [ ] Disk space available (1GB+)
-- [ ] Commands visible in Claude Code
+- [ ] Skills visible in the CLI (`/skills` in Codex; auto-discovered in Claude)
 
 ### Information to Gather
 
@@ -268,7 +290,8 @@ cat .claude/framework-config.json | jq .
 ```bash
 node --version
 npm --version
-claude --version
+claude --version   # if using Claude Code
+codex --version    # if using Codex CLI
 ```
 
 **Framework version**:
@@ -280,13 +303,14 @@ git rev-parse HEAD
 **Error output**:
 ```bash
 export DEBUG=true
-/implement-ticket --from-jira PROJ-123 2>&1 | tee error.log
+/implement-ticket --from-jira PROJ-123 2>&1 | tee error.log   # Claude Code
+$implement-ticket --from-jira PROJ-123 2>&1 | tee error.log   # Codex CLI
 ```
 
 **Configuration**:
 ```bash
-cat .claude/framework-config.json
-ls -la .claude/
+cat .claude/framework-config.json   # or .codex/framework-config.json
+ls -la .claude/                     # or .codex/
 ```
 
 ### Support Channels
@@ -306,7 +330,7 @@ ls -la .claude/
 cd qubika-agentic-framework
 git pull origin main
 
-# Clean old artifacts weekly
+# Clean old artifacts weekly (use .codex-temp/ for Codex)
 find .claude-temp -name "*.json" -mtime +7 -delete
 
 # Verify setup quarterly
@@ -318,7 +342,7 @@ find .claude-temp -name "*.json" -mtime +7 -delete
 1. Keep tickets focused
 2. Update context after major changes (re-run initialize)
 3. Use production workflows
-4. Commit `.claude/` directory
+4. Commit the generated config directory (`.claude/` or `.codex/`)
 5. Test in staging first
 
 ---

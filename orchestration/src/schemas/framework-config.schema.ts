@@ -79,7 +79,6 @@ export type ProjectMetadata = z.infer<typeof ProjectMetadataSchema>;
 export const ResourceStateSchema = z.object({
   skills: z.record(z.string(), ResourceInfoSchema),
   agents: z.record(z.string(), ResourceInfoSchema),
-  commands: z.record(z.string(), z.any()),
   last_sync: z.string(),
 });
 

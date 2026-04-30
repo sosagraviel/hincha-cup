@@ -5,6 +5,7 @@
  */
 
 import type { ManifestInfo } from './types.js';
+import { STANDARD_IGNORE_DIRS } from '../../../utils/shared/prompt-loader.js';
 
 // ============================================================================
 // LANGUAGE EXTENSIONS
@@ -53,6 +54,7 @@ export const MANIFEST_FILES: Record<string, ManifestInfo> = {
   'pom.xml': { language: 'java', type: 'maven' },
   'build.gradle': { language: 'java', type: 'gradle' },
   'build.gradle.kts': { language: 'kotlin', type: 'gradle' },
+  'build.sbt': { language: 'scala', type: 'sbt' },
   Gemfile: { language: 'ruby', type: 'bundler' },
   'composer.json': { language: 'php', type: 'composer' },
   'Package.swift': { language: 'swift', type: 'spm' },
@@ -78,6 +80,7 @@ export const PRIMARY_MANIFESTS = new Set([
   'pom.xml',
   'build.gradle',
   'build.gradle.kts',
+  'build.sbt',
   'Gemfile',
   'composer.json',
   'Package.swift',
@@ -92,41 +95,43 @@ export const PRIMARY_MANIFESTS = new Set([
 // ============================================================================
 
 /**
- * Directories to ignore during workspace detection and file counting
+ * Directories to ignore during workspace detection and file counting.
+ * Single source of truth is `STANDARD_IGNORE_DIRS` in prompt-loader so the
+ * file-counter, workspace-detector, analyzer prompts, and PreToolUse hook
+ * all agree on what counts as "ignorable".
+ *
+ * Runtime exclusions (framework dir, `.gitignore` entries) are layered on
+ * via `getExcludedDirectories(projectPath, frameworkPath)` at call sites.
  */
-export const IGNORE_DIRS = new Set([
-  'node_modules',
-  '.git',
-  'dist',
-  'build',
-  'out',
-  '__pycache__',
-  '.venv',
-  'venv',
-  'env',
-  'vendor',
-  'target',
-  '.next',
-  '.nuxt',
-  '.cache',
-  'coverage',
-  '.pytest_cache',
-  '.mypy_cache',
-  '.tox',
-  'bower_components',
-  'jspm_packages',
-  '.gradle',
-  '.maven',
-  'bin',
-  'obj',
-  '.terraform',
-  'site-packages',
-  'pkg',
-  // Claude framework directories - these are generated/copied by the framework
-  '.claude',
-  '.claude-temp',
-  '.claude-backups',
-]);
+export const IGNORE_DIRS: Set<string> = new Set(STANDARD_IGNORE_DIRS);
+
+// ============================================================================
+// TOOLING CONFIG FILES
+// ============================================================================
+
+/**
+ * Regex patterns that match JavaScript/TypeScript tooling configuration
+ * filenames (linters, test runners, build tools, commit hooks, etc.). These
+ * are legitimate JS/TS files but they don't describe the project's source
+ * language — a TypeScript repo with ten `*.config.mjs` files should still be
+ * reported as TypeScript, not as "also has JavaScript".
+ *
+ * Used by `file-counter.ts` to exclude tooling configs from per-language
+ * counts so the language-validator doesn't tag JS purely because of
+ * `eslint.config.mjs` / `commitlint.config.js` / `jest.config.mjs`.
+ *
+ * Two patterns cover the vast majority of cases in the wild:
+ *   - `<name>.config.{js,mjs,cjs,ts,tsx}`  — eslint.config.mjs, jest.config.ts
+ *   - `.<name>rc.{js,mjs,cjs,ts,tsx}`      — .eslintrc.js, .babelrc.cjs
+ */
+export const TOOLING_CONFIG_PATTERNS: ReadonlyArray<RegExp> = [
+  /^[^.].+\.config\.(?:js|mjs|cjs|ts|tsx)$/i,
+  /^\..+rc\.(?:js|mjs|cjs|ts|tsx)$/i,
+];
+
+export function isToolingConfigFile(filename: string): boolean {
+  return TOOLING_CONFIG_PATTERNS.some((re) => re.test(filename));
+}
 
 // ============================================================================
 // WORKSPACE NAMES

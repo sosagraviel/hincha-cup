@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   validateAnalyzerOutput,
   extractJSON,
+  extractSynthesisMarkdown,
   validateAndParseAgentOutput,
   buildValidationErrorFeedback,
   type ValidationResult,
@@ -66,9 +67,10 @@ describe('validator', () => {
     });
 
     it('should handle object with getter that throws', () => {
-      // Create an object with a getter that throws to trigger the catch block
+      // Create an object with an enumerable getter that throws to trigger the catch block
       const poisonedObject = {};
       Object.defineProperty(poisonedObject, 'agent_name', {
+        enumerable: true,
         get() {
           throw new Error('Poisoned property access');
         },
@@ -1091,6 +1093,99 @@ ${validJSON}
 
       // Should extract the content from markdown block
       expect(extracted).toContain('broken');
+    });
+  });
+
+  describe('extractSynthesisMarkdown', () => {
+    it('extracts both sections when output uses # CLAUDE.md Content (Claude provider)', () => {
+      const output = [
+        '# CLAUDE.md Content',
+        '',
+        '# MyProject',
+        '',
+        'some body',
+        '',
+        '---',
+        '',
+        '# project-context/SKILL.md Content',
+        '',
+        '---',
+        'name: project-context',
+        '---',
+        '',
+        'context body',
+      ].join('\n');
+
+      const extracted = extractSynthesisMarkdown(output);
+      expect(extracted).not.toBeNull();
+      expect(extracted!.claudemd).toContain('# MyProject');
+      expect(extracted!.claudemd).toContain('some body');
+      expect(extracted!.projectContext).toContain('name: project-context');
+      expect(extracted!.projectContext).toContain('context body');
+    });
+
+    it('extracts both sections when output uses # AGENTS.md Content (Codex provider)', () => {
+      const output = [
+        '# AGENTS.md Content',
+        '',
+        '# MyProject',
+        '',
+        'some body',
+        '',
+        '---',
+        '',
+        '# project-context/SKILL.md Content',
+        '',
+        '---',
+        'name: project-context',
+        '---',
+        '',
+        'context body',
+      ].join('\n');
+
+      const extracted = extractSynthesisMarkdown(output);
+      expect(extracted).not.toBeNull();
+      expect(extracted!.claudemd).toContain('# MyProject');
+      expect(extracted!.claudemd).toContain('some body');
+      expect(extracted!.projectContext).toContain('context body');
+    });
+
+    it('returns null when neither header is present', () => {
+      const output = '# Something Else\n\nbody';
+      expect(extractSynthesisMarkdown(output)).toBeNull();
+    });
+
+    it('returns null when separator is missing', () => {
+      const output = '# AGENTS.md Content\n\nbody\n\n# project-context/SKILL.md Content\nx';
+      expect(extractSynthesisMarkdown(output)).toBeNull();
+    });
+
+    it('returns null when project-context header is missing', () => {
+      const output = '# AGENTS.md Content\n\nbody\n\n---\n\nnothing else here';
+      expect(extractSynthesisMarkdown(output)).toBeNull();
+    });
+
+    it('is not fooled by a --- marker inside the instruction body', () => {
+      // A stray "---" in the instruction body followed by project-context
+      // header must still be extracted correctly — the separator search
+      // must consume the first \n---\n, and the context header lookup
+      // must resume from after the separator.
+      const output = [
+        '# AGENTS.md Content',
+        '',
+        'intro',
+        '',
+        '---',
+        '',
+        '# project-context/SKILL.md Content',
+        '',
+        'context body',
+      ].join('\n');
+
+      const extracted = extractSynthesisMarkdown(output);
+      expect(extracted).not.toBeNull();
+      expect(extracted!.claudemd).toBe('intro');
+      expect(extracted!.projectContext).toBe('context body');
     });
   });
 });

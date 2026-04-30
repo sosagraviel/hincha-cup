@@ -132,7 +132,15 @@ describe('synthesisNode', () => {
       }),
     };
 
-    const mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    const mockFactory = {
+      createAgent: vi.fn().mockResolvedValue(mockAgent),
+      getAuthConfig: vi.fn().mockReturnValue({
+        mode: 'claude_cli',
+        hasClaudeCLI: true,
+        hasCodexCLI: false,
+        hasAPIKey: false,
+      }),
+    };
     vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory as any);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any, validator: any) => {
@@ -160,24 +168,47 @@ describe('synthesisNode', () => {
   });
 
   it('should create agent with correct configuration', async () => {
-    const localMockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    const localMockFactory = {
+      createAgent: vi.fn().mockResolvedValue(mockAgent),
+      getAuthConfig: vi.fn().mockReturnValue({
+        mode: 'claude_cli',
+        hasClaudeCLI: true,
+        hasCodexCLI: false,
+        hasAPIKey: false,
+      }),
+    };
     vi.mocked(AgentFactory.create).mockResolvedValue(localMockFactory as any);
 
     await synthesisNode(mockState);
 
-    expect(localMockFactory.createAgent).toHaveBeenCalledWith({
-      agentName: 'architect-synthesizer',
-      agentFilePath: expect.stringContaining('phase3/prompts/agent.md'),
-      projectPath: '/test/project',
-      frameworkPath: '/test/framework',
-      timeout: 600000,
-      resumeSessionId: undefined,
-      settingsPath: expect.stringContaining('phase3/settings.json'),
-    });
+    expect(localMockFactory.createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: 'architect-synthesizer',
+        agentFilePath: expect.stringContaining('phase3/prompts/agent.md'),
+        projectPath: '/test/project',
+        frameworkPath: '/test/framework',
+        timeout: 900000,
+        resumeSessionId: undefined,
+        settingsPath: expect.stringContaining('phase3/settings.json'),
+        validator: expect.any(Function),
+        phase: expect.objectContaining({
+          phaseId: 'phase-3-synthesis',
+          phaseNumber: 3,
+        }),
+      }),
+    );
   });
 
   it('should include phase2 consolidation in context', async () => {
-    const localMockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    const localMockFactory = {
+      createAgent: vi.fn().mockResolvedValue(mockAgent),
+      getAuthConfig: vi.fn().mockReturnValue({
+        mode: 'claude_cli',
+        hasClaudeCLI: true,
+        hasCodexCLI: false,
+        hasAPIKey: false,
+      }),
+    };
     vi.mocked(AgentFactory.create).mockResolvedValue(localMockFactory as any);
 
     await synthesisNode(mockState);
@@ -254,7 +285,7 @@ describe('synthesisNode', () => {
       expect.any(Function),
       expect.any(Function),
       expect.objectContaining({ maxAttempts: 10 }),
-      expect.stringContaining('synthesis-raw.md'), // outputFilePath parameter
+      expect.objectContaining({ agentName: 'architect-synthesizer' }),
     );
   });
 
@@ -283,7 +314,15 @@ describe('synthesisNode', () => {
     // Test output field
     vi.clearAllMocks();
     mockAgent.invoke.mockResolvedValue({ output: validSynthesis });
-    const mockFactory1 = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    const mockFactory1 = {
+      createAgent: vi.fn().mockResolvedValue(mockAgent),
+      getAuthConfig: vi.fn().mockReturnValue({
+        mode: 'claude_cli',
+        hasClaudeCLI: true,
+        hasCodexCLI: false,
+        hasAPIKey: false,
+      }),
+    };
     vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory1 as any);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any, validator: any) => {
@@ -300,7 +339,15 @@ describe('synthesisNode', () => {
     // This test is checking fallback behavior if the response has content instead
     vi.clearAllMocks();
     mockAgent.invoke.mockResolvedValue({ output: validSynthesis }); // Keep as output
-    const mockFactory2 = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    const mockFactory2 = {
+      createAgent: vi.fn().mockResolvedValue(mockAgent),
+      getAuthConfig: vi.fn().mockReturnValue({
+        mode: 'claude_cli',
+        hasClaudeCLI: true,
+        hasCodexCLI: false,
+        hasAPIKey: false,
+      }),
+    };
     vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory2 as any);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any, validator: any) => {

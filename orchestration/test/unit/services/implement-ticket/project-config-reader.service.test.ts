@@ -455,6 +455,39 @@ describe('ProjectConfigReaderService', () => {
       expect(commands.start).toContain('dotnet run');
     });
 
+    it('should handle scala build commands', () => {
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('package.json')) return false;
+        return true;
+      });
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              services: [
+                {
+                  id: 'main',
+                  path: 'src',
+                  type: 'backend',
+                  language: 'scala',
+                  frameworks: {},
+                  testing: {},
+                  file_count: 100,
+                },
+              ],
+              is_monorepo: false,
+            },
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const commands = service.getBuildCommands();
+      expect(commands.build).toContain('sbt compile');
+      expect(commands.start).toContain('sbt run');
+    });
+
     it('should ignore package.json parse errors', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
@@ -668,6 +701,66 @@ describe('ProjectConfigReaderService', () => {
       service = new ProjectConfigReaderService('/test/project');
       const commands = service.getTestCommands();
       expect(commands.unit).toContain('dotnet test');
+    });
+
+    it('should detect scalatest commands', () => {
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              services: [
+                {
+                  id: 'main',
+                  path: 'src',
+                  type: 'backend',
+                  language: 'scala',
+                  frameworks: { testing: 'ScalaTest' },
+                  testing: {
+                    unit: { framework: 'ScalaTest' },
+                  },
+                  file_count: 100,
+                },
+              ],
+              is_monorepo: false,
+            },
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const commands = service.getTestCommands();
+      expect(commands.unit).toContain('sbt test');
+    });
+
+    it('should detect munit commands', () => {
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              services: [
+                {
+                  id: 'main',
+                  path: 'src',
+                  type: 'backend',
+                  language: 'scala',
+                  frameworks: { testing: 'MUnit' },
+                  testing: {
+                    unit: { framework: 'MUnit' },
+                  },
+                  file_count: 100,
+                },
+              ],
+              is_monorepo: false,
+            },
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const commands = service.getTestCommands();
+      expect(commands.unit).toContain('sbt test');
     });
 
     it('should detect playwright e2e commands', () => {

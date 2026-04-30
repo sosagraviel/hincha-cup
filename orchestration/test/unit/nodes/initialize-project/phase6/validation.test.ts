@@ -317,15 +317,6 @@ describe('validationNode', () => {
     expect(result.current_phase).toBe('complete');
   });
 
-  it('should fail if commands directory not found', async () => {
-    vi.mocked(fs.existsSync).mockImplementation((path: any) => !path.includes('.claude/commands'));
-
-    const result = await validationNode(mockState);
-
-    expect(result.errors).toBeDefined();
-    expect(result.errors?.some((e) => e.includes('Commands directory not found'))).toBe(true);
-  });
-
   it('should fail if phase1 not completed', async () => {
     // Mock existsSync to return false for phase1 output files
     vi.mocked(fs.existsSync).mockImplementation((path: any) => {
@@ -427,18 +418,6 @@ describe('validationNode', () => {
     const result = await validationNode(mockState);
 
     // Should only count .md files (2 agents)
-    expect(result.current_phase).toBe('complete');
-  });
-
-  it('should filter only .md files in commands directory', async () => {
-    vi.mocked(fs.readdirSync).mockImplementation((path: any) => {
-      if (path.includes('agents')) return ['planner.md', 'implementer.md'] as any;
-      if (path.includes('commands')) return ['implement.md', 'test.txt', 'review.md'] as any;
-      return [] as any;
-    });
-
-    const result = await validationNode(mockState);
-
     expect(result.current_phase).toBe('complete');
   });
 

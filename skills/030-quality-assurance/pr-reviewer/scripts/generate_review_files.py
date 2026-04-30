@@ -324,67 +324,6 @@ def generate_inline_comments_file(findings: Dict[str, Any]) -> str:
     return content
 
 
-def generate_claude_commands(pr_review_dir: Path, metadata: Dict[str, Any]):
-    """Generate .claude directory with custom slash commands."""
-
-    claude_dir = pr_review_dir / ".claude" / "commands"
-    claude_dir.mkdir(parents=True, exist_ok=True)
-
-    owner = metadata.get('owner', 'owner')
-    repo = metadata.get('repo', 'repo')
-    pr_number = metadata.get('number', '123')
-
-    # /send command - approve and post human.md
-    send_cmd = f"""Post the human-friendly review and approve the PR.
-
-Steps:
-1. Read the file `pr/human.md` in the current directory
-2. Post the review content as a PR comment using:
-   `gh pr comment {pr_number} --repo {owner}/{repo} --body-file pr/human.md`
-3. Approve the PR using:
-   `gh pr review {pr_number} --repo {owner}/{repo} --approve`
-4. Confirm to the user that the review was posted and PR was approved
-"""
-
-    with open(claude_dir / "send.md", 'w') as f:
-        f.write(send_cmd)
-
-    # /send-decline command - request changes and post human.md
-    send_decline_cmd = f"""Post the human-friendly review and request changes on the PR.
-
-Steps:
-1. Read the file `pr/human.md` in the current directory
-2. Post the review content as a PR comment using:
-   `gh pr comment {pr_number} --repo {owner}/{repo} --body-file pr/human.md`
-3. Request changes on the PR using:
-   `gh pr review {pr_number} --repo {owner}/{repo} --request-changes`
-4. Confirm to the user that the review was posted and changes were requested
-"""
-
-    with open(claude_dir / "send-decline.md", 'w') as f:
-        f.write(send_decline_cmd)
-
-    # /show command - open in VS Code
-    show_cmd = f"""Open the PR review directory in VS Code for editing.
-
-Steps:
-1. Run `code .` to open the current directory in VS Code
-2. Tell the user they can now edit the review files:
-   - pr/review.md (detailed review)
-   - pr/human.md (short review for posting)
-   - pr/inline.md (inline comments)
-3. Remind them to use /send or /send-decline when ready to post
-"""
-
-    with open(claude_dir / "show.md", 'w') as f:
-        f.write(show_cmd)
-
-    print(f"✅ Created slash commands in {claude_dir}")
-    print("   - /send (approve and post)")
-    print("   - /send-decline (request changes and post)")
-    print("   - /show (open in VS Code)")
-
-
 def main():
     parser = argparse.ArgumentParser(
         description='Generate structured review files from PR analysis',
@@ -438,10 +377,11 @@ def main():
             f.write(inline_comments)
         print(f"✅ Created inline comments: {inline_file}")
 
-        # Generate Claude slash commands
-        generate_claude_commands(pr_review_dir, metadata)
-
         # Create summary file
+        owner = metadata.get('owner', 'owner')
+        repo = metadata.get('repo', 'repo')
+        pr_number = metadata.get('number', '123')
+
         summary = f"""PR Review Files Generated
 ========================
 
@@ -452,17 +392,16 @@ Files created:
 - pr/human.md       - Clean version for posting (no emojis, no line numbers)
 - pr/inline.md      - Proposed inline comments with code snippets
 
-Slash commands available:
-- /send            - Post human.md and approve PR
-- /send-decline    - Post human.md and request changes
-- /show            - Open directory in VS Code
-
 Next steps:
-1. Review the files (use /show to open in VS Code)
-2. Edit as needed
-3. Use /send or /send-decline when ready to post
+1. Review and edit the files above as needed
+2. To approve and post the review:
+     gh pr comment {pr_number} --repo {owner}/{repo} --body-file pr/human.md
+     gh pr review {pr_number} --repo {owner}/{repo} --approve
+3. To request changes:
+     gh pr comment {pr_number} --repo {owner}/{repo} --body-file pr/human.md
+     gh pr review {pr_number} --repo {owner}/{repo} --request-changes
 
-IMPORTANT: Nothing will be posted until you run /send or /send-decline
+IMPORTANT: Nothing is posted until you run the commands above.
 """
 
         summary_file = pr_review_dir / "REVIEW_READY.txt"

@@ -166,6 +166,8 @@ export class CommandResolverService {
         fallbacks.push('mvn test', 'gradle test');
       } else if (language === 'csharp') {
         fallbacks.push('dotnet test');
+      } else if (language === 'scala') {
+        fallbacks.push('sbt test');
       }
     } else if (type === 'e2e') {
       if (language === 'typescript' || language === 'javascript') {
@@ -196,6 +198,8 @@ export class CommandResolverService {
       commands.push('mvn compile', 'gradle build');
     } else if (primaryLang === 'csharp') {
       commands.push('dotnet build', 'dotnet publish -c Release');
+    } else if (primaryLang === 'scala') {
+      commands.push('sbt compile', 'sbt package');
     }
 
     return commands.filter(Boolean);
@@ -218,6 +222,8 @@ export class CommandResolverService {
       commands.push('cargo clippy', 'cargo clippy --all-targets');
     } else if (primaryLang === 'csharp') {
       commands.push('dotnet format --verify-no-changes');
+    } else if (primaryLang === 'scala') {
+      commands.push('sbt scalafmtCheckAll', 'sbt "scalafixAll --check"');
     }
 
     return commands.filter(Boolean);
@@ -240,6 +246,8 @@ export class CommandResolverService {
       commands.push('cargo fmt', 'rustfmt **/*.rs');
     } else if (primaryLang === 'csharp') {
       commands.push('dotnet format');
+    } else if (primaryLang === 'scala') {
+      commands.push('sbt scalafmtAll');
     }
 
     return commands.filter(Boolean);
@@ -407,6 +415,10 @@ export class CommandResolverService {
       return 'cargo';
     } else if (primaryLang === 'csharp') {
       return 'dotnet';
+    } else if (primaryLang === 'scala') {
+      return 'sbt';
+    } else if (primaryLang === 'java') {
+      return 'mvn';
     }
 
     return 'npm'; // Safe default
@@ -433,6 +445,10 @@ export class CommandResolverService {
         return 'cargo build';
       case 'dotnet':
         return 'dotnet restore';
+      case 'sbt':
+        return 'sbt update';
+      case 'mvn':
+        return 'mvn dependency:resolve';
       default:
         return 'npm install';
     }

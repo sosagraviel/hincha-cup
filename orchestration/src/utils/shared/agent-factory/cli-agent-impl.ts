@@ -1,7 +1,8 @@
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { mkdir } from 'fs/promises';
+import os from 'os';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { AuthMode } from '../../../auth/auth-detector.js';
 import { getLLMFactory } from '../../../llm/llm-factory.js';
 import { logger } from '../../logger.js';
@@ -9,6 +10,9 @@ import { assertAgentFileValid } from './agent-validator.js';
 import type { Agent, AgentConfig, AgentInvokeInput, AgentInvokeResult } from './types.js';
 import { getAgentAction } from './agent-utils.js';
 import { getClaudeCLIPath, getCLIModelForAgent, parseToolsFromFrontmatter } from './cli-utils.js';
+import { summarizeCliError } from '../../../services/framework/debug-store/index.js';
+import { beginAttemptRecorder } from './attempt-recorder.js';
+import { getExcludedDirectories } from '../prompt-loader.js';
 
 // Track active processes and invocations for cleanup
 const activeProcesses: Set<ChildProcess> = new Set();
@@ -29,7 +33,7 @@ export function abortAllInvocations() {
 
   console.log(`\n⚠️  Aborting ${activeInvocations.size} active invocation(s)...`);
 
-  for (const [id, reject] of activeInvocations) {
+  for (const [, reject] of activeInvocations) {
     reject(abortError);
   }
 
@@ -51,9 +55,13 @@ export function killAllActiveProcesses() {
       if (proc.pid && !proc.killed) {
         try {
           proc.kill('SIGKILL');
-        } catch (e) {}
+        } catch {
+          /* ignore */
+        }
       }
-    } catch (e) {}
+    } catch {
+      /* ignore */
+    }
   }
 
   activeProcesses.clear();
@@ -64,20 +72,19 @@ export function killAllActiveProcesses() {
  */
 export async function createCLIAgentImpl(
   config: AgentConfig,
-  claudeCLIVersion: string,
+  _claudeCLIVersion: string,
 ): Promise<Agent> {
   const llmFactory = getLLMFactory();
   const modelInfo = llmFactory.getModelInfo(config.agentName);
 
-  // Get Claude CLI info once (to avoid repeated checks)
   const claudeCLI = getClaudeCLIPath(config.frameworkPath);
 
   return {
     invoke: async (input: AgentInvokeInput): Promise<AgentInvokeResult> => {
-      // Generate session ID upfront (either new UUID or use existing for retry)
       const { randomUUID } = await import('crypto');
       const sessionId = config.resumeSessionId || randomUUID();
       const isRetry = !!config.resumeSessionId;
+      const attemptNumber = input.attemptNumber ?? 1;
 
       const action = getAgentAction(config.agentName);
       const sessionInfo = isRetry ? `resume:${sessionId}` : sessionId;
@@ -92,21 +99,16 @@ export async function createCLIAgentImpl(
       const startTime = Date.now();
 
       try {
-        const { output, sessionId: returnedSessionId } = await invokeCLI(
-          config.agentName,
-          input.inputPrompt, // Use inputPrompt from invoke() parameter
-          config.projectPath,
-          config.agentFilePath, // Use agentFilePath directly (absolute path)
-          config.frameworkPath,
-          config.timeout,
-          sessionId, // Pass our generated/existing session ID
-          isRetry, // Tell CLI whether to use --session-id or --resume
-          config.settingsPath, // Path to settings.json with hooks
-        );
+        const { output, sessionId: returnedSessionId } = await invokeCLI(config, {
+          inputPrompt: input.inputPrompt,
+          sessionId,
+          isRetry,
+          attemptNumber,
+          model: getCLIModelForAgent(config.agentName, config.frameworkPath),
+        });
 
         const executionTimeMs = Date.now() - startTime;
 
-        // Update tracker to success
         logger.trackConcurrentAgentSucceed(
           config.agentName,
           `Completed in ${(executionTimeMs / 1000).toFixed(1)}s`,
@@ -114,7 +116,7 @@ export async function createCLIAgentImpl(
 
         return {
           output,
-          sessionId: returnedSessionId, // Return sessionId for potential retry
+          sessionId: returnedSessionId,
           mode: AuthMode.CLAUDE_CLI,
           executionTimeMs,
         };
@@ -139,166 +141,202 @@ export async function createCLIAgentImpl(
 }
 
 /**
- * Invoke Claude CLI with input prompt
+ * Invoke Claude CLI with input prompt.
  */
 async function invokeCLI(
-  agentName: string,
-  inputPrompt: string, // Full input prompt (built by node)
-  projectPath: string,
-  agentFilePath: string, // Absolute path to agent .md file
-  frameworkPath: string,
-  timeout: number = 300000,
-  sessionId: string, // Session ID - either new (first attempt) or existing (retry)
-  isRetry: boolean = false, // Whether this is a retry (use --resume instead of --session-id)
-  settingsPath?: string, // Optional path to settings.json file
+  config: AgentConfig,
+  run: {
+    inputPrompt: string;
+    sessionId: string;
+    isRetry: boolean;
+    attemptNumber: number;
+    model: string;
+  },
 ): Promise<{ output: string; sessionId: string }> {
   if (isAborting) {
     throw new Error('SIGINT: Workflow interrupted by user (CTRL+C)');
   }
+  const timeout = config.timeout ?? 300000;
 
-  return new Promise(async (resolve, reject) => {
+  const recorder = beginAttemptRecorder({
+    agentName: config.agentName,
+    sessionId: run.sessionId,
+    attemptNumber: run.attemptNumber,
+    phase: config.phase,
+    provider: 'claude',
+    cli: 'claude',
+    model: run.model,
+    projectPath: config.projectPath,
+  });
+
+  return new Promise<{ output: string; sessionId: string }>((resolve, reject) => {
     const invocationId = invocationCounter++;
     activeInvocations.set(invocationId, reject);
 
-    const { writeFile } = await import('fs/promises');
+    (async () => {
+      // Transient scratch dir for the subprocess — holds the prompt file that
+      // Claude CLI reads via stdin and (optionally) the resolved settings
+      // file passed via `--settings`. We deliberately keep this OUT of the
+      // project's `.<provider>-temp/` tree: every debug artifact lives under
+      // `debug/runs/<runId>/…` (via the DebugStore). Cleaned up after exit.
+      const sessionTempDir = await mkdtemp(path.join(os.tmpdir(), 'framework-claude-'));
+      const promptFile = path.join(sessionTempDir, 'prompt.txt');
 
-    const tempDir =
-      (await mkdir(path.join(projectPath, '.claude-temp', agentName, sessionId), {
-        recursive: true,
-      })) || `${projectPath}/.claude-temp/${agentName}/${sessionId}`;
-    const promptFile = path.join(tempDir, 'prompt.txt');
-
-    try {
-      // Write input prompt to file (no ultrathink - that's in the prompt if needed)
-      await writeFile(promptFile, inputPrompt, 'utf-8');
-    } catch (err) {
-      activeInvocations.delete(invocationId);
-      reject(new Error(`Failed to write prompt file: ${err}`));
-      return;
-    }
-
-    let timeoutId: NodeJS.Timeout;
-    let claudeProcess: ChildProcess;
-
-    const cleanup = async () => {
-      activeInvocations.delete(invocationId);
-      clearTimeout(timeoutId);
-    };
-
-    const promptFd = await new Promise<number>((res, rej) => {
-      fs.open(promptFile, 'r', (err, fd) => {
-        if (err) rej(err);
-        else res(fd);
-      });
-    });
-
-    // Validate agent file before spawning (Goal 1: Pre-invocation validation)
-    assertAgentFileValid(agentFilePath);
-
-    // Parse agent frontmatter to extract allowed tools
-    const agentContent = fs.readFileSync(agentFilePath, 'utf-8');
-    const toolsRestriction = parseToolsFromFrontmatter(agentContent);
-
-    const claudeCLI = getClaudeCLIPath(frameworkPath);
-
-    // Get the appropriate model for this agent from model-config.json
-    const model = getCLIModelForAgent(agentName, frameworkPath);
-    const cliArgs = ['--agent', agentFilePath, '--model', model];
-
-    if (toolsRestriction) {
-      cliArgs.push('--tools', toolsRestriction);
-    } else {
-      cliArgs.push('--dangerously-skip-permissions');
-    }
-
-    cliArgs.push(...(isRetry ? ['--resume', sessionId] : ['--session-id', sessionId]));
-
-    if (settingsPath) {
       try {
-        // Read original settings file
-        const originalSettings = fs.readFileSync(settingsPath, 'utf-8');
-
-        // Replace ${FRAMEWORK_PATH} with actual framework path
-        // Use regex to handle variations like ${FRAMEWORK_PATH} or $FRAMEWORK_PATH
-        const resolvedSettings = originalSettings.replace(
-          /\$\{FRAMEWORK_PATH\}|\$FRAMEWORK_PATH/g,
-          frameworkPath,
-        );
-
-        // Write temporary settings file with resolved paths
-        // File will be auto-cleaned when tempDir is removed by cleanup()
-        const tempSettingsFile = path.join(tempDir, 'settings-resolved.json');
-        fs.writeFileSync(tempSettingsFile, resolvedSettings, 'utf-8');
-
-        cliArgs.push('--settings', tempSettingsFile);
-      } catch (error) {
-        // If settings file processing fails, log and continue without settings
-        console.warn(
-          `Warning: Failed to process settings file ${settingsPath}: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        await writeFile(promptFile, run.inputPrompt, 'utf-8');
+      } catch (err) {
+        activeInvocations.delete(invocationId);
+        await rm(sessionTempDir, { recursive: true, force: true }).catch(() => undefined);
+        reject(new Error(`Failed to write prompt file: ${err}`));
+        return;
       }
-    }
 
-    claudeProcess = spawn(claudeCLI.path, cliArgs, {
-      cwd: projectPath,
-      env: {
-        ...process.env,
-        CLAUDE_SKIP_CONFIRMATIONS: '1',
-        FRAMEWORK_PATH: frameworkPath,
-      },
-      stdio: [promptFd, 'pipe', 'pipe'],
-      detached: false,
-    });
+      await recorder.writePromptInput(run.inputPrompt);
+      await recorder.snapshotAgentFile(config.agentFilePath);
 
-    activeProcesses.add(claudeProcess);
+      let timeoutId: ReturnType<typeof setTimeout>;
+      let claudeProcess: ChildProcess;
 
-    timeoutId = setTimeout(async () => {
-      await cleanup();
-      claudeProcess.kill('SIGTERM');
-      reject(new Error(`Claude CLI timeout after ${timeout}ms`));
-    }, timeout);
+      const cleanup = () => {
+        activeInvocations.delete(invocationId);
+        clearTimeout(timeoutId);
+      };
 
-    claudeProcess.on('close', () => {
-      activeProcesses.delete(claudeProcess);
-    });
+      const removeScratchDir = async () => {
+        await rm(sessionTempDir, { recursive: true, force: true }).catch(() => undefined);
+      };
 
-    let stdout = '';
-    let stderr = '';
-
-    if (claudeProcess.stdout) {
-      claudeProcess.stdout.on('data', (data) => {
-        stdout += data.toString();
+      const promptFd = await new Promise<number>((res, rej) => {
+        fs.open(promptFile, 'r', (err, fd) => {
+          if (err) rej(err);
+          else res(fd);
+        });
       });
-    }
 
-    if (claudeProcess.stderr) {
-      claudeProcess.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-    }
+      assertAgentFileValid(config.agentFilePath);
 
-    claudeProcess.on('close', async (code) => {
-      await cleanup();
+      const agentContent = fs.readFileSync(config.agentFilePath, 'utf-8');
+      const toolsRestriction = parseToolsFromFrontmatter(agentContent);
 
-      const { close } = await import('fs');
-      close(promptFd, () => {});
+      const claudeCLI = getClaudeCLIPath(config.frameworkPath);
 
-      if (code === 0) {
-        // Return raw output and the session ID we control
-        // No JSON parsing needed - we generated the session ID upfront
-        resolve({ output: stdout, sessionId });
+      const cliArgs = ['--agent', config.agentFilePath, '--model', run.model];
+
+      if (toolsRestriction) {
+        cliArgs.push('--tools', toolsRestriction);
       } else {
+        cliArgs.push('--dangerously-skip-permissions');
+      }
+
+      cliArgs.push(
+        ...(run.isRetry ? ['--resume', run.sessionId] : ['--session-id', run.sessionId]),
+      );
+
+      if (config.settingsPath) {
+        try {
+          const originalSettings = fs.readFileSync(config.settingsPath, 'utf-8');
+          const resolvedSettings = originalSettings.replace(
+            /\$\{FRAMEWORK_PATH\}|\$FRAMEWORK_PATH/g,
+            config.frameworkPath,
+          );
+
+          const tempSettingsFile = path.join(sessionTempDir, 'settings-resolved.json');
+          fs.writeFileSync(tempSettingsFile, resolvedSettings, 'utf-8');
+          await recorder.writeSettings(resolvedSettings);
+          cliArgs.push('--settings', tempSettingsFile);
+        } catch (error) {
+          console.warn(
+            `Warning: Failed to process settings file ${config.settingsPath}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+
+      // Pass project boundary + excluded dirs so the PreToolUse hook
+      // (`restrict-agent-paths.hook.ts`) can hard-block tool calls that leave
+      // the project or enter excluded dirs — which prompt-only guidance
+      // doesn't reliably enforce.
+      const excludedDirs = getExcludedDirectories(config.projectPath, config.frameworkPath);
+
+      claudeProcess = spawn(claudeCLI.path, cliArgs, {
+        cwd: config.projectPath,
+        env: {
+          ...process.env,
+          CLAUDE_SKIP_CONFIRMATIONS: '1',
+          FRAMEWORK_PATH: config.frameworkPath,
+          FRAMEWORK_PROJECT_PATH: config.projectPath,
+          FRAMEWORK_EXCLUDED_DIRS: JSON.stringify(excludedDirs),
+          // FRAMEWORK_ENFORCE=1 tells the PreToolUse hook that path exclusion
+          // is mandatory for this invocation — any internal hook error must
+          // fail closed (block), not fall back to allow. Unset in ad-hoc CLI
+          // usage outside our spawn, where the hook silently no-ops.
+          FRAMEWORK_ENFORCE: '1',
+        },
+        stdio: [promptFd, 'pipe', 'pipe'],
+        detached: false,
+      });
+
+      activeProcesses.add(claudeProcess);
+
+      timeoutId = setTimeout(async () => {
+        cleanup();
+        claudeProcess.kill('SIGTERM');
+        await recorder
+          .writeErrorSummary(`Claude CLI timeout after ${timeout}ms`)
+          .catch(() => undefined);
+        await recorder.finalize('failure', { failureReason: 'timeout' });
+        await removeScratchDir();
+        reject(new Error(`Claude CLI timeout after ${timeout}ms`));
+      }, timeout);
+
+      claudeProcess.on('close', () => {
+        activeProcesses.delete(claudeProcess);
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      if (claudeProcess.stdout) {
+        claudeProcess.stdout.on('data', (data) => {
+          stdout += data.toString();
+        });
+      }
+
+      if (claudeProcess.stderr) {
+        claudeProcess.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+      }
+
+      claudeProcess.on('close', async (code) => {
+        cleanup();
+
+        const { close } = await import('fs');
+        close(promptFd, () => {});
+
+        await recorder.writeStdout(stdout);
+        await recorder.writeStderr(stderr);
+
+        if (code === 0) {
+          await recorder.writeOutput(stdout);
+          await recorder.mergeMeta({ code, failureReason: undefined });
+          await recorder.captureTranscript({ outcome: 'success' });
+          await recorder.finalize('success', { code });
+          await removeScratchDir();
+          resolve({ output: stdout, sessionId: run.sessionId });
+          return;
+        }
+
         const isRateLimit =
           stdout.includes('Limit reached') ||
           stdout.includes('resets') ||
           stdout.includes('/upgrade to Max');
 
-        let errorMessage = `Claude CLI exited with code ${code}`;
+        const summary = summarizeCliError(stdout, stderr);
+        let errorMessage: string;
 
         if (isRateLimit) {
           const resetMatch = stdout.match(/resets (\d+(?:am|pm)) \(([^)]+)\)/);
           const resetTime = resetMatch ? `${resetMatch[1]} ${resetMatch[2]}` : 'unknown';
-
           errorMessage =
             `RATE_LIMIT: Claude CLI usage limit reached. Resets at ${resetTime}.\n` +
             `Options:\n` +
@@ -308,17 +346,26 @@ async function invokeCLI(
             `To switch to API key mode:\n` +
             `  export ANTHROPIC_API_KEY="your-api-key"\n` +
             `  # Framework will automatically detect and use API key mode`;
+        } else {
+          errorMessage = `Claude CLI exited with code ${code}: ${summary}`;
         }
 
-        errorMessage += `\n\n=== STDOUT ===\n${stdout}\n\n=== STDERR ===\n${stderr}`;
+        await recorder.writeErrorSummary(errorMessage);
+        await recorder.mergeMeta({ code, rateLimit: isRateLimit });
+        await recorder.captureTranscript({ outcome: 'failure' });
+        await recorder.finalize('failure', { code, rateLimit: isRateLimit });
+        await removeScratchDir();
 
         reject(new Error(errorMessage));
-      }
-    });
+      });
 
-    claudeProcess.on('error', (error) => {
-      cleanup();
-      reject(new Error(`Failed to spawn Claude CLI: ${error.message}`));
-    });
+      claudeProcess.on('error', async (error) => {
+        cleanup();
+        await recorder.writeErrorSummary(`Failed to spawn Claude CLI: ${error.message}`);
+        await recorder.finalize('failure', { failureReason: 'spawn-error' });
+        await removeScratchDir();
+        reject(new Error(`Failed to spawn Claude CLI: ${error.message}`));
+      });
+    })().catch((err) => reject(err as Error));
   });
 }

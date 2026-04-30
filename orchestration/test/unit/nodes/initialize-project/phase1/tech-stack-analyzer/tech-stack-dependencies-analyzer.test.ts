@@ -68,7 +68,15 @@ describe('techStackDependenciesAnalyzerNode', () => {
       }),
     };
 
-    mockFactory = { createAgent: vi.fn().mockResolvedValue(mockAgent) };
+    mockFactory = {
+      createAgent: vi.fn().mockResolvedValue(mockAgent),
+      getAuthConfig: vi.fn().mockReturnValue({
+        mode: 'claude_cli',
+        hasClaudeCLI: true,
+        hasCodexCLI: false,
+        hasAPIKey: false,
+      }),
+    };
     vi.mocked(AgentFactory.create).mockResolvedValue(mockFactory);
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
@@ -112,15 +120,21 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
   it('should create agent with correct configuration', async () => {
     await techStackDependenciesAnalyzerNode(mockState);
-    expect(mockFactory.createAgent).toHaveBeenCalledWith({
-      agentName: 'tech-stack-dependencies-analyzer',
-      agentFilePath: expect.stringContaining('tech-stack-analyzer/prompts/agent.md'),
-      projectPath: '/test/project',
-      frameworkPath: '/test/framework',
-      timeout: 600000,
-      resumeSessionId: undefined,
-      settingsPath: expect.stringContaining('tech-stack-analyzer/settings.json'),
-    });
+    expect(mockFactory.createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: 'tech-stack-dependencies-analyzer',
+        agentFilePath: expect.stringContaining('tech-stack-analyzer/prompts/agent.md'),
+        projectPath: '/test/project',
+        frameworkPath: '/test/framework',
+        timeout: 1800000,
+        resumeSessionId: undefined,
+        settingsPath: expect.stringContaining('tech-stack-analyzer/settings.json'),
+        phase: expect.objectContaining({
+          phaseId: 'phase-1-discovery',
+          phaseNumber: 1,
+        }),
+      }),
+    );
   });
 
   it('should invoke agent with project path', async () => {
@@ -166,7 +180,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
       expect.any(Function),
       expect.any(Function),
       enhancedRetry.DEFAULT_RETRY_CONFIG,
-      expect.stringContaining('02-tech-stack-dependencies.json'), // outputFilePath parameter
+      expect.objectContaining({ agentName: 'tech-stack-dependencies-analyzer' }),
     );
   });
 
@@ -299,12 +313,12 @@ describe('techStackDependenciesAnalyzerNode', () => {
     );
   });
 
-  it('should set 10 minute timeout', async () => {
+  it('should set 30 minute timeout', async () => {
     await techStackDependenciesAnalyzerNode(mockState);
 
     expect(mockFactory.createAgent).toHaveBeenCalledWith(
       expect.objectContaining({
-        timeout: 600000,
+        timeout: 1800000,
       }),
     );
   });
