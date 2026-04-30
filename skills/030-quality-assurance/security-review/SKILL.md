@@ -1347,17 +1347,18 @@ npm install next@latest
 
 ## Integration with Workflow
 
+`/security-review` is invoked from `/implement-ticket` Phase 10 (Review
+Loop) alongside `/pr-reviewer`. It runs after the implementation
+(Phase 5), tests (Phase 6), documentation update (Phase 8), and PR
+creation (Phase 9) have all completed:
+
 ```bash
-# Phase 4: Implementation → Security Review → Testing
-/code-implementation PROJ-123
+# Inside /implement-ticket Phase 10:
+/pr-reviewer PROJ-123
 /security-review --jira-key PROJ-123
 
-# If security passes:
-/test-orchestrator PROJ-123
-
-# Phase 9: Review Loop
-/pr-reviewer PROJ-123
-/security-review --jira-key PROJ-123  # Re-run after fixes
+# If either reports blocking issues, Phase 10 spawns the implementer
+# for fixes (max 3 iterations) and re-runs Phase 6 + Phase 10.
 ````
 
 ## Troubleshooting

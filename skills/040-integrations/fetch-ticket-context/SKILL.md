@@ -425,20 +425,18 @@ echo "
 
 ## Integration with Workflow
 
-This skill is typically the **first step** in the implementation workflow:
+This skill is the **first step** of `/implement-ticket` Phase 1 when the
+ticket source is Jira (`--from-jira <TICKET-ID>`). It produces the
+canonical `context/ticket-context.md` artifact that every later phase
+reads — Phase 3's planner agent absorbs it, Phase 5's implementer reads
+the planner's plan (which already cites this artifact), and so on.
 
-```bash
-# Step 1: Fetch context
-/fetch-ticket-context PROJ-123
-
-# Step 2: Analyze requirements (uses context from Step 1)
-/analyze-requirements
-
-# Step 3: Implement (uses analysis from Step 2)
-/code-implementation
-
-# ... (rest of workflow)
-```
+This skill **only gathers context**: ticket body, comments, linked URLs
+(Confluence / Notion / Figma frames when reachable), and attachments. It
+does not plan, perform requirements analysis, propose implementation
+steps, or recommend code changes. Planning is the planner agent's job
+(Phase 3 of `/implement-ticket`); implementation is the
+`implementer-{lang}` agent's job (Phase 5).
 
 ## Troubleshooting
 
