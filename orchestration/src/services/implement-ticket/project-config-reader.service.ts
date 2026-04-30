@@ -209,6 +209,8 @@ export class ProjectConfigReaderService {
     } else if (primaryLang === 'java') {
       if (!commands.build.length) commands.build.push('mvn compile');
       if (!commands.start.length) commands.start.push('mvn spring-boot:run');
+    } else if (primaryLang === 'ruby') {
+      if (!commands.start.length) commands.start.push('bin/rails server', 'ruby app.rb');
     }
 
     return commands;
@@ -398,6 +400,8 @@ export class ProjectConfigReaderService {
     if (fw.includes('xunit') || fw.includes('nunit') || fw.includes('mstest'))
       return ['dotnet test'];
     if (fw.includes('scalatest') || fw.includes('munit')) return ['sbt test'];
+    if (fw.includes('rspec')) return ['bundle exec rspec'];
+    if (fw.includes('minitest')) return ['bundle exec rake test'];
     if (fw.includes('playwright')) return ['npx playwright test'];
     if (fw.includes('cypress')) return ['npx cypress run'];
     if (fw.includes('mocha')) return ['npx mocha'];

@@ -1,9 +1,42 @@
 ---
 name: mastering-ruby-skill
-description: Comprehensive Ruby expertise covering Rails, idioms, metaprogramming, testing with RSpec, and ecosystem gems
+description: Modern Ruby and Ruby on Rails coaching covering language foundations, idioms, metaprogramming, testing, production tooling, and the Rails framework (ActiveRecord, Hotwire, Solid Stack, Kamal deployment). Use when asked to "write Ruby code", "explain Ruby concepts", "set up a Ruby/Rails project", "configure Bundler or RuboCop", "write RSpec or Minitest tests", "run Brakeman security scan", "improve Ruby performance with YJIT", "debug Ruby errors", "build Rails controllers", "design ActiveRecord models", "configure Rails routes", "set up Solid Queue background jobs", "deploy with Kamal 2", "integrate Hotwire/Turbo/Stimulus", or "migrate from Rails 7 to 8". Triggers on "Ruby best practices", "blocks, procs and lambdas", "metaprogramming", "RSpec fixtures", "FactoryBot", "SimpleCov coverage", "Ruby style guide", "Gemfile management", "Rake tasks", "Rails controllers", "ActiveRecord associations", "Rails migrations", "Solid Queue", "Hotwire", "Turbo Frames", "Stimulus controllers", "Kamal deployment", "Rails credentials", "strong parameters".
 ---
 
-# Mastering Ruby
+# Mastering Ruby & Rails
+
+Production-ready patterns for Ruby and the Ruby on Rails framework. Covers language mastery (idioms, metaprogramming), testing/tooling, and Rails 8 patterns (ActiveRecord, Hotwire, Solid Stack, Kamal 2 deployment).
+
+> **Compatibility:** Ruby 3.3+ (YJIT on by default), Bundler 2.5+, RuboCop 1.75+, RSpec 3.13+, Brakeman 7+.
+
+## Quick Start
+
+```bash
+# Ruby version (via rbenv / asdf / mise)
+ruby --version                          # Require 3.3+
+
+# Project scaffold
+bundle init                             # Creates Gemfile
+bundle add rspec rubocop brakeman bundler-audit simplecov --group=development
+
+# Quality gates
+bundle exec rubocop                     # Lint + style
+bundle exec rspec                       # Tests
+bundle exec brakeman                    # Rails SAST (if Rails project)
+bundle-audit check --update             # Dependency vulnerabilities
+```
+
+## Project Setup Checklist
+
+```
+- [ ] Pin Ruby version in .ruby-version (exact patch) and Gemfile (`ruby "3.3.x"`)
+- [ ] Gemfile.lock committed (reproducible builds)
+- [ ] RuboCop configured with rubocop-performance + rubocop-rspec
+- [ ] SimpleCov with minimum coverage 80% + branch coverage enabled
+- [ ] Brakeman (Rails) and bundler-audit in CI
+- [ ] Frozen string literals enabled: # frozen_string_literal: true at top of every file
+- [ ] YJIT enabled for production (`RUBY_YJIT_ENABLE=1` or `--yjit` flag)
+```
 
 Expert guidance for Ruby development with emphasis on Rails framework and Ruby idioms.
 
@@ -696,7 +729,39 @@ rake -T
 4. **Service Objects**: Extract complex logic into service classes
 5. **Concerns**: Share code across models/controllers with concerns
 6. **Testing**: Write specs for all models, controllers, and critical paths
-7. **Background Jobs**: Use Sidekiq for long-running or asynchronous tasks
+7. **Background Jobs**: Use Sidekiq or Solid Queue for long-running or asynchronous tasks
 8. **Security**: Use strong parameters, protect from CSRF, XSS, SQL injection
 9. **Gems**: Keep gems updated, audit for security vulnerabilities
 10. **Code Style**: Use RuboCop for consistent code style
+11. **Frozen string literals**: Enable via `# frozen_string_literal: true` magic comment
+12. **YJIT**: Enable in production for 15–40% throughput improvement (Ruby 3.3+)
+
+## Reference Files
+
+### Ruby Language & Tooling
+
+| Category            | File                                                          | Key Topics                                                                  |
+| ------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Foundations**     | [language-foundations.md](references/language-foundations.md) | Syntax, data types, control flow, Enumerable, Comparable, frozen strings     |
+| **Metaprogramming** | [metaprogramming.md](references/metaprogramming.md)           | `define_method`, `method_missing`, `send`, class macros, module eval, hooks |
+| **Testing**         | [testing.md](references/testing.md)                           | RSpec, Minitest, FactoryBot, Capybara, VCR, SimpleCov, Shoulda Matchers     |
+| **Toolchain**       | [toolchain.md](references/toolchain.md)                       | Bundler, RuboCop, Rake, Guard, dotenv, foreman                              |
+| **Security**        | [security.md](references/security.md)                         | Brakeman, bundler-audit, CVE monitoring, secure coding patterns             |
+| **Performance**     | [performance.md](references/performance.md)                   | YJIT, memory profiling, benchmark-ips, bullet (Rails), caching strategies   |
+
+### Rails Framework
+
+| Category          | File                                                       | Key Topics                                                              |
+| ----------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Overview**      | [rails/overview.md](references/rails/overview.md)          | Rails 8 setup, controllers, routes, service objects, jobs, API mode     |
+| **Active Record** | [rails/active-record.md](references/rails/active-record.md) | Associations, scopes, callbacks, migrations, query optimization         |
+| **Hotwire**       | [rails/hotwire.md](references/rails/hotwire.md)            | Turbo Frames, Streams, Stimulus patterns, morphing                      |
+| **Deployment**    | [rails/deployment.md](references/rails/deployment.md)      | Kamal 2, Solid Queue, Solid Cache, Docker, Puma tuning                  |
+
+## When NOT to Use
+
+- **Non-Ruby languages**: use language-specific mastering skills
+- **Ruby 2.x legacy projects**: patterns shown target Ruby 3.3+ (YJIT, pattern matching, endless methods, `Data.define`)
+- **JRuby / TruffleRuby**: some patterns (YJIT, C extensions) are MRI-specific
+- **Rails < 7.0**: Rails patterns shown target 8.0; many won't work on older versions
+- **Pure frontend SPA work** (React, Next.js without Rails backend): use frontend-specific skills

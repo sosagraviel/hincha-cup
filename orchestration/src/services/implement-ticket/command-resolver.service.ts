@@ -119,6 +119,13 @@ export class CommandResolverService {
           } else if (frameworkLower.includes('junit')) {
             commands.push('mvn test');
             commands.push('gradle test');
+          } else if (frameworkLower.includes('rspec')) {
+            commands.push('bundle exec rspec');
+            commands.push('rspec');
+          } else if (frameworkLower.includes('minitest') || frameworkLower.includes('test::unit')) {
+            commands.push('bundle exec rails test');
+            commands.push('bundle exec rake test');
+            commands.push('rake test');
           }
         } else if (type === 'e2e') {
           // E2E test commands
@@ -130,6 +137,9 @@ export class CommandResolverService {
             commands.push('npm run test:e2e');
           } else if (frameworkLower.includes('testcafe')) {
             commands.push('npx testcafe');
+          } else if (frameworkLower.includes('capybara')) {
+            commands.push('bundle exec rspec spec/system');
+            commands.push('bundle exec rails test:system');
           }
         }
       }
@@ -168,10 +178,14 @@ export class CommandResolverService {
         fallbacks.push('dotnet test');
       } else if (language === 'scala') {
         fallbacks.push('sbt test');
+      } else if (language === 'ruby') {
+        fallbacks.push('bundle exec rspec', 'bundle exec rails test', 'bundle exec rake test');
       }
     } else if (type === 'e2e') {
       if (language === 'typescript' || language === 'javascript') {
         fallbacks.push('npx playwright test', 'npx cypress run');
+      } else if (language === 'ruby') {
+        fallbacks.push('bundle exec rspec spec/system', 'bundle exec rails test:system');
       }
     }
 
@@ -200,6 +214,8 @@ export class CommandResolverService {
       commands.push('dotnet build', 'dotnet publish -c Release');
     } else if (primaryLang === 'scala') {
       commands.push('sbt compile', 'sbt package');
+    } else if (primaryLang === 'ruby') {
+      // Ruby (including Rails) is interpreted — there is no build step.
     }
 
     return commands.filter(Boolean);
@@ -224,6 +240,8 @@ export class CommandResolverService {
       commands.push('dotnet format --verify-no-changes');
     } else if (primaryLang === 'scala') {
       commands.push('sbt scalafmtCheckAll', 'sbt "scalafixAll --check"');
+    } else if (primaryLang === 'ruby') {
+      commands.push('bundle exec rubocop', 'rubocop');
     }
 
     return commands.filter(Boolean);
@@ -248,6 +266,8 @@ export class CommandResolverService {
       commands.push('dotnet format');
     } else if (primaryLang === 'scala') {
       commands.push('sbt scalafmtAll');
+    } else if (primaryLang === 'ruby') {
+      commands.push('bundle exec rubocop -a', 'rubocop -a');
     }
 
     return commands.filter(Boolean);
@@ -419,6 +439,8 @@ export class CommandResolverService {
       return 'sbt';
     } else if (primaryLang === 'java') {
       return 'mvn';
+    } else if (primaryLang === 'ruby') {
+      return 'bundler';
     }
 
     return 'npm'; // Safe default
@@ -449,6 +471,9 @@ export class CommandResolverService {
         return 'sbt update';
       case 'mvn':
         return 'mvn dependency:resolve';
+      case 'bundler':
+      case 'bundle':
+        return 'bundle install';
       default:
         return 'npm install';
     }
