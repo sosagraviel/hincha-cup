@@ -79,11 +79,13 @@ export const COMMAND_DEFAULTS: Record<string, CommandSet> = {
     build: 'composer install',
   },
   ruby: {
-    lint: 'rubocop',
-    format: 'rubocop -a',
-    typecheck: 'bundle exec steep check',
+    lint: 'bundle exec rubocop',
+    format: 'bundle exec rubocop -a',
+    // Ruby has no default static type checker.
+    typecheck: '',
     test: 'bundle exec rspec',
-    build: 'bundle install',
+    // Ruby is interpreted — no build step.
+    build: '',
   },
   swift: {
     lint: 'swiftlint lint',

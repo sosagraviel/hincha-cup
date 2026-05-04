@@ -1,6 +1,6 @@
 ---
 name: code-quality-check
-description: Automated code quality verification with linters, type checkers, and test coverage. Use when asked to "check code quality", "run linters", "check tests", "verify coverage", or before creating a PR. Runs language-specific tools (ruff/black/mypy for Python, eslint/prettier/tsc for TypeScript), verifies test coverage meets 80% threshold, and produces detailed quality report.
+description: Automated code quality verification with linters, type checkers, and test coverage. Use when asked to "check code quality", "run linters", "check tests", "verify coverage", or before creating a PR. Runs language-specific tools (ruff/black/mypy for Python, eslint/prettier/tsc for TypeScript, rubocop for Ruby), verifies test coverage meets 80% threshold, and produces detailed quality report.
 argument-hint: '[optional: path/to/code]'
 allowed-tools: Read, Write, Bash, Glob, Grep
 ---
@@ -25,7 +25,7 @@ Automated code quality verification using linters, type checkers, and test cover
 
 This skill verifies code quality by:
 
-1. **Detecting project language** - Python, TypeScript, JavaScript
+1. **Detecting project language** - Python, TypeScript, JavaScript, Ruby
 2. **Running linters** - Code style and quality checks
 3. **Type checking** - Static type verification
 4. **Running tests** - Unit, integration, E2E tests
@@ -129,6 +129,49 @@ detect_language_and_tools() {
         echo "Formatter: $FORMATTER"
     fi
 
+    # Ruby detection
+    if [[ -f "Gemfile" ]]; then
+        LANGUAGE="ruby"
+
+        # Detect Rails (used for test runner selection)
+        IS_RAILS=false
+        if [[ -f "config/application.rb" ]] || grep -q "rails" Gemfile 2>/dev/null; then
+            IS_RAILS=true
+        fi
+
+        # Always prefer `bundle exec` when Gemfile.lock is present so we run the
+        # gem versions pinned by the project (avoids drift with system-wide gems).
+        BUNDLE_PREFIX=""
+        if [[ -f "Gemfile.lock" ]] && command -v bundle &>/dev/null; then
+            BUNDLE_PREFIX="bundle exec "
+        fi
+
+        # Check for quality tools
+        LINTER=""
+        TEST_RUNNER=""
+        FORMATTER=""
+
+        # Linter + formatter (RuboCop covers both)
+        if (bundle exec rubocop --version &>/dev/null) || command -v rubocop &>/dev/null; then
+            LINTER="${BUNDLE_PREFIX}rubocop"
+            FORMATTER="${BUNDLE_PREFIX}rubocop -a"
+        fi
+
+        # Test runner (RSpec preferred, then Rails Minitest, then rake)
+        if (bundle exec rspec --version &>/dev/null) || command -v rspec &>/dev/null; then
+            TEST_RUNNER="${BUNDLE_PREFIX}rspec"
+        elif [[ "$IS_RAILS" == "true" ]]; then
+            TEST_RUNNER="${BUNDLE_PREFIX}rails test"
+        elif command -v rake &>/dev/null; then
+            TEST_RUNNER="${BUNDLE_PREFIX}rake test"
+        fi
+
+        echo "Language: Ruby"
+        echo "Linter: $LINTER"
+        echo "Test runner: $TEST_RUNNER"
+        echo "Formatter: $FORMATTER"
+    fi
+
     if [[ -z "$LANGUAGE" ]]; then
         echo "Error: Cannot detect project language"
         return 1
@@ -193,6 +236,22 @@ install_quality_tools() {
                 echo "Installing typescript..."
                 npm install --save-dev typescript
             fi
+        fi
+    fi
+
+    if [[ "$lang" == "ruby" ]]; then
+        # Ensure bundler is present (needed even just to run `bundle exec`)
+        if ! command -v bundle &>/dev/null; then
+            echo "Installing bundler..."
+            gem install bundler
+        fi
+
+        # Install RuboCop only if neither bundler nor PATH resolves it.
+        # Avoids pinning drift when the project already has rubocop in its Gemfile.
+        if ! (bundle exec rubocop --version &>/dev/null) \
+            && ! command -v rubocop &>/dev/null; then
+            echo "Installing rubocop..."
+            gem install rubocop
         fi
     fi
 
@@ -319,6 +378,47 @@ run_typescript_linting() {
   "passed": $lint_passed,
   "eslint": $(cat /tmp/eslint_report.json 2>/dev/null || echo '[]'),
   "prettier": "$(cat /tmp/prettier_check.txt 2>/dev/null || echo 'OK')"
+}
+EOF
+
+    echo "$lint_report"
+}
+```
+
+#### 3c. Ruby Linting
+
+```bash
+run_ruby_linting() {
+    echo "Running Ruby linters..."
+
+    local lint_report="/tmp/ruby_lint_report.json"
+    local lint_passed=true
+
+    # RuboCop (covers both linting and formatting via `--autocorrect`)
+    if [[ -n "$LINTER" ]]; then
+        echo "Running $LINTER..."
+        $LINTER --format json --out /tmp/rubocop_report.json . 2>&1 || true
+
+        # Parse offenses
+        rubocop_errors=$(jq '[.files[].offenses[] | select(.severity == "error" or .severity == "fatal")] | length' /tmp/rubocop_report.json 2>/dev/null || echo "0")
+        rubocop_warnings=$(jq '[.files[].offenses[] | select(.severity == "warning" or .severity == "convention" or .severity == "refactor")] | length' /tmp/rubocop_report.json 2>/dev/null || echo "0")
+
+        if [[ $rubocop_errors -gt 0 ]]; then
+            lint_passed=false
+            echo "RuboCop: FAILED ($rubocop_errors errors, $rubocop_warnings warnings)"
+        else
+            echo "RuboCop: PASSED ($rubocop_warnings warnings)"
+        fi
+    fi
+
+    # Create lint report
+    cat > "$lint_report" <<EOF
+{
+  "language": "ruby",
+  "linter": "$LINTER",
+  "formatter": "$FORMATTER",
+  "passed": $lint_passed,
+  "rubocop": $(cat /tmp/rubocop_report.json 2>/dev/null || echo '{}')
 }
 EOF
 
@@ -546,6 +646,70 @@ EOF
 }
 ```
 
+#### 5c. Ruby Tests
+
+```bash
+run_ruby_tests() {
+    echo "Running Ruby tests with coverage..."
+
+    local test_report="/tmp/ruby_test_report.json"
+    local coverage_threshold=80
+    local tests_passed=true
+
+    if [[ -n "$TEST_RUNNER" ]]; then
+        echo "Running $TEST_RUNNER with coverage..."
+
+        # SimpleCov activates via COVERAGE env var
+        COVERAGE=true $TEST_RUNNER
+
+        test_exit_code=$?
+        if [[ $test_exit_code -ne 0 ]]; then
+            tests_passed=false
+            echo "Tests: FAILED"
+        else
+            echo "Tests: PASSED"
+        fi
+
+        # Check coverage from SimpleCov report.
+        # Use `// 0` inside jq so a missing `.result.line` key (older SimpleCov,
+        # branch-only configs) returns 0 instead of the literal string "null",
+        # which would crash the bash arithmetic comparison below.
+        if [[ -f "coverage/.last_run.json" ]]; then
+            coverage=$(jq -r '.result.line // 0' coverage/.last_run.json 2>/dev/null || echo "0")
+            coverage_int=${coverage%.*}
+            : "${coverage_int:=0}"
+
+            echo "Coverage: ${coverage}%"
+
+            if [[ $coverage_int -lt $coverage_threshold ]]; then
+                tests_passed=false
+                echo "Coverage: FAILED (${coverage}% < ${coverage_threshold}%)"
+            else
+                echo "Coverage: PASSED (${coverage}% >= ${coverage_threshold}%)"
+            fi
+        else
+            tests_passed=false
+            echo "Coverage: UNKNOWN (coverage/.last_run.json not found — is SimpleCov activated?)"
+        fi
+    else
+        echo "No test runner found, skipping tests"
+        tests_passed=false
+    fi
+
+    # Create test report
+    cat > "$test_report" <<EOF
+{
+  "language": "ruby",
+  "test_runner": "$TEST_RUNNER",
+  "passed": $tests_passed,
+  "coverage": $(cat coverage/.last_run.json 2>/dev/null || echo '{}')
+}
+EOF
+
+    echo "$test_report"
+}
+```
+
 ### Phase 6: Generate Quality Report
 
 ```bash
@@ -606,6 +770,9 @@ ruff format .
 # TypeScript
 npx eslint --fix .
 npx prettier --write .
+
+# Ruby
+rubocop -a
 \`\`\`
 
 ---
@@ -716,6 +883,14 @@ EOF
 | **tsc**      | TypeScript compiler/checker | `npx tsc --noEmit`       |
 | **vitest**   | Test runner (Vite)          | `npx vitest run`         |
 | **jest**     | Test runner                 | `npx jest`               |
+
+### Ruby Tools
+
+| Tool          | Purpose                | Command               |
+| ------------- | ---------------------- | --------------------- |
+| **rubocop**   | Linter + formatter     | `rubocop`             |
+| **rspec**     | Test runner (BDD-style) | `rspec`              |
+| **simplecov** | Test coverage reporter | `COVERAGE=true rspec` |
 
 ## Coverage Requirements
 
@@ -847,6 +1022,9 @@ ruff format .
 npx eslint --fix .
 npx prettier --write .
 
+# Ruby
+rubocop -A
+
 # Then re-run check
 /code-quality-check
 ```
@@ -896,6 +1074,20 @@ omit = [
 [tool.coverage.report]
 fail_under = 80
 show_missing = true
+```
+
+```ruby
+# spec/spec_helper.rb (RSpec) or test/test_helper.rb (Minitest)
+require "simplecov"
+
+SimpleCov.start "rails" do
+  enable_coverage :branch
+  minimum_coverage line: 80, branch: 75
+  add_filter "/spec/"
+  add_filter "/test/"
+  add_filter "/db/migrate/"
+  add_filter "/config/"
+end
 ```
 
 ## Examples

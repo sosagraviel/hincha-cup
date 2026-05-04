@@ -422,6 +422,39 @@ describe('ProjectConfigReaderService', () => {
       expect(commands.start).toContain('cargo run');
     });
 
+    it('should handle csharp build commands', () => {
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('package.json')) return false;
+        return true;
+      });
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              services: [
+                {
+                  id: 'main',
+                  path: 'src',
+                  type: 'backend',
+                  language: 'csharp',
+                  frameworks: {},
+                  testing: {},
+                  file_count: 100,
+                },
+              ],
+              is_monorepo: false,
+            },
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const commands = service.getBuildCommands();
+      expect(commands.build).toContain('dotnet build');
+      expect(commands.start).toContain('dotnet run');
+    });
+
     it('should handle scala build commands', () => {
       vi.mocked(fs.existsSync).mockImplementation((path: any) => {
         if (path.includes('package.json')) return false;
@@ -455,6 +488,40 @@ describe('ProjectConfigReaderService', () => {
       expect(commands.start).toContain('sbt run');
     });
 
+    it('should handle ruby start commands without a build step', () => {
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('package.json')) return false;
+        return true;
+      });
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              services: [
+                {
+                  id: 'main',
+                  path: 'src',
+                  type: 'backend',
+                  language: 'ruby',
+                  frameworks: {},
+                  testing: {},
+                  file_count: 100,
+                },
+              ],
+              is_monorepo: false,
+            },
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const commands = service.getBuildCommands();
+      expect(commands.start).toContain('bin/rails server');
+      expect(commands.start).toContain('ruby app.rb');
+      expect(commands.build).toEqual([]);
+    });
+
     it('should handle swift build commands', () => {
       vi.mocked(fs.existsSync).mockImplementation((path: any) => {
         if (path.includes('package.json')) return false;
@@ -482,6 +549,7 @@ describe('ProjectConfigReaderService', () => {
         return '{}';
       });
 
+      service = new ProjectConfigReaderService('/test/project');
       const commands = service.getBuildCommands();
       expect(commands.build.some((cmd) => cmd.includes('xcodebuild build'))).toBe(true);
       expect(commands.start.some((cmd) => cmd.includes('xcodebuild build'))).toBe(true);
@@ -672,6 +740,36 @@ describe('ProjectConfigReaderService', () => {
       expect(commands.unit).toContain('cargo test');
     });
 
+    it('should detect xunit commands', () => {
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              services: [
+                {
+                  id: 'main',
+                  path: 'src',
+                  type: 'backend',
+                  language: 'csharp',
+                  frameworks: { testing: 'xUnit' },
+                  testing: {
+                    unit: { framework: 'xUnit' },
+                  },
+                  file_count: 100,
+                },
+              ],
+              is_monorepo: false,
+            },
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const commands = service.getTestCommands();
+      expect(commands.unit).toContain('dotnet test');
+    });
+
     it('should detect scalatest commands', () => {
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
         if (path.includes('framework-config.json')) {
@@ -730,6 +828,66 @@ describe('ProjectConfigReaderService', () => {
       service = new ProjectConfigReaderService('/test/project');
       const commands = service.getTestCommands();
       expect(commands.unit).toContain('sbt test');
+    });
+
+    it('should detect rspec commands', () => {
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              services: [
+                {
+                  id: 'main',
+                  path: 'src',
+                  type: 'backend',
+                  language: 'ruby',
+                  frameworks: { testing: 'RSpec' },
+                  testing: {
+                    unit: { framework: 'RSpec' },
+                  },
+                  file_count: 100,
+                },
+              ],
+              is_monorepo: false,
+            },
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const commands = service.getTestCommands();
+      expect(commands.unit).toContain('bundle exec rspec');
+    });
+
+    it('should detect minitest commands', () => {
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              services: [
+                {
+                  id: 'main',
+                  path: 'src',
+                  type: 'backend',
+                  language: 'ruby',
+                  frameworks: { testing: 'Minitest' },
+                  testing: {
+                    unit: { framework: 'Minitest' },
+                  },
+                  file_count: 100,
+                },
+              ],
+              is_monorepo: false,
+            },
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const commands = service.getTestCommands();
+      expect(commands.unit).toContain('bundle exec rake test');
     });
 
     it('should detect playwright e2e commands', () => {

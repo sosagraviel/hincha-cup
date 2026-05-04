@@ -15,6 +15,7 @@ Every agent invocation spawns a provider CLI as a subprocess. Pick a provider an
 - Reported as `AuthMode.CLAUDE_CLI`
 - Subscription auth: `claude login` (Claude Pro/Max)
 - API-key auth: export `ANTHROPIC_API_KEY` (forwarded into the spawned `claude` process)
+- Enterprise gateway auth: route through Azure AI Foundry, AWS Bedrock, or Google Vertex AI — uses your cloud-provider credentials, no Anthropic account needed
 
 ### Codex CLI (OpenAI)
 
@@ -50,6 +51,26 @@ claude --version
 
 **Documentation**: [Claude CLI Authentication](https://code.claude.com/docs/en/authentication)
 
+#### Enterprise gateways (Foundry / Bedrock / Vertex)
+
+For organizations that consume Claude through a cloud-provider deployment instead of Anthropic accounts, the framework recognizes the standard Claude CLI gateway env vars. Set them and **no `claude login` or `ANTHROPIC_API_KEY` is required** — auth is handled by the cloud provider's credentials.
+
+```bash
+# Azure AI Foundry
+export CLAUDE_CODE_USE_FOUNDRY=1
+export ANTHROPIC_FOUNDRY_RESOURCE=<your-foundry-resource-name>
+
+# AWS Bedrock
+export CLAUDE_CODE_USE_BEDROCK=1
+# (plus your normal AWS_* credentials)
+
+# Google Vertex AI
+export CLAUDE_CODE_USE_VERTEX=1
+# (plus your normal GOOGLE_APPLICATION_CREDENTIALS)
+```
+
+The Claude CLI subprocess inherits these vars and routes requests through the gateway instead of `api.anthropic.com`. The framework's auth detector recognizes the same flags so it won't block on a missing API key.
+
 ### Codex CLI (OpenAI)
 
 Runs the bundled `codex` CLI as a subprocess.
@@ -83,18 +104,23 @@ codex login status
 
 ## Priority Order
 
-The auth detector walks four steps in order:
+The auth detector walks five steps in order:
 
 ```
 1. Explicit PROVIDER env var (claude / anthropic | codex / openai) — STRICT, no fallback
    ↓ (if not set)
-2. Provider API keys as CLI selectors:
+2. Claude gateway env (Foundry / Bedrock / Vertex):
+     CLAUDE_CODE_USE_FOUNDRY=1 + ANTHROPIC_FOUNDRY_RESOURCE → Claude CLI via Azure
+     CLAUDE_CODE_USE_BEDROCK=1                              → Claude CLI via AWS
+     CLAUDE_CODE_USE_VERTEX=1                               → Claude CLI via GCP
+   ↓ (if no gateway flags set)
+3. Provider API keys as CLI selectors:
      ANTHROPIC_API_KEY → Claude CLI
      OPENAI_API_KEY    → Codex CLI (auto-runs `codex login --with-api-key` if needed)
    ↓ (if no API key set)
-3. Auto-detect any authenticated CLI: Claude CLI first, then Codex CLI
+4. Auto-detect any authenticated CLI: Claude CLI first, then Codex CLI
    ↓ (if neither is authenticated)
-4. Error: No authentication available
+5. Error: No authentication available
 ```
 
 `GOOGLE_API_KEY` is intentionally ignored — there is no supported Google CLI provider.
@@ -131,6 +157,21 @@ export PROVIDER=codex   # or PROVIDER=claude
 pnpm initialize -- -p /path/to/project
 ```
 
+## Configuring via `~/.claude/settings.json`
+
+Any env var listed above can also live in the `env` block of your Claude CLI settings file at `~/.claude/settings.json`. The framework reads this file at startup and applies the block to its own process before auth detection runs, so settings.json is the single source of truth — no need to also export the vars in your shell.
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_USE_FOUNDRY": "1",
+    "ANTHROPIC_FOUNDRY_RESOURCE": "your-foundry-resource"
+  }
+}
+```
+
+Precedence: explicit shell exports always win over settings.json — the framework never overwrites a value that's already in `process.env`.
+
 ## Environment Variables
 
 Provider selection variables:
@@ -144,6 +185,13 @@ OPENAI_API_KEY=sk-...
 
 # Optional: pin a provider explicitly (overrides API-key-based detection)
 PROVIDER=claude   # or PROVIDER=codex
+
+# Claude enterprise gateways (mutually exclusive — pick one)
+CLAUDE_CODE_USE_FOUNDRY=1
+ANTHROPIC_FOUNDRY_RESOURCE=your-foundry-resource
+
+CLAUDE_CODE_USE_BEDROCK=1   # plus standard AWS_* credentials
+CLAUDE_CODE_USE_VERTEX=1    # plus GOOGLE_APPLICATION_CREDENTIALS
 ```
 
 ## Error Handling
@@ -167,6 +215,16 @@ Option 2: Authenticate Codex CLI (uses your ChatGPT subscription)
 
 Option 3: Authenticate Claude CLI (uses your Claude Pro/Max subscription)
   claude login
+
+Option 4: Route Claude through a cloud-provider gateway
+  Azure AI Foundry:
+    export CLAUDE_CODE_USE_FOUNDRY=1
+    export ANTHROPIC_FOUNDRY_RESOURCE=<your-foundry-resource>
+  AWS Bedrock:
+    export CLAUDE_CODE_USE_BEDROCK=1
+  Google Vertex AI:
+    export CLAUDE_CODE_USE_VERTEX=1
+  (Auth uses your Azure / AWS / GCP credentials — no Anthropic account needed.)
 
 For more information, see:
   - API Keys: https://platform.claude.com or https://platform.openai.com

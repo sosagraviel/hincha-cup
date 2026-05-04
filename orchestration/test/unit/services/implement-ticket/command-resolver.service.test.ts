@@ -211,6 +211,88 @@ describe('CommandResolverService', () => {
       expect(result.some((cmd) => cmd.includes('cargo test'))).toBe(true);
     });
 
+    it('should handle rspec framework', () => {
+      const rspecConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: { testing: 'rspec' },
+              file_count: 100,
+              testing: {
+                unit: { framework: 'rspec' },
+              },
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const rspecService = new CommandResolverService(rspecConfig as any);
+      const result = rspecService.getTestCommand('unit');
+      expect(result.some((cmd) => cmd.includes('rspec'))).toBe(true);
+    });
+
+    it('should handle minitest framework', () => {
+      const minitestConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: { testing: 'minitest' },
+              file_count: 100,
+              testing: {
+                unit: { framework: 'minitest' },
+              },
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const minitestService = new CommandResolverService(minitestConfig as any);
+      const result = minitestService.getTestCommand('unit');
+      expect(result.some((cmd) => cmd.includes('rails test') || cmd.includes('rake test'))).toBe(
+        true,
+      );
+    });
+
+    it('should handle capybara for e2e (system tests)', () => {
+      const capybaraConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: { testing: 'capybara' },
+              file_count: 100,
+              testing: {
+                e2e: { framework: 'capybara' },
+              },
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const capybaraService = new CommandResolverService(capybaraConfig as any);
+      const result = capybaraService.getTestCommand('e2e');
+      expect(result.some((cmd) => cmd.includes('system') || cmd.includes('test:system'))).toBe(
+        true,
+      );
+    });
+
     it('should handle swift test', () => {
       const swiftConfig = {
         project_name: 'test',
@@ -261,6 +343,28 @@ describe('CommandResolverService', () => {
       const junitService = new CommandResolverService(junitConfig as any);
       const result = junitService.getTestCommand('unit');
       expect(result.some((cmd) => cmd.includes('mvn') || cmd.includes('gradle'))).toBe(true);
+    });
+
+    it('should handle csharp test fallbacks', () => {
+      const csharpConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'csharp',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const csharpService = new CommandResolverService(csharpConfig as any);
+      const result = csharpService.getTestCommand('unit');
+      expect(result.some((cmd) => cmd.includes('dotnet test'))).toBe(true);
     });
 
     it('should handle scala test fallbacks', () => {
@@ -465,6 +569,31 @@ describe('CommandResolverService', () => {
       expect(result.some((cmd) => cmd.includes('cargo build'))).toBe(true);
     });
 
+    it('should return empty array for ruby (interpreted language, no build step)', () => {
+      const rubyConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const rubyService = new CommandResolverService(rubyConfig as any);
+      const result = rubyService.getBuildCommand();
+      // Ruby/Rails is interpreted; assets:precompile is deploy, gem build is
+      // packaging. Neither belongs in implement-ticket's build phase.
+      expect(result).toEqual([]);
+    });
+
     it('should handle java build', () => {
       const javaConfig = {
         project_name: 'test',
@@ -486,6 +615,28 @@ describe('CommandResolverService', () => {
       const javaService = new CommandResolverService(javaConfig as any);
       const result = javaService.getBuildCommand();
       expect(result.some((cmd) => cmd.includes('mvn') || cmd.includes('gradle'))).toBe(true);
+    });
+
+    it('should handle csharp build', () => {
+      const csharpConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'csharp',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const csharpService = new CommandResolverService(csharpConfig as any);
+      const result = csharpService.getBuildCommand();
+      expect(result.some((cmd) => cmd.includes('dotnet build'))).toBe(true);
     });
 
     it('should handle scala build', () => {
@@ -635,6 +786,29 @@ describe('CommandResolverService', () => {
       expect(result).toContain('go mod download');
     });
 
+    it('should handle bundler package manager (ruby)', () => {
+      const bundlerConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const bundlerService = new CommandResolverService(bundlerConfig as any);
+      const result = bundlerService.getInstallCommand();
+      expect(result).toBe('bundle install');
+    });
+
     it('should handle cargo package manager', () => {
       const cargoConfig = {
         project_name: 'test',
@@ -764,6 +938,29 @@ describe('CommandResolverService', () => {
       );
     });
 
+    it('should get lint command for ruby (rubocop)', () => {
+      const rubyConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const rubyService = new CommandResolverService(rubyConfig as any);
+      const result = rubyService.getLintCommand();
+      expect(result.some((cmd) => cmd.includes('rubocop'))).toBe(true);
+    });
+
     it('should get lint command for rust', () => {
       const rustConfig = {
         project_name: 'test',
@@ -785,6 +982,28 @@ describe('CommandResolverService', () => {
       const rustService = new CommandResolverService(rustConfig as any);
       const result = rustService.getLintCommand();
       expect(result.some((cmd) => cmd.includes('cargo clippy'))).toBe(true);
+    });
+
+    it('should get lint command for csharp', () => {
+      const csharpConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'csharp',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const csharpService = new CommandResolverService(csharpConfig as any);
+      const result = csharpService.getLintCommand();
+      expect(result.some((cmd) => cmd.includes('dotnet format'))).toBe(true);
     });
 
     it('should get lint command for scala', () => {
@@ -886,6 +1105,29 @@ describe('CommandResolverService', () => {
       expect(result.some((cmd) => cmd.includes('gofmt') || cmd.includes('go fmt'))).toBe(true);
     });
 
+    it('should get format command for ruby (rubocop -a)', () => {
+      const rubyConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'bundler',
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const rubyService = new CommandResolverService(rubyConfig as any);
+      const result = rubyService.getFormatCommand();
+      expect(result.some((cmd) => cmd.includes('rubocop -a'))).toBe(true);
+    });
+
     it('should get format command for rust', () => {
       const rustConfig = {
         project_name: 'test',
@@ -907,6 +1149,28 @@ describe('CommandResolverService', () => {
       const rustService = new CommandResolverService(rustConfig as any);
       const result = rustService.getFormatCommand();
       expect(result.some((cmd) => cmd.includes('cargo fmt') || cmd.includes('rustfmt'))).toBe(true);
+    });
+
+    it('should get format command for csharp', () => {
+      const csharpConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'csharp',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const csharpService = new CommandResolverService(csharpConfig as any);
+      const result = csharpService.getFormatCommand();
+      expect(result.some((cmd) => cmd.includes('dotnet format'))).toBe(true);
     });
 
     it('should get format command for scala', () => {
@@ -1072,6 +1336,28 @@ describe('CommandResolverService', () => {
       expect(result).toBe('go');
     });
 
+    it('should return bundler for ruby', () => {
+      const rubyConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'app',
+              type: 'backend',
+              language: 'ruby',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const rubyService = new CommandResolverService(rubyConfig as any);
+      const result = rubyService.getPackageManager();
+      expect(result).toBe('bundler');
+    });
+
     it('should return cargo for rust', () => {
       const rustConfig = {
         project_name: 'test',
@@ -1092,6 +1378,28 @@ describe('CommandResolverService', () => {
       const rustService = new CommandResolverService(rustConfig as any);
       const result = rustService.getPackageManager();
       expect(result).toBe('cargo');
+    });
+
+    it('should return dotnet for csharp', () => {
+      const csharpConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'src',
+              type: 'backend',
+              language: 'csharp',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const csharpService = new CommandResolverService(csharpConfig as any);
+      const result = csharpService.getPackageManager();
+      expect(result).toBe('dotnet');
     });
 
     it('should return sbt for scala', () => {

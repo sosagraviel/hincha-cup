@@ -200,12 +200,17 @@ export class ProjectConfigReaderService {
     } else if (primaryLang === 'rust') {
       if (!commands.build.length) commands.build.push('cargo build');
       if (!commands.start.length) commands.start.push('cargo run');
+    } else if (primaryLang === 'csharp') {
+      if (!commands.build.length) commands.build.push('dotnet build');
+      if (!commands.start.length) commands.start.push('dotnet run');
     } else if (primaryLang === 'scala') {
       if (!commands.build.length) commands.build.push('sbt compile');
       if (!commands.start.length) commands.start.push('sbt run');
     } else if (primaryLang === 'java') {
       if (!commands.build.length) commands.build.push('mvn compile');
       if (!commands.start.length) commands.start.push('mvn spring-boot:run');
+    } else if (primaryLang === 'ruby') {
+      if (!commands.start.length) commands.start.push('bin/rails server', 'ruby app.rb');
     } else if (primaryLang === 'swift') {
       const scheme = this.getXcodeScheme();
       const schemePart = scheme ? `-scheme ${scheme} ` : '';
@@ -419,7 +424,11 @@ export class ProjectConfigReaderService {
     if (fw.includes('pytest')) return ['pytest', 'python -m pytest'];
     if (fw.includes('go test')) return ['go test ./...'];
     if (fw.includes('cargo')) return ['cargo test'];
+    if (fw.includes('xunit') || fw.includes('nunit') || fw.includes('mstest'))
+      return ['dotnet test'];
     if (fw.includes('scalatest') || fw.includes('munit')) return ['sbt test'];
+    if (fw.includes('rspec')) return ['bundle exec rspec'];
+    if (fw.includes('minitest')) return ['bundle exec rake test'];
     if (fw.includes('playwright')) return ['npx playwright test'];
     if (fw.includes('cypress')) return ['npx cypress run'];
     if (fw.includes('mocha')) return ['npx mocha'];
