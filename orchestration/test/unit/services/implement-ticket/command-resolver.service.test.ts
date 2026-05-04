@@ -293,6 +293,32 @@ describe('CommandResolverService', () => {
       );
     });
 
+    it('should handle swift test', () => {
+      const swiftConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'swift',
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: { testing: 'XCTest' },
+              file_count: 100,
+              testing: {
+                unit: { framework: 'XCTest' },
+              },
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const swiftService = new CommandResolverService(swiftConfig as any);
+      const result = swiftService.getTestCommand('unit');
+      expect(result.some((cmd) => cmd.includes('xcodebuild test'))).toBe(true);
+    });
+
     it('should handle junit framework', () => {
       const junitConfig = {
         project_name: 'test',
@@ -634,6 +660,29 @@ describe('CommandResolverService', () => {
       const result = scalaService.getBuildCommand();
       expect(result.some((cmd) => cmd.includes('sbt'))).toBe(true);
     });
+
+    it('should handle swift build', () => {
+      const swiftConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'swift',
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const swiftService = new CommandResolverService(swiftConfig as any);
+      const result = swiftService.getBuildCommand();
+      expect(result.some((cmd) => cmd.includes('xcodebuild build'))).toBe(true);
+    });
   });
 
   describe('getInstallCommand', () => {
@@ -781,6 +830,29 @@ describe('CommandResolverService', () => {
       const cargoService = new CommandResolverService(cargoConfig as any);
       const result = cargoService.getInstallCommand();
       expect(result).toContain('cargo build');
+    });
+
+    it('should handle swift package manager', () => {
+      const swiftConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'swift',
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const swiftService = new CommandResolverService(swiftConfig as any);
+      const result = swiftService.getInstallCommand();
+      expect(result).toContain('swift package resolve');
     });
 
     it('should default to npm install for unknown package manager', () => {
@@ -955,6 +1027,29 @@ describe('CommandResolverService', () => {
       const result = scalaService.getLintCommand();
       expect(result.some((cmd) => cmd.includes('sbt'))).toBe(true);
     });
+
+    it('should get lint command for swift', () => {
+      const swiftConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'swift',
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const swiftService = new CommandResolverService(swiftConfig as any);
+      const result = swiftService.getLintCommand();
+      expect(result.some((cmd) => cmd.includes('swiftlint'))).toBe(true);
+    });
   });
 
   describe('getFormatCommand', () => {
@@ -1098,6 +1193,31 @@ describe('CommandResolverService', () => {
       const scalaService = new CommandResolverService(scalaConfig as any);
       const result = scalaService.getFormatCommand();
       expect(result.some((cmd) => cmd.includes('sbt scalafmtAll'))).toBe(true);
+    });
+
+    it('should get format command for swift', () => {
+      const swiftConfig = {
+        project_name: 'test',
+        stack_profile: {
+          package_manager: 'swift',
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const swiftService = new CommandResolverService(swiftConfig as any);
+      const result = swiftService.getFormatCommand();
+      expect(
+        result.some((cmd) => cmd.includes('swiftformat') || cmd.includes('swift-format')),
+      ).toBe(true);
     });
   });
 
@@ -1302,6 +1422,28 @@ describe('CommandResolverService', () => {
       const scalaService = new CommandResolverService(scalaConfig as any);
       const result = scalaService.getPackageManager();
       expect(result).toBe('sbt');
+    });
+
+    it('should return swift for swift language', () => {
+      const swiftConfig = {
+        project_name: 'test',
+        stack_profile: {
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
+          is_monorepo: false,
+        },
+      };
+      const swiftService = new CommandResolverService(swiftConfig as any);
+      const result = swiftService.getPackageManager();
+      expect(result).toBe('swift');
     });
 
     it('should default to npm for unknown language', () => {

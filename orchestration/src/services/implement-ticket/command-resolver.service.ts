@@ -180,6 +180,8 @@ export class CommandResolverService {
         fallbacks.push('sbt test');
       } else if (language === 'ruby') {
         fallbacks.push('bundle exec rspec', 'bundle exec rails test', 'bundle exec rake test');
+      } else if (language === 'swift') {
+        fallbacks.push(`xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 16'`);
       }
     } else if (type === 'e2e') {
       if (language === 'typescript' || language === 'javascript') {
@@ -216,6 +218,12 @@ export class CommandResolverService {
       commands.push('sbt compile', 'sbt package');
     } else if (primaryLang === 'ruby') {
       // Ruby (including Rails) is interpreted — there is no build step.
+    } else if (primaryLang === 'swift') {
+      const destination = `'platform=iOS Simulator,name=iPhone 16'`;
+      commands.push(
+        `xcodebuild build -destination ${destination}`,
+        `xcodebuild build -configuration Release -destination ${destination}`,
+      );
     }
 
     return commands.filter(Boolean);
@@ -242,6 +250,8 @@ export class CommandResolverService {
       commands.push('sbt scalafmtCheckAll', 'sbt "scalafixAll --check"');
     } else if (primaryLang === 'ruby') {
       commands.push('bundle exec rubocop', 'rubocop');
+    } else if (primaryLang === 'swift') {
+      commands.push('swiftlint lint', 'swiftlint');
     }
 
     return commands.filter(Boolean);
@@ -268,6 +278,8 @@ export class CommandResolverService {
       commands.push('sbt scalafmtAll');
     } else if (primaryLang === 'ruby') {
       commands.push('bundle exec rubocop -a', 'rubocop -a');
+    } else if (primaryLang === 'swift') {
+      commands.push('swiftformat .', 'swift-format format -i -r .');
     }
 
     return commands.filter(Boolean);
@@ -441,6 +453,8 @@ export class CommandResolverService {
       return 'mvn';
     } else if (primaryLang === 'ruby') {
       return 'bundler';
+    } else if (primaryLang === 'swift') {
+      return 'swift';
     }
 
     return 'npm'; // Safe default
@@ -474,6 +488,8 @@ export class CommandResolverService {
       case 'bundler':
       case 'bundle':
         return 'bundle install';
+      case 'swift':
+        return 'swift package resolve';
       default:
         return 'npm install';
     }

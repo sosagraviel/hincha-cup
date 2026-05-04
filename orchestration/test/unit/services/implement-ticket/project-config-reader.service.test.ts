@@ -522,6 +522,39 @@ describe('ProjectConfigReaderService', () => {
       expect(commands.build).toEqual([]);
     });
 
+    it('should handle swift build commands', () => {
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        if (path.includes('package.json')) return false;
+        return true;
+      });
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              services: [
+                {
+                  id: 'main',
+                  path: 'Sources',
+                  type: 'backend',
+                  language: 'swift',
+                  frameworks: {},
+                  testing: {},
+                  file_count: 100,
+                },
+              ],
+              is_monorepo: false,
+            },
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const commands = service.getBuildCommands();
+      expect(commands.build.some((cmd) => cmd.includes('xcodebuild build'))).toBe(true);
+      expect(commands.start.some((cmd) => cmd.includes('xcodebuild build'))).toBe(true);
+    });
+
     it('should ignore package.json parse errors', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
@@ -885,6 +918,36 @@ describe('ProjectConfigReaderService', () => {
       service = new ProjectConfigReaderService('/test/project');
       const commands = service.getTestCommands();
       expect(commands.e2e).toContain('npx playwright test');
+    });
+
+    it('should detect xctest commands', () => {
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        if (path.includes('framework-config.json')) {
+          return JSON.stringify({
+            stack_profile: {
+              services: [
+                {
+                  id: 'main',
+                  path: 'Sources',
+                  type: 'backend',
+                  language: 'swift',
+                  frameworks: { testing: 'XCTest' },
+                  testing: {
+                    unit: { framework: 'XCTest' },
+                  },
+                  file_count: 100,
+                },
+              ],
+              is_monorepo: false,
+            },
+          });
+        }
+        return '{}';
+      });
+
+      service = new ProjectConfigReaderService('/test/project');
+      const commands = service.getTestCommands();
+      expect(commands.unit.some((cmd) => cmd.includes('xcodebuild test'))).toBe(true);
     });
 
     it('should detect cypress e2e commands', () => {

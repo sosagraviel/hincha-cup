@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
 import { type FrameworkConfig, type StackProfile } from '../../schemas/index.js';
@@ -211,6 +211,16 @@ export class ProjectConfigReaderService {
       if (!commands.start.length) commands.start.push('mvn spring-boot:run');
     } else if (primaryLang === 'ruby') {
       if (!commands.start.length) commands.start.push('bin/rails server', 'ruby app.rb');
+    } else if (primaryLang === 'swift') {
+      const scheme = this.getXcodeScheme();
+      const schemePart = scheme ? `-scheme ${scheme} ` : '';
+      const destination = `'platform=iOS Simulator,name=iPhone 16'`;
+      if (!commands.build.length)
+        commands.build.push(`xcodebuild build ${schemePart}-destination ${destination}`);
+      if (!commands.start.length)
+        commands.start.push(
+          `xcodebuild build ${schemePart}-configuration Release -destination ${destination}`,
+        );
     }
 
     return commands;
@@ -257,6 +267,23 @@ export class ProjectConfigReaderService {
     const services = this.getServices();
     const languages = new Set(services.map((s) => s.language));
     return Array.from(languages);
+  }
+
+  /**
+   * Detect Xcode scheme from .xcworkspace or .xcodeproj in project root.
+   * Prefers .xcworkspace (used when CocoaPods/SPM integration is present).
+   */
+  private getXcodeScheme(): string | undefined {
+    try {
+      const entries = readdirSync(this.projectPath);
+      const workspace = entries.find((f) => f.endsWith('.xcworkspace'));
+      if (workspace) return workspace.replace('.xcworkspace', '');
+      const project = entries.find((f) => f.endsWith('.xcodeproj'));
+      if (project) return project.replace('.xcodeproj', '');
+    } catch {
+      // project path not accessible
+    }
+    return undefined;
   }
 
   /**
@@ -406,6 +433,11 @@ export class ProjectConfigReaderService {
     if (fw.includes('cypress')) return ['npx cypress run'];
     if (fw.includes('mocha')) return ['npx mocha'];
     if (fw.includes('junit')) return ['mvn test', 'gradle test'];
+    if (fw.includes('xctest') || fw.includes('swift testing')) {
+      const scheme = this.getXcodeScheme();
+      const schemePart = scheme ? `-scheme ${scheme} ` : '';
+      return [`xcodebuild test ${schemePart}-destination 'platform=iOS Simulator,name=iPhone 16'`];
+    }
 
     return [];
   }
