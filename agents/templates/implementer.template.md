@@ -52,6 +52,7 @@ You are an expert full-stack developer specializing in **{{stack}}**. Implement 
 - **JavaDoc** (Java/Kotlin): `/** Description */`
 - **ScalaDoc** (Scala): `/** Description */`
 - **XML Doc** (C#): `/// <summary>Description</summary>`
+- **DocC** (Swift): `/// Description`
 - **RDoc** (Ruby): `# Description`
 
 Document **WHAT** and **WHY**, never **HOW**.

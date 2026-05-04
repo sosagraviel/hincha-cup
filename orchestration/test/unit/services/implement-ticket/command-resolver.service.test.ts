@@ -216,23 +216,25 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'swift',
-          services: [{
-            id: 'main',
-            path: 'Sources',
-            type: 'backend',
-            language: 'swift',
-            frameworks: { testing: 'XCTest' },
-            file_count: 100,
-            testing: {
-              unit: { framework: 'XCTest' },
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: { testing: 'XCTest' },
+              file_count: 100,
+              testing: {
+                unit: { framework: 'XCTest' },
+              },
             },
-          }],
+          ],
           is_monorepo: false,
         },
       };
       const swiftService = new CommandResolverService(swiftConfig as any);
       const result = swiftService.getTestCommand('unit');
-      expect(result.some(cmd => cmd.includes('xcodebuild test'))).toBe(true);
+      expect(result.some((cmd) => cmd.includes('xcodebuild test'))).toBe(true);
     });
 
     it('should handle junit framework', () => {
@@ -513,20 +515,22 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'swift',
-          services: [{
-            id: 'main',
-            path: 'Sources',
-            type: 'backend',
-            language: 'swift',
-            frameworks: {},
-            file_count: 100,
-          }],
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
           is_monorepo: false,
         },
       };
       const swiftService = new CommandResolverService(swiftConfig as any);
       const result = swiftService.getBuildCommand();
-      expect(result.some(cmd => cmd.includes('xcodebuild build'))).toBe(true);
+      expect(result.some((cmd) => cmd.includes('xcodebuild build'))).toBe(true);
     });
   });
 
@@ -659,14 +663,16 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'swift',
-          services: [{
-            id: 'main',
-            path: 'Sources',
-            type: 'backend',
-            language: 'swift',
-            frameworks: {},
-            file_count: 100,
-          }],
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
           is_monorepo: false,
         },
       };
@@ -808,20 +814,22 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'swift',
-          services: [{
-            id: 'main',
-            path: 'Sources',
-            type: 'backend',
-            language: 'swift',
-            frameworks: {},
-            file_count: 100,
-          }],
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
           is_monorepo: false,
         },
       };
       const swiftService = new CommandResolverService(swiftConfig as any);
       const result = swiftService.getLintCommand();
-      expect(result.some(cmd => cmd.includes('swiftlint'))).toBe(true);
+      expect(result.some((cmd) => cmd.includes('swiftlint'))).toBe(true);
     });
   });
 
@@ -928,20 +936,24 @@ describe('CommandResolverService', () => {
         project_name: 'test',
         stack_profile: {
           package_manager: 'swift',
-          services: [{
-            id: 'main',
-            path: 'Sources',
-            type: 'backend',
-            language: 'swift',
-            frameworks: {},
-            file_count: 100,
-          }],
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
           is_monorepo: false,
         },
       };
       const swiftService = new CommandResolverService(swiftConfig as any);
       const result = swiftService.getFormatCommand();
-      expect(result.some(cmd => cmd.includes('swiftformat') || cmd.includes('swift-format'))).toBe(true);
+      expect(
+        result.some((cmd) => cmd.includes('swiftformat') || cmd.includes('swift-format')),
+      ).toBe(true);
     });
   });
 
@@ -1108,14 +1120,16 @@ describe('CommandResolverService', () => {
       const swiftConfig = {
         project_name: 'test',
         stack_profile: {
-          services: [{
-            id: 'main',
-            path: 'Sources',
-            type: 'backend',
-            language: 'swift',
-            frameworks: {},
-            file_count: 100,
-          }],
+          services: [
+            {
+              id: 'main',
+              path: 'Sources',
+              type: 'backend',
+              language: 'swift',
+              frameworks: {},
+              file_count: 100,
+            },
+          ],
           is_monorepo: false,
         },
       };

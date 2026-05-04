@@ -210,8 +210,12 @@ export class ProjectConfigReaderService {
       const scheme = this.getXcodeScheme();
       const schemePart = scheme ? `-scheme ${scheme} ` : '';
       const destination = `'platform=iOS Simulator,name=iPhone 16'`;
-      if (!commands.build.length) commands.build.push(`xcodebuild build ${schemePart}-destination ${destination}`);
-      if (!commands.start.length) commands.start.push(`xcodebuild build ${schemePart}-configuration Release -destination ${destination}`);
+      if (!commands.build.length)
+        commands.build.push(`xcodebuild build ${schemePart}-destination ${destination}`);
+      if (!commands.start.length)
+        commands.start.push(
+          `xcodebuild build ${schemePart}-configuration Release -destination ${destination}`,
+        );
     }
 
     return commands;
@@ -267,9 +271,9 @@ export class ProjectConfigReaderService {
   private getXcodeScheme(): string | undefined {
     try {
       const entries = readdirSync(this.projectPath);
-      const workspace = entries.find(f => f.endsWith('.xcworkspace'));
+      const workspace = entries.find((f) => f.endsWith('.xcworkspace'));
       if (workspace) return workspace.replace('.xcworkspace', '');
-      const project = entries.find(f => f.endsWith('.xcodeproj'));
+      const project = entries.find((f) => f.endsWith('.xcodeproj'));
       if (project) return project.replace('.xcodeproj', '');
     } catch {
       // project path not accessible

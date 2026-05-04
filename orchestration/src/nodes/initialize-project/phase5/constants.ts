@@ -86,8 +86,8 @@ export const COMMAND_DEFAULTS: Record<string, CommandSet> = {
     build: 'bundle install',
   },
   swift: {
-    lint: "swiftlint lint",
-    format: "swiftformat .",
+    lint: 'swiftlint lint',
+    format: 'swiftformat .',
     typecheck: "xcodebuild build -destination 'platform=iOS Simulator,name=iPhone 16'",
     test: "xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 16'",
     build: "xcodebuild build -destination 'platform=iOS Simulator,name=iPhone 16'",

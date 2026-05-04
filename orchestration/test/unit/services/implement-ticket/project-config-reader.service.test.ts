@@ -472,19 +472,19 @@ describe('ProjectConfigReaderService', () => {
                   language: 'swift',
                   frameworks: {},
                   testing: {},
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
       });
 
       const commands = service.getBuildCommands();
-      expect(commands.build.some(cmd => cmd.includes('xcodebuild build'))).toBe(true);
-      expect(commands.start.some(cmd => cmd.includes('xcodebuild build'))).toBe(true);
+      expect(commands.build.some((cmd) => cmd.includes('xcodebuild build'))).toBe(true);
+      expect(commands.start.some((cmd) => cmd.includes('xcodebuild build'))).toBe(true);
     });
 
     it('should ignore package.json parse errors', () => {
@@ -775,13 +775,13 @@ describe('ProjectConfigReaderService', () => {
                   language: 'swift',
                   frameworks: { testing: 'XCTest' },
                   testing: {
-                    unit: { framework: 'XCTest' }
+                    unit: { framework: 'XCTest' },
                   },
-                  file_count: 100
-                }
+                  file_count: 100,
+                },
               ],
-              is_monorepo: false
-            }
+              is_monorepo: false,
+            },
           });
         }
         return '{}';
@@ -789,7 +789,7 @@ describe('ProjectConfigReaderService', () => {
 
       service = new ProjectConfigReaderService('/test/project');
       const commands = service.getTestCommands();
-      expect(commands.unit.some(cmd => cmd.includes('xcodebuild test'))).toBe(true);
+      expect(commands.unit.some((cmd) => cmd.includes('xcodebuild test'))).toBe(true);
     });
 
     it('should detect cypress e2e commands', () => {

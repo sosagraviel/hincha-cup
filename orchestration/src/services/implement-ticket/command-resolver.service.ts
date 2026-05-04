@@ -200,7 +200,10 @@ export class CommandResolverService {
       commands.push('sbt compile', 'sbt package');
     } else if (primaryLang === 'swift') {
       const destination = `'platform=iOS Simulator,name=iPhone 16'`;
-      commands.push(`xcodebuild build -destination ${destination}`, `xcodebuild build -configuration Release -destination ${destination}`);
+      commands.push(
+        `xcodebuild build -destination ${destination}`,
+        `xcodebuild build -configuration Release -destination ${destination}`,
+      );
     }
 
     return commands.filter(Boolean);
