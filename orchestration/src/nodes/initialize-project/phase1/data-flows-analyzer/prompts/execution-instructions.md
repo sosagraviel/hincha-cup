@@ -121,7 +121,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Output raw JSON only (no markdown, no commentary)
 - Field `findings` can contain any relevant integration/data flow information
 - Schema allows passthrough fields for flexibility
-- Optional field: `needs_verification` array (maximum 5 items)
+- Optional field: `needs_verification` array (maximum 3 items)
 - Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
 
 ## Example Output Structure

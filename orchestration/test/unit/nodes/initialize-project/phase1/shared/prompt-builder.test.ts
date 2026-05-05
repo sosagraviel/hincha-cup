@@ -134,11 +134,13 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
       );
 
       expect(prompt).toContain('=== AUTHORITATIVE SERVICE LIST ===');
-      expect(prompt).toContain('SINGLE SOURCE OF TRUTH for service discovery');
+      // Plan §I.7.c (gira-exhaustive followup, 2026-05-05): the
+      // multi-sentence preamble compacted to a single sentence. The
+      // surviving load-bearing assertions are the table rows and the
+      // headline rule (use ids verbatim, never invent).
+      expect(prompt).toMatch(/use these `id` values verbatim/i);
       expect(prompt).toContain('| api | services/api | backend | typescript |');
       expect(prompt).toContain('| web | apps/web | frontend | javascript |');
-      expect(prompt).toContain('Total: 2 services');
-      expect(prompt).toMatch(/Do NOT emit a top-level `findings\.services\[\]` array/);
     });
 
     it('does NOT render the block when authoritativeServices is omitted (analyzer 01 itself)', () => {
@@ -183,7 +185,9 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
       expect(prompt).toContain('| legacy | src | — | — |');
     });
 
-    it('renders 1-service projects as singular ("Total: 1 service")', () => {
+    it('renders the table for a 1-service project (single row)', () => {
+      // Plan §I.7.c retired the "Total: N services" footer — the table
+      // itself is the load-bearing content; the count is implicit.
       const prompt = buildPhase1AnalyzerPrompt(
         '/test/project',
         frameworkPath,
@@ -192,7 +196,7 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
         { available: true, stats: { files: 50, functions: 200 } },
         [{ id: 'monolith', path: '.', type: 'backend', language: 'php' }],
       );
-      expect(prompt).toContain('Total: 1 service.');
+      expect(prompt).toContain('| monolith | . | backend | php |');
     });
   });
 });

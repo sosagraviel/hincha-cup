@@ -214,7 +214,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Use service IDs as keys in `dependencies.by_service` map (e.g., "backend", "web-frontend")
 - Service IDs must match those from Structure Analyzer (Agent 01)
 - Optional fields: `findings.monorepo` for monorepo-level config
-- Optional field: `needs_verification` array (maximum 5 items)
+- Optional field: `needs_verification` array (maximum 3 items)
 - Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
 
 ## Example Output Shape (language-neutral skeleton)

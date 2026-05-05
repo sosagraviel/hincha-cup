@@ -74,7 +74,7 @@ The schema FORBIDS top-level `findings.services[]` for this analyzer. Any output
 - Raw JSON only
 - First character: `{` Last character: `}`
 - No markdown, no code blocks, no explanations
-- Use needs_verification sparingly (maximum 5 items) for deployment details unknowable from code
+- Use needs_verification sparingly (maximum 3 items) for deployment details unknowable from code
 - The `graph_queries_used` field is **derived from your transcript by the Stop hook** — you do NOT need to populate it. Just call the graph tools when relevant; the framework records what you actually did.
 - Structure: `{"agent_name": "tech-stack-dependencies-analyzer", "timestamp": "...", "findings": {"dependencies": {"by_service": {"<authoritative-service-id>": {"production": [...], "development": [...]}}}, "documented_commands": {"by_task": {}, "source": "documented", "conflicts": []}}, "needs_verification": []}`
 - Note: `findings.services[]` is FORBIDDEN — schema validation will reject it.

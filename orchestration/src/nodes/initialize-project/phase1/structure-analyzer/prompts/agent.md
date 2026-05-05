@@ -66,7 +66,7 @@ For anything else, the graph MUST be your first call. If a graph call returns em
 - Raw JSON only
 - First character: `{` Last character: `}`
 - No markdown, no code blocks, no explanations
-- Use needs_verification sparingly (maximum 5 items) for genuinely unknowable information
+- Use needs_verification sparingly (maximum 3 items) for genuinely unknowable information
 - The `graph_queries_used` field is **derived from your transcript by the Stop hook** — you do NOT need to populate it. Just call the graph tools when relevant; the framework records what you actually did.
 - Structure: `{"agent_name": "structure-architecture-analyzer", "timestamp": "...", "findings": {"services": [...], "automation": {"makefiles": [], "shell_scripts": [], "justfiles": []}}, "needs_verification": []}`
 

@@ -470,7 +470,7 @@ async function main() {
           '  "agent_name": "structure-architecture-analyzer",\n' +
           '  "timestamp": "2026-04-02T10:30:00.000Z",\n' +
           '  "findings": { /* your analysis data */ },\n' +
-          '  "needs_verification": [] // Maximum 5 items\n' +
+          '  "needs_verification": [] // Maximum 3 items\n' +
           '}\n\n' +
           'Please output the corrected JSON now.',
       );
@@ -538,7 +538,7 @@ async function main() {
               // Add specific guidance for common errors
               if (err.code === 'too_big' && pathStr === 'needs_verification') {
                 const actual = (err as any).actual || 'unknown';
-                const max = (err as any).maximum || 5;
+                const max = (err as any).maximum || 3;
                 errorMsg += `\n     → You provided ${actual} items, but the maximum is ${max}`;
                 errorMsg += `\n     → Remove ${actual - max} item(s) from needs_verification array`;
                 errorMsg += `\n     → Keep only the MOST IMPORTANT questions that cannot be determined from code`;
@@ -562,14 +562,14 @@ async function main() {
           '  },\n' +
           '  "needs_verification": [\n' +
           '    { "id": "v1", "question": "Clear question?", "reason": "context" }\n' +
-          '  ] // OPTIONAL, MAXIMUM 5 ITEMS\n' +
+          '  ] // OPTIONAL, MAXIMUM 3 ITEMS\n' +
           '}\n\n' +
           'IMPORTANT:\n' +
           '  - agent_name must exactly match one of the 4 analyzer names above\n' +
           '  - timestamp must be valid ISO 8601 format\n' +
           '  - For analyzer 01 only: findings.services[] is REQUIRED (≥1 service, each with an id).\n' +
           '  - For analyzers 02/03/04: do NOT emit findings.services[] — that key is forbidden.\n' +
-          '  - ⚠️  needs_verification MAXIMUM 5 ITEMS - prioritize the most critical unknowns\n\n' +
+          '  - ⚠️  needs_verification MAXIMUM 3 ITEMS - prioritize the most critical unknowns\n\n' +
           'Please output the corrected JSON with all required fields.',
       );
     }

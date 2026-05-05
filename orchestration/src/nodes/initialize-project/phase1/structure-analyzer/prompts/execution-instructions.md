@@ -242,7 +242,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - First character: `{`, last character: `}`
 - Required field: `findings.services` array with at least 1 service
 - Each service must have `id`, `path`, `type`, `language` fields
-- Optional field: `needs_verification` array (maximum 5 items)
+- Optional field: `needs_verification` array (maximum 3 items)
 - Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
 
 ## Example Output Shape (language-neutral skeleton)
@@ -300,7 +300,7 @@ See shared verification format documentation at: `../../../shared/prompts/verifi
 
 Use `needs_verification` ONLY when information cannot be determined from code, configs, or manifests after exhaustive searching.
 
-Maximum 5 verification items. Prioritize business decisions and deployment architecture questions over technical details discoverable from code.
+Maximum 3 verification items. Prioritize business decisions and deployment architecture questions over technical details discoverable from code.
 
 </verification_guidelines>
 

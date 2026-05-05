@@ -14,7 +14,7 @@ All Phase 1 analyzer agents must output raw JSON matching this structure:
     services: [ /* Array with at least 1 service */ ],
     // Additional fields specific to each analyzer
   },
-  needs_verification: [ // Optional, maximum 5 items
+  needs_verification: [ // Optional, maximum 3 items
     { id: string, question: string, reason: string }
   ]
 }
@@ -28,7 +28,7 @@ All Phase 1 analyzer agents must output raw JSON matching this structure:
 4. No trailing commas in objects or arrays
 5. `agent_name` must exactly match one of the 4 analyzer names
 6. `findings.services` array is REQUIRED with at least 1 service
-7. `needs_verification` is OPTIONAL and limited to maximum 5 items
+7. `needs_verification` is OPTIONAL and limited to maximum 3 items
 
 </output_requirements>
 

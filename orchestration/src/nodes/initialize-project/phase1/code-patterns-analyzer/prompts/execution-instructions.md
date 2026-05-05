@@ -116,7 +116,7 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Required field: `findings.services` array with at least 1 service
 - Each service must match Agent 01's service IDs
 - Optional nested objects: `testing.unit`, `testing.integration`, `testing.e2e`
-- Optional field: `needs_verification` array (maximum 5 items)
+- Optional field: `needs_verification` array (maximum 3 items)
 - Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
 
 ## Example Output Shape (language-neutral skeleton)

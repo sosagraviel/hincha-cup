@@ -206,8 +206,14 @@ export function buildPhase1AnalyzerPrompt(
  * and never to invent new ones.
  */
 function buildAuthoritativeServicesBlock(services: AuthoritativeService[]): string {
+  // Plan §I.7.c (gira-exhaustive followup, 2026-05-05): the
+  // authoritative-services preamble was 3 sentences in 1 paragraph
+  // (~1.5 KB). Compacted to a single sentence — the rule is simple
+  // (use these ids verbatim, never invent new ones), the table itself
+  // is the load-bearing content. Saves ~1.5 KB per cached prefix
+  // across all 4 analyzers.
   const lines: string[] = [
-    'The structure-architecture-analyzer ran first and is the SINGLE SOURCE OF TRUTH for service discovery. The services below are authoritative; you MUST consume their IDs verbatim and MUST NOT introduce new IDs of your own. If a directory looks like it could be a service but its ID is not in the list below, ignore it — that decision was already made.',
+    'Authoritative service list (from structure-architecture-analyzer). Use these `id` values verbatim; never invent or rename. Key per-service findings under these IDs.',
     '',
     '| id | path | type | language |',
     '|---|---|---|---|',
@@ -216,10 +222,6 @@ function buildAuthoritativeServicesBlock(services: AuthoritativeService[]): stri
     const cells = [s.id, s.path || '_(repo root)_', s.type ?? '—', s.language ?? '—'];
     lines.push(`| ${cells.map((c) => c.replace(/\|/g, '\\|')).join(' | ')} |`);
   }
-  lines.push(
-    '',
-    `Total: ${services.length} service${services.length === 1 ? '' : 's'}. Reference each by \`id\` in your output (use the \`by_service\` map keyed by service ID, or otherwise organize per-service findings under these IDs as documented in your output schema). Do NOT emit a top-level \`findings.services[]\` array — that key is forbidden in your schema.`,
-  );
   return lines.join('\n');
 }
 

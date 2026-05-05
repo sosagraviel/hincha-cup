@@ -24,10 +24,12 @@ repo:
 
 ## Maximum Limit
 
-Maximum 5 verification items per agent. Prioritize the most critical
-unknowns — questions whose answers a human reviewer with VS Code
-access could reasonably resolve in a few minutes by reading the
-repo.
+Maximum **3** verification items per agent. Prioritize the most
+critical unknowns — questions whose answers a human reviewer with
+VS Code access could reasonably resolve in a few minutes by reading
+the repo. The framework hard-rejects outputs with more than 3 items;
+this is intentional pressure to drop speculative entries before
+emitting the JSON.
 
 ## Format
 

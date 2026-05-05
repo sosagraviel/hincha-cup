@@ -220,6 +220,7 @@ export const StructureAnalyzerOutputSchema = z
           })
           .passthrough(),
       )
+      .max(3)
       .optional()
       .describe('Items that need clarification or verification'),
   })
@@ -378,6 +379,7 @@ export const TechStackAnalyzerOutputSchema = z
           })
           .passthrough(),
       )
+      .max(3)
       .optional()
       .describe('Items that need clarification or verification'),
   })
@@ -477,6 +479,7 @@ export const CodePatternsAnalyzerOutputSchema = z
           })
           .passthrough(),
       )
+      .max(3)
       .optional()
       .describe('Items that need clarification or verification'),
   })
@@ -569,6 +572,7 @@ export const DataFlowsAnalyzerOutputSchema = z.object({
         reason: z.string(),
       }),
     )
+    .max(3)
     .optional()
     .describe('Items that need clarification or verification'),
 });
