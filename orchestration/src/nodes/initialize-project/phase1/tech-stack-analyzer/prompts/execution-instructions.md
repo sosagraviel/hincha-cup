@@ -403,26 +403,30 @@ Read build configuration files (vite.config.ts/js, webpack.config.js, turbo.json
 
 <monorepo_analysis>
 
-**If monorepo detected (from graph architecture overview or community count > 1), provide detailed workspace configuration:**
+**If monorepo detected (graph community count > 1 or workspace config file present), report three distinct fields.**
 
-Read workspace configuration files:
-
-- **JavaScript/TypeScript:** `pnpm-workspace.yaml`, `package.json` workspaces field, `lerna.json`, `nx.json`
-- **Python:** Multiple `pyproject.toml` files, `poetry` workspaces
-- **Go:** `go.work` file
-- **Rust:** `Cargo.toml` `[workspace]` section
+Workspace config signals (per language family, non-exhaustive): JS/TS — `pnpm-workspace.yaml`, `package.json::workspaces`, `lerna.json`, `nx.json`, `turbo.json`. Python — `[tool.uv.workspace]`, `[tool.poetry]`, `[tool.pdm]`. Java/Kotlin — parent `pom.xml::<modules>`, `settings.gradle{,.kts}::include`. Go — `go.work`. Rust — root `Cargo.toml::[workspace]`. .NET — `*.sln`. Scala — `build.sbt` multi-project. Ruby — Bundler engines. PHP — `composer.json::repositories` (path). Elixir — umbrella `apps/`. Polyglot — Bazel/Pants/Please/Buck.
 
 **Report format:**
 
 ```json
 "monorepo": {
   "enabled": true,
-  "tool": "pnpm workspaces",
-  "workspace_manager": "pnpm",
-  "build_all_command": "pnpm -r build",
-  "test_all_command": "pnpm -r test"
+  "tool": "<canonical workspace tool name>",
+  "package_manager": "<bare manager name, NO version>",
+  "workspace_config": "<path relative to repo root>",
+  "build_all_command": "<language-appropriate>",
+  "test_all_command": "<language-appropriate>"
 }
 ```
+
+**Field semantics — distinct, do NOT collapse:**
+
+- `tool` — canonical workspace-tool identifier. One of: `"pnpm workspaces"` / `"yarn workspaces"` / `"npm workspaces"` / `"bun workspaces"` / `"Nx"` / `"Turborepo"` / `"Lerna"` / `"Maven multi-module"` / `"Gradle composite"` / `"go workspaces"` / `"Cargo workspaces"` / `"dotnet sln"` / `"sbt multi-project"` / `"Poetry monorepo"` / `"uv workspaces"` / `"PDM workspaces"` / `"Bundler engines"` / `"composer path repos"` / `"Elixir umbrella"` / `"Bazel"` / `"Pants"` / `"Please"` / `"Buck"`.
+- `package_manager` — **bare** manager name (`"pnpm"`, `"yarn"`, `"poetry"`, `"uv"`, `"bundler"`, `"composer"`, `"maven"`, `"gradle"`, `"cargo"`, `"go modules"`, `"dotnet"`, `"sbt"`, `"mix"`, etc.). **Never include a version** (`pnpm@10.2.1` is wrong — emit `"pnpm"`).
+- `workspace_config` — path to the workspace config file relative to repo root.
+
+Phase 4 normalises both `tool` and `package_manager` via stack-agnostic helpers, so emitting canonical shapes keeps `framework-config.json::stack_profile` clean.
 
 </monorepo_analysis>
 

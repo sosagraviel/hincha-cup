@@ -21,6 +21,10 @@ import { extractFrameworks } from './helpers/framework-extractor.js';
 import { extractInfrastructure } from './helpers/infrastructure-extractor.js';
 import { extractServicesFromPhase1Analyzers } from './helpers/service-extractor.js';
 import { validateStackProfile } from './helpers/stack-profile-validator.js';
+import {
+  normalisePackageManager,
+  normaliseWorkspaceTool,
+} from './helpers/workspace-tool-normalizer.js';
 import { resolveConfigPath, resolveTempPath } from '../../../utils/provider-paths.js';
 import {
   PortablePathResolver,
@@ -325,10 +329,35 @@ export async function contextGenerationNode(
       // CORE: Service-centric data (source of truth)
       services,
 
-      // METADATA: Repository-level information
+      // METADATA: Repository-level information.
+      //
+      // Plan §C 1.2 (gira-exhaustive followup, 2026-05-05) — normalise
+      // the workspace-tool / package-manager identifiers so the stack
+      // profile carries canonical names (`"pnpm workspaces"`, `"Maven
+      // multi-module"`, `"go workspaces"`, etc.) and the bare manager
+      // name (`"pnpm"`, `"poetry"`, `"maven"`, `"cargo"`, …) regardless
+      // of how the upstream tech-stack analyzer surfaced them. The
+      // 2026-05-04 gira run produced `workspace_tool: "pnpm@10.2.1"`
+      // (a Corepack version pin) and `package_manager: null` because
+      // the analyzer's `monorepo.workspace_manager` was the raw
+      // packageManager field; both helpers now decompose into the
+      // canonical pair.
+      //
+      // Stack-agnostic: the normalisers cover JS/TS, Python, Ruby,
+      // PHP, Java, Kotlin, Go, Rust, .NET, Scala, Elixir, plus
+      // polyglot tools (Bazel, Pants, Please, Buck). When the
+      // analyzer surfaces nothing, both fields are `undefined` —
+      // never carry malformed strings into the schema.
       is_monorepo: workspaceResult?.is_monorepo || false,
-      workspace_tool: techStackFindings?.monorepo?.workspace_manager,
-      package_manager: techStackFindings?.monorepo?.package_manager,
+      workspace_tool:
+        normaliseWorkspaceTool(techStackFindings?.monorepo?.tool) ??
+        normaliseWorkspaceTool(techStackFindings?.monorepo?.workspace_manager),
+      package_manager:
+        normalisePackageManager(techStackFindings?.monorepo?.package_manager) ??
+        // Fallback: when the analyzer only emitted `workspace_manager`
+        // (Corepack version-pin shape), strip the version and use the
+        // bare manager name as a best-effort recovery.
+        normalisePackageManager(techStackFindings?.monorepo?.workspace_manager),
       infrastructure: infrastructureFromPhase1.length > 0 ? infrastructureFromPhase1 : undefined,
       file_counts: fileCountResult
         ? {

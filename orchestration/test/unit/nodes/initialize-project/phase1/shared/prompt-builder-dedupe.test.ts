@@ -78,17 +78,23 @@ describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan
   });
 
   describe('aggregate', () => {
-    it('total Phase 1 execution-instructions size is below the pre-cleanup baseline', () => {
+    it('total Phase 1 execution-instructions size stays within the working budget', () => {
       // Pre-cleanup (2026-05-04 gira run) measurement:
       //   structure: 23249, tech-stack: 20377,
       //   code-patterns: 14525, data-flows: 15787 = 73938 chars total.
-      // After cleanup: target ≤ 73000 chars (modest trim per plan §A.5;
-      // the bigger win comes from the §F+§G prompt-caching commits).
+      // After plan §A.5 cleanup: 73000 budget held briefly. The
+      // gira-exhaustive followup §C 1.2 adds load-bearing content to
+      // the tech-stack analyzer's Step 12 (the canonical name list for
+      // workspace tools and package managers across all 11 supported
+      // language families) — that content is non-negotiable for
+      // stack-agnostic correctness, so the budget loosens to 76000.
+      // The bigger trim (§C 2.3 reduce Glob/Read prescriptions) lands
+      // later and brings total back below 65000.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
-      expect(total).toBeLessThan(73000);
+      expect(total).toBeLessThan(76000);
     });
   });
 });
