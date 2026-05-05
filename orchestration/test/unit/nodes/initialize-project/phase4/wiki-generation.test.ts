@@ -201,8 +201,14 @@ describe('wikiGenerationNode (finalization)', () => {
     expect(body).toContain('<!-- GRAPH_DISCIPLINE_START -->');
     expect(body).toContain('<!-- GRAPH_DISCIPLINE_END -->');
     expect(body).toContain('## Graph navigation discipline');
-    expect(body).toContain('mcp__code_graph__get_minimal_context_tool');
-    expect(body).toContain('mcp__code_graph__get_architecture_overview_tool');
+    // Plan §E.1 (2026-05-05): the body upserted here is a SHORT POINTER
+    // to the wiki router, not the full discipline body. The full body
+    // lives in `docs/llm-wiki/CLAUDE.md`. Anti-regression on size bloat.
+    expect(body).toMatch(/wiki router/i);
+    expect(body).toContain('docs/llm-wiki/CLAUDE.md');
+    // Canonical lean-defaults / forbidden-tool tokens are NOT inlined
+    // here — they live in the wiki router only.
+    expect(body).not.toContain('mcp__code_graph__get_architecture_overview_tool');
     // Both fenced sections coexist — the LLM Wiki section is already there.
     expect(body).toContain('<!-- LLM_WIKI_START -->');
   });

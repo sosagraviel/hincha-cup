@@ -119,6 +119,31 @@ export type ServiceFrameworks = z.infer<typeof ServiceFrameworksSchema>;
 // Complete Service Schema
 // ----------------------------------------------------------------------------
 
+/**
+ * Service-discovery quality floors enforced in Phase 4 context generation.
+ *
+ *   - `MIN_FILES_FOR_FALLBACK_SERVICE` (10): a language must have ≥ this many
+ *     files to earn a fallback (no-manifest) service entry. Below this, we
+ *     assume the language is incidental noise (one-off `*.sh` script,
+ *     vendored snippet) and skip it.
+ *   - `MIN_FILES_FOR_NO_MANIFEST_SERVICE` (5): final filter applied to ALL
+ *     services regardless of how they were discovered. A service is dropped
+ *     when it has no `manifest_file` AND its `file_count` is explicitly set
+ *     to < 5. This catches cases where the structure analyzer surfaces a
+ *     workspace-yaml-derived directory like `seeds/` with `file_count: 2`.
+ *     Manifest-backed services are kept at any size (a freshly scaffolded
+ *     package may legitimately have only one file), and services with
+ *     `file_count: undefined` are kept (no measurement = no evidence to
+ *     drop).
+ *
+ * These constants live here as documentation; the enforcement is in
+ * `phase4/context-generation.node.ts`. Unit tests in
+ * `test/unit/nodes/initialize-project/phase4/service-floor.test.ts` lock
+ * the contract.
+ */
+export const MIN_FILES_FOR_FALLBACK_SERVICE = 10;
+export const MIN_FILES_FOR_NO_MANIFEST_SERVICE = 5;
+
 export const ServiceSchema = z.object({
   // Identity
   id: z.string().min(1).describe('Service identifier (e.g., "backend", "frontend", "auth-lambda")'),

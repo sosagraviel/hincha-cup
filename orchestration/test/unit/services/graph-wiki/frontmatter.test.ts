@@ -222,18 +222,30 @@ describe('buildGraphDisciplineSection', () => {
     expect(section.endsWith(GRAPH_DISCIPLINE_CONTEXT_END)).toBe(true);
   });
 
-  it('renders the discipline heading and the canonical text', () => {
+  it('renders the heading + a short pointer to the wiki router', () => {
+    // Plan §E.1: as of 2026-05-05 this is a pointer, not the full body.
+    // The full discipline lives in the wiki router; bringing it into
+    // CLAUDE.md too duplicated content and bloated the schema doc past
+    // the soft 150-line cap.
     expect(section).toContain('## Graph navigation discipline');
-    expect(section).toContain('mcp__code_graph__get_minimal_context_tool');
-    expect(section).toContain('DO NOT CALL');
-    expect(section).toContain('mcp__code_graph__get_architecture_overview_tool');
+    expect(section).toMatch(/wiki router/i);
+    expect(section).toContain('docs/llm-wiki/CLAUDE.md');
   });
 
-  it('includes the lean-defaults table and the spill-protocol sentinel', () => {
-    expect(section).toContain('detail_level: "minimal"');
-    expect(section).toContain('include_members: false');
-    expect(section).toContain('limit: 20');
-    expect(section).toContain('exceeds maximum allowed tokens');
+  it('is short — 12 lines or fewer (anti-regression on size bloat)', () => {
+    // The prior behaviour shipped a ~44-line body. The trimmed pointer
+    // should be ≤ 12 lines. A future edit that drops back to the full
+    // body fails this test; the body belongs in the wiki router only.
+    const lineCount = section.split('\n').length;
+    expect(lineCount).toBeLessThanOrEqual(12);
+  });
+
+  it('does NOT inline the lean-defaults table here (lives in the wiki router)', () => {
+    // Anti-regression: these tokens are CANONICAL content in the router
+    // and the analyzer prompts. Inlining them here would re-duplicate.
+    expect(section).not.toContain('detail_level: "minimal"');
+    expect(section).not.toContain('include_members: false');
+    expect(section).not.toContain('exceeds maximum allowed tokens');
   });
 });
 

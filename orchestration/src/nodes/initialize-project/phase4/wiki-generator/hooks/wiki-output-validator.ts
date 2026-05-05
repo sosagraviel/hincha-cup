@@ -22,6 +22,14 @@
  *      leaking into user-facing prose. Wiki readers are developers
  *      consulting the wiki months later — they don't know what an
  *      "automated run" is.
+ *   4. No trailing meta-sections like `## Verification`, `## Caveats`,
+ *      `## Assumptions`, `## Limitations`, `## Known Issues`, `## Notes`.
+ *      The wiki is ground truth — verification status / unverified
+ *      claims belong in the per-page `.state.json` audit log, not in
+ *      the user-facing prose. Per-claim gaps must be inlined as
+ *      `(not determined by analysis)` at the point of the claim. Added
+ *      2026-05-05 after the gira run shipped a 10-line `## Verification
+ *      Notes` trailing section in ARCHITECTURE.md (plan §E.2).
  *
  * Stack-agnostic: every check operates on the agent's text output only;
  * no language, framework, or repo-shape assumptions.
@@ -30,6 +38,26 @@
  * (the hook entry-point) decides what to do — typically: print to stderr
  * and exit 2 to block the agent's Stop.
  */
+
+/**
+ * Trailing meta-section heading tokens that the wiki must NOT carry.
+ * Match is on level-2 headings only (`## <Token>`); a body sentence that
+ * contains the word "verification" is fine. The match is case-insensitive
+ * and allows trailing punctuation / decorations like
+ * `## Verification Notes` or `## Caveats / Open Questions`.
+ *
+ * Stack-agnostic — pure heading detection, no project-specific phrasing.
+ */
+const FORBIDDEN_TRAILING_META_HEADINGS: Array<{ token: string; pattern: RegExp }> = [
+  { token: 'Verification', pattern: /^##\s+verification\b/i },
+  { token: 'Caveats', pattern: /^##\s+caveats\b/i },
+  { token: 'Assumptions', pattern: /^##\s+assumptions\b/i },
+  { token: 'Limitations', pattern: /^##\s+limitations\b/i },
+  { token: 'Known Issues', pattern: /^##\s+known issues\b/i },
+  { token: 'Notes', pattern: /^##\s+notes\b/i },
+  { token: 'Disclaimer', pattern: /^##\s+disclaimer\b/i },
+  { token: 'TODO', pattern: /^##\s+todo\b/i },
+];
 
 const FRAMEWORK_JARGON_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bautomated run\b/i, label: '"automated run"' },
@@ -114,6 +142,38 @@ export function validateWikiOutput(text: string): string[] {
         (tags.length > 8 ? `\n      … and ${tags.length - 8} more` : '') +
         '\n    Inline citations are FORBIDDEN. Provenance lives in YAML frontmatter (sources: and confidence:), auto-injected by the framework — you do NOT need to mark sources per claim. ' +
         '\n    Replacements: for in-wiki cross-references use `[[wikilinks]]` (e.g. `[[ARCHITECTURE]]`); for gaps write `(not determined by analysis)`; otherwise drop the marker and keep the prose plain.',
+    );
+  }
+
+  // Rule 4: no forbidden trailing meta-sections (Verification, Caveats,
+  // Assumptions, Limitations, Known Issues, Notes, Disclaimer, TODO).
+  // The wiki is ground truth — verification status lives in `.state.json`
+  // per-claim gaps go inline as `(not determined by analysis)`.
+  const metaHits: Array<{ token: string; line: number; snippet: string }> = [];
+  const linesForMeta = text.split('\n');
+  for (let i = 0; i < linesForMeta.length; i += 1) {
+    for (const { token, pattern } of FORBIDDEN_TRAILING_META_HEADINGS) {
+      if (pattern.test(linesForMeta[i].trim())) {
+        metaHits.push({
+          token,
+          line: i + 1,
+          snippet: linesForMeta[i].trim().slice(0, 120),
+        });
+      }
+    }
+  }
+  if (metaHits.length > 0) {
+    const examples = metaHits
+      .slice(0, 6)
+      .map(({ token, line, snippet }) => `      line ${line} (${token}): ${snippet}`)
+      .join('\n');
+    violations.push(
+      '  • Found forbidden trailing meta-section heading(s):\n' +
+        examples +
+        (metaHits.length > 6 ? `\n      … and ${metaHits.length - 6} more` : '') +
+        '\n    The wiki is GROUND TRUTH. Verification status / unverified claims belong in `.state.json` (the per-run audit log), not in user-facing prose. ' +
+        '\n    For per-claim gaps inline `(not determined by analysis)` at the point of the claim. ' +
+        'For "this fact came from analyzer X" notes, leave them out — provenance lives in YAML `sources:` frontmatter.',
     );
   }
 

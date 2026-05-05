@@ -54,6 +54,7 @@ If a paragraph would have nothing more than a citation tag attached to a fact yo
 - Do not wrap the response in code fences.
 - Do not emit inline `^[...]` citation markers (see above).
 - Do not invent ADRs, decisions, services, frameworks, or any content not directly supported by the digested upstream.
+- **Do not emit trailing meta-sections.** Forbidden level-2 headings: `## Verification`, `## Verification Notes`, `## Caveats`, `## Assumptions`, `## Limitations`, `## Known Issues`, `## Notes`, `## Disclaimer`, `## TODO`. The wiki is GROUND TRUTH. For per-claim gaps inline `(not determined by analysis)` at the point of the claim. For "this fact came from analyzer X" provenance, leave it out — provenance lives in YAML `sources:` frontmatter (auto-injected by the framework).
 - If you reference a graph tool name in the page body, use canonical names from the catalog (e.g. `mcp__code_graph__list_communities_tool`). Never reference `mcp__code_graph__get_architecture_overview_tool` — it is forbidden by the project's graph-navigation discipline because its response cannot be bounded.
 
 ## Output Style

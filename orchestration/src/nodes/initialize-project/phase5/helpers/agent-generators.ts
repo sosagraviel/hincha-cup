@@ -66,12 +66,34 @@ export function generateImplementerAgent(
 
   const packageCommands = extractPackageCommands(projectPath);
   const defaultCommands = getDefaultCommands(language);
+
+  // Resolve every command cell with a strict `package.json → language
+  // default` fallback chain. The variable names here MUST match the
+  // template's Handlebars placeholders (see
+  // `agents/templates/implementer.template.md` — `{{lint_command}}`,
+  // `{{type_check_command}}`, `{{unit_test_command}}`, `{{build_command}}`,
+  // `{{format_command}}`). Mismatched names render as empty cells; the
+  // 2026-05-04 gira run lost typecheck + test + build because of one
+  // such mismatch (plan §E.3). The validation guard in writeAgents
+  // catches any future drift.
+  const lintCommand = packageCommands.lint || defaultCommands.lint || '';
+  const formatCommand = packageCommands.format || defaultCommands.format || '';
+  const typecheckCommand = packageCommands.typecheck || defaultCommands.typecheck || '';
+  const testCommand = packageCommands.test || defaultCommands.test || '';
+  const buildCommand = packageCommands.build || defaultCommands.build || '';
+
   const commands = {
-    lint_command: packageCommands.lint || defaultCommands.lint || '',
-    format_command: packageCommands.format || defaultCommands.format || '',
-    typecheck_command: packageCommands.typecheck || defaultCommands.typecheck || '',
-    test_command: packageCommands.test || defaultCommands.test || '',
-    build_command: packageCommands.build || defaultCommands.build || '',
+    // Names must match the Handlebars placeholders in the template.
+    lint_command: lintCommand,
+    format_command: formatCommand,
+    type_check_command: typecheckCommand,
+    unit_test_command: testCommand,
+    build_command: buildCommand,
+    // Legacy aliases — keep the old names available so any consumer
+    // still using them (e.g. an out-of-tree fork of the template) still
+    // renders. Same value, two keys.
+    typecheck_command: typecheckCommand,
+    test_command: testCommand,
   };
 
   const content = renderTemplate(template, {

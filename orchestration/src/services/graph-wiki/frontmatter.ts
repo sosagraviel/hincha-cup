@@ -58,20 +58,31 @@ export function buildContextSection(graph: WikiGraphState, schemaFilename: Schem
 
 /**
  * Build the fenced "Graph navigation discipline" section appended to
- * `<project>/.claude/CLAUDE.md` (or `.codex/AGENTS.md`) and to the project-
- * context skill body. Same idempotent upsert pattern as the LLM Wiki section,
- * different sentinels.
+ * `<project>/.claude/CLAUDE.md` (or `.codex/AGENTS.md`).
  *
- * The body is the canonical text from `graph-navigation-discipline.ts` —
- * single source of truth across the Phase 1 prompt-builder, the wiki router
- * doc, this fenced section, and the ticket-skill cross-references.
+ * As of 2026-05-05 (plan §E.1) this emits a 4-line POINTER, not the full
+ * discipline body. The full body lives in:
+ *   1. `graph-navigation-discipline.ts` (single source of truth at code level)
+ *   2. The wiki router (`docs/llm-wiki/CLAUDE.md` / `AGENTS.md`) — embedded
+ *      verbatim by `wiki-generator.service.ts::buildSchemaDocBody`.
+ *   3. Phase 1 analyzer prompts — embedded verbatim by
+ *      `prompt-builder.ts::buildGraphContext`.
+ *
+ * The previous behaviour embedded the full body (~44 lines) here too,
+ * duplicating the wiki router and bloating CLAUDE.md. The pointer keeps
+ * CLAUDE.md ≤ 150 lines and avoids drift between the schema doc and the
+ * wiki router.
+ *
+ * Both fenced sentinels (`<!-- GRAPH_DISCIPLINE_START -->` ...
+ * `<!-- GRAPH_DISCIPLINE_END -->`) are preserved so existing upsert
+ * regexes still target the right block on regeneration.
  */
 export function buildGraphDisciplineSection(): string {
   return [
     GRAPH_DISCIPLINE_CONTEXT_START,
     GRAPH_NAVIGATION_DISCIPLINE_HEADING,
     '',
-    GRAPH_NAVIGATION_DISCIPLINE_TEXT,
+    'Top-down, never breadth-first. Graph MCP tools have strict per-result token caps; unbounded calls overflow silently. The full discipline (lean defaults, drill-in budgets, forbidden tools, spill-protocol HARD-FAILURE semantics) lives in the wiki router at `docs/llm-wiki/CLAUDE.md` (or `AGENTS.md` on Codex). Read it before issuing graph queries; do NOT improvise tool parameters from prior knowledge.',
     GRAPH_DISCIPLINE_CONTEXT_END,
   ].join('\n');
 }

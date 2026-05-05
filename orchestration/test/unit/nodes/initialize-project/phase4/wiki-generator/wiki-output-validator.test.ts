@@ -126,6 +126,83 @@ describe('validateWikiOutput — Rule 3: framework jargon (preserved from earlie
   });
 });
 
+describe('validateWikiOutput — Rule 4: no trailing meta-sections', () => {
+  // Plan §E.2 (2026-05-05): the gira run shipped a `## Verification Notes`
+  // trailing section in ARCHITECTURE.md. The wiki is GROUND TRUTH; meta
+  // sections that describe the wiki's own confidence belong in
+  // `.state.json`, not in user-facing prose. This rule blocks all known
+  // shapes of the leak.
+  const FORBIDDEN_HEADINGS = [
+    '## Verification',
+    '## Verification Notes',
+    '## Caveats',
+    '## Assumptions',
+    '## Limitations',
+    '## Known Issues',
+    '## Notes',
+    '## Disclaimer',
+    '## TODO',
+  ] as const;
+
+  for (const heading of FORBIDDEN_HEADINGS) {
+    it(`rejects a trailing \`${heading}\` heading`, () => {
+      const text = [
+        '# Service: api',
+        '',
+        'Body content.',
+        '',
+        heading,
+        '',
+        '- The backend file count is unverified.',
+      ].join('\n');
+      const violations = validateWikiOutput(text);
+      expect(violations.length).toBeGreaterThan(0);
+      expect(violations.some((v) => /forbidden trailing meta-section/i.test(v))).toBe(true);
+    });
+  }
+
+  it('match is case-insensitive (catches `## verification` as well)', () => {
+    const text = ['# H', '', 'body', '', '## verification', '- unverified fact'].join('\n');
+    expect(validateWikiOutput(text).length).toBeGreaterThan(0);
+  });
+
+  it('allows the body of a section to mention the word "verification" (only the heading is forbidden)', () => {
+    const text = [
+      '# Service: api',
+      '',
+      'The service uses JWT verification at the gateway. (See [[auth]].)',
+    ].join('\n');
+    expect(validateWikiOutput(text)).toEqual([]);
+  });
+
+  it('points the agent at .state.json + (not determined by analysis) replacement', () => {
+    const text = ['# H', '', 'body', '', '## Verification Notes', '', '- Unverified.'].join('\n');
+    const violations = validateWikiOutput(text);
+    const meta = violations.find((v) => /forbidden trailing meta-section/i.test(v));
+    expect(meta).toBeDefined();
+    expect(meta).toContain('.state.json');
+    expect(meta).toContain('(not determined by analysis)');
+  });
+
+  it('reports up to 6 example headings in the violation message', () => {
+    const lines = ['# H', ''];
+    for (const heading of [
+      '## Verification',
+      '## Caveats',
+      '## Assumptions',
+      '## Limitations',
+      '## Known Issues',
+      '## Notes',
+      '## Disclaimer',
+    ]) {
+      lines.push(heading, 'body', '');
+    }
+    const violations = validateWikiOutput(lines.join('\n'));
+    const meta = violations.find((v) => /forbidden trailing meta-section/i.test(v));
+    expect(meta).toMatch(/and \d+ more/);
+  });
+});
+
 describe('validateWikiOutput — combinations', () => {
   it('reports all rule violations simultaneously', () => {
     const text = '---\nbad: frontmatter\n---\n\nExceeded token limit ^[analyzer:foo].';

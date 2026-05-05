@@ -271,6 +271,49 @@ export async function contextGenerationNode(
           );
         }
       }
+
+      // ========================================================================
+      // FINAL FILTER: drop low-signal services regardless of how they were
+      // discovered. The fallback path above already enforces a 10-file
+      // floor, but the structure-architecture analyzer can surface
+      // workspace-yaml-derived services like `seeds/` (gira run, 2026-05-04)
+      // with `file_count: 2` and no `manifest_file`. Those entries cause
+      // downstream noise: every Phase 5 implementer gets a placeholder
+      // service it can't actually build for.
+      //
+      // Filter rule: drop a service when ALL of the following are true:
+      //   1. It has no `manifest_file` (nothing tells us this is a real
+      //      package/workspace).
+      //   2. Its `file_count` is explicitly set AND below 5.
+      //
+      // Services with `file_count: undefined` are kept — that means the
+      // analyzer didn't measure (e.g. older fixtures, partial output) and
+      // we don't have evidence to drop. Manifest-backed services are kept
+      // at any size — a freshly scaffolded package may legitimately have
+      // only one file. Threshold is documented at `Service` in
+      // `stack-profile.schema.ts`.
+      const MIN_FILES_NO_MANIFEST = 5;
+      const beforeFilter = services.length;
+      services = services.filter((service) => {
+        if (service.manifest_file) return true;
+        if (service.file_count === undefined) return true;
+        if (service.file_count >= MIN_FILES_NO_MANIFEST) return true;
+        phaseLogger.info(
+          `   ⏭  Dropping low-signal service "${service.id}" (no manifest, file_count=${service.file_count} < ${MIN_FILES_NO_MANIFEST})`,
+        );
+        return false;
+      });
+      if (services.length !== beforeFilter) {
+        phaseLogger.info(
+          `   Filtered ${beforeFilter - services.length} low-signal service(s); ${services.length} remaining`,
+        );
+      }
+      if (services.length === 0) {
+        throw new Error(
+          'No services remain after filtering. Either manifest discovery failed or every ' +
+            'discovered service has < 5 files and no manifest. Check Phase 1 structure analyzer output.',
+        );
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       phaseLogger.error(` Failed to extract services: ${errorMsg}`);

@@ -104,6 +104,69 @@ export function generateAgents(
 }
 
 /**
+ * Pre-flight validation that each rendered agent body is shippable.
+ *
+ * Two checks:
+ *
+ *   1. **Unrendered Handlebars placeholders.** Any `{{name}}` or `{{{name}}}`
+ *      that survives `renderTemplate` means the renderer was passed the
+ *      wrong variable name. The 2026-05-04 gira run lost typecheck + test +
+ *      build because `agent-generators.ts` was passing `typecheck_command`
+ *      while the template asked for `{{type_check_command}}` — Handlebars
+ *      silently rendered empty strings into the visible commands table and
+ *      shipped the broken agent to disk. We now FAIL the generation
+ *      instead, with the leftover placeholder names in the error so the
+ *      drift is obvious.
+ *
+ *      The check tolerates standalone `{{` or `}}` (e.g. raw braces in
+ *      example code) and only fires on a balanced `{{...}}` pair.
+ *
+ *   2. **Empty cells in the implementer commands table.** Even when every
+ *      placeholder resolves, an upstream extractor can hand us the empty
+ *      string for one of the cells. The implementer template renders a
+ *      4-row markdown table `| Lint | <cmd> |` etc. — any row with an
+ *      empty value is functionally broken (the agent has no command to
+ *      run). We refuse to write an implementer agent in that state.
+ *
+ * Both checks are intentionally write-time (not just render-time) so that
+ * any future code path that produces agent bodies — not only the current
+ * `generateAgents` flow — gets caught by the same chokepoint. The plan
+ * (§E.3, 2026-05-05) calls this guard out as the production-readiness
+ * acceptance criterion for Commit 5.
+ */
+function assertAgentRenderedShippable(agent: GeneratedAgent): void {
+  const placeholderPattern = /\{\{\{?\s*([a-zA-Z0-9_.-]+)[^{}]*\}?\}\}/g;
+  const placeholders = new Set<string>();
+  let match: RegExpExecArray | null;
+  while ((match = placeholderPattern.exec(agent.content)) !== null) {
+    placeholders.add(match[1]);
+  }
+  if (placeholders.size > 0) {
+    throw new Error(
+      `Agent ${agent.filename} has unrendered Handlebars placeholders: ${[...placeholders]
+        .map((p) => `{{${p}}}`)
+        .join(', ')}. ` +
+        `This means the template was passed the wrong variable name(s) — fix the renderer call in ` +
+        `phase5/helpers/agent-generators.ts so every {{placeholder}} in the template has a ` +
+        `matching key in the rendered context.`,
+    );
+  }
+
+  if (agent.name.startsWith('implementer-') && agent.name !== 'implementer-generic') {
+    const emptyCellPattern = /^\|\s*(Lint|Format|Typecheck|Test|Build)\s*\|\s*`?\s*`?\s*\|\s*$/im;
+    const emptyMatch = emptyCellPattern.exec(agent.content);
+    if (emptyMatch) {
+      throw new Error(
+        `Agent ${agent.filename} has an empty cell in the commands table for "${emptyMatch[1]}". ` +
+          `The package-commands extractor returned empty AND the language defaults in ` +
+          `phase5/constants.ts::COMMAND_DEFAULTS are empty for this language. Add a default ` +
+          `for the language or fix the extractor — never ship an implementer with no command.`,
+      );
+    }
+  }
+}
+
+/**
  * Write agents to project.
  *
  * Per-provider transforms applied to the rendered template before flushing:
@@ -125,6 +188,10 @@ export function generateAgents(
  *     This is invariant-preserving on the Claude side: Claude passes
  *     through `rewriteAgentFrontmatter` unchanged AND skips the inliner,
  *     so its agents continue to rely on the native skill-preload mechanic.
+ *
+ *   - Pre-flight render validation (always, see `assertAgentRenderedShippable`):
+ *     refuses to write any agent whose body still carries Handlebars
+ *     placeholders or has empty cells in the commands table.
  */
 export function writeAgents(agents: GeneratedAgent[], projectPath: string): void {
   const agentsDir = resolveConfigPath(projectPath, 'agents');
@@ -153,6 +220,10 @@ export function writeAgents(agents: GeneratedAgent[], projectPath: string): void
         resolveSkillPath: resolveCodexSkillPath,
       });
     }
+
+    // Validate after all per-provider transforms so the check sees the
+    // exact bytes about to land on disk.
+    assertAgentRenderedShippable({ ...agent, content });
 
     portableWriter.writeMarkdown(asAbsolutePath(agentPath), content);
     agent.path = agentPath;
