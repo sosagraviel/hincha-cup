@@ -329,9 +329,47 @@ describe('wiki-generator.service', () => {
     expect(invocations).not.toContain('SERVICES.md');
   });
 
-  it('SERVICES.md falls back to per-service doc first paragraph when stackProfile lacks description', async () => {
+  it('SERVICES.md uses the stack-agnostic role one-liner derived from type + framework (Wave 2 Fix 3.4)', async () => {
+    // Pre-Wave 2 Fix 3.4 the catalog inlined the per-service doc's
+    // first paragraph (often 30+ lines for 5 services). The new
+    // contract: derive `<role>` from `service.type` +
+    // `service.frameworks.main` so the catalog stays a thin pointer
+    // index. The fixture's api service has type=backend +
+    // frameworks.main='Express', so the role is "Express HTTP service".
     const service = new WikiGeneratorService({
       ...buildInput(),
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => {
+        if (filename === 'services/api.md') {
+          return '# Api\n\nHandles user CRUD traffic for the platform.';
+        }
+        return `# ${filename}\n\nBody.`;
+      },
+    });
+
+    const result = await service.generateAll();
+    const servicesDoc = result.files.find((file) => file.filename === 'wiki/SERVICES.md')!;
+    expect(servicesDoc.content).toContain('Express HTTP service');
+    // The first paragraph of the service doc must NOT be inlined now.
+    expect(servicesDoc.content).not.toContain('Handles user CRUD traffic for the platform.');
+  });
+
+  it('SERVICES.md falls back to per-service doc first paragraph when type+framework cannot derive a role', async () => {
+    // The fallback path still exists for unusual services where the
+    // type is missing/unknown and there is no framework match. Build
+    // a fixture with no recognizable type or framework, then assert
+    // the first-paragraph fallback fires.
+    const input = buildInput();
+    // No type, no recognizable framework — both deriveStackAgnosticRole
+    // branches return undefined, so the per-service doc's first
+    // paragraph is the next fallback. Cast to never to bypass the
+    // narrow buildInput shape since this fixture deliberately omits
+    // the canonical fields.
+    (input as { stackProfile: unknown }).stackProfile = {
+      ...input.stackProfile,
+      services: [{ id: 'api', path: 'src' }],
+    };
+    const service = new WikiGeneratorService({
+      ...input,
       agentInvoker: async ({ filename }: WikiAgentInvocation) => {
         if (filename === 'services/api.md') {
           return '# Api\n\nHandles user CRUD traffic for the platform.';

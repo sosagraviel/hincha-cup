@@ -867,6 +867,15 @@ function extractServiceDescription(
   serviceId: string,
   serviceDocs: GeneratedWikiFile[],
 ): string {
+  // Plan §C 3.4 (gira-exhaustive followup, 2026-05-05): the catalog
+  // is a pointer index, not a long-form summary. Prefer a stack-agnostic
+  // role one-liner derived from `service.type` + `service.frameworks.main`
+  // before falling back to free-form description fields. Pre-fix the
+  // catalog inlined the whole first-paragraph of each service doc,
+  // bloating the catalog to 30+ lines for 5 services on the gira run.
+  const role = deriveStackAgnosticRole(service);
+  if (role) return role;
+
   const explicit = firstNonEmptyString([
     service.description,
     service.purpose,
@@ -888,16 +897,139 @@ function extractServiceDescription(
     }
   }
 
-  const framework = firstNonEmptyString([
-    isRecord(service.frameworks) ? service.frameworks.main : undefined,
-    service.language,
-    service.type,
-  ]);
-  if (framework) {
-    return `${framework} service.`;
+  return 'No description available.';
+}
+
+/**
+ * Stack-agnostic role one-liner. Plan §B.21 (gira-exhaustive followup):
+ * `<role>` is a noun phrase derived from `service.type` and the main
+ * framework name. The mapping covers every language family the
+ * framework targets — JS/TS, Python, Java, Kotlin, Ruby, PHP, Go,
+ * Rust, .NET, Scala, Elixir.
+ *
+ * Returns undefined when there is not enough signal to derive a
+ * canonical phrase (e.g. an `infrastructure` type with no framework);
+ * caller falls back to the next layer.
+ */
+export function deriveStackAgnosticRole(service: Record<string, unknown>): string | undefined {
+  const type =
+    typeof service.type === 'string' && service.type.trim().length > 0
+      ? service.type.trim().toLowerCase()
+      : undefined;
+  const mainFrameworkRaw = isRecord(service.frameworks)
+    ? typeof service.frameworks.main === 'string'
+      ? service.frameworks.main.trim()
+      : undefined
+    : undefined;
+  const mainFrameworkClean = mainFrameworkRaw
+    ? mainFrameworkRaw.replace(/\s+[\^~>=<]?[\d][\w.\-*]*\s*$/, '').trim()
+    : undefined;
+  const mainFrameworkLower = mainFrameworkClean?.toLowerCase();
+
+  // Type + framework family lookup. Each key matches a substring of the
+  // lowercased framework name; first match wins. Stack-agnostic — the
+  // tokens are framework family names, not language-specific identifiers.
+  const FRAMEWORK_BY_TYPE: Record<string, Array<{ pattern: RegExp; phrase: string }>> = {
+    backend: [
+      { pattern: /\bnest(?:js)?\b/, phrase: 'NestJS REST/WebSocket API' },
+      { pattern: /\bexpress(?:js)?\b/, phrase: 'Express HTTP service' },
+      { pattern: /\bfastify\b/, phrase: 'Fastify HTTP service' },
+      { pattern: /\bkoa\b/, phrase: 'Koa HTTP service' },
+      { pattern: /\bhapi\b/, phrase: 'Hapi HTTP service' },
+      { pattern: /\bdjango\b/, phrase: 'Django REST API' },
+      { pattern: /\bflask\b/, phrase: 'Flask HTTP service' },
+      { pattern: /\bfastapi\b/, phrase: 'FastAPI HTTP service' },
+      { pattern: /\bquart\b/, phrase: 'Quart HTTP service' },
+      { pattern: /\baiohttp\b/, phrase: 'aiohttp HTTP service' },
+      { pattern: /\btornado\b/, phrase: 'Tornado HTTP service' },
+      { pattern: /\bspring(?:[\s-]boot)?\b/, phrase: 'Spring Boot service' },
+      { pattern: /\bquarkus\b/, phrase: 'Quarkus service' },
+      { pattern: /\bmicronaut\b/, phrase: 'Micronaut service' },
+      { pattern: /\bktor\b/, phrase: 'Ktor service' },
+      { pattern: /\brails\b/, phrase: 'Rails API' },
+      { pattern: /\bsinatra\b/, phrase: 'Sinatra HTTP service' },
+      { pattern: /\bhanami\b/, phrase: 'Hanami service' },
+      { pattern: /\blaravel\b/, phrase: 'Laravel HTTP service' },
+      { pattern: /\bsymfony\b/, phrase: 'Symfony HTTP service' },
+      { pattern: /\bslim\b/, phrase: 'Slim HTTP service' },
+      { pattern: /\bgin\b/, phrase: 'Go HTTP service' },
+      { pattern: /\becho\b/, phrase: 'Go HTTP service' },
+      { pattern: /\bchi\b/, phrase: 'Go HTTP service' },
+      { pattern: /\bfiber\b/, phrase: 'Go HTTP service' },
+      { pattern: /\baxum\b/, phrase: 'Axum HTTP service' },
+      { pattern: /\brocket\b/, phrase: 'Rocket HTTP service' },
+      { pattern: /\bactix(?:[\s-]web)?\b/, phrase: 'Actix HTTP service' },
+      { pattern: /\basp\.net\b|\baspnetcore\b|\baspnet\b/, phrase: 'ASP.NET service' },
+      { pattern: /\bplay(?:framework)?\b/, phrase: 'Play HTTP service' },
+      { pattern: /\bakka(?:[\s-]http)?\b/, phrase: 'Akka HTTP service' },
+      { pattern: /\bphoenix\b/, phrase: 'Phoenix HTTP service' },
+    ],
+    frontend: [
+      { pattern: /\breact\b/, phrase: 'React SPA' },
+      { pattern: /\bvue\b/, phrase: 'Vue SPA' },
+      { pattern: /\bangular\b/, phrase: 'Angular SPA' },
+      { pattern: /\bsvelte(?:kit)?\b/, phrase: 'Svelte SPA' },
+      { pattern: /\bsolid(?:js)?\b/, phrase: 'SolidJS SPA' },
+      { pattern: /\bnext(?:\.?js)?\b/, phrase: 'Next.js app' },
+      { pattern: /\bnuxt\b/, phrase: 'Nuxt app' },
+      { pattern: /\bremix\b/, phrase: 'Remix app' },
+      { pattern: /\bastro\b/, phrase: 'Astro site' },
+      { pattern: /\bgatsby\b/, phrase: 'Gatsby static site' },
+    ],
+    worker: [
+      { pattern: /\bbull(?:mq)?\b/, phrase: 'Background worker' },
+      { pattern: /\bsidekiq\b/, phrase: 'Sidekiq worker' },
+      { pattern: /\bcelery\b/, phrase: 'Celery worker' },
+      { pattern: /\b(?:rq|huey|dramatiq)\b/, phrase: 'Background worker' },
+      { pattern: /\basynq\b/, phrase: 'Asynq worker' },
+      { pattern: /\bquartz\b/, phrase: 'Quartz scheduled worker' },
+      { pattern: /\bhangfire\b/, phrase: 'Hangfire worker' },
+    ],
+    mobile: [
+      { pattern: /\breact[\s-]native\b/, phrase: 'React Native app' },
+      { pattern: /\bflutter\b/, phrase: 'Flutter app' },
+      { pattern: /\bionic\b/, phrase: 'Ionic app' },
+      { pattern: /\bxamarin\b/, phrase: 'Xamarin app' },
+      { pattern: /\bswift(?:ui)?\b/, phrase: 'iOS app' },
+      { pattern: /\bandroid\b/, phrase: 'Android app' },
+    ],
+    desktop: [
+      { pattern: /\belectron\b/, phrase: 'Electron app' },
+      { pattern: /\btauri\b/, phrase: 'Tauri app' },
+    ],
+  };
+
+  if (type && mainFrameworkLower) {
+    const candidates = FRAMEWORK_BY_TYPE[type] ?? [];
+    for (const { pattern, phrase } of candidates) {
+      if (pattern.test(mainFrameworkLower)) return phrase;
+    }
   }
 
-  return 'No description available.';
+  // Fallback by service type alone (no framework match). Mirrors the
+  // examples in plan §B.21 — library / cli / serverless / etc. are
+  // self-describing.
+  const TYPE_FALLBACK: Record<string, string> = {
+    library: 'Internal library',
+    cli: 'CLI tool',
+    serverless: 'Serverless function bundle',
+    worker: 'Background worker',
+    frontend: 'Frontend app',
+    backend: 'Backend service',
+    mobile: 'Mobile app',
+    desktop: 'Desktop app',
+    infrastructure: 'Infrastructure component',
+  };
+  if (type && TYPE_FALLBACK[type]) {
+    // Even on fallback, prefix with the framework name when one is
+    // present so the role still carries stack signal.
+    if (mainFrameworkClean && mainFrameworkClean.length <= 40) {
+      return `${mainFrameworkClean} ${TYPE_FALLBACK[type].toLowerCase()}`;
+    }
+    return TYPE_FALLBACK[type];
+  }
+
+  return undefined;
 }
 
 function firstNonEmptyString(candidates: unknown[]): string | undefined {
