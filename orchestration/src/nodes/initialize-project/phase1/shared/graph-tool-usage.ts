@@ -4,6 +4,7 @@ import path from 'path';
 
 import { logger } from '../../../../utils/logger.js';
 import { claudeProjectSlug } from '../../../../services/framework/transcripts/capture.js';
+import { hasSpeculativeNeedsVerification } from './needs-verification-quality.js';
 
 /**
  * Sidecar contract written by `validate-analyzer-json.hook.ts` next to the
@@ -452,11 +453,21 @@ export function applyGraphToolUsageFromSidecar(
       ? computeSoftWarnings(agentName, parsed.count ?? 0, nonGraphCount, nameCounts, overflows)
       : [];
 
+  // Plan §C 4.3 (gira-exhaustive followup, 2026-05-05): scan the
+  // analyzer's needs_verification array for speculative items the
+  // verification-format guidelines explicitly exclude (credentials,
+  // outside-the-repo concerns, manifest-derivable questions). Surface
+  // a `speculative_needs_verification` warning so trends are visible
+  // in the run report — non-blocking by design.
+  if (hasSpeculativeNeedsVerification((base as Record<string, unknown>).needs_verification)) {
+    softWarnings.push('speculative_needs_verification');
+  }
+
   return {
     ...base,
     graph_queries_used: [...names].sort(),
     graph_overflow_count: overflows.length,
     graph_overflow_tools: overflowTools,
-    soft_warning: softWarnings,
+    soft_warning: [...new Set(softWarnings)].sort(),
   };
 }

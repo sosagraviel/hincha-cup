@@ -4,24 +4,30 @@
 
 ## When to Use needs_verification
 
-Use `needs_verification` ONLY for information that:
+Each `needs_verification` item MUST be:
 
-1. Cannot be determined from code, configs, or manifests
-2. Requires human knowledge or business context
-3. Is genuinely ambiguous from technical analysis alone
+1. **Answerable** from this repo's code, configs, or manifests by a human reviewer with VS Code access. Items that are unanswerable by a human reading the same files are not verification items — they are dead-end questions.
+2. **Specific** — cite the missing field, the missing config, the missing decision, NOT a broad concept. "What's the deployment strategy?" is broad. "Is the `DEPLOY_TARGET` env var set in `.env.example`?" is specific.
+3. **NOT derivable** from data the analyzers already surface. If the answer can be deduced from `package.json` / `pyproject.toml` / `pom.xml` / `Cargo.toml` / `composer.json` / `Gemfile` / `*.csproj` / `mix.exs` / `go.mod` / `build.sbt` (or any other manifest format the analyzer consumes), do not surface it as needs_verification — read the manifest and answer it directly.
 
-## When NOT to Use
+## What NOT to surface as needs_verification
 
-Do NOT use `needs_verification` for:
+Items in any of these categories are silently dropping framework
+budget on a question the human reviewer also cannot answer from the
+repo:
 
-- Information you haven't searched for yet (search first)
-- Information that might exist in unread files (read them)
-- Technical details that can be inferred from code patterns
-- Standard conventions that can be assumed
+- **Production credentials** (DSNs, API keys, secrets, instance URLs) — always external by design; the repo intentionally does not contain them.
+- **Anything outside this repository** — CI/CD pipelines managed by another team, infrastructure-as-code in a separate repo, vendor configurations in a vendor portal, deployment scripts on operator machines.
+- **Anything verifiable from a manifest** — runtime versions, dependency versions, monorepo workspace layout, declared scripts, declared frameworks, declared databases. Read the manifest and answer.
+- **Anything verifiable from a graph community payload** — service membership, cross-service edges, hub/bridge topology. Use `mcp__code_graph__*` tools.
+- **Speculative "is X implemented?"** when the absence of the dependency in every manifest already answers "no."
 
 ## Maximum Limit
 
-Maximum 5 verification items per agent. Prioritize the most critical unknowns.
+Maximum 5 verification items per agent. Prioritize the most critical
+unknowns — questions whose answers a human reviewer with VS Code
+access could reasonably resolve in a few minutes by reading the
+repo.
 
 ## Format
 
