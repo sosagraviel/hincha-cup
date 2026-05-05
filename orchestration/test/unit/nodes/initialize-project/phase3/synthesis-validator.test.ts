@@ -109,6 +109,16 @@ function fixtureMultiFileWorkflows(target = 50): string {
       '4. Wire DTO export',
       '5. Add unit test',
       '',
+      // Plan §C 4.2 (gira-exhaustive followup, 2026-05-05): the
+      // multi-file-workflows skill body now requires ≥1 fenced code
+      // block. Scaffolds belong in the language the structure analyzer
+      // detected; the canonical fixture uses TypeScript.
+      '```typescript',
+      '// apps/api/src/modules/{domain}/{domain}.controller.ts',
+      '@Controller()',
+      'export class DomainController {}',
+      '```',
+      '',
       '## Adding a new database entity',
       '1. Create migration',
       '2. Update entity class',
@@ -375,12 +385,19 @@ describe('validateSynthesisOutput — skill body validation', () => {
     ).toBe(true);
   });
 
-  it('does NOT require code blocks in multi-file-workflows', () => {
-    // multi-file-workflows is checklists only — the validator's
-    // `requiresCodeExamples: false` flag means a body with no fenced block
-    // still passes. Our default fixture has none. Sanity-check.
-    const result = validateSynthesisOutput(fixtureSynthesis());
-    expect(result.valid).toBe(true);
+  it('rejects multi-file-workflows without any code block (Wave 2 Fix 4.2)', () => {
+    // Pre-Wave 2 Fix 4.2 the multi-file-workflows skill body did NOT
+    // require a fenced code block — pure checklists were accepted. The
+    // gira run shipped exactly that and the operator could not see what
+    // a NEW file scaffold looked like. The validator now requires ≥1
+    // fenced code block (matching code-conventions / testing-conventions).
+    const noCode = fixtureMultiFileWorkflows(50).replace(/```[\s\S]*?```/g, 'no code here');
+    const output = fixtureSynthesis().replace(fixtureMultiFileWorkflows(50), noCode);
+    const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some((e) => e.includes('MULTI-FILE-WORKFLOWS/SKILL.MD MISSING CODE EXAMPLES')),
+    ).toBe(true);
   });
 });
 

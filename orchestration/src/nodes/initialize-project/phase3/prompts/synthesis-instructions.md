@@ -330,11 +330,33 @@ Each checklist:
 - Concrete file paths (use `{placeholder}` for varying segments)
 - One-line gotcha note where the wrong order causes bugs
 
+**Code scaffolds (REQUIRED, ≥1 fenced block per workflow):** each
+checklist step that creates a NEW file MUST include a fenced code
+block underneath showing the initial scaffold for that file. The
+scaffold language MUST match the project's primary language (read
+from the structure analyzer's `findings.services[].language` /
+`findings.languages` — TypeScript scaffolds for a TS project, Python
+for a Python project, Go for Go, Java for Java, etc.). Use a `// <path>`
+or `# <path>` comment as the first line of each block so the operator
+can identify which step the scaffold belongs to.
+
+```<project's primary language>
+// <relative file path from the checklist step>
+<minimal but real scaffold — imports, type/class signature, the
+ single function/method skeleton the developer needs to begin
+ typing real logic>
+```
+
+The validator REQUIRES at least one fenced code block in this skill
+body — checklists without scaffolds are too thin to be worth
+preloading.
+
 **Strict exclusions:**
 
-- ❌ Code examples (those belong in code-conventions)
 - ❌ Architecture descriptions → Architectural Narrative
 - ❌ Testing instructions → testing-conventions
+- ❌ Prescriptive style rules (those belong in code-conventions); the
+  scaffolds here are _templates_, not style examples
 
 **Line limits:** 20–200 lines. Hard cap at 200.
 

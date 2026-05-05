@@ -109,6 +109,15 @@ function generateValidSynthesis() {
     '1. Create controller method',
     '2. Add service method',
     '3. Create DTO',
+    '',
+    // Plan §C 4.2 (gira-exhaustive followup, 2026-05-05): the
+    // multi-file-workflows skill body now requires ≥1 fenced code block.
+    '```typescript',
+    '// apps/api/src/modules/{domain}/{domain}.controller.ts',
+    '@Controller()',
+    'export class DomainController {}',
+    '```',
+    '',
     ...Array.from({ length: 25 }, (_, i) => `- additional checklist step ${i + 1}`),
   ].join('\n');
 

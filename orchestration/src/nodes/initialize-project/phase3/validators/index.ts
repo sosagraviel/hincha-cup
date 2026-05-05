@@ -174,10 +174,17 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
     }),
   );
   errors.push(
+    // Plan §C 4.2 (gira-exhaustive followup, 2026-05-05): the
+    // multi-file-workflows skill needs language-appropriate code
+    // scaffolds for the operator to grok the wiring at a glance.
+    // Pre-fix the gira run shipped a multi-file-workflows skill body
+    // with zero fenced code blocks — pure checklists. Now matches the
+    // rule for code-conventions and testing-conventions: ≥1 fenced
+    // block required.
     ...validateSkillContent(extracted.multiFileWorkflows, {
       skillLabel: 'multi-file-workflows',
       expectedName: 'multi-file-workflows',
-      requiresCodeExamples: false,
+      requiresCodeExamples: true,
     }),
   );
   errors.push(
