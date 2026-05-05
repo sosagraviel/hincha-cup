@@ -115,6 +115,11 @@ export async function wikiGenerationNode(
       pipeline_version: 'ai-agentic-framework',
       last_indexed_commit: context.graphCommit ?? 'unknown',
       last_ingest_at: context.generatedAt,
+      // Thread Phase 0 graph stats into .state.json so consumers (wiki
+      // refresh, lint, the metrics dashboard) can read graph metrics
+      // without re-running `code-review-graph stats`. Stack-agnostic —
+      // the stats shape is language-derived from the graph itself.
+      graph_stats: state.code_graph_stats,
     });
 
     const allFiles: GeneratedWikiFile[] = [...wikiFiles, schemaDoc, changelog, log, stateJson];

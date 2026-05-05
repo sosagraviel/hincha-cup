@@ -160,6 +160,28 @@ describe('wikiGenerationNode (finalization)', () => {
     }
   });
 
+  it('threads code_graph_stats from preflight into .state.json (Wave 1.6)', async () => {
+    // Anti-regression: prior to Wave 1.6 the wiki-generation node called
+    // buildStateJson without graph_stats, so .state.json on every run
+    // recorded `graph_stats: null` even though state.code_graph_stats was
+    // available in scope. Consumers (wiki refresh, lint, dashboard) had
+    // to re-run `code-review-graph stats` to get the same numbers. The
+    // fix threads the preflight stats through.
+    await wikiGenerationNode(state);
+
+    const stateWrite = vi
+      .mocked(fs.writeFileSync)
+      .mock.calls.find(([path]) => String(path).endsWith('docs/llm-wiki/.state.json'));
+    const parsed = JSON.parse(String(stateWrite?.[1]));
+    expect(parsed.graph_stats).toEqual({
+      files: 12,
+      functions: 20,
+      edges: 30,
+      languages: ['typescript'],
+      build_time_ms: 1000,
+    });
+  });
+
   it('SERVICES.md written by finalization is a deterministic catalog', async () => {
     await wikiGenerationNode(state);
 

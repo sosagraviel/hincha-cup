@@ -7,7 +7,13 @@ vi.mock('child_process', () => ({
   execSync: vi.fn(),
 }));
 
+vi.mock('fs', () => ({
+  existsSync: vi.fn(() => false),
+  readFileSync: vi.fn(),
+}));
+
 const { execSync } = await import('child_process');
+const fs = await import('fs');
 
 const baseState: WikiRefreshState = {
   project_path: '/test/project',
@@ -101,5 +107,95 @@ describe('updateStateNode', () => {
     );
     const parsed = JSON.parse(stateFile!.content);
     expect(parsed.last_indexed_commit).toBe('unknown');
+  });
+
+  describe('Wave 1.6 — preserves Phase 4 fields across refreshes', () => {
+    // Pre-Wave 1.6 the refresh path silently dropped every field except
+    // last_indexed_commit + last_ingest_at, so the durable preflight
+    // metadata (graph_commit, graph_sha, pipeline_version, graph_stats)
+    // disappeared on the first refresh after init. The merge below keeps
+    // them intact.
+    beforeEach(() => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify(
+          {
+            last_indexed_commit: 'oldcommit',
+            last_ingest_at: '2026-04-01T00:00:00Z',
+            graph_commit: 'graphcommit',
+            graph_sha: 'graphsha',
+            pipeline_version: 'ai-agentic-framework',
+            graph_stats: {
+              files: 42,
+              functions: 100,
+              edges: 250,
+              languages: ['python', 'typescript'],
+              build_time_ms: 1234,
+            },
+          },
+          null,
+          2,
+        ),
+      );
+    });
+
+    it('preserves graph_commit, graph_sha, pipeline_version, graph_stats', async () => {
+      const result = await updateStateNode(baseState);
+
+      const stateFile = result.generated_pages?.find(
+        (p) => p.filename === 'docs/llm-wiki/.state.json',
+      );
+      const parsed = JSON.parse(stateFile!.content);
+      expect(parsed.graph_commit).toBe('graphcommit');
+      expect(parsed.graph_sha).toBe('graphsha');
+      expect(parsed.pipeline_version).toBe('ai-agentic-framework');
+      expect(parsed.graph_stats).toEqual({
+        files: 42,
+        functions: 100,
+        edges: 250,
+        languages: ['python', 'typescript'],
+        build_time_ms: 1234,
+      });
+    });
+
+    it('still advances last_indexed_commit + last_ingest_at on top of preserved fields', async () => {
+      const result = await updateStateNode(baseState);
+
+      const stateFile = result.generated_pages?.find(
+        (p) => p.filename === 'docs/llm-wiki/.state.json',
+      );
+      const parsed = JSON.parse(stateFile!.content);
+      expect(parsed.last_indexed_commit).toBe('headcommit');
+      expect(parsed.last_indexed_commit).not.toBe('oldcommit');
+      expect(parsed.last_ingest_at).not.toBe('2026-04-01T00:00:00Z');
+    });
+
+    it('handles malformed existing state gracefully (treats as empty)', async () => {
+      vi.mocked(fs.readFileSync).mockReturnValue('not json');
+
+      const result = await updateStateNode(baseState);
+
+      const stateFile = result.generated_pages?.find(
+        (p) => p.filename === 'docs/llm-wiki/.state.json',
+      );
+      const parsed = JSON.parse(stateFile!.content);
+      expect(parsed.last_indexed_commit).toBe('headcommit');
+      // No graph_stats / graph_commit when prior file was unreadable.
+      expect(parsed.graph_stats).toBeUndefined();
+      expect(parsed.graph_commit).toBeUndefined();
+    });
+
+    it('handles a JSON array at the top level (defensively coerced to empty)', async () => {
+      vi.mocked(fs.readFileSync).mockReturnValue('[1, 2, 3]');
+
+      const result = await updateStateNode(baseState);
+
+      const stateFile = result.generated_pages?.find(
+        (p) => p.filename === 'docs/llm-wiki/.state.json',
+      );
+      const parsed = JSON.parse(stateFile!.content);
+      expect(parsed.last_indexed_commit).toBe('headcommit');
+      expect(Array.isArray(parsed)).toBe(false);
+    });
   });
 });
