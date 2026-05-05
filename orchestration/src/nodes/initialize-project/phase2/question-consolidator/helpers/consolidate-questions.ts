@@ -3,7 +3,6 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import type { Gap, QuestionConsolidationOutput } from '../types.js';
 import { AgentFactory } from '../../../../../utils/shared/agent-factory/index.js';
-import { extractJSON, type ValidationResult } from '../../../../../utils/validator.js';
 import {
   retryWithEnhancedFeedback,
   DEFAULT_RETRY_CONFIG,
@@ -13,6 +12,7 @@ import { buildConsolidationPrompt } from '../prompt-builder.js';
 import { getFrameworkAgentPath } from '../../../shared/index.js';
 import { reasoningPrefix } from '../../../../../utils/shared/context-tags.js';
 import { getInitializeProjectPhase } from '../../../../../services/framework/debug-store/index.js';
+import { validateConsolidationOutput } from './validate-consolidation-output.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -83,97 +83,13 @@ ${consolidationInstructions}`;
       };
     };
 
-    // Define validator function
-    const validator = (output: string): ValidationResult => {
-      try {
-        // Extract and parse JSON
-        const jsonOutput = extractJSON(output);
-        let parsed: any = JSON.parse(jsonOutput);
-
-        // Unwrap: LLM often wraps output in analyzer schema { findings: { consolidated_gaps, ... } }
-        if (parsed.findings && typeof parsed.findings === 'object') {
-          parsed = parsed.findings;
-        }
-
-        // Auto-wrap: if the LLM returned a bare array of gaps
-        if (Array.isArray(parsed)) {
-          parsed = {
-            consolidated_gaps: parsed,
-            consolidation_metadata: {
-              original_gap_count: gaps.length,
-              consolidated_gap_count: parsed.length,
-              reduction_percentage:
-                gaps.length > 0
-                  ? Math.round(((gaps.length - parsed.length) / gaps.length) * 100)
-                  : 0,
-              consolidation_groups: [],
-            },
-          };
-        }
-
-        // Auto-remap: if the LLM used a different key name for the gaps array
-        if (!parsed.consolidated_gaps && !Array.isArray(parsed)) {
-          const arrayKey = Object.keys(parsed).find(
-            (k) => Array.isArray(parsed[k]) && k !== 'consolidation_groups',
-          );
-          if (arrayKey) {
-            parsed.consolidated_gaps = parsed[arrayKey];
-          }
-        }
-
-        // Basic validation
-        if (!parsed.consolidated_gaps || !Array.isArray(parsed.consolidated_gaps)) {
-          const topLevelKeys = Object.keys(parsed).join(', ');
-          return {
-            valid: false,
-            errors: [
-              `Invalid output: missing consolidated_gaps array. Top-level keys found: ${topLevelKeys || '(none)'}. Expected structure: { "consolidated_gaps": [...], "consolidation_metadata": {...} }`,
-            ],
-            data: null,
-          };
-        }
-
-        if (!parsed.consolidation_metadata) {
-          // Auto-generate metadata if gaps are valid but metadata is missing
-          parsed.consolidation_metadata = {
-            original_gap_count: gaps.length,
-            consolidated_gap_count: parsed.consolidated_gaps.length,
-            reduction_percentage:
-              gaps.length > 0
-                ? Math.round(((gaps.length - parsed.consolidated_gaps.length) / gaps.length) * 100)
-                : 0,
-            consolidation_groups: [],
-          };
-        }
-
-        // Validate question format (must end with ?)
-        for (const gap of parsed.consolidated_gaps) {
-          if (!gap.question || !gap.question.endsWith('?')) {
-            return {
-              valid: false,
-              errors: [`Invalid question format: "${gap.question}" must end with ?`],
-              data: null,
-            };
-          }
-        }
-
-        return {
-          valid: true,
-          errors: [],
-          data: parsed as QuestionConsolidationOutput,
-        };
-      } catch (error) {
-        return {
-          valid: false,
-          errors: [(error as Error).message],
-          data: null,
-        };
-      }
-    };
-
+    // Strict validator — single source of truth for the agent contract.
+    // Rejects any divergence from the canonical 2-key shape so prompt
+    // regressions surface as retry feedback instead of being silently
+    // papered over.
     const { data: parsed } = await retryWithEnhancedFeedback<QuestionConsolidationOutput>(
       agentInvoke,
-      validator,
+      validateConsolidationOutput,
       DEFAULT_RETRY_CONFIG,
       {
         projectPath,

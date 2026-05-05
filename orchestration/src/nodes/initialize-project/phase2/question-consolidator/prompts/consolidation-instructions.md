@@ -9,10 +9,19 @@ CRITICAL OUTPUT STRUCTURE - Your JSON MUST have EXACTLY these TWO top-level keys
 }
 ```
 
-DO NOT wrap in "findings" or any other key. DO NOT output a bare array.
-The FIRST character must be { and the LAST character must be }
-Do NOT wrap in markdown code blocks (no ```json)
-Do NOT add ANY text before or after the JSON
+The validator REJECTS any other top-level shape. Do NOT include any of:
+
+- `findings` (analyzer-style wrapper)
+- `gaps` (renamed array)
+- `identified_gaps`, `consolidated_findings`, `conflicting_findings`
+- `timestamp`, `agent_name`, `consolidation_summary`
+- bare arrays at the top level
+- additional / extra keys of any kind
+
+Two keys exactly: `consolidated_gaps` and `consolidation_metadata`. The
+FIRST character of your output must be `{` and the LAST character must
+be `}`. Do NOT wrap in markdown code blocks (no ` ```json `). Do NOT
+add ANY text before or after the JSON.
 
 ## CRITICAL VALIDATION REQUIREMENTS:
 
