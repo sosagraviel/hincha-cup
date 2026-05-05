@@ -39,16 +39,29 @@ export interface GraphToolUsesSidecar {
 /**
  * Per-analyzer soft caps for total tool calls. Exceeding the cap surfaces a
  * `tool_call_budget_exceeded` soft warning in the persisted output but does
- * NOT fail the run. Caps were derived from the gira-run distribution
- * (51/57/52/43 across the four analyzers) — the goal is to nudge the
- * agent toward graph-first behaviour, not enforce a hard limit. Stack-
- * agnostic: the values are wall-clock budgets, not language-specific.
+ * NOT fail the run.
+ *
+ * Caps recalibrated 2026-05-05 (plan §C 2.2 of the gira-exhaustive followup)
+ * to ~10% headroom over the 2026-05-05 gira distribution (30/30/25/42 across
+ * the four analyzers AFTER the parent series' within-prompt restatement
+ * scrub). Three of four analyzers were exceeding the prior caps because
+ * legitimate manifest reads, runtime-version detection, and build-config
+ * inspection ARE non-graph calls regardless of language. The caps are now
+ * fall-back ceilings; the actual budget enforcement is the per-tool table
+ * below.
+ *
+ * Stack-agnostic: the values are wall-clock budgets, not language-specific.
+ * Manifests + build configs the analyzers must read vary by language
+ * (`package.json` vs `pyproject.toml` vs `pom.xml` vs `Cargo.toml` vs
+ * `go.mod` vs `composer.json` vs `Gemfile` vs `*.csproj` vs `build.sbt` …)
+ * but the AGGREGATE budget is calibrated against the analyzer's prescribed
+ * step count, not the language.
  */
 export const PER_ANALYZER_TOOL_CALL_CAPS: Record<string, number> = {
-  'structure-architecture-analyzer': 25,
-  'tech-stack-dependencies-analyzer': 20,
-  'code-patterns-testing-analyzer': 25,
-  'data-flows-integrations-analyzer': 30,
+  'structure-architecture-analyzer': 35, // was 25 — gira distribution: 30
+  'tech-stack-dependencies-analyzer': 30, // was 20 — gira distribution: 30
+  'code-patterns-testing-analyzer': 30, // was 25 — gira distribution: 25
+  'data-flows-integrations-analyzer': 40, // was 30 — gira distribution: 42 (legitimately exceeds)
 };
 
 /**
@@ -147,19 +160,45 @@ export function renderPerToolCapsTable(agentName: string): string {
 }
 
 /**
- * Threshold for `graph_search_overuse`: more than 8 semantic_search calls
- * in a single analyzer run is a code smell — the agent is brute-forcing
- * the graph instead of drilling top-down.
+ * Per-analyzer thresholds for `low_graph_ratio` (graph-call ratio below
+ * which the agent is "grep-spamming over the graph"). Recalibrated
+ * 2026-05-05 (plan §C 2.2 of the gira-exhaustive followup).
+ *
+ * The 2026-05-05 gira run had 3 of 4 analyzers fire `low_graph_ratio` at
+ * the prior global 40% threshold:
+ *   - structure-arch: 23% (Glob/Read for runtime versions, build configs)
+ *   - tech-stack: 20% (manifest reads — pyproject.toml, pom.xml,
+ *     Cargo.toml, package.json, etc., are how dependency versions are
+ *     declared in every language family)
+ *   - code-patterns: 20% (test config + ESLint/Black/RuboCop rule files)
+ *   - data-flows: 43% (passed; flow inventory is graph-friendly)
+ *
+ * Stack-agnostic: legitimate non-graph reads scale with manifest count
+ * across every language. Tech-stack on a Java multi-module project
+ * reads N `pom.xml` files just like a JS project reads N `package.json`
+ * files. The thresholds reflect each analyzer's STRUCTURAL workload,
+ * not the language.
+ *
+ * `_default` row applies when an analyzer name is not explicitly
+ * listed (forward-compat).
  */
-const SEMANTIC_SEARCH_OVERUSE_THRESHOLD = 8;
+export const LOW_GRAPH_RATIO_THRESHOLDS: Record<string, number> = {
+  'structure-architecture-analyzer': 0.25, // legitimately reads runtime versions + build configs
+  'tech-stack-dependencies-analyzer': 0.2, // legitimately reads many manifests
+  'code-patterns-testing-analyzer': 0.3, // legitimately reads test configs + linter rules
+  'data-flows-integrations-analyzer': 0.4, // graph-friendly (flow tools)
+  _default: 0.3,
+};
 
 /**
- * Threshold for `low_graph_ratio`: when graph_call_count / total_tool_calls
- * is below 0.4 the analyzer is grep-spamming over the graph. The graph is
- * the language-agnostic primitive; non-graph tools should be the minority
- * of calls, not the majority.
+ * @deprecated `SEMANTIC_SEARCH_OVERUSE_THRESHOLD = 8` removed 2026-05-05.
+ * The per-analyzer per-tool caps in `PER_ANALYZER_PER_TOOL_CAPS` are now
+ * the single source of truth for semantic_search overuse. The standalone
+ * threshold disagreed with the per-tool caps (8 vs 6 for data-flows)
+ * and produced false-positive warnings. The
+ * `per_tool_budget_exceeded` soft warning subsumes the prior
+ * `graph_search_overuse` signal.
  */
-const LOW_GRAPH_RATIO_THRESHOLD = 0.4;
 
 /**
  * Compute the soft-warning list for an analyzer run. Returns sorted unique
@@ -180,15 +219,18 @@ export function computeSoftWarnings(
 
   if (total > 0) {
     const ratio = graphCount / total;
-    if (ratio < LOW_GRAPH_RATIO_THRESHOLD) {
+    const threshold =
+      LOW_GRAPH_RATIO_THRESHOLDS[agentName] ?? LOW_GRAPH_RATIO_THRESHOLDS._default ?? 0.3;
+    if (ratio < threshold) {
       warnings.add('low_graph_ratio');
     }
   }
 
-  const semanticSearchCount = nameCounts['mcp__code_graph__semantic_search_nodes_tool'] ?? 0;
-  if (semanticSearchCount > SEMANTIC_SEARCH_OVERUSE_THRESHOLD) {
-    warnings.add('graph_search_overuse');
-  }
+  // The standalone `graph_search_overuse` warning was retired 2026-05-05
+  // in favour of the per-tool budget enforcement below — those two
+  // checks were measuring the same thing with conflicting thresholds
+  // (8 global vs 6 per-tool for data-flows). Per-tool budget is the
+  // single source of truth.
 
   const cap = PER_ANALYZER_TOOL_CALL_CAPS[agentName];
   if (typeof cap === 'number' && total > cap) {

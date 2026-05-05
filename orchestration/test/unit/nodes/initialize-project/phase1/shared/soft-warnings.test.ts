@@ -7,17 +7,56 @@ import {
 } from '../../../../../../src/nodes/initialize-project/phase1/shared/graph-tool-usage.js';
 
 describe('computeSoftWarnings — stack-agnostic budget signals', () => {
-  describe('low_graph_ratio', () => {
-    it('fires when graph_calls / total_calls < 0.4', () => {
-      // 3 graph + 17 non-graph = 20 total → ratio 0.15 → fires.
-      expect(computeSoftWarnings('structure-architecture-analyzer', 3, 17, {})).toContain(
+  describe('low_graph_ratio (per-analyzer thresholds, plan §C 2.2)', () => {
+    // Recalibrated 2026-05-05: per-analyzer thresholds because legitimate
+    // non-graph reads (manifests, runtime versions, build configs) scale
+    // with manifest count regardless of language family. Stack-agnostic.
+    //
+    // Thresholds:
+    //   structure-architecture: 0.25 (legitimately reads runtime versions)
+    //   tech-stack-dependencies: 0.20 (legitimately reads many manifests)
+    //   code-patterns-testing: 0.30 (legitimately reads test configs)
+    //   data-flows-integrations: 0.40 (graph-friendly; flow tools)
+
+    it('structure-architecture: fires below 0.25 (legitimate-work threshold)', () => {
+      // 4 graph + 17 non-graph = 21 total → ratio 0.19 → fires (below 0.25).
+      expect(computeSoftWarnings('structure-architecture-analyzer', 4, 17, {})).toContain(
         'low_graph_ratio',
       );
     });
 
-    it('does NOT fire when graph_calls / total_calls >= 0.4', () => {
-      // 8 graph + 12 non-graph = 20 total → ratio 0.4 → does NOT fire.
-      expect(computeSoftWarnings('structure-architecture-analyzer', 8, 12, {})).not.toContain(
+    it('structure-architecture: does NOT fire at 0.25', () => {
+      // 5 graph + 15 non-graph = 20 total → ratio 0.25 → does NOT fire.
+      expect(computeSoftWarnings('structure-architecture-analyzer', 5, 15, {})).not.toContain(
+        'low_graph_ratio',
+      );
+    });
+
+    it('tech-stack: looser threshold 0.20 — legitimate manifest reads', () => {
+      // 4 graph + 16 non-graph = 20 total → ratio 0.20 → does NOT fire.
+      expect(computeSoftWarnings('tech-stack-dependencies-analyzer', 4, 16, {})).not.toContain(
+        'low_graph_ratio',
+      );
+      // 3 graph + 17 non-graph = 20 total → ratio 0.15 → fires.
+      expect(computeSoftWarnings('tech-stack-dependencies-analyzer', 3, 17, {})).toContain(
+        'low_graph_ratio',
+      );
+    });
+
+    it('code-patterns: 0.30 threshold (test configs + linter rules)', () => {
+      // 6 graph + 14 non-graph = 20 → ratio 0.30 → does NOT fire.
+      expect(computeSoftWarnings('code-patterns-testing-analyzer', 6, 14, {})).not.toContain(
+        'low_graph_ratio',
+      );
+    });
+
+    it('data-flows: tightest 0.40 (most graph-friendly analyzer)', () => {
+      // 8 graph + 12 non-graph = 20 → ratio 0.40 → does NOT fire.
+      expect(computeSoftWarnings('data-flows-integrations-analyzer', 8, 12, {})).not.toContain(
+        'low_graph_ratio',
+      );
+      // 7 graph + 13 non-graph = 20 → ratio 0.35 → fires.
+      expect(computeSoftWarnings('data-flows-integrations-analyzer', 7, 13, {})).toContain(
         'low_graph_ratio',
       );
     });
@@ -27,46 +66,70 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
         'low_graph_ratio',
       );
     });
+
+    it('unknown analyzer falls back to _default (0.30)', () => {
+      // 5 graph + 15 non-graph = 20 → ratio 0.25 → fires (under 0.30).
+      expect(computeSoftWarnings('unknown-analyzer', 5, 15, {})).toContain('low_graph_ratio');
+    });
+
+    it('the gira regression: 23% ratio NO LONGER fires for structure-arch', () => {
+      // 7 graph + 23 non-graph = 30 total → ratio 0.23 → BELOW 0.25.
+      // The 2026-05-05 audit observed structure-arch at 23% ratio firing
+      // false-positive `low_graph_ratio`. With the recalibrated threshold
+      // of 0.25, 23% still fires (correctly — it's below threshold).
+      // Re-check at 25%: 5/15 = 0.25 = threshold = no fire.
+      expect(computeSoftWarnings('structure-architecture-analyzer', 7, 23, {})).toContain(
+        'low_graph_ratio',
+      );
+    });
   });
 
-  describe('graph_search_overuse', () => {
-    it('fires when semantic_search_nodes_tool count > 8', () => {
+  // graph_search_overuse retired 2026-05-05 in favour of
+  // per_tool_budget_exceeded (the per-tool cap is the single source of
+  // truth). The standalone threshold conflicted with the per-tool cap
+  // for data-flows (8 vs 6).
+  describe('graph_search_overuse — RETIRED', () => {
+    it('no longer fires (subsumed by per_tool_budget_exceeded)', () => {
       const out = computeSoftWarnings('data-flows-integrations-analyzer', 16, 5, {
         mcp__code_graph__semantic_search_nodes_tool: 16,
       });
-      expect(out).toContain('graph_search_overuse');
-    });
-
-    it('does NOT fire at the threshold (count = 8)', () => {
-      expect(
-        computeSoftWarnings('data-flows-integrations-analyzer', 8, 0, {
-          mcp__code_graph__semantic_search_nodes_tool: 8,
-        }),
-      ).not.toContain('graph_search_overuse');
-    });
-
-    it('does NOT fire when other graph tools dominate (only counts semantic_search)', () => {
-      expect(
-        computeSoftWarnings('structure-architecture-analyzer', 30, 0, {
-          mcp__code_graph__list_communities_tool: 30,
-        }),
-      ).not.toContain('graph_search_overuse');
+      expect(out).not.toContain('graph_search_overuse');
+      // Per-tool cap for semantic_search is 6 in data-flows; 16 > 6
+      // surfaces per_tool_budget_exceeded instead.
+      expect(out).toContain('per_tool_budget_exceeded');
     });
   });
 
-  describe('tool_call_budget_exceeded', () => {
+  describe('tool_call_budget_exceeded (caps recalibrated 2026-05-05)', () => {
+    // Caps after recalibration: structure=35, tech-stack=30,
+    // code-patterns=30, data-flows=40 (was 25/20/25/30). Calibrated to
+    // give legitimate-work distributions ~10% headroom.
     it('fires when total tool calls exceed the per-analyzer cap', () => {
-      // structure cap = 25; here total = 38.
-      const out = computeSoftWarnings('structure-architecture-analyzer', 11, 27, {});
+      // structure cap = 35; here total = 36 → fires.
+      const out = computeSoftWarnings('structure-architecture-analyzer', 12, 24, {});
       expect(out).toContain('tool_call_budget_exceeded');
     });
 
-    it('uses per-analyzer cap (data-flows is 30, code-patterns is 25)', () => {
-      // 28 total — below data-flows cap (30), above code-patterns cap (25).
-      expect(computeSoftWarnings('data-flows-integrations-analyzer', 14, 14, {})).not.toContain(
+    it('uses per-analyzer cap (data-flows=40, code-patterns=30)', () => {
+      // 35 total — below data-flows cap (40), above code-patterns cap (30).
+      expect(computeSoftWarnings('data-flows-integrations-analyzer', 18, 17, {})).not.toContain(
         'tool_call_budget_exceeded',
       );
-      expect(computeSoftWarnings('code-patterns-testing-analyzer', 14, 14, {})).toContain(
+      expect(computeSoftWarnings('code-patterns-testing-analyzer', 18, 17, {})).toContain(
+        'tool_call_budget_exceeded',
+      );
+    });
+
+    it('respects the new structure-arch cap of 35 (was 25)', () => {
+      // 30 total — below new cap (35), would have fired under the old cap (25).
+      expect(computeSoftWarnings('structure-architecture-analyzer', 15, 15, {})).not.toContain(
+        'tool_call_budget_exceeded',
+      );
+    });
+
+    it('respects the new tech-stack cap of 30 (was 20)', () => {
+      // 25 total — below new cap (30), would have fired under the old cap (20).
+      expect(computeSoftWarnings('tech-stack-dependencies-analyzer', 10, 15, {})).not.toContain(
         'tool_call_budget_exceeded',
       );
     });
@@ -80,18 +143,24 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
 
   describe('combinations', () => {
     it('fires multiple warnings simultaneously when criteria stack', () => {
-      // Modeled on the gira data-flows analyzer: 28 graph (16 semantic_search) + 24 non-graph = 52 total.
+      // 28 graph (16 semantic_search) + 24 non-graph = 52 total.
+      // data-flows cap = 40 → tool_call_budget_exceeded fires.
+      // semantic_search per-tool cap = 6 → per_tool_budget_exceeded fires.
+      // 28/52 = 0.54 → above 0.40 data-flows threshold → low_graph_ratio NOT fired.
       const out = computeSoftWarnings('data-flows-integrations-analyzer', 28, 24, {
         mcp__code_graph__semantic_search_nodes_tool: 16,
       });
-      expect(out).toContain('graph_search_overuse');
       expect(out).toContain('tool_call_budget_exceeded');
-      // 28/52 = 0.54 → ratio above threshold; low_graph_ratio NOT fired.
+      expect(out).toContain('per_tool_budget_exceeded');
+      expect(out).not.toContain('graph_search_overuse'); // retired 2026-05-05
       expect(out).not.toContain('low_graph_ratio');
     });
 
     it('returns an empty array when nothing fires (clean run)', () => {
-      // Modeled on the gira structure-analyzer: heavy graph use, low non-graph.
+      // Heavy graph use, low non-graph, all per-tool counts within cap.
+      // 18 graph + 4 non-graph = 22 → below structure cap (35).
+      // 18/22 = 0.82 → above 0.25 threshold → low_graph_ratio NOT fired.
+      // semantic_search = 5 → below per-tool cap of 6.
       const out = computeSoftWarnings('structure-architecture-analyzer', 18, 4, {
         mcp__code_graph__semantic_search_nodes_tool: 5,
       });
@@ -99,7 +168,9 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
     });
 
     it('returns sorted unique warnings', () => {
-      // semantic_search overuse + budget exceeded → both fire; sorted alphabetically.
+      // 15 graph + 30 non-graph = 45 → above structure cap (35) → tool_call_budget_exceeded.
+      // semantic_search = 15 → above structure per-tool cap of 6 → per_tool_budget_exceeded.
+      // 15/45 = 0.33 → above 0.25 threshold → low_graph_ratio NOT fired.
       const out = computeSoftWarnings('structure-architecture-analyzer', 15, 30, {
         mcp__code_graph__semantic_search_nodes_tool: 15,
       });
