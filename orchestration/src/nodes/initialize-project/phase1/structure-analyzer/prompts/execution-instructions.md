@@ -61,43 +61,9 @@ Each manifest file represents a potential service or package. Read each one to e
 
 <multi_language_detection>
 
-The graph's community payloads include language tags; use those first. If the graph returned communities, skip to Step 5 — language data is already in hand.
+Community language tags from Steps 1–2 are the source of truth. Aggregate them into `findings.languages` (each language with ≥5 files). Skip to Step 5 — no extension table needed.
 
-Only when falling back to file-based discovery:
-
-**Count files by extension to detect ALL languages:**
-
-Prefer Glob with narrow, service-scoped patterns (e.g. `services/**/*.ts`,
-`packages/**/*.py`) over a repo-wide `find`. A raw `find .` will descend into
-`node_modules`, `dist`, the framework directory, and every other path listed in
-the `<excluded_directories>` block, burning the token budget on one call.
-
-**Language identification from extensions:**
-
-- `.ts, .tsx, .mts, .cts` → TypeScript
-- `.js, .jsx, .mjs, .cjs` → JavaScript
-- `.py` → Python
-- `.go` → Go
-- `.rs` → Rust
-- `.java` → Java
-- `.kt, .kts` → Kotlin
-- `.rb` → Ruby
-- `.php` → PHP
-- `.cs` → C#
-- `.swift` → Swift
-- `.ex, .exs` → Elixir
-- `.dart` → Dart
-- `.c, .h` → C
-- `.cpp, .cc, .cxx, .hpp` → C++
-- `.sh, .bash` → Shell
-
-**Report in `findings.languages` array:** All languages with 5+ files (excludes trivial config files).
-
-**Example output:**
-
-```json
-"languages": ["typescript", "javascript", "python", "shell"]
-```
+Only when the graph returned 0 communities (true empty-graph fallback): use Glob with narrow service-scoped patterns and let the file extension drive the language label (parser-canonical names: `typescript`, `python`, `go`, `java`, `kotlin`, `ruby`, `php`, `csharp`, `swift`, `elixir`, `rust`, `dart`, `c`, `cpp`, `shell`, …). Do NOT raw-`find .` — service-scoped patterns only.
 
 </multi_language_detection>
 
@@ -130,45 +96,15 @@ If monorepo detected, list ALL packages/services with their relative paths.
 
 <runtime_detection>
 
-**Search for version constraint files across the repository:**
-
-Use Glob to find version files:
+ONE multi-pattern Glob, then ≤2 reads:
 
 ```
-**/.nvmrc                # Node.js version
-**/.node-version         # Node.js version (alternative)
-**/package.json          # engines field for Node/npm/pnpm/yarn
-**/.python-version       # Python version (pyenv)
-**/runtime.txt           # Python version (Heroku, some platforms)
-**/.go-version           # Go version
-**/go.mod                # Go version (go directive)
-**/.ruby-version         # Ruby version
-**/.tool-versions        # asdf version manager (multi-runtime)
-**/rust-toolchain.toml   # Rust version
-**/Cargo.toml            # Rust edition
-**/.java-version         # Java version
+**/{.nvmrc,.node-version,.python-version,runtime.txt,.go-version,go.mod,.ruby-version,.tool-versions,rust-toolchain.toml,Cargo.toml,.java-version,.tool-versions,mix.exs,pubspec.yaml}
 ```
 
-**Extract version information:**
+Read the matched files (cap: 2). Parse the canonical version field for each language family — these files all carry a single value or directive (e.g., `.nvmrc` content, `go.mod` `go` directive, `pyproject.toml` `requires-python`, `Cargo.toml` `edition`, `pom.xml` `java.version`, `.ruby-version` content). On a polyglot monorepo with mixed versions, aggregate as `"varies by service"`.
 
-- **Node.js:** Read `.nvmrc` content (e.g., "22.14.0" or ">=22.14.x"), or `package.json` engines field
-- **Python:** Read `.python-version` (e.g., "3.11.5"), or pyproject.toml `requires-python` field
-- **Go:** Read `go.mod` `go` directive line (e.g., "go 1.21")
-- **Rust:** Read `rust-toolchain.toml` or Cargo.toml `edition` field
-- **Ruby:** Read `.ruby-version` (e.g., "3.2.2")
-- **Java:** Read `.java-version` or pom.xml `java.version`
-
-**Report in `findings.runtimes` object:**
-
-```json
-"runtimes": {
-  "node": ">=22.14.x",
-  "python": "3.11",
-  "pnpm": ">=10"
-}
-```
-
-If multiple version files exist (monorepo with mixed versions), report the most common or aggregate as "varies by service".
+**Report in `findings.runtimes`** (object keyed by canonical runtime name; values are version strings or constraints).
 
 </runtime_detection>
 
@@ -223,84 +159,22 @@ Only examine source directory structure manually when the graph returned no patt
 
 ## Step 9: File-placement table via graph
 
-Call `query_graph({ pattern: "files_in", target: "<community>", detail_level: "minimal" })` per service from Step 2 (limit yourself to the top ~5 services to stay inside the discipline's drill-in budget). Build the file-placement table from the edge results. Avoid Glob for this — the graph already has the membership data.
+Call `query_graph({ pattern: "files_in", target: "<community>", detail_level: "minimal" })` per service from Step 2 (top ~5 services, drill-in budget). Build a 10–20 row markdown table from the edge results: columns are `Package/Service | File Type | Location Pattern | File Count | Notes`. Group by service for monorepos; include both standard and custom locations; use representative paths only when the pattern alone is ambiguous.
 
-Only fall back to Glob-based file mapping when `query_graph` returns empty for all communities.
+Report `findings.file_placement` with `table_markdown`, `shared_packages` (array of relative paths), and `import_conventions` (array of representative import strings the agent observed in the graph).
 
-<file_mapping>
-
-**CRITICAL:** Create a concise table (10-20 rows) showing where major code types live in the repository.
-
-**Output Format - File Placement Table:**
-
-Generate a markdown table with these columns:
-
-- **Package/Service**: Which service this applies to (or "Root" for monorepo-level)
-- **File Type**: What kind of code
-- **Location Pattern**: Where these files live (glob pattern)
-- **File Count**: Approximate number of matching files (e.g., "~12 files")
-- **Notes**: Any important context
-
-**CRITICAL REQUIREMENTS:**
-
-1. Target 10-20 rows (concise but comprehensive coverage)
-2. Every row must use glob patterns and include approximate file count
-3. Group by service/package for monorepos
-4. Include BOTH standard locations AND custom/unusual locations discovered
-5. Use 1-2 representative example paths ONLY when the pattern alone is ambiguous
-
-**Report in `findings.file_placement` object:**
-
-```json
-"file_placement": {
-  "table_markdown": "| Package | File Type | Location Pattern | File Count | Notes |\n|---------|-----------|------------------|------------|-------|\n| packages/shared | Shared DTOs | packages/shared/src/dtos/**/*.dto.ts | ~15 files | DTOs used by both frontend and backend |\n| services/backend | Database Models | src/modules/*/database/models/*.model.ts | ~8 files | TypeORM entities, vertical slice per module |\n...",
-  "shared_packages": ["packages/shared", "packages/types"],
-  "import_conventions": [
-    "import { UserDto } from '@org/shared/dtos'",
-    "import { Priority } from '@org/shared/enums'"
-  ]
-}
-```
-
-</file_mapping>
-
-## Step 10: Extract Path Aliases (graph cannot answer — always Glob/Read)
+## Step 10: Extract Path Aliases (graph cannot answer — single targeted Read)
 
 <path_aliases>
 
-**Path aliases** allow imports like `@shared/dto` instead of `../../../shared/dto`. These are critical for understanding import patterns. The graph does not index build config metadata, so this step always uses file reads.
+Path aliases live in build config the graph does not index. Read **the build config the detected language uses** (one file per service, not an enumeration):
 
-**Search for path alias configurations:**
+- the language's primary build/compile config (e.g. tsconfig/jsconfig, pyproject, go.mod, pom.xml/build.gradle, Cargo.toml, composer.json, _.csproj/_.fsproj, build.sbt, mix.exs, pubspec.yaml). Look for the alias / module-path / source-set field appropriate to that tool.
+- one bundler config when one is present (vite/webpack/esbuild/rollup/parcel for JS-ish; build-tool-specific for others).
 
-### JavaScript/TypeScript
+Cap: 2 reads per service. Skip services whose build config does not declare aliases.
 
-- Read `**/tsconfig.json` → `compilerOptions.paths` field
-- Read `**/jsconfig.json` → `compilerOptions.paths` field
-- Read `**/vite.config.*` → `resolve.alias` configuration
-- Read `**/webpack.config.*` → `resolve.alias` configuration
-
-### Python
-
-- Read `**/pyproject.toml` → `[tool.setuptools.packages.find]` or custom path configs
-- Check for `sys.path` manipulations in `__init__.py` files
-
-### Go
-
-- Read `**/go.mod` → module name (used as import prefix)
-
-### Java
-
-- Read `**/pom.xml` or `**/build.gradle*` → source set configurations
-
-**Report in `findings.path_aliases` object:**
-
-```json
-"path_aliases": {
-  "@shared": "packages/shared/src/index.ts",
-  "@shared/*": "packages/shared/src/*",
-  "@/*": "src/*"
-}
-```
+**Report in `findings.path_aliases` object** (alias → resolved path). Empty object when no aliases are declared.
 
 </path_aliases>
 
@@ -308,47 +182,13 @@ Generate a markdown table with these columns:
 
 <database_layer>
 
-**Identify database technology, ORM, and migration strategy.**
+Surface the database engine, ORM/data-access layer, and migration commands. The tech-stack analyzer is the source of truth for dependency tags — defer to its findings via the consolidator. In this analyzer:
 
-### Database Detection
+- detect the **engine** by name token in any service's manifest dependencies (postgres / mysql / mongodb / redis / sqlite / dynamodb / elasticsearch / clickhouse / cassandra / cockroach / …) using ONE `semantic_search_nodes_tool` call per credible candidate.
+- detect the **ORM / data-access layer** from class/file naming in the graph (semantic_search by name pattern). Common patterns across stacks: entity decorators / annotations, schema files, model base classes, query builders, migration directories. Stack-agnostic — name tokens, not parser tricks.
+- detect **migration commands** by reading the build-tool's script section (`scripts` in package.json, `[tool.poetry.scripts]` in pyproject, Makefile targets, `tasks` in build.gradle, etc.) — ONE read per service.
 
-Look for database client libraries in dependencies:
-
-- **PostgreSQL:** pg, psycopg2, pgx, diesel-postgres
-- **MySQL:** mysql2, PyMySQL, go-sql-driver/mysql
-- **MongoDB:** mongoose, pymongo, mongo-driver
-- **Redis:** ioredis, redis-py, go-redis
-- **SQLite:** better-sqlite3, sqlite3
-- **DynamoDB:** @aws-sdk/client-dynamodb
-- **Elasticsearch:** @elastic/elasticsearch
-
-### ORM Detection
-
-- **TypeORM:** Look for `@Entity()` decorators, DataSource configuration
-- **Prisma:** Look for `schema.prisma` file, `@prisma/client` dependency
-- **Sequelize:** Look for `define()` calls, Sequelize imports
-- **SQLAlchemy:** Look for `declarative_base()`, SQLAlchemy imports
-- **Django ORM:** Look for `models.Model` subclasses
-- **GORM:** Look for `gorm.Model` embeds
-- **Diesel:** Look for `diesel::prelude` imports
-- **Hibernate/JPA:** Look for `@Entity` annotations
-
-### Migration Detection
-
-Read package.json (or equivalent) scripts to find migration commands. These live in build config, not code — the graph cannot answer this.
-
-**Report in `findings.database` object:**
-
-```json
-"database": {
-  "orm": "TypeORM ^0.3.21",
-  "type": "postgres",
-  "migration_commands": [
-    "pnpm typeorm:migration:create",
-    "pnpm typeorm:migration:run"
-  ]
-}
-```
+**Report in `findings.database` object** with `type`, `orm`, and `migration_commands` (array; empty when none found).
 
 </database_layer>
 
@@ -356,19 +196,11 @@ Read package.json (or equivalent) scripts to find migration commands. These live
 
 **IMPORTANT: You are the SINGLE SOURCE OF TRUTH for service discovery.**
 
-Other analyzers (Tech Stack, Code Patterns, Data Flows) will reference services by ID.
-Ensure each service has a unique, stable ID (use community names from Step 1).
+Other analyzers (Tech Stack, Code Patterns, Data Flows) will reference services by ID. Ensure each service has a unique, stable ID (use community names from Step 1).
 
-For each service, add file count information. If the graph community payload already includes a member count, use that. Otherwise fall back to:
+For each service, set `file_count` from the graph community's member count. If the community payload omits the count for a given service, surface a `needs_verification` item naming the service — do NOT shell out to a filesystem-walking command. Filesystem enumeration cannot replicate community membership and produces brittle, language-tied output the synthesizer cannot reconcile with the graph topology.
 
-```bash
-find services/backend -type f | wc -l
-```
-
-**Add file_count to each service in the services array.**
-
-**NOTE:** Do NOT create separate `packages` or `multi_stack` sections.
-All service information belongs in the `services` array.
+**NOTE:** Do NOT create separate `packages` or `multi_stack` sections. All service information belongs in the `services` array.
 
 </discovery_process>
 
@@ -392,18 +224,9 @@ Before outputting results, verify:
 
 If graph communities are empty but code clearly exists:
 
-- Call `list_graph_stats_tool` to confirm graph is online
-- If that also returns empty, fall back to full manifest discovery
-- Use broader glob patterns: `**/*.{ext1,ext2,ext3}`
-- Try multiple pattern variations (different naming conventions)
-- Read config files to understand custom directory structures
-
-## Real Projects Have These Characteristics
-
-- Every project has dependencies (if found 0, search again)
-- Frontend deps (react/vue/angular) mean frontend code exists somewhere
-- Test frameworks in deps usually mean test files exist (though some projects lack tests)
-- Multiple package.json files typically indicate monorepo (check workspace config)
+- Re-run Step 1 (`get_minimal_context`) — a transient first-call race may have aborted the prior attempt. Then re-run Step 2.
+- If the graph is genuinely empty, fall back to manifest discovery via the multi-pattern Glob from Step 6.
+- Read manifest files to surface custom layouts the graph could not parse.
 
 </critical_thinking>
 
@@ -420,102 +243,50 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Optional field: `needs_verification` array (maximum 5 items)
 - Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
 
-## Example Output Structure
+## Example Output Shape (language-neutral skeleton)
 
 ```json
 {
   "agent_name": "structure-architecture-analyzer",
-  "timestamp": "2026-04-02T10:30:00.000Z",
+  "timestamp": "<ISO-8601>",
   "findings": {
     "services": [
       {
-        "id": "shared",
-        "path": "packages/shared",
-        "type": "library",
-        "language": "typescript",
-        "language_version": "5.3",
-        "file_count": 25,
-        "frameworks": {
-          "main": "class-transformer"
-        },
-        "manifest_file": "packages/shared/package.json"
-      },
-      {
-        "id": "backend",
-        "path": "services/backend",
-        "type": "backend",
-        "language": "typescript",
-        "language_version": "5.3",
-        "file_count": 145,
-        "frameworks": {
-          "main": "NestJS 11.0.11",
-          "orm": "TypeORM 0.3.21"
-        },
-        "environment": {
-          "port": 3000
-        },
-        "manifest_file": "services/backend/package.json"
-      },
-      {
-        "id": "web-frontend",
-        "path": "services/web-frontend",
-        "type": "frontend",
-        "language": "typescript",
-        "language_version": "5.3",
-        "file_count": 85,
-        "frameworks": {
-          "main": "React 19.1.0"
-        },
-        "environment": {
-          "port": 5173
-        },
-        "manifest_file": "services/web-frontend/package.json"
+        "id": "<community-name>",
+        "path": "<relative-path>",
+        "type": "<backend|frontend|library|worker|cli|serverless|mobile|desktop>",
+        "language": "<canonical-language>",
+        "language_version": "<version-or-constraint>",
+        "file_count": 0,
+        "frameworks": { "main": "<framework + version>" },
+        "manifest_file": "<relative-path-to-manifest>",
+        "entry_points": ["<relative-path>"]
       }
     ],
-    "repository_type": "monorepo",
+    "repository_type": "<monorepo|single-service|polyrepo>",
     "monorepo_layout": {
       "root": ".",
-      "workspace_tool": "pnpm workspaces",
-      "workspace_paths": ["packages/*", "services/*"]
+      "workspace_tool": "<canonical>",
+      "workspace_paths": ["<glob>"]
     },
-    "languages": ["typescript", "javascript"],
-    "runtimes": {
-      "node": ">=22.14.x",
-      "pnpm": ">=10"
-    },
-    "frameworks": {
-      "main": "NestJS ^11.0.11",
-      "orm": "TypeORM ^0.3.21",
-      "testing": "Jest ^29.7.0",
-      "ui": "React ^19.1.0"
-    },
-    "architecture_pattern": "Vertical Slicing",
+    "languages": ["<canonical>"],
+    "runtimes": { "<runtime>": "<version-or-constraint>" },
+    "frameworks": { "main": "<framework + version>" },
+    "architecture_pattern": "<MVC|Vertical Slicing|Hexagonal|DDD|Flat>",
     "file_placement": {
-      "table_markdown": "| Package | File Type | Location Pattern | File Count | Notes |\n|---------|-----------|------------------|------------|-------|\n| packages/shared | Shared DTOs | packages/shared/src/dtos/**/*.dto.ts | ~15 files | DTOs used by both frontend and backend |\n| services/backend | Database Models | src/modules/*/database/models/*.model.ts | ~8 files | TypeORM entities, vertical slice per module |\n...",
-      "import_conventions": [
-        "import { UserDto } from '@org/shared/dtos'",
-        "import { Priority } from '@org/shared/enums'"
-      ]
+      "table_markdown": "| Service | File Type | Location Pattern | File Count | Notes |\n|---|---|---|---|---|\n| ...",
+      "shared_packages": ["<relative-path>"],
+      "import_conventions": ["<representative-import-string>"]
     },
-    "path_aliases": {
-      "@org/shared": "packages/shared/src/index.ts",
-      "@org/shared/*": "packages/shared/src/*",
-      "@/*": "src/*"
-    },
+    "path_aliases": { "<alias>": "<resolved-path>" },
     "database": {
-      "orm": "TypeORM ^0.3.21",
-      "type": "postgres",
-      "migration_commands": ["pnpm typeorm:migration:create", "pnpm typeorm:migration:run"]
+      "type": "<engine>",
+      "orm": "<orm-name + version>",
+      "migration_commands": ["<command>"]
     }
   },
   "graph_queries_used": [],
-  "needs_verification": [
-    {
-      "id": "v1",
-      "question": "What is the complete workflow for running migrations in production?",
-      "reason": "Migration commands found but deployment procedures not visible in code"
-    }
-  ]
+  "needs_verification": []
 }
 ```
 

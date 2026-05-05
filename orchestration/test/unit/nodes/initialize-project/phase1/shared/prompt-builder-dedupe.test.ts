@@ -79,22 +79,23 @@ describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan
 
   describe('aggregate', () => {
     it('total Phase 1 execution-instructions size stays within the working budget', () => {
-      // Pre-cleanup (2026-05-04 gira run) measurement:
-      //   structure: 23249, tech-stack: 20377,
-      //   code-patterns: 14525, data-flows: 15787 = 73938 chars total.
-      // After plan §A.5 cleanup: 73000 budget held briefly. The
-      // gira-exhaustive followup §C 1.2 adds load-bearing content to
-      // the tech-stack analyzer's Step 12 (the canonical name list for
-      // workspace tools and package managers across all 11 supported
-      // language families) — that content is non-negotiable for
-      // stack-agnostic correctness, so the budget loosens to 76000.
-      // The bigger trim (§C 2.3 reduce Glob/Read prescriptions) lands
-      // later and brings total back below 65000.
+      // Trajectory:
+      //   - 2026-05-04 (pre-cleanup): 73938 chars (structure 23249 + tech-stack
+      //     20377 + code-patterns 14525 + data-flows 15787).
+      //   - 2026-05-05 (§A.5 within-prompt dedupe): ~73000.
+      //   - 2026-05-05 (§C 1.2 canonical-name lists in tech-stack Step 12):
+      //     budget loosened to 76000 to accommodate non-negotiable
+      //     stack-agnostic content.
+      //   - 2026-05-05 (§C 2.3 reduce Glob/Read prescriptions): collapsed
+      //     per-language enumerations to language-neutral name-token tables
+      //     and trimmed example outputs to language-neutral skeletons.
+      //     Aggregate dropped to ≤56000 — meets the §C 2.3 acceptance
+      //     criterion of ≥25% reduction from the 73938 baseline.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
-      expect(total).toBeLessThan(76000);
+      expect(total).toBeLessThan(56000);
     });
   });
 });

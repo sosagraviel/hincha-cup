@@ -23,138 +23,34 @@ Analyze authentication, authorization, API design patterns, external integration
 
 Call `get_minimal_context` with `task: "Map auth, request lifecycles, persistence, and external integrations"`. The response (~100 tokens) gives you top flows and suggested next tools — use it before any other graph call.
 
-## Step 1: Auth middleware order and request lifecycle via graph
+## Step 1: Auth + request lifecycle via flow inventory
 
-Call `list_flows` with `{ sort_by: "criticality", limit: 30, detail_level: "minimal" }`. Pick **at most 5** flows by name (those containing "auth", "guard", "middleware", "request", or matching the entry-point of a service). For each picked flow call `get_flow({ flow_id, include_source: false })` to retrieve the execution path with middleware/guard nodes in order. Only set `include_source: true` for the **single** flow whose source you genuinely need to read (cap: 1).
+Call `list_flows({ sort_by: "criticality", limit: 30, detail_level: "minimal" })`. Pick at most 5 flows by name token (`auth`, `guard`, `middleware`, `request`, or service entry-point name). For each picked flow call `get_flow({ flow_id, include_source: false })` to retrieve the middleware/guard execution order. Set `include_source: true` for at most ONE flow.
 
-This gives you the auth middleware chain (e.g., `CORS → RateLimiter → JwtGuard → RolesGuard → Handler`) directly, without grepping for JWT/OAuth/session patterns across files.
+The flow execution path encodes the auth chain (CORS → RateLimiter → AuthGuard → RolesGuard → Handler, in whatever shape the codebase uses) — no grep needed.
 
-Flow data alone (`list_flows` + selective `get_flow`) covers what this analyzer needs — no need to reach for `get_architecture_overview` (which the discipline forbids).
+**Only when list_flows returns 0 flows** (true empty-graph fallback): use one `semantic_search_nodes` per credible auth scheme — name tokens: `jwt`, `jose`, `oauth`, `oidc`, `passport`, `keycloak`, `session`, `cookie`, `api-key`, `basic-auth`. Adapt query to language family the structure analyzer detected.
 
-**Only when list_flows returns empty** — fall back to the file-based approach below:
+## Step 2: Authorization Patterns via graph
 
-<auth_detection>
+ONE `semantic_search_nodes({ kind: "Class", limit: 15, detail_level: "minimal" })` with name token `RolesGuard | PermissionsGuard | hasRole | checkPermission | Policy | Authorize | CASL | Casbin | Pundit | Cancan`. Categorise as RBAC (role tokens) or ABAC (policy / attribute / condition tokens) based on discovered class names.
 
-**JWT (JSON Web Tokens):**
+## Step 3: API Design Patterns via graph
 
-- Dependencies: jsonwebtoken, jose, jwt-decode, pyjwt, golang-jwt
-- Search patterns: `jwt.sign`, `jwt.verify`, `JWT.encode`, `jwt.NewWithClaims`
-- Config files: Look for JWT_SECRET, TOKEN_EXPIRY in env examples
+ONE `semantic_search_nodes({ kind: "Class", limit: 15, detail_level: "minimal" })` per protocol with the name token from §C.2.3 (REST: Controller/Handler/Route; GraphQL: Resolver/Schema; gRPC: ServiceDefinition; WebSocket: WebSocketGateway/SubscribeMessage). Report `findings.api_design.{primary, secondary[], patterns}` with booleans per protocol.
 
-**OAuth 2.0 / OpenID Connect:**
+## Step 4: External Integrations via graph
 
-- Dependencies: passport, next-auth, authlib, oauth2, oidc-client
-- Search patterns: `passport.use`, `OAuth2Strategy`, `authorize_url`, `token_url`
-- Config: CLIENT_ID, CLIENT_SECRET, REDIRECT_URI in env examples
+ONE `semantic_search_nodes({ limit: 15, detail_level: "minimal" })` per credible category, each with a single comma-separated name-token query:
 
-**Session-based:**
+- **payments**: stripe / paypal / square / adyen / braintree
+- **email**: sendgrid / mailgun / ses / postmark / nodemailer / mailchimp
+- **cloud storage**: s3 / gcs / azureblob / cloudinary / cloudflare-r2
+- **auth providers**: auth0 / firebase-auth / cognito / keycloak / okta / clerk
+- **monitoring**: sentry / datadog / newrelic / honeybadger / rollbar / bugsnag
+- **observability**: opentelemetry / prometheus / jaeger / zipkin
 
-- Dependencies: express-session, flask-session, gorilla/sessions
-- Search patterns: `session.save`, `request.session`, `c.Session`
-- Config: SESSION_SECRET in env examples
-
-**API Keys:**
-
-- Search for: `X-API-Key`, `Authorization: Bearer`, API key validation middleware
-- Common patterns: Custom headers, query parameters, bearer tokens
-
-</auth_detection>
-
-## Step 2: Discover Authorization Patterns via graph
-
-Use graph flows from Step 1 to identify guard nodes that enforce roles or permissions (e.g., `RolesGuard`, `PermissionsGuard`, `@Roles`, `policy_check`).
-
-Supplement with:
-
-```
-semantic_search_nodes({ query: "RolesGuard | PermissionsGuard | hasRole | checkPermission | CASL | Casbin", kind: "Class", limit: 15, detail_level: "minimal" })
-```
-
-<authorization_patterns>
-
-**Role-Based Access Control (RBAC):**
-
-- Search for: `@Roles`, `hasRole`, `checkPermission`, role decorators
-- Look for: role definitions, permission matrices, guard implementations
-
-**Attribute-Based Access Control (ABAC):**
-
-- Search for: policy files, attribute checks, condition-based guards
-- Look for: CASL, Casbin, custom policy engines
-
-</authorization_patterns>
-
-## Step 3: Map API Design Patterns via graph
-
-Call `semantic_search_nodes({ query: "Controller | Resolver | Router | handler", kind: "Class", limit: 15, detail_level: "minimal" })` to surface API boundary classes. Use the results to determine REST vs. GraphQL vs. gRPC.
-
-<api_patterns>
-
-**REST APIs:**
-
-- Controller/router class names signal REST; check for `@Get`, `@Post` annotations on the returned nodes
-
-**GraphQL:**
-
-- `Resolver` class names signal GraphQL; look for `ObjectType`, `Query`, `Mutation` in graph results
-
-**gRPC:**
-
-- `ServiceDefinition` or `GrpcMethod` class names signal gRPC
-
-**WebSocket / Real-time:**
-
-- `WebSocketGateway`, `SubscribeMessage`, `io.on` in graph results
-
-Document the primary API style and any secondary patterns.
-
-</api_patterns>
-
-## Step 4: Identify External Integrations via graph
-
-Use `semantic_search_nodes` for actual import sites. Do NOT grep package.json — the graph only returns libraries that are actually imported in code.
-
-**Payment processors:**
-
-```
-semantic_search_nodes({ query: "Stripe | PayPal | Square", limit: 15, detail_level: "minimal" })
-```
-
-**Email services:**
-
-```
-semantic_search_nodes({ query: "SendGrid | Mailgun | SES | nodemailer", limit: 15, detail_level: "minimal" })
-```
-
-**Cloud storage:**
-
-```
-semantic_search_nodes({ query: "S3 | GCS | AzureBlob | storage", limit: 15, detail_level: "minimal" })
-```
-
-**Auth providers:**
-
-```
-semantic_search_nodes({ query: "Auth0 | Firebase | Cognito | Keycloak", limit: 15, detail_level: "minimal" })
-```
-
-**Monitoring:**
-
-```
-semantic_search_nodes({ query: "Sentry | Datadog | NewRelic", limit: 15, detail_level: "minimal" })
-```
-
-**Only when ALL graph import queries return empty** — fall back to scanning dependency manifests for SDK package names.
-
-<external_integrations>
-
-**For each detected service, report:**
-
-1. Service name
-2. SDK package name and version (from manifest cross-reference)
-3. Whether confirmed via graph import site or declared-only
-
-</external_integrations>
+For each detected integration: name + SDK package + confirmed (graph import site) / declared (manifest only).
 
 ## Step 5: Document Data Flow Patterns
 
@@ -184,140 +80,19 @@ Supplement with data transformation patterns only when flow data is insufficient
 
 </data_flows>
 
-## Step 6: Identify Background Job & Queue Patterns via graph
+## Step 6: Background Jobs & Queues via graph
 
-Call:
+ONE `semantic_search_nodes({ limit: 15, detail_level: "minimal" })` with name tokens covering common queue libraries across stacks: `bullmq | bull | agenda | celery | rq | dramatiq | huey | asynq | sidekiq | resque | shoryuken | hangfire | quartz | sneakers`. Report `findings.background_jobs` with `library`, `queues[]`, `scheduling` (boolean), `retry_policy`.
 
-```
-semantic_search_nodes({ query: "BullMQ | Bull | Celery | Sidekiq | Asynq | Dramatiq | RQ", limit: 15, detail_level: "minimal" })
-```
+## Step 7: Caching Patterns via graph
 
-If the graph returns import sites, use those for queue and worker identification.
+ONE `semantic_search_nodes({ kind: "Function", limit: 15, detail_level: "minimal" })` with name tokens: `Redis | Memcached | createClient | cache.get | cache.set | hazelcast | infinispan | apc | varnish`. Report `findings.caching` with `type`, `client`, `strategy` (cache-aside / read-through / write-through / write-behind), `ttl_configured`, `use_cases[]`.
 
-**Only when graph returns empty** — fall back to:
+## Step 8: Inter-Service Communication via graph
 
-<background_jobs>
+For each candidate broker, ONE `query_graph({ pattern: "imports_of", target: "<broker-package>" })` call. Common brokers across stacks: kafka / amqp (RabbitMQ) / nats / sqs / pubsub / azure-service-bus / pulsar / redis-streams / activemq.
 
-**Job Queue Libraries:**
-
-### Node.js/TypeScript
-
-- **BullMQ:** `bullmq` dependency, queue definitions, worker processors
-- **Bull:** `bull` dependency (older version of BullMQ)
-- **Agenda:** `agenda` dependency, job scheduling
-
-### Python
-
-- **Celery:** `celery` dependency, task decorators `@app.task`
-- **RQ (Redis Queue):** `rq` dependency, `@job` decorator
-
-### Go
-
-- **Asynq:** `github.com/hibiken/asynq` in go.mod
-
-### Ruby
-
-- **Sidekiq:** `sidekiq` gem, worker classes
-
-</background_jobs>
-
-**Report format:**
-
-```json
-"background_jobs": {
-  "library": "BullMQ",
-  "queues": ["email-queue", "notification-queue", "data-processing"],
-  "scheduling": true,
-  "retry_policy": "exponential backoff"
-}
-```
-
-## Step 7: Detect Caching Patterns via graph
-
-Call:
-
-```
-semantic_search_nodes({ query: "Redis | Memcached | ioredis | createClient | cache.get | cache.set", kind: "Function", limit: 15, detail_level: "minimal" })
-```
-
-Graph results give you actual cache initialization and usage sites. For cache strategy specifics (read-through / write-behind TTL logic), read the specific handler files the graph identified.
-
-<caching_patterns>
-
-**Cache Strategies:**
-
-- **Read-through:** Check cache first, load from DB on miss
-- **Write-through:** Write to cache and DB simultaneously
-- **Write-behind:** Write to cache immediately, DB asynchronously
-- **Cache-aside:** Application manually manages cache
-
-**Report format:**
-
-```json
-"caching": {
-  "type": "redis",
-  "client": "ioredis 5.9",
-  "strategy": "cache-aside",
-  "ttl_configured": true,
-  "use_cases": ["session storage", "API response caching", "rate limiting"]
-}
-```
-
-</caching_patterns>
-
-## Step 8: Map Inter-Service Communication via graph
-
-Call:
-
-```
-query_graph({ pattern: "imports_of", target: "<broker>" })
-```
-
-for known message broker packages (kafkajs, amqplib, nats, @aws-sdk/client-sqs, @google-cloud/pubsub). The edge list shows which modules import the broker, revealing which services communicate through it.
-
-<inter_service_communication>
-
-**For microservices architectures, identify how services communicate:**
-
-### Synchronous Communication
-
-- **HTTP/REST:** Direct HTTP calls between services (Axios, Fetch, node-fetch)
-- **gRPC:** High-performance RPC calls
-- **GraphQL:** Federation, schema stitching
-
-### Asynchronous Communication
-
-- **Message Brokers:** RabbitMQ (amqplib), Kafka (kafkajs), AWS SQS, Google Pub/Sub, NATS
-
-### Service Discovery
-
-- **Consul, Eureka, etcd, Kubernetes DNS**
-
-**Report format:**
-
-```json
-"inter_service_communication": {
-  "pattern": "event-driven",
-  "message_broker": "RabbitMQ",
-  "sync_protocol": "REST",
-  "async_protocol": "AMQP",
-  "service_discovery": "kubernetes-dns",
-  "api_gateway": "nginx"
-}
-```
-
-If single service (not microservices):
-
-```json
-"inter_service_communication": {
-  "pattern": "monolithic",
-  "message_broker": "none",
-  "sync_protocol": "n/a",
-  "async_protocol": "n/a"
-}
-```
-
-</inter_service_communication>
+Report `findings.inter_service_communication` with `pattern` (monolithic / modular-monolith / microservices / event-driven), `message_broker`, `sync_protocol` (rest / grpc / graphql / n-a), `async_protocol`, `service_discovery`, `api_gateway`.
 
 </discovery_process>
 
@@ -334,22 +109,6 @@ If single service (not microservices):
 7. **Queue library present but no graph import results?** Search for files with "worker", "job", "processor" in name
 8. **Redis in dependencies but purpose unclear?** Graph cache.get/cache.set sites should clarify usage
 9. **Multiple services but no message broker?** Check if it's truly microservices or modular monolith
-
-## Common Integration Patterns
-
-**Node.js/TypeScript typically integrates:**
-
-- Stripe for payments
-- SendGrid for email
-- AWS S3 for storage
-- Auth0 or Firebase for authentication
-
-**Python typically integrates:**
-
-- Stripe or PayPal for payments
-- SendGrid or AWS SES for email
-- boto3 for AWS services
-- OAuth libraries for social auth
 
 </critical_thinking>
 
@@ -370,66 +129,52 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 ```json
 {
   "agent_name": "data-flows-integrations-analyzer",
-  "timestamp": "2026-04-02T10:30:00.000Z",
+  "timestamp": "<ISO-8601>",
   "findings": {
     "authentication": {
-      "type": "JWT + OAuth2",
-      "libraries": ["passport-jwt", "passport-google-oauth20"],
-      "middleware": "src/modules/auth/guards/",
-      "providers": ["local", "google", "github"],
-      "flow_id": "request-auth-flow"
+      "type": "<JWT|OAuth|OIDC|Session|API-Key|Basic>",
+      "libraries": ["<library>"],
+      "middleware": "<relative-path>",
+      "providers": ["<provider>"],
+      "flow_id": "<flow-id>"
     },
     "authorization": {
-      "type": "RBAC",
-      "implementation": "NestJS Guards + Custom Decorators",
-      "roles": ["admin", "user", "moderator"]
+      "type": "<RBAC|ABAC>",
+      "implementation": "<short-description>",
+      "roles": ["<role>"]
     },
     "api_design": {
-      "primary": "REST",
-      "secondary": ["WebSocket"],
-      "versioning": "none",
-      "patterns": {
-        "rest": true,
-        "graphql": false,
-        "grpc": false,
-        "websockets": true
-      }
+      "primary": "<REST|GraphQL|gRPC|WebSocket>",
+      "secondary": ["<protocol>"],
+      "versioning": "<none|URL|header>",
+      "patterns": { "rest": false, "graphql": false, "grpc": false, "websockets": false }
     },
     "external_integrations": [
-      {
-        "service": "Keycloak",
-        "purpose": "Identity and Access Management",
-        "sdk": "@keycloak/keycloak-admin-client 26.1.4"
-      },
-      {
-        "service": "Sentry",
-        "purpose": "Error tracking and monitoring",
-        "sdk": "@sentry/nestjs 9.30.0"
-      }
+      { "service": "<name>", "purpose": "<purpose>", "sdk": "<package + version>" }
     ],
     "background_jobs": {
-      "library": "BullMQ",
-      "queues": ["email-notifications", "data-processing"],
-      "scheduling": true,
-      "retry_policy": "configurable per queue"
+      "library": "<library>",
+      "queues": ["<queue>"],
+      "scheduling": false,
+      "retry_policy": "<policy>"
     },
     "caching": {
-      "type": "redis",
-      "client": "ioredis 5.9.2",
-      "strategy": "cache-aside",
-      "ttl_configured": true,
-      "use_cases": ["session storage", "rate limiting", "temporary data"]
+      "type": "<engine>",
+      "client": "<client + version>",
+      "strategy": "<strategy>",
+      "ttl_configured": false,
+      "use_cases": ["<use-case>"]
     },
     "inter_service_communication": {
-      "pattern": "monolithic with internal modules",
-      "message_broker": "none",
-      "sync_protocol": "internal method calls",
-      "async_protocol": "BullMQ for background jobs"
+      "pattern": "<monolithic|modular-monolith|microservices|event-driven>",
+      "message_broker": "<broker|none>",
+      "sync_protocol": "<rest|grpc|graphql|n-a>",
+      "async_protocol": "<protocol|n-a>"
     },
     "data_transformation": {
-      "dto_library": "class-validator + class-transformer",
-      "validation": "NestJS ValidationPipe",
-      "serialization": "class-transformer decorators"
+      "dto_library": "<library>",
+      "validation": "<framework>",
+      "serialization": "<approach>"
     }
   },
   "graph_queries_used": [],

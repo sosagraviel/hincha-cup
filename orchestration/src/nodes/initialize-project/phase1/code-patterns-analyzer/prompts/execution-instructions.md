@@ -23,189 +23,47 @@ Analyze testing strategies, code quality tools, and development practices for ea
 
 Call `get_minimal_context` with `task: "Survey testing approach, code-quality signals, and recurring patterns"`. The response (~100 tokens) gives you top communities, top flows, and suggested next tools — use it before any other graph call.
 
-## Step 1: Identify Testing Frameworks from Dependencies
+## Step 1: Testing Frameworks from Dependencies
 
-For each service discovered in Phase 1 (by Structure Analyzer), read its manifest file and extract testing frameworks:
-
-<testing_frameworks>
-
-**JavaScript/TypeScript:**
-
-- Unit/Integration: jest, vitest, mocha, ava, tap
-- E2E: playwright, cypress, puppeteer, testcafe
-- Component: @testing-library/react, @testing-library/vue
-
-**Python:**
-
-- Unit/Integration: pytest, unittest (built-in), nose2
-- E2E: selenium, playwright-python
-
-**Go:**
-
-- Testing: built-in `testing` package (no external dependency needed)
-- Advanced: testify, ginkgo, gomega
-
-**Rust:**
-
-- Testing: built-in `cargo test` (no external dependency needed)
-- Advanced: mockall, proptest
-
-**Java:**
-
-- Unit: junit, testng
-- Integration: spring-boot-starter-test
-
-**Ruby:**
-
-- Unit/Integration: rspec, minitest (built-in)
-- E2E: capybara, selenium-webdriver
-
-Testing frameworks appear in devDependencies (JS/TS) or test dependencies sections.
-
-</testing_frameworks>
+The tech-stack analyzer's `dependencies.by_service` already lists each service's libraries. Look for testing frameworks by name token within the dev-dependency section: `jest`, `vitest`, `mocha`, `ava`, `tap`, `pytest`, `unittest`, `nose`, `testify`, `ginkgo`, `gomega`, `mockall`, `proptest`, `junit`, `testng`, `spring-boot-starter-test`, `rspec`, `minitest`, `phpunit`, `pest`, `xunit`, `nunit`, `mstest`, `scalatest`, `specs2`, `exunit`. E2E: `playwright`, `cypress`, `puppeteer`, `selenium`, `capybara`, `testcafe`. Record per service.
 
 ## Step 2: Find Test Files via graph
 
-Call `semantic_search_nodes({ query: "describe test it spec", kind: "Function", limit: 20, detail_level: "minimal" })` to surface test entry points. (Do NOT call `find_large_functions({ min_lines: 1 })` — that returns every function in the graph and overflows.)
+Call `semantic_search_nodes({ kind: "Test", limit: 20, detail_level: "minimal" })` (the graph indexes test nodes natively). For test → source linkage, call `query_graph({ pattern: "tests_for", target: "<community>", detail_level: "minimal" })` per service, capped at top 3 communities.
 
-For test → source linkage, call `query_graph({ pattern: "tests_for", target: "<community>", detail_level: "minimal" })` per service from Step 1, capped at the top 3 communities. This relationship data is impossible to get from Glob alone.
+**Only when the graph returns 0 Test nodes** (true empty-graph fallback): use Glob with the language family's canonical test path. Common shapes are language-tied (`**/*.spec.{ts,js}`, `**/*_test.go`, `**/test_*.py`, `**/*Spec.java`, `**/*_spec.rb`, `**/Tests/**/*.cs`, …). Use the structure analyzer's detected language to pick the right shape — never enumerate all of them. Do NOT call `find_large_functions({ min_lines: 1 })` — it returns every function and overflows.
 
-Record the test file list from graph results. Use this as your primary test file inventory.
+## Step 3: Test Configuration (one Glob, then read)
 
-**Only when the graph returns 0 test-function matches** — fall back to Glob with these patterns:
-
-<test_patterns>
-
-**Universal Patterns:**
-
-- `**/test/**/*` - test directory
-- `**/tests/**/*` - tests directory
-- `**/__tests__/**/*` - **tests** directory (Jest convention)
-
-**Language-Specific Patterns:**
-
-- JavaScript/TypeScript: `**/*.{test,spec}.{js,ts,jsx,tsx,mjs,cjs}`
-- Python: `**/test_*.py`, `**/*_test.py`
-- Go: `**/*_test.go`
-- Rust: `**/tests/**/*.rs` (integration), `src/**/*.rs` (unit tests inline with `#[test]`)
-- Java: `**/src/test/**/*.java`
-- Ruby: `**/spec/**/*_spec.rb`
-
-Count files matching each pattern to estimate test coverage breadth.
-
-</test_patterns>
-
-## Step 3: Find Test Configuration Files (Glob — required)
-
-Test framework config files are not indexed by the graph. Always use Glob/Read for this step.
-
-<test_configs>
-
-**Unit Test Configs:**
-
-- Jest: `jest.config.js`, `jest.config.ts`, `jest.config.mjs`, or `"jest"` section in package.json
-- Vitest: `vitest.config.ts`, `vite.config.ts` (with test section)
-- Pytest: `pytest.ini`, `pyproject.toml` ([tool.pytest.ini_options]), `setup.cfg`
-- Go: No config needed (built-in)
-- Rust: `Cargo.toml` ([dev-dependencies])
-
-**Integration Test Configs:**
-
-- Often same as unit test configs with different testMatch patterns
-- May have separate config: `jest.e2e.config.mjs`, `vitest.integration.config.ts`
-
-**E2E Test Configs:**
-
-- Playwright: `playwright.config.ts`
-- Cypress: `cypress.config.ts`, `cypress.config.js`, `cypress.json`
-
-Read config files to extract:
-
-- File patterns (`testMatch`, `testRegex`)
-- Test environment settings
-- Coverage thresholds
-- Test command configurations
-
-</test_configs>
-
-## Step 4: Analyze API/Interface Patterns via graph
-
-Call `semantic_search_nodes({ query: "Controller | Resolver | Service", kind: "class" })` to detect API pattern indicators. The graph returns annotated class nodes without requiring per-file reads.
-
-Supplement with targeted queries for specific patterns:
-
-**GraphQL detection:**
+ONE Glob over canonical test-config filenames, then read each match (cap: 5):
 
 ```
-semantic_search_nodes({ query: "Resolver | GraphQLSchema | ObjectType", kind: "Class", limit: 15, detail_level: "minimal" })
+{jest.config.{js,ts,mjs,cjs},vitest.config.{js,ts,mjs},vite.config.{js,ts},playwright.config.{ts,js},cypress.config.{ts,js},cypress.json,pytest.ini,pyproject.toml,setup.cfg,phpunit.xml,phpunit.xml.dist,rspec,karma.conf.js,nightwatch.conf.js}
 ```
 
-**gRPC detection:**
+Extract per-config: file patterns, environment settings, coverage thresholds, test commands.
 
-```
-semantic_search_nodes({ query: "ServiceDefinition | GrpcMethod", kind: "Class", limit: 15, detail_level: "minimal" })
-```
+## Step 4: API/Interface Patterns via graph
 
-**WebSocket detection:**
+ONE `semantic_search_nodes({ kind: "Class", limit: 15, detail_level: "minimal" })` per protocol you want to confirm, with the appropriate name token:
 
-```
-semantic_search_nodes({ query: "WebSocketGateway | SubscribeMessage | io.on", kind: "Function", limit: 15, detail_level: "minimal" })
-```
+- **REST**: `Controller | Handler | Route | Endpoint`
+- **GraphQL**: `Resolver | Schema | ObjectType`
+- **gRPC**: `ServiceDefinition | GrpcMethod | RpcService`
+- **WebSocket**: `WebSocketGateway | SubscribeMessage`
 
-Only fall back to Grep for API patterns when graph returns empty for all queries.
+**Report `findings.api_patterns`** as `{ rest, graphql, grpc, websockets }` booleans, plus any other detected protocols (`mqtt`, `amqp`, `kafka`).
 
-<api_patterns>
+## Step 5: Code Quality Tools (manifest + one config-file glob)
 
-**Report discovered API patterns:**
+The tech-stack analyzer's `dependencies.by_service` already lists installed tools. Recognise quality tools by name token:
 
-```json
-"api_patterns": {
-  "rest": true,
-  "graphql": false,
-  "grpc": false,
-  "websockets": true
-}
-```
+- **linters**: eslint / tslint / pylint / flake8 / ruff / golangci-lint / clippy / checkstyle / spotbugs / pmd / rubocop / phpstan / phpcs / detekt / scalafmt / credo
+- **formatters**: prettier / dprint / black / yapf / autopep8 / gofmt / goimports / rustfmt / google-java-format / rubocop / php-cs-fixer / ktlint / scalafmt / mix-format
+- **type checkers**: tsc / flow / mypy / pyright / pyre / sorbet (Ruby) / psalm (PHP)
+- **pre-commit**: husky / lint-staged / lefthook / pre-commit (Python) / overcommit / git-hooks-go
 
-</api_patterns>
-
-## Step 5: Identify Code Quality Tools (Glob — required for config)
-
-Quality tool configuration is not indexed by the graph. Use manifests for tool detection, Glob/Read for config details.
-
-<quality_tools>
-
-**Linters (from dependencies):**
-
-- JavaScript/TypeScript: eslint, tslint (deprecated), @typescript-eslint
-- Python: pylint, flake8, ruff
-- Go: golangci-lint (used via CI, may not be in go.mod)
-- Rust: clippy (built-in with rustup)
-- Java: checkstyle, spotbugs, pmd
-- Ruby: rubocop
-
-**Formatters (from dependencies):**
-
-- JavaScript/TypeScript: prettier, dprint
-- Python: black, yapf, autopep8
-- Go: gofmt, goimports (built-in)
-- Rust: rustfmt (built-in)
-- Java: google-java-format
-- Ruby: rubocop (also formats)
-
-**Type Checkers:**
-
-- JavaScript: TypeScript compiler, flow
-- Python: mypy, pyright, pyre
-
-**Pre-commit Hooks (Glob — required):**
-
-- Search for: `.husky/`, `.git/hooks/`, `.pre-commit-config.yaml`, `lefthook.yml`
-- Check package.json for `husky`, `lint-staged`, `lefthook`
-
-Find configuration files for each tool and note their presence.
-
-</quality_tools>
+ONE Glob over typical config locations: `{.eslintrc*,.prettierrc*,.flake8,.pylintrc,pyproject.toml,clippy.toml,tsconfig.json,.husky/*,.pre-commit-config.yaml,lefthook.yml,phpstan.neon,.rubocop.yml,checkstyle.xml,detekt.yml}`. Note presence; read only when extracting non-default settings.
 
 ## Step 6: Code Quality via graph
 
@@ -213,79 +71,21 @@ Call `find_large_functions({ min_lines: 50, kind: "Function", limit: 30 })` to s
 
 Record the count and distribution of large functions per service in `findings.code_quality`.
 
-## Step 7: Detect Documentation Patterns (Glob — required)
+## Step 7: Documentation Patterns (Glob — required)
 
-Documentation tool config is not indexed by the graph. Always use Glob/Read for this step.
+ONE Glob over: `{swagger.{json,yaml},openapi.{json,yaml},README*,CONTRIBUTING*,DEVELOPMENT*,docs/**/{*.md,*.rst,*.adoc}}`. Plus one tech-stack lookup for static-site generators (`vitepress`, `docusaurus`, `mkdocs`, `sphinx`, `jekyll`, `hugo`, `astro`, `nextra`, `vuepress`). API-doc generators (`@nestjs/swagger`, `fastapi`, `springdoc-openapi`, `swashbuckle`, `flask-swagger`) emit OpenAPI from code; surface presence in `findings.documentation.api_docs`.
 
-<documentation_patterns>
+**Report**: `findings.documentation` with `api_docs[]`, `static_site`, `readme`, `contributing_guide`.
 
-### API Documentation
+## Step 8: Categorise Tests by Type
 
-- **OpenAPI/Swagger:** `swagger.json`, `swagger.yaml`, `openapi.json`, `openapi.yaml` files
-- **NestJS Swagger:** `@nestjs/swagger` in dependencies
-- **FastAPI:** Auto-generates OpenAPI (check dependencies)
+Use the graph's `tests_for` edges from Step 2 as primary signal. Categorise:
 
-### README and Guides
+- **unit** — same package as source, fast.
+- **integration** — DB / API / cross-component; often in a parallel `tests/integration` shape.
+- **e2e** — browser/automation; recognised by playwright/cypress/selenium imports OR a dedicated config file (Step 3).
 
-Search for documentation files:
-
-- `README.md`, `README.rst`
-- `CONTRIBUTING.md`, `DEVELOPMENT.md`
-- `docs/` directory with markdown or reStructuredText
-
-### Static Site Generators
-
-Check dependencies for:
-
-- **VitePress:** `vitepress` in devDependencies
-- **Docusaurus:** `@docusaurus/core`
-- **MkDocs:** `mkdocs` (Python)
-
-**Report format:**
-
-```json
-"documentation": {
-  "api_docs": ["swagger", "openapi"],
-  "static_site": "vitepress",
-  "readme": true,
-  "contributing_guide": true
-}
-```
-
-</documentation_patterns>
-
-## Step 8: Categorize Tests by Type
-
-<test_categorization>
-
-Use the graph results from Step 2 as the primary source for test categorization. The `tests_for` edge query already gives you the test → source linkage needed to classify tests.
-
-Categorize discovered tests into three types:
-
-**Unit Tests:**
-
-- Test individual functions/methods in isolation
-- Usually fast (<1s per test)
-- Typically in same directory as source OR in parallel test/ directory
-- Patterns: Files with `.test.`, `.spec.`, `test_` prefix
-
-**Integration Tests:**
-
-- Test multiple components working together
-- May interact with databases, APIs
-- Often in separate `tests/integration/` directory
-- May have separate config: `jest.integration.config.js`
-
-**E2E (End-to-End) Tests:**
-
-- Test complete user workflows
-- Use browser automation (Playwright, Cypress)
-- Usually in `e2e/`, `tests/e2e/`, or `cypress/` directories
-- Have dedicated configs: `playwright.config.ts`, `cypress.config.ts`
-
-Report counts for each type if distinguishable from file paths or config.
-
-</test_categorization>
+Counts per category go in `testing.<service_id>.{unit,integration,e2e}.file_count`.
 
 </discovery_process>
 
@@ -304,27 +104,6 @@ Report counts for each type if distinguishable from file paths or config.
 9. **Documentation tools checked?** Look for Swagger/OpenAPI, static site generators, docs/ directory
 10. **Pre-commit hooks detected?** Search for .husky/, .pre-commit-config.yaml, lefthook.yml
 
-## Common Patterns
-
-**Node.js/TypeScript projects typically have:**
-
-- Jest or Vitest for unit tests
-- Playwright or Cypress for E2E
-- ESLint + Prettier for quality
-- Husky for pre-commit hooks
-
-**Python projects typically have:**
-
-- Pytest for testing
-- Black + Pylint or Ruff for quality
-- pre-commit for hooks
-
-**Go projects typically have:**
-
-- Built-in testing package
-- golangci-lint (in CI, not always in go.mod)
-- gofmt (built-in, no config)
-
 </critical_thinking>
 
 <output_format>
@@ -340,65 +119,49 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 - Optional field: `needs_verification` array (maximum 5 items)
 - Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
 
-## Example Output Structure
+## Example Output Shape (language-neutral skeleton)
 
 ```json
 {
   "agent_name": "code-patterns-testing-analyzer",
-  "timestamp": "2026-04-02T10:30:00.000Z",
+  "timestamp": "<ISO-8601>",
   "findings": {
-    "api_patterns": {
-      "rest": true,
-      "graphql": false,
-      "grpc": false,
-      "websockets": true
-    },
+    "api_patterns": { "rest": false, "graphql": false, "grpc": false, "websockets": false },
     "quality_tools": {
-      "linter": "eslint",
-      "formatter": "prettier",
-      "type_checker": "typescript",
-      "pre_commit": "husky"
+      "linter": "<tool>",
+      "formatter": "<tool>",
+      "type_checker": "<tool>",
+      "pre_commit": "<tool>"
     },
-    "code_quality": {
-      "large_functions_count": 12,
-      "large_functions_threshold_lines": 20
-    },
+    "code_quality": { "large_functions_count": 0, "large_functions_threshold_lines": 50 },
     "documentation": {
-      "api_docs": ["swagger", "openapi"],
-      "static_site": "none",
-      "readme": true,
-      "contributing_guide": true
+      "api_docs": ["<format>"],
+      "static_site": "<tool|none>",
+      "readme": false,
+      "contributing_guide": false
     },
-    "services": [
-      {
-        "id": "backend",
-        "testing": {
-          "unit": {
-            "framework": "Jest 29.7",
-            "config_file": "services/backend/jest.config.mjs",
-            "file_pattern": ".*\\.(spec|test)\\.ts$",
-            "file_count": 13
-          },
-          "integration": {
-            "framework": "Jest 29.7",
-            "config_file": "services/backend/jest.e2e.config.mjs",
-            "file_pattern": ".e2e-spec.ts$",
-            "file_count": 5
-          }
-        }
-      },
-      {
-        "id": "web-frontend",
-        "testing": {
-          "e2e": {
-            "framework": "Playwright 1.52",
-            "config_file": "services/web-frontend/playwright.config.ts",
-            "file_pattern": "e2e/**/*.spec.ts",
-            "file_count": 7
-          }
+    "testing": {
+      "<service-id>": {
+        "unit": {
+          "framework": "<framework>",
+          "config_file": "<path>",
+          "file_pattern": "<regex>",
+          "file_count": 0
+        },
+        "integration": {
+          "framework": "<framework>",
+          "config_file": "<path>",
+          "file_pattern": "<regex>",
+          "file_count": 0
+        },
+        "e2e": {
+          "framework": "<framework>",
+          "config_file": "<path>",
+          "file_pattern": "<regex>",
+          "file_count": 0
         }
       }
-    ]
+    }
   },
   "graph_queries_used": [],
   "needs_verification": []
