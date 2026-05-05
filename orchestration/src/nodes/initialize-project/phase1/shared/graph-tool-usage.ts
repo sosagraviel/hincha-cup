@@ -5,6 +5,7 @@ import path from 'path';
 import { logger } from '../../../../utils/logger.js';
 import { claudeProjectSlug } from '../../../../services/framework/transcripts/capture.js';
 import {
+  hasAnyManifestVsImportMismatch,
   hasSpeculativeNeedsVerification,
   validateNeedsVerificationProse,
 } from './needs-verification-quality.js';
@@ -475,6 +476,17 @@ export function applyGraphToolUsageFromSidecar(
   const proseViolations = validateNeedsVerificationProse(needsVerification);
   for (const v of proseViolations) {
     softWarnings.push(v.code);
+  }
+
+  // Plan 14 §C.4 (2026-05-05): manifest-vs-import cross-check. Fires
+  // when an item references a manifest-declared dependency but the
+  // agent never searched for actual import sites — answer is
+  // "declared but not imported", which is a finding, not a question.
+  // Soft warning so the operator sees the trend; analyzer Stop hook
+  // does NOT hard-reject here (the agent might have done the search
+  // and just neglected to note it; punishing on retry feels harsh).
+  if (hasAnyManifestVsImportMismatch(needsVerification)) {
+    softWarnings.push('manifest_declared_but_no_import_search');
   }
 
   return {

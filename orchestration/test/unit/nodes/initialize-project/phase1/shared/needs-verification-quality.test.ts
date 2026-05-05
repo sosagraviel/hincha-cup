@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  hasAnyManifestVsImportMismatch,
+  hasManifestVsImportMismatch,
   hasSpeculativeNeedsVerification,
   findSpeculativeNeedsVerification,
   validateNeedsVerificationProse,
@@ -462,6 +464,26 @@ describe('Plan 14 acceptance — the 7 gira questions are blocked', () => {
     expect(violations.some((v) => v.code === 'graph_internals_in_user_prose')).toBe(true);
   });
 
+  it('Q4 (synonym for outside-the-repo) — surfaces speculative_needs_verification', () => {
+    // Q4 evades the original "outside this repository" rule but
+    // matches the §C.5 synonym list ("infrastructure repository",
+    // "external system", "build environments reachable").
+    expect(
+      hasSpeculativeNeedsVerification([
+        {
+          id: 'v4',
+          question:
+            'Does a CI/CD pipeline exist for this project, and is the self-hosted Sentry instance accessible from production build environments?',
+          reason:
+            'No CI config detected — automated deployment may be managed in a separate infrastructure repository or external system.',
+          attempted_resolution: ['Glob ".github/workflows/*"', 'Read vite.config.ts'],
+          impact:
+            'Decides whether ARCHITECTURE.md mentions a CI pipeline as part of the deployment topology.',
+        },
+      ]),
+    ).toBe(true);
+  });
+
   it('Q5 (testing-coverage policy) — passes when the agent supplies proper resolution + impact', () => {
     const violations = validateNeedsVerificationProse([
       {
@@ -479,5 +501,140 @@ describe('Plan 14 acceptance — the 7 gira questions are blocked', () => {
       },
     ]);
     expect(violations).toHaveLength(0);
+  });
+});
+
+describe('hasSpeculativeNeedsVerification — Plan 14 §C.5 synonym expansion', () => {
+  it.each([
+    'managed in a separate infrastructure repository',
+    'lives in a sibling repository',
+    'managed by a different vendor portal',
+    'handled by an external system',
+    'external infrastructure managed by another team',
+    'is the host accessible from production build environments?',
+    'reachable from CI environments?',
+    'accessible from build environments',
+    'infrastructure managed elsewhere',
+  ])('detects "%s" via synonym pattern', (phrase) => {
+    expect(
+      hasSpeculativeNeedsVerification([
+        {
+          id: 'v1',
+          question: `Does the deployment ${phrase}?`,
+          reason: 'Cannot determine from this repo.',
+        },
+      ]),
+    ).toBe(true);
+  });
+
+  it('does NOT misfire on legitimate prose mentioning unrelated tokens', () => {
+    expect(
+      hasSpeculativeNeedsVerification([
+        {
+          id: 'v1',
+          question: 'Does the project use a Redis-based external cache or an in-process cache?',
+          reason:
+            'Both libraries appear to be installed but only one is wired up in the cache module.',
+        },
+      ]),
+    ).toBe(false);
+  });
+});
+
+describe('hasManifestVsImportMismatch — Plan 14 §C.4', () => {
+  it('fires when the item references "declared as dependencies" without an import-site search', () => {
+    expect(
+      hasManifestVsImportMismatch({
+        id: 'v3',
+        question: 'Are AWS S3 and Google OAuth fully implemented or only declared as dependencies?',
+        reason: 'AWS env vars are present in .env.example but no @aws-sdk/client-s3 SDK was found.',
+        attempted_resolution: ['Read .env.example', 'Read services/backend/package.json'],
+        impact: 'Decides whether SERVICES.md mentions S3 in the integrations block.',
+      }),
+    ).toBe(true);
+  });
+
+  it('does NOT fire when the agent already searched for import sites', () => {
+    expect(
+      hasManifestVsImportMismatch({
+        id: 'v3',
+        question: 'Is the @aws-sdk dependency only declared, or actually imported?',
+        reason: 'Package.json lists it but unclear if it is wired up.',
+        attempted_resolution: [
+          'Read services/backend/package.json',
+          'Grep "from \'@aws-sdk" services/backend/src/',
+        ],
+        impact: 'Decides whether SERVICES.md mentions S3 in the integrations block.',
+      }),
+    ).toBe(false);
+  });
+
+  it('detects mcp__code_graph__semantic_search_nodes_tool as an import-site search', () => {
+    expect(
+      hasManifestVsImportMismatch({
+        id: 'v3',
+        question: 'Is the @aws-sdk dependency only declared as a dependency in package.json?',
+        reason: 'Package.json lists it but unclear if it is wired up.',
+        attempted_resolution: [
+          'Read services/backend/package.json',
+          'mcp__code_graph__semantic_search_nodes_tool({ query: "@aws-sdk", limit: 20 })',
+        ],
+        impact: 'Decides whether SERVICES.md mentions S3 in the integrations block.',
+      }),
+    ).toBe(false);
+  });
+
+  it('does NOT fire when the question does not reference manifest-declaration prose', () => {
+    expect(
+      hasManifestVsImportMismatch({
+        id: 'v1',
+        question: 'Is Redis topology shared or per-service?',
+        reason: 'Configs do not specify.',
+        attempted_resolution: ['Read services/backend/redis.module.ts'],
+        impact: 'Determines the deployment-target paragraph in ARCHITECTURE.md.',
+      }),
+    ).toBe(false);
+  });
+
+  it('hasAnyManifestVsImportMismatch returns true when any item trips', () => {
+    expect(
+      hasAnyManifestVsImportMismatch([
+        {
+          id: 'a',
+          question: 'Plain question.',
+          reason: 'Plain reason.',
+          attempted_resolution: ['Read x.ts', 'Read y.ts'],
+          impact: 'Concrete impact paragraph for the architecture section of ARCHITECTURE.md.',
+        },
+        {
+          id: 'b',
+          question: 'Is @sentry/node only declared as a dependency?',
+          reason: 'package.json shows it.',
+          attempted_resolution: ['Read package.json', 'Read README.md'],
+          impact: 'Decides whether SERVICES.md mentions Sentry in the integrations block.',
+        },
+      ]),
+    ).toBe(true);
+  });
+
+  it('hasAnyManifestVsImportMismatch returns false when no item trips', () => {
+    expect(
+      hasAnyManifestVsImportMismatch([
+        {
+          id: 'a',
+          question: 'Plain question.',
+          reason: 'Plain reason.',
+          attempted_resolution: ['Read x.ts', 'Read y.ts'],
+          impact: 'Concrete impact paragraph for the architecture section of ARCHITECTURE.md.',
+        },
+      ]),
+    ).toBe(false);
+  });
+
+  it('returns false defensively on non-array / non-object inputs', () => {
+    expect(hasManifestVsImportMismatch(null)).toBe(false);
+    expect(hasManifestVsImportMismatch('oops')).toBe(false);
+    expect(hasAnyManifestVsImportMismatch(undefined)).toBe(false);
+    expect(hasAnyManifestVsImportMismatch({})).toBe(false);
   });
 });

@@ -46,6 +46,41 @@ const SPECULATIVE_TOKENS: Array<{ pattern: RegExp; reason: string }> = [
     pattern: /\b(?:configured|managed|maintained)\s+(?:outside|by\s+another\s+team|elsewhere)\b/i,
     reason: 'items managed outside this repo cannot be verified by reading this repo',
   },
+  // Plan 14 §C.5 synonym expansion (gira-exhaustive-followup-2,
+  // 2026-05-05): the Q4 question "managed in a separate
+  // infrastructure repository or external system" should have
+  // fired the original "outside this repository" rule but evaded
+  // it by phrasing. These synonym patterns close the gap.
+  {
+    pattern: /\b(?:infrastructure|separate|another|sibling)\s+repository\b/i,
+    reason:
+      'sibling / infrastructure repositories are by definition outside this repo and cannot be verified from here',
+  },
+  {
+    pattern: /\bvendor\s+portal\b/i,
+    reason: 'vendor portals are not part of the repo and cannot be inspected',
+  },
+  {
+    pattern: /\bexternal\s+(?:system|infrastructure|service\s+managed\s+by)\b/i,
+    reason: 'external systems / infrastructure / vendor-managed services live outside this repo',
+  },
+  {
+    pattern: /\binfrastructure\s+managed\s+(?:elsewhere|outside|by\s+(?:another|a\s+different))/i,
+    reason: 'infrastructure managed elsewhere is, by definition, not in this repo',
+  },
+  // Build-environment reachability is a network-state question,
+  // not a repo question — the repo has no way to know whether host
+  // X is reachable from CI runner Y.
+  {
+    pattern:
+      /\b(?:from|in)\s+(?:production\s+)?(?:build|ci|deployment)\s+environments?\b.*\b(?:reachable|accessible)/i,
+    reason: 'reachability from build / CI environments is network state, not repository state',
+  },
+  {
+    pattern:
+      /\b(?:reachable|accessible)\s+from\s+(?:production\s+)?(?:build|ci|deployment)\s+environments?\b/i,
+    reason: 'reachability from build / CI environments is network state, not repository state',
+  },
   // Production deployment / infra topology that lives elsewhere.
   {
     pattern: /\bproduction\s+(?:deployment|infrastructure|environment|server|host|url|endpoint)\b/i,
@@ -388,6 +423,78 @@ function looksLikeToolInvocation(entry: string): boolean {
     if (pattern.test(entry)) return true;
   }
   return false;
+}
+
+// ============================================================================
+// PLAN 14 §C.4 — manifest-vs-import cross-check (soft warning)
+// ============================================================================
+
+/**
+ * Heuristic: the item references a manifest-declared dependency
+ * shape ("declared as dependencies", "in package.json", "in
+ * pyproject.toml", "from go.mod", etc.) BUT none of the
+ * `attempted_resolution` entries searches for actual import sites.
+ *
+ * The agent saw the dependency name in the manifest but never
+ * searched for `import`/`require`/`use` statements referencing
+ * it — the answer to "is X actually used?" is in the import sites,
+ * not the manifest.
+ *
+ * Stack-agnostic: every manifest format and every import-statement
+ * shape is covered by token alternation (no language-family
+ * branches).
+ */
+const MANIFEST_DECLARATION_PATTERNS: RegExp[] = [
+  /\bdeclared\s+(?:as\s+)?(?:a\s+)?dependenc(?:y|ies)\b/i,
+  /\bin\s+(?:package\.json|pyproject\.toml|cargo\.toml|gemfile|composer\.json|go\.mod|pom\.xml|build\.gradle|mix\.exs|\*\.csproj)\b/i,
+  /\bonly\s+declared\s+as\s+(?:a\s+)?dependenc/i,
+  /\bpresent\s+in\s+(?:runtime\s+)?dependencies\b/i,
+  /\bappears?\s+in\s+(?:the\s+)?manifest\b/i,
+];
+
+const IMPORT_SEARCH_PATTERNS: RegExp[] = [
+  // Tool patterns that look like an import-site search across stacks.
+  /\b(?:Grep|grep|rg|ripgrep)\b[^\n]*\b(?:import|require|use|using|from|include|@import)\b/i,
+  // Search by package name with a string match shape — often a Grep / find.
+  /(?:Grep|grep|rg)\b[^\n]*['"]\s*[@\w][\w./-]+\s*['"]/,
+  // mcp__code_graph__semantic_search with the package name in the query.
+  /mcp__code_graph__semantic_search_nodes_tool/i,
+];
+
+/**
+ * Inspect a needs_verification item. Returns true when the item
+ * looks like "manifest-declared but no import-site search done".
+ * Used as a SOFT warning; the operator sees a `manifest_declared_but_no_import_search`
+ * code on the run report when the rate spikes.
+ */
+export function hasManifestVsImportMismatch(item: unknown): boolean {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+  const rec = item as Record<string, unknown>;
+  const text = [
+    typeof rec.question === 'string' ? rec.question : '',
+    typeof rec.reason === 'string' ? rec.reason : '',
+  ]
+    .filter((s) => s.length > 0)
+    .join(' ');
+  if (!text) return false;
+  const declaresManifest = MANIFEST_DECLARATION_PATTERNS.some((p) => p.test(text));
+  if (!declaresManifest) return false;
+  const resolution = Array.isArray(rec.attempted_resolution) ? rec.attempted_resolution : [];
+  for (const entry of resolution) {
+    if (typeof entry !== 'string') continue;
+    if (IMPORT_SEARCH_PATTERNS.some((p) => p.test(entry))) return false;
+  }
+  return true;
+}
+
+/**
+ * Returns true when ANY item in the array trips the manifest-vs-
+ * import heuristic. The caller surfaces a
+ * `manifest_declared_but_no_import_search` soft warning.
+ */
+export function hasAnyManifestVsImportMismatch(items: unknown): boolean {
+  if (!Array.isArray(items)) return false;
+  return items.some(hasManifestVsImportMismatch);
 }
 
 function looksLikeHumanEntry(entry: string): boolean {
