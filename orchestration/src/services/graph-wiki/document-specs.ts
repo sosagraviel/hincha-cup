@@ -275,6 +275,11 @@ function architectureSpec(
     'Describe monorepo / multi-repo shape, service boundaries, communities, and high-level relationships.',
     'Use `structure_architecture` analyzer findings as the structural ground truth.',
     'Architecture docs live under docs/llm-wiki/wiki/. Output filename: ARCHITECTURE.md',
+    // Plan §C 3.1 (gira-exhaustive followup): wikilink every discovered
+    // service ID so the rendered page navigates to the per-service docs.
+    // Stack-agnostic — service IDs are agent-discovered (community
+    // names from the structure analyzer), independent of language.
+    'When you mention a discovered service ID (any `id` from `structure_architecture.findings.services`), wrap the FIRST mention of each ID in `[[<id>]]` so it links to the per-service doc at `services/<id>.md`. Subsequent mentions of the same id may be plain text or `[[<id>]]`. Do NOT wikilink ids that were not discovered by the structure analyzer.',
   ];
 
   // Plan §C 2.4 (gira-exhaustive followup): when the structure analyzer
