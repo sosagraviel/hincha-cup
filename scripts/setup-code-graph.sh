@@ -368,6 +368,31 @@ ensure_managed_gitignore() {
   cp "$source" "$target"
 }
 
+# One-time migration: untrack `.code-review-graph/extraction-manifest.json`
+# from any project that committed it before 2026-05-05 (when the file was
+# allowlisted by the framework template). The upstream `code-review-graph`
+# tool stamps a `created_at` timestamp on every build, so a tracked copy
+# churns on every preflight regardless of whether the graph content changed.
+#
+# Idempotent — `git ls-files --error-unmatch` returns non-zero (silently
+# swallowed by the `if`) when the file isn't tracked, and `git rm --cached`
+# only runs when it IS tracked. Running this on every preflight is safe.
+#
+# Stack-agnostic: the file is part of the upstream tool's output, not
+# project- or language-specific.
+migrate_untrack_extraction_manifest() {
+  local target_rel=".code-review-graph/extraction-manifest.json"
+  # Only attempt the migration when the project directory is a git
+  # repository — non-git checkouts skip silently.
+  if ! git -C "$PROJECT_PATH" rev-parse --git-dir >/dev/null 2>&1; then
+    return 0
+  fi
+  if git -C "$PROJECT_PATH" ls-files --error-unmatch "$target_rel" >/dev/null 2>&1; then
+    git -C "$PROJECT_PATH" rm --cached --quiet "$target_rel" 2>/dev/null || true
+    log_info "Untracked $target_rel (now per-build only — see docs/CODE_GRAPH.md)"
+  fi
+}
+
 main() {
   if [ ! -d "$PROJECT_PATH" ]; then
     log_error "Project path does not exist: $PROJECT_PATH"
@@ -412,6 +437,11 @@ main() {
   # Override the tool's auto-emitted `*` gitignore with our allowlist (the
   # tool re-emits `*` on every build, so we re-sync after every tier 2/3 run).
   ensure_managed_gitignore
+  # One-time migration for projects bootstrapped before 2026-05-05 — drops
+  # `.code-review-graph/extraction-manifest.json` from the git index when
+  # it was previously committed. Idempotent: no-op when the file isn't
+  # tracked. See migrate_untrack_extraction_manifest above.
+  migrate_untrack_extraction_manifest
 
   if [ ! -f "$CODE_GRAPH_DB_PATH" ]; then
     log_error "Expected graph database was not created: $CODE_GRAPH_DB_PATH"
