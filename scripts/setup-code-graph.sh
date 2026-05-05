@@ -393,6 +393,60 @@ migrate_untrack_extraction_manifest() {
   fi
 }
 
+# Patch the upstream `code_review_graph/tools/analysis_tools.py` bug that
+# breaks five MCP graph-analysis tools. Confirmed in code-review-graph 2.3.2
+# (latest as of 2026-05-05): the affected functions call
+# `_validate_repo_root(repo_root)` directly with a string, which immediately
+# raises `AttributeError: 'str' object has no attribute 'resolve'`. The
+# bug fires whenever the server is started with `--repo <path>` (the
+# framework always does), regardless of whether the analyzer agent passed
+# `repo_root` itself.
+#
+# Affected tools:
+#   - mcp__code_graph__get_hub_nodes_tool
+#   - mcp__code_graph__get_bridge_nodes_tool
+#   - mcp__code_graph__get_knowledge_gaps_tool
+#   - mcp__code_graph__get_surprising_connections_tool
+#   - mcp__code_graph__get_suggested_questions_tool
+#
+# The patch is idempotent and a safe no-op on releases that already fix
+# it upstream — the regex doesn't match the fixed shape. The patcher
+# script handles multiple cache locations because uvx may resolve to
+# different cache entries across invocations on the same machine. See
+# scripts/lib/patch-code-review-graph.py for full rationale.
+#
+# Best-effort: if the patch can't be applied (read-only cache, unknown
+# upstream layout, no Python on PATH), the script logs a warning and
+# returns 0. The framework keeps working — analyzer prompts already
+# document the alternative graph paths for the affected tools.
+#
+# Stack-agnostic: pure source-file transformation; no project, language,
+# or framework assumptions inside the patch.
+patch_analysis_tools_bug() {
+  local script="$SCRIPT_DIR/lib/patch-code-review-graph.py"
+  if [ ! -f "$script" ]; then
+    log_info "[graph-patch] $script not found; skipping"
+    return 0
+  fi
+  # Try to run the patcher with whichever Python is most authoritative
+  # for the active install path:
+  #   1. uvx-resolved interpreter (matches what the MCP server will use)
+  #   2. python3 on PATH (catches pipx / system pip installs)
+  #
+  # Both invocations use --quiet so a fresh project preflight stays
+  # mostly silent on the hot path; failures are still logged.
+  if command -v uvx >/dev/null 2>&1; then
+    uvx --with code-review-graph python "$script" --quiet 2>&1 | sed 's/^/[graph-patch] /' || true
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 "$script" --quiet 2>&1 | sed 's/^/[graph-patch] /' || true
+  else
+    log_info "[graph-patch] No uvx or python3 on PATH; skipping (analyzer will see the upstream bug if it calls the affected tools)"
+  fi
+  # Always succeeds — the patch is best-effort and the framework
+  # documents the alternative tool paths for the affected functions.
+  return 0
+}
+
 main() {
   if [ ! -d "$PROJECT_PATH" ]; then
     log_error "Project path does not exist: $PROJECT_PATH"
@@ -403,6 +457,16 @@ main() {
   # ensure_code_review_graph short-circuits in <50ms when `code-review-graph`
   # is already on PATH; skips uvx/install probing entirely on that hot path.
   ensure_code_review_graph
+
+  # Patch the upstream `code_review_graph/tools/analysis_tools.py` bug that
+  # makes get_hub_nodes_tool / get_bridge_nodes_tool / get_knowledge_gaps_tool
+  # / get_surprising_connections_tool / get_suggested_questions_tool fail with
+  # `AttributeError: 'str' object has no attribute 'resolve'` whenever the
+  # MCP server is started with `--repo <path>` (which the framework always
+  # does). Confirmed in code-review-graph 2.3.2 (latest at 2026-05-05); the
+  # patch is idempotent and a no-op on releases that fix the bug upstream.
+  # See scripts/lib/patch-code-review-graph.py for the full rationale.
+  patch_analysis_tools_bug
 
   # State-first: pick the cheapest work that gets us to a fresh graph.
   #   tier1 → no rebuild work; just refresh launcher metadata.

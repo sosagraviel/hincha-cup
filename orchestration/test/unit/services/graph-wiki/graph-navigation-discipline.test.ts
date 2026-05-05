@@ -20,22 +20,66 @@ describe('graph navigation discipline — single source of truth', () => {
       );
     });
 
-    it('cites the upstream bug repo_root triggers on hub/bridge tools', () => {
-      // Stack-agnostic phrasing: name the symptom, not a project-specific fix.
+    it('cites the upstream AttributeError symptom + the framework-side patch path', () => {
+      // The 2026-05-05 gira run proved the bug fires regardless of whether
+      // the agent passes repo_root — the upstream code-review-graph
+      // installs `--repo <path>` from the framework's launch flags into
+      // `_default_repo_root`, and `_resolve_repo_root(None)` returns that
+      // string, which `_validate_repo_root(str)` then crashes on. The
+      // framework's setup-code-graph.sh applies a post-install patch
+      // that fixes this; the discipline tells the agent what to do if
+      // the patch fails to apply on a given machine.
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toContain("'str' object has no attribute 'resolve'");
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toContain('get_hub_nodes_tool');
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toContain('get_bridge_nodes_tool');
     });
 
-    it('frames the str/resolve text as a defensive warning, not an active error', () => {
-      // The 2026-05-04 gira run audit found the agent (and the user reading
-      // the transcript) sometimes mistook the warning text for an active
-      // tool-result error. The phrasing must make clear this is a known
-      // upstream bug avoided by NOT passing repo_root, not something the
-      // agent should expect to see.
-      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(
-        /not an actual error you should expect to see in this session/,
+    it('lists every tool affected by the upstream bug, not just hub/bridge', () => {
+      // analysis_tools.py has the same bug in five tool functions.
+      // Naming all five so the agent recognises the same symptom on any
+      // of them.
+      for (const tool of [
+        'get_hub_nodes_tool',
+        'get_bridge_nodes_tool',
+        'get_knowledge_gaps_tool',
+        'get_surprising_connections_tool',
+        'get_suggested_questions_tool',
+      ]) {
+        expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toContain(tool);
+      }
+    });
+
+    it('points the agent at the framework patch path, not at "do not pass repo_root"', () => {
+      // The previous wording told the agent the bug only fires when
+      // repo_root is passed — false; it fires regardless because the
+      // framework launcher sets _default_repo_root via --repo. The new
+      // wording correctly attributes the fix to setup-code-graph.sh
+      // and tells the agent to surface a needs_verification entry if
+      // it still trips the bug.
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/setup-code-graph\.sh/);
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/needs_verification/i);
+    });
+
+    it('does NOT tell the agent the str/resolve error only fires if it passes repo_root', () => {
+      // Anti-regression for the wrong claim that landed in the
+      // 2026-05-05 first wave. The bug fires regardless of agent input
+      // because `--repo` populates _default_repo_root. Don't promise
+      // the agent a guarantee the framework cannot keep.
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).not.toMatch(
+        /not an actual error you should expect to see/,
       );
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).not.toMatch(
+        /as long as you do not pass `repo_root`/,
+      );
+    });
+
+    it('names the alternative-tool fallback for the affected tools', () => {
+      // If the patch fails on a given machine, the agent must know
+      // which alternative graph tools cover the same ground. Names
+      // get_minimal_context + list_communities + get_community.
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/get_minimal_context_tool/);
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/list_communities_tool/);
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/get_community_tool/);
     });
 
     it('documents the first-call MCP startup race and the retry-once mitigation', () => {
