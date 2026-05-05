@@ -43,6 +43,15 @@ export const GRAPH_NAVIGATION_DISCIPLINE_TEXT = `Top-down, never breadth-first. 
 
 **First-call startup race.** Your very first \`mcp__code_graph__*\` tool call may transiently fail with \`tool_use_error: No such tool available: <exact-tool-name>\` even though \`<exact-tool-name>\` appears in the catalog above and matches the spelling exactly. This is a known race between MCP server tool registration and the first agent turn — it self-resolves within a few hundred milliseconds. **If you see this error on a tool whose name is in the catalog, retry the SAME call once.** After the retry, every subsequent MCP call in this session will work. Do not switch to a different tool name, do not abandon the graph, do not invent a fallback — just retry. If the retry also fails, only then treat the tool as genuinely unavailable.
 
+**Fat communities.** Some communities — auto-named aggregations whose names suggest shared prefix groupings — return enormous descriptions even with \`include_members: false\`, overflowing the per-call token cap. The naming pattern is language-independent; the same shape forms in every codebase the parser indexes. Recognize a fat community BEFORE drilling into it:
+
+- **Verb-like prefix names**: \`it:\`, \`should\`, \`test:\`, \`assert:\`, \`describe:\` (test-suite aggregations).
+- **Cross-cutting noun roots**: \`exceptions\`, \`errors\`, \`helpers\`, \`utils\`, \`shared\`, \`base\`, \`core\`, \`common\`, \`misc\`.
+- **Generated-code markers**: \`__generated\`, \`pb_\`, \`grpc_\`, \`protobuf\`, \`schema_\`, \`migrations\`.
+- **Module-barrel signals**: names ending in \`-index\`, \`-exports\`, \`-public\`.
+
+When a community matches any of those patterns, prefer \`query_graph_tool({ pattern: "file_summary", target: <name>, detail_level: "minimal" })\` over \`get_community_tool\` — the file-summary path is bounded by \`detail_level\` and never overflows on shape.
+
 ### 1. Always start with the cheapest entry point
 
 Call \`mcp__code_graph__get_minimal_context_tool({ task: "<your goal>" })\` first. ~100 tokens. Returns top communities, top flows, risk score, suggested next tools. This is the map; everything else is a drill-in from here.
@@ -76,7 +85,7 @@ Call \`mcp__code_graph__get_minimal_context_tool({ task: "<your goal>" })\` firs
 
 If any tool result starts with a sentinel like \`Error: result (NNN characters) exceeds maximum allowed tokens. Output has been saved to /Users/.../tool-results/...txt\` — **that is a HARD FAILURE, not a "the data was saved for you" success.** Reading the spillover file costs the same tokens as if the call had succeeded; the call's parameters were wrong, period.
 
-Mandatory remediation on the next turn:
+**Mandatory remediation on the next turn — RECOVER, do not abandon:**
 
 1. **Discard** the spillover. Do not read the file. Do not re-call the same tool against the same target with the same parameters.
 2. **Switch to a tighter tool or pattern** from the table in §2:
@@ -85,5 +94,7 @@ Mandatory remediation on the next turn:
    - \`semantic_search_nodes_tool\` overflow → drop \`limit\` to ≤10 and add a \`kind\` filter.
    - \`find_large_functions_tool\` overflow → raise \`min_lines\` (default 50 is the floor; 100+ for large codebases).
 3. **Update the per-tool budget**: an overflow on a tool counts DOUBLE against that tool's remaining budget for the rest of this session.
+
+**Recovery, NOT abandonment.** After remediating per the table above, **continue the planned graph workflow**. Do NOT switch to filesystem-level enumeration as a substitute — Glob, Read, find, ls, grep, Get-ChildItem, fd, ripgrep, or any equivalent in your shell cannot replicate community membership, hub/bridge centrality, or flow topology. That data lives in the graph, not in the filesystem. The overflow is a parameter problem, not a data problem; one of the alternative call shapes above will return the answer within budget. The 2026-05-05 audit observed agents responding to a single \`get_community_tool\` overflow with ~20 file-system calls — wasting the analyzer's budget AND producing brittle, language-tied output the synthesizer could not reconcile with the graph topology.
 
 The framework's Stop hook detects the overflow sentinel automatically and emits a \`graph_overflow_event\` to the run's debug store. The count is rendered in the run's \`index.html\` and is treated as a regression in CI smoke tests.`;

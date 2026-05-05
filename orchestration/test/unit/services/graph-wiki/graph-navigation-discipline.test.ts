@@ -138,6 +138,64 @@ describe('graph navigation discipline — single source of truth', () => {
       // so silently absorbing one is not a quiet escape hatch.
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/index\.html/);
     });
+
+    // Plan §C 2.1 (gira-exhaustive followup, 2026-05-05). The 2026-05-05
+    // audit saw the agent hit a single overflow then walk away from the
+    // graph for 23 file-system calls. The recovery protocol must
+    // explicitly forbid that pattern.
+    it('mandates RECOVER, not abandon', () => {
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/RECOVER, do not abandon/);
+    });
+
+    it('names filesystem-enumeration tools the agent must NOT switch to', () => {
+      // Stack-agnostic — the body must mention shell-equivalent tools
+      // across operating systems so agents on macOS/Linux/Windows all
+      // recognize the prohibition.
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/Glob/);
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/find/);
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/grep/);
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/Get-ChildItem/);
+    });
+
+    it('explains why filesystem enumeration is wrong (parameter problem, not data problem)', () => {
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/parameter problem, not a data problem/i);
+    });
+
+    it('encodes the "continue the planned graph workflow" instruction', () => {
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/continue the planned graph workflow/i);
+    });
+  });
+
+  // Plan §C 2.1 (gira-exhaustive followup, 2026-05-05). The 2026-05-05
+  // gira audit found get_community_tool overflowing on
+  // "service-it:should" — a community whose name aggregates many test
+  // cases. The discipline now warns about fat communities BEFORE the
+  // drill-in attempt.
+  describe('Section 0 — fat-community pre-drill guidance', () => {
+    it('introduces the "Fat communities" subsection', () => {
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/Fat communities/);
+    });
+
+    it('names verb-like prefix patterns (test aggregations)', () => {
+      // Stack-agnostic: every language has test-aggregation communities
+      // because parsers cluster test names with shared prefixes.
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/it:|should|test:|describe:|assert:/);
+    });
+
+    it('names cross-cutting noun roots that produce fat communities', () => {
+      // Same shape across languages — utils/helpers/exceptions clusters
+      // form in every codebase the parser indexes.
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/exceptions/);
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/helpers/);
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/utils/);
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/shared/);
+    });
+
+    it('prescribes query_graph_tool(file_summary) as the alternative drill-in', () => {
+      expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(
+        /query_graph_tool[\s\S]*?pattern:\s*"file_summary"/,
+      );
+    });
   });
 
   describe('stack-agnosticism — no project/language/framework names', () => {
