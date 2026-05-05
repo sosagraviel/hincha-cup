@@ -123,7 +123,8 @@ When the Stop hook rejects an analyzer for making zero graph calls, look in this
 3. Seeds `<project>/.code-review-graphignore` from the template (idempotent).
 4. Re-emits the launcher wrapper and `launcher.json` (compare-then-write).
 5. Re-syncs the framework allowlist `.code-review-graph/.gitignore` (`templates/code-review-graph-gitignore`) over the upstream tool's auto-emitted `*` rule.
-6. Asserts `<project>/.code-review-graph/graph.db` exists.
+6. **Auto-migration** (idempotent, safe to re-run): if `.code-review-graph/extraction-manifest.json` is currently tracked by git from an older framework version, the script untracks it (`git rm --cached`) so the new `.gitignore` rules can take effect. The file stays on disk; only its tracked status changes. Reason: the manifest's `created_at` field rotates on every Tier 2/3 run, producing churn-only commits whenever multiple teammates ran the preflight. See plan §D for the regression history.
+7. Asserts `<project>/.code-review-graph/graph.db` exists.
 
 The script is idempotent end-to-end: hot runs (Tier 1) finish in well under one second of actual work.
 
@@ -144,7 +145,7 @@ The committed surface (what teammates check in vs what the preflight regenerates
 |---|---|---|
 | `.code-review-graph/graph.db` | No (per-developer; binary + absolute paths inside SQLite) | preflight |
 | `.code-review-graph/launcher.json` | No (machine-local install resolution) | preflight |
-| `.code-review-graph/extraction-manifest.json` | No (per-developer freshness signal) | preflight |
+| `.code-review-graph/extraction-manifest.json` | No (per-developer freshness signal; older framework versions tracked it — current `.gitignore` excludes it and `setup-code-graph.sh` auto-untracks on next run) | preflight |
 | `.code-review-graph/.gitignore` | Yes (allowlist over the tool's `*`) | framework template |
 | `.code-review-graphignore` | Yes (project's exclude list; editable) | first init seeds it |
 | `.mcp.json` (Claude) | No (gitignored — local absolute paths) | preflight |
@@ -165,6 +166,12 @@ When the preflight fails on a teammate's machine, look at three things in order:
    - `graph_build_failed` — re-run with `bash $FRAMEWORK_PATH/scripts/setup-code-graph.sh` and read the logs.
    - `wiki_not_initialized` — the project has never been initialised; run `/initialize-project` once and the wiki appears.
 3. **Manual re-run.** `bash $FRAMEWORK_PATH/scripts/ensure-context.sh --artifacts-dir <artifacts-dir>` — same script the skills call, just invoked by hand. Add `--force-graph` to force a Tier 3 rebuild, `--force-wiki` to force a full wiki regeneration.
+
+---
+
+## See also
+
+- [`PROMPT_CACHING.md`](./PROMPT_CACHING.md) — how the graph tool catalog ends up in the cache-eligible Phase 1 prompt prefix and what to do if your change risks breaking byte-determinism.
 
 ---
 
