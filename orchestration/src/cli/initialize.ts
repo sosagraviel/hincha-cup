@@ -15,7 +15,11 @@ import { Provider } from '../providers/types.js';
 import { setActiveProvider, resolveTempPath } from '../utils/provider-paths.js';
 import { getFrameworkPath, getProjectPath } from '../services/framework/paths.service.js';
 import { resetLLMFactory } from '../llm/llm-factory.js';
-import { DebugStore, setActiveDebugStore } from '../services/framework/debug-store/index.js';
+import {
+  DebugStore,
+  setActiveDebugStore,
+  computeRunStats,
+} from '../services/framework/debug-store/index.js';
 import { renderRunIndexHtml } from '../services/framework/transcripts/index.js';
 
 const program = new Command();
@@ -649,7 +653,12 @@ async function buildRunIndexHtml(debugStore: DebugStore): Promise<string> {
     debug: false,
     startedAt: debugStore.getRunContext().startedAt,
   };
-  return renderRunIndexHtml({ manifest, attempts: filtered });
+  // Plan §F.6 + commit 9: aggregate cache hit rate and graph
+  // overflow count and surface them in the index sidebar. Best
+  // effort — `computeRunStats` swallows any IO/parse failures and
+  // returns zeroed counters rather than crashing the renderer.
+  const stats = await computeRunStats(runDir);
+  return renderRunIndexHtml({ manifest, attempts: filtered, stats });
 }
 
 program.parse();

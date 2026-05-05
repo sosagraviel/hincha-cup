@@ -1,4 +1,6 @@
 import type { AttemptMeta, RunManifest } from '../../debug-store/types.js';
+import type { RunStats } from '../../debug-store/run-stats.js';
+import { formatCacheHitRate } from '../../debug-store/run-stats.js';
 import { escapeHtml } from './html-escape.js';
 import { INLINE_STYLES } from './inline-assets.js';
 
@@ -11,6 +13,12 @@ export interface RunIndexAttempt {
 export interface RenderRunIndexOptions {
   manifest: RunManifest;
   attempts: RunIndexAttempt[];
+  /**
+   * Optional run-level aggregate stats (cache hit rate + graph
+   * overflow count). When provided, two extra rows render in the
+   * sidebar meta-card. Plan §F.6 + commit 9.
+   */
+  stats?: RunStats;
 }
 
 /**
@@ -18,7 +26,7 @@ export interface RenderRunIndexOptions {
  */
 export async function renderRunIndexHtml(opts: RenderRunIndexOptions): Promise<string> {
   const css = INLINE_STYLES;
-  const { manifest, attempts } = opts;
+  const { manifest, attempts, stats } = opts;
 
   const sorted = [...attempts].sort((a, b) => {
     if (a.meta.phaseNumber !== b.meta.phaseNumber) return a.meta.phaseNumber - b.meta.phaseNumber;
@@ -75,6 +83,7 @@ export async function renderRunIndexHtml(opts: RenderRunIndexOptions): Promise<s
       ${metaRow('Duration', formatDuration(manifest.durationMs))}
       ${metaRow('Project', manifest.projectPath)}
       ${metaRow('Git', manifest.gitBranch ? `${manifest.gitBranch}${manifest.gitSha ? ' @ ' + manifest.gitSha.slice(0, 10) : ''}` : undefined)}
+      ${stats ? renderStatsRows(stats) : ''}
     </dl>
   </aside>
   <main class="main run-index">
@@ -111,6 +120,29 @@ function buildSubtitle(manifest: RunManifest, total: number): string {
 function metaRow(label: string, value: string | undefined): string {
   if (!value) return '';
   return `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`;
+}
+
+/**
+ * Render the two run-stats rows into the sidebar meta-card
+ * (cache hit rate + graph overflow count). Plan §F.6 + commit 9.
+ *
+ * Always rendered when `stats` is supplied — even when both values
+ * are zero — because the absence of a row is itself misleading
+ * (the operator cannot tell whether caching is broken or simply
+ * untested).
+ */
+function renderStatsRows(stats: RunStats): string {
+  const hitText =
+    stats.totalAgentCalls === 0
+      ? `${formatCacheHitRate(stats.cacheHitRate)} (no calls)`
+      : `${formatCacheHitRate(stats.cacheHitRate)} (${stats.cacheHits}/${stats.totalAgentCalls})`;
+
+  const overflowText =
+    stats.graphOverflowCount === 0
+      ? '0'
+      : `${stats.graphOverflowCount}${stats.graphOverflowTools.length > 0 ? ` (${stats.graphOverflowTools.join(', ')})` : ''}`;
+
+  return [metaRow('Cache hit rate', hitText), metaRow('Graph overflows', overflowText)].join('');
 }
 
 function formatDuration(ms: number | undefined): string {

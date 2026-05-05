@@ -9,6 +9,8 @@ export {
   resolveMetricsSummaryPath,
 } from './token-usage-emitter.js';
 export type { TokenUsageRecord } from './token-usage-emitter.js';
+export { computeRunStats, formatCacheHitRate } from './run-stats.js';
+export type { RunStats } from './run-stats.js';
 export type {
   AgentSlot,
   AttemptCoords,
