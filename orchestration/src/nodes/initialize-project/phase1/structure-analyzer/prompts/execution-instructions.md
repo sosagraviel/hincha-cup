@@ -47,7 +47,9 @@ Record per service:
 
 ## Step 3: Architectural topology via hubs and bridges
 
-Call `get_hub_nodes({ top_n: 10 })` and `get_bridge_nodes({ top_n: 10 })` for cross-community topology. Hub nodes are the most-connected nodes in the graph; bridge nodes sit on shortest paths between many communities. Cite hub/bridge findings in your `findings.architecture.coupling` (or equivalent) section.
+Call `get_hub_nodes({ top_n: 10 })` and `get_bridge_nodes({ top_n: 10 })` for cross-community topology. Hub nodes are the most-connected nodes in the graph; bridge nodes sit on shortest paths between many communities.
+
+**MANDATORY OUTPUT**: surface `findings.architecture.coupling = { hubs: [...], bridges: [...] }`. Each entry is `{ qualified_name, kind, score }` — `qualified_name` is required, `kind` and `score` are optional. Aim for **3+ entries** per list (drawn from the graph's top results). When the graph genuinely has fewer (tiny project), emit what's available and surface a `needs_verification` item — do NOT fabricate. Fields are graph-native and stack-agnostic.
 
 The combination above (`get_minimal_context` + `list_communities` minimal + selective `get_community` + `get_hub_nodes` + `get_bridge_nodes`) is information-equivalent to `get_architecture_overview` (which the discipline forbids) and bounded.
 

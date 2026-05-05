@@ -271,6 +271,22 @@ function architectureSpec(
   graph: WikiGraphState,
   digestedUpstream: WikiDigestedUpstream | undefined,
 ): WikiDocumentSpec {
+  const promptFocus: string[] = [
+    'Describe monorepo / multi-repo shape, service boundaries, communities, and high-level relationships.',
+    'Use `structure_architecture` analyzer findings as the structural ground truth.',
+    'Architecture docs live under docs/llm-wiki/wiki/. Output filename: ARCHITECTURE.md',
+  ];
+
+  // Plan §C 2.4 (gira-exhaustive followup): when the structure analyzer
+  // surfaced architecture.coupling, instruct the wiki-gen agent to emit
+  // a "Coupling hotspots" section listing the top hubs and bridges by
+  // qualified_name. Stack-agnostic — graph-native fields only.
+  if (hasCouplingHotspots(analyzers.structure_architecture)) {
+    promptFocus.push(
+      'Include a "## Coupling hotspots" section listing the hub and bridge nodes from `structure_architecture.findings.architecture.coupling`. For each entry render `- \\`<qualified_name>\\` (<kind>, score <score>)`. Use the qualified_name verbatim from the analyzer slice — do not invent or rename. Hubs are the most-connected nodes in the graph; bridges sit on shortest paths between communities.',
+    );
+  }
+
   return {
     filename: 'ARCHITECTURE.md',
     documentType: 'architecture',
@@ -278,11 +294,7 @@ function architectureSpec(
     graphQueriesUsed: normalizeGraphQueriesUsed(
       (analyzers.structure_architecture?.graph_queries_used ?? []) as string[],
     ),
-    promptFocus: [
-      'Describe monorepo / multi-repo shape, service boundaries, communities, and high-level relationships.',
-      'Use `structure_architecture` analyzer findings as the structural ground truth.',
-      'Architecture docs live under docs/llm-wiki/wiki/. Output filename: ARCHITECTURE.md',
-    ],
+    promptFocus,
     sourceContext: {
       graph_stats: graph.stats ?? null,
       stack_profile: stackProfile,
@@ -297,6 +309,19 @@ function architectureSpec(
     ]),
     tags: deriveCoreTags('architecture', stackProfile),
   };
+}
+
+function hasCouplingHotspots(structureAnalyzer: unknown): boolean {
+  if (!isRecord(structureAnalyzer)) return false;
+  const findings = structureAnalyzer.findings;
+  if (!isRecord(findings)) return false;
+  const architecture = findings.architecture;
+  if (!isRecord(architecture)) return false;
+  const coupling = architecture.coupling;
+  if (!isRecord(coupling)) return false;
+  const hubs = Array.isArray(coupling.hubs) ? coupling.hubs : [];
+  const bridges = Array.isArray(coupling.bridges) ? coupling.bridges : [];
+  return hubs.length > 0 || bridges.length > 0;
 }
 
 /**

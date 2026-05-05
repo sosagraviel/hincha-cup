@@ -166,6 +166,113 @@ describe('Phase 1 Agent Output Schemas', () => {
       // Verify monorepo_layout doesn't have packages in the type
       expect(result.findings.monorepo_layout).toBeDefined();
     });
+
+    describe('architecture.coupling (Wave 2 Fix 2.4 — gira-exhaustive followup)', () => {
+      // The structure analyzer's Step 3 surfaces hub + bridge nodes from
+      // the graph. Plan §C 2.4 mandates the canonical home is
+      // findings.architecture.coupling = { hubs[], bridges[] }. The
+      // fields are graph-native (qualified_name / kind / score) — no
+      // language assumption.
+      const baseOutput = {
+        agent_name: 'structure-architecture-analyzer',
+        timestamp: '2026-05-05T10:00:00.000Z',
+        findings: {
+          services: [
+            {
+              id: 'svc-a',
+              path: 'svc-a',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: {},
+            },
+          ],
+        },
+      };
+
+      it('accepts a valid architecture.coupling block with hubs + bridges', () => {
+        const out = {
+          ...baseOutput,
+          findings: {
+            ...baseOutput.findings,
+            architecture: {
+              coupling: {
+                hubs: [
+                  { qualified_name: 'svc-a:Foo', kind: 'Class', score: 12 },
+                  { qualified_name: 'svc-a:Bar', kind: 'File', score: 9 },
+                  { qualified_name: 'svc-a:Baz', kind: 'Function', score: 7 },
+                ],
+                bridges: [
+                  { qualified_name: 'svc-a:GatewayHandler', kind: 'Function', score: 18 },
+                  { qualified_name: 'svc-a:CrossCuttingMiddleware', kind: 'Class', score: 11 },
+                  { qualified_name: 'svc-a:RouterMount', kind: 'File', score: 8 },
+                ],
+              },
+            },
+          },
+        };
+        const parsed = StructureAnalyzerOutputSchema.parse(out);
+        expect((parsed.findings as any).architecture?.coupling?.hubs).toHaveLength(3);
+        expect((parsed.findings as any).architecture?.coupling?.bridges).toHaveLength(3);
+      });
+
+      it('accepts hubs / bridges with only the required qualified_name', () => {
+        // kind and score are optional — a small graph that produced no
+        // numeric score still passes.
+        const out = {
+          ...baseOutput,
+          findings: {
+            ...baseOutput.findings,
+            architecture: {
+              coupling: {
+                hubs: [{ qualified_name: 'pkg/x' }],
+                bridges: [{ qualified_name: 'pkg/y' }],
+              },
+            },
+          },
+        };
+        expect(() => StructureAnalyzerOutputSchema.parse(out)).not.toThrow();
+      });
+
+      it('rejects hub entries without qualified_name (anti-fabrication)', () => {
+        const out = {
+          ...baseOutput,
+          findings: {
+            ...baseOutput.findings,
+            architecture: {
+              coupling: {
+                hubs: [{ kind: 'Class', score: 1 }], // missing qualified_name
+                bridges: [],
+              },
+            },
+          },
+        };
+        expect(() => StructureAnalyzerOutputSchema.parse(out)).toThrow();
+      });
+
+      it('still accepts output without architecture.coupling (back-compat / tiny graphs)', () => {
+        // The field is optional — small projects without enough graph
+        // topology to surface hubs/bridges still pass the schema; the
+        // analyzer prompt directs them to surface a needs_verification
+        // item instead of fabricating qualified names.
+        expect(() => StructureAnalyzerOutputSchema.parse(baseOutput)).not.toThrow();
+      });
+
+      it('coupling rejects a non-array hubs value', () => {
+        const out = {
+          ...baseOutput,
+          findings: {
+            ...baseOutput.findings,
+            architecture: {
+              coupling: {
+                hubs: 'not-an-array',
+                bridges: [],
+              },
+            },
+          },
+        };
+        expect(() => StructureAnalyzerOutputSchema.parse(out)).toThrow();
+      });
+    });
   });
 
   describe('02: Tech Stack Analyzer Schema', () => {

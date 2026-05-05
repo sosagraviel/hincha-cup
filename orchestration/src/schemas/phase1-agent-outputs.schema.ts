@@ -127,6 +127,51 @@ export const StructureAnalyzerOutputSchema = z
           .passthrough()
           .optional()
           .describe('Monorepo layout if applicable'),
+        architecture: z
+          .object({
+            /**
+             * Hub + bridge nodes from the graph's top topology results.
+             * Plan §C 2.4 (gira-exhaustive followup, 2026-05-05): the
+             * structure-architecture analyzer must surface these so the
+             * Phase 4 architecture wiki page can render a "Coupling
+             * hotspots" section. Stack-agnostic — `qualified_name`,
+             * `kind`, and `score` are graph-native.
+             */
+            coupling: z
+              .object({
+                hubs: z
+                  .array(
+                    z
+                      .object({
+                        qualified_name: z.string(),
+                        kind: z.string().optional(),
+                        score: z.number().optional(),
+                      })
+                      .passthrough(),
+                  )
+                  .describe(
+                    'Top hub nodes (most-connected). Aim for 3+ entries; tiny graphs surface needs_verification when fewer.',
+                  ),
+                bridges: z
+                  .array(
+                    z
+                      .object({
+                        qualified_name: z.string(),
+                        kind: z.string().optional(),
+                        score: z.number().optional(),
+                      })
+                      .passthrough(),
+                  )
+                  .describe('Top bridge nodes (cross-community shortest-path hotspots).'),
+              })
+              .passthrough()
+              .describe('Coupling hotspots — populated from get_hub_nodes + get_bridge_nodes.'),
+          })
+          .passthrough()
+          .optional()
+          .describe(
+            'Architectural topology surfaced from the graph. `coupling` is the canonical home for hub/bridge findings.',
+          ),
         automation: z
           .object({
             makefiles: z
