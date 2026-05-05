@@ -3,6 +3,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { buildContentSection } from '../../../utils/shared/context-tags.js';
 import { getInstructionFileName, resolveConfigPath } from '../../../utils/provider-paths.js';
+import { trimSynthesisInput } from './helpers/trim-synthesis-input.js';
 
 /**
  * Build a provider-aware output-format block that overrides the default
@@ -86,7 +87,14 @@ function loadSynthesisInstructions(): string {
  * and any validation feedback.
  */
 export function buildSynthesisPrompt(consolidatedData: any, feedbackPrompt?: string): string {
-  const consolidatedJson = JSON.stringify(consolidatedData, null, 2);
+  // Plan §I.4 (gira-exhaustive followup, 2026-05-05): trim the
+  // consolidation blob to the synthesizer-relevant subset
+  // (consolidated_gaps + consolidation_metadata + curated summary).
+  // Saves ~37 KB per run on the gira measurement; proportional
+  // savings on any sufficiently-detailed Phase 2 output. The
+  // synthesizer can Read raw analyzer JSONs on demand if it needs
+  // them (and almost never does in practice).
+  const consolidatedJson = JSON.stringify(trimSynthesisInput(consolidatedData), null, 2);
 
   const parts: string[] = [
     buildContentSection('Consolidated Analysis', consolidatedJson),
