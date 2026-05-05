@@ -70,18 +70,15 @@ export function buildServiceSpec(
     filename: `services/${slugifyServiceId(serviceId)}.md`,
     documentType: 'service',
     title: `Service: ${serviceId}`,
-    // All four Phase 1 analyzers feed per-service docs now. Data-flows and
-    // code-patterns analyzer queries are attributed here because their
-    // findings are the structural ground truth for the per-service Request
-    // Lifecycle / Integrations / Patterns sections (the cross-cutting
-    // DATA-FLOWS.md and PATTERNS.md pages were retired in H4 — that content
-    // moved here, where it has actual context).
-    graphQueriesUsed: normalizeGraphQueriesUsed([
-      ...((analyzers.structure_architecture?.graph_queries_used ?? []) as string[]),
-      ...((analyzers.tech_stack_dependencies?.graph_queries_used ?? []) as string[]),
-      ...((analyzers.code_patterns_testing?.graph_queries_used ?? []) as string[]),
-      ...((analyzers.data_flows_integrations?.graph_queries_used ?? []) as string[]),
-    ]),
+    // Plan §C 3.2 (gira-exhaustive followup, 2026-05-05): per-page
+    // graph_queries_used carries only the queries from analyzers that
+    // actually have findings for THIS service id. Pre-fix, every
+    // service doc unioned all four analyzers' queries — leaking
+    // architectural-overview tools into a per-service page that never
+    // touched them. Now: structure-arch always contributes (it's the
+    // discovery source), and the other three contribute only if their
+    // by_service / by_package map has an entry for this id.
+    graphQueriesUsed: scopeQueriesToService(serviceId, analyzers),
     promptFocus: [
       `Document only the "${serviceId}" service.`,
       'Use the service-scoped analyzer slice as the inventory of facts about this service.',
@@ -314,6 +311,69 @@ function architectureSpec(
     ]),
     tags: deriveCoreTags('architecture', stackProfile),
   };
+}
+
+/**
+ * Scope graph_queries_used to the analyzers that have findings for the
+ * given service id. Plan §C 3.2 of the gira-exhaustive followup — the
+ * union-everything approach over-attributed queries to per-service docs.
+ *
+ * Rules:
+ *   - structure-architecture is ALWAYS included — it's the discovery
+ *     source for every service id.
+ *   - The other three analyzers are included only when their findings
+ *     carry an entry keyed by this service id (in any of the conventional
+ *     by-service map names: `by_service`, `by_package`, `<topic>.<id>`,
+ *     `dependencies.by_service.<id>`, `testing.<id>`, etc.).
+ *
+ * Stack-agnostic: the check is a string-key lookup; no language
+ * assumption.
+ */
+function scopeQueriesToService(serviceId: string, analyzers: WikiAnalyzerOutputs): string[] {
+  const queries: string[] = [];
+
+  // structure-arch is always relevant (it's the source of truth for ids).
+  queries.push(...((analyzers.structure_architecture?.graph_queries_used ?? []) as string[]));
+
+  for (const analyzerKey of [
+    'tech_stack_dependencies',
+    'code_patterns_testing',
+    'data_flows_integrations',
+  ] as const) {
+    const analyzer = analyzers[analyzerKey];
+    if (analyzer && analyzerHasFindingsForService(analyzer, serviceId)) {
+      queries.push(...((analyzer.graph_queries_used ?? []) as string[]));
+    }
+  }
+
+  return normalizeGraphQueriesUsed(queries);
+}
+
+function analyzerHasFindingsForService(analyzer: unknown, serviceId: string): boolean {
+  if (!isRecord(analyzer)) return false;
+  const findings = analyzer.findings;
+  if (!isRecord(findings)) return false;
+  return objectHasServiceKey(findings, serviceId);
+}
+
+/**
+ * Recursively look for any nested object whose keys include `serviceId`.
+ * Matches the conventional by-service shapes the analyzers emit
+ * (`by_service`, `by_package`, `testing`, `build_tools`, etc.) without
+ * hardcoding a list — a future analyzer that emits `cache_by_service`
+ * gets picked up automatically.
+ *
+ * Bounded depth (4) — analyzer findings nest at most 3 levels deep in
+ * practice; a deeper nesting is almost certainly noise.
+ */
+function objectHasServiceKey(obj: unknown, serviceId: string, depth = 0): boolean {
+  if (depth >= 4) return false;
+  if (!isRecord(obj)) return false;
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === serviceId) return true;
+    if (isRecord(value) && objectHasServiceKey(value, serviceId, depth + 1)) return true;
+  }
+  return false;
 }
 
 function hasCouplingHotspots(structureAnalyzer: unknown): boolean {

@@ -94,6 +94,34 @@ describe('wiki-generator.service', () => {
     };
   }
 
+  it('index.md emits empty graph_queries_used (deterministic catalog — Wave 2 Fix 3.2)', async () => {
+    // Pre-Wave 2 Fix 3.2 the index unioned graph_queries_used across
+    // all four analyzers — making it look like the index "ran" graph
+    // queries it never touched. The index is a deterministic catalog;
+    // it should report no graph queries.
+    const service = new WikiGeneratorService({
+      ...buildInput(),
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => `# ${filename}\n\nbody`,
+    });
+    const result = await service.generateAll();
+    const indexFile = result.files.find((f) => f.filename === 'wiki/index.md');
+    expect(indexFile).toBeDefined();
+    const data = matter(indexFile!.content).data as Record<string, unknown>;
+    expect(data.graph_queries_used).toEqual([]);
+  });
+
+  it('SERVICES.md emits empty graph_queries_used (deterministic catalog)', async () => {
+    const service = new WikiGeneratorService({
+      ...buildInput(),
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => `# ${filename}\n\nbody`,
+    });
+    const result = await service.generateAll();
+    const servicesFile = result.files.find((f) => f.filename === 'wiki/SERVICES.md');
+    expect(servicesFile).toBeDefined();
+    const data = matter(servicesFile!.content).data as Record<string, unknown>;
+    expect(data.graph_queries_used).toEqual([]);
+  });
+
   it('drops non-canonical graph_queries_used strings from wiki frontmatter (defence in depth)', async () => {
     const input = buildInput();
     // Simulate a Phase 1 regression: free-form prose in graph_queries_used.

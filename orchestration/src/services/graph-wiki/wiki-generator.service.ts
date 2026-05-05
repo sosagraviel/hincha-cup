@@ -6,8 +6,7 @@ import matter from 'gray-matter';
 import { computeGraphCommit, computeGraphVersion, invokeWikiAgent } from './agent-invoker.js';
 import { buildCoreSpecs, buildPrompt, buildServiceSpec } from './document-specs.js';
 import { buildContextSection, stripMarkdownFrontmatter, withFrontmatter } from './frontmatter.js';
-import { collectAnalyzerGraphQueries, getServices } from './service-discovery.js';
-import { normalizeGraphQueriesUsed } from './query-name-normalizer.js';
+import { getServices } from './service-discovery.js';
 import {
   ALL_SCHEMA_FILENAMES,
   GENERATED_BY,
@@ -550,9 +549,11 @@ export class WikiGeneratorService {
     graphCommit: string,
   ): GeneratedWikiFile {
     const projectName = basename(this.options.projectPath);
-    const graphQueriesUsed = normalizeGraphQueriesUsed(
-      collectAnalyzerGraphQueries(this.options.analyzers),
-    );
+    // Plan §C 3.2 (gira-exhaustive followup): index.md is a deterministic
+    // catalog — it does not query the graph. Emit an empty
+    // graph_queries_used (was: union across all 4 analyzers, which leaked
+    // architectural-analyzer queries into a page that never used them).
+    const graphQueriesUsed: string[] = [];
 
     const entries = pages
       .filter((page) => page.filename !== 'wiki/index.md')
