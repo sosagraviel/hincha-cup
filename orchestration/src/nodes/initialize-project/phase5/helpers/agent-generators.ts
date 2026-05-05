@@ -9,7 +9,11 @@ import { join } from 'path';
 import type { StackProfile } from '../../../../schemas/index.js';
 import type { GeneratedAgent, ResolvedSkill } from '../types.js';
 import { SUPPORTED_IMPLEMENTER_LANGUAGES } from '../constants.js';
-import { extractPackageCommands, getDefaultCommands } from './command-extractor.js';
+import {
+  detectBuildTool,
+  extractCommandsFromManifest,
+  getDefaultCommands,
+} from './command-extractor.js';
 import { renderTemplate } from './template-renderer.js';
 import { hasFrontendService } from './stack-extractor.js';
 
@@ -64,8 +68,17 @@ export function generateImplementerAgent(
   const template = readFileSync(actualTemplatePath, 'utf-8');
   const skillNames = skills.map((s) => s.name);
 
-  const packageCommands = extractPackageCommands(projectPath);
-  const defaultCommands = getDefaultCommands(language);
+  // Detect the project's build tool / package manager (per-language) and
+  // thread it through both the extracted scripts and the language
+  // defaults. The 2026-05-04 gira run shipped `npm` commands on a pnpm
+  // project because both helpers hardcoded `npm`; the fix generalises
+  // to every supported language family (see §C 1.1 of the
+  // gira-exhaustive followup plan). detectBuildTool returns
+  // 'unknown' for languages outside the supported matrix; in that case
+  // both helpers gracefully fall back to the COMMAND_DEFAULTS verbatim.
+  const buildTool = detectBuildTool(projectPath, language);
+  const packageCommands = extractCommandsFromManifest(projectPath, language, buildTool);
+  const defaultCommands = getDefaultCommands(language, projectPath, buildTool);
 
   // Resolve every command cell with a strict `package.json → language
   // default` fallback chain. The variable names here MUST match the
