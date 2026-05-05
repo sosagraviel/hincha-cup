@@ -206,15 +206,40 @@ function cleanFrameworkTokens(raw: string): string[] {
   return out;
 }
 
-export function buildPrompt(spec: WikiDocumentSpec, projectPath: string): string {
-  const lines: string[] = [
-    `Generate ${spec.title} as narrative markdown for ${projectPath}.`,
+/**
+ * Plan §I.5 (gira-exhaustive followup, 2026-05-05): byte-identical
+ * cache-eligible prefix shared by every wiki-gen prompt in this run.
+ *
+ * The prefix carries the constant framing (closed-book synthesis
+ * rules + the project path) that does NOT vary across the 5+
+ * wiki-gen calls a typical run makes. Putting these constant
+ * sentences AT THE START of every prompt makes the Anthropic /
+ * OpenAI prefix cache hit on calls 2..N — the agent re-uses the
+ * cached tokens for the framing and only pays for the spec-specific
+ * tail.
+ *
+ * Stack-agnostic: every line is general framing; no
+ * project-shape assumptions.
+ */
+export function buildWikiSharedPrefix(projectPath: string): string {
+  return [
+    `Closed-book synthesis instructions for the LLM-wiki page generators in ${projectPath}:`,
     '',
-    'Closed-book synthesis instructions:',
     '- You have NO tools. Synthesize the page from the structured input below only.',
     '- If a fact the page should carry is not in the input, write `(not determined by analysis)` and continue. Do not invent.',
     '- Provenance lives in YAML frontmatter (`sources:` + `confidence:`), auto-injected by the framework. DO NOT emit inline `^[...]` citation markers in the body — they are non-standard markdown and the Stop hook rejects them. For in-wiki cross-references use `[[wikilinks]]`; for gaps write `(not determined by analysis)`.',
     '- Return markdown body only. Do not include YAML frontmatter. Do not wrap the response in code fences.',
+    '',
+  ].join('\n');
+}
+
+export function buildPrompt(spec: WikiDocumentSpec, projectPath: string): string {
+  // Byte-identical prefix first (cache-eligible across all wiki-gen
+  // calls in this run). Spec-specific framing comes AFTER the
+  // prefix so the cache key advances only at the divergence point.
+  const lines: string[] = [
+    buildWikiSharedPrefix(projectPath),
+    `Generate ${spec.title} as narrative markdown.`,
     '',
     'Document-specific focus:',
     ...spec.promptFocus.map((focus) => `- ${focus}`),
