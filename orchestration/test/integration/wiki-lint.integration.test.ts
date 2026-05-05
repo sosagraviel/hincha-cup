@@ -48,6 +48,9 @@ function buildProject(): {
   mkdirSync(join(rawDir, 'analyzers'), { recursive: true });
   mkdirSync(join(rawDir, 'snapshots'), { recursive: true });
   mkdirSync(artifactsDir, { recursive: true });
+  // The graph DB lives at <projectPath>/.code-review-graph/graph.db; tests
+  // that opt into writing it need the parent directory to exist first.
+  mkdirSync(join(projectPath, '.code-review-graph'), { recursive: true });
 
   return { projectPath, wikiDir, rawDir, artifactsDir, graphDbPath };
 }

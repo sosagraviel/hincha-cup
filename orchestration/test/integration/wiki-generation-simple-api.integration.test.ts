@@ -11,6 +11,9 @@ import {
 } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
+import { wikiPreparationNode } from '../../src/nodes/initialize-project/phase4/wiki-docs/wiki-preparation.node.js';
+import { wikiArchitectureDocNode } from '../../src/nodes/initialize-project/phase4/wiki-docs/wiki-architecture.node.js';
+import { wikiServiceDocsNode } from '../../src/nodes/initialize-project/phase4/wiki-docs/wiki-service-docs.node.js';
 import { wikiGenerationNode } from '../../src/nodes/initialize-project/phase4/wiki-generation.node.js';
 import type { InitializeProjectState } from '../../src/state/schemas/initialize-project.schema.js';
 
@@ -58,12 +61,8 @@ describe('wiki generation smoke on simple-api fixture', () => {
     const tempDir = join(projectPath, '.claude-temp', 'initialize-project');
     const phase1Dir = join(tempDir, 'phase1-outputs');
     mkdirSync(phase1Dir, { recursive: true });
-    mkdirSync(join(projectPath, '.claude', 'skills', 'project-context'), { recursive: true });
+    mkdirSync(join(projectPath, '.claude'), { recursive: true });
     writeFileSync(join(projectPath, '.claude', 'CLAUDE.md'), '# Simple API\n');
-    writeFileSync(
-      join(projectPath, '.claude', 'skills', 'project-context', 'SKILL.md'),
-      '# Skill\n',
-    );
     mkdirSync(join(projectPath, '.code-review-graph'), { recursive: true });
     writeFileSync(join(projectPath, '.code-review-graph/graph.db'), 'graph');
     writeFileSync(
@@ -81,24 +80,47 @@ describe('wiki generation smoke on simple-api fixture', () => {
         ],
       }),
     );
+    // The wiki preparation node REQUIRES architectural-narrative.md
+    // (Phase 4a writes it; tests stage it directly).
+    writeFileSync(
+      join(tempDir, 'architectural-narrative.md'),
+      '# Architectural Narrative\n\nA descriptive cross-service narrative.\n',
+    );
     writePhase1Output(phase1Dir, '01-structure-architecture.json', {
+      agent_name: 'structure-architecture-analyzer',
       graph_queries_used: ['list_communities'],
-      findings: { architecture_patterns: ['Layered API'], project_structure: ['src'] },
+      findings: {
+        services: [
+          {
+            id: 'api',
+            path: 'src',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: { main: 'Express' },
+            entry_points: ['src/index.ts'],
+          },
+        ],
+      },
     });
     writePhase1Output(phase1Dir, '02-tech-stack-dependencies.json', {
+      agent_name: 'tech-stack-dependencies-analyzer',
       graph_queries_used: ['semantic_search_nodes'],
-      findings: {},
+      findings: {
+        dependencies: { by_service: { api: { production: ['express'], development: ['jest'] } } },
+      },
     });
     writePhase1Output(phase1Dir, '03-code-patterns-testing.json', {
+      agent_name: 'code-patterns-testing-analyzer',
       graph_queries_used: ['find_large_functions'],
       findings: { patterns: ['service/controller split'], testing: ['Jest tests'] },
     });
     writePhase1Output(phase1Dir, '04-data-flows-integrations.json', {
+      agent_name: 'data-flows-integrations-analyzer',
       graph_queries_used: ['list_flows'],
       findings: { routes: [{ method: 'GET', route: '/users' }] },
     });
 
-    const state: InitializeProjectState = {
+    const baseState: InitializeProjectState = {
       project_path: projectPath,
       framework_path: resolve(process.cwd(), '..'),
       temp_dir: tempDir,
@@ -119,19 +141,59 @@ describe('wiki generation smoke on simple-api fixture', () => {
       phase1_retry_tracking: {},
     };
 
-    const result = await wikiGenerationNode(state);
+    // Plan §I.1 (Wave 3, 2026-05-05): the Phase 4 wiki subgraph is
+    // `wiki_preparation → [wiki_architecture_doc, wiki_service_docs]
+    // (parallel) → wiki_generation`. The integration test runs each
+    // node in sequence and merges the resulting partial-state slices,
+    // mirroring how LangGraph would compose them. We can't call
+    // `wikiGenerationNode` directly any more — it requires
+    // `phase4_wiki_docs.context` populated by the upstream
+    // preparation node, plus the `architecture` + `service_docs`
+    // outputs from the parallel branches.
+    const prepResult = await wikiPreparationNode(baseState);
+    expect(prepResult.errors ?? []).toEqual([]);
+    const afterPrep: InitializeProjectState = {
+      ...baseState,
+      ...prepResult,
+      phase4_wiki_docs: { ...(prepResult.phase4_wiki_docs ?? {}) },
+    };
+
+    const archResult = await wikiArchitectureDocNode(afterPrep);
+    expect(archResult.errors ?? []).toEqual([]);
+    const afterArch: InitializeProjectState = {
+      ...afterPrep,
+      ...archResult,
+      phase4_wiki_docs: {
+        ...afterPrep.phase4_wiki_docs,
+        ...(archResult.phase4_wiki_docs ?? {}),
+      },
+    };
+
+    const svcResult = await wikiServiceDocsNode(afterArch);
+    expect(svcResult.errors ?? []).toEqual([]);
+    const afterSvc: InitializeProjectState = {
+      ...afterArch,
+      ...svcResult,
+      phase4_wiki_docs: {
+        ...afterArch.phase4_wiki_docs,
+        ...(svcResult.phase4_wiki_docs ?? {}),
+      },
+    };
+
+    const result = await wikiGenerationNode(afterSvc);
 
     expect(result.current_phase).toBe('phase4_wiki_generation');
     expect(existsSync(join(projectPath, '.code-review-graph/graph.db'))).toBe(true);
-    for (const fileName of [
-      'wiki/index.md',
-      'wiki/ARCHITECTURE.md',
-      'wiki/SERVICES.md',
-      'wiki/DATA-FLOWS.md',
-      'wiki/PATTERNS.md',
-    ]) {
+
+    // Post-H4 contract: only ARCHITECTURE.md is rendered as a
+    // cross-cutting LLM-generated wiki page. DATA-FLOWS.md / PATTERNS.md
+    // were retired (per-service narratives + prescriptive convention
+    // skills replace them).
+    for (const fileName of ['wiki/index.md', 'wiki/ARCHITECTURE.md', 'wiki/SERVICES.md']) {
       expect(existsSync(join(projectPath, 'docs', 'llm-wiki', fileName))).toBe(true);
     }
+    expect(existsSync(join(projectPath, 'docs', 'llm-wiki', 'wiki', 'DATA-FLOWS.md'))).toBe(false);
+    expect(existsSync(join(projectPath, 'docs', 'llm-wiki', 'wiki', 'PATTERNS.md'))).toBe(false);
     expect(existsSync(join(projectPath, 'docs', 'llm-wiki', 'wiki', 'services', 'api.md'))).toBe(
       true,
     );
@@ -144,14 +206,10 @@ describe('wiki generation smoke on simple-api fixture', () => {
     expect(architecture.data.generated_by).toBe('ai-agentic-framework');
     expect(architecture.data.graph_version).toBeDefined();
     expect(serviceDoc.data.service_id).toBe('api');
+    // The CLAUDE.md cross-reference is upserted into the project's
+    // schema doc by the finalization node.
     expect(readFileSync(join(projectPath, '.claude', 'CLAUDE.md'), 'utf-8')).toContain(
-      'docs/llm-wiki/wiki/',
-    );
-    expect(
-      readFileSync(join(projectPath, '.claude', 'skills', 'project-context', 'SKILL.md'), 'utf-8'),
-    ).toContain('docs/llm-wiki/wiki/');
-    expect(existsSync(join(projectPath, '.claude', 'skills', 'project-context', 'SKILL.md'))).toBe(
-      true,
+      'docs/llm-wiki',
     );
   });
 });

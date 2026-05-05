@@ -143,16 +143,20 @@ describe('llm-wiki full tree integration', () => {
 
     const allFilenames = result.files.map((f) => f.filename);
 
-    for (const wikiFile of [
-      'wiki/index.md',
-      'wiki/ARCHITECTURE.md',
-      'wiki/SERVICES.md',
-      'wiki/DATA-FLOWS.md',
-      'wiki/PATTERNS.md',
-    ]) {
+    // Post-H4 contract: only ARCHITECTURE.md is rendered as a
+    // cross-cutting LLM-generated wiki page. DATA-FLOWS.md and
+    // PATTERNS.md were retired — data flows are described per-service
+    // in `wiki/services/<id>.md`, and patterns moved to the
+    // prescriptive `code-conventions` / `testing-conventions` /
+    // `multi-file-workflows` skills (where they belong).
+    for (const wikiFile of ['wiki/index.md', 'wiki/ARCHITECTURE.md', 'wiki/SERVICES.md']) {
       expect(allFilenames, `expected ${wikiFile} in generated files`).toContain(wikiFile);
       expect(existsSync(join(outDir, wikiFile)), `${wikiFile} must exist on disk`).toBe(true);
     }
+    // Anti-regression: the retired cross-cutting docs must NOT be
+    // generated even though older fixtures referenced them.
+    expect(allFilenames).not.toContain('wiki/DATA-FLOWS.md');
+    expect(allFilenames).not.toContain('wiki/PATTERNS.md');
 
     expect(allFilenames.some((f) => f.startsWith('wiki/services/'))).toBe(true);
     expect(existsSync(join(outDir, 'wiki', 'services', 'api.md'))).toBe(true);
