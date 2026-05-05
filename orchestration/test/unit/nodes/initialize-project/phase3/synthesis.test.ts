@@ -546,4 +546,110 @@ describe('synthesisNode', () => {
     const result = await synthesisNode(mockState);
     expect(result.errors).toBeDefined();
   });
+
+  // Plan §E.5 (2026-05-05): the synthesizer can omit a "Validation
+  // Rules" section even when Phase 1 saw a validation lib in
+  // dependencies. The node now surfaces a SOFT warning (no retry) so
+  // operators can choose to re-run synthesis if they care.
+  describe('soft warning — missing validation-rules section', () => {
+    function mockReadFiles(consolidation: any, techStack: any | null) {
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        const p = String(path);
+        if (p.includes('phase2-consolidation.json')) {
+          return JSON.stringify(consolidation);
+        }
+        if (p.includes('02-tech-stack-dependencies.json')) {
+          return techStack === null ? '' : JSON.stringify(techStack);
+        }
+        return '{}';
+      });
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        const p = String(path);
+        if (p.includes('02-tech-stack-dependencies.json')) {
+          return techStack !== null;
+        }
+        return true;
+      });
+    }
+
+    it('emits a warning when validation libs are present but synthesis omits validation rules', async () => {
+      // Re-build the synthesis output so code-conventions has NO mention of
+      // validation. Replace any "validat"/"zod"/"class-validator" tokens in
+      // the default fixture with neutral filler.
+      const synthesis = generateValidSynthesis();
+      mockAgent.invoke.mockResolvedValue({ output: synthesis });
+
+      mockReadFiles(
+        { consolidated_findings: {}, timestamp: '2024-01-01' },
+        {
+          findings: {
+            dependencies: {
+              by_service: {
+                api: { production: ['express', 'class-validator', 'zod'], development: [] },
+              },
+            },
+          },
+        },
+      );
+
+      const result = await synthesisNode(mockState);
+      expect(result.current_phase).toBe('phase3_synthesis');
+      expect(result.warnings).toBeDefined();
+      const text = (result.warnings ?? []).join('\n');
+      expect(text).toContain('class-validator');
+      expect(text).toContain('zod');
+      expect(text).toContain('phase3');
+    });
+
+    it('does NOT emit a warning when no validation libs are in the dependency tree', async () => {
+      mockReadFiles(
+        { consolidated_findings: {}, timestamp: '2024-01-01' },
+        {
+          findings: {
+            dependencies: {
+              by_service: { api: { production: ['express', 'lodash'], development: [] } },
+            },
+          },
+        },
+      );
+
+      const result = await synthesisNode(mockState);
+      const warningText = (result.warnings ?? []).join('\n');
+      expect(warningText).not.toMatch(/validation libraries/i);
+    });
+
+    it('does NOT emit a warning when the tech-stack file is absent (older runs)', async () => {
+      mockReadFiles({ consolidated_findings: {}, timestamp: '2024-01-01' }, null);
+
+      const result = await synthesisNode(mockState);
+      const warningText = (result.warnings ?? []).join('\n');
+      expect(warningText).not.toMatch(/validation libraries/i);
+    });
+
+    it('does NOT emit a warning when synthesis covers validation (the lib is mentioned in body)', async () => {
+      // The default fixture's code-conventions body already does NOT mention
+      // validation, so we synthesize a body that does. Override the agent's
+      // output to embed "Zod" inside code-conventions.
+      const customSynthesis = generateValidSynthesis().replace(
+        '## Naming\n- camelCase for variables',
+        '## Validation Rules\n\nUse Zod on every controller boundary.',
+      );
+      mockAgent.invoke.mockResolvedValue({ output: customSynthesis });
+
+      mockReadFiles(
+        { consolidated_findings: {}, timestamp: '2024-01-01' },
+        {
+          findings: {
+            dependencies: {
+              by_service: { api: { production: ['zod'], development: [] } },
+            },
+          },
+        },
+      );
+
+      const result = await synthesisNode(mockState);
+      const warningText = (result.warnings ?? []).join('\n');
+      expect(warningText).not.toMatch(/does not mention validation rules/i);
+    });
+  });
 });

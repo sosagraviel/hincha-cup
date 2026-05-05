@@ -2,7 +2,11 @@ import type { InitializeProjectState } from '../../../state/schemas/initialize-p
 import { AgentFactory } from '../../../utils/shared/agent-factory/index.js';
 import { retryWithEnhancedFeedback, DEFAULT_RETRY_CONFIG } from '../../../utils/enhanced-retry.js';
 import type { ValidationResult } from '../../../utils/validator.js';
-import { validateSynthesisOutput } from './validators/index.js';
+import { validateSynthesisOutput, extractSynthesisMarkdown } from './validators/index.js';
+import {
+  detectMissingValidationRules,
+  findValidationLibrariesInDependencies,
+} from './validators/detect-missing-validation-rules.js';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../../../utils/logger.js';
@@ -130,6 +134,14 @@ export async function synthesisNode(
     phaseLogger.success(' ✓ Synthesis complete');
     phaseLogger.info(`  - Output length: ${synthesisContent.length} characters`);
 
+    // Plan §E.5 (2026-05-05) — soft signal that the synthesis omitted a
+    // "Validation Rules" section even though the project ships at least
+    // one validation library (Zod / class-validator / pydantic / etc.).
+    // Surfaces as a phaseLogger.warn line; does NOT trigger retry. Reads
+    // tech-stack-dependencies.json directly because Phase 2 consolidation
+    // discards the raw dependency arrays once gaps are identified.
+    const synthesisWarnings = collectSynthesisWarnings(synthesisContent, tempDir, phaseLogger);
+
     return {
       phase3_synthesis: {
         synthesis_content: synthesisContent,
@@ -137,6 +149,9 @@ export async function synthesisNode(
         validation_passed: true,
       },
       current_phase: 'phase3_synthesis',
+      ...(synthesisWarnings.length > 0
+        ? { warnings: [...state.warnings, ...synthesisWarnings] }
+        : {}),
     };
   } catch (error) {
     const errorMessage = `Synthesis failed: ${(error as Error).message}`;
@@ -147,4 +162,56 @@ export async function synthesisNode(
       current_phase: 'failed',
     };
   }
+}
+
+/**
+ * Phase 3 soft-signal collector. Currently emits a single warning when
+ * the synthesized `code-conventions/SKILL.md` says nothing about
+ * validation but Phase 1 saw a validation library in the dependency
+ * tree. Logged as a warning at the end of the phase; non-fatal.
+ *
+ * Structured as a separate function so future soft signals (e.g. "code
+ * conventions skill cites a deprecated framework version") can plug in
+ * without touching the synthesis-orchestration code path.
+ *
+ * Reads `phase1-outputs/02-tech-stack-dependencies.json` directly
+ * because Phase 2 consolidation produces gap questions, not dependency
+ * arrays — the raw signal we need lives in Phase 1.
+ */
+function collectSynthesisWarnings(
+  synthesisContent: string,
+  tempDir: string,
+  phaseLogger: ReturnType<typeof logger.child>,
+): string[] {
+  const warnings: string[] = [];
+
+  const techStackPath = join(tempDir, 'phase1-outputs', '02-tech-stack-dependencies.json');
+  if (!existsSync(techStackPath)) return warnings;
+
+  let techStack: any;
+  try {
+    techStack = JSON.parse(readFileSync(techStackPath, 'utf-8'));
+  } catch {
+    return warnings;
+  }
+
+  const byService = techStack?.findings?.dependencies?.by_service ?? {};
+  const dependencyArrays: Array<string[] | undefined> = [];
+  for (const svc of Object.values(byService) as any[]) {
+    if (svc && typeof svc === 'object') {
+      dependencyArrays.push(svc.production, svc.development);
+    }
+  }
+  const validationLibs = findValidationLibrariesInDependencies(dependencyArrays);
+
+  const extracted = extractSynthesisMarkdown(synthesisContent);
+  if (!extracted) return warnings;
+
+  const validationWarning = detectMissingValidationRules(extracted.codeConventions, validationLibs);
+  if (validationWarning) {
+    phaseLogger.warn(` ${validationWarning}`);
+    warnings.push(`[phase3] ${validationWarning}`);
+  }
+
+  return warnings;
 }

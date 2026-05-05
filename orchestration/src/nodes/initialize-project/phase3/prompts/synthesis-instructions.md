@@ -228,6 +228,13 @@ version: 1.0
   each
 - `## Error Handling` — exception hierarchy, when to throw vs return, RATIONALE
 - `## Data Layer Rules` — repository / DAO / ORM patterns, transaction rules
+- `## Validation Rules` — when the project has form / DTO / payload validation,
+  document which library handles each layer (Zod / class-validator / yup / joi
+  / valibot / pydantic / marshmallow / etc.) and the prescriptive rule for when
+  to use which (frontend forms vs backend DTOs vs shared schemas). Include a
+  WRONG/CORRECT example showing where to plug the validator into the request
+  pipeline. Skip this section ONLY if the project has no validation library at
+  all.
 - `## Gotchas` — MUST include WRONG/CORRECT code examples for each gotcha:
 
   ````markdown
