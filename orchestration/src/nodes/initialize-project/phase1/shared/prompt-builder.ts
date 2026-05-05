@@ -15,7 +15,7 @@ import {
 import {
   GRAPH_NAVIGATION_DISCIPLINE_HEADING,
   GRAPH_NAVIGATION_DISCIPLINE_TEXT,
-} from '../../../../services/graph-wiki/graph-navigation-discipline.js';
+} from './canonical-texts.js';
 import type { CodeGraphStats } from '../../../../state/schemas/initialize-project.schema.js';
 import type { AuthoritativeService } from './authoritative-services.js';
 import { PER_ANALYZER_TOOL_CALL_CAPS, renderPerToolCapsTable } from './graph-tool-usage.js';
