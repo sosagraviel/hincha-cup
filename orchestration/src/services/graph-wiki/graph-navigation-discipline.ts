@@ -37,7 +37,7 @@ export const GRAPH_NAVIGATION_DISCIPLINE_TEXT = `Top-down, never breadth-first. 
 
 ### 0. Tool-call conventions
 
-**Server identity is preconfigured. Do not pass \`repo_root\`** (or any equivalent path/path-like argument) in any \`mcp__code_graph__*\` tool call. The MCP launcher already pins the server to this project via its launch flags; including \`repo_root\` in tool arguments is redundant for every tool and triggers an upstream type-coercion bug for some (\`get_hub_nodes_tool\`, \`get_bridge_nodes_tool\`) that surfaces as \`Error calling tool '...': 'str' object has no attribute 'resolve'\`. Call these tools with their own arguments only (e.g. \`top_n\`, \`limit\`, \`detail_level\`) — never with \`repo_root\`.
+**Server identity is preconfigured. Do not pass \`repo_root\`** (or any equivalent path/path-like argument) in any \`mcp__code_graph__*\` tool call. The MCP launcher already pins the server to this project via its launch flags. Passing \`repo_root\` is **always redundant**, and on \`get_hub_nodes_tool\` / \`get_bridge_nodes_tool\` it tickles a known upstream bug where the server raises \`AttributeError: 'str' object has no attribute 'resolve'\`. Pass only the documented arguments to each tool (\`top_n\`, \`limit\`, \`detail_level\`, etc.) — the tool resolves the project root internally. **Note:** the \`AttributeError\` text above is what the upstream bug looks like if you ever trip it — it is not an actual error you should expect to see in this session as long as you do not pass \`repo_root\`.
 
 **First-call startup race.** Your very first \`mcp__code_graph__*\` tool call may transiently fail with \`tool_use_error: No such tool available: <exact-tool-name>\` even though \`<exact-tool-name>\` appears in the catalog above and matches the spelling exactly. This is a known race between MCP server tool registration and the first agent turn — it self-resolves within a few hundred milliseconds. **If you see this error on a tool whose name is in the catalog, retry the SAME call once.** After the retry, every subsequent MCP call in this session will work. Do not switch to a different tool name, do not abandon the graph, do not invent a fallback — just retry. If the retry also fails, only then treat the tool as genuinely unavailable.
 
@@ -50,7 +50,7 @@ Call \`mcp__code_graph__get_minimal_context_tool({ task: "<your goal>" })\` firs
 | Tool | Default this way |
 |---|---|
 | \`mcp__code_graph__list_communities_tool\` | \`{ detail_level: "minimal", min_size: 10, sort_by: "size" }\`. **NEVER** \`detail_level: "standard"\` — that returns full member lists per community and overflows on graphs with > 10 communities. |
-| \`mcp__code_graph__get_community_tool\` | \`{ include_members: false }\` by default. Even with \`include_members: false\`, the response can still overflow on **wide** communities (≳40 members) because the tool returns description + per-language tags. When you see an overflow sentinel from this tool, switch to \`query_graph_tool({ pattern: "file_summary", target: <community>, detail_level: "minimal" })\` instead. Only set \`include_members: true\` for ≤3 specific communities ≤30 members each. |
+| \`mcp__code_graph__get_community_tool\` | \`{ include_members: false }\` by default. Even with \`include_members: false\`, the response can still overflow on **wide** communities (≳40 members) because the tool returns description + per-language tags. **An overflow sentinel from this tool is a HARD FAILURE.** Do NOT read the spillover file (it costs the same tokens as if the call had succeeded). On the very next turn, call \`query_graph_tool({ pattern: "file_summary", target: <community>, detail_level: "minimal" })\` instead. Do NOT retry \`get_community_tool\` on the same community — it cannot succeed. Only set \`include_members: true\` for ≤3 specific communities ≤30 members each. |
 | \`mcp__code_graph__list_flows_tool\` | \`{ detail_level: "minimal", limit: 30, sort_by: "criticality" }\`. |
 | \`mcp__code_graph__get_flow_tool\` | \`{ include_source: false }\` by default. \`include_source: true\` only for the single flow whose source you genuinely need (cap: 1). |
 | \`mcp__code_graph__semantic_search_nodes_tool\` | \`{ limit: 20 }\` MAX. Use \`kind\` to filter (\`Class\` / \`Function\` / \`File\` / \`Type\` / \`Test\`). \`detail_level: "minimal"\` when surveying. |
@@ -72,4 +72,16 @@ Call \`mcp__code_graph__get_minimal_context_tool({ task: "<your goal>" })\` firs
 
 ### 5. Result-spill protocol
 
-If any tool result starts with a sentinel like \`Error: result (NNN characters) exceeds maximum allowed tokens. Output has been saved to /Users/.../tool-results/...txt\` — that is a calling error, not a fact. **Do not read the spillover file.** Re-call the same tool with tighter parameters (\`detail_level: "minimal"\`, smaller \`limit\`, narrower \`kind\` filter, \`include_members: false\`). If you still cannot bound the call, switch to a different tool from the lean set above. Each overflow you cause is logged by the framework's Stop hook; ignoring the sentinel is treated as a regression.`;
+If any tool result starts with a sentinel like \`Error: result (NNN characters) exceeds maximum allowed tokens. Output has been saved to /Users/.../tool-results/...txt\` — **that is a HARD FAILURE, not a "the data was saved for you" success.** Reading the spillover file costs the same tokens as if the call had succeeded; the call's parameters were wrong, period.
+
+Mandatory remediation on the next turn:
+
+1. **Discard** the spillover. Do not read the file. Do not re-call the same tool against the same target with the same parameters.
+2. **Switch to a tighter tool or pattern** from the table in §2:
+   - \`get_community_tool\` overflow → \`query_graph_tool({ pattern: "file_summary", target: <community>, detail_level: "minimal" })\`.
+   - \`list_flows_tool\` overflow → tighten \`limit\` and add \`sort_by: "criticality"\`.
+   - \`semantic_search_nodes_tool\` overflow → drop \`limit\` to ≤10 and add a \`kind\` filter.
+   - \`find_large_functions_tool\` overflow → raise \`min_lines\` (default 50 is the floor; 100+ for large codebases).
+3. **Update the per-tool budget**: an overflow on a tool counts DOUBLE against that tool's remaining budget for the rest of this session.
+
+The framework's Stop hook detects the overflow sentinel automatically and emits a \`graph_overflow_event\` to the run's debug store. The count is rendered in the run's \`index.html\` and is treated as a regression in CI smoke tests.`;

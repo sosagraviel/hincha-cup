@@ -18,7 +18,7 @@ import {
 } from '../../../../services/graph-wiki/graph-navigation-discipline.js';
 import type { CodeGraphStats } from '../../../../state/schemas/initialize-project.schema.js';
 import type { AuthoritativeService } from './authoritative-services.js';
-import { PER_ANALYZER_TOOL_CALL_CAPS } from './graph-tool-usage.js';
+import { PER_ANALYZER_TOOL_CALL_CAPS, renderPerToolCapsTable } from './graph-tool-usage.js';
 
 /**
  * Heuristic: a graph is "large" if it has > 200 files OR > 1000 functions.
@@ -93,15 +93,27 @@ export function buildPhase1AnalyzerPrompt(
   // output and nudges the agent on the next attempt. See gira-init-run
   // audit findings F10 / F11 / F27 (data-flows-analyzer alone made 52
   // tool calls in 57 turns; no cap = no nudge).
+  //
+  // Per-tool caps (added 2026-05-05 after the second gira run showed
+  // structure-architecture making 38 get_community_tool calls + 4
+  // overflows): each tool has its own budget, and an overflow on a tool
+  // counts double against that tool's remaining budget. Together with
+  // the spill-protocol HARD FAILURE wording in graph-navigation-
+  // discipline.ts, this is the structural fix for the overflow
+  // regression.
   const cap = PER_ANALYZER_TOOL_CALL_CAPS[agentName];
-  if (typeof cap === 'number') {
-    parts.push(
-      '',
-      buildContentSection(
-        'Tool Budget Guidance',
-        `You are not strictly limited to ${cap} tool calls, but exceeding ${cap} substantially without producing new findings is a code smell — pause and pick the most informative remaining query. The framework records a non-blocking \`tool_call_budget_exceeded\` warning in your persisted output when total Read/Glob/Grep/Bash + graph calls cross this threshold. The graph is the language-agnostic primitive — favour it over Glob/Read for any structural or relational question.`,
-      ),
-    );
+  const perToolCapsTable = renderPerToolCapsTable(agentName);
+  if (typeof cap === 'number' || perToolCapsTable) {
+    const sections: string[] = [];
+    if (typeof cap === 'number') {
+      sections.push(
+        `Total tool-call budget for this analyzer: **${cap}**. Exceeding ${cap} substantially without new findings surfaces a non-blocking \`tool_call_budget_exceeded\` warning. The graph is the language-agnostic primitive — favour it over Glob/Read for any structural or relational question.`,
+      );
+    }
+    if (perToolCapsTable) {
+      sections.push(perToolCapsTable);
+    }
+    parts.push('', buildContentSection('Tool Budget Guidance', sections.join('\n\n')));
   }
 
   if (executionInstructions) {

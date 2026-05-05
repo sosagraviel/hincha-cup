@@ -62,7 +62,9 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
       expect(prompt).toMatch(/limit: 20/);
       // Spill protocol must be present so Claude/Codex recognise the sentinel.
       expect(prompt).toContain('exceeds maximum allowed tokens');
-      expect(prompt).toContain('Do not read the spillover file');
+      // Wording tightened 2026-05-05: HARD FAILURE semantics; do not read the file.
+      expect(prompt).toMatch(/HARD FAILURE/);
+      expect(prompt).toMatch(/Do not read the (?:file|spillover)/i);
       // Section 0 conventions (added 2026-04-29 per gira-init-run audit F1/F5/F25).
       expect(prompt).toContain('### 0. Tool-call conventions');
       expect(prompt).toMatch(/Do not pass `repo_root`/);
