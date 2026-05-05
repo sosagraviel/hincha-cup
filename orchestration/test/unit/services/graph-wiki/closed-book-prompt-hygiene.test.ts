@@ -1,0 +1,165 @@
+import { describe, expect, it } from 'vitest';
+import {
+  buildCoreSpecs,
+  buildPrompt,
+  buildServiceSpec,
+} from '../../../../src/services/graph-wiki/document-specs.js';
+import { buildConsolidationPrompt } from '../../../../src/nodes/initialize-project/phase2/question-consolidator/prompt-builder.js';
+import { buildSynthesisPrompt } from '../../../../src/nodes/initialize-project/phase3/prompt-builder.js';
+import { Provider } from '../../../../src/providers/types.js';
+
+/**
+ * Wave 2 Fix 6.2 — closed-book prompt hygiene.
+ *
+ * Closed-book agents (consolidator, synthesizer, wiki-generator)
+ * have `tools: none` in their frontmatter — they cannot call MCP
+ * graph tools. The Phase 0 graph-tool catalog (a multi-line block
+ * listing every `mcp__code_graph__*` tool with its description) is
+ * therefore dead text in their prompts: ~8 KB of noise per spawn,
+ * across 8+ closed-book attempts in a typical run.
+ *
+ * The 2026-05-04 gira run shipped the catalog in every wiki-generator
+ * prompt. This test is the defensive scan: any future code path that
+ * leaks the catalog into a closed-book prompt will fail this test
+ * immediately.
+ *
+ * Stack-agnostic: every fixture uses generic ids and the test
+ * matches on heading-shape patterns (`## Available graph tools`),
+ * not on language-specific tokens.
+ */
+
+const CATALOG_SIGNATURES = [
+  // The signature emitted by `buildSchemaDocBody` in
+  // wiki-generator.service.ts when a graph-tool catalog is rendered.
+  /##\s+Available graph tools/i,
+  /Live MCP tool catalog/i,
+  // The "call by exact name; the server will reject" sentence is
+  // unique to the catalog block.
+  /Call by exact name; the server will reject names that are not in this list/i,
+];
+
+function containsCatalog(prompt: string): boolean {
+  return CATALOG_SIGNATURES.some((pattern) => pattern.test(prompt));
+}
+
+describe('closed-book prompt hygiene — Wave 2 Fix 6.2', () => {
+  describe('Phase 2 consolidator', () => {
+    it('does not contain a graph-tool catalog block', () => {
+      const prompt = buildConsolidationPrompt([
+        {
+          type: 'needs_verification',
+          agent: '01-structure-architecture',
+          item: 'src/foo',
+          priority: 'medium',
+        },
+      ] as never);
+      expect(containsCatalog(prompt)).toBe(false);
+    });
+
+    it('does not list multiple `mcp__code_graph__*_tool` names line-by-line', () => {
+      // The consolidator only quotes analyzer output names if it
+      // chooses to — but a multi-tool catalog (≥3 distinct
+      // mcp__code_graph__ tool names) is never legitimate here.
+      const prompt = buildConsolidationPrompt([] as never);
+      const matches = prompt.match(/mcp__code_graph__\w+_tool/g) ?? [];
+      const unique = new Set(matches);
+      expect(unique.size).toBeLessThan(3);
+    });
+
+    it('also produces a clean prompt when feedback is present', () => {
+      const prompt = buildConsolidationPrompt([] as never, 'previous attempt failed');
+      expect(containsCatalog(prompt)).toBe(false);
+    });
+  });
+
+  describe('Phase 3 synthesizer', () => {
+    it('does not contain a graph-tool catalog block', () => {
+      const prompt = buildSynthesisPrompt({
+        services: [],
+        notable_findings: [],
+      });
+      expect(containsCatalog(prompt)).toBe(false);
+    });
+
+    it('does not list a graph-tool catalog even with realistic consolidated data', () => {
+      const prompt = buildSynthesisPrompt({
+        consolidated_findings: {
+          structure_architecture: {
+            graph_queries_used: [
+              'mcp__code_graph__get_minimal_context_tool',
+              'mcp__code_graph__list_communities_tool',
+            ],
+            findings: { services: [] },
+          },
+        },
+        identified_gaps: [],
+        gaps: [],
+      });
+      // The catalog SIGNATURE patterns must not appear, even though
+      // the analyzer's `graph_queries_used` references exist in the
+      // serialized JSON (those are tool-NAME mentions, not the
+      // human-readable catalog block).
+      expect(containsCatalog(prompt)).toBe(false);
+    });
+
+    it('produces a clean prompt when feedback is present', () => {
+      const prompt = buildSynthesisPrompt({}, 'previous attempt failed');
+      expect(containsCatalog(prompt)).toBe(false);
+    });
+  });
+
+  describe('Phase 4 wiki-generator', () => {
+    function buildOptions() {
+      return {
+        projectPath: '/tmp/x',
+        frameworkPath: '/framework',
+        provider: Provider.CLAUDE,
+        generatedAt: '2026-05-05T00:00:00.000Z',
+        graph: { available: true, path: '/tmp/x/.code-review-graph/graph.db' },
+        analyzers: {
+          structure_architecture: {
+            graph_queries_used: ['mcp__code_graph__get_minimal_context_tool'],
+            findings: {
+              services: [
+                {
+                  id: 'svc-a',
+                  path: 'svc-a',
+                  type: 'backend',
+                  language: 'typescript',
+                  frameworks: {},
+                },
+              ],
+            },
+          },
+          tech_stack_dependencies: { graph_queries_used: [], findings: {} },
+          code_patterns_testing: { graph_queries_used: [], findings: {} },
+          data_flows_integrations: { graph_queries_used: [], findings: {} },
+        },
+        stackProfile: {
+          services: [{ id: 'svc-a', path: 'svc-a', type: 'backend', language: 'typescript' }],
+        },
+        agentInvoker: async () => '',
+      };
+    }
+
+    it('architecture spec prompt does not contain a graph-tool catalog block', () => {
+      const specs = buildCoreSpecs(buildOptions() as never);
+      const arch = specs.find((s) => s.documentType === 'architecture')!;
+      const prompt = buildPrompt(arch, '/tmp/x');
+      expect(containsCatalog(prompt)).toBe(false);
+    });
+
+    it('per-service prompt does not contain a graph-tool catalog block', () => {
+      const opts = buildOptions() as never as {
+        analyzers: never;
+        digestedUpstream: undefined;
+      };
+      const spec = buildServiceSpec(
+        { id: 'svc-a', path: 'svc-a', type: 'backend' },
+        opts.analyzers,
+      );
+      const prompt = buildPrompt(spec, '/tmp/x');
+      expect(containsCatalog(prompt)).toBe(false);
+    });
+  });
+});
