@@ -302,13 +302,27 @@ function architectureSpec(
       stack_profile: stackProfile,
       structure_architecture: analyzers.structure_architecture,
     },
-    digestedUpstream: scopeDigestedUpstream(digestedUpstream, [
-      'architecture',
-      'topology',
-      'monorepo',
-      'workspace',
-      'services',
-    ]),
+    // Plan §C 3.3 (gira-exhaustive followup): the architecture page is
+    // descriptive — convention-skill sections (which are prescriptive
+    // "should/must" rules) don't belong in its prompt. Drop them
+    // explicitly. The keep-keywords list pulls in architecture/topology/
+    // monorepo/workspace/services sections; the drop tokens strip
+    // convention-skill sections by their canonical heading tokens.
+    digestedUpstream: scopeDigestedUpstream(
+      digestedUpstream,
+      ['architecture', 'topology', 'monorepo', 'workspace', 'services'],
+      {
+        dropHeadings: [
+          'code conventions',
+          'code-conventions',
+          'multi-file workflows',
+          'multi-file-workflows',
+          'testing conventions',
+          'testing-conventions',
+          'convention skill',
+        ],
+      },
+    ),
     tags: deriveCoreTags('architecture', stackProfile),
   };
 }
@@ -433,20 +447,52 @@ function deriveCoreTags(documentType: 'architecture', stackProfile: unknown): st
 function scopeDigestedUpstream(
   upstream: WikiDigestedUpstream | undefined,
   keywords: string[],
+  options: { dropHeadings?: string[] } = {},
 ): WikiDigestedUpstream | undefined {
   if (!upstream) return undefined;
 
+  const dropHeadings = options.dropHeadings ?? [];
+  const trim = (text: string) => {
+    let out = extractRelevantMarkdownSections(text, keywords);
+    if (dropHeadings.length > 0) {
+      out = dropMarkdownSections(out, dropHeadings);
+    }
+    return out;
+  };
+
   return {
-    synthesis: upstream.synthesis
-      ? extractRelevantMarkdownSections(upstream.synthesis, keywords)
-      : undefined,
-    claudeMd: upstream.claudeMd
-      ? extractRelevantMarkdownSections(upstream.claudeMd, keywords)
-      : undefined,
+    synthesis: upstream.synthesis ? trim(upstream.synthesis) : undefined,
+    claudeMd: upstream.claudeMd ? trim(upstream.claudeMd) : undefined,
     architecturalNarrative: upstream.architecturalNarrative
-      ? extractRelevantMarkdownSections(upstream.architecturalNarrative, keywords)
+      ? trim(upstream.architecturalNarrative)
       : undefined,
   };
+}
+
+/**
+ * Walk a markdown document by `## ` headings; drop any section whose
+ * heading line contains any of the provided drop tokens (case-insensitive).
+ * Used by the architecture spec to strip convention-skill sections from
+ * the digested upstream — those skills are prescriptive rules that don't
+ * belong in a descriptive architecture page (plan §C 3.3,
+ * gira-exhaustive followup).
+ */
+function dropMarkdownSections(markdown: string, dropTokens: string[]): string {
+  const lower = dropTokens.map((t) => t.toLowerCase());
+  const lines = markdown.split('\n');
+  const out: string[] = [];
+  let dropping = false;
+  for (const line of lines) {
+    if (/^##\s+/.test(line)) {
+      const headingLower = line.toLowerCase();
+      dropping = lower.some((t) => headingLower.includes(t));
+      if (dropping) continue;
+    }
+    if (!dropping) {
+      out.push(line);
+    }
+  }
+  return out.join('\n').trim();
 }
 
 /**
