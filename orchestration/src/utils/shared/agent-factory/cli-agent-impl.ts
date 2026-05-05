@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { AuthMode } from '../../../auth/auth-detector.js';
 import { getLLMFactory } from '../../../llm/llm-factory.js';
 import { logger } from '../../logger.js';
@@ -20,6 +20,8 @@ import {
   buildClaudeDenyRules,
   renderDenyRulesPlaceholderValue,
 } from '../../../services/framework/permissions/excluded-paths.js';
+import { locateClaudeTranscript } from '../../../services/framework/transcripts/capture.js';
+import { extractUsageFromClaudeJsonl, rollupToCacheHit } from './usage-extractor.js';
 
 // Track active processes and invocations for cleanup
 const activeProcesses: Set<ChildProcess> = new Set();
@@ -377,13 +379,22 @@ async function invokeCLI(
           await recorder.captureTranscript({ outcome: 'success' });
           await recorder.finalize('success', { code });
           await removeScratchDir();
+          // Plan §E, commit C (2026-05-05) — extract real cache hit /
+          // token usage from the JSONL transcript Claude CLI wrote at
+          // `~/.claude/projects/<slug>/<sessionId>.jsonl`. Before this
+          // commit `cache_hit` was hardcoded `false`, so the run-stats
+          // sidebar always showed 0% cache hit rate even when caching
+          // was working. Best-effort: any IO/parse failure falls back
+          // to the prior unknown-marker shape (`-1` tokens,
+          // `cache_hit: false`).
+          const usage = await readClaudeUsage(config.projectPath, run.sessionId);
           emitTokenUsage(config.projectPath, {
             ts: new Date().toISOString(),
             phase: config.phase?.phaseId ?? 'phase-unknown',
             agent: config.agentName,
-            input_tokens: -1,
-            output_tokens: -1,
-            cache_hit: false,
+            input_tokens: usage.inputTokens,
+            output_tokens: usage.outputTokens,
+            cache_hit: rollupToCacheHit(usage),
             duration_ms: Date.now() - recorder.startedAtMs,
             budget_key: config.budgetKey,
           }).catch(() => undefined);
@@ -443,4 +454,51 @@ async function invokeCLI(
       });
     })().catch((err) => reject(err as Error));
   });
+}
+
+/**
+ * Plan §E, commit C (2026-05-05) — best-effort read of the Claude
+ * JSONL transcript and rollup of token usage / cache reads. Returns the
+ * unknown-marker shape on any failure so the surrounding `emitTokenUsage`
+ * call still succeeds with the same fallback values it used before this
+ * commit.
+ *
+ * Why we re-locate the transcript here instead of plumbing it through
+ * the recorder: the recorder handles transcript capture for HTML
+ * rendering and meta tracking; usage rollup is a separate concern that
+ * happens in parallel, and decoupling them keeps the recorder API
+ * narrow. Locator + parser are both pure / cheap, so the small bit of
+ * duplicated IO is fine.
+ */
+async function readClaudeUsage(
+  projectPath: string,
+  sessionId: string,
+): Promise<{
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+}> {
+  try {
+    const transcriptPath = await locateClaudeTranscript(projectPath, sessionId, {
+      timeoutMs: 1000,
+    });
+    if (!transcriptPath) {
+      return {
+        inputTokens: -1,
+        outputTokens: -1,
+        cacheReadInputTokens: -1,
+        cacheCreationInputTokens: -1,
+      };
+    }
+    const jsonl = await readFile(transcriptPath, 'utf-8');
+    return extractUsageFromClaudeJsonl(jsonl);
+  } catch {
+    return {
+      inputTokens: -1,
+      outputTokens: -1,
+      cacheReadInputTokens: -1,
+      cacheCreationInputTokens: -1,
+    };
+  }
 }

@@ -25,6 +25,7 @@ import { getExcludedDirectories } from '../prompt-loader.js';
 import { extractGraphToolUsesFromCodexJsonl } from '../../../nodes/initialize-project/phase1/shared/graph-tool-uses-extractor.js';
 import { codexSidecarDir } from '../../../nodes/initialize-project/phase1/shared/graph-tool-usage.js';
 import { locateCodexRollout } from '../../../services/framework/transcripts/capture.js';
+import { extractUsageFromCodexJsonl, rollupToCacheHit } from './usage-extractor.js';
 
 // Track active processes and invocations for cleanup
 const activeCodexProcesses: Set<ChildProcess> = new Set();
@@ -195,7 +196,7 @@ export async function createCodexCLIAgentImpl(
       const startTime = Date.now();
 
       try {
-        const { output } = await invokeCodexCLI(config, {
+        const { output, codexSessionId } = await invokeCodexCLI(config, {
           inputPrompt: input.inputPrompt,
           sessionId,
           attemptNumber,
@@ -207,13 +208,21 @@ export async function createCodexCLIAgentImpl(
           `Completed in ${(executionTimeMs / 1000).toFixed(1)}s`,
         );
 
+        // Plan §E, commit C (2026-05-05) — extract real cache hit /
+        // token usage from the Codex rollout JSONL the CLI wrote
+        // under `~/.codex/sessions/`. Before this commit `cache_hit`
+        // was hardcoded `false`, so the run-stats sidebar always
+        // showed 0% cache hit rate even when OpenAI's automatic
+        // prefix cache was engaged. Best-effort: any IO/parse
+        // failure falls back to the prior unknown-marker shape.
+        const usage = await readCodexUsage(codexSessionId);
         emitTokenUsage(config.projectPath, {
           ts: new Date().toISOString(),
           phase: config.phase?.phaseId ?? 'phase-unknown',
           agent: config.agentName,
-          input_tokens: -1,
-          output_tokens: -1,
-          cache_hit: false,
+          input_tokens: usage.inputTokens,
+          output_tokens: usage.outputTokens,
+          cache_hit: rollupToCacheHit(usage),
           duration_ms: executionTimeMs,
           budget_key: config.budgetKey,
         }).catch(() => undefined);
@@ -252,7 +261,7 @@ async function invokeCodexCLI(
     sessionId: string;
     attemptNumber: number;
   },
-): Promise<{ output: string; sessionId: string }> {
+): Promise<{ output: string; sessionId: string; codexSessionId: string | null }> {
   if (isCodexAborting) throw new Error('SIGINT: Workflow interrupted by user (CTRL+C)');
 
   const timeout = config.timeout ?? 300000;
@@ -363,7 +372,7 @@ async function invokeCodexCLI(
     await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null);
     await recorder.finalize('success', { code: first.code });
     await removeScratchDir();
-    return { output, sessionId: run.sessionId };
+    return { output, sessionId: run.sessionId, codexSessionId };
   }
 
   let validation = config.validator(output);
@@ -428,7 +437,7 @@ async function invokeCodexCLI(
     await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null);
     await recorder.finalize('success', { code: 0 });
     await removeScratchDir();
-    return { output, sessionId: run.sessionId };
+    return { output, sessionId: run.sessionId, codexSessionId };
   }
 
   logger.warn(
@@ -448,7 +457,7 @@ async function invokeCodexCLI(
   // We still return output so the external retry layer can observe the failure.
   await recorder.finalize('success', { code: 0, failureReason: 'internal-validation-exhausted' });
   await removeScratchDir();
-  return { output, sessionId: run.sessionId };
+  return { output, sessionId: run.sessionId, codexSessionId };
 }
 
 /**
@@ -724,6 +733,38 @@ function parseCodexJsonOutput(jsonStream: string): string {
     }
   }
   return jsonStream;
+}
+
+/**
+ * Plan §E, commit C (2026-05-05) — best-effort read of the Codex
+ * rollout JSONL and rollup of token usage / cache reads.
+ *
+ * Returns the unknown-marker shape on any failure (codexSessionId is
+ * null, rollout missing, parse error). The surrounding `emitTokenUsage`
+ * call still succeeds with the same fallback values it used before this
+ * commit.
+ */
+async function readCodexUsage(codexSessionId: string | null): Promise<{
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+}> {
+  const unknown = {
+    inputTokens: -1,
+    outputTokens: -1,
+    cacheReadInputTokens: -1,
+    cacheCreationInputTokens: -1,
+  };
+  if (!codexSessionId) return unknown;
+  try {
+    const rolloutPath = await locateCodexRollout(codexSessionId, { timeoutMs: 1000 });
+    if (!rolloutPath) return unknown;
+    const jsonl = await readFile(rolloutPath, 'utf-8');
+    return extractUsageFromCodexJsonl(jsonl);
+  } catch {
+    return unknown;
+  }
 }
 
 // Re-exposed to match the prior export surface used by the validator
