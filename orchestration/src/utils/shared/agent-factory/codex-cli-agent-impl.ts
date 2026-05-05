@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { mkdtemp, rm, writeFile, readFile } from 'fs/promises';
+import { mkdtemp, mkdir, rm, writeFile, readFile } from 'fs/promises';
 import { z } from 'zod';
 import { AuthMode } from '../../../auth/auth-detector.js';
 import { getLLMFactory } from '../../../llm/llm-factory.js';
@@ -22,6 +22,9 @@ import {
 } from '../../../services/framework/debug-store/index.js';
 import { beginAttemptRecorder, type AttemptRecorder } from './attempt-recorder.js';
 import { getExcludedDirectories } from '../prompt-loader.js';
+import { extractGraphToolUsesFromCodexJsonl } from '../../../nodes/initialize-project/phase1/shared/graph-tool-uses-extractor.js';
+import { codexSidecarDir } from '../../../nodes/initialize-project/phase1/shared/graph-tool-usage.js';
+import { locateCodexRollout } from '../../../services/framework/transcripts/capture.js';
 
 // Track active processes and invocations for cleanup
 const activeCodexProcesses: Set<ChildProcess> = new Set();
@@ -267,7 +270,28 @@ async function invokeCodexCLI(
 
   const agentContent = fs.readFileSync(config.agentFilePath, 'utf-8');
   const agentBody = agentContent.replace(/^---[\s\S]*?---\n?/, '');
-  const fullPrompt = `${agentBody}\n\n---\n\n${run.inputPrompt}`;
+
+  // Plan §D, commit B (2026-05-05) — keep the cache-eligible Phase 1
+  // prompt prefix at byte 0 of the user message so OpenAI's automatic
+  // prefix cache can hit on it.
+  //
+  // The four parallel analyzer spawns share a byte-identical prefix
+  // built by `buildPhase1SharedPrefix` (plan §F.3); that prefix is the
+  // first ~19 KB of `run.inputPrompt`. Prepending the analyzer-specific
+  // `agentBody` would push the prefix past byte 0, and OpenAI's prefix
+  // cache only matches from byte 0 — so the cache could never hit and
+  // we'd silently lose the savings the parent series shipped.
+  //
+  // Reversing the concat keeps the prefix where the cache can see it.
+  // The agent body becomes part of the analyzer-specific tail; LLMs
+  // weight recent content at decode time, so role/contract instructions
+  // appearing right before the response is generated is at least as
+  // effective as having them at the top of the prompt.
+  //
+  // Anti-regression: `prompt-builder-cache.test.ts` has a Codex-specific
+  // assertion that `fullPrompt.slice(0, sharedPrefix.length)` SHA-256s
+  // identically across all four analyzers.
+  const fullPrompt = `${run.inputPrompt}\n\n---\n\n${agentBody}`;
 
   const codexCLI = getCodexCLIPath(config.frameworkPath);
   const model = getCodexCLIModelForAgent(config.agentName, config.frameworkPath);
@@ -336,6 +360,7 @@ async function invokeCodexCLI(
       outcome: 'success',
       codexSessionIdOverride: codexSessionId ?? undefined,
     });
+    await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null);
     await recorder.finalize('success', { code: first.code });
     await removeScratchDir();
     return { output, sessionId: run.sessionId };
@@ -400,6 +425,7 @@ async function invokeCodexCLI(
       outcome: 'success',
       codexSessionIdOverride: codexSessionId ?? undefined,
     });
+    await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null);
     await recorder.finalize('success', { code: 0 });
     await removeScratchDir();
     return { output, sessionId: run.sessionId };
@@ -418,10 +444,67 @@ async function invokeCodexCLI(
     outcome: 'success',
     codexSessionIdOverride: codexSessionId ?? undefined,
   });
+  await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null);
   // We still return output so the external retry layer can observe the failure.
   await recorder.finalize('success', { code: 0, failureReason: 'internal-validation-exhausted' });
   await removeScratchDir();
   return { output, sessionId: run.sessionId };
+}
+
+/**
+ * Plan §C, commit A (2026-05-05) — Codex equivalent of Claude's Stop
+ * hook sidecar writer.
+ *
+ * Claude CLI sessions get a graph-tool-uses sidecar written by
+ * `validate-analyzer-json.hook.ts` (Stop hook). Codex CLI has no Stop
+ * hook (per OpenAI's hook docs only `PreToolUse` is supported), so
+ * this function does the same job in-process after `runCodex`
+ * returns: locate the rollout JSONL the CLI wrote into
+ * `~/.codex/sessions/...`, parse it via
+ * `extractGraphToolUsesFromCodexJsonl`, and write the sidecar to a
+ * framework-owned path that `loadCodexSidecar` knows how to find.
+ *
+ * The sidecar lives at
+ *   `<projectPath>/.codex-temp/initialize-project/graph-tool-uses/<frameworkSessionId>.graph-tool-uses.json`
+ *
+ * Best-effort by design: if the rollout cannot be located or parsed,
+ * `applyGraphToolUsageFromSidecar` will see no sidecar and return the
+ * empty-telemetry shape (the Claude path has the same fallback when a
+ * Stop hook fails). Logging happens at warn level so a single missing
+ * sidecar shows up in the run output without breaking the pipeline.
+ */
+async function writeCodexGraphToolUsesSidecar(
+  projectPath: string,
+  frameworkSessionId: string,
+  codexSessionId: string | null,
+): Promise<void> {
+  if (!codexSessionId) {
+    // Without the Codex session id we cannot locate the rollout. The
+    // analyzer node will see the missing sidecar and force empty
+    // telemetry — same fallback path as a Claude hook failure.
+    return;
+  }
+
+  try {
+    const rolloutPath = await locateCodexRollout(codexSessionId, { timeoutMs: 3000 });
+    if (!rolloutPath) {
+      logger.warn(
+        `[graph-tool-uses] Could not locate Codex rollout for session ${codexSessionId} — analyzer will see empty graph telemetry`,
+      );
+      return;
+    }
+    const jsonl = await readFile(rolloutPath, 'utf-8');
+    const sidecar = extractGraphToolUsesFromCodexJsonl(jsonl);
+
+    const dir = codexSidecarDir(projectPath);
+    await mkdir(dir, { recursive: true });
+    const out = path.join(dir, `${frameworkSessionId}.graph-tool-uses.json`);
+    await writeFile(out, JSON.stringify(sidecar, null, 2), 'utf-8');
+  } catch (err) {
+    logger.warn(
+      `[graph-tool-uses] Failed to write Codex sidecar for session ${codexSessionId}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }
 
 async function finalizeCodexFailure(

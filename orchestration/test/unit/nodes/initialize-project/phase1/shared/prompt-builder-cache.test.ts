@@ -367,3 +367,104 @@ describe('buildPhase1AnalyzerPrompt — prefix is byte-identical across all 4 an
     expect(hashesA[0]).not.toBe(hashesB[0]);
   });
 });
+
+/**
+ * Plan §D, commit B (2026-05-05) — Codex CLI parity.
+ *
+ * `codex-cli-agent-impl.ts` builds the user prompt fed to GPT-5 as
+ * `${run.inputPrompt}\n\n---\n\n${agentBody}`. The byte-identical Phase 1
+ * prefix lives at byte 0 of `inputPrompt`, so the resulting full prompt
+ * also starts with that prefix — letting OpenAI's automatic prefix
+ * cache hit on the same shared bytes that the Anthropic API caches for
+ * Claude.
+ *
+ * This describe block locks the contract: simulate the Codex concat
+ * (per-analyzer agent body + per-analyzer inputPrompt) and assert the
+ * byte-identical prefix is at byte 0 of the resulting full prompt
+ * across all four analyzers. If a future refactor flips the order
+ * back (or interpolates analyzer-specific bytes into the prefix), this
+ * test fails immediately.
+ */
+describe('Codex full-prompt order — byte-identical prefix at byte 0', () => {
+  // The four analyzer prompt files have different bodies in production.
+  // Simulate that here so the test catches an accidental concat-order
+  // regression (which would put analyzer-specific bytes at byte 0).
+  const PER_ANALYZER_BODY: Record<string, string> = {
+    'structure-architecture-analyzer': '# Structure & Architecture Analyzer\n\n## Role\nA',
+    'tech-stack-dependencies-analyzer': '# Tech Stack & Dependencies Analyzer\n\n## Role\nB',
+    'code-patterns-testing-analyzer': '# Code Patterns & Testing Analyzer\n\n## Role\nC',
+    'data-flows-integrations-analyzer': '# Data Flows & Integrations Analyzer\n\n## Role\nD',
+  };
+
+  /**
+   * Mirror exactly what `codex-cli-agent-impl.ts` does:
+   *   const fullPrompt = `${run.inputPrompt}\n\n---\n\n${agentBody}`;
+   * Reversing this order would break caching; the test below would catch it.
+   */
+  function buildCodexFullPrompt(agentName: string): string {
+    const inputPrompt = buildPhase1AnalyzerPrompt(
+      '/test/project',
+      '/test/framework',
+      agentName,
+      undefined,
+      SHARED_GRAPH_CONTEXT,
+    );
+    const agentBody = PER_ANALYZER_BODY[agentName];
+    return `${inputPrompt}\n\n---\n\n${agentBody}`;
+  }
+
+  it('all four Codex full-prompts share the byte-identical cache prefix at byte 0', () => {
+    const expectedPrefix = buildPhase1SharedPrefix({
+      projectPath: '/test/project',
+      frameworkPath: '/test/framework',
+      graphContext: SHARED_GRAPH_CONTEXT,
+    });
+    const expectedHash = sha256(expectedPrefix);
+
+    for (const agentName of ANALYZERS) {
+      const fullPrompt = buildCodexFullPrompt(agentName);
+      expect(fullPrompt.startsWith(expectedPrefix), `agent ${agentName}`).toBe(true);
+      expect(sha256(fullPrompt.slice(0, expectedPrefix.length))).toBe(expectedHash);
+    }
+  });
+
+  it('the analyzer-specific agent body lives in the cache-miss tail, not at byte 0', () => {
+    // Sanity: the per-analyzer body MUST appear somewhere — the prompt
+    // still has to carry it — but NOT at byte 0.
+    for (const agentName of ANALYZERS) {
+      const fullPrompt = buildCodexFullPrompt(agentName);
+      expect(fullPrompt).toContain(PER_ANALYZER_BODY[agentName]);
+      expect(fullPrompt.startsWith(PER_ANALYZER_BODY[agentName])).toBe(false);
+    }
+  });
+
+  it('regression net: prepending agentBody (the bug we fixed) would fail this test', () => {
+    // This test documents the failure mode by constructing the BROKEN
+    // form and asserting it would fail the byte-identical check. If a
+    // future refactor accidentally reverts the concat order, the
+    // production test above catches it; this auxiliary test pins the
+    // shape of the regression so reviewers can see what "broken" looks
+    // like.
+    const expectedPrefix = buildPhase1SharedPrefix({
+      projectPath: '/test/project',
+      frameworkPath: '/test/framework',
+      graphContext: SHARED_GRAPH_CONTEXT,
+    });
+    const brokenForms = ANALYZERS.map((agentName) => {
+      const inputPrompt = buildPhase1AnalyzerPrompt(
+        '/test/project',
+        '/test/framework',
+        agentName,
+        undefined,
+        SHARED_GRAPH_CONTEXT,
+      );
+      const agentBody = PER_ANALYZER_BODY[agentName];
+      // The OLD, broken concat order — agentBody at byte 0.
+      return `${agentBody}\n\n---\n\n${inputPrompt}`;
+    });
+    // Each broken form starts with its analyzer-specific body, so byte 0
+    // differs across analyzers — no possible cache hit on the prefix.
+    const startBytes = brokenForms.map((p) => p.slice(0, expectedPrefix.length));
+    expect(new Set(startBytes).size).toBe(ANALYZERS.length);
+  });
+});

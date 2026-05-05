@@ -9,10 +9,14 @@ import { logger } from '../../../../utils/logger.js';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { buildPhase1AnalyzerPrompt } from '../shared/prompt-builder.js';
-import { applyGraphToolUsageFromSidecar } from '../shared/graph-tool-usage.js';
+import {
+  applyGraphToolUsageFromSidecar,
+  getSidecarLoaderForProvider,
+} from '../shared/graph-tool-usage.js';
 import { getFrameworkAgentPath } from '../../shared/index.js';
 import { reasoningPrefix } from '../../../../utils/shared/context-tags.js';
-import { resolveTempPath } from '../../../../utils/provider-paths.js';
+import { resolveTempPath, getActiveProvider } from '../../../../utils/provider-paths.js';
+import { Provider } from '../../../../providers/types.js';
 import {
   getInitializeProjectPhase,
   tryActiveDebugStore,
@@ -112,13 +116,22 @@ export async function structureArchitectureAnalyzerNode(
     );
 
     // Overwrite agent-supplied graph_queries_used with the canonical sorted
-    // list of `mcp__code_graph__*_tool` names from the Stop hook's sidecar.
+    // list of `mcp__code_graph__*_tool` names from the per-provider sidecar.
     // The agent has demonstrated it cannot be trusted with this field.
+    //
+    // Plan §C, commit A (2026-05-05) — provider parity. Claude reads the
+    // sidecar written by the Stop hook; Codex reads the sidecar written
+    // in-process by `codex-cli-agent-impl.ts` (Codex has no Stop hook).
+    // DeepAgents (Anthropic API) doesn't produce a Claude transcript, so
+    // the loader's missing-file fallback (empty telemetry) applies — same
+    // behaviour as before this commit.
+    const provider = getActiveProvider() === Provider.CODEX ? 'codex' : 'claude';
     const persisted = applyGraphToolUsageFromSidecar(
       validatedData,
       state.project_path,
       sessionId,
       agentName,
+      getSidecarLoaderForProvider(provider),
     );
 
     writeFileSync(outputPath, JSON.stringify(persisted, null, 2));
