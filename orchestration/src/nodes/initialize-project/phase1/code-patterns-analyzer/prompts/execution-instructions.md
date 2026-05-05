@@ -17,7 +17,7 @@ Analyze testing strategies, code quality tools, and development practices for ea
 
 <discovery_process>
 
-> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block: lean parameters, drill-in caps, no calls to `get_architecture_overview_tool`. Specialise _which_ lean tools you call for each question; never override the defaults.
+> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block (lean parameters, drill-in caps, forbidden tools). Specialise _which_ lean tools you call for each question; never override the defaults.
 
 ## Step 0: Cheap orientation via graph
 
@@ -294,16 +294,15 @@ Report counts for each type if distinguishable from file paths or config.
 ## Self-Verification Checklist
 
 1. **Called `get_minimal_context` first?** It must be the first graph call. If you skipped it, you almost certainly over-pulled later.
-2. **Used lean parameters everywhere?** All `semantic_search_nodes` with `limit: 15-20` MAX and `detail_level: "minimal"`; `find_large_functions` with `min_lines: 50` minimum (never `min_lines: 1`); no calls to `get_architecture_overview` (forbidden — overflows).
+2. **Used lean parameters everywhere?** All `semantic_search_nodes` with `limit: 15-20` MAX and `detail_level: "minimal"`; `find_large_functions` with `min_lines: 50` minimum (never `min_lines: 1`). (The discipline already forbids `get_architecture_overview` — see §3 of the navigation discipline.)
 3. **Called semantic_search_nodes for test discovery?** Graph results should be primary test file inventory.
 4. **Called query_graph with tests_for pattern?** Test → source linkage from graph edges, capped at top 3 communities.
 5. **Called semantic_search_nodes for API patterns?** Controller/Resolver/Service class detection via graph.
-6. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
-7. **Testing framework in dependencies but no test files?** Check if graph returned results; if not, try Glob fallback patterns
-8. **No testing framework in dependencies?** Valid to report "none" (MVP projects, separate test repo)
-9. **Linter in dependencies but no config?** Check package.json, pyproject.toml for inline config
-10. **Documentation tools checked?** Look for Swagger/OpenAPI, static site generators, docs/ directory
-11. **Pre-commit hooks detected?** Search for .husky/, .pre-commit-config.yaml, lefthook.yml
+6. **Testing framework in dependencies but no test files?** Check if graph returned results; if not, try Glob fallback patterns
+7. **No testing framework in dependencies?** Valid to report "none" (MVP projects, separate test repo)
+8. **Linter in dependencies but no config?** Check package.json, pyproject.toml for inline config
+9. **Documentation tools checked?** Look for Swagger/OpenAPI, static site generators, docs/ directory
+10. **Pre-commit hooks detected?** Search for .husky/, .pre-commit-config.yaml, lefthook.yml
 
 ## Common Patterns
 

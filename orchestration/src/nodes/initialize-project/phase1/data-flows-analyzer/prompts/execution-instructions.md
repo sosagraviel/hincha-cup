@@ -17,7 +17,7 @@ Analyze authentication, authorization, API design patterns, external integration
 
 <discovery_process>
 
-> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block: lean parameters, drill-in caps, no calls to `get_architecture_overview_tool`. Specialise _which_ lean tools you call for each question; never override the defaults.
+> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block (lean parameters, drill-in caps, forbidden tools). Specialise _which_ lean tools you call for each question; never override the defaults.
 
 ## Step 0: Cheap orientation via graph
 
@@ -29,7 +29,7 @@ Call `list_flows` with `{ sort_by: "criticality", limit: 30, detail_level: "mini
 
 This gives you the auth middleware chain (e.g., `CORS → RateLimiter → JwtGuard → RolesGuard → Handler`) directly, without grepping for JWT/OAuth/session patterns across files.
 
-> **Forbidden:** `get_architecture_overview` — its response cannot be bounded and overflows. Flow data alone (`list_flows` + selective `get_flow`) covers what this analyzer needs.
+Flow data alone (`list_flows` + selective `get_flow`) covers what this analyzer needs — no need to reach for `get_architecture_overview` (which the discipline forbids).
 
 **Only when list_flows returns empty** — fall back to the file-based approach below:
 
@@ -326,15 +326,14 @@ If single service (not microservices):
 ## Self-Verification Checklist
 
 1. **Called `get_minimal_context` first?** It must be the first graph call.
-2. **Used lean parameters everywhere?** `list_flows` with `detail_level: "minimal"`, all `semantic_search_nodes` with `limit: 15` MAX and `detail_level: "minimal"`, `get_flow` with `include_source: false` (only one drill-in with source allowed). No calls to `get_architecture_overview` (forbidden — overflows).
+2. **Used lean parameters everywhere?** `list_flows` with `detail_level: "minimal"`, all `semantic_search_nodes` with `limit: 15` MAX and `detail_level: "minimal"`, `get_flow` with `include_source: false` (only one drill-in with source allowed). (The discipline already forbids `get_architecture_overview` — see §3 of the navigation discipline.)
 3. **Called list_flows then drilled into ≤5 flows?** Flow data should drive auth middleware order before any grep.
 4. **Called semantic_search_nodes for all external SDK categories?** Graph import sites are primary signal.
-5. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
-6. **Auth dependencies found but no flow data?** Fall back to middleware/guard file reads with citation
-7. **External service SDK but no import sites from graph?** Fall back to manifest scanning with citation
-8. **Queue library present but no graph import results?** Search for files with "worker", "job", "processor" in name
-9. **Redis in dependencies but purpose unclear?** Graph cache.get/cache.set sites should clarify usage
-10. **Multiple services but no message broker?** Check if it's truly microservices or modular monolith
+5. **Auth dependencies found but no flow data?** Fall back to middleware/guard file reads with citation
+6. **External service SDK but no import sites from graph?** Fall back to manifest scanning with citation
+7. **Queue library present but no graph import results?** Search for files with "worker", "job", "processor" in name
+8. **Redis in dependencies but purpose unclear?** Graph cache.get/cache.set sites should clarify usage
+9. **Multiple services but no message broker?** Check if it's truly microservices or modular monolith
 
 ## Common Integration Patterns
 

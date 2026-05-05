@@ -8,7 +8,7 @@ Analyze repository structure and identify all services/packages with their langu
 
 <discovery_process>
 
-> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block: lean parameters, drill-in caps, no calls to `get_architecture_overview_tool`. The steps below specialise _which_ lean tools to use for each question — never override the defaults.
+> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block (lean parameters, drill-in caps, forbidden tools). The steps below specialise _which_ lean tools to use for each question — never override the defaults.
 
 ## Step 1: Cheap orientation via graph
 
@@ -49,7 +49,7 @@ Record per service:
 
 Call `get_hub_nodes({ top_n: 10 })` and `get_bridge_nodes({ top_n: 10 })` for cross-community topology. Hub nodes are the most-connected nodes in the graph; bridge nodes sit on shortest paths between many communities. Cite hub/bridge findings in your `findings.architecture.coupling` (or equivalent) section.
 
-> **Forbidden:** `get_architecture_overview` — its response cannot be bounded and overflows. The combination above (`get_minimal_context` + `list_communities` minimal + selective `get_community` + `get_hub_nodes` + `get_bridge_nodes`) is information-equivalent and bounded.
+The combination above (`get_minimal_context` + `list_communities` minimal + selective `get_community` + `get_hub_nodes` + `get_bridge_nodes`) is information-equivalent to `get_architecture_overview` (which the discipline forbids) and bounded.
 
 ## Manifest fallback (only when the graph is empty)
 
@@ -379,21 +379,20 @@ All service information belongs in the `services` array.
 Before outputting results, verify:
 
 1. **Called `get_minimal_context` first?** It must be the first graph call — ~100 tokens, gives you the map. If you skipped it, you almost certainly over-pulled later.
-2. **Used lean parameters everywhere?** `list_communities` with `detail_level: "minimal"`, `get_community` with `include_members: false` by default, no calls to `get_architecture_overview` (forbidden — overflows).
-3. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
-4. **Found at least ONE service?** If graph returned 0 communities AND manifest fallback found nothing, search again
-5. **Detected ALL languages?** Community language tags should cover this; supplement with file-count fallback only for communities with ambiguous language data
-6. **Extracted runtime versions?** Check for .nvmrc, .python-version, go.mod, etc. (graph cannot answer this)
-7. **File placement table has 10-20 rows?** Use graph edge results first; supplement with Glob only for gaps
-8. **Found path aliases?** Read tsconfig.json, jsconfig.json, vite.config, webpack.config (graph cannot answer this)
-9. **Detected database layer?** Check dependencies for pg, psycopg2, mongoose, etc. Find ORM and migration commands
-10. **Marked as monorepo?** Verify ALL workspaces are listed (cross-check workspace config against found manifests)
+2. **Used lean parameters everywhere?** `list_communities` with `detail_level: "minimal"`, `get_community` with `include_members: false` by default. (The discipline already forbids `get_architecture_overview` — see §3 of the navigation discipline.)
+3. **Found at least ONE service?** If graph returned 0 communities AND manifest fallback found nothing, search again
+4. **Detected ALL languages?** Community language tags should cover this; supplement with file-count fallback only for communities with ambiguous language data
+5. **Extracted runtime versions?** Check for .nvmrc, .python-version, go.mod, etc. (graph cannot answer this)
+6. **File placement table has 10-20 rows?** Use graph edge results first; supplement with Glob only for gaps
+7. **Found path aliases?** Read tsconfig.json, jsconfig.json, vite.config, webpack.config (graph cannot answer this)
+8. **Detected database layer?** Check dependencies for pg, psycopg2, mongoose, etc. Find ORM and migration commands
+9. **Marked as monorepo?** Verify ALL workspaces are listed (cross-check workspace config against found manifests)
 
 ## When Discovery Seems Incomplete
 
 If graph communities are empty but code clearly exists:
 
-- Call `list_graph_stats_tool` to confirm graph is online (do NOT call `get_architecture_overview` — it is forbidden by the navigation discipline)
+- Call `list_graph_stats_tool` to confirm graph is online
 - If that also returns empty, fall back to full manifest discovery
 - Use broader glob patterns: `**/*.{ext1,ext2,ext3}`
 - Try multiple pattern variations (different naming conventions)

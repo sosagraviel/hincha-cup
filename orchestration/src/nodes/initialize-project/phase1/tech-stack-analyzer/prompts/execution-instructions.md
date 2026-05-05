@@ -16,7 +16,7 @@ Analyze dependencies, databases, infrastructure tools, CI/CD pipelines, and depl
 
 <discovery_process>
 
-> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block: lean parameters, drill-in caps, no calls to `get_architecture_overview_tool`. Specialise _which_ lean tools you call for each question; never override the defaults.
+> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block (lean parameters, drill-in caps, forbidden tools). Specialise _which_ lean tools you call for each question; never override the defaults.
 
 ## Step 1: Cheap orientation via graph
 
@@ -64,7 +64,7 @@ semantic_search_nodes({ query: "Stripe | SendGrid | Sentry | Datadog", limit: 20
 
 Only libraries that appear in actual import sites (not just in package.json) should be treated as confirmed usage.
 
-> **Forbidden:** `get_architecture_overview` — its response cannot be bounded and overflows. This analyzer does not need it; the steps above cover service inventory and SDK confirmation without it.
+The steps above cover service inventory and SDK confirmation without reaching for `get_architecture_overview` (which the discipline forbids).
 
 ## Step 4: Find Dependency Manifests and Lock Files (Glob — required for version strings)
 
@@ -433,16 +433,15 @@ Read workspace configuration files:
 ## Self-Verification Checklist
 
 1. **Called `get_minimal_context` first?** It must be the first graph call. If you skipped it, you almost certainly over-pulled later.
-2. **Used lean parameters everywhere?** `list_communities` with `detail_level: "minimal"`, all `semantic_search_nodes` with `limit: 20` MAX and `detail_level: "minimal"`, no calls to `get_architecture_overview` (forbidden — overflows).
-3. **graph_queries_used left empty?** Set the field to `[]` in your output. The framework records actual `mcp__code_graph__*` tool calls from your transcript and overwrites this field — your value is discarded unconditionally.
-4. **Used semantic_search_nodes for database detection?** Graph confirms actual usage vs. declared-only
-5. **Found dependency manifests for all services?** Cross-check against Step 1 community list
-6. **CI/CD detection attempted?** If no config files found, report `"provider": "none"`
-7. **Infrastructure config found?** Check for Dockerfile, docker-compose, k8s configs
-8. **Environment variables extracted?** Read .env.example or .env.template for required var names
-9. **External services detected?** Graph import search should have surfaced Sentry, Keycloak, Auth0, Stripe, etc.
-10. **Build tools identified?** Find vite, webpack, or other bundlers and their config files
-11. **Monorepo analysis complete?** If monorepo, provide tool, workspace manager, and commands
+2. **Used lean parameters everywhere?** `list_communities` with `detail_level: "minimal"`, all `semantic_search_nodes` with `limit: 20` MAX and `detail_level: "minimal"`. (The discipline already forbids `get_architecture_overview` — see §3 of the navigation discipline.)
+3. **Used semantic_search_nodes for database detection?** Graph confirms actual usage vs. declared-only
+4. **Found dependency manifests for all services?** Cross-check against Step 1 community list
+5. **CI/CD detection attempted?** If no config files found, report `"provider": "none"`
+6. **Infrastructure config found?** Check for Dockerfile, docker-compose, k8s configs
+7. **Environment variables extracted?** Read .env.example or .env.template for required var names
+8. **External services detected?** Graph import search should have surfaced Sentry, Keycloak, Auth0, Stripe, etc.
+9. **Build tools identified?** Find vite, webpack, or other bundlers and their config files
+10. **Monorepo analysis complete?** If monorepo, provide tool, workspace manager, and commands
 
 ## Common Patterns by Ecosystem
 
