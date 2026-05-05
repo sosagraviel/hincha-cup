@@ -235,6 +235,58 @@ describe('computeRunStats — graph overflow rollup', () => {
   });
 });
 
+// Plan §C 5.3 (gira-exhaustive followup, 2026-05-05): aggregate
+// soft_warning arrays from every analyzer's output.json into a
+// per-bucket count so the run index sidebar can render the
+// breakdown.
+describe('computeRunStats — soft_warning rollup', () => {
+  it('returns an empty object when no output.json files carry soft_warning', async () => {
+    const stats = await computeRunStats(tempDir, {
+      tokenUsageJsonlPath: join(tempDir, 'absent.jsonl'),
+    });
+    expect(stats.softWarningCounts).toEqual({});
+  });
+
+  it('aggregates soft warnings across multiple attempts', async () => {
+    await writeOutputJson(join(tempDir, 'phase-1', 'a', 'attempt-1', 'sess', 'output.json'), {
+      soft_warning: ['low_graph_ratio', 'per_tool_budget_exceeded'],
+    });
+    await writeOutputJson(join(tempDir, 'phase-1', 'b', 'attempt-1', 'sess', 'output.json'), {
+      soft_warning: ['per_tool_budget_exceeded', 'graph_overflow_detected'],
+    });
+    const stats = await computeRunStats(tempDir, {
+      tokenUsageJsonlPath: join(tempDir, 'absent.jsonl'),
+    });
+    expect(stats.softWarningCounts).toEqual({
+      low_graph_ratio: 1,
+      per_tool_budget_exceeded: 2,
+      graph_overflow_detected: 1,
+    });
+  });
+
+  it('ignores soft_warning when not an array (defensive parse)', async () => {
+    await writeOutputJson(join(tempDir, 'phase-1', 'a', 'attempt-1', 'sess', 'output.json'), {
+      soft_warning: 'not-an-array',
+    });
+    const stats = await computeRunStats(tempDir, {
+      tokenUsageJsonlPath: join(tempDir, 'absent.jsonl'),
+    });
+    expect(stats.softWarningCounts).toEqual({});
+  });
+
+  it('ignores non-string entries inside the soft_warning array (defensive parse)', async () => {
+    await writeOutputJson(join(tempDir, 'phase-1', 'a', 'attempt-1', 'sess', 'output.json'), {
+      soft_warning: ['low_graph_ratio', 42, null, { foo: 'bar' }],
+    });
+    const stats = await computeRunStats(tempDir, {
+      tokenUsageJsonlPath: join(tempDir, 'absent.jsonl'),
+    });
+    // Strict array-of-strings check rejects the whole array on a
+    // mixed-type fixture (defensive); softWarningCounts stays empty.
+    expect(stats.softWarningCounts).toEqual({});
+  });
+});
+
 // Plan §F.6 codex-parity follow-up (2026-05-05) — the run-stats
 // rollup now sums cache_read_input_tokens and cache_creation_input_tokens
 // from each token-usage record so the sidebar can show real cache

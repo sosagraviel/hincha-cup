@@ -105,6 +105,7 @@ export async function renderRunIndexHtml(opts: RenderRunIndexOptions): Promise<s
         ${rows.join('\n')}
       </tbody>
     </table>
+    ${renderPhaseStatsRows(sorted)}
   </main>
 </div>
 </body>
@@ -164,7 +165,91 @@ function renderStatsRows(stats: RunStats): string {
 
   rows.push(metaRow('Graph overflows', overflowText));
 
+  // Plan §C 5.3 (gira-exhaustive followup): soft warnings count +
+  // categorisation. Aggregated from every analyzer's output.json
+  // soft_warning array (a non-blocking signal vocabulary defined by
+  // computeSoftWarnings + applyGraphToolUsageFromSidecar). The row
+  // renders only when the optional `softWarningCounts` field is
+  // populated — older RunStats fixtures predate §C 5.3 and have no
+  // observation to report.
+  if (stats.softWarningCounts) {
+    const softWarningEntries = Object.entries(stats.softWarningCounts).sort(([a], [b]) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    );
+    if (softWarningEntries.length === 0) {
+      rows.push(metaRow('Soft warnings', '0'));
+    } else {
+      const total = softWarningEntries.reduce((acc, [, n]) => acc + n, 0);
+      const breakdown = softWarningEntries.map(([k, n]) => `${k}: ${n}`).join(', ');
+      rows.push(metaRow('Soft warnings', `${total} (${breakdown})`));
+    }
+  }
+
   return rows.join('');
+}
+
+/**
+ * Plan §C 5.3 (gira-exhaustive followup): per-phase attempt
+ * statistics. Renders as a small table beneath the main attempt list.
+ * Stack-agnostic — reads only `phaseLabel` / `phaseId` and `durationMs`
+ * which are framework-defined regardless of project shape.
+ */
+export function renderPhaseStatsRows(attempts: RunIndexAttempt[]): string {
+  const byPhase = new Map<
+    string,
+    { label: string; durations: number[]; outcomes: Map<string, number> }
+  >();
+  for (const a of attempts) {
+    const key = a.meta.phaseLabel ?? a.meta.phaseId;
+    if (!byPhase.has(key)) {
+      byPhase.set(key, { label: key, durations: [], outcomes: new Map() });
+    }
+    const entry = byPhase.get(key)!;
+    if (typeof a.meta.durationMs === 'number') entry.durations.push(a.meta.durationMs);
+    const outcome = a.meta.outcome ?? 'unknown';
+    entry.outcomes.set(outcome, (entry.outcomes.get(outcome) ?? 0) + 1);
+  }
+  if (byPhase.size === 0) return '';
+
+  const rows: string[] = [];
+  for (const [, entry] of byPhase) {
+    const n = entry.durations.length;
+    const avg = n > 0 ? entry.durations.reduce((a, b) => a + b, 0) / n : 0;
+    const max = n > 0 ? Math.max(...entry.durations) : 0;
+    const outcomeText = [...entry.outcomes.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ');
+    rows.push(
+      `<tr>
+        <td>${escapeHtml(entry.label)}</td>
+        <td>${n}</td>
+        <td>${escapeHtml(formatDurationMs(avg))}</td>
+        <td>${escapeHtml(formatDurationMs(max))}</td>
+        <td>${escapeHtml(outcomeText)}</td>
+      </tr>`,
+    );
+  }
+  return `
+    <h2>Phase statistics</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Phase</th>
+          <th>Attempts</th>
+          <th>Avg duration</th>
+          <th>Max duration</th>
+          <th>Outcomes</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.join('\n')}
+      </tbody>
+    </table>`;
+}
+
+function formatDurationMs(ms: number): string {
+  return formatDuration(Math.round(ms));
 }
 
 /**

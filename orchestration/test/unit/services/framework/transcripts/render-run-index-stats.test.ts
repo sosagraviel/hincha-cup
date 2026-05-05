@@ -101,6 +101,61 @@ describe('renderRunIndexHtml — sidebar stats rows', () => {
     expect(html).toContain('mcp__code_graph__list_communities_tool');
   });
 
+  describe('Soft warnings row (Wave 2 Fix 5.3)', () => {
+    it('omits the row entirely when softWarningCounts is undefined (older runs)', async () => {
+      const stats: RunStats = {
+        totalAgentCalls: 1,
+        cacheHits: 0,
+        cacheHitRate: 0,
+        cacheReadInputTokens: -1,
+        cacheCreationInputTokens: -1,
+        graphOverflowCount: 0,
+        graphOverflowTools: [],
+        // softWarningCounts intentionally absent
+      };
+      const html = await renderRunIndexHtml({ manifest: MANIFEST, attempts: [], stats });
+      expect(html).not.toContain('Soft warnings');
+    });
+
+    it('renders "0" when softWarningCounts is an empty object', async () => {
+      const stats: RunStats = {
+        totalAgentCalls: 1,
+        cacheHits: 0,
+        cacheHitRate: 0,
+        cacheReadInputTokens: -1,
+        cacheCreationInputTokens: -1,
+        graphOverflowCount: 0,
+        graphOverflowTools: [],
+        softWarningCounts: {},
+      };
+      const html = await renderRunIndexHtml({ manifest: MANIFEST, attempts: [], stats });
+      expect(html).toContain('Soft warnings');
+      expect(html).toMatch(/<dt>Soft warnings<\/dt><dd>0<\/dd>/);
+    });
+
+    it('renders the total + alphabetical breakdown when warnings fired', async () => {
+      const stats: RunStats = {
+        totalAgentCalls: 4,
+        cacheHits: 0,
+        cacheHitRate: 0,
+        cacheReadInputTokens: -1,
+        cacheCreationInputTokens: -1,
+        graphOverflowCount: 0,
+        graphOverflowTools: [],
+        softWarningCounts: {
+          per_tool_budget_exceeded: 2,
+          low_graph_ratio: 1,
+        },
+      };
+      const html = await renderRunIndexHtml({ manifest: MANIFEST, attempts: [], stats });
+      // Total: 3. Sorted alphabetically: low_graph_ratio first, then
+      // per_tool_budget_exceeded.
+      expect(html).toMatch(
+        /<dt>Soft warnings<\/dt><dd>3 \(low_graph_ratio: 1, per_tool_budget_exceeded: 2\)<\/dd>/,
+      );
+    });
+  });
+
   it('shows just the count when overflows occurred but no tool names captured', async () => {
     const stats: RunStats = {
       totalAgentCalls: 10,

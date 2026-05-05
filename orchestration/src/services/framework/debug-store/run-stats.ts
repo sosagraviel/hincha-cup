@@ -59,6 +59,21 @@ export interface RunStats {
    * regularly overflows vs. broad spillage.
    */
   graphOverflowTools: string[];
+  /**
+   * Plan §C 5.3 (gira-exhaustive followup, 2026-05-05). Aggregate
+   * counts of soft warnings emitted by the analyzers' output.json
+   * `soft_warning` arrays. Empty when no analyzer surfaced any
+   * warning. The bucket names come from a fixed vocabulary defined
+   * by `computeSoftWarnings` + `applyGraphToolUsageFromSidecar`
+   * (e.g. `low_graph_ratio`, `tool_call_budget_exceeded`,
+   * `per_tool_budget_exceeded`, `graph_overflow_detected`,
+   * `speculative_needs_verification`).
+   *
+   * Optional for back-compat with older RunStats fixtures that
+   * predate the §C 5.3 enrichment. Renderer treats `undefined` as
+   * an empty object.
+   */
+  softWarningCounts?: Record<string, number>;
 }
 
 const EMPTY_STATS: RunStats = {
@@ -69,6 +84,7 @@ const EMPTY_STATS: RunStats = {
   cacheCreationInputTokens: -1,
   graphOverflowCount: 0,
   graphOverflowTools: [],
+  softWarningCounts: {},
 };
 
 /**
@@ -140,8 +156,9 @@ export async function computeRunStats(
     stats.cacheHitRate = stats.cacheHits / stats.totalAgentCalls;
   }
 
-  // -------------------------- graph overflow rollup -----------------------
+  // -------------------------- graph overflow + soft-warning rollup -------
   const overflowToolsSet = new Set<string>();
+  const softWarningCounts: Record<string, number> = {};
   await walkOutputJsons(runDir, (outputJson) => {
     const count = pickOverflowCount(outputJson);
     if (typeof count === 'number' && count > 0) {
@@ -149,8 +166,17 @@ export async function computeRunStats(
     }
     const tools = pickOverflowTools(outputJson);
     for (const t of tools) overflowToolsSet.add(t);
+
+    // Plan §C 5.3: aggregate soft warnings across every analyzer's
+    // output.json. Each output.json carries a `soft_warning` string
+    // array (may be empty / absent on older runs).
+    const warnings = pickSoftWarnings(outputJson);
+    for (const w of warnings) {
+      softWarningCounts[w] = (softWarningCounts[w] ?? 0) + 1;
+    }
   });
   stats.graphOverflowTools = [...overflowToolsSet].sort();
+  stats.softWarningCounts = softWarningCounts;
 
   return stats;
 }
@@ -205,6 +231,16 @@ function pickOverflowCount(parsed: unknown): number | undefined {
 function pickOverflowTools(parsed: unknown): string[] {
   if (parsed && typeof parsed === 'object' && 'graph_overflow_tools' in parsed) {
     const v = (parsed as Record<string, unknown>).graph_overflow_tools;
+    if (Array.isArray(v) && v.every((s) => typeof s === 'string')) {
+      return v as string[];
+    }
+  }
+  return [];
+}
+
+function pickSoftWarnings(parsed: unknown): string[] {
+  if (parsed && typeof parsed === 'object' && 'soft_warning' in parsed) {
+    const v = (parsed as Record<string, unknown>).soft_warning;
     if (Array.isArray(v) && v.every((s) => typeof s === 'string')) {
       return v as string[];
     }
