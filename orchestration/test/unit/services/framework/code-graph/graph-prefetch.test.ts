@@ -4,19 +4,17 @@ import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   graphPrefetchPath,
+  hashGraphDb,
   readGraphPrefetch,
   renderPrefetchHint,
+  runGraphPrefetch,
   writeGraphPrefetch,
   type GraphPrefetchSnapshot,
 } from '../../../../../src/services/framework/code-graph/graph-prefetch.service.js';
 
 /**
- * Wave 3 §I.2 — graph prefetch read path + snapshot shape.
- *
- * The write path (TS MCP client invoking the four orientation
- * tools at Phase 0) is deferred to a follow-up; this commit ships
- * the canonical filename / JSON shape / read API so the discipline
- * and any future writer interoperate.
+ * Wave 3 §I.2 — graph prefetch read path + snapshot shape + write
+ * path. End-to-end coverage of the prefetch helper module.
  *
  * Stack-agnostic: every snapshot field is graph-derived (community
  * names, qualified_names) — no language assumption.
@@ -136,5 +134,70 @@ describe('renderPrefetchHint', () => {
     // Even with a 100-element topCommunities, the renderer slices to 8 + 5 + 5
     // tokens — total prose stays well under 1 KB.
     expect(hint.length).toBeLessThan(1024);
+  });
+});
+
+describe('hashGraphDb', () => {
+  it('returns a stable SHA-256 hex digest for an existing file', () => {
+    const path = join(tempDir, 'fake-graph.db');
+    writeFileSync(path, 'graph-bytes', 'utf-8');
+    const sha = hashGraphDb(path);
+    expect(sha).toMatch(/^[a-f0-9]{64}$/);
+    // Hash is content-addressable: same content → same SHA.
+    expect(hashGraphDb(path)).toBe(sha);
+  });
+
+  it('returns "unknown" when the file does not exist (defensive)', () => {
+    expect(hashGraphDb(join(tempDir, 'nope.db'))).toBe('unknown');
+  });
+
+  it('produces different SHAs for different content', () => {
+    const a = join(tempDir, 'a.db');
+    const b = join(tempDir, 'b.db');
+    writeFileSync(a, 'one', 'utf-8');
+    writeFileSync(b, 'two', 'utf-8');
+    expect(hashGraphDb(a)).not.toBe(hashGraphDb(b));
+  });
+});
+
+describe('runGraphPrefetch — defensive paths', () => {
+  // The MCP-server-spawning happy path is exercised by integration
+  // tests that have a real `code-review-graph` server available. The
+  // unit tests here cover the defensive paths the writer takes when
+  // the server cannot be reached.
+
+  it('short-circuits when a fresh snapshot already exists for the same SHA', async () => {
+    const projectPath = mkdtempSync(join(tmpdir(), 'prefetch-shortcircuit-'));
+    try {
+      writeGraphPrefetch(projectPath, {
+        generatedAt: '2026-05-05T00:00:00Z',
+        graphSha: 'matching-sha',
+      });
+      const result = await runGraphPrefetch({
+        projectPath,
+        frameworkPath: '/nowhere/framework',
+        graphSha: 'matching-sha',
+      });
+      expect(result.wrote).toBe(false);
+      expect(result.reason).toMatch(/already current.*matching-sha/);
+    } finally {
+      rmSync(projectPath, { recursive: true, force: true });
+    }
+  });
+
+  it('reports "MCP launcher not found" when the script is absent', async () => {
+    const projectPath = mkdtempSync(join(tmpdir(), 'prefetch-no-launcher-'));
+    try {
+      const result = await runGraphPrefetch({
+        projectPath,
+        frameworkPath: '/nowhere/framework',
+        graphSha: 'fresh-sha',
+      });
+      expect(result.wrote).toBe(false);
+      expect(result.reason).toMatch(/MCP launcher not found/);
+      expect(result.path).toContain('graph-prefetch.json');
+    } finally {
+      rmSync(projectPath, { recursive: true, force: true });
+    }
   });
 });

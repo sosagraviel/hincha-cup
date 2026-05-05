@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { buildPhase1AnalyzerPrompt } from '../../../../../../src/nodes/initialize-project/phase1/shared/prompt-builder.js';
+import {
+  graphPrefetchPath,
+  hashGraphDb,
+} from '../../../../../../src/services/framework/code-graph/graph-prefetch.service.js';
 
 const frameworkPath = join(process.cwd(), '..');
 
@@ -197,6 +203,109 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
         [{ id: 'monolith', path: '.', type: 'backend', language: 'php' }],
       );
       expect(prompt).toContain('| monolith | . | backend | php |');
+    });
+  });
+
+  describe('graph prefetch injection (Wave 3 §I.2)', () => {
+    let projectPath: string;
+
+    afterEach(() => {
+      if (projectPath) rmSync(projectPath, { recursive: true, force: true });
+    });
+
+    function setupProject(): { graphDbPath: string; graphSha: string } {
+      projectPath = mkdtempSync(join(tmpdir(), 'prefetch-prompt-'));
+      mkdirSync(join(projectPath, '.code-review-graph'), { recursive: true });
+      const graphDbPath = join(projectPath, '.code-review-graph/graph.db');
+      writeFileSync(graphDbPath, 'graph-bytes', 'utf-8');
+      return { graphDbPath, graphSha: hashGraphDb(graphDbPath) };
+    }
+
+    function writeSnapshot(graphSha: string): void {
+      const snapshotPath = graphPrefetchPath(projectPath);
+      mkdirSync(join(snapshotPath, '..'), { recursive: true });
+      writeFileSync(
+        snapshotPath,
+        JSON.stringify({
+          generatedAt: '2026-05-05T00:00:00Z',
+          graphSha,
+          minimalContext: {
+            topCommunities: [{ name: 'auth', size: 50 }],
+          },
+          hubs: [{ qualified_name: 'auth/Foo', kind: 'Class' }],
+          bridges: [{ qualified_name: 'auth/Bar', kind: 'Function' }],
+        }),
+      );
+    }
+
+    it('injects the prefetch hint when a fresh snapshot exists', () => {
+      const { graphDbPath, graphSha } = setupProject();
+      writeSnapshot(graphSha);
+
+      const prompt = buildPhase1AnalyzerPrompt(
+        projectPath,
+        frameworkPath,
+        'structure-architecture-analyzer',
+        undefined,
+        { available: true, dbPath: graphDbPath },
+      );
+      expect(prompt).toContain('Pre-fetched graph orientation');
+      expect(prompt).toContain('auth/Foo');
+      expect(prompt).toContain('auth/Bar');
+      expect(prompt).toMatch(/skip.*get_minimal_context_tool/);
+    });
+
+    it('does NOT inject the hint when the snapshot is stale (SHA mismatch)', () => {
+      const { graphDbPath } = setupProject();
+      writeSnapshot('old-sha-that-does-not-match');
+      const prompt = buildPhase1AnalyzerPrompt(
+        projectPath,
+        frameworkPath,
+        'structure-architecture-analyzer',
+        undefined,
+        { available: true, dbPath: graphDbPath },
+      );
+      expect(prompt).not.toContain('Pre-fetched graph orientation');
+    });
+
+    it('does NOT inject the hint when no snapshot exists', () => {
+      const { graphDbPath } = setupProject();
+      const prompt = buildPhase1AnalyzerPrompt(
+        projectPath,
+        frameworkPath,
+        'structure-architecture-analyzer',
+        undefined,
+        { available: true, dbPath: graphDbPath },
+      );
+      expect(prompt).not.toContain('Pre-fetched graph orientation');
+    });
+
+    it('the hint is byte-identical across all four analyzers (cache invariant)', () => {
+      const { graphDbPath, graphSha } = setupProject();
+      writeSnapshot(graphSha);
+      const analyzers = [
+        'structure-architecture-analyzer',
+        'tech-stack-dependencies-analyzer',
+        'code-patterns-testing-analyzer',
+        'data-flows-integrations-analyzer',
+      ];
+      const prefixes: string[] = [];
+      for (const a of analyzers) {
+        const prompt = buildPhase1AnalyzerPrompt(projectPath, frameworkPath, a, undefined, {
+          available: true,
+          dbPath: graphDbPath,
+        });
+        // Slice to the prefetch section header — the byte-equality check
+        // applies to the cache-eligible prefix that ends just before the
+        // analyzer-specific tail.
+        const start = prompt.indexOf('## Graph Prefetch');
+        const sectionEnd = prompt.indexOf('\n## ', start + 1);
+        prefixes.push(prompt.slice(start, sectionEnd === -1 ? undefined : sectionEnd));
+      }
+      // All four prefixes must match byte-for-byte.
+      for (let i = 1; i < prefixes.length; i++) {
+        expect(prefixes[i]).toBe(prefixes[0]);
+      }
     });
   });
 });

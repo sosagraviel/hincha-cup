@@ -1,40 +1,46 @@
 /**
  * Plan §I.2 (gira-exhaustive followup, 2026-05-05) — graph prefetch
- * snapshot.
+ * snapshot. End-to-end: read path + snapshot shape + write path.
  *
- * Phase 0 has the opportunity to call the four cheapest graph
- * orientation queries ONCE and snapshot the results to
+ * Phase 0 calls the four cheapest graph orientation queries ONCE
+ * (after the graph is built) and snapshots the results to
  * `<project>/.<provider>-temp/initialize-project/graph-prefetch.json`.
- * Phase 1 analyzers can then read the snapshot from their cache-
- * eligible prefix, skipping those four calls in their own
- * sessions. Saves 4 × 4 = 16 graph tool calls per run.
+ * Phase 1 analyzers read the snapshot from their cache-eligible
+ * prefix and skip those four calls in their own sessions. Saves up
+ * to 4 × 4 = 16 graph tool calls per run.
  *
- * This module ships the SNAPSHOT SHAPE and the READ PATH. The
- * WRITE path (actual MCP-client invocation from Phase 0 against
- * the running `code-review-graph` server) is intentionally
- * deferred to a follow-up commit because invoking an MCP server
- * from TypeScript outside an LLM agent context requires a JSON-RPC
- * client we do not currently build. Until that follow-up lands,
- * the prefetch file is absent on every run; the discipline gracefully
- * treats absence as "no prefetch — call the tools yourself".
+ * What this module exports:
+ *   - `GraphPrefetchSnapshot` — canonical JSON shape.
+ *   - `graphPrefetchPath` — canonical on-disk path under the
+ *     active-provider temp dir.
+ *   - `readGraphPrefetch(projectPath, currentGraphSha)` —
+ *     SHA-validated read; returns null on miss / mismatch / malformed.
+ *   - `writeGraphPrefetch(projectPath, snapshot)` — idempotent
+ *     overwrite; used by `runGraphPrefetch` and any future writer.
+ *   - `renderPrefetchHint(snapshot | null)` — compact prose summary
+ *     suitable for the Phase 1 cache-eligible prefix.
+ *   - `runGraphPrefetch({ projectPath, frameworkPath, graphSha })`
+ *     — spawns `code-review-graph serve` over MCP stdio, calls
+ *     `tools/call` for the four orientation tools, parses both the
+ *     structured and text-shape MCP responses, and persists the
+ *     snapshot. Best-effort: failure does NOT fail Phase 0; the
+ *     analyzers fall back to calling the tools themselves.
+ *   - `hashGraphDb(graphDbPath)` — content-addressable SHA-256 of
+ *     the graph DB; used to derive the snapshot's freshness key.
  *
- * Why ship the read path now:
- *   - Establishes the canonical filename and JSON shape so any
- *     future writer (TS MCP client, a Phase 0 helper script, a
- *     manual operator snapshot) interoperates cleanly.
- *   - Lets the discipline already reference the prefetch hook so
- *     the agent prompts are stable across the gap.
- *   - The read path is pure file I/O; no risk of misbehaviour
- *     when no file exists.
- *
- * Stack-agnostic: every field is graph-derived (community names,
- * hub/bridge `qualified_name`, file/function counts) — independent
- * of language family.
+ * Stack-agnostic: every field on the snapshot is graph-derived
+ * (community names, hub/bridge `qualified_name`, file/function
+ * counts) — independent of language family. The MCP tool names
+ * the writer invokes are language-neutral by construction.
  */
 
+import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
+import { createHash } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { setTimeout as delay } from 'timers/promises';
 import { resolveTempPath } from '../../../utils/provider-paths.js';
+import { logger } from '../../../utils/logger.js';
 
 const PREFETCH_FILENAME = 'graph-prefetch.json';
 
@@ -180,6 +186,391 @@ export function renderPrefetchHint(snapshot: GraphPrefetchSnapshot | null): stri
     `- These four queries are pre-run; you may skip \`get_minimal_context_tool\`, \`list_communities_tool\`, \`get_hub_nodes_tool\`, and \`get_bridge_nodes_tool\` for orientation. Drill in directly from the snapshot above when you need detail beyond it.`,
   );
   return sections.join('\n');
+}
+
+// ============================================================================
+// WRITE PATH — invoked from Phase 0 after the graph is built/validated.
+// ============================================================================
+
+const PREFETCH_REQUEST_TIMEOUT_MS = 20_000;
+const PREFETCH_SHUTDOWN_GRACE_MS = 2_000;
+
+export interface RunGraphPrefetchArgs {
+  /** Project root (the repo we're indexing). */
+  projectPath: string;
+  /** Framework root (where `scripts/code-review-graph-mcp.sh` lives). */
+  frameworkPath: string;
+  /** SHA of the current graph DB. Stored in the snapshot for staleness checks. */
+  graphSha: string;
+}
+
+export interface RunGraphPrefetchResult {
+  /** True when the snapshot file was written. */
+  wrote: boolean;
+  /**
+   * One short sentence summarising the outcome — surfaced in operator-
+   * facing logs. Always set regardless of `wrote`.
+   */
+  reason: string;
+  /** Path to the snapshot file, even when wrote=false (for diagnostics). */
+  path: string;
+}
+
+/**
+ * Invoke the four cheapest graph-orientation queries against the local
+ * `code-review-graph` MCP server and persist the results to
+ * `<project>/.<provider>-temp/initialize-project/graph-prefetch.json`.
+ *
+ * Best-effort by design: a failure here does NOT fail Phase 0. The
+ * caller logs and continues; analyzers fall back to calling the four
+ * tools themselves.
+ *
+ * Stack-agnostic: every queried tool is graph-derived and language-
+ * neutral. The snapshot bytes contain only graph topology.
+ */
+export async function runGraphPrefetch(
+  args: RunGraphPrefetchArgs,
+): Promise<RunGraphPrefetchResult> {
+  const path = graphPrefetchPath(args.projectPath);
+
+  // Cheap short-circuit: if a fresh snapshot already exists for this
+  // graph SHA, do not re-query.
+  if (args.graphSha) {
+    const existing = readGraphPrefetch(args.projectPath, args.graphSha);
+    if (existing) {
+      return {
+        wrote: false,
+        reason: `prefetch already current for graphSha=${args.graphSha.slice(0, 12)}`,
+        path,
+      };
+    }
+  }
+
+  const launcher = join(args.frameworkPath, 'scripts', 'code-review-graph-mcp.sh');
+  if (!existsSync(launcher)) {
+    return {
+      wrote: false,
+      reason: `MCP launcher not found at ${launcher}`,
+      path,
+    };
+  }
+
+  const child = spawn('bash', [launcher, 'serve', '--repo', args.projectPath], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    cwd: args.projectPath,
+  });
+
+  try {
+    const client = new McpStdioClient(child);
+    await client.initialize();
+
+    const minimalContext = await safeCall(client, 'get_minimal_context_tool', {
+      task: 'Phase 1 preflight',
+    });
+    const communities = await safeCall(client, 'list_communities_tool', {
+      detail_level: 'minimal',
+      min_size: 10,
+      sort_by: 'size',
+    });
+    const hubs = await safeCall(client, 'get_hub_nodes_tool', { top_n: 10 });
+    const bridges = await safeCall(client, 'get_bridge_nodes_tool', { top_n: 10 });
+
+    const snapshot: GraphPrefetchSnapshot = {
+      generatedAt: new Date().toISOString(),
+      graphSha: args.graphSha,
+      minimalContext: parseMinimalContext(minimalContext),
+      communities: parseCommunities(communities),
+      hubs: parseTopNodes(hubs),
+      bridges: parseTopNodes(bridges),
+    };
+    writeGraphPrefetch(args.projectPath, snapshot);
+    return {
+      wrote: true,
+      reason: `prefetched 4 graph-orientation queries (${snapshot.communities?.length ?? 0} communities, ${snapshot.hubs?.length ?? 0} hubs, ${snapshot.bridges?.length ?? 0} bridges)`,
+      path,
+    };
+  } catch (err) {
+    return {
+      wrote: false,
+      reason: `prefetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      path,
+    };
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill('SIGTERM');
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          child.once('exit', () => resolve());
+        }),
+        delay(PREFETCH_SHUTDOWN_GRACE_MS),
+      ]);
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill('SIGKILL');
+      }
+    }
+  }
+}
+
+/**
+ * Compute the SHA of a graph DB file the same way `computeGraphVersion`
+ * does. Re-implemented locally (instead of imported) to keep this
+ * service free of cross-module deps; the implementation is two lines
+ * and has no other hidden state. Returns `'unknown'` on read failure.
+ */
+export function hashGraphDb(graphDbPath: string): string {
+  try {
+    return createHash('sha256').update(readFileSync(graphDbPath)).digest('hex');
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
+ * Helper around `client.callTool` that converts a thrown error into
+ * `null`. The prefetch is best-effort: if any single tool fails, the
+ * snapshot omits that section but the others still ship.
+ */
+async function safeCall(
+  client: McpStdioClient,
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  try {
+    return await client.callTool(toolName, args);
+  } catch (err) {
+    logger.warn(
+      `[graph-prefetch] tool=${toolName} failed (${err instanceof Error ? err.message : String(err)}) — section omitted`,
+    );
+    return null;
+  }
+}
+
+function parseMinimalContext(raw: unknown): GraphPrefetchSnapshot['minimalContext'] {
+  const obj = unwrapMcpToolResult(raw);
+  if (!isObject(obj)) return undefined;
+  const out: NonNullable<GraphPrefetchSnapshot['minimalContext']> = {};
+  if (Array.isArray(obj.top_communities) || Array.isArray(obj.topCommunities)) {
+    const list = (obj.top_communities ?? obj.topCommunities) as unknown[];
+    out.topCommunities = list
+      .filter(isObject)
+      .map((c) => ({
+        name: String(c.name ?? ''),
+        size: typeof c.size === 'number' ? c.size : undefined,
+        cohesion: typeof c.cohesion === 'number' ? c.cohesion : undefined,
+      }))
+      .filter((c) => c.name.length > 0);
+  }
+  if (Array.isArray(obj.top_flows) || Array.isArray(obj.topFlows)) {
+    const list = (obj.top_flows ?? obj.topFlows) as unknown[];
+    out.topFlows = list
+      .filter(isObject)
+      .map((f) => ({
+        id: String(f.id ?? f.flow_id ?? ''),
+        name: typeof f.name === 'string' ? f.name : undefined,
+        criticality: typeof f.criticality === 'number' ? f.criticality : undefined,
+      }))
+      .filter((f) => f.id.length > 0);
+  }
+  if (typeof obj.risk_score === 'number') out.riskScore = obj.risk_score;
+  else if (typeof obj.riskScore === 'number') out.riskScore = obj.riskScore;
+  if (Array.isArray(obj.suggested_next_tools)) {
+    out.suggestedNextTools = obj.suggested_next_tools.filter(
+      (s): s is string => typeof s === 'string',
+    );
+  } else if (Array.isArray(obj.suggestedNextTools)) {
+    out.suggestedNextTools = obj.suggestedNextTools.filter(
+      (s): s is string => typeof s === 'string',
+    );
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function parseCommunities(raw: unknown): GraphPrefetchSnapshot['communities'] {
+  const obj = unwrapMcpToolResult(raw);
+  let list: unknown[] = [];
+  if (Array.isArray(obj)) list = obj;
+  else if (isObject(obj) && Array.isArray(obj.communities)) list = obj.communities;
+  if (list.length === 0) return undefined;
+  return list
+    .filter(isObject)
+    .map((c) => ({
+      name: String(c.name ?? c.id ?? ''),
+      size: typeof c.size === 'number' ? c.size : undefined,
+      cohesion: typeof c.cohesion === 'number' ? c.cohesion : undefined,
+      dominant_language: typeof c.dominant_language === 'string' ? c.dominant_language : undefined,
+    }))
+    .filter((c) => c.name.length > 0);
+}
+
+function parseTopNodes(
+  raw: unknown,
+): Array<{ qualified_name: string; kind?: string; score?: number }> | undefined {
+  const obj = unwrapMcpToolResult(raw);
+  let list: unknown[] = [];
+  if (Array.isArray(obj)) list = obj;
+  else if (isObject(obj)) {
+    if (Array.isArray(obj.hubs)) list = obj.hubs;
+    else if (Array.isArray(obj.bridges)) list = obj.bridges;
+    else if (Array.isArray(obj.nodes)) list = obj.nodes;
+  }
+  if (list.length === 0) return undefined;
+  return list
+    .filter(isObject)
+    .map((n) => ({
+      qualified_name: String(n.qualified_name ?? n.name ?? ''),
+      kind: typeof n.kind === 'string' ? n.kind : undefined,
+      score: typeof n.score === 'number' ? n.score : undefined,
+    }))
+    .filter((n) => n.qualified_name.length > 0);
+}
+
+/**
+ * MCP tool responses come in two shapes depending on the server:
+ *   - structured: `result` is the typed object directly.
+ *   - text: `result.content[0].text` is a JSON string we must parse.
+ *
+ * Returns the parsed object, or `null` when neither shape applies.
+ */
+function unwrapMcpToolResult(raw: unknown): unknown {
+  if (raw === null || raw === undefined) return null;
+  if (!isObject(raw)) return raw;
+  // Text-shape response: { content: [{ type: 'text', text: '<json>' }] }
+  if (Array.isArray(raw.content)) {
+    for (const part of raw.content) {
+      if (
+        isObject(part) &&
+        (part.type === 'text' || part.type === undefined) &&
+        typeof part.text === 'string'
+      ) {
+        try {
+          return JSON.parse(part.text);
+        } catch {
+          return part.text;
+        }
+      }
+    }
+  }
+  return raw;
+}
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+// ============================================================================
+// MCP stdio client — minimal JSON-RPC 2.0 over child stdio. Same wire
+// shape as `tool-catalog.service.ts::McpStdioConversation`, generalised
+// to expose `tools/call`. Self-contained so this service has no
+// circular dep with the catalog service.
+// ============================================================================
+
+class McpStdioClient {
+  private buffer = '';
+  private nextId = 1;
+
+  constructor(private readonly child: ChildProcessWithoutNullStreams) {
+    child.stdout.setEncoding('utf-8');
+  }
+
+  async initialize(): Promise<void> {
+    await this.sendRequest<unknown>('initialize', {
+      protocolVersion: '2024-11-05',
+      capabilities: {},
+      clientInfo: { name: 'qaf-graph-prefetch', version: '1.0.0' },
+    });
+    this.sendNotification('notifications/initialized');
+  }
+
+  async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+    return this.sendRequest<unknown>('tools/call', { name, arguments: args });
+  }
+
+  private async sendRequest<T>(method: string, params?: Record<string, unknown>): Promise<T> {
+    const id = this.nextId++;
+    const payload = JSON.stringify({ jsonrpc: '2.0', id, method, params });
+    this.child.stdin.write(`${payload}\n`);
+    return this.readResponse<T>(id);
+  }
+
+  private sendNotification(method: string, params?: Record<string, unknown>): void {
+    const payload = JSON.stringify({ jsonrpc: '2.0', method, params });
+    this.child.stdin.write(`${payload}\n`);
+  }
+
+  private readResponse<T>(expectedId: number): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      let timeoutHandle: NodeJS.Timeout | undefined;
+
+      const cleanup = () => {
+        this.child.stdout.off('data', onData);
+        this.child.off('exit', onExit);
+        this.child.off('error', onError);
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      };
+
+      const onData = (chunk: string | Buffer) => {
+        this.buffer += chunk.toString();
+        for (;;) {
+          const eol = this.buffer.indexOf('\n');
+          if (eol === -1) break;
+          const line = this.buffer.slice(0, eol).trim();
+          this.buffer = this.buffer.slice(eol + 1);
+          if (!line) continue;
+
+          let parsed: { id?: number; result?: T; error?: { message?: string } };
+          try {
+            parsed = JSON.parse(line) as typeof parsed;
+          } catch {
+            continue;
+          }
+          if (parsed.id !== expectedId) continue;
+
+          cleanup();
+          if (parsed.error) {
+            reject(new Error(`MCP error: ${parsed.error.message ?? 'unknown'}`));
+            return;
+          }
+          if (parsed.result === undefined) {
+            reject(new Error(`MCP response for id=${expectedId} missing 'result'`));
+            return;
+          }
+          resolve(parsed.result);
+          return;
+        }
+      };
+
+      const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+        cleanup();
+        reject(
+          new Error(
+            `MCP server exited (code=${code ?? 'null'}, signal=${signal ?? 'null'}) before responding to id=${expectedId}`,
+          ),
+        );
+      };
+
+      const onError = (err: Error) => {
+        cleanup();
+        reject(new Error(`MCP server error: ${err.message}`));
+      };
+
+      this.child.stdout.on('data', onData);
+      this.child.once('exit', onExit);
+      this.child.once('error', onError);
+
+      timeoutHandle = setTimeout(() => {
+        cleanup();
+        reject(
+          new Error(
+            `MCP request id=${expectedId} (method=${method(expectedId)}) timed out after ${PREFETCH_REQUEST_TIMEOUT_MS}ms`,
+          ),
+        );
+      }, PREFETCH_REQUEST_TIMEOUT_MS);
+    });
+  }
+}
+
+function method(id: number): string {
+  return id === 1 ? 'initialize' : 'tools/call';
 }
 
 export const __INTERNAL = {

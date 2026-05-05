@@ -2,6 +2,10 @@ import type { InitializeProjectState } from '../../../state/schemas/initialize-p
 import { buildCodeGraph } from '../../../services/graph-wiki/code-graph.service.js';
 import { fetchCodeGraphToolCatalog } from '../../../services/framework/code-graph/tool-catalog.service.js';
 import {
+  hashGraphDb,
+  runGraphPrefetch,
+} from '../../../services/framework/code-graph/graph-prefetch.service.js';
+import {
   upsertCodeGraphMcpConfig,
   upsertCodexPathRestrictionHookConfig,
 } from '../../../services/framework/mcp-config.service.js';
@@ -97,6 +101,31 @@ export async function graphFoundationNode(
         current_phase: 'failed',
         errors: [...state.errors, `graph_foundation: tool catalog: ${msg}`],
       };
+    }
+
+    // Plan §I.2 (Wave 3, 2026-05-05): pre-run the four cheapest
+    // graph-orientation queries (get_minimal_context_tool +
+    // list_communities_tool + get_hub_nodes_tool +
+    // get_bridge_nodes_tool) ONCE here, snapshot the results to
+    // graph-prefetch.json, and let Phase 1 analyzers read from the
+    // snapshot instead of re-issuing the same queries 4 times each.
+    // Best-effort: failure does NOT fail Phase 0; the analyzers
+    // gracefully fall back to calling the tools themselves.
+    try {
+      const graphSha = hashGraphDb(result.code_graph_path);
+      const prefetch = await runGraphPrefetch({
+        projectPath: state.project_path,
+        frameworkPath: state.framework_path,
+        graphSha,
+      });
+      if (prefetch.wrote) {
+        phaseLogger.info(`  Graph prefetch: ${prefetch.reason}`);
+      } else {
+        phaseLogger.info(`  Graph prefetch skipped: ${prefetch.reason}`);
+      }
+    } catch (prefetchErr) {
+      const msg = prefetchErr instanceof Error ? prefetchErr.message : String(prefetchErr);
+      phaseLogger.warn(`  Graph prefetch failed (non-fatal): ${msg}`);
     }
 
     return {

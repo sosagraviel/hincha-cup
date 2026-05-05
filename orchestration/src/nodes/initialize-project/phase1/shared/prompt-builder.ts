@@ -19,6 +19,11 @@ import {
 import type { CodeGraphStats } from '../../../../state/schemas/initialize-project.schema.js';
 import type { AuthoritativeService } from './authoritative-services.js';
 import { PER_ANALYZER_TOOL_CALL_CAPS, renderPerToolCapsTable } from './graph-tool-usage.js';
+import {
+  hashGraphDb,
+  readGraphPrefetch,
+  renderPrefetchHint,
+} from '../../../../services/framework/code-graph/graph-prefetch.service.js';
 
 /**
  * Heuristic: a graph is "large" if it has > 200 files OR > 1000 functions.
@@ -103,7 +108,34 @@ export function buildPhase1SharedPrefix(ctx: SharedPrefixContext): string {
     parts.push('', buildContentSection('Code Graph Context', buildGraphContext(ctx.graphContext)));
   }
 
+  // Plan §I.2 (Wave 3, 2026-05-05): inject the Phase 0 graph-prefetch
+  // snapshot into the cache-eligible prefix when one is available. The
+  // snapshot is byte-identical across all four analyzers in the same
+  // run (same file, same SHA), preserving cache-key stability.
+  // Absence is silent — no prefetch on this run / mismatched SHA /
+  // missing file all collapse to "no hint, fall back to calling the
+  // tools yourself". Stack-agnostic — graph-derived names only.
+  const prefetchHint = renderPrefetchHintForRun(ctx);
+  if (prefetchHint.length > 0) {
+    parts.push('', buildContentSection('Graph Prefetch', prefetchHint));
+  }
+
   return parts.join('\n');
+}
+
+/**
+ * Best-effort load of the Phase 0 graph-prefetch snapshot. Returns
+ * the rendered hint string (or `''` when no fresh snapshot is
+ * available). Pure file I/O bounded by the graph DB SHA hash —
+ * fast enough to run on every analyzer prompt build.
+ */
+function renderPrefetchHintForRun(ctx: SharedPrefixContext): string {
+  const dbPath = ctx.graphContext?.dbPath;
+  if (!dbPath) return '';
+  const graphSha = hashGraphDb(dbPath);
+  if (graphSha === 'unknown') return '';
+  const snapshot = readGraphPrefetch(ctx.projectPath, graphSha);
+  return renderPrefetchHint(snapshot);
 }
 
 /**
