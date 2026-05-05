@@ -75,12 +75,16 @@ export function routeAfterWikiPreparation(state: InitializeProjectState): string
   }
 
   // Only ARCHITECTURE.md is rendered as a cross-cutting LLM-generated wiki
-  // page. DATA-FLOWS.md and PATTERNS.md were retired in the H4 split: data
-  // flows are now described per-service in `wiki/services/<id>.md` (where
-  // they have actual context), and patterns moved to the prescriptive
-  // `code-conventions` and `testing-conventions` skills (where they belong
-  // — patterns are about what to DO, not what IS).
-  return 'wiki_architecture_doc';
+  // page. DATA-FLOWS.md and PATTERNS.md were retired in the H4 split.
+  //
+  // Plan §I.1 (gira-exhaustive followup, 2026-05-05): architecture doc
+  // and per-service docs run in PARALLEL. Pre-fix they were sequential
+  // (architecture → service_docs → wiki_generation), wasting ~60-90 s
+  // per run. Architecture references service IDs via wikilinks
+  // (Fix 3.1) — those are written by the agent based on the structure
+  // analyzer's services array, NOT on the per-service doc output.
+  // So the two LLM calls have no data dependency and can fan out.
+  return ['wiki_architecture_doc', 'wiki_service_docs'];
 }
 
 /**
@@ -140,9 +144,9 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   // Phase 4b: wiki preparation fans out to 3 parallel core-doc nodes
   .addEdge('context_generation', 'wiki_preparation')
   .addConditionalEdges('wiki_preparation', routeAfterWikiPreparation)
-  // Architecture doc converges on the service-docs node
-  .addEdge('wiki_architecture_doc', 'wiki_service_docs')
-  // Service docs → finalization → resources
+  // Both fan-out branches converge on wiki_generation (finalization).
+  // Plan §I.1: architecture and per-service docs run in parallel.
+  .addEdge('wiki_architecture_doc', 'wiki_generation')
   .addEdge('wiki_service_docs', 'wiki_generation')
   .addEdge('wiki_generation', 'resources')
   .addEdge('resources', 'validation')

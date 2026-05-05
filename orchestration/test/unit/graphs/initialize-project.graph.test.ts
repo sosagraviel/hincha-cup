@@ -49,20 +49,30 @@ describe('initializeProjectGraph routing', () => {
     expect(Object.keys(graph.nodes)).not.toContain('wiki_dataflows_doc');
     expect(Object.keys(graph.nodes)).not.toContain('wiki_patterns_doc');
 
-    // Phase 4 chains: context_generation → wiki_preparation → wiki_architecture_doc
-    // → wiki_service_docs → wiki_generation → resources.
+    // Phase 4 chains: context_generation → wiki_preparation →
+    // [wiki_architecture_doc, wiki_service_docs] (parallel) →
+    // wiki_generation → resources.
+    //
+    // Plan §I.1 (gira-exhaustive followup, 2026-05-05): the
+    // architecture and service-docs branches now fan out from
+    // wiki_preparation and converge on wiki_generation; pre-fix the
+    // architecture node ran first then service_docs, wasting ~60-90s
+    // per run.
     expect(edges).toContain('context_generation->wiki_preparation');
-    expect(edges).toContain('wiki_architecture_doc->wiki_service_docs');
+    expect(edges).toContain('wiki_architecture_doc->wiki_generation');
     expect(edges).toContain('wiki_service_docs->wiki_generation');
+    expect(edges).not.toContain('wiki_architecture_doc->wiki_service_docs');
     expect(edges).toContain('wiki_generation->resources');
     expect(edges).not.toContain('context_generation->resources');
     expect(edges).not.toContain('context_generation->wiki_generation');
   });
 
-  it('routes wiki_preparation directly to the architecture core-doc node (single-doc subgraph after H4)', () => {
-    expect(routeAfterWikiPreparation({ ...baseState, current_phase: 'phase4_context' })).toBe(
-      'wiki_architecture_doc',
-    );
+  it('routes wiki_preparation in parallel to the architecture + service-docs branches (Wave 3 §I.1)', () => {
+    const route = routeAfterWikiPreparation({
+      ...baseState,
+      current_phase: 'phase4_context',
+    });
+    expect(route).toEqual(['wiki_architecture_doc', 'wiki_service_docs']);
   });
 
   it('stops the wiki subgraph when preparation fails', () => {
