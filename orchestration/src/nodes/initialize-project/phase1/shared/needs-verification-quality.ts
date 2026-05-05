@@ -1,26 +1,33 @@
 /**
- * Heuristic quality gate for `needs_verification` items.
+ * Heuristic quality gates for `needs_verification` items.
  *
- * Plan §C 4.3 (gira-exhaustive followup, 2026-05-05). The 2026-05-04
- * gira run shipped speculative items the framework rule explicitly
- * excludes:
+ * The 2026-05-04 gira run (plan 13 §C 4.3) showed analyzers
+ * shipping speculative items the framework rule already excluded.
+ * The 2026-05-05 gira re-run (plan 14, this module) showed those
+ * items evading the original prose-token detector by paraphrasing
+ * — synonyms ("infrastructure repository", "external system"),
+ * graph-internals leakage ("Class search returned 0", "during
+ * graph parsing"), fabricated numbers ("~180 files"), and
+ * missing search-attempt provenance.
  *
- *   - "Is AWS S3 integration implemented in the backend source code?"
- *     — answer derivable from dependency manifests (no `@aws-sdk/*`
- *     packages = no S3 SDK in use).
- *   - "Is there a CI/CD pipeline configured outside this repository?"
- *     — by definition unknowable from the repo.
- *   - "What are the production Sentry DSN, org, and credentials?" —
- *     credentials are always external by design.
+ * Plan 14 (`/ai-documentation-strategy/14-needs-verification-quality-hardening/plan.md`)
+ * goes structural. This module exposes:
  *
- * The validator-side rule (`verification-format.md`) tells the agent
- * not to emit such items. This module is the run-time signal: a soft
- * warning surfaced in the analyzer output so the operator can see
- * trends across runs (and CI can fail if the rate spikes).
+ *   - The legacy prose-token detector
+ *     (`hasSpeculativeNeedsVerification` / `findSpeculativeNeedsVerification`)
+ *     for back-compat with §C 4.3's `speculative_needs_verification`
+ *     soft warning.
+ *   - Four new validators (Plan 14 §C.1, C.2, C.3, C.7) that target
+ *     the structural failure modes:
+ *       - missing or insufficient `attempted_resolution`
+ *       - graph-internals language in user-facing prose
+ *       - fabricated numbers in question text
+ *       - missing or generic `impact` text
+ *   - A unified `validateNeedsVerificationProse` aggregator that
+ *     returns hard violation messages for the Stop hook.
  *
- * Stack-agnostic: every detection token is a category word ("credential",
- * "outside this repository", "production", "deployment server",
- * "manifest" derivable). No language family bias.
+ * Every detector is stack-agnostic — pattern matching on text
+ * shape, no language-family or framework-specific tokens.
  */
 
 const SPECULATIVE_TOKENS: Array<{ pattern: RegExp; reason: string }> = [
@@ -110,4 +117,285 @@ export function findSpeculativeNeedsVerification(items: unknown): SpeculativeMat
     }
   }
   return out;
+}
+
+// ============================================================================
+// PLAN 14 — STRUCTURAL VALIDATORS
+// ============================================================================
+
+/** A hard-violation entry the Stop hook surfaces back to the agent. */
+export interface NeedsVerificationViolation {
+  /** Stable code so consumers can switch on / aggregate it. */
+  code:
+    | 'missing_attempted_resolution'
+    | 'invalid_attempted_resolution_entry'
+    | 'graph_internals_in_user_prose'
+    | 'fabricated_numbers_in_question'
+    | 'missing_or_generic_impact';
+  /** Index into the `needs_verification` array (or -1 when array-shape). */
+  index: number;
+  /** Human-readable agent-facing message. */
+  message: string;
+}
+
+/**
+ * Banned graph-internals phrases. These leak the framework's
+ * implementation detail (graph DB / MCP tool internals) into
+ * user-facing prose. The user does NOT know what the graph is;
+ * questions phrased in graph-tool terms are unanswerable.
+ *
+ * Stack-agnostic: every phrase describes graph-tool plumbing,
+ * not language-specific concepts.
+ */
+const GRAPH_INTERNALS_PATTERNS: RegExp[] = [
+  /\bgraph\s+(?:traversal|parsing|data|community|nodes?|search|index|result|returned|payload)\b/i,
+  /\b(?:during|after)\s+graph\s+(?:traversal|parsing|search)\b/i,
+  /\bgraph\s+data\s+alone\b/i,
+  /\bmay\s+have\s+been\s+missed\s+during\s+graph\s+(?:parsing|traversal)\b/i,
+  /\b(?:Class|Function|File)\s+search\s+returned\b/i,
+  /\bsemantic\s+search\s+returned\b/i,
+  /mcp__code_graph__\w+/i,
+  /\bcommunity\s+(?:size|sizes|member|members|payload|payloads|name|names)\b/i,
+  /\bmember\s+analysis\b/i,
+  /\bcommunity-\d+\b/i,
+];
+
+/**
+ * Banned fabricated-number patterns in `question` text. These ask
+ * the human to confirm a count the agent invented — almost always
+ * unanswerable AND unnecessary (the count is computable
+ * deterministically).
+ */
+const FABRICATED_NUMBER_PATTERNS: RegExp[] = [
+  // Tilde / approx prefix immediately before a number
+  /[~≈]\s*\d+/,
+  /\bapproximately\s+\d+/i,
+  /\broughly\s+\d+/i,
+  /\baround\s+\d+\s+(?:files?|functions?|classes?|lines?|tests?|services?|packages?|modules?|endpoints?|routes?|controllers?|gateways?)\b/i,
+  /\babout\s+\d+\s+(?:files?|functions?|classes?|lines?|tests?|services?|packages?|modules?|endpoints?|routes?|controllers?|gateways?)\b/i,
+  // Multi-number guess block: "backend ~180, web-frontend ~120, shared ~25"
+  /[~≈]\s*\d+[^?]{0,40}[~≈]\s*\d+/,
+];
+
+/**
+ * Generic / non-actionable impact phrasing. The `impact` field MUST
+ * name a concrete artefact (wiki page / skill / finding) the answer
+ * changes; vague phrases like "important for documentation" don't
+ * tell us what changes if the answer flips.
+ */
+const GENERIC_IMPACT_PATTERNS: RegExp[] = [
+  /\bimportant\s+for\b/i,
+  /\buseful\s+(?:to|for)\b/i,
+  /\bhelpful\s+for\b/i,
+  /\bgood\s+to\s+know\b/i,
+  /\bnice\s+to\s+have\b/i,
+  /\bfor\s+completeness\b/i,
+  /\bprovides?\s+context\b/i,
+  /\baffects?\s+the\s+analysis\b/i,
+  /\bgeneral\s+understanding\b/i,
+];
+
+const IMPACT_MIN_LENGTH = 40;
+const ATTEMPTED_RESOLUTION_MIN_ENTRIES = 2;
+const ATTEMPTED_RESOLUTION_ENTRY_MIN_LENGTH = 10;
+const HUMAN_PREFIX_MIN_EXPLANATION_LENGTH = 20;
+
+/**
+ * Recognised tool-invocation tokens an `attempted_resolution` entry
+ * may reference. Stack-agnostic — every tool listed is
+ * framework-defined and language-neutral.
+ */
+const TOOL_TOKEN_PATTERNS: RegExp[] = [
+  /^\s*(?:Read|Grep|Glob|Bash|Edit|Write|MultiEdit|NotebookEdit)\b/,
+  /^\s*mcp__code_graph__\w+/,
+  /^\s*(?:grep|find|ls|cat|head|tail|rg)\b/i,
+];
+
+/**
+ * Inspect every `needs_verification` item and return hard-violation
+ * messages. Empty array = pass.
+ *
+ * Used by the Stop hook (validate-analyzer-json.hook.ts) to reject
+ * outputs that fail the structural rules. The same checks live in
+ * the analyzer prompt (verification-format.md) as a self-check
+ * checklist; this module is the deterministic enforcement layer.
+ */
+export function validateNeedsVerificationProse(items: unknown): NeedsVerificationViolation[] {
+  if (!Array.isArray(items)) return [];
+  const violations: NeedsVerificationViolation[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) continue;
+    violations.push(...validateAttemptedResolution(item as Record<string, unknown>, i));
+    violations.push(...validateNoGraphInternals(item as Record<string, unknown>, i));
+    violations.push(...validateNoFabricatedNumbers(item as Record<string, unknown>, i));
+    violations.push(...validateImpactField(item as Record<string, unknown>, i));
+  }
+  return violations;
+}
+
+function validateAttemptedResolution(
+  item: Record<string, unknown>,
+  index: number,
+): NeedsVerificationViolation[] {
+  const violations: NeedsVerificationViolation[] = [];
+  const raw = item.attempted_resolution;
+
+  if (!Array.isArray(raw)) {
+    violations.push({
+      code: 'missing_attempted_resolution',
+      index,
+      message: `needs_verification[${index}].attempted_resolution is missing. Run AT LEAST ${ATTEMPTED_RESOLUTION_MIN_ENTRIES} concrete tool calls (Read / Grep / Glob / Bash / mcp__code_graph__*) trying to answer the question, and list them here. Each entry must be a tool invocation, not prose.`,
+    });
+    return violations;
+  }
+  if (raw.length < ATTEMPTED_RESOLUTION_MIN_ENTRIES) {
+    violations.push({
+      code: 'missing_attempted_resolution',
+      index,
+      message: `needs_verification[${index}].attempted_resolution has only ${raw.length} entrie(s); minimum is ${ATTEMPTED_RESOLUTION_MIN_ENTRIES}. Items without sufficient search provenance are blocked.`,
+    });
+  }
+
+  let hasToolEntry = false;
+  for (let j = 0; j < raw.length; j++) {
+    const entry = raw[j];
+    if (typeof entry !== 'string' || entry.trim().length === 0) {
+      violations.push({
+        code: 'invalid_attempted_resolution_entry',
+        index,
+        message: `needs_verification[${index}].attempted_resolution[${j}] is empty or non-string.`,
+      });
+      continue;
+    }
+    const trimmed = entry.trim();
+    if (trimmed.length < ATTEMPTED_RESOLUTION_ENTRY_MIN_LENGTH) {
+      violations.push({
+        code: 'invalid_attempted_resolution_entry',
+        index,
+        message: `needs_verification[${index}].attempted_resolution[${j}] is too short ("${trimmed}"); each entry must be a concrete tool invocation or a "human:"-prefixed explanation.`,
+      });
+      continue;
+    }
+    if (looksLikeToolInvocation(trimmed)) {
+      hasToolEntry = true;
+      continue;
+    }
+    if (looksLikeHumanEntry(trimmed)) {
+      continue;
+    }
+    violations.push({
+      code: 'invalid_attempted_resolution_entry',
+      index,
+      message: `needs_verification[${index}].attempted_resolution[${j}] ("${truncate(trimmed, 80)}") doesn't reference a recognised tool (Read/Grep/Glob/Bash/mcp__code_graph__*) and isn't a "human:"-prefixed entry. Use a concrete tool invocation, e.g. \`Grep "@aws-sdk" services/\`.`,
+    });
+  }
+  if (raw.length >= ATTEMPTED_RESOLUTION_MIN_ENTRIES && !hasToolEntry) {
+    violations.push({
+      code: 'invalid_attempted_resolution_entry',
+      index,
+      message: `needs_verification[${index}].attempted_resolution has no tool invocation entries. At least one entry MUST be a concrete tool call; "human:"-prefixed entries supplement, not replace, tool entries.`,
+    });
+  }
+  return violations;
+}
+
+function validateNoGraphInternals(
+  item: Record<string, unknown>,
+  index: number,
+): NeedsVerificationViolation[] {
+  const text = [
+    typeof item.question === 'string' ? item.question : '',
+    typeof item.reason === 'string' ? item.reason : '',
+  ]
+    .filter((s) => s.length > 0)
+    .join(' ');
+  if (!text) return [];
+  for (const pattern of GRAPH_INTERNALS_PATTERNS) {
+    const match = pattern.exec(text);
+    if (match) {
+      return [
+        {
+          code: 'graph_internals_in_user_prose',
+          index,
+          message: `needs_verification[${index}] leaks graph internals ("${match[0]}") into user-facing prose. The user does not know what the graph is — phrase questions in terms of project state ("does X integrate with Y?"), never tool internals.`,
+        },
+      ];
+    }
+  }
+  return [];
+}
+
+function validateNoFabricatedNumbers(
+  item: Record<string, unknown>,
+  index: number,
+): NeedsVerificationViolation[] {
+  const text = typeof item.question === 'string' ? item.question : '';
+  if (!text) return [];
+  for (const pattern of FABRICATED_NUMBER_PATTERNS) {
+    const match = pattern.exec(text);
+    if (match) {
+      return [
+        {
+          code: 'fabricated_numbers_in_question',
+          index,
+          message: `needs_verification[${index}].question contains a fabricated number ("${match[0]}"). Either compute the count deterministically (Glob + count) or omit the number entirely; do not ask the human to confirm a guess.`,
+        },
+      ];
+    }
+  }
+  return [];
+}
+
+function validateImpactField(
+  item: Record<string, unknown>,
+  index: number,
+): NeedsVerificationViolation[] {
+  const violations: NeedsVerificationViolation[] = [];
+  const impact = item.impact;
+  if (typeof impact !== 'string' || impact.trim().length === 0) {
+    violations.push({
+      code: 'missing_or_generic_impact',
+      index,
+      message: `needs_verification[${index}].impact is missing. Name the concrete artefact (wiki page / skill body / finding) the answer changes, e.g. "Determines whether the testing-conventions skill body lists 'enforced 80% coverage' or 'no enforced threshold'." (≥${IMPACT_MIN_LENGTH} chars).`,
+    });
+    return violations;
+  }
+  if (impact.trim().length < IMPACT_MIN_LENGTH) {
+    violations.push({
+      code: 'missing_or_generic_impact',
+      index,
+      message: `needs_verification[${index}].impact is too short (${impact.trim().length} chars; minimum ${IMPACT_MIN_LENGTH}). Spell out which downstream artefact the answer changes.`,
+    });
+    return violations;
+  }
+  for (const pattern of GENERIC_IMPACT_PATTERNS) {
+    const match = pattern.exec(impact);
+    if (match) {
+      violations.push({
+        code: 'missing_or_generic_impact',
+        index,
+        message: `needs_verification[${index}].impact uses generic phrasing ("${match[0]}"). Replace with a concrete reference: which wiki page / skill body / finding does the answer change, and how?`,
+      });
+      return violations;
+    }
+  }
+  return violations;
+}
+
+function looksLikeToolInvocation(entry: string): boolean {
+  for (const pattern of TOOL_TOKEN_PATTERNS) {
+    if (pattern.test(entry)) return true;
+  }
+  return false;
+}
+
+function looksLikeHumanEntry(entry: string): boolean {
+  if (!/^\s*human:/i.test(entry)) return false;
+  const explanation = entry.replace(/^\s*human:\s*/i, '').trim();
+  return explanation.length >= HUMAN_PREFIX_MIN_EXPLANATION_LENGTH;
+}
+
+function truncate(text: string, n: number): string {
+  return text.length <= n ? text : `${text.slice(0, n - 1)}…`;
 }

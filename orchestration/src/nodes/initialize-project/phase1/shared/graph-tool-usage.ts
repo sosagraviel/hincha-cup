@@ -4,7 +4,10 @@ import path from 'path';
 
 import { logger } from '../../../../utils/logger.js';
 import { claudeProjectSlug } from '../../../../services/framework/transcripts/capture.js';
-import { hasSpeculativeNeedsVerification } from './needs-verification-quality.js';
+import {
+  hasSpeculativeNeedsVerification,
+  validateNeedsVerificationProse,
+} from './needs-verification-quality.js';
 
 /**
  * Sidecar contract written by `validate-analyzer-json.hook.ts` next to the
@@ -459,8 +462,19 @@ export function applyGraphToolUsageFromSidecar(
   // outside-the-repo concerns, manifest-derivable questions). Surface
   // a `speculative_needs_verification` warning so trends are visible
   // in the run report — non-blocking by design.
-  if (hasSpeculativeNeedsVerification((base as Record<string, unknown>).needs_verification)) {
+  const needsVerification = (base as Record<string, unknown>).needs_verification;
+  if (hasSpeculativeNeedsVerification(needsVerification)) {
     softWarnings.push('speculative_needs_verification');
+  }
+
+  // Plan 14 (2026-05-05): structural quality gates. At commit 1 these
+  // surface as SOFT warnings only — the Stop hook promotes them to
+  // hard rejections in commit 2 once the schema breaking change has
+  // landed across all four analyzers. Each violation maps to its own
+  // soft-warning code so the run report can show category breakdown.
+  const proseViolations = validateNeedsVerificationProse(needsVerification);
+  for (const v of proseViolations) {
+    softWarnings.push(v.code);
   }
 
   return {

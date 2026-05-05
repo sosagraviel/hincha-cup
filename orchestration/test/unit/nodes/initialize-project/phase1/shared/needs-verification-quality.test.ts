@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   hasSpeculativeNeedsVerification,
   findSpeculativeNeedsVerification,
+  validateNeedsVerificationProse,
 } from '../../../../../../src/nodes/initialize-project/phase1/shared/needs-verification-quality.js';
 
 /**
@@ -178,5 +179,305 @@ describe('findSpeculativeNeedsVerification — diagnostic mode', () => {
     ]);
     expect(matches).toHaveLength(1);
     expect(matches[0].reason.length).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================================
+// PLAN 14 — STRUCTURAL VALIDATORS
+// ============================================================================
+
+/**
+ * Reusable fixture: a "good" item that passes every Plan 14 rule.
+ * Tests start from this baseline and mutate one field at a time so
+ * the rule under test is the only failing thing.
+ */
+const GOOD_ITEM = {
+  id: 'v1',
+  question: 'Is the Redis instance shared across services or per-service?',
+  reason:
+    'Both services connect to Redis but connection configs do not specify instance isolation.',
+  attempted_resolution: [
+    'Read services/backend/src/redis/redis.module.ts',
+    'Grep "createClient" services/',
+  ],
+  impact:
+    "Determines whether the architectural narrative describes Redis topology as 'shared' or 'per-service' and changes the deployment-target paragraph in ARCHITECTURE.md.",
+};
+
+describe('validateNeedsVerificationProse — Plan 14 §C.1 attempted_resolution', () => {
+  it('passes a good item with 2 tool entries', () => {
+    expect(validateNeedsVerificationProse([GOOD_ITEM])).toHaveLength(0);
+  });
+
+  it('hard-fails when attempted_resolution is missing', () => {
+    const { attempted_resolution: _ar, ...rest } = GOOD_ITEM;
+    const violations = validateNeedsVerificationProse([rest]);
+    expect(violations.some((v) => v.code === 'missing_attempted_resolution')).toBe(true);
+  });
+
+  it('hard-fails when attempted_resolution has fewer than 2 entries', () => {
+    const violations = validateNeedsVerificationProse([
+      { ...GOOD_ITEM, attempted_resolution: ['Read services/backend/package.json'] },
+    ]);
+    expect(violations.some((v) => v.code === 'missing_attempted_resolution')).toBe(true);
+  });
+
+  it('hard-fails when entries are too short or empty', () => {
+    const violations = validateNeedsVerificationProse([
+      { ...GOOD_ITEM, attempted_resolution: ['', 'short'] },
+    ]);
+    expect(violations.some((v) => v.code === 'invalid_attempted_resolution_entry')).toBe(true);
+  });
+
+  it('hard-fails when entries are prose without a tool token', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        attempted_resolution: [
+          'I tried looking at the files but did not find anything',
+          'I checked the README too',
+        ],
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'invalid_attempted_resolution_entry')).toBe(true);
+  });
+
+  it('hard-fails when there is NO tool entry (only human:-prefixed entries)', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        attempted_resolution: [
+          'human: requires the operator to confirm whether v1 is supported in production',
+          'human: only the product owner can answer this deprecation timeline',
+        ],
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'invalid_attempted_resolution_entry')).toBe(true);
+  });
+
+  it('passes when human:-prefixed entries supplement at least one tool entry', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        attempted_resolution: [
+          'Grep "v1" services/backend/src/routes/',
+          'human: requires product-owner decision on v1 deprecation timeline',
+        ],
+      },
+    ]);
+    expect(violations).toHaveLength(0);
+  });
+
+  it('hard-fails human:-prefixed entries with too-short explanations', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        attempted_resolution: ['Grep "v1" services/', 'human: dunno'],
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'invalid_attempted_resolution_entry')).toBe(true);
+  });
+
+  it('accepts both Read/Grep/Glob/Bash and mcp__code_graph__* tool tokens', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        attempted_resolution: [
+          'mcp__code_graph__semantic_search_nodes_tool({ query: "Stripe", limit: 20 })',
+          'Bash: find services -name "*.controller.ts"',
+        ],
+      },
+    ]);
+    expect(violations).toHaveLength(0);
+  });
+});
+
+describe('validateNeedsVerificationProse — Plan 14 §C.2 graph internals ban', () => {
+  it.each([
+    ['question', 'graph traversal'],
+    ['question', 'during graph parsing'],
+    ['question', 'graph data alone'],
+    ['question', 'Class search returned 0'],
+    ['question', 'mcp__code_graph__semantic_search_nodes_tool'],
+    ['reason', 'community size'],
+    ['reason', 'community member analysis'],
+    ['reason', 'graph community payload'],
+  ])('hard-fails when %s contains "%s"', (field, phrase) => {
+    const item = { ...GOOD_ITEM, [field]: `Some text with ${phrase} in it.` };
+    const violations = validateNeedsVerificationProse([item]);
+    expect(violations.some((v) => v.code === 'graph_internals_in_user_prose')).toBe(true);
+  });
+
+  it('does NOT fire when the item describes project state in plain language', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'Does the auth service integrate with Keycloak via JWT or session tokens?',
+        reason: 'Both libraries are imported but the configuration is not clear.',
+      },
+    ]);
+    expect(violations.filter((v) => v.code === 'graph_internals_in_user_prose')).toHaveLength(0);
+  });
+});
+
+describe('validateNeedsVerificationProse — Plan 14 §C.3 fabricated numbers', () => {
+  it.each([
+    'Are there approximately 180 files in services/backend?',
+    'Is the function count roughly 3000?',
+    'Are there about 12 modules in shared?',
+    'Are the per-service file counts ~180, ~120, ~25?',
+    'Does the project have around 25 packages?',
+    'Are there ≈45 controllers?',
+  ])('hard-fails on "%s"', (question) => {
+    const violations = validateNeedsVerificationProse([{ ...GOOD_ITEM, question }]);
+    expect(violations.some((v) => v.code === 'fabricated_numbers_in_question')).toBe(true);
+  });
+
+  it('does NOT fire on numbers that are part of a version reference', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'Is the project pinned to NestJS 11.x or expected to migrate to 12.x?',
+      },
+    ]);
+    expect(violations.filter((v) => v.code === 'fabricated_numbers_in_question')).toHaveLength(0);
+  });
+});
+
+describe('validateNeedsVerificationProse — Plan 14 §C.7 impact field', () => {
+  it('hard-fails when impact is missing', () => {
+    const { impact: _imp, ...rest } = GOOD_ITEM;
+    const violations = validateNeedsVerificationProse([rest]);
+    expect(violations.some((v) => v.code === 'missing_or_generic_impact')).toBe(true);
+  });
+
+  it('hard-fails when impact is empty / whitespace-only', () => {
+    const violations = validateNeedsVerificationProse([{ ...GOOD_ITEM, impact: '   ' }]);
+    expect(violations.some((v) => v.code === 'missing_or_generic_impact')).toBe(true);
+  });
+
+  it('hard-fails when impact is too short (<40 chars)', () => {
+    const violations = validateNeedsVerificationProse([{ ...GOOD_ITEM, impact: 'Some impact.' }]);
+    expect(violations.some((v) => v.code === 'missing_or_generic_impact')).toBe(true);
+  });
+
+  it.each([
+    'Important for documentation purposes and general clarity.',
+    'Useful to know for future migration planning.',
+    'Helpful for understanding the project layout.',
+    'Nice to have for completeness.',
+    'Provides context for other analyses.',
+    'Affects the analysis of the testing surface.',
+  ])('hard-fails on generic phrasing: "%s"', (impact) => {
+    const violations = validateNeedsVerificationProse([{ ...GOOD_ITEM, impact }]);
+    expect(violations.some((v) => v.code === 'missing_or_generic_impact')).toBe(true);
+  });
+
+  it('passes when impact names a concrete artefact + concrete change', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        impact:
+          'Decides whether SERVICES.md describes the queue topology as fan-out or single-consumer.',
+      },
+    ]);
+    expect(violations.filter((v) => v.code === 'missing_or_generic_impact')).toHaveLength(0);
+  });
+});
+
+describe('validateNeedsVerificationProse — defensive shapes', () => {
+  it('returns empty on non-array input', () => {
+    expect(validateNeedsVerificationProse(undefined)).toEqual([]);
+    expect(validateNeedsVerificationProse(null)).toEqual([]);
+    expect(validateNeedsVerificationProse({})).toEqual([]);
+    expect(validateNeedsVerificationProse('oops')).toEqual([]);
+  });
+
+  it('skips non-object items in the array (lets the schema validator handle them)', () => {
+    const violations = validateNeedsVerificationProse([null, 'not an object', 42, GOOD_ITEM]);
+    // Only the valid GOOD_ITEM is examined; it passes; output is empty.
+    expect(violations).toEqual([]);
+  });
+
+  it('reports per-item violations with correct index', () => {
+    const violations = validateNeedsVerificationProse([
+      GOOD_ITEM,
+      { ...GOOD_ITEM, impact: 'Useful for context.' },
+      GOOD_ITEM,
+    ]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].index).toBe(1);
+  });
+});
+
+describe('Plan 14 acceptance — the 7 gira questions are blocked', () => {
+  // Each fixture is the gira question rephrased as a needs_verification
+  // item with the worst-case shape (empty / generic resolution + impact).
+  // Q5 (testing-coverage policy) is the only one that should pass when
+  // it carries a proper resolution + impact.
+
+  it('Q1 (does main.tsx exist?) — blocked on missing_attempted_resolution', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        id: 'v1',
+        question:
+          'Do services/web-frontend/src/main.tsx and src/routes/__root.tsx exist as the actual application entry points?',
+        reason: 'Entry points inferred from Vite + TanStack Router conventions.',
+        attempted_resolution: [],
+        impact: 'Determines the entry-point list in the web-frontend service doc.',
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'missing_attempted_resolution')).toBe(true);
+  });
+
+  it('Q2 (file-count guess) — blocked on fabricated_numbers_in_question', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        id: 'v2',
+        question:
+          'Are the per-service file counts accurate at approximately backend ~180, web-frontend ~120, and shared ~25?',
+        reason: 'Graph community sizes represent node counts, not file counts.',
+        attempted_resolution: ['Read package.json', 'Glob "services/**/*"'],
+        impact: 'Sets the file_count field on each service entry in SERVICES.md.',
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'fabricated_numbers_in_question')).toBe(true);
+  });
+
+  it('Q6 (graph-internals leakage) — blocked on graph_internals_in_user_prose', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        id: 'v6',
+        question:
+          'Do NestJS REST controllers and WebSocket gateways exist in the backend beyond what the code graph indexed?',
+        reason:
+          'Graph Class search returned 0 Controller/Gateway nodes; NestJS decorator-based classes may have been missed during graph parsing.',
+        attempted_resolution: [
+          'mcp__code_graph__semantic_search_nodes_tool({ query: "Controller" })',
+          'mcp__code_graph__semantic_search_nodes_tool({ query: "Gateway" })',
+        ],
+        impact: 'Decides whether the api-patterns block of ARCHITECTURE.md mentions WebSocket.',
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'graph_internals_in_user_prose')).toBe(true);
+  });
+
+  it('Q5 (testing-coverage policy) — passes when the agent supplies proper resolution + impact', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        id: 'v5',
+        question:
+          'What is the project testing coverage policy — are coverage thresholds enforced in CI?',
+        reason: 'jest.config.mjs enables collectCoverageFrom but defines no threshold values.',
+        attempted_resolution: [
+          'Read jest.config.mjs',
+          'Grep "coverageThreshold" services/',
+          'human: requires operator knowledge of CI pipeline coverage gates',
+        ],
+        impact:
+          'Decides whether testing-conventions/SKILL.md prescribes "enforce 80% line coverage" or "no enforced threshold".',
+      },
+    ]);
+    expect(violations).toHaveLength(0);
   });
 });
