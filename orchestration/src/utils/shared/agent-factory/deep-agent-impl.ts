@@ -9,7 +9,37 @@ import { beginAttemptRecorder } from './attempt-recorder.js';
 import { emitTokenUsage } from '../../../services/framework/debug-store/index.js';
 
 /**
- * Create agent using DeepAgents.js (API key mode)
+ * Create agent using DeepAgents.js (API key mode).
+ *
+ * **Prompt caching contract** (plan §F, 2026-05-05).
+ *
+ * Phase 1 analyzer prompts are constructed by
+ * `phase1/shared/prompt-builder.ts` so the first ~19 KB are
+ * **byte-identical across all four analyzers** within a single init
+ * run (see `buildPhase1SharedPrefix`). DeepAgents passes our
+ * concatenated `${body}\n\n${input.inputPrompt}` to the LLM as a
+ * subagent system prompt; Anthropic's API automatically caches system
+ * prompts ≥ 1024 tokens and reads them back at ~10% of normal input
+ * rate on subsequent requests within the 5-minute TTL.
+ *
+ * That means: the four parallel analyzer spawns implicitly benefit
+ * from the cache without explicit `cache_control` markers, **as long
+ * as the prefix stays byte-identical**. The unit test in
+ * `prompt-builder-cache.test.ts` is the regression net — it
+ * SHA-256s the prefix across all four analyzers and fails on drift.
+ *
+ * Cache observability: `usage.cache_read_input_tokens` is read out of
+ * the `result.usage` object below and surfaced via
+ * `emitTokenUsage(...).cache_hit`. The debug-store run index renders
+ * cache hit rate per phase (plan commit 9).
+ *
+ * If a future change requires an explicit `cache_control` block split
+ * (e.g. moving the prefix into a discrete user-message content block
+ * with `{ type: 'ephemeral' }`), the LLM-factory call would need to
+ * bypass DeepAgents and call the Anthropic SDK directly. Defer until
+ * empirical hit-rate measurements show the implicit caching is
+ * insufficient — the byte-determinism contract above is what makes
+ * the savings possible either way.
  */
 export async function createDeepAgentImpl(
   config: AgentConfig,

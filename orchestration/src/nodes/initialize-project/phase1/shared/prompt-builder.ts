@@ -43,14 +43,89 @@ export interface GraphPromptContext {
 }
 
 /**
+ * Inputs to {@link buildPhase1SharedPrefix}.
+ *
+ * The fields here are intentionally minimal — only the inputs that
+ * vary by init run, never by analyzer. Adding any field that varies
+ * by analyzer would break byte-determinism of the cache-eligible
+ * prefix and silently zero out caching savings.
+ */
+export interface SharedPrefixContext {
+  projectPath: string;
+  frameworkPath: string;
+  graphContext?: GraphPromptContext;
+}
+
+/**
+ * Build the cache-eligible prefix shared by every Phase 1 analyzer
+ * prompt within a single init run.
+ *
+ * Plan §F.3 (2026-05-05) — the prefix is **byte-identical across all
+ * four analyzer prompts** so that Anthropic's automatic prompt cache
+ * (Claude API + Claude Code + Codex/GPT-5) can hit on the second
+ * through fourth analyzer spawns within the 5-minute TTL. The cached
+ * read costs ~10% of normal input rate; the prefix is currently
+ * ~19 KB (~4.7 K tokens), so each cached read saves ~4.2 K tokens.
+ *
+ * **Byte-determinism contract** — the order and content here MUST be:
+ *
+ *   1. `<excluded_directories>` — derived from `.gitignore`; same for
+ *      every analyzer in a single run.
+ *   2. `<project_path>` — same for every analyzer in a single run.
+ *   3. `<output_format>` — constant body; agentName is intentionally
+ *      NOT interpolated (the body is the same for every Phase 1
+ *      analyzer regardless).
+ *   4. `=== CODE GRAPH CONTEXT ===` — the live MCP tool catalog +
+ *      navigation discipline. Snapshotted at preflight; same for
+ *      every analyzer in a single run.
+ *
+ * Anything analyzer-specific (authoritative service list, tool-cap
+ * table, execution instructions, validation feedback) goes AFTER the
+ * prefix in {@link buildPhase1AnalyzerPrompt}.
+ *
+ * If you need to add new shared content here, ensure it does NOT
+ * include any analyzer-specific tokens, timestamps, or random IDs —
+ * the unit test in `prompt-builder-cache.test.ts` SHA-256s the prefix
+ * across all four analyzers and will fail loudly on drift.
+ */
+export function buildPhase1SharedPrefix(ctx: SharedPrefixContext): string {
+  const excludedDirs = getExcludedDirectories(ctx.projectPath, ctx.frameworkPath);
+
+  const parts: string[] = [
+    buildExcludedDirsTag(excludedDirs),
+    '',
+    buildProjectPathTag(ctx.projectPath),
+    '',
+    buildJsonOutputFormat(),
+  ];
+
+  if (ctx.graphContext) {
+    parts.push('', buildContentSection('Code Graph Context', buildGraphContext(ctx.graphContext)));
+  }
+
+  return parts.join('\n');
+}
+
+/**
  * Build input prompt for Phase 1 analyzer agents
  *
  * Used by: structure-architecture, tech-stack-dependencies,
  *          code-patterns-testing, data-flows-integrations
  *
+ * The prompt is laid out as **`prefix + tail`**, where:
+ *
+ *   - `prefix` is byte-identical across all four analyzers (built by
+ *     {@link buildPhase1SharedPrefix}). This is what Anthropic's
+ *     prompt cache hits on for the second through fourth analyzer
+ *     spawns within the 5-minute TTL.
+ *   - `tail` carries everything analyzer-specific:
+ *     authoritative service list, per-tool budget table, execution
+ *     instructions loaded from the analyzer's own prompt files, and
+ *     any validation feedback for retry attempts.
+ *
  * `authoritativeServices` is supplied by the downstream analyzers (02 / 03 /
  * 04) only — the structure analyzer itself runs first and discovers them.
- * When provided, the rendered prompt opens with an `=== AUTHORITATIVE SERVICE
+ * When provided, the rendered tail opens with an `=== AUTHORITATIVE SERVICE
  * LIST ===` block that pins the canonical service IDs the agent must consume
  * verbatim. Stack-agnostic: the block contains only descriptive fields
  * (id / path / type / language) that work for any project shape.
@@ -63,29 +138,23 @@ export function buildPhase1AnalyzerPrompt(
   graphContext?: GraphPromptContext,
   authoritativeServices?: AuthoritativeService[],
 ): string {
-  const excludedDirs = getExcludedDirectories(projectPath, frameworkPath);
   const executionInstructions = loadExecutionInstructions(agentName, frameworkPath);
 
-  const parts: string[] = [
-    buildExcludedDirsTag(excludedDirs),
-    '',
-    buildProjectPathTag(projectPath),
-    '',
-    buildJsonOutputFormat(agentName),
-  ];
+  const sharedPrefix = buildPhase1SharedPrefix({
+    projectPath,
+    frameworkPath,
+    graphContext,
+  });
+
+  const tailParts: string[] = [];
 
   if (authoritativeServices && authoritativeServices.length > 0) {
-    parts.push(
-      '',
+    tailParts.push(
       buildContentSection(
         'Authoritative Service List',
         buildAuthoritativeServicesBlock(authoritativeServices),
       ),
     );
-  }
-
-  if (graphContext) {
-    parts.push('', buildContentSection('Code Graph Context', buildGraphContext(graphContext)));
   }
 
   // Per-analyzer soft tool-call cap. Non-blocking — exceeding the cap
@@ -113,18 +182,21 @@ export function buildPhase1AnalyzerPrompt(
     if (perToolCapsTable) {
       sections.push(perToolCapsTable);
     }
-    parts.push('', buildContentSection('Tool Budget Guidance', sections.join('\n\n')));
+    tailParts.push(buildContentSection('Tool Budget Guidance', sections.join('\n\n')));
   }
 
   if (executionInstructions) {
-    parts.push('', executionInstructions);
+    tailParts.push(executionInstructions);
   }
 
   if (feedbackPrompt) {
-    parts.push('', buildContentSection('Validation Feedback', feedbackPrompt));
+    tailParts.push(buildContentSection('Validation Feedback', feedbackPrompt));
   }
 
-  return parts.join('\n');
+  if (tailParts.length === 0) {
+    return sharedPrefix;
+  }
+  return [sharedPrefix, '', tailParts.join('\n\n')].join('\n');
 }
 
 /**
