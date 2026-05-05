@@ -362,6 +362,10 @@ Some text after`;
             id: 'v1',
             question: 'Is this correct?',
             reason: 'Need confirmation',
+            // Plan 14 §C.1 + §C.7: schema requires `attempted_resolution`
+            // (≥2 entries, ≥1 tool invocation) + `impact` (≥40 chars).
+            attempted_resolution: ['Read package.json', 'Grep "main" src/'],
+            impact: 'Decides whether SERVICES.md mentions the entry point in src/ or in dist/.',
           },
         ],
       };

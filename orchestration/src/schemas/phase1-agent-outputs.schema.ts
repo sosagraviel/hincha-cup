@@ -12,6 +12,50 @@ import { normalizeLanguage } from './language-normalization.js';
 // 4. Documentation in agent prompts (agents know exact structure to produce)
 // ============================================================================
 
+/**
+ * Shared shape for every `needs_verification` entry across all four
+ * Phase 1 analyzers AND the Phase 2 consolidator (the consolidator
+ * passes the fields through unchanged).
+ *
+ * Plan 14 §C.1 + §C.7 (gira-exhaustive-followup-2, 2026-05-05):
+ * `attempted_resolution` (≥2 entries) and `impact` (≥40 chars) are
+ * required so an item proves the agent searched and that the
+ * answer changes a concrete artefact. The text-shape rules
+ * (graph-internals ban, fabricated numbers, generic impact) live
+ * in `validateNeedsVerificationProse` (see
+ * `phase1/shared/needs-verification-quality.ts`) — those are
+ * applied by the analyzer Stop hook on top of this shape.
+ *
+ * Stack-agnostic by construction: every field is text-shape only;
+ * no language family or framework token appears.
+ */
+export const NeedsVerificationEntrySchema = z
+  .object({
+    id: z.string(),
+    question: z.string(),
+    reason: z.string(),
+    attempted_resolution: z
+      .array(z.string().min(1))
+      .min(2)
+      .describe(
+        'List of search attempts (Read / Grep / Glob / Bash / mcp__code_graph__*) the ' +
+          'agent ran BEFORE surfacing this item. Minimum 2 entries; ≥1 entry MUST be a ' +
+          'concrete tool invocation (the rest may be `human:`-prefixed explanations). ' +
+          'Items without sufficient search provenance are rejected at the Stop hook.',
+      ),
+    impact: z
+      .string()
+      .min(40)
+      .describe(
+        'Names the concrete downstream artefact (wiki page / skill body / finding / ' +
+          'config-default) the answer changes, and what changes about it. Generic ' +
+          'phrasing ("important for documentation", "useful to know") is rejected by ' +
+          'the prose validator.',
+      ),
+  })
+  .passthrough();
+export type NeedsVerificationEntry = z.infer<typeof NeedsVerificationEntrySchema>;
+
 // ----------------------------------------------------------------------------
 // Agent 01: Structure & Architecture Analyzer
 // ----------------------------------------------------------------------------
@@ -211,15 +255,7 @@ export const StructureAnalyzerOutputSchema = z
       })
       .passthrough(), // Allow languages[], runtimes{}, architecture_pattern, file_placement{}, path_aliases{}, database{} (multi_stack merged into services)
     needs_verification: z
-      .array(
-        z
-          .object({
-            id: z.string(),
-            question: z.string(),
-            reason: z.string(),
-          })
-          .passthrough(),
-      )
+      .array(NeedsVerificationEntrySchema)
       .max(3)
       .optional()
       .describe('Items that need clarification or verification'),
@@ -370,15 +406,7 @@ export const TechStackAnalyzerOutputSchema = z
       })
       .passthrough(), // Allow infrastructure[], ci_cd{}, deployment{}, environment{}, databases[], external_services[], build_tools{}
     needs_verification: z
-      .array(
-        z
-          .object({
-            id: z.string(),
-            question: z.string(),
-            reason: z.string(),
-          })
-          .passthrough(),
-      )
+      .array(NeedsVerificationEntrySchema)
       .max(3)
       .optional()
       .describe('Items that need clarification or verification'),
@@ -470,15 +498,7 @@ export const CodePatternsAnalyzerOutputSchema = z
       })
       .passthrough(), // Allow additional code pattern and architecture information (api_patterns, naming_conventions, error_handling, async_patterns, etc.)
     needs_verification: z
-      .array(
-        z
-          .object({
-            id: z.string(),
-            question: z.string(),
-            reason: z.string(),
-          })
-          .passthrough(),
-      )
+      .array(NeedsVerificationEntrySchema)
       .max(3)
       .optional()
       .describe('Items that need clarification or verification'),
@@ -565,13 +585,7 @@ export const DataFlowsAnalyzerOutputSchema = z.object({
     })
     .passthrough(), // Allow authentication{}, external_integrations{}, api_design{}, data_patterns{}, etc.
   needs_verification: z
-    .array(
-      z.object({
-        id: z.string(),
-        question: z.string(),
-        reason: z.string(),
-      }),
-    )
+    .array(NeedsVerificationEntrySchema)
     .max(3)
     .optional()
     .describe('Items that need clarification or verification'),

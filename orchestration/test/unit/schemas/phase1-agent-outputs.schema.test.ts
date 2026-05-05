@@ -273,6 +273,112 @@ describe('Phase 1 Agent Output Schemas', () => {
         expect(() => StructureAnalyzerOutputSchema.parse(out)).toThrow();
       });
     });
+
+    describe('needs_verification entry shape (Plan 14 §C.1 + §C.7)', () => {
+      // Plan 14 hardens needs_verification with two required fields:
+      //   - attempted_resolution: string[] (≥2 entries)
+      //   - impact: string (≥40 chars)
+      // The text-shape rules (graph internals ban / fabricated numbers /
+      // generic impact) live in `validateNeedsVerificationProse` and are
+      // exercised in needs-verification-quality.test.ts. The schema only
+      // enforces the structural shape; this block locks that down.
+      const baseFindings = {
+        services: [
+          {
+            id: 'api',
+            path: 'services/api',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: { main: 'NestJS' },
+          },
+        ],
+      };
+
+      const goodEntry = {
+        id: 'v1',
+        question: 'Is the Redis instance shared or per-service?',
+        reason: 'Connection configs do not specify isolation.',
+        attempted_resolution: [
+          'Read services/backend/src/redis/redis.module.ts',
+          'Grep "createClient" services/',
+        ],
+        impact:
+          'Decides whether ARCHITECTURE.md describes Redis topology as shared or per-service.',
+      };
+
+      const baseOutput = {
+        agent_name: 'structure-architecture-analyzer' as const,
+        timestamp: '2026-05-05T00:00:00.000Z',
+        findings: baseFindings,
+      };
+
+      it('accepts a complete entry with attempted_resolution + impact', () => {
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [goodEntry],
+          }),
+        ).not.toThrow();
+      });
+
+      it('rejects entries missing attempted_resolution', () => {
+        const { attempted_resolution: _ar, ...rest } = goodEntry;
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [rest],
+          }),
+        ).toThrow();
+      });
+
+      it('rejects attempted_resolution with fewer than 2 entries', () => {
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [{ ...goodEntry, attempted_resolution: ['Read package.json'] }],
+          }),
+        ).toThrow();
+      });
+
+      it('rejects entries missing impact', () => {
+        const { impact: _imp, ...rest } = goodEntry;
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [rest],
+          }),
+        ).toThrow();
+      });
+
+      it('rejects impact strings shorter than 40 chars', () => {
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [{ ...goodEntry, impact: 'too short' }],
+          }),
+        ).toThrow();
+      });
+
+      it('still accepts an empty needs_verification array (target = 0 items)', () => {
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({ ...baseOutput, needs_verification: [] }),
+        ).not.toThrow();
+      });
+
+      it('caps the array at 3 items even when each is well-formed', () => {
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [
+              { ...goodEntry, id: 'v1' },
+              { ...goodEntry, id: 'v2' },
+              { ...goodEntry, id: 'v3' },
+              { ...goodEntry, id: 'v4' },
+            ],
+          }),
+        ).toThrow();
+      });
+    });
   });
 
   describe('02: Tech Stack Analyzer Schema', () => {

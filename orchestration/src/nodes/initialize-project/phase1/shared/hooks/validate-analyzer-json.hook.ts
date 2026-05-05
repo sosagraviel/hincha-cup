@@ -14,6 +14,7 @@ import path from 'path';
 // Import centralized validator from Phase 0 schema registry
 import { validateAgentOutput } from '../../../../../schemas/phase1-agent-outputs.schema.js';
 import { extractJSON } from '../../../../../utils/validator.js';
+import { validateNeedsVerificationProse } from '../needs-verification-quality.js';
 
 /**
  * Names of the three downstream Phase 1 analyzers — those that consume the
@@ -583,6 +584,56 @@ async function main() {
       isObject(data) && typeof (data as Record<string, unknown>).agent_name === 'string'
         ? ((data as Record<string, unknown>).agent_name as string)
         : '';
+
+    // Plan 14 §C.8.1 (gira-exhaustive-followup-2, 2026-05-05):
+    // structural prose validation runs AFTER the schema check passes
+    // so per-item violations are reported with the correct array
+    // index. Each rule maps to a typed code the agent's retry
+    // feedback can switch on:
+    //   - missing_attempted_resolution        — searched too little
+    //   - invalid_attempted_resolution_entry  — entry isn't a tool / human:
+    //   - graph_internals_in_user_prose       — leaks framework internals
+    //   - fabricated_numbers_in_question      — guessed counts
+    //   - missing_or_generic_impact           — no concrete artefact named
+    if (isObject(data) && Array.isArray((data as Record<string, unknown>).needs_verification)) {
+      const proseViolations = validateNeedsVerificationProse(
+        (data as Record<string, unknown>).needs_verification,
+      );
+      if (proseViolations.length > 0) {
+        const numbered = proseViolations
+          .map((v, i) => `  ${i + 1}. [${v.code}] ${v.message}`)
+          .join('\n');
+        return blockWithFeedback(
+          '❌ needs_verification quality gate failed (Plan 14 §C):\n\n' +
+            numbered +
+            '\n\n' +
+            'How to fix every category:\n' +
+            '  - missing_attempted_resolution: run AT LEAST 2 concrete tool\n' +
+            '    calls (Read / Grep / Glob / Bash / mcp__code_graph__*) for\n' +
+            '    each item and list them in `attempted_resolution`. At least\n' +
+            '    one entry MUST be a tool invocation; `human:`-prefixed\n' +
+            '    explanations supplement, never replace, tool entries.\n' +
+            '  - invalid_attempted_resolution_entry: each entry MUST start\n' +
+            '    with a recognised tool token (Read / Grep / Glob / Bash /\n' +
+            '    mcp__code_graph__*) OR `human:` followed by a ≥20-char\n' +
+            '    explanation. Prose like "I tried to find it" is rejected.\n' +
+            '  - graph_internals_in_user_prose: do NOT mention "graph",\n' +
+            '    "Class search", "semantic search", "community", or\n' +
+            '    `mcp__code_graph__*` in `question`/`reason`. The user\n' +
+            '    does not know what the graph is. Phrase the question in\n' +
+            '    terms of project state.\n' +
+            '  - fabricated_numbers_in_question: never ask the human to\n' +
+            '    confirm `~N`, `≈N`, `approximately N`, `roughly N`. Either\n' +
+            '    compute the count deterministically or omit the number.\n' +
+            '  - missing_or_generic_impact: `impact` MUST name a concrete\n' +
+            '    artefact (wiki page / skill body / finding) AND what changes\n' +
+            '    about it. ≥40 chars. "Important for documentation" / "useful\n' +
+            '    to know" / "nice to have" are rejected.\n\n' +
+            'Re-emit with the offending items either resolved (you found the\n' +
+            'answer) or removed (the item should not have been there).',
+        );
+      }
+    }
 
     if (DOWNSTREAM_ANALYZERS.has(agentName)) {
       const authoritative = loadAuthoritativeServiceIds(input.cwd);
