@@ -81,13 +81,24 @@ If you're not sure whether a change breaks caching, run `pnpm --filter orchestra
 
 ## Per-platform behaviour
 
-| Auth mode | Caching mechanism |
-|---|---|
-| Anthropic API key (DeepAgents) | Claude API automatically caches system prompts ≥ 1024 tokens within a 5-min TTL. DeepAgents passes our concatenated prompt as the subagent system prompt, so the byte-identical prefix gets cached implicitly. Explicit `cache_control` markers would require bypassing DeepAgents and calling the SDK directly — deferred until empirical hit-rate measurements show the implicit caching is insufficient. |
-| Claude CLI (subagent) | Claude Code propagates the user prompt to the Anthropic API; the same automatic prefix-cache mechanism applies. |
-| Codex CLI (GPT-5) | OpenAI Responses API automatically caches prompt prefixes ≥ ~1024 tokens, no opt-in needed. Same byte-identical-prefix rule. |
+| Auth mode | Caching mechanism | Telemetry path |
+|---|---|---|
+| Anthropic API key (DeepAgents) | Claude API automatically caches system prompts ≥ 1024 tokens within a 5-min TTL. DeepAgents passes our concatenated prompt as the subagent system prompt, so the byte-identical prefix gets cached implicitly. Explicit `cache_control` markers would require bypassing DeepAgents and calling the SDK directly — deferred until empirical hit-rate measurements show the implicit caching is insufficient. | `usage.cache_read_input_tokens` from the response, set on the in-process `result.usage` object. |
+| Claude CLI (subagent) | Claude Code propagates the user prompt to the Anthropic API; the same automatic prefix-cache mechanism applies. | `cli-agent-impl.ts` re-locates the JSONL transcript at `~/.claude/projects/<slug>/<sessionId>.jsonl` after the run, walks every assistant message's `usage.cache_read_input_tokens`, and feeds the rollup into `emitTokenUsage`. See `extractUsageFromClaudeJsonl` in `usage-extractor.ts`. |
+| Codex CLI (GPT-5) | OpenAI Responses API automatically caches prompt prefixes ≥ ~1024 tokens, no opt-in needed. **The user prompt is built as `${run.inputPrompt}\n\n---\n\n${agentBody}` so the byte-identical prefix lives at byte 0** — reversing this order would push analyzer-specific bytes ahead of the prefix and the cache could never hit. | `codex-cli-agent-impl.ts` locates the rollout JSONL via `locateCodexRollout`, parses `token_count` events for `info.cached_input_tokens` (and a few protocol variants for forward-compat), and feeds the rollup into `emitTokenUsage`. See `extractUsageFromCodexJsonl` in `usage-extractor.ts`. |
 
-The framework relies on byte-determinism to make all three platforms hit. There is no per-platform code path for caching — one prompt structure serves all three modes.
+The framework relies on byte-determinism to make all three platforms hit. There is no per-platform code path for caching itself — one prompt structure serves all three modes — but each CLI provider has its own usage extractor because the transcript shapes differ.
+
+### Maintaining cache eligibility for Codex specifically
+
+The Codex CLI takes a single concatenated prompt string via stdin; unlike Claude CLI it does not have an `--agent` flag that would load the agent body as a separate system message. The framework concatenates `inputPrompt + agentBody` (in that order) inside `codex-cli-agent-impl.ts` so the byte-identical Phase 1 prefix from `buildPhase1SharedPrefix` sits at byte 0 of the user message — exactly where OpenAI's automatic prefix cache can match it. **Reversing this order is the single most common way to silently kill caching on Codex.** The byte-determinism test in `prompt-builder-cache.test.ts` has a Codex-specific `describe` block that fails immediately on drift; it also pins the broken form of the regression so reviewers can see what "broken" looks like.
+
+---
+
+## Verifying cache hits per provider
+
+For all three modes, run `/initialize-project` and inspect the run-index sidebar:
+`<project>/.{claude,codex}-temp/initialize-project/debug/runs/<runId>/index.html`. The **Cache hit rate** row reflects real measurements after this commit. For raw aggregation, the same `metrics/token-usage.jsonl` JSONL gets written by every provider; the `jq` snippet in the next section works regardless of which CLI produced it.
 
 ---
 
@@ -101,5 +112,13 @@ The framework relies on byte-determinism to make all three platforms hit. There 
 | Run-level stats aggregator | `orchestration/src/services/framework/debug-store/run-stats.ts` |
 | Run index renderer (sidebar rows) | `orchestration/src/services/framework/transcripts/renderer/render-run-index.ts` |
 | DeepAgents implementation (caching contract docblock) | `orchestration/src/utils/shared/agent-factory/deep-agent-impl.ts` |
-| Byte-determinism unit tests | `orchestration/test/unit/nodes/initialize-project/phase1/shared/prompt-builder-cache.test.ts` |
+| Per-provider usage extractor (cache_read rollup) | `orchestration/src/utils/shared/agent-factory/usage-extractor.ts` |
+| Codex graph-tool-uses sidecar (parity for Claude's Stop hook) | `orchestration/src/nodes/initialize-project/phase1/shared/graph-tool-uses-extractor.ts` |
+| Sidecar loader plumbing (Claude vs Codex) | `orchestration/src/nodes/initialize-project/phase1/shared/graph-tool-usage.ts` (`loadClaudeSidecar` / `loadCodexSidecar` / `getSidecarLoaderForProvider`) |
+| Codex CLI agent impl (concat order + sidecar writer + usage extractor wiring) | `orchestration/src/utils/shared/agent-factory/codex-cli-agent-impl.ts` |
+| Claude CLI agent impl (usage extractor wiring) | `orchestration/src/utils/shared/agent-factory/cli-agent-impl.ts` |
+| Byte-determinism unit tests (Claude + Codex order) | `orchestration/test/unit/nodes/initialize-project/phase1/shared/prompt-builder-cache.test.ts` |
 | Drift-guard unit test | `orchestration/test/unit/nodes/initialize-project/phase1/shared/canonical-texts.test.ts` |
+| Codex graph-tool-uses extractor tests | `orchestration/test/unit/nodes/initialize-project/phase1/shared/graph-tool-uses-extractor.test.ts` |
+| Sidecar loader tests | `orchestration/test/unit/nodes/initialize-project/phase1/shared/sidecar-loaders.test.ts` |
+| Per-provider usage extractor tests | `orchestration/test/unit/utils/shared/agent-factory/usage-extractor.test.ts` |
