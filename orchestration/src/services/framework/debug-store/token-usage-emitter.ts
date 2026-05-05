@@ -8,6 +8,26 @@ import type { BudgetKey } from '../budgets.js';
  * Fields with unknown values at call time are set to -1 (tokens) or false
  * (cache_hit) rather than omitted, so downstream tooling can reliably detect
  * missing data versus zero.
+ *
+ * The numeric token fields are split so operators can see both the cost
+ * picture (uncached + creation) and the savings picture (cached reads):
+ *
+ *   - `input_tokens`: tokens charged at full input rate (Anthropic) /
+ *     OpenAI's `prompt_tokens` minus cache reads. The bit the model
+ *     actually re-encoded for this turn.
+ *   - `cache_read_input_tokens`: tokens served from cache at ~10% rate.
+ *     `> 0` ⇒ caching engaged; `cache_hit` is the boolean form for
+ *     downstream consumers that just need a yes/no flag.
+ *   - `cache_creation_input_tokens`: tokens written to cache at ~125%
+ *     rate (one-time per prefix per TTL). 0 on Codex/OpenAI which
+ *     doesn't surface this counter; -1 means unknown / not measured.
+ *
+ * Why the split: before this commit the run-stats sidebar showed
+ * `input_tokens: 49` even on a 19 KB prompt that hit cache, which was
+ * technically correct (only 49 uncached tokens) but misleading to
+ * operators expecting "input_tokens" to mean total input volume. With
+ * the split, the cache savings are visible without overloading the
+ * `input_tokens` field's meaning.
  */
 export interface TokenUsageRecord {
   ts: string;
@@ -17,6 +37,10 @@ export interface TokenUsageRecord {
   input_tokens: number;
   output_tokens: number;
   cache_hit: boolean;
+  /** Tokens served from the prompt cache. -1 = unknown. */
+  cache_read_input_tokens?: number;
+  /** Tokens written to the prompt cache (Anthropic only). -1 = unknown. */
+  cache_creation_input_tokens?: number;
   duration_ms: number;
   budget_key?: BudgetKey;
 }

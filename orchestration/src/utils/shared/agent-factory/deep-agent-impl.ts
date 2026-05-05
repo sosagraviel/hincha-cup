@@ -119,7 +119,12 @@ export async function createDeepAgentImpl(
           JSON.stringify(result);
 
         const usage = result.usage as
-          | { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number }
+          | {
+              input_tokens?: number;
+              output_tokens?: number;
+              cache_read_input_tokens?: number;
+              cache_creation_input_tokens?: number;
+            }
           | undefined;
 
         logger.trackConcurrentAgentSucceed(
@@ -143,6 +148,12 @@ export async function createDeepAgentImpl(
           input_tokens: usage?.input_tokens ?? -1,
           output_tokens: usage?.output_tokens ?? -1,
           cache_hit: (usage?.cache_read_input_tokens ?? 0) > 0,
+          // Surface cache savings/creation alongside `cache_hit` so the
+          // run-stats sidebar can show real volumes, not just a boolean
+          // (plan §F, codex-parity follow-up, 2026-05-05). When the
+          // upstream usage object is absent (rare), fall back to -1.
+          cache_read_input_tokens: usage?.cache_read_input_tokens ?? -1,
+          cache_creation_input_tokens: usage?.cache_creation_input_tokens ?? -1,
           duration_ms: executionTimeMs,
           budget_key: config.budgetKey,
         }).catch(() => undefined);

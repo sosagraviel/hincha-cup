@@ -123,13 +123,22 @@ function metaRow(label: string, value: string | undefined): string {
 }
 
 /**
- * Render the two run-stats rows into the sidebar meta-card
- * (cache hit rate + graph overflow count). Plan §F.6 + commit 9.
+ * Render the run-stats rows into the sidebar meta-card.
  *
- * Always rendered when `stats` is supplied — even when both values
- * are zero — because the absence of a row is itself misleading
- * (the operator cannot tell whether caching is broken or simply
- * untested).
+ *   - `Cache hit rate` — fraction of calls with cache_read > 0.
+ *   - `Cached tokens` — total tokens served from cache at ~10% rate
+ *     (the actual savings indicator, since hit rate alone doesn't
+ *     reveal whether cached prefixes were 100 tokens or 100K).
+ *   - `Graph overflows` — count of graph MCP results that exceeded
+ *     the per-call token cap.
+ *
+ * Always rendered when `stats` is supplied — even when values are
+ * zero — because the absence of a row is itself misleading (the
+ * operator cannot tell whether caching is broken or simply untested).
+ *
+ * The `Cached tokens` row is omitted only when the value is -1
+ * (older runs predate the field-split and have no measurement). Plan
+ * §F.6 + commit 9 + codex-parity follow-up (2026-05-05).
  */
 function renderStatsRows(stats: RunStats): string {
   const hitText =
@@ -142,7 +151,32 @@ function renderStatsRows(stats: RunStats): string {
       ? '0'
       : `${stats.graphOverflowCount}${stats.graphOverflowTools.length > 0 ? ` (${stats.graphOverflowTools.join(', ')})` : ''}`;
 
-  return [metaRow('Cache hit rate', hitText), metaRow('Graph overflows', overflowText)].join('');
+  const rows = [metaRow('Cache hit rate', hitText)];
+
+  if (stats.cacheReadInputTokens >= 0) {
+    const cachedFmt = formatTokenCount(stats.cacheReadInputTokens);
+    const creationFmt =
+      stats.cacheCreationInputTokens > 0
+        ? ` (+${formatTokenCount(stats.cacheCreationInputTokens)} written)`
+        : '';
+    rows.push(metaRow('Cached tokens', `${cachedFmt}${creationFmt}`));
+  }
+
+  rows.push(metaRow('Graph overflows', overflowText));
+
+  return rows.join('');
+}
+
+/**
+ * Format a non-negative token count compactly for the sidebar:
+ * `123` / `1.2K` / `12K` / `1.2M`. The denominators are decimal
+ * (not 1024-based) because OpenAI/Anthropic bill in raw tokens.
+ */
+function formatTokenCount(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 10_000) return `${(n / 1000).toFixed(1)}K`;
+  if (n < 1_000_000) return `${Math.round(n / 1000)}K`;
+  return `${(n / 1_000_000).toFixed(1)}M`;
 }
 
 function formatDuration(ms: number | undefined): string {

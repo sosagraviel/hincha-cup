@@ -38,6 +38,19 @@ export interface RunStats {
    * rather than a misleading number.
    */
   cacheHitRate: number | null;
+  /**
+   * Sum of `cache_read_input_tokens` across every record. Surfaces
+   * the volume of cached tokens served at the ~10% rate — i.e., the
+   * dollar-weighted savings indicator. -1 when no records carried
+   * the field (older runs predate the split).
+   */
+  cacheReadInputTokens: number;
+  /**
+   * Sum of `cache_creation_input_tokens` across every record (the
+   * one-time write cost at ~125% rate). 0 on Codex-only runs (OpenAI
+   * does not surface this counter); -1 when no records carried it.
+   */
+  cacheCreationInputTokens: number;
   /** Sum of `graph_overflow_count` across every attempt's output.json. */
   graphOverflowCount: number;
   /**
@@ -52,6 +65,8 @@ const EMPTY_STATS: RunStats = {
   totalAgentCalls: 0,
   cacheHits: 0,
   cacheHitRate: null,
+  cacheReadInputTokens: -1,
+  cacheCreationInputTokens: -1,
   graphOverflowCount: 0,
   graphOverflowTools: [],
 };
@@ -73,6 +88,10 @@ export async function computeRunStats(
 
   // -------------------------- token-usage rollup --------------------------
   const tokenJsonlPath = options.tokenUsageJsonlPath ?? deriveDefaultTokenJsonlPath(runDir);
+  let cacheReadObserved = false;
+  let cacheCreationObserved = false;
+  let cacheReadSum = 0;
+  let cacheCreationSum = 0;
   if (tokenJsonlPath) {
     try {
       const body = await readFile(tokenJsonlPath, 'utf-8');
@@ -88,6 +107,24 @@ export async function computeRunStats(
           if (typeof record === 'object' && record !== null) {
             stats.totalAgentCalls++;
             if (record.cache_hit === true) stats.cacheHits++;
+            // Sum cache token volumes when present. Records emitted
+            // before the field-split (commit pre-codex-parity)
+            // omit these keys; we treat omission as "unknown" rather
+            // than "zero" so the run-stats sidebar can distinguish.
+            if (
+              typeof record.cache_read_input_tokens === 'number' &&
+              record.cache_read_input_tokens >= 0
+            ) {
+              cacheReadObserved = true;
+              cacheReadSum += record.cache_read_input_tokens;
+            }
+            if (
+              typeof record.cache_creation_input_tokens === 'number' &&
+              record.cache_creation_input_tokens >= 0
+            ) {
+              cacheCreationObserved = true;
+              cacheCreationSum += record.cache_creation_input_tokens;
+            }
           }
         } catch {
           // skip malformed lines
@@ -97,6 +134,8 @@ export async function computeRunStats(
       // file missing — leave totals at 0
     }
   }
+  stats.cacheReadInputTokens = cacheReadObserved ? cacheReadSum : -1;
+  stats.cacheCreationInputTokens = cacheCreationObserved ? cacheCreationSum : -1;
   if (stats.totalAgentCalls > 0) {
     stats.cacheHitRate = stats.cacheHits / stats.totalAgentCalls;
   }

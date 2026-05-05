@@ -234,3 +234,112 @@ describe('computeRunStats — graph overflow rollup', () => {
     expect(stats.graphOverflowTools).toEqual([]);
   });
 });
+
+// Plan §F.6 codex-parity follow-up (2026-05-05) — the run-stats
+// rollup now sums cache_read_input_tokens and cache_creation_input_tokens
+// from each token-usage record so the sidebar can show real cache
+// volumes (not just a hit/miss boolean).
+describe('computeRunStats — cache token volume rollup', () => {
+  it('sums cache_read_input_tokens across records and reports it', async () => {
+    const jsonlPath = join(tempDir, 'token-usage.jsonl');
+    const records = [
+      {
+        ts: '1',
+        cache_hit: true,
+        input_tokens: 10,
+        output_tokens: 5,
+        cache_read_input_tokens: 1500,
+        cache_creation_input_tokens: 0,
+      },
+      {
+        ts: '2',
+        cache_hit: true,
+        input_tokens: 8,
+        output_tokens: 3,
+        cache_read_input_tokens: 1200,
+        cache_creation_input_tokens: 0,
+      },
+    ];
+    await writeFile(jsonlPath, records.map((r) => JSON.stringify(r)).join('\n'), 'utf-8');
+
+    const stats = await computeRunStats(tempDir, { tokenUsageJsonlPath: jsonlPath });
+    expect(stats.cacheReadInputTokens).toBe(2700);
+    expect(stats.cacheCreationInputTokens).toBe(0);
+  });
+
+  it('sums cache_creation_input_tokens (Anthropic only) when present', async () => {
+    const jsonlPath = join(tempDir, 'token-usage.jsonl');
+    const records = [
+      {
+        ts: '1',
+        cache_hit: false,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 4000,
+      },
+      {
+        ts: '2',
+        cache_hit: true,
+        cache_read_input_tokens: 4000,
+        cache_creation_input_tokens: 0,
+      },
+    ];
+    await writeFile(jsonlPath, records.map((r) => JSON.stringify(r)).join('\n'), 'utf-8');
+
+    const stats = await computeRunStats(tempDir, { tokenUsageJsonlPath: jsonlPath });
+    expect(stats.cacheReadInputTokens).toBe(4000);
+    expect(stats.cacheCreationInputTokens).toBe(4000);
+  });
+
+  it('returns -1 when no records carried the cache_read field (older runs)', async () => {
+    // Distinguishes "field omitted" from "field measured zero". The
+    // renderer hides the row entirely on -1 and shows the row with 0
+    // on a real zero.
+    const jsonlPath = join(tempDir, 'token-usage.jsonl');
+    const records = [
+      { ts: '1', cache_hit: true, input_tokens: 10, output_tokens: 5 },
+      { ts: '2', cache_hit: false, input_tokens: 5, output_tokens: 5 },
+    ];
+    await writeFile(jsonlPath, records.map((r) => JSON.stringify(r)).join('\n'), 'utf-8');
+
+    const stats = await computeRunStats(tempDir, { tokenUsageJsonlPath: jsonlPath });
+    expect(stats.cacheReadInputTokens).toBe(-1);
+    expect(stats.cacheCreationInputTokens).toBe(-1);
+  });
+
+  it('treats an explicit 0 as "observed zero" not "unknown"', async () => {
+    // A run where caching never engaged but the field was recorded
+    // (e.g. -1 day before the cache infrastructure landed) → operator
+    // sees 0 in the sidebar, not "row missing".
+    const jsonlPath = join(tempDir, 'token-usage.jsonl');
+    const records = [
+      {
+        ts: '1',
+        cache_hit: false,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+    ];
+    await writeFile(jsonlPath, records.map((r) => JSON.stringify(r)).join('\n'), 'utf-8');
+
+    const stats = await computeRunStats(tempDir, { tokenUsageJsonlPath: jsonlPath });
+    expect(stats.cacheReadInputTokens).toBe(0);
+    expect(stats.cacheCreationInputTokens).toBe(0);
+  });
+
+  it('skips negative sentinel values (-1 means unknown, do not sum)', async () => {
+    // Defensive: if a CLI fails to read the transcript, the extractor
+    // returns -1 for unknown. We must not sum -1 into the rollup —
+    // that would corrupt the savings indicator.
+    const jsonlPath = join(tempDir, 'token-usage.jsonl');
+    const records = [
+      { ts: '1', cache_read_input_tokens: 1000, cache_creation_input_tokens: 0 },
+      { ts: '2', cache_read_input_tokens: -1, cache_creation_input_tokens: -1 },
+      { ts: '3', cache_read_input_tokens: 500, cache_creation_input_tokens: 0 },
+    ];
+    await writeFile(jsonlPath, records.map((r) => JSON.stringify(r)).join('\n'), 'utf-8');
+
+    const stats = await computeRunStats(tempDir, { tokenUsageJsonlPath: jsonlPath });
+    expect(stats.cacheReadInputTokens).toBe(1500);
+    expect(stats.cacheCreationInputTokens).toBe(0);
+  });
+});

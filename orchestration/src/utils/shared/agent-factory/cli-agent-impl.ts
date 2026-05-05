@@ -395,6 +395,8 @@ async function invokeCLI(
             input_tokens: usage.inputTokens,
             output_tokens: usage.outputTokens,
             cache_hit: rollupToCacheHit(usage),
+            cache_read_input_tokens: usage.cacheReadInputTokens,
+            cache_creation_input_tokens: usage.cacheCreationInputTokens,
             duration_ms: Date.now() - recorder.startedAtMs,
             budget_key: config.budgetKey,
           }).catch(() => undefined);
