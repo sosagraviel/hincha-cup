@@ -127,12 +127,24 @@ function stripPriorInlineBlock(content: string): string {
 }
 
 function renderInlineBlock(options: InlineOptions): string {
+  // Plan §I.3 (gira-exhaustive followup, 2026-05-05): dedupe
+  // contiguous-paragraph overlap between skills. Pre-fix every skill
+  // body was inlined verbatim — so two skills that share a long
+  // prescriptive paragraph (e.g. both prescribe the same testing
+  // policy boilerplate) shipped the same paragraph twice. The dedup:
+  // for every paragraph in skill_N's body, if a byte-identical
+  // paragraph already appeared in any earlier skill_<N's body, skip
+  // it and emit a `<see-skill name="<earlier>"/>` cross-reference
+  // instead. Stack-agnostic — paragraph comparison only.
   const sections: string[] = [];
+  const seenParagraphs = new Map<string, string>(); // paragraph → first skill name that shipped it
 
   for (const skill of options.skills) {
     const skillBody = loadSkillBody(skill, options);
     if (!skillBody) continue;
-    sections.push([`<skill name="${skill.name}">`, skillBody.trim(), `</skill>`].join('\n'));
+
+    const dedupedBody = dedupeAgainstSeen(skill.name, skillBody.trim(), seenParagraphs);
+    sections.push([`<skill name="${skill.name}">`, dedupedBody, `</skill>`].join('\n'));
   }
 
   if (sections.length === 0) return '';
@@ -187,4 +199,105 @@ export function makeCodexSkillPathResolver(
   skillsRoot: string,
 ): (skillName: string) => string {
   return (skillName: string) => join(projectPath, skillsRoot, skillName, 'SKILL.md');
+}
+
+/**
+ * Plan §I.3: dedupe paragraphs that already shipped in an earlier
+ * skill. Splits the body on blank-line boundaries (the canonical
+ * paragraph separator in markdown), looks up each paragraph in the
+ * `seen` map, and either emits the paragraph (and records it) OR
+ * emits a cross-reference and skips it.
+ *
+ * Only paragraphs over `MIN_DEDUPE_BYTES` qualify — short
+ * boilerplate like a single sentence is not worth a cross-reference
+ * (the cross-reference itself takes ~50 bytes).
+ *
+ * Code fences are preserved as-is (no dedup). The cross-reference
+ * pattern `<see-skill name="<other>"/>` is stable so downstream
+ * consumers can recognise it.
+ */
+const MIN_DEDUPE_BYTES = 200;
+
+export function dedupeAgainstSeen(
+  skillName: string,
+  body: string,
+  seen: Map<string, string>,
+): string {
+  const blocks = splitOnParagraphsPreservingFences(body);
+  const out: string[] = [];
+
+  for (const block of blocks) {
+    if (block.kind === 'code') {
+      out.push(block.text);
+      continue;
+    }
+    const trimmed = block.text.trim();
+    if (trimmed.length < MIN_DEDUPE_BYTES) {
+      out.push(block.text);
+      continue;
+    }
+    const earlierOwner = seen.get(trimmed);
+    if (earlierOwner) {
+      out.push(`<see-skill name="${earlierOwner}"/>`);
+      continue;
+    }
+    seen.set(trimmed, skillName);
+    out.push(block.text);
+  }
+
+  return out
+    .join('\n\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+interface ParagraphBlock {
+  kind: 'prose' | 'code';
+  text: string;
+}
+
+/**
+ * Split markdown on paragraph (blank-line) boundaries. Code fences
+ * are returned as a single block so the dedup never breaks a fence
+ * apart. Stack-agnostic — pure string split.
+ */
+function splitOnParagraphsPreservingFences(body: string): ParagraphBlock[] {
+  const blocks: ParagraphBlock[] = [];
+  const lines = body.split('\n');
+  let buffer: string[] = [];
+  let inFence = false;
+
+  const flush = (kind: ParagraphBlock['kind']) => {
+    if (buffer.length === 0) return;
+    blocks.push({ kind, text: buffer.join('\n') });
+    buffer = [];
+  };
+
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      if (!inFence) {
+        flush('prose');
+      }
+      buffer.push(line);
+      if (inFence) {
+        flush('code');
+        inFence = false;
+      } else {
+        inFence = true;
+      }
+      continue;
+    }
+    if (inFence) {
+      buffer.push(line);
+      continue;
+    }
+    if (line.trim().length === 0) {
+      flush('prose');
+      continue;
+    }
+    buffer.push(line);
+  }
+  flush(inFence ? 'code' : 'prose');
+
+  return blocks;
 }

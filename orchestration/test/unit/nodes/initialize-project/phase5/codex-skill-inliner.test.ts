@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import {
+  dedupeAgainstSeen,
   inlineSkillBodiesForCodex,
   makeCodexSkillPathResolver,
 } from '../../../../../src/nodes/initialize-project/phase5/helpers/codex-skill-inliner.js';
@@ -235,5 +236,96 @@ describe('inlineSkillBodiesForCodex', () => {
 
     expect(out).toContain('<skill name="malformed-skill">');
     expect(out).toContain('body text');
+  });
+
+  describe('paragraph dedup (Wave 3 §I.3)', () => {
+    // Two skills sharing a 200+-byte paragraph should ship that
+    // paragraph once and emit a `<see-skill name="..."/>` cross-ref
+    // in subsequent skills. Stack-agnostic: paragraph comparison only.
+
+    const SHARED_PARA = `When implementing a new feature, ALWAYS write the test alongside the implementation. Tests live in the same package as the code they exercise; mirror the source file path under \`__tests__/\` or \`*.spec\` per the project's testing conventions skill. Do not commit code without an accompanying test that covers at least the happy path and one error path. Mocks are only acceptable for true external boundaries (network, filesystem); never mock the database or the framework under test.`;
+
+    it('does NOT dedupe when paragraphs differ', () => {
+      writeSkill('skill-a', `# Skill A\n\nUnique paragraph for skill A. About auth flow.`);
+      writeSkill('skill-b', `# Skill B\n\nDifferent paragraph for skill B. About queue topology.`);
+      const out = inlineSkillBodiesForCodex(buildAgent(), {
+        projectPath: tempDir,
+        skills: [makeSkill('skill-a'), makeSkill('skill-b')],
+        resolveSkillPath,
+      });
+      expect(out).toContain('Unique paragraph for skill A');
+      expect(out).toContain('Different paragraph for skill B');
+      expect(out).not.toContain('<see-skill');
+    });
+
+    it('replaces a duplicated 200+-byte paragraph with a cross-ref', () => {
+      writeSkill('skill-a', `# Skill A\n\n${SHARED_PARA}\n\nSkill A unique tail.`);
+      writeSkill('skill-b', `# Skill B\n\n${SHARED_PARA}\n\nSkill B unique tail.`);
+      const out = inlineSkillBodiesForCodex(buildAgent(), {
+        projectPath: tempDir,
+        skills: [makeSkill('skill-a'), makeSkill('skill-b')],
+        resolveSkillPath,
+      });
+      // Skill A keeps the full paragraph; skill B carries a cross-ref.
+      expect(out).toContain(SHARED_PARA);
+      expect(out).toContain('<see-skill name="skill-a"/>');
+      // Skill B unique tail is preserved.
+      expect(out).toContain('Skill B unique tail.');
+      // The shared paragraph appears exactly once in the output.
+      const occurrences = out.split(SHARED_PARA).length - 1;
+      expect(occurrences).toBe(1);
+    });
+
+    it('does NOT dedupe paragraphs shorter than the 200-byte threshold', () => {
+      // A short paragraph repeated across two skills is left in place —
+      // the cross-ref tag itself takes ~30 bytes, so deduping a short
+      // paragraph saves nothing.
+      const short = 'Use camelCase for variables.';
+      writeSkill('skill-a', `# A\n\n${short}\n\nA tail.`);
+      writeSkill('skill-b', `# B\n\n${short}\n\nB tail.`);
+      const out = inlineSkillBodiesForCodex(buildAgent(), {
+        projectPath: tempDir,
+        skills: [makeSkill('skill-a'), makeSkill('skill-b')],
+        resolveSkillPath,
+      });
+      const occurrences = out.split(short).length - 1;
+      expect(occurrences).toBe(2);
+      expect(out).not.toContain('<see-skill');
+    });
+  });
+});
+
+describe('dedupeAgainstSeen — pure function', () => {
+  it('returns the body unchanged on the first skill', () => {
+    const seen = new Map<string, string>();
+    const body = 'A'.repeat(300);
+    expect(dedupeAgainstSeen('skill-a', body, seen)).toBe(body);
+    expect(seen.get(body)).toBe('skill-a');
+  });
+
+  it('cross-refs an exact-match paragraph that already appeared', () => {
+    const seen = new Map<string, string>();
+    const longPara = 'A'.repeat(300);
+    dedupeAgainstSeen('skill-a', longPara, seen);
+    const out = dedupeAgainstSeen('skill-b', longPara, seen);
+    expect(out).toContain('<see-skill name="skill-a"/>');
+  });
+
+  it('preserves code fences as a single unit (does not split or dedupe)', () => {
+    // Even if a code fence appeared in an earlier skill, a fence is
+    // never deduped — it's a code example, not prose.
+    const seen = new Map<string, string>();
+    const fence = ['```typescript', 'export const x = 1;', '```'].join('\n');
+    dedupeAgainstSeen('skill-a', `prose\n\n${fence}`, seen);
+    const out = dedupeAgainstSeen('skill-b', `prose\n\n${fence}`, seen);
+    expect(out).toContain('export const x = 1;');
+  });
+
+  it('handles a body composed of only short paragraphs (returns unchanged)', () => {
+    const seen = new Map<string, string>();
+    const body = 'Short.\n\nAnother short paragraph.';
+    dedupeAgainstSeen('skill-a', body, seen);
+    const out = dedupeAgainstSeen('skill-b', body, seen);
+    expect(out).not.toContain('<see-skill');
   });
 });
