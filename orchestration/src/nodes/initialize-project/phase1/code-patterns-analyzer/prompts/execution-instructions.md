@@ -174,19 +174,20 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 
 See shared verification format documentation at: `../../../shared/prompts/verification-format.md`
 
-Use `needs_verification` for:
+Use `needs_verification` ONLY when ALL hold:
 
-- Test coverage policies not in config files
-- Testing strategies for specific scenarios
-- Performance test requirements
-- Load testing configurations managed externally
+1. The fact cannot be determined from code/configs/manifests after exhaustive searching.
+2. The answer is IN SCOPE — it changes a concrete generated artefact (wiki page / skill body / finding). Production state and externally-managed infrastructure are NOT in scope.
+3. The question is a business / intent decision the operator is uniquely positioned to answer (intentional-vs-accidental gap, deprecation policy, etc.).
 
-Do NOT use for:
+Do NOT use for any of these (the Stop hook hard-rejects them):
 
-- Testing frameworks (discoverable from dependencies)
-- Test file locations (graph + Glob fallback)
-- Linter/formatter presence (in dependencies and configs)
-- Pre-commit hook configurations (in repo files)
+- ❌ "Load testing configurations managed externally" / production-only state — out-of-scope.
+- ❌ Coverage threshold ENFORCEMENT (Read the jest/pytest config; if no `coverageThreshold` block exists, report that as a finding — do NOT ask the operator whether one is enforced).
+- ❌ Husky / git-hook contents (Read each `.husky/*` file; the contents ARE the answer).
+- ❌ Testing frameworks (discoverable from dependencies).
+- ❌ Test file locations (graph + Glob fallback).
+- ❌ Linter / formatter presence (in dependencies and configs).
 
 </verification_guidelines>
 

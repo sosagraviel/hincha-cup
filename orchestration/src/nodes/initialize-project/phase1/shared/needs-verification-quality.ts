@@ -37,6 +37,17 @@ const SPECULATIVE_TOKENS: Array<{ pattern: RegExp; reason: string }> = [
       /\b(?:credentials?|api\s+keys?|secrets?|tokens?|dsn|connection\s+strings?|passwords?)\b/i,
     reason: 'credentials are always external — repos intentionally do not contain them',
   },
+  // Plan 18 — env-var-style credential identifiers. The previous
+  // regex matched standalone words ("dsn", "password") but NOT
+  // identifiers like `SENTRY_DSN` / `KEYCLOAK_ADMIN_PASSWORD` /
+  // `STRIPE_API_KEY` because `_` is a word character (no \b between
+  // `_` and the suffix). Common credential env-var suffixes get
+  // their own pattern.
+  {
+    pattern: /\b[A-Z][A-Z0-9_]*_(?:DSN|SECRET|TOKEN|PASSWORD|KEY|CREDENTIAL|CREDENTIALS)\b/,
+    reason:
+      'environment-variable-style credential identifiers (`*_DSN`, `*_SECRET`, `*_TOKEN`, `*_PASSWORD`, `*_API_KEY`) are always external',
+  },
   // Things outside the repo — CI/CD elsewhere, vendor systems, etc.
   {
     pattern: /\boutside\s+(?:this\s+)?(?:repository|repo|codebase)\b/i,
@@ -90,6 +101,24 @@ const SPECULATIVE_TOKENS: Array<{ pattern: RegExp; reason: string }> = [
   {
     pattern: /\bdeployment\s+server\b/i,
     reason: 'deployment server details live outside the repo',
+  },
+  // Plan 18 — hyphenated / compound production terms the gira
+  // 2026-05-06 run exposed: "production-grade deployment", "Are X
+  // set correctly in production?", "persistent, production-grade
+  // … instance".
+  {
+    pattern: /\bproduction-grade\b/i,
+    reason:
+      'production-grade infrastructure (Redis cluster, DB tier, queue broker, etc.) lives outside the repo',
+  },
+  {
+    pattern: /\b(?:set|configured)\s+correctly\s+in\s+(?:the\s+)?production\b/i,
+    reason:
+      'production correctness cannot be verified from the repo — production values live outside it',
+  },
+  {
+    pattern: /\bin\s+(?:the\s+)?production\s+environment\b/i,
+    reason: 'production environment values live outside the repo',
   },
 ];
 
@@ -177,7 +206,15 @@ export interface NeedsVerificationViolation {
     // didn't finish the search ("file contents were not read").
     // The framework cannot substitute the operator for work the
     // agent could have done.
-    | 'confessed_incomplete_search';
+    | 'confessed_incomplete_search'
+    // Plan 18 — the question asks about something the framework
+    // cannot verify from the repo (credentials, production values,
+    // infrastructure managed elsewhere) — i.e. it matches the
+    // SPECULATIVE_TOKENS list. The wiki/CLAUDE.md is generated from
+    // CODE; production-only state is out-of-scope. Was previously
+    // a soft warning (`speculative_needs_verification` in
+    // graph-tool-usage soft warnings); now a hard rejection.
+    | 'speculative_out_of_scope';
   /** Index into the `needs_verification` array (or -1 when array-shape). */
   index: number;
   /** Human-readable agent-facing message. */
@@ -298,28 +335,6 @@ const YESNO_QUESTION_PATTERN =
   /^\s*(?:is|are|does|do|has|have|was|were|will|can|could|should|did)\b[^?]+\?\s*$/i;
 const IS_THERE_QUESTION_PATTERN = /^\s*is\s+there\b[^?]+\?\s*$/i;
 
-/**
- * Questions about PRODUCTION / runtime state (not source-code state)
- * are legitimate operator-only items even when their attempted_resolution
- * contains negative-evidence tokens. The negative tokens establish
- * source-code context (e.g. "no @IsOptional() decorator" — proving a
- * var is required at startup); the question asks whether production
- * VALUES / production INFRA are correctly configured, which the
- * framework cannot verify from the repo.
- *
- * When any of these tokens appear in the question, the rule does
- * not fire.
- */
-const PRODUCTION_RUNTIME_QUESTION_PATTERNS: RegExp[] = [
-  /\bin\s+(?:the\s+)?production\b/i,
-  /\bproduction\s+(?:environment|values|deployment|server|infra|infrastructure|setup|runtime|host|grade|cluster|instance|database|broker|queue)\b/i,
-  /\bproduction-grade\b/i,
-  /\bset\s+correctly\b/i,
-  /\bconfigured\s+correctly\b/i,
-  /\bruntime\s+(?:state|values|behaviour|behavior|configuration)\b/i,
-  /\b(?:persistent|ephemeral)\s+(?:deployment|container|instance)\b/i,
-];
-
 function questionIsYesNo(question: unknown): boolean {
   if (typeof question !== 'string') return false;
   const trimmed = question.trim();
@@ -327,13 +342,12 @@ function questionIsYesNo(question: unknown): boolean {
   return YESNO_QUESTION_PATTERN.test(trimmed) || IS_THERE_QUESTION_PATTERN.test(trimmed);
 }
 
-function questionIsAboutProductionRuntime(question: unknown): boolean {
-  if (typeof question !== 'string') return false;
-  for (const pattern of PRODUCTION_RUNTIME_QUESTION_PATTERNS) {
-    if (pattern.test(question)) return true;
-  }
-  return false;
-}
+// Plan 18: the previous Plan 17 production-runtime exemption
+// (`questionIsAboutProductionRuntime`) was removed. Production-only
+// questions are now rejected outright by `validateNoSpeculative`
+// below — the framework cannot verify production state from the
+// repo, so asking the operator about it produces no useful change
+// to the generated wiki / CLAUDE.md.
 
 function findNegativeEvidence(entries: string[]): { entry: string; match: string } | null {
   for (const entry of entries) {
@@ -350,10 +364,6 @@ function validateNoFoundNoEvidenceYesNo(
   index: number,
 ): NeedsVerificationViolation[] {
   if (!questionIsYesNo(item.question)) return [];
-  // Production / runtime questions are legitimate operator-only items
-  // — the negative-evidence tokens in attempted_resolution typically
-  // establish source-code context, not the production-state answer.
-  if (questionIsAboutProductionRuntime(item.question)) return [];
   const ar = readStringArray(item.attempted_resolution);
   if (ar.length === 0) return [];
   const hit = findNegativeEvidence(ar);
@@ -433,6 +443,50 @@ function readStringArray(v: unknown): string[] {
 }
 // `truncate` is defined further below and shared with other helpers.
 
+// ============================================================================
+// PLAN 18 — Promote speculative detector to a HARD rejection.
+//
+// `hasSpeculativeNeedsVerification` (Plan 14 §C 4.3) was emitted as a
+// soft warning only. The 2026-05-06 gira run showed three of four
+// analyzer prompts explicitly directing the agent to ask about
+// credentials / production endpoints / external system state — the
+// exact topics SPECULATIVE_TOKENS already classifies as out-of-scope.
+// The fix: any item that matches a speculative token is rejected
+// with retry feedback. The wiki/CLAUDE.md is generated from the
+// CODE; production state, vendor secrets, and infrastructure
+// managed elsewhere are framework-out-of-scope by design.
+// ============================================================================
+
+function validateNoSpeculative(
+  item: Record<string, unknown>,
+  index: number,
+): NeedsVerificationViolation[] {
+  const question = typeof item.question === 'string' ? item.question : '';
+  const itemReason = typeof item.reason === 'string' ? item.reason : '';
+  const text = [question, itemReason].filter((s) => s.length > 0).join(' ');
+  if (text.length === 0) return [];
+
+  for (const { pattern, reason } of SPECULATIVE_TOKENS) {
+    const m = pattern.exec(text);
+    if (!m) continue;
+    return [
+      {
+        code: 'speculative_out_of_scope',
+        index,
+        message:
+          `needs_verification[${index}] is out of scope for this framework. ` +
+          `The matched phrase "${m[0]}" indicates ${reason}. ` +
+          `The framework documents what the CODE says; it cannot verify ` +
+          `production state, secrets, or infrastructure managed outside ` +
+          `the repo, and the operator's answer would not change the ` +
+          `generated wiki / CLAUDE.md. Drop this item entirely (do NOT ` +
+          `rephrase to evade the rule — the topic itself is out of scope).`,
+      },
+    ];
+  }
+  return [];
+}
+
 /**
  * Inspect every `needs_verification` item and return hard-violation
  * messages. Empty array = pass.
@@ -459,6 +513,11 @@ export function validateNeedsVerificationProse(items: unknown): NeedsVerificatio
     // the search was never completed.
     violations.push(...validateNoFoundNoEvidenceYesNo(item as Record<string, unknown>, i));
     violations.push(...validateNoConfessedIncompleteSearch(item as Record<string, unknown>, i));
+    // Plan 18 — promote the speculative detector (credentials,
+    // production state, infrastructure managed elsewhere) from a
+    // soft warning to a hard rejection. The wiki/CLAUDE.md is
+    // generated from the code; production state is out-of-scope.
+    violations.push(...validateNoSpeculative(item as Record<string, unknown>, i));
   }
   return violations;
 }

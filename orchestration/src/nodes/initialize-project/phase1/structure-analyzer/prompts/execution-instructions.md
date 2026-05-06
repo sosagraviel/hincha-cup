@@ -298,9 +298,13 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 
 See shared verification format documentation at: `../../../shared/prompts/verification-format.md`
 
-Use `needs_verification` ONLY when information cannot be determined from code, configs, or manifests after exhaustive searching.
+Use `needs_verification` ONLY when ALL hold:
 
-Maximum 3 verification items. Prioritize business decisions and deployment architecture questions over technical details discoverable from code.
+1. The fact cannot be determined from code/configs/manifests after exhaustive searching.
+2. The answer is IN SCOPE — it changes a concrete generated artefact (wiki page / skill body / finding). Production state, secrets, and infrastructure managed outside the repo are NOT in scope.
+3. The question is a business / intent decision the operator is uniquely positioned to answer.
+
+Maximum 3 verification items. Do NOT ask about credentials / secrets / production endpoints / production-grade infrastructure / "managed outside this repository" / "by another team" — the Stop hook hard-rejects those (`speculative_out_of_scope`).
 
 </verification_guidelines>
 

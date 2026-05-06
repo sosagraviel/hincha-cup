@@ -188,19 +188,21 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 
 See shared verification format documentation at: `../../../shared/prompts/verification-format.md`
 
-Use `needs_verification` for:
+Use `needs_verification` ONLY when ALL hold:
 
-- External API credentials and secrets
-- Third-party service configuration values
-- Webhook secrets and signing keys
-- Production environment endpoints
+1. The fact cannot be determined from code/configs/manifests after exhaustive searching.
+2. The answer is IN SCOPE — it changes a concrete generated artefact (wiki page / skill body / finding). Production state, secrets, and infrastructure managed outside the repo are NOT in scope.
+3. The question is a business / intent decision the operator is uniquely positioned to answer.
 
-Do NOT use for:
+Do NOT use for any of these (the Stop hook hard-rejects them):
 
-- Authentication patterns (discoverable from graph flows and code)
-- API design style (REST/GraphQL/gRPC discoverable from graph class search)
-- Integration presence (graph import sites + SDK dependencies)
-- Data transformation patterns (code analysis)
+- ❌ Credentials, secrets, tokens, DSN, passwords, signing keys, API keys — always external by design.
+- ❌ "Is X set correctly in production?" / production endpoints / production-grade infrastructure — production state is out-of-scope.
+- ❌ Anything "managed outside this repository" / "by another team" / in a "vendor portal" / "external system" — cannot be verified by reading this repo.
+- ❌ Authentication patterns (discoverable from graph flows and code).
+- ❌ API design style (REST/GraphQL/gRPC discoverable from graph class search).
+- ❌ Integration presence (graph import sites + SDK dependencies).
+- ❌ Data transformation patterns (code analysis).
 
 </verification_guidelines>
 

@@ -112,7 +112,7 @@ describe('analyzer Glob/Read budget — Fix 2.3 anti-regression', () => {
   });
 
   describe('aggregate', () => {
-    it('total size meets the §C 2.3 acceptance criterion (≥24% drop from 73938)', () => {
+    it('total size meets the §C 2.3 acceptance criterion (≥21% drop from 73938)', () => {
       // Same baseline as prompt-builder-dedupe.test.ts. Two assertions
       // rather than one test because this file is the canonical home
       // for the §C 2.3 contract; the dedupe test is the broader
@@ -122,16 +122,25 @@ describe('analyzer Glob/Read budget — Fix 2.3 anti-regression', () => {
       // execution-instructions gained ~150 chars of guidance to emit
       // CONCRETE technology names (`docker`, `docker-compose`) instead
       // of category abstractions (`containerization`, `orchestration`).
-      // The pre-Plan-16 prompt produced regressions in
-      // framework-config.json that downstream consumers can't recover
-      // from. Cost is ~0.2% on the §C 2.3 reduction floor (25% → 24%).
+      //
+      // Plan 17 + Plan 18 (2026-05-06): all four analyzers' NV
+      // verification-guidelines sections were rewritten to (a) tell
+      // the agent NOT to ask about credentials / production endpoints /
+      // externally-managed infrastructure (Plan 18 hard-rejects those),
+      // and (b) provide explicit example anti-patterns the Stop hook
+      // catches (Plan 17 self-contradicting questions). This
+      // correctness content costs ~1600 chars; the reduction floor
+      // moves 24% → 21%. Floor is bumped because the pre-Plan-17/18
+      // prompts produced operator-noise questions every run; the
+      // savings from §C 2.3's earlier dedupe pass are smaller than
+      // the correctness gain from these additions.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
       const baseline = 73938;
       const reduction = (baseline - total) / baseline;
-      expect(reduction).toBeGreaterThanOrEqual(0.24);
+      expect(reduction).toBeGreaterThanOrEqual(0.21);
     });
   });
 });

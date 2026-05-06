@@ -646,7 +646,14 @@ async function main() {
             '    ("file contents were not read", "did not inspect"). Finish\n' +
             '    the search (Read / Grep / Glob the file you skipped) before\n' +
             '    emitting the question. The framework cannot ask the operator\n' +
-            '    to substitute for an unfinished investigation.\n\n' +
+            '    to substitute for an unfinished investigation.\n' +
+            '  - speculative_out_of_scope (Plan 18): the question is about\n' +
+            '    credentials / secrets / production endpoints / production\n' +
+            '    deployment / infrastructure managed outside the repo. The\n' +
+            '    wiki/CLAUDE.md documents what the CODE says; production\n' +
+            '    state is out-of-scope by design. DROP these items entirely\n' +
+            "    — do not rephrase to evade the rule. The operator's answer\n" +
+            '    would not change any generated artefact.\n\n' +
             'Re-emit with the offending items either resolved (you found the\n' +
             'answer) or removed (the item should not have been there).',
         );

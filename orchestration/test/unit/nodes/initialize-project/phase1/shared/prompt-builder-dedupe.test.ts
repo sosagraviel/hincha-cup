@@ -95,11 +95,17 @@ describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan
       //     gained ~150 chars of guidance to emit CONCRETE technology
       //     names (`docker`, `docker-compose`) instead of category
       //     abstractions. Budget bumped 56000 → 56500 to accommodate.
+      //   - 2026-05-06 (Plan 17 + Plan 18): all four analyzers' NV
+      //     verification-guidelines sections rewritten to forbid the
+      //     credentials / production-endpoint / externally-managed
+      //     items the Stop hook hard-rejects. This correctness
+      //     content costs ~1600 chars across the four analyzers.
+      //     Budget bumped 56500 → 58500.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
-      expect(total).toBeLessThan(56500);
+      expect(total).toBeLessThan(58500);
     });
   });
 });

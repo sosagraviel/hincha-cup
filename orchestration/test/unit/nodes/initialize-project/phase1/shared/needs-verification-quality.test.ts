@@ -705,13 +705,200 @@ describe('Plan 17 acceptance — all 4 self-contradicting gira questions are blo
     expect(blockedIndexes.has(1)).toBe(true);
     expect(blockedIndexes.has(2)).toBe(true);
     expect(blockedIndexes.has(3)).toBe(true);
-    // Q5, Q6 (indexes 4, 5) MUST NOT be flagged by the new rules.
+    // Q5, Q6 (indexes 4, 5) MUST NOT be flagged by the Plan 17 rules.
+    // (Plan 18 promotes those to `speculative_out_of_scope` instead.)
     const q5q6New = violations.filter(
       (v) =>
         (v.index === 4 || v.index === 5) &&
         (v.code === 'found_no_evidence_yesno' || v.code === 'confessed_incomplete_search'),
     );
     expect(q5q6New).toHaveLength(0);
+  });
+});
+
+describe('validateNeedsVerificationProse — Plan 18 speculative_out_of_scope', () => {
+  // Plan 14's `hasSpeculativeNeedsVerification` was a soft warning;
+  // Plan 18 promotes it to a hard rejection. The wiki/CLAUDE.md is
+  // generated from CODE — production state, secrets, and externally-
+  // managed infrastructure are out-of-scope by design.
+
+  it('blocks credentials / secrets / passwords questions', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'What are the production Sentry DSN, org, and credentials?',
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'speculative_out_of_scope')).toBe(true);
+  });
+
+  it('blocks env-var-style credential identifiers (SENTRY_DSN, *_SECRET, *_PASSWORD)', () => {
+    // The 2026-05-06 gira data-flows run produced "What is the production
+    // SENTRY_DSN value...?". The plain-word `\bdsn\b` regex does not
+    // match inside `SENTRY_DSN` because `_` is a word character; an
+    // env-var-suffix pattern catches it.
+    expect(
+      validateNeedsVerificationProse([
+        { ...GOOD_ITEM, question: 'What is the production SENTRY_DSN value for error monitoring?' },
+      ]).some((v) => v.code === 'speculative_out_of_scope'),
+    ).toBe(true);
+    expect(
+      validateNeedsVerificationProse([
+        { ...GOOD_ITEM, question: 'What is the value of STRIPE_API_KEY?' },
+      ]).some((v) => v.code === 'speculative_out_of_scope'),
+    ).toBe(true);
+    expect(
+      validateNeedsVerificationProse([
+        { ...GOOD_ITEM, question: 'Is the GITHUB_TOKEN configured?' },
+      ]).some((v) => v.code === 'speculative_out_of_scope'),
+    ).toBe(true);
+  });
+
+  it('blocks "set correctly in production" questions (gira Q5)', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question:
+          'Are KEYCLOAK_INTERNAL_URL, KEYCLOAK_EXTERNAL_URL, KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID, KEYCLOAK_ADMIN_USERNAME, and KEYCLOAK_ADMIN_PASSWORD set correctly in the production environment?',
+        attempted_resolution: [
+          'Read services/backend/src/modules/config/keycloak.config.ts — confirms all six vars are required',
+          'Grep "KEYCLOAK" services/backend/src — 7 source files reference these vars',
+        ],
+      },
+    ]);
+    // Hits multiple SPECULATIVE_TOKENS patterns: PASSWORD ∈ credentials,
+    // "production environment" ∈ production-deployment.
+    expect(violations.some((v) => v.code === 'speculative_out_of_scope')).toBe(true);
+  });
+
+  it('blocks "production-grade deployment" questions (gira Q6)', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question:
+          'Is the Redis instance pointed to by REDIS_HOST and REDIS_PORT a persistent, production-grade deployment rather than a local or ephemeral container?',
+        attempted_resolution: [
+          'Read services/backend/src/modules/queue/queues.config.ts — REDIS_HOST defaults to localhost',
+          'Read services/backend/src/modules/auth/middleware/auth.middleware.ts — no try/catch around Redis call',
+        ],
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'speculative_out_of_scope')).toBe(true);
+  });
+
+  it('blocks "managed outside this repository" questions', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'Is the auth service managed in a separate infrastructure repository?',
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'speculative_out_of_scope')).toBe(true);
+  });
+
+  it('blocks "vendor portal" / "external system" questions', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'Is the Keycloak realm configured in the vendor portal?',
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'speculative_out_of_scope')).toBe(true);
+  });
+
+  it('does NOT fire on legitimate intent / business-decision questions', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question:
+          'Should the legacy /api/v1 endpoints be included in the public API documentation?',
+        attempted_resolution: [
+          'Grep "/api/v1" services/backend/src — 12 routes still defined',
+          'Read services/backend/src/main.ts — both /api/v1 and /api/v2 are registered',
+        ],
+      },
+    ]);
+    expect(violations.filter((v) => v.code === 'speculative_out_of_scope')).toHaveLength(0);
+  });
+
+  it('does NOT fire on the canonical GOOD_ITEM (Redis topology — code-determinable)', () => {
+    const violations = validateNeedsVerificationProse([GOOD_ITEM]);
+    expect(violations.filter((v) => v.code === 'speculative_out_of_scope')).toHaveLength(0);
+  });
+});
+
+describe('Plan 18 acceptance — all 6 gira questions are blocked (Plan 17 + Plan 18 combined)', () => {
+  it('blocks every wrong question; legitimate intent questions still pass', () => {
+    // The same gira-shape set from the Plan 17 acceptance test, but
+    // now we expect ALL six to be blocked because Plan 18 catches Q5
+    // and Q6 via `speculative_out_of_scope`. The remaining clean
+    // questions (the absence-intentional one + the runtime-platform
+    // one from earlier analyzer outputs) are NOT in this fixture
+    // and would pass — those are the only items reaching the operator.
+    const giraSet = [
+      // Q1 — found-no-evidence
+      {
+        ...GOOD_ITEM,
+        question: 'Is an AWS S3 client library installed for the attachment storage feature?',
+        attempted_resolution: [
+          'Grep "aws-sdk" services/backend/package.json — zero matches',
+          'Grep "aws-sdk" services/web-frontend/package.json — zero matches',
+        ],
+      },
+      // Q2 — found-no-evidence
+      {
+        ...GOOD_ITEM,
+        question: 'Is there a CI/CD pipeline configured for this project?',
+        attempted_resolution: [
+          'Glob "{.github/workflows/*.yml,.gitlab-ci.yml,.circleci/config.yml}" — returned zero matches',
+          'Grep "deploy" package.json — only keycloak:export-realm script found',
+        ],
+      },
+      // Q3 — confessed-incomplete-search
+      {
+        ...GOOD_ITEM,
+        question:
+          'What commands do the husky git hooks (commit-msg, pre-push, pre-commit) actually execute?',
+        attempted_resolution: [
+          'Glob .husky/* — found commit-msg, pre-push, pre-commit but file contents were not read',
+          'Read services/backend/package.json — scripts define lint:check, type:check, test:unit',
+        ],
+      },
+      // Q4 — found-no-evidence
+      {
+        ...GOOD_ITEM,
+        question: 'Is a minimum Jest code-coverage threshold enforced for the backend service?',
+        attempted_resolution: [
+          'Read services/backend/jest.config.mjs — no coverageThreshold key found',
+          'Grep "coverageThreshold" services/backend/ — zero matches',
+        ],
+      },
+      // Q5 — speculative_out_of_scope (Plan 18)
+      {
+        ...GOOD_ITEM,
+        question:
+          'Are KEYCLOAK_INTERNAL_URL, KEYCLOAK_EXTERNAL_URL, KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID, KEYCLOAK_ADMIN_USERNAME, and KEYCLOAK_ADMIN_PASSWORD set correctly in the production environment?',
+      },
+      // Q6 — speculative_out_of_scope (Plan 18)
+      {
+        ...GOOD_ITEM,
+        question:
+          'Is the Redis instance pointed to by REDIS_HOST and REDIS_PORT a persistent, production-grade deployment rather than a local or ephemeral container?',
+      },
+    ];
+    const violations = validateNeedsVerificationProse(giraSet);
+    const allRejectionCodes = new Set([
+      'found_no_evidence_yesno',
+      'confessed_incomplete_search',
+      'speculative_out_of_scope',
+    ]);
+    const blockedIndexes = new Set(
+      violations.filter((v) => allRejectionCodes.has(v.code)).map((v) => v.index),
+    );
+    // ALL six should be blocked.
+    for (let i = 0; i < 6; i++) {
+      expect(blockedIndexes.has(i)).toBe(true);
+    }
   });
 });
 

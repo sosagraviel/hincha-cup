@@ -241,10 +241,31 @@ Bad: Graph internals leak into question + reason; agent never tried `Grep "@Cont
 
 </examples>
 
-## Final self-check before emitting (Plan 17 §C — load-bearing)
+## Final self-check before emitting (Plan 17 §C + Plan 18 — load-bearing)
 
-Two anti-patterns the Stop hook will reject. Walk every
+Three anti-patterns the Stop hook will reject. Walk every
 `needs_verification` item through this checklist:
+
+### 0. Out-of-scope topic (`speculative_out_of_scope`)
+
+The wiki/CLAUDE.md is generated from CODE. Production state and
+externally-managed infrastructure are out-of-scope by design — the
+operator's answer would not change any generated artefact, so
+asking is pure noise. **Do NOT emit** items about:
+
+- Credentials, secrets, tokens, DSN, passwords, signing keys,
+  API keys (always external; the repo intentionally does not
+  contain them).
+- Production endpoints / values / "set correctly in production"
+  / production-grade infrastructure / "production server".
+- "Managed outside this repository" / "by another team" / vendor
+  portal / external system.
+- Build-environment reachability ("reachable from CI runners").
+
+If your discovery surfaces one of these, record what the CODE
+says (e.g. "the validator marks KEYCLOAK_REALM as a required
+string at startup") as a finding — do not chain it to a question
+about production values.
 
 ### 1. Self-contradicting question (`found_no_evidence_yesno`)
 

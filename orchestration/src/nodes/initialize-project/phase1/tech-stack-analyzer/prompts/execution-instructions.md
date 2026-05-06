@@ -301,19 +301,21 @@ See shared output format documentation at: `../../../shared/prompts/output-forma
 
 See shared verification format documentation at: `../../../shared/prompts/verification-format.md`
 
-Use `needs_verification` for:
+Use `needs_verification` ONLY when ALL hold:
 
-- Production credentials and URLs (not in codebase for security)
-- External service endpoints not configured in code
-- Infrastructure details managed outside repository
-- Deployment-specific configuration values
+1. The fact cannot be determined from code/configs/manifests after exhaustive searching.
+2. The answer is IN SCOPE — it changes a concrete generated artefact (wiki page / skill body / finding). Production state, secrets, and infrastructure managed outside the repo are NOT in scope.
+3. The question is a business / intent decision the operator is uniquely positioned to answer.
 
-Do NOT use for:
+Do NOT use for any of these (the Stop hook hard-rejects them):
 
-- Dependency versions (readable from manifests)
-- Database types (inferable from client libraries and graph import sites)
-- CI/CD presence (detectable from config files)
-- Infrastructure tools (detectable from Dockerfiles, k8s configs)
+- ❌ Credentials, secrets, tokens, DSN, passwords, signing keys, API keys — always external by design.
+- ❌ Production credentials / URLs / endpoints / "production-grade" infrastructure — production state is out-of-scope.
+- ❌ "External service endpoints not configured in code" / "infrastructure managed outside repository" / "deployment-specific configuration values" — cannot be verified by reading this repo.
+- ❌ Dependency versions (readable from manifests).
+- ❌ Database types (inferable from client libraries and graph import sites).
+- ❌ CI/CD presence (detectable from config files; if no config files exist, report `provider: none` as a finding — do NOT ask whether a pipeline exists "outside" the repo).
+- ❌ Infrastructure tools (detectable from Dockerfiles, k8s configs, etc.).
 
 </verification_guidelines>
 
