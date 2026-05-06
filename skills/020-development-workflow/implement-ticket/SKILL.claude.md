@@ -1,8 +1,8 @@
 ---
 name: implement-ticket
-version: 3.5.0
-last-updated: 2026-04-29
-description: Implements a ticket end-to-end through 13-phase workflow from planning to PR. Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
+version: 3.6.0
+last-updated: 2026-05-05
+description: Implements a ticket end-to-end through 13-phase workflow from planning to PR. Supports both single-repo projects and multi-repo workspaces (a parent folder containing N independent child git repos). Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 disable-model-invocation: true
 ---
@@ -32,7 +32,7 @@ Both the graph path AND the LLM wiki must be active.
 - Project root `.mcp.json` MUST define `mcpServers.code_graph` so native Claude Code `/implement-ticket` sessions can load graph tools.
 - Generated `.claude/agents/planner.md` and `.claude/agents/implementer-*.md` MUST expose exact `mcp__code_graph__*_tool` entries, not only the broad `mcp__code_graph` server alias.
 - The actual active Claude Code session MUST expose `mcp__code_graph__*` tools. Agent frontmatter is only a subagent allowlist; it does not register the MCP server.
-- The LLM wiki at `docs/llm-wiki/` MUST exist. Specifically `docs/llm-wiki/CLAUDE.md` MUST be present (enforces that initialization ran for this provider). The five core wiki documents MUST be present under `docs/llm-wiki/wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`. Each MUST contain YAML frontmatter with at least `document_type` and `graph_version` keys. Phase 8.5 (Wiki Refresh) automatically updates this wiki at the end of every ticket — if the preflight warns about staleness, the refresh will fix it.
+- The LLM wiki at `docs/llm-wiki/` MUST exist. Specifically `docs/llm-wiki/CLAUDE.md` MUST be present (enforces that initialization ran for this provider). The five core wiki documents MUST be present under `docs/llm-wiki/wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`. Each MUST contain YAML frontmatter with at least `document_type` and `graph_version` keys. Phase 8.5 (Wiki Refresh) automatically updates this wiki at the end of every ticket — if the preflight warns about staleness, the refresh will fix it.
 
 If the graph DB, MCP config, graph-aware agents, active graph tools, or the LLM wiki are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync so `.code-review-graph/graph.db`, project `.mcp.json`, graph-aware `.claude/agents/*`, and `docs/llm-wiki/*` are regenerated. Then restart Claude Code in the project, approve the project MCP server if prompted, and verify `code_graph` with `/mcp` before using `/implement-ticket`.
 
@@ -62,6 +62,10 @@ This ensures:
 - Consistent paths across all workflows
 - No artifact pollution in version control
 
+## Multi-Repository Awareness
+
+The workspace may be a single git repo OR a parent folder containing multiple independent child git repos (each with its own GitHub remote). When operating on the working tree (status, branch, commit, push, tests), target each affected repo individually with `git -C <repo>` rather than assuming a single workspace root. The LLM wiki and code graph remain workspace-scoped (one shared `docs/llm-wiki/` and `.code-review-graph/` at the workspace root). Phase 9 delegates per-repo commit + push + PR creation + cross-link fanout to the focused `/repo-fanout-pr` sub-skill — see that skill for inputs and outputs; the orchestrator does not duplicate its logic.
+
 ## CRITICAL: Task Tracking Setup
 
 BEFORE starting any phase work, you MUST create the full task list using TaskCreate. This gives the user real-time progress visibility via Ctrl+T. Do NOT skip this step. Create all 13 tasks first, then set up dependencies, then begin Phase 0.
@@ -71,7 +75,7 @@ Create each task using TaskCreate with these exact values:
 1. Phase 0: Preflight (Auto-bootstrap + Validation)
    subject: "Phase 0: Preflight (Auto-bootstrap + Validation)"
    activeForm: "Running deterministic preflight (auto-bootstrap + validation)"
-   Steps: (a) Run `bash $FRAMEWORK_PATH/scripts/ensure-context.sh --artifacts-dir "$ARTIFACTS_DIR"` — this auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or updates the graph, refreshes the wiki if stale, re-emits `.mcp.json`, and writes a success marker `$ARTIFACTS_DIR/.preflight-ok`. <3 s on the hot path. (b) If the script exits non-zero, STOP and surface its output verbatim — failure marker `$ARTIFACTS_DIR/.preflight-failed` carries `{reason, git_head, ran_at}`. (c) Defensive double-check: check git status, verify test commands work, verify build succeeds, detect primary language and stack, assert `.code-review-graph/graph.db`, assert `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools, assert `docs/llm-wiki/CLAUDE.md`, assert `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES,DATA-FLOWS,PATTERNS}.md` exist, assert at least one `docs/llm-wiki/wiki/services/*.md` exists, check `graph_version` + `graph_commit` freshness in each wiki file and WARN (not fail) if stale.
+   Steps: (a) Run `bash $FRAMEWORK_PATH/scripts/ensure-context.sh --artifacts-dir "$ARTIFACTS_DIR"` — this auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or updates the graph, refreshes the wiki if stale, re-emits `.mcp.json`, and writes a success marker `$ARTIFACTS_DIR/.preflight-ok`. <3 s on the hot path. (b) If the script exits non-zero, STOP and surface its output verbatim — failure marker `$ARTIFACTS_DIR/.preflight-failed` carries `{reason, git_head, ran_at}`. (c) Defensive double-check: check git status (in a multi-repo workspace, run the status check in each child git repo, not at the workspace root), verify test commands work, verify build succeeds, detect primary language and stack, assert `.code-review-graph/graph.db`, assert `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools, assert `docs/llm-wiki/CLAUDE.md`, assert `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES,DATA-FLOWS,PATTERNS}.md` exist, assert at least one `docs/llm-wiki/wiki/services/*.md` exists, check `graph_version` + `graph_commit` freshness in each wiki file and WARN (not fail) if stale.
    Expected outputs: `$ARTIFACTS_DIR/.preflight-ok` exists and carries the current `git_head`, git is clean, tests pass, build succeeds, graph DB exists, project MCP config exists, graph tools are visible in the active Claude Code session, graph-aware agents are present, LLM wiki is present and well-formed; staleness warnings surfaced if applicable
    Constraint: If `ensure-context.sh` exits non-zero, STOP and surface its output. If any defensive assertion fails despite a fresh marker, delete the marker and rerun `ensure-context.sh` once; if it still fails, STOP. Staleness warnings do not block Phase 1 — Phase 8.5 resolves them automatically.
 
@@ -92,15 +96,15 @@ Create each task using TaskCreate with these exact values:
 4. Phase 3: Planning
    subject: "Phase 3: Planning"
    activeForm: "Creating implementation plan"
-   Steps: MUST spawn planner agent, planner consumes the ticket context from Phase 1 and the Phase 2 wiki context (`WIKI_INDEX_SNAPSHOT`, `WIKI_CORE`, and the optional `get_minimal_context_tool` payload when present), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact, planner emits a `Recommended Implementer` section naming exactly one of `implementer-typescript` | `implementer-python` | `implementer-generic` with rationale
+   Steps: MUST spawn planner agent, planner consumes the ticket context from Phase 1 and the Phase 2 wiki context (`WIKI_INDEX_SNAPSHOT`, `WIKI_CORE`, and the optional `get_minimal_context_tool` payload when present), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact, planner emits a `Recommended Implementer` section naming exactly one of `implementer-typescript` | `implementer-python` | `implementer-generic` with rationale. If the workspace contains multiple git repos and the change touches more than one, the plan SHOULD identify which repo each file belongs to so Phase 9 can fan out cleanly.
    Expected outputs: planner agent was spawned with the Phase 2 wiki context injected, parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 3 planning artifact, Wiki Evidence exists and cites the wiki paths actually used, Graph Evidence exists, test strategy defined, files to create/modify identified, `Recommended Implementer` present in the plan naming one of `implementer-typescript` | `implementer-python` | `implementer-generic`
    Constraint: Do not proceed if planner agent was not spawned, Wiki Evidence or Graph Evidence is absent, the planner-authored `Implementation Plan` does not exist, Phase 3 produced competing planning artifacts, or `Recommended Implementer` is missing.
 
 5. Phase 4: Environment Setup
    subject: "Phase 4: Environment Setup"
    activeForm: "Setting up environment"
-   Steps: Create feature branch, allocate ports (if needed), create docker-compose override (if needed), set up environment variables, capture BEFORE screenshots (if frontend)
-   Expected outputs: feature branch created and checked out
+   Steps: Create feature branch (in a multi-repo workspace, create the same branch in each affected child repo via `git -C <repo> checkout -b <branch>`), allocate ports (if needed), create docker-compose override (if needed), set up environment variables, capture BEFORE screenshots (if frontend)
+   Expected outputs: feature branch created and checked out in every affected repo
    Constraint: None.
 
 6. Phase 5: Implementation
@@ -113,7 +117,7 @@ Create each task using TaskCreate with these exact values:
 7. Phase 6: Testing
    subject: "Phase 6: Testing"
    activeForm: "Running tests"
-   Steps: If `--skip-tests` flag is set mark completed as "Skipped via flag" and proceed, otherwise auto-detect testing framework, run unit tests with coverage, run integration tests, run E2E tests (if applicable), collect coverage reports, if tests fail spawn implementer to fix (max 3 iterations)
+   Steps: If `--skip-tests` flag is set mark completed as "Skipped via flag" and proceed, otherwise auto-detect testing framework, run unit tests with coverage, run integration tests, run E2E tests (if applicable), collect coverage reports, if tests fail spawn implementer to fix (max 3 iterations). In a multi-repo workspace, run the test stack in each affected child repo and namespace coverage under `$ARTIFACTS_DIR/coverage/<repo-basename>/`; the 3-iteration retry budget is global across all repos.
    Expected outputs: all tests pass and coverage reports collected, OR phase correctly skipped via `--skip-tests`
    Constraint: If tests fail after 3 fix iterations, STOP and report failure. Do not proceed.
 
@@ -134,21 +138,21 @@ Create each task using TaskCreate with these exact values:
 10. Phase 8.5: Wiki Refresh
     subject: "Phase 8.5: Wiki Refresh"
     activeForm: "Refreshing LLM wiki"
-    Steps: Extract the Wiki Delta Hints JSONL from the implementer's completion summary saved at `$ARTIFACTS_DIR/implementation/<ticket-id>-completion.md` (or wherever the implementer's completion summary was saved). If the implementer's completion summary is not available on disk, fall back to git-diff-only refresh. If hints exist, write them to `$ARTIFACTS_DIR/wiki/hints.jsonl`. Compute branch-base via `git merge-base HEAD origin/development` (fall back to `git merge-base HEAD origin/main`). Invoke `/wiki-refresh --since <branch-base>` and append `--hints $ARTIFACTS_DIR/wiki/hints.jsonl` if the hints file exists. Surface the lint report. If structural failures STOP. Otherwise commit `docs/llm-wiki/**` changes with Conventional Commit message `docs(wiki): refresh for <TICKET-ID>`.
-    Expected outputs: wiki-refresh invocation completed, lint report collected, docs/llm-wiki/** changes either committed or confirmed empty.
-    Constraint: Do not proceed if structural lint failures are unresolved. A wiki commit is optional only when no pages changed.
+    Steps: Extract the Wiki Delta Hints JSONL from the implementer's completion summary saved at `$ARTIFACTS_DIR/implementation/<ticket-id>-completion.md` (or wherever the implementer's completion summary was saved). If the implementer's completion summary is not available on disk, fall back to git-diff-only refresh. If hints exist, write them to `$ARTIFACTS_DIR/wiki/hints.jsonl`. Compute branch-base via `git merge-base HEAD origin/development` (fall back to `git merge-base HEAD origin/main`); in a multi-repo workspace, run that against any one of the affected child repos. Invoke `/wiki-refresh --since <branch-base>` and append `--hints $ARTIFACTS_DIR/wiki/hints.jsonl` if the hints file exists. Surface the lint report. If structural failures STOP. Otherwise commit `docs/llm-wiki/**` changes with Conventional Commit message `docs(wiki): refresh for <TICKET-ID>`. If the wiki path is NOT inside a git repo (multi-repo workspace where the parent isn't tracked), skip the commit, write a diff manifest to `$ARTIFACTS_DIR/wiki/wiki-diff.md` and a warning string at `$ARTIFACTS_DIR/wiki/wiki-warning.txt` for Phase 9 to embed in PR bodies.
+    Expected outputs: wiki-refresh invocation completed, lint report collected, docs/llm-wiki/** changes either committed, confirmed empty, or (when the workspace is not git-tracked) recorded as a diff manifest plus warning for Phase 9.
+    Constraint: Do not proceed if structural lint failures are unresolved.
 
 11. Phase 9: PR Creation
     subject: "Phase 9: PR Creation"
     activeForm: "Creating pull request"
-    Steps: If `--skip-pr` flag is set commit all changes locally and mark completed as "Skipped via flag" (no push, no PR), otherwise commit all changes, push feature branch, create pull request with title/summary/test plan/ticket link, return PR URL
-    Expected outputs: commit exists and branch pushed and PR created with URL, OR commit exists locally and PR was skipped via `--skip-pr`
-    Constraint: Do not proceed if PR was not created, unless `--skip-pr` was set in which case a local commit is sufficient.
+    Steps: If `--skip-pr` flag is set commit all changes locally and mark completed as "Skipped via flag" (no push, no PR), otherwise commit all changes, push feature branch, create pull request with title/summary/test plan/ticket link, return PR URL. If the change touches more than one git repo in a multi-repo workspace, delegate the per-repo commit + push + PR + cross-link fanout to the `/repo-fanout-pr` skill instead — see that skill for its inputs and the result it returns. If Phase 8.5 wrote a wiki warning, embed it in every PR body.
+    Expected outputs: commit exists and branch pushed and PR created with URL, OR commit exists locally and PR was skipped via `--skip-pr`. Multi-repo: every affected repo has its own PR (or local commit under `--skip-pr`), and the PR bodies are cross-linked.
+    Constraint: Do not proceed if any expected PR was not created, unless `--skip-pr` was set in which case local commits in every affected repo are sufficient.
 
 12. Phase 10: Review Loop
     subject: "Phase 10: Review Loop"
     activeForm: "Running review loop"
-    Steps: Run PR review via /pr-reviewer skill, run security review via /security-review skill, if blocking issues spawn implementer for fixes and re-run tests, max 3 iterations
+    Steps: Run PR review via /pr-reviewer skill, run security review via /security-review skill, if blocking issues spawn implementer for fixes and re-run tests, max 3 iterations. Run reviews once per PR URL produced by Phase 9 (multi-repo workspaces have more than one); the 3-iteration retry budget is global across all PRs.
     Expected outputs: PR review ran, security review ran, either no blocking issues or fixes applied
     Constraint: If max iterations reached with unresolved issues, report and proceed to cleanup.
 
@@ -212,16 +216,16 @@ What the script does (handled automatically; you do not need to do any of this m
 
 **Part B — defensive double-check.** With the preflight marker present, the following assertions are belt-and-suspenders. They cannot fail because Part A just made them true; if any do, the marker file is corrupt and Part A must be rerun.
 
-- Check git status (no uncommitted changes)
-- Verify tests pass in current state
-- Validate build succeeds
+- Check git status (no uncommitted changes). In a multi-repo workspace run the status check in each child git repo rather than at the workspace root.
+- Verify tests pass in current state.
+- Validate build succeeds.
 - Detect primary language and stack
 - Assert `.code-review-graph/graph.db` exists at the project root
 - Assert project root `.mcp.json` has `mcpServers.code_graph`
 - Verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible in this Claude Code session
 - Verify generated planner and implementer agents expose exact `mcp__code_graph__*_tool` entries in their frontmatter, not only the broad `mcp__code_graph` server alias
 - Assert `docs/llm-wiki/CLAUDE.md` exists (confirms initialization ran for the Claude Code provider)
-- Assert `docs/llm-wiki/wiki/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`
+- Assert `docs/llm-wiki/wiki/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`
 - Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-review-graph/graph.db)`; if any page's `graph_version` does not match, WARN the user (Phase 8.5 will refresh it). Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN. Do not block the workflow on stale wiki — Phase 8.5 refreshes it.
 
 CRITICAL: If any Part B assertion fails despite a present `.preflight-ok` marker, treat the marker as stale: delete it and rerun Part A. If the assertion still fails after a fresh Part A, STOP and report the inconsistency. Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures — Phase 8.5 will resolve them automatically.
@@ -301,18 +305,22 @@ Persist the planner's returned markdown verbatim to
 `$ARTIFACTS_DIR/plans/implementation-plan.md`.
 
 Verify: plan file exists, contains `Wiki Evidence` and `Graph Evidence`,
-test strategy and target files are named, and contains a
+test strategy and target files are named, contains a
 `Recommended Implementer` section naming exactly one of
-`implementer-typescript` | `implementer-python` | `implementer-generic`.
+`implementer-typescript` | `implementer-python` | `implementer-generic`,
+and (in `multi` mode) contains an `Affected Repositories` section
+listing each touched repo path with the files within it. In `single`
+mode the section may be absent — the parent/main agent infers it as
+the single workspace repo.
 
 CONTINUE WITH Phase 4.
 
 ### Phase 4: Environment Setup
 
-- Create feature branch (e.g., `feature/PROJ-123-description`)
+- Create feature branch (e.g., `feature/PROJ-123-description`). In a multi-repo workspace, create the same branch in each affected child repo (`git -C <repo> checkout -b <branch>`).
 - Allocate ports for services (if needed)
 - Create docker-compose override (if needed)
-- Capture BEFORE screenshots (if frontend)
+- Capture BEFORE screenshots (if frontend) into `$ARTIFACTS_DIR/screenshots/before/`
 
 CONTINUE WITH Phase 5.
 
@@ -368,7 +376,9 @@ Otherwise:
 - Run E2E tests (if applicable)
 - Collect coverage reports
 
-If tests fail: spawn implementer to fix issues. Max 3 fix iterations.
+In a multi-repo workspace, run the test stack in each affected child repo and namespace coverage under `$ARTIFACTS_DIR/coverage/<repo-basename>/`.
+
+If tests fail: spawn implementer to fix issues. Max 3 fix iterations (global across all repos in multi-repo workspaces).
 
 CRITICAL: If tests still fail after 3 iterations, STOP. Report failure. Do not continue.
 
@@ -401,14 +411,16 @@ CRITICAL: invoke `/wiki-refresh --since <branch-base>` (plus `--hints` if availa
 
 - Extract the Wiki Delta Hints JSONL from the implementer's completion summary. The summary is expected at `$ARTIFACTS_DIR/implementation/<ticket-id>-completion.md`. If the file does not exist or the `## Wiki Delta Hints` section is absent, fall back to diff-only refresh.
 - If hints exist, write them to `$ARTIFACTS_DIR/wiki/hints.jsonl` (create the `wiki/` subdirectory under `$ARTIFACTS_DIR` if needed).
-- Compute `<branch-base>` via `git merge-base HEAD origin/development` (fall back to `git merge-base HEAD origin/main` if `development` does not exist).
+- Compute `<branch-base>` via `git merge-base HEAD origin/development` (fall back to `git merge-base HEAD origin/main` if `development` does not exist). In a multi-repo workspace, run that against any one of the affected child repos — the wiki only needs one consistent baseline.
 - Invoke the `/wiki-refresh` skill:
   - With hints: `/wiki-refresh --since <branch-base> --hints $ARTIFACTS_DIR/wiki/hints.jsonl`
   - Without hints: `/wiki-refresh --since <branch-base>`
 - If `/wiki-refresh` reports structural lint violations, STOP and report. Do NOT create the PR until the user resolves them.
 - If `/wiki-refresh` reports only warnings, continue and surface them in the PR body.
 - If the refresh produced no changes (no pages in the refresh set), do nothing and continue to Phase 9.
-- If the refresh produced changes, commit them with a Conventional Commit message: `docs(wiki): refresh for <TICKET-ID>` using the same author as the implementation commit. Stage only `docs/llm-wiki/**` paths — do not sweep other changes into this commit.
+- If the refresh produced changes:
+  - If `docs/llm-wiki/` is inside a git repo, commit them with Conventional Commit message `docs(wiki): refresh for <TICKET-ID>` using the same author as the implementation commit. Stage only `docs/llm-wiki/**` paths.
+  - If `docs/llm-wiki/` is NOT inside a git repo (e.g. a multi-repo workspace where the parent is untracked), skip the commit. Write a diff manifest to `$ARTIFACTS_DIR/wiki/wiki-diff.md` and record a one-line warning at `$ARTIFACTS_DIR/wiki/wiki-warning.txt` for Phase 9 to embed in PR bodies.
 
 CONTINUE WITH Phase 9.
 
@@ -428,7 +440,11 @@ Otherwise:
   - Link to original ticket
 - Return PR URL
 
-CRITICAL: Do not proceed if PR was not created, unless `--skip-pr` was set (in which case a local commit is sufficient).
+**Multi-repo workspace**: if the change touches more than one git repo, delegate the fanout to the `/repo-fanout-pr` skill instead of doing the steps above inline. That skill commits + pushes + creates a PR per affected repo and cross-links the PR bodies; the orchestrator just consumes its returned result.
+
+If Phase 8.5 wrote `$ARTIFACTS_DIR/wiki/wiki-warning.txt`, append its contents to every PR body created in this phase.
+
+CRITICAL: Do not proceed if PR was not created, unless `--skip-pr` was set (in which case local commits are sufficient). In multi-repo, partial fanout success (any expected PR missing) is treated as failure.
 
 CONTINUE WITH Phase 10.
 
@@ -442,6 +458,8 @@ CONTINUE WITH Phase 10.
   - Re-review (max 3 iterations)
 - Exit when approved or max iterations reached
 
+In a multi-repo workspace, run the reviews once per PR URL produced by Phase 9. Fix commits land in the corresponding repo (`git -C <repo>`). The 3-iteration retry budget is global across all PRs.
+
 CONTINUE WITH Phase 11.
 
 ### Phase 11: Cleanup
@@ -449,7 +467,7 @@ CONTINUE WITH Phase 11.
 - Remove docker-compose override (if created)
 - Clean up temporary files
 - Run `aggregate-metrics` CLI to produce `<ARTIFACTS_DIR>/metrics/summary.md`; include the summary path in the final report.
-- Report final status with summary
+- Report final status with summary. List every PR URL produced (multi-repo workspaces have more than one), the per-repo coverage paths under `$ARTIFACTS_DIR/coverage/`, the wiki refresh outcome, and the metrics summary path.
 
 ## Error Handling
 
@@ -470,9 +488,10 @@ If a phase fails:
 - `implementer-{lang}` agent: Phase 5, Phase 6 (fixes), Phase 10 (fixes); consumes planner's Wiki+Graph evidence before any fresh discovery
 - `visual-verifier` agent: Phase 7
 - `/doc-updater`: Phase 8
-- `/wiki-refresh`: Phase 8.5 (auto-invoked with `--since <branch-base>`; commits wiki diff if any pages changed)
-- `/pr-reviewer`: Phase 10
-- `/security-review`: Phase 10
+- `/wiki-refresh`: Phase 8.5 (auto-invoked with `--since <branch-base>`; commits wiki diff if any pages changed and the wiki is git-tracked)
+- `/repo-fanout-pr`: Phase 9 (multi-repo workspaces only — per-repo commit/push/PR creation and cross-linking)
+- `/pr-reviewer`: Phase 10 (run once per PR URL)
+- `/security-review`: Phase 10 (run once per PR URL)
 - `aggregate-metrics` CLI: Phase 11 (final metrics summary)
 
 ## Prerequisites
@@ -483,8 +502,10 @@ If a phase fails:
 - Project root `.mcp.json` defines `mcpServers.code_graph`
 - Claude Code has been restarted after MCP config changes and `/mcp` shows `code_graph` connected
 - Generated planner and implementer agents expose exact `mcp__code_graph__*_tool` entries
-- LLM wiki exists at `docs/llm-wiki/` with `docs/llm-wiki/CLAUDE.md` present
-- Git repository with remote configured and `origin/development` or `origin/main` reachable (required for Phase 8.5 merge-base computation)
-- Tests passing in current state
+- LLM wiki exists at `docs/llm-wiki/` (workspace-scoped; lives at the workspace root in both single and multi mode) with `docs/llm-wiki/CLAUDE.md` present
+- Git: at least one git repository reachable. Two supported shapes:
+  - **single-repo**: workspace root is itself a git repo; `origin/development` or `origin/main` reachable (required for Phase 8.5 merge-base computation).
+  - **multi-repo**: workspace root is NOT a git repo but contains one or more child directories that ARE git repos (each with its own GitHub remote). Every child repo must have `origin/development` or `origin/main` reachable.
+- Tests passing in current state — at the workspace root in single mode, in every child repo in multi mode
 - For `--from-jira`: Jira MCP configured
-- For GitHub PR: GitHub MCP or gh CLI configured
+- For GitHub PR: `gh` CLI configured and authenticated against every affected GitHub remote

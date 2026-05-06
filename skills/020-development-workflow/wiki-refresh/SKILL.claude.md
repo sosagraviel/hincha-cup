@@ -5,7 +5,6 @@ last-updated: 2026-04-24
 description: Incrementally refreshes docs/llm-wiki/ after code changes. Use when user says "/wiki-refresh", "refresh wiki", "update wiki", or after merging a feature branch. Detects changed files via git diff, computes the minimum affected page set, regenerates those pages, and updates CHANGELOG.md and log.md.
 argument-hint: '[--since <sha>] [--force] [--pages <globs>] [--dry-run]'
 user-invokable: true
-disable-model-invocation: true
 ---
 
 # Wiki Refresh

@@ -12,13 +12,17 @@
  * `codex-cli-agent-impl.ts` mark that injection explicitly.
  *
  * Dogfooding: the framework repo carries a `<framework>/qubika-agentic-framework -> .`
- * self-symlink so that running `./qubika-agentic-framework/scripts/...` from inside
- * the framework treats the framework itself as a target project. We detect that by
- * checking for the self-symlink rather than by `realpath` comparison, because the
- * TypeScript module's own path (via `import.meta.url`) is always the physical path —
- * unlike bash, which sees the symlinked logical path when invoked through it.
+ * self-symlink (checked into git) so that running
+ * `./qubika-agentic-framework/scripts/...` from inside the framework treats the
+ * framework itself as a target project. The symlink ALWAYS exists after a normal
+ * clone, so its presence alone is not a valid signal. Real dogfooding requires the
+ * user to have actually invoked the framework *through* the symlink — i.e., the
+ * entry script path or working directory contains `<framework>/qubika-agentic-framework/`
+ * as a logical (un-resolved) segment. This mirrors the bash helper at
+ * scripts/lib/resolve-paths.sh, which detects dogfooding by comparing the
+ * framework's logical path against its physical path.
  */
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { lstatSync, readlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -40,8 +44,10 @@ export function getFrameworkPath(): string {
 
 /**
  * Returns the absolute path to the target project root.
- * Detects dogfooding by checking the framework root for a `qubika-agentic-framework`
- * self-symlink whose target is `.`; in that case the framework IS the project.
+ * Detects dogfooding by checking that (a) the framework root has the
+ * `qubika-agentic-framework -> .` self-symlink AND (b) the user actually invoked
+ * the framework through it. In that case the framework IS the project; otherwise
+ * the project is the framework's parent directory.
  */
 export function getProjectPath(): string {
   if (cachedProjectPath) return cachedProjectPath;
@@ -51,9 +57,18 @@ export function getProjectPath(): string {
 }
 
 /**
- * True iff the framework is dogfooding itself — `<framework>/qubika-agentic-framework`
- * exists as a symlink whose target is `.` (meaning the framework was invoked through
- * its own self-symlink).
+ * True iff the framework is dogfooding itself.
+ *
+ * Two conditions must hold:
+ *   1. `<framework>/qubika-agentic-framework` exists as a symlink to `.`. This is
+ *      always true after a normal clone (the symlink is checked into git), so it
+ *      is a necessary but not sufficient signal.
+ *   2. The user actually invoked the framework *through* that self-symlink — i.e.,
+ *      the entry script path (`process.argv[1]`), `$PWD`, or `process.cwd()`
+ *      contains `<framework>/qubika-agentic-framework/` as a literal segment. In
+ *      a normal install (`<project>/qubika-agentic-framework/`), no caller path
+ *      ever traverses `<framework>/qubika-agentic-framework/` because that would
+ *      require a doubled path segment.
  */
 function isDogfoodingFramework(framework: string): boolean {
   const candidate = join(framework, 'qubika-agentic-framework');
@@ -62,10 +77,21 @@ function isDogfoodingFramework(framework: string): boolean {
     if (!stat.isSymbolicLink()) return false;
     const target = readlinkSync(candidate);
     // Accept both `.` and `./` (some shells / `ln` invocations write the trailing slash).
-    return target === '.' || target === './';
+    if (target !== '.' && target !== './') return false;
   } catch {
     return false;
   }
+
+  // The framework physical path is `<fw>`; the self-symlink at
+  // `<fw>/qubika-agentic-framework` resolves back to `<fw>`. A caller path that
+  // traversed the symlink will literally contain `<fw>/qubika-agentic-framework/`
+  // as a prefix — something that never happens in a normal install, where the
+  // framework lives at `<project>/qubika-agentic-framework` (only one level).
+  const symlinkPrefix = candidate + sep;
+  const callerPaths = [process.argv[1], process.env.PWD, process.cwd()];
+  return callerPaths.some(
+    (p): p is string => typeof p === 'string' && p.startsWith(symlinkPrefix),
+  );
 }
 
 /** Test-only: resets the per-process memoization. */
