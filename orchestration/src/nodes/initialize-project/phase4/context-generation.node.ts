@@ -32,6 +32,9 @@ import {
   asAbsolutePath,
 } from '../../../services/framework/portable-paths/index.js';
 import { FrameworkConfigSchema } from '../../../schemas/framework-config.schema.js';
+import { buildCatalogFromConsolidation } from '../phase3/helpers/build-catalog-from-consolidation.js';
+import { renderGettingStarted } from './render-getting-started.js';
+import { basename } from 'path';
 
 /**
  * Phase 4: Context Generation Node
@@ -372,6 +375,47 @@ export async function contextGenerationNode(
           }
         : undefined,
     };
+
+    // Plan 15 §D.4 + §D.6: build the deterministic command catalog
+    // from the Phase 2 consolidation and attach it to the stack profile
+    // so framework-config.json carries the contract every downstream
+    // skill / wiki / agent template depends on.
+    const consolidationPath = join(tempDir, 'phase2-consolidation.json');
+    if (existsSync(consolidationPath)) {
+      try {
+        const consolidationBlob = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
+        const catalogBundle = buildCatalogFromConsolidation(consolidationBlob);
+        if (catalogBundle.automation) stackProfile.automation = catalogBundle.automation;
+        if (catalogBundle.readme_run_sections) {
+          stackProfile.readme_run_sections = catalogBundle.readme_run_sections;
+        }
+        stackProfile.command_catalog = catalogBundle.command_catalog;
+
+        // Plan 15 §D.6: deterministically render
+        // `docs/llm-wiki/wiki/getting-started.md` from the catalog +
+        // README extracts. Pure rendering — no LLM, no editorial
+        // decisions.
+        const projectName = basename(state.project_path);
+        const gettingStartedMd = renderGettingStarted({
+          projectName,
+          commandCatalog: catalogBundle.command_catalog,
+          readmeRunSections: catalogBundle.readme_run_sections,
+        });
+        const wikiDir = join(state.project_path, 'docs', 'llm-wiki', 'wiki');
+        mkdirSync(wikiDir, { recursive: true });
+        const gettingStartedPath = join(wikiDir, 'getting-started.md');
+        writeFileSync(gettingStartedPath, gettingStartedMd);
+        phaseLogger.success(` ✓ Written: ${gettingStartedPath}`);
+      } catch (e) {
+        phaseLogger.warn(
+          ` ⚠ Could not build command catalog from consolidation: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    } else {
+      phaseLogger.warn(
+        ` ⚠ Phase 2 consolidation not found at ${consolidationPath} — skipping command catalog build`,
+      );
+    }
 
     const stackProfilePath = join(state.temp_dir!, 'stack-profile.json');
     writeFileSync(stackProfilePath, JSON.stringify(stackProfile, null, 2));

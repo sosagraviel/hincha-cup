@@ -742,6 +742,7 @@ function buildSchemaDocBody(
     '',
     '| Question is about… | Read first | Drill into… |',
     '|---|---|---|',
+    '| **how to run / set up the project locally** | `wiki/getting-started.md` (canonical wrappers + README extracts) | `framework-config.json::stack_profile.command_catalog` for the full per-service breakdown |',
     '| architecture, topology, monorepo shape | `wiki/index.md` (summaries) → `wiki/ARCHITECTURE.md` | `wiki/services/<id>.md` for service-specific detail |',
     '| a specific service | `wiki/SERVICES.md` (catalog) | `wiki/services/<id>.md` |',
     '| request lifecycle, auth, middleware, integrations | `wiki/SERVICES.md` (find the relevant service) | `wiki/services/<id>.md` (per-service flow + integrations live there) |',

@@ -47,6 +47,15 @@ export function generateFrameworkConfig(
     package_manager: stackProfile.package_manager,
     infrastructure: stackProfile.infrastructure,
     file_counts: stackProfile.file_counts,
+
+    // Plan 15 §D.6 — automation surface, README extracts, and command
+    // catalog. Skills / agent templates / external consumers read these
+    // from `framework-config.json::stack_profile.command_catalog` to
+    // produce stack-agnostic command suggestions ("prefer the wrapper,
+    // fall back to package-manager scripts only when none exists").
+    automation: stackProfile.automation,
+    readme_run_sections: stackProfile.readme_run_sections,
+    command_catalog: stackProfile.command_catalog,
   };
 
   const config: FrameworkConfig = {
