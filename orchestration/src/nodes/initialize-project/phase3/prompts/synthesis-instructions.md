@@ -233,12 +233,18 @@ For each operation present in `command_catalog`:
    validator (Stop hook) rejects this and you will retry with
    feedback.
 
-If `command_catalog` is empty (no automation, no README setup
-section, no per-service scripts discovered), output an `Essential
-Commands` table with a single placeholder row: `| (no commands
-discovered) | (run analyzers manually to verify) |`. This is rare
-— treat it as a signal to surface a `needs_verification` item, not
-to fabricate commands.
+**Empty-placeholder rule (use sparingly).** Only output the
+placeholder row `| (no commands discovered) | (run analyzers
+manually to verify) |` when ALL of the following are true:
+
+- `command_catalog` is empty `{}`, AND
+- `summary.build_tools` is empty / undefined, AND
+- `summary.monorepo` has no `build_all_command` / `test_all_command`.
+
+If ANY of those carry data, prefer them over the placeholder
+(e.g. when only `summary.build_tools` is populated, render
+`pnpm --filter <id> test` rows from there). The placeholder is
+the last resort for genuinely empty repos.
 
 **Stack-agnostic copy:** the rendered table must NEVER paraphrase
 the wrapper's own comments. If the catalog says
@@ -246,6 +252,78 @@ the wrapper's own comments. If the catalog says
 keycloak, seed)"`, render that string. Do NOT replace it with
 "Set up the project" or similar — the operator is choosing the
 wrapper because it does these specific things.
+
+**Worked example (gira-shape catalog):**
+
+Input slice:
+
+```json
+{
+  "command_catalog": {
+    "setup": [
+      {
+        "tier": "wrapper",
+        "command": "make setup",
+        "description": "Full dev environment setup (install, docker, keycloak, seed)",
+        "source": "Makefile"
+      }
+    ],
+    "run_tests": [
+      {
+        "tier": "wrapper",
+        "command": "make tests",
+        "description": "Run all tests (unit, integration, e2e)",
+        "source": "Makefile"
+      },
+      {
+        "tier": "package_manager",
+        "command": "pnpm --filter backend test",
+        "source": "services/backend/package.json",
+        "per_service": "backend"
+      },
+      {
+        "tier": "package_manager",
+        "command": "pnpm --filter web-frontend test",
+        "source": "services/web-frontend/package.json",
+        "per_service": "web-frontend"
+      }
+    ],
+    "reset": [
+      {
+        "tier": "wrapper",
+        "command": "make launch",
+        "description": "Full reset: down-volumes then setup",
+        "source": "Makefile"
+      }
+    ]
+  }
+}
+```
+
+Correct rendering:
+
+```markdown
+## Essential Commands
+
+| Action            | Command       | Description                                                  |
+| ----------------- | ------------- | ------------------------------------------------------------ |
+| Setup             | `make setup`  | Full dev environment setup (install, docker, keycloak, seed) |
+| Run tests         | `make tests`  | Run all tests (unit, integration, e2e)                       |
+| Reset environment | `make launch` | Full reset: down-volumes then setup                          |
+
+### Per-service commands (low-level)
+
+> Prefer the wrapper above when present; these run a single service in isolation and may not start dependent services.
+
+| Service      | Tests                             |
+| ------------ | --------------------------------- |
+| backend      | `pnpm --filter backend test`      |
+| web-frontend | `pnpm --filter web-frontend test` |
+```
+
+Note: descriptions are copied verbatim from the catalog; per-service
+fallbacks live in the subtable below the main table; ordering
+follows the catalog (wrapper rows first, then per-service).
 
 **Line limits:** 30–250 lines. Hard cap at 250.
 

@@ -94,9 +94,11 @@ ONE Glob, then read up to 5 matched files:
 {Dockerfile*,Containerfile,docker-compose*.{yml,yaml},k8s/**/*.{yml,yaml},kubernetes/**/*.{yml,yaml},Chart.yaml,values.yaml,*.tf,Pulumi.yaml,*.template.{json,yaml},serverless.yml,netlify.toml,vercel.json,template.yaml}
 ```
 
-Categorise the matches into: **containerization** (docker / podman), **orchestration** (k8s / compose / helm), **iac** (terraform / pulumi / cloudformation / ansible), **serverless** (serverless framework / sam / netlify / vercel).
+**Report in `findings.infrastructure` as concrete tool names** the operator runs: `docker`, `docker-compose`, `kubernetes`, `helm`, `terraform`, `pulumi`, `serverless`, `sam`, `netlify`, `vercel`, `ansible`, `nginx`. Map by file: Dockerfile→`docker`; docker-compose.{yml,yaml}→`docker-compose`; k8s/Chart.yaml→`kubernetes`/`helm`; \*.tf→`terraform`; serverless.yml→`serverless`; template.yaml→`sam`.
 
-**Report in `findings.infrastructure` (string array of detected categories) and `findings.deployment` (object with `target`, `config_files`, `runtime_config`, `scaling`).**
+❌ Never emit category abstractions (`containerization`, `orchestration`, `iac`) — they're not invokable tools.
+
+Also report `findings.deployment` (object with `target`, `config_files`, `runtime_config`, `scaling`).
 
 </infrastructure_discovery>
 

@@ -44,7 +44,7 @@ Both modes ship in the same JSON output. Skipping Mode 2 produces a downstream `
 
 1. Discover ALL services/packages with their languages, frameworks, and architectural patterns.
 2. Identify repository type (monorepo / polyrepo / single-service) from workspace configs.
-3. Map each service/package with: id, path, type, language, frameworks.
+3. Map each service/package with: id, path, type, language, frameworks. **`id` MUST be the basename of `path`** (e.g. `path: services/backend` → `id: backend`). Do NOT use graph community names, semantic-cluster labels, or any other derived identifier — downstream consumers use `id` as a stable key into per-service maps.
 4. Report architecture patterns based on directory structure analysis.
 5. Discover the project's automation surface (Make / Just / Task / setup scripts / devcontainer / CI hints) by **reading the files**.
 6. Extract README run-sections (`## Getting Started`, `## Setup`, etc.) **verbatim** from `README.md`.

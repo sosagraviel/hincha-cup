@@ -91,11 +91,15 @@ describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan
       //     and trimmed example outputs to language-neutral skeletons.
       //     Aggregate dropped to ≤56000 — meets the §C 2.3 acceptance
       //     criterion of ≥25% reduction from the 73938 baseline.
+      //   - 2026-05-06 (Plan 16 §C.6): tech-stack-analyzer instructions
+      //     gained ~150 chars of guidance to emit CONCRETE technology
+      //     names (`docker`, `docker-compose`) instead of category
+      //     abstractions. Budget bumped 56000 → 56500 to accommodate.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
-      expect(total).toBeLessThan(56000);
+      expect(total).toBeLessThan(56500);
     });
   });
 });

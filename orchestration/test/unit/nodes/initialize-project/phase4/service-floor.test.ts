@@ -218,14 +218,18 @@ describe('Phase 4 — service-floor filter (§E.4)', () => {
   it('keeps a manifest-backed service even when file_count is well below the floor', async () => {
     // A freshly scaffolded package may legitimately have only one file —
     // the presence of a manifest is enough signal to keep it.
+    // Plan 16 §C.5: service ids are normalised to slugify(basename(path)).
+    // Path is `packages/fresh-pkg` so the id matches the basename. The
+    // contract being tested (manifest-backed service kept regardless of
+    // file_count) is preserved.
     mockPhase1WithServices([
       {
         id: 'fresh-pkg',
-        path: 'packages/fresh',
+        path: 'packages/fresh-pkg',
         type: 'library',
         language: 'typescript',
         frameworks: {},
-        manifest_file: 'packages/fresh/package.json',
+        manifest_file: 'packages/fresh-pkg/package.json',
         file_count: 1,
       },
     ]);
@@ -260,10 +264,11 @@ describe('Phase 4 — service-floor filter (§E.4)', () => {
   });
 
   it('keeps a no-manifest service when file_count is at the floor exactly', async () => {
+    // Plan 16 §C.5: id matches basename of path.
     mockPhase1WithServices([
       {
         id: 'right-at-floor',
-        path: 'src/borderline',
+        path: 'src/right-at-floor',
         type: 'library',
         language: 'typescript',
         frameworks: {},

@@ -35,6 +35,10 @@ import { FrameworkConfigSchema } from '../../../schemas/framework-config.schema.
 import { buildCatalogFromConsolidation } from '../phase3/helpers/build-catalog-from-consolidation.js';
 import { renderGettingStarted } from './render-getting-started.js';
 import { basename } from 'path';
+import {
+  computeServiceIdRewrites,
+  applyServiceIdRewritesToFindings,
+} from './helpers/normalise-service-ids.js';
 
 /**
  * Phase 4: Context Generation Node
@@ -141,6 +145,32 @@ export async function contextGenerationNode(
     const structureFindings = structureArchData.findings;
     const techStackFindings = techStackData.findings;
     const codePatternsFindings = codePatternsData?.findings;
+    const dataFlowsFindings = dataFlowsData?.findings;
+
+    // Plan 16 §C.5 — deterministic service-id normalisation.
+    // The structure analyzer sometimes emits graph-community names
+    // as service ids (`src-app`, `chat-handle`, …) instead of the
+    // folder basename. Rewrite to `slugify(basename(path))` and
+    // propagate the mapping through every id-keyed map in all four
+    // analyzer slices (build_tools.<id>, testing.<id>,
+    // dependencies.by_service.<id>, etc.). Stack-agnostic — pure
+    // path manipulation.
+    const idRewrites = computeServiceIdRewrites([
+      structureFindings,
+      techStackFindings,
+      codePatternsFindings,
+      dataFlowsFindings,
+    ]);
+    if (Object.keys(idRewrites).length > 0) {
+      const summary = Object.entries(idRewrites)
+        .map(([legacy, canonical]) => `${legacy} → ${canonical}`)
+        .join(', ');
+      phaseLogger.info(` Normalising service IDs: ${summary}`);
+      applyServiceIdRewritesToFindings(structureFindings, idRewrites);
+      applyServiceIdRewritesToFindings(techStackFindings, idRewrites);
+      applyServiceIdRewritesToFindings(codePatternsFindings, idRewrites);
+      applyServiceIdRewritesToFindings(dataFlowsFindings, idRewrites);
+    }
 
     const languagesFromPhase1 = extractLanguagesFromPhase1(structureFindings, techStackFindings);
 
@@ -202,7 +232,12 @@ export async function contextGenerationNode(
     phaseLogger.info(`  Frontend frameworks: ${frontendFrameworks.join(', ') || 'none'}`);
     phaseLogger.info(`  Backend frameworks: ${backendFrameworks.join(', ') || 'none'}`);
 
-    const infrastructureFromPhase1 = extractInfrastructure(techStackFindings);
+    // Plan 16 §C.6 — infrastructure as concrete technology names.
+    // Drops category abstractions (`containerization`, `orchestration`)
+    // emitted by the analyzer and augments with concrete names from
+    // project filesystem evidence (`docker-compose.yml` → `docker-compose`,
+    // `Dockerfile` → `docker`, etc.).
+    const infrastructureFromPhase1 = extractInfrastructure(techStackFindings, state.project_path);
 
     phaseLogger.info(
       `  Infrastructure from Phase 1: ${infrastructureFromPhase1.join(', ') || 'none'}`,
@@ -384,6 +419,29 @@ export async function contextGenerationNode(
     if (existsSync(consolidationPath)) {
       try {
         const consolidationBlob = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
+        // Plan 16 §C.5 — propagate the same id-rewrites we applied to
+        // the four analyzer slices above into the consolidation blob
+        // the catalog builder consumes. Without this, the catalog's
+        // `per_service` fields keep the legacy graph-community ids
+        // even after the persisted stack profile uses canonical ones.
+        if (
+          Object.keys(idRewrites).length > 0 &&
+          consolidationBlob &&
+          typeof consolidationBlob === 'object'
+        ) {
+          const cf = (consolidationBlob as Record<string, unknown>).consolidated_findings;
+          if (cf && typeof cf === 'object') {
+            for (const value of Object.values(cf)) {
+              if (!value || typeof value !== 'object') continue;
+              const valueObj = value as Record<string, unknown>;
+              applyServiceIdRewritesToFindings(
+                valueObj.findings as Record<string, unknown> | undefined,
+                idRewrites,
+              );
+              applyServiceIdRewritesToFindings(valueObj, idRewrites);
+            }
+          }
+        }
         const catalogBundle = buildCatalogFromConsolidation(consolidationBlob);
         if (catalogBundle.automation) stackProfile.automation = catalogBundle.automation;
         if (catalogBundle.readme_run_sections) {
