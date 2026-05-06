@@ -19,6 +19,10 @@ import {
   detectAutomationDiscoveryViolations,
   formatAutomationDiscoveryViolations,
 } from '../../structure-analyzer/hooks/validate-automation-discovery.js';
+import {
+  detectPortDiscoveryViolations,
+  formatPortDiscoveryViolations,
+} from '../../structure-analyzer/hooks/validate-port-discovery.js';
 
 /**
  * Names of the three downstream Phase 1 analyzers — those that consume the
@@ -684,6 +688,16 @@ async function main() {
         return blockWithFeedback(
           formatAutomationDiscoveryViolations(automationViolations).join('\n'),
         );
+      }
+
+      // Plan 21 — output-shape validator for per-service port
+      // discovery. Stack-agnostic — never opens any project file;
+      // only inspects the analyzer's output JSON. Forces the agent
+      // to either find a port (in any source the project uses) or
+      // declare an explicit opt-out with reason and evidence.
+      const portViolations = detectPortDiscoveryViolations(data);
+      if (portViolations.length > 0) {
+        return blockWithFeedback(formatPortDiscoveryViolations(portViolations).join('\n'));
       }
     }
 

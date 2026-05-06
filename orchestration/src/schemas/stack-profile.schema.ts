@@ -87,6 +87,39 @@ export const ServiceEnvironmentSchema = z.object({
     .optional()
     .describe('Deployment target (e.g., "GCP Functions", "AWS Lambda", "Vercel")'),
   docker_image: z.string().optional().describe('Docker image name if service is containerized'),
+  // Plan 21 — explicit opt-out for services that genuinely have no
+  // port (AWS Lambda invoked via API Gateway / Pub/Sub / EventBridge,
+  // GCP Functions invoked by triggers, library packages, CLI tools,
+  // build / seed scripts). The structure-analyzer Stop hook
+  // hard-rejects backend / frontend / serverless / worker services
+  // that omit `port` AND don't carry the explicit opt-out shape
+  // (port_applies + port_applies_reason + port_search_evidence
+  // ≥2 entries).
+  port_applies: z
+    .boolean()
+    .optional()
+    .describe(
+      'Set to false ONLY when the service genuinely has no port (serverless ' +
+        'function invoked via event triggers, library, CLI tool, build step). ' +
+        'Omit when a port is set or when no search has been done yet.',
+    ),
+  port_applies_reason: z
+    .string()
+    .optional()
+    .describe(
+      'When port_applies=false, a one-line reason ' +
+        '(e.g. "AWS Lambda — invoked via API Gateway, no localhost port", ' +
+        '"library — no runtime", "build step — runs and exits"). Required ' +
+        'when port_applies=false.',
+    ),
+  port_search_evidence: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'When port is omitted AND port_applies=false, list ≥2 search attempts ' +
+        'that established no port applies (e.g. ["Read firebase.json — no ' +
+        'emulators block", "Read serverless.yml — no provider.dev port"]).',
+    ),
 });
 export type ServiceEnvironment = z.infer<typeof ServiceEnvironmentSchema>;
 

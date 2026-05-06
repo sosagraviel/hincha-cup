@@ -207,6 +207,49 @@ appears in the README's "Getting Started" / "Setup" section.
 - Spring Boot `application.yml`: `server: { port: 8443 }` → `8443`.
 - Phoenix `config/runtime.exs`: `port = String.to_integer(System.get_env("PHX_PORT") || "4000")` → `4000` (fallback).
 - `manage.py runserver 0.0.0.0:8000` (Django default) → `8000`.
+- `firebase.json`: `emulators: { functions: { port: 5001 } }` → `5001`.
+- `serverless.yml`: `provider: { dev: { port: 3000 } }` → `3000`.
+- `wrangler.toml`: `[dev] port = 8787` → `8787`.
+- `Bun.serve({ port: 4000, ... })` in `src/index.ts` → `4000`.
+
+### When NO port applies (serverless / library / build step)
+
+If a service genuinely has NO port (event-triggered AWS Lambda /
+GCP Function with no API Gateway, library package, CLI tool,
+build or seed script), set the explicit opt-out instead — DO
+NOT silently omit the field. The Stop hook hard-rejects services
+that have no port and no opt-out.
+
+```json
+"environment": {
+  "port_applies": false,
+  "port_applies_reason": "<one-line reason>",
+  "port_search_evidence": [
+    "<concrete search 1 — e.g. Read serverless.yml — no provider.dev port>",
+    "<concrete search 2 — e.g. Glob **/*.{toml,yml} — no port key found>"
+  ]
+}
+```
+
+`port_search_evidence` requires ≥2 entries naming concrete
+searches you ran. The validator hard-rejects opt-outs without
+sufficient evidence — you must actually search before claiming
+"no port applies."
+
+### Hard validator (Plan 21) — the Stop hook enforces this
+
+For services of type `backend` / `frontend` / `serverless` /
+`worker`, your output MUST contain either:
+
+- `environment.port: <integer>` (a real port found in any
+  project source), OR
+- `environment.port_applies: false` + `port_applies_reason` +
+  `port_search_evidence` (≥2 entries).
+
+Service types `library` / `cli` / `infrastructure` / `mobile` /
+`desktop` are exempt — the validator skips them. Stack-agnostic:
+the validator checks output shape only; never opens project
+files. You decide which sources to search.
 
 ## Output schema (the synthesizer depends on this exact shape)
 
