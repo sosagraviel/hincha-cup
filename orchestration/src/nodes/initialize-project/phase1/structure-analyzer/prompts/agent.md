@@ -129,6 +129,85 @@ section, in document order).
 Do not paraphrase. Do not summarise. The README extract is
 reproduced verbatim downstream.
 
+## Per-service port discovery — populate `environment.port` for every service
+
+For every service in `findings.services[]`, fill
+`environment.port` by reading the source list below in order. The
+first source that resolves a numeric port wins. If none resolve,
+**OMIT** the `port` field — do NOT fabricate a default
+(`3000` for NestJS / `5173` for Vite / `8080` for Keycloak / etc.
+are guesses, not facts; an absent field is more honest than a
+wrong number).
+
+### Source list (stack-agnostic — walk in this order)
+
+1. **Container-orchestration mappings (highest priority)** —
+   `docker-compose.yml`, `docker-compose.*.yml`, `compose.yaml`,
+   `Dockerfile.dev`. Read each `services.<svc>.ports:` block; the
+   HOST-side port (left of `:`) is what the operator hits. Match
+   the compose-service name against the structure-analyzer
+   service id (or path basename).
+
+2. **Per-service environment files (development)** — `.env`,
+   `.env.development`, `.env.local`, `.env.example`, plus the
+   per-service variant `<service-path>/.env*`. Look for `*PORT`
+   / `*_PORT` keys (`PORT`, `API_PORT`, `APP_PORT`, `SERVER_PORT`,
+   `HTTP_PORT`, `KEYCLOAK_HTTP_PORT`, etc.). Match to a service
+   by name proximity (`API_PORT` → backend service when one
+   exists; `KEYCLOAK_*` → keycloak service) or by reading the
+   service's manifest for the env-var consumer.
+
+3. **Service manifest scripts** — the per-language run/start
+   command for the service:
+   - **Node / TS**: `package.json` scripts `start` / `dev` /
+     `start:dev` / `serve` — look for `--port N`, `-p N`,
+     `PORT=N` prefixes.
+   - **Python**: `pyproject.toml` `[tool.poetry.scripts]` /
+     `[project.scripts]`, root `Procfile`, `manage.py runserver`
+     args. Look for `--port`, `:N` after a host, `PORT=N`.
+   - **Go**: `Makefile` / `Justfile` / `cmd/*/main.go`
+     `ListenAndServe(":N", ...)`.
+   - **Java / Kotlin**: `application.yml` / `application.properties`
+     `server.port`. Spring Boot also accepts `SERVER_PORT` env.
+   - **Rust**: `Cargo.toml` `[package.metadata]` /
+     `src/main.rs` `bind("0.0.0.0:N")`.
+   - **Ruby / Rails**: `config/puma.rb` `port N`, `Procfile`,
+     `bin/rails server -p N`.
+   - **PHP / Laravel**: `.env` `APP_PORT`, `php artisan serve --port=N`.
+   - **.NET**: `Properties/launchSettings.json` `applicationUrl`
+     / `iisSettings.iisExpress.applicationUrl`.
+   - **Elixir / Phoenix**: `config/{dev,prod,runtime}.exs`
+     `Endpoint, http: [port: N]`.
+
+4. **Container exposure (often a default)** — `Dockerfile`
+   `EXPOSE N`. Use only when no higher-priority source resolves.
+
+5. **Deployment / cloud configs** — `serverless.yml`,
+   `app.yaml`, `vercel.json`, `netlify.toml`, k8s manifests
+   (`spec.containers[].ports[].containerPort`). Lower priority
+   than dev-time sources because production may differ.
+
+6. **README "Getting Started" verbatim** — port numbers in
+   fenced code blocks under `## Getting Started` / `## Setup`
+   headings (e.g. `localhost:N`). Lowest priority — README
+   values may drift from code.
+
+### Multi-port services (rare)
+
+If a service exposes multiple ports (HTTP + admin + metrics),
+prefer the one that maps to the dev workflow — the port the
+developer hits. Heuristic: the docker-compose mapping that ALSO
+appears in the README's "Getting Started" / "Setup" section.
+
+### Concrete examples (stack-agnostic shapes)
+
+- `package.json`: `"start:dev": "vite --host 0.0.0.0 --port 2712"` → port `2712`.
+- `.env.development`: `API_PORT=3050` matched to a backend service → `3050`.
+- `docker-compose.yml`: `services.keycloak.ports: ["${KEYCLOAK_HTTP_PORT:-7080}:8080"]` → `7080` (host side; the env var resolves to `7080` from `.env.development`).
+- Spring Boot `application.yml`: `server: { port: 8443 }` → `8443`.
+- Phoenix `config/runtime.exs`: `port = String.to_integer(System.get_env("PHX_PORT") || "4000")` → `4000` (fallback).
+- `manage.py runserver 0.0.0.0:8000` (Django default) → `8000`.
+
 ## Output schema (the synthesizer depends on this exact shape)
 
 ```json
@@ -136,22 +215,37 @@ reproduced verbatim downstream.
   "agent_name": "structure-architecture-analyzer",
   "timestamp": "...",
   "findings": {
-    "services": [...],
+    "services": [
+      {
+        "id": "backend",
+        "path": "services/backend",
+        "type": "backend",
+        "language": "typescript",
+        "frameworks": { "main": "NestJS 11" },
+        "environment": { "port": 3050 }
+      }
+    ],
     "automation": {
       "makefiles": [
         {
           "path": "Makefile",
           "targets": [
-            { "name": "setup", "group": "setup", "description": "Full dev environment setup (install, docker, keycloak, seed)" },
-            { "name": "tests", "group": "test", "description": "Run all tests (unit, integration, e2e)" }
+            {
+              "name": "setup",
+              "group": "setup",
+              "description": "Full dev environment setup (install, docker, keycloak, seed)"
+            },
+            {
+              "name": "tests",
+              "group": "test",
+              "description": "Run all tests (unit, integration, e2e)"
+            }
           ]
         }
       ],
       "justfiles": [],
       "taskfiles": [],
-      "shell_scripts": [
-        { "path": "scripts/wait_for_service", "purpose": "unknown" }
-      ],
+      "shell_scripts": [{ "path": "scripts/wait_for_service", "purpose": "unknown" }],
       "devcontainer": { "postCreateCommand": "pnpm install" },
       "ci_hints": [
         { "file": ".github/workflows/test.yml", "commands": ["pnpm install", "pnpm test"] }
