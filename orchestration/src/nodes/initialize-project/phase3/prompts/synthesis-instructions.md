@@ -203,6 +203,50 @@ session reads this at startup. Keep it scannable.
 - Directory Structure MUST show ALL service directories (from `services[].path`)
 - Essential Commands MUST include commands for ALL services/languages
 
+### Essential Commands rendering rule (Plan 15 §C + §D.4) — LOAD-BEARING
+
+The `command_catalog` field of your input is a pre-built map of
+`operation → ordered list of candidate commands`. The framework
+already chose the preference order — wrapper > readme >
+package_manager > ci. **Render the catalog, do NOT re-order it.**
+
+For each operation present in `command_catalog`:
+
+1. List the FIRST entry (highest tier) with its description verbatim
+   in the `Essential Commands` table.
+2. If the operation has package-manager fallbacks AND a wrapper
+   entry exists, emit the wrapper as a single row. Do NOT list every
+   per-service `pnpm --filter X test` style command in the main
+   table — those go in a "Per-service commands (low-level)"
+   subtable BELOW the main table, prefixed with the warning sentence:
+   _"Prefer the wrapper above when present; these run a single
+   service in isolation and may not start dependent services."_
+3. If the catalog has NO wrapper-tier entry for an operation, list
+   the package-manager rows directly in the main table (no
+   "Per-service" subtable needed).
+4. **Quote `description` fields verbatim.** They were extracted
+   verbatim from Makefile / Justfile / Taskfile comments or README
+   prose. Do NOT translate, paraphrase, or strip stack-specific terms
+   (`docker`, `keycloak`, `seed`) — the source text is authoritative.
+5. **Never list a `package_manager`-tier command before a
+   `wrapper`-tier command for the same operation.** The hard
+   validator (Stop hook) rejects this and you will retry with
+   feedback.
+
+If `command_catalog` is empty (no automation, no README setup
+section, no per-service scripts discovered), output an `Essential
+Commands` table with a single placeholder row: `| (no commands
+discovered) | (run analyzers manually to verify) |`. This is rare
+— treat it as a signal to surface a `needs_verification` item, not
+to fabricate commands.
+
+**Stack-agnostic copy:** the rendered table must NEVER paraphrase
+the wrapper's own comments. If the catalog says
+`description: "Full dev environment setup (install, docker,
+keycloak, seed)"`, render that string. Do NOT replace it with
+"Set up the project" or similar — the operator is choosing the
+wrapper because it does these specific things.
+
 **Line limits:** 30–250 lines. Hard cap at 250.
 
 ## Output 2: code-conventions/SKILL.md — Prescriptive Code Rules

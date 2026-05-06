@@ -7,6 +7,11 @@ import {
   detectMissingValidationRules,
   findValidationLibrariesInDependencies,
 } from './validators/detect-missing-validation-rules.js';
+import {
+  detectEssentialCommandsOrderingViolations,
+  formatOrderingViolations,
+} from './validators/validate-essential-commands-ordering.js';
+import { buildCatalogFromConsolidation } from './helpers/build-catalog-from-consolidation.js';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../../../utils/logger.js';
@@ -60,16 +65,40 @@ export async function synthesisNode(
   const phase2Consolidation = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
   phaseLogger.success(' ✓ Phase 2 consolidation loaded from disk');
 
+  // Plan 15 §D.4 + §D.8.2: build the deterministic command catalog
+  // from the Phase 2 consolidation ONCE, here, so the validator can
+  // assert ordering against it on every retry. The same catalog is
+  // also embedded in the synthesizer's input prompt by `buildSynthesisPrompt`
+  // → `trimSynthesisInput`.
+  const expectedCatalog = buildCatalogFromConsolidation(phase2Consolidation).command_catalog;
+
   try {
     const validator = (output: string): ValidationResult => {
-      // CRITICAL: This validator MUST be IDENTICAL to the stop hook validation
-      // Uses the shared comprehensive validator from synthesis-validator.ts
+      // CRITICAL: The base validator MUST be IDENTICAL to the stop hook
+      // validation. Uses the shared comprehensive validator.
       const result = validateSynthesisOutput(output);
+      const errors = [...result.errors];
 
+      // Plan 15 §D.8.2 hard validator: Essential Commands ordering. Only
+      // run when the base validator already extracted a CLAUDE.md body
+      // (otherwise there's nothing to inspect). The Stop hook does not
+      // run this check (it has no catalog), so this external validator
+      // is the single enforcement point.
+      if (result.extracted?.claudemd) {
+        const violations = detectEssentialCommandsOrderingViolations(
+          result.extracted.claudemd,
+          expectedCatalog,
+        );
+        if (violations.length > 0) {
+          errors.push(...formatOrderingViolations(violations));
+        }
+      }
+
+      const valid = errors.length === 0;
       return {
-        valid: result.valid,
-        errors: result.errors,
-        data: result.valid ? output : null,
+        valid,
+        errors,
+        data: valid ? output : null,
       };
     };
 

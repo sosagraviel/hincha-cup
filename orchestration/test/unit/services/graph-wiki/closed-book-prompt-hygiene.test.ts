@@ -112,6 +112,21 @@ describe('closed-book prompt hygiene — Wave 2 Fix 6.2', () => {
       const prompt = buildSynthesisPrompt({}, 'previous attempt failed');
       expect(containsCatalog(prompt)).toBe(false);
     });
+
+    it('mentions command_catalog (Plan 15 anti-regression — rendering rule MUST be present)', () => {
+      // Plan 15 §D.5 + §D.8.2: the synthesis-instructions prompt MUST
+      // tell the closed-book agent how to render the deterministic
+      // `command_catalog` (wrapper > readme > package_manager > ci).
+      // If a future prompt edit drops this guidance, the synthesizer
+      // falls back to ad-hoc `Essential Commands` rendering and the
+      // gira regression returns. This assertion locks the contract.
+      const prompt = buildSynthesisPrompt({});
+      expect(prompt).toMatch(/command_catalog/);
+      // The rendering rule must explicitly forbid re-ordering.
+      expect(prompt.toLowerCase()).toMatch(
+        /wrapper-tier|wrapper > readme|wrapper.*package_manager/,
+      );
+    });
   });
 
   describe('Phase 4 wiki-generator', () => {

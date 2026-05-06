@@ -28,6 +28,13 @@
  * any sufficiently-detailed Phase 2 output).
  */
 
+import { buildCatalogFromConsolidation } from './build-catalog-from-consolidation.js';
+import type {
+  Automation,
+  CommandCatalog,
+  ReadmeRunSectionEntry,
+} from '../../../../schemas/stack-profile.schema.js';
+
 interface CuratedSynthesisInput {
   consolidated_gaps: unknown;
   consolidation_metadata: unknown;
@@ -45,6 +52,16 @@ interface CuratedSynthesisInput {
     build_tools?: unknown;
     architecture_pattern?: unknown;
   };
+  // Plan 15 §D.4 — pre-built command catalog. Closed-book synthesizer
+  // reads `command_catalog` directly and renders the four-tier
+  // `Essential Commands` table from it. Catalog ordering is decided
+  // here (deterministic TypeScript), not by the LLM.
+  command_catalog: CommandCatalog;
+  // Surfaced for transparency / debugging — synthesizer renders the
+  // catalog, not these. Wiki getting-started page (commit 4/5) reads
+  // these too.
+  automation?: Automation;
+  readme_run_sections?: ReadmeRunSectionEntry[];
 }
 
 /**
@@ -73,7 +90,13 @@ export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInpu
     services.push(entry);
   }
 
-  return {
+  // Plan 15 §D.4: build the deterministic command catalog from the
+  // consolidation BEFORE the closed-book synthesizer sees it. The
+  // synthesizer renders `command_catalog` verbatim — it never decides
+  // tier ordering itself.
+  const bundle = buildCatalogFromConsolidation(consolidation);
+
+  const result: CuratedSynthesisInput = {
     consolidated_gaps: pickConsolidatedGaps(root),
     consolidation_metadata: pickConsolidationMetadata(root),
     summary: {
@@ -85,7 +108,11 @@ export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInpu
       build_tools: pickFirst(findings.build_tools, root.build_tools),
       architecture_pattern: pickFirst(findings.architecture_pattern, root.architecture_pattern),
     },
+    command_catalog: bundle.command_catalog,
   };
+  if (bundle.automation) result.automation = bundle.automation;
+  if (bundle.readme_run_sections) result.readme_run_sections = bundle.readme_run_sections;
+  return result;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

@@ -99,7 +99,14 @@ describe('trimSynthesisInput — Wave 3 §I.4', () => {
       },
     });
     const keys = Object.keys(trimmed);
-    expect(keys.sort()).toEqual(['consolidated_gaps', 'consolidation_metadata', 'summary']);
+    // Plan 15 §D.4 — `command_catalog` is added unconditionally; `automation`
+    // and `readme_run_sections` only when discovered.
+    expect(keys.sort()).toEqual([
+      'command_catalog',
+      'consolidated_gaps',
+      'consolidation_metadata',
+      'summary',
+    ]);
     // None of the dropped fields leak into the summary.
     const summaryKeys = Object.keys(trimmed.summary);
     expect(summaryKeys).not.toContain('dependencies');
