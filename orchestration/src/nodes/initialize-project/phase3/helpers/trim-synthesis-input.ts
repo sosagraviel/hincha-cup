@@ -44,6 +44,26 @@ interface CuratedSynthesisInput {
       type?: string;
       language?: string;
       framework_main?: string;
+      // Plan 22 — port discovery output. Surfaced to the synthesizer
+      // so the `## Services & Ports` table can render real values.
+      // When `port_applies === false`, the service legitimately has
+      // no localhost port (Plan 21 opt-out shape).
+      port?: number;
+      port_applies?: boolean;
+      port_applies_reason?: string;
+    }>;
+    // Plan 22 — infrastructure services (Postgres / Redis / Keycloak
+    // server / Mailhog / RabbitMQ / SaaS like Sentry / etc.) from
+    // the data-flows analyzer. The synthesizer renders these
+    // alongside source-code services in `## Services & Ports`.
+    infrastructure_services?: Array<{
+      id: string;
+      type?: string;
+      name?: string;
+      role?: string;
+      port?: number;
+      port_applies?: boolean;
+      port_applies_reason?: string;
     }>;
     languages?: unknown;
     repository_type?: unknown;
@@ -101,7 +121,42 @@ export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInpu
     if (isObject(s.frameworks) && typeof s.frameworks.main === 'string') {
       entry.framework_main = s.frameworks.main;
     }
+    // Plan 22 — surface port info to the synthesizer for the
+    // `## Services & Ports` table.
+    if (isObject(s.environment)) {
+      const env = s.environment;
+      if (typeof env.port === 'number' && env.port > 0) entry.port = env.port;
+      if (env.port_applies === false) entry.port_applies = false;
+      if (typeof env.port_applies_reason === 'string') {
+        entry.port_applies_reason = env.port_applies_reason;
+      }
+    }
     services.push(entry);
+  }
+
+  // Plan 22 — infrastructure services from the data-flows analyzer.
+  // The synthesizer renders these alongside source-code services.
+  const infrastructureRaw = firstFromSources(sources, 'infrastructure_services');
+  const infrastructureServices: NonNullable<
+    CuratedSynthesisInput['summary']['infrastructure_services']
+  > = [];
+  if (Array.isArray(infrastructureRaw)) {
+    for (const item of infrastructureRaw) {
+      if (!isObject(item)) continue;
+      if (typeof item.id !== 'string' || item.id.length === 0) continue;
+      const entry: NonNullable<
+        CuratedSynthesisInput['summary']['infrastructure_services']
+      >[number] = { id: item.id };
+      if (typeof item.type === 'string') entry.type = item.type;
+      if (typeof item.name === 'string') entry.name = item.name;
+      if (typeof item.role === 'string') entry.role = item.role;
+      if (typeof item.port === 'number' && item.port > 0) entry.port = item.port;
+      if (item.port_applies === false) entry.port_applies = false;
+      if (typeof item.port_applies_reason === 'string') {
+        entry.port_applies_reason = item.port_applies_reason;
+      }
+      infrastructureServices.push(entry);
+    }
   }
 
   // Plan 15 §D.4: build the deterministic command catalog from the
@@ -115,6 +170,9 @@ export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInpu
     consolidation_metadata: pickConsolidationMetadata(root),
     summary: {
       services,
+      ...(infrastructureServices.length > 0
+        ? { infrastructure_services: infrastructureServices }
+        : {}),
       languages: firstFromSources(sources, 'languages'),
       repository_type: firstFromSources(sources, 'repository_type'),
       monorepo: firstFromSources(sources, 'monorepo', 'monorepo_layout'),

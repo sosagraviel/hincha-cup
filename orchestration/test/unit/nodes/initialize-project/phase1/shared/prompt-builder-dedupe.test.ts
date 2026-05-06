@@ -106,11 +106,17 @@ describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan
       //     documented info-loss bug (Plan 17 blocks the question,
       //     agent silently drops the fact). ~700 chars per analyzer.
       //     Budget bumped 58500 → 62500.
+      //   - 2026-05-06 (Plan 22): data-flows-analyzer gained
+      //     "Step 9: Infrastructure-services port discovery"
+      //     (~1300 chars) closing the documented gira regression
+      //     — runtime infrastructure ports (Postgres / Redis /
+      //     Keycloak server) were missing from CLAUDE.md
+      //     `Services & Ports`. Budget bumped 62500 → 64500.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
-      expect(total).toBeLessThan(62500);
+      expect(total).toBeLessThan(64500);
     });
   });
 });

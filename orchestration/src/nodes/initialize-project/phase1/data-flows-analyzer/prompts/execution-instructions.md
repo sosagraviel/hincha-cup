@@ -94,6 +94,40 @@ For each candidate broker, ONE `query_graph({ pattern: "imports_of", target: "<b
 
 Report `findings.inter_service_communication` with `pattern` (monolithic / modular-monolith / microservices / event-driven), `message_broker`, `sync_protocol` (rest / grpc / graphql / n-a), `async_protocol`, `service_discovery`, `api_gateway`.
 
+## Step 9: Infrastructure-services port discovery (Plan 22 — load-bearing)
+
+For every entry you emit in `findings.infrastructure_services[]` (Postgres, Redis, Keycloak server, Mailhog, RabbitMQ, MongoDB, Elasticsearch, vendor SaaS like Sentry / Datadog, etc.), populate either:
+
+1. `port: <integer>` — the port the operator hits to reach this service. Search whichever orchestration / config shape the project actually uses:
+   - **docker-compose** / **compose.yaml** / **podman-compose**: `services.<svc>.ports: ["${X_PORT:-N}:M"]` — host side wins. Resolve `${VAR:-default}` against `.env*` files at repo root.
+   - **`.env*` files**: `*_PORT` keys (`DB_PORT`, `REDIS_PORT`, `KEYCLOAK_HTTP_PORT`, `MAILHOG_PORT`, …).
+   - **Firebase**: `firebase.json` `emulators.{firestore,functions,auth,…}.port`.
+   - **k8s manifests**: `Service.spec.ports[].port` for the matching workload.
+   - **Helm**: `values.yaml` per-service port keys.
+   - **Cloudflare Workers**: `wrangler.toml` `[env.<svc>] ...`.
+   - **Heroku-style**: `Procfile` / `app.json env`.
+   - **Pure source code**: any language's `listen(N)` / `serve({port})` / `bind("0.0.0.0:N")` — for self-hosted runtimes spawned in code.
+   - **README "Getting Started"** code blocks (`localhost:N`).
+
+2. The explicit opt-out for SaaS / vendor-hosted services that have no localhost port:
+   ```json
+   {
+     "id": "sentry",
+     "type": "monitoring",
+     "port_applies": false,
+     "port_applies_reason": "SaaS — accessed via HTTPS to vendor DSN, no localhost port",
+     "port_search_evidence": [
+       "Read package.json — @sentry/* via cloud DSN",
+       "Glob docker-compose.yml — no sentry container"
+     ]
+   }
+   ```
+   `port_search_evidence` requires ≥2 entries. Do NOT classify by `type` alone — the SAME service might be self-hosted in one project (port required) and SaaS in another (opt-out). Decide per entry based on what THIS project actually uses.
+
+### Hard validator — the Stop hook enforces this
+
+The data-flows-analyzer Stop hook hard-rejects entries in `findings.infrastructure_services[]` that have neither `port` nor the explicit opt-out shape. Stack-agnostic — the validator checks output shape only; never opens project files. You decide which sources to search.
+
 </discovery_process>
 
 <critical_thinking>

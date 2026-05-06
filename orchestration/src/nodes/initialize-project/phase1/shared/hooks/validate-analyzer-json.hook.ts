@@ -23,6 +23,10 @@ import {
   detectPortDiscoveryViolations,
   formatPortDiscoveryViolations,
 } from '../../structure-analyzer/hooks/validate-port-discovery.js';
+import {
+  detectInfrastructurePortViolations,
+  formatInfrastructurePortViolations,
+} from '../../data-flows-analyzer/hooks/validate-infrastructure-port-discovery.js';
 
 /**
  * Names of the three downstream Phase 1 analyzers — those that consume the
@@ -698,6 +702,22 @@ async function main() {
       const portViolations = detectPortDiscoveryViolations(data);
       if (portViolations.length > 0) {
         return blockWithFeedback(formatPortDiscoveryViolations(portViolations).join('\n'));
+      }
+    }
+
+    // Plan 22 — output-shape validator for infrastructure-service
+    // ports. Mirrors Plan 21 but for the data-flows analyzer's
+    // `infrastructure_services[]` slice (Postgres / Redis /
+    // Keycloak server / Mailhog / etc.). Stack-agnostic — never
+    // opens any project file. Forces the agent to either find a
+    // port for each runtime infrastructure service OR declare an
+    // explicit SaaS opt-out with reason and ≥2 evidence entries.
+    if (agentName === 'data-flows-integrations-analyzer') {
+      const infraPortViolations = detectInfrastructurePortViolations(data);
+      if (infraPortViolations.length > 0) {
+        return blockWithFeedback(
+          formatInfrastructurePortViolations(infraPortViolations).join('\n'),
+        );
       }
     }
 

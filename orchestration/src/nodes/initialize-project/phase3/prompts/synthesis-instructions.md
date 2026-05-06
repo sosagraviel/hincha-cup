@@ -182,7 +182,7 @@ session reads this at startup. Keep it scannable.
   "Shared vs Local Rules" subsection
 - `## Directory Structure` — annotated tree, top-level only (5–15 lines)
 - `## Essential Commands` — table; NO explanations
-- `## Services & Ports` — table (only if multiple services exist)
+- `## Services & Ports` — table; see "Services & Ports rendering rule" below for required columns
 - `## Path Aliases` — table (only if configured)
 
 **Strict exclusions** (move to other sections):
@@ -324,6 +324,68 @@ Correct rendering:
 Note: descriptions are copied verbatim from the catalog; per-service
 fallbacks live in the subtable below the main table; ordering
 follows the catalog (wrapper rows first, then per-service).
+
+### Services & Ports rendering rule (Plan 22) — LOAD-BEARING
+
+The `## Services & Ports` table MUST have these columns, in this
+exact order:
+
+| Service | Type | Port | Role |
+| ------- | ---- | ---- | ---- |
+
+Populate from BOTH:
+
+1. **Source-code services** (`summary.services[]`): one row per
+   service. `Type` is the service's `type` field
+   (`backend` / `frontend` / `serverless` / `worker` / `library`
+   / `cli` / `infrastructure` / `mobile` / `desktop`). `Port` is
+   `summary.services[].port` when set; when `port_applies: false`,
+   render `—` and append the `port_applies_reason` as a
+   parenthetical (e.g. `— (library — no runtime)`); when neither
+   is set (exempt types like `library` / `cli`), render `—`.
+   `Role` is a one-line description from `framework_main` /
+   `language` / context (e.g. "REST API + DB owner", "SPA",
+   "Realm provisioning CLI", "Shared DTO library").
+
+2. **Infrastructure services** (`summary.infrastructure_services[]`):
+   one row per entry. `Type` is the entry's `type` field
+   (`database` / `cache+queue` / `identity-provider` / `monitoring`
+   / etc.). `Port` is `port` when set; when `port_applies: false`,
+   render `—` and append the reason (e.g.
+   `— (SaaS — accessed via HTTPS to vendor DSN)`). `Role` is the
+   entry's `role` field, copied verbatim.
+
+Order: source-code services first (in their natural order), then
+infrastructure services. Do NOT drop the table when some entries
+have no port — render `—` and let the operator see the full
+runtime topology.
+
+If both `summary.services[]` AND `summary.infrastructure_services[]`
+are empty, omit the section entirely.
+
+**Worked example (gira-shape — produces 9 rows):**
+
+```markdown
+## Services & Ports
+
+| Service      | Type              | Port                                                           | Role                                 |
+| ------------ | ----------------- | -------------------------------------------------------------- | ------------------------------------ |
+| backend      | backend           | 3050                                                           | NestJS REST API + WebSocket gateways |
+| web-frontend | frontend          | 2712                                                           | React + Vite SPA                     |
+| keycloak     | cli               | —                                                              | Realm provisioning script            |
+| shared       | library           | —                                                              | Shared DTO library                   |
+| seeds        | cli               | —                                                              | Database bootstrap                   |
+| postgresql   | database          | 5432                                                           | Primary relational database          |
+| redis        | cache+queue       | 6379                                                           | BullMQ queues + cache                |
+| keycloak     | identity-provider | 7080                                                           | OIDC identity provider               |
+| sentry       | monitoring        | — (SaaS — accessed via HTTPS to vendor DSN, no localhost port) | Error monitoring                     |
+```
+
+(Note: in real output, the `keycloak` source-code CLI and the
+`keycloak` infrastructure-service SHARE the id "keycloak" but have
+different `Type` values — that's correct. The CLI initializes the
+realm at the server's port; the infrastructure entry is the running
+server.)
 
 **Line limits:** 30–250 lines. Hard cap at 250.
 

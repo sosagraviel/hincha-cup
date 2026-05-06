@@ -512,6 +512,36 @@ export const InfrastructureServiceSchema = z
       .describe(
         'Array of service IDs that use this infrastructure (references Structure Analyzer services)',
       ),
+    // Plan 22 — explicit opt-out for infrastructure services that
+    // legitimately have no localhost port (SaaS / vendor-hosted /
+    // accessed via HTTPS to a remote URL). Same shape as the
+    // per-service opt-out in `ServiceEnvironmentSchema` (Plan 21).
+    // The data-flows-analyzer Stop hook hard-rejects entries that
+    // omit port AND don't carry the explicit opt-out.
+    port_applies: z
+      .boolean()
+      .optional()
+      .describe(
+        'Set to false ONLY when the infrastructure service has no localhost port ' +
+          '(SaaS like Sentry / Datadog / Stripe, vendor-managed cloud services, ' +
+          'CDN-only). Omit when a port is set or when no search has been done yet.',
+      ),
+    port_applies_reason: z
+      .string()
+      .optional()
+      .describe(
+        'When port_applies=false, a one-line reason ' +
+          '(e.g. "SaaS — accessed via HTTPS to vendor DSN, no localhost port", ' +
+          '"managed cloud service — no local emulator").',
+      ),
+    port_search_evidence: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'When port is omitted AND port_applies=false, list ≥2 search attempts ' +
+          'that established no port applies (e.g. ["Read package.json — @sentry/* ' +
+          'via cloud DSN", "Glob docker-compose — no sentry container"]).',
+      ),
   })
   .passthrough();
 
