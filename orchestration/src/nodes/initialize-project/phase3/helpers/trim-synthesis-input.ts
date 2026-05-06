@@ -71,11 +71,25 @@ interface CuratedSynthesisInput {
  */
 export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInput {
   const root = isObject(consolidation) ? consolidation : {};
-  const findings = isObject(root.consolidated_findings) ? root.consolidated_findings : {};
+
+  // Plan 16 §C.1 — `consolidated_findings` is keyed by analyzer
+  // slug, not flat-merged. Build an ordered list of findings-shape
+  // sources to walk: every `consolidated_findings.<slug>.findings`
+  // first, then `consolidated_findings` itself (flat-shape fixtures),
+  // then `root.findings`, then root. The pre-fix code read
+  // `findings.build_tools` against the analyzer-keyed map and
+  // silently produced `undefined` — `summary.build_tools` was empty
+  // for every project.
+  const sources = collectFindingsSources(root);
 
   // Services come from the structure-architecture analyzer's slice
   // OR from the consolidator's merged top-level (varies by run).
-  const servicesRaw = pickServices(findings) ?? pickServices(root) ?? [];
+  let servicesRaw: unknown[] | null = null;
+  for (const src of sources) {
+    servicesRaw = pickServices(src);
+    if (servicesRaw && servicesRaw.length > 0) break;
+  }
+  servicesRaw = servicesRaw ?? [];
   const services: CuratedSynthesisInput['summary']['services'] = [];
   for (const s of servicesRaw) {
     if (!isObject(s)) continue;
@@ -101,18 +115,53 @@ export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInpu
     consolidation_metadata: pickConsolidationMetadata(root),
     summary: {
       services,
-      languages: pickFirst(findings.languages, root.languages),
-      repository_type: pickFirst(findings.repository_type, root.repository_type),
-      monorepo: pickFirst(findings.monorepo, findings.monorepo_layout, root.monorepo),
-      runtimes: pickFirst(findings.runtimes, root.runtimes),
-      build_tools: pickFirst(findings.build_tools, root.build_tools),
-      architecture_pattern: pickFirst(findings.architecture_pattern, root.architecture_pattern),
+      languages: firstFromSources(sources, 'languages'),
+      repository_type: firstFromSources(sources, 'repository_type'),
+      monorepo: firstFromSources(sources, 'monorepo', 'monorepo_layout'),
+      runtimes: firstFromSources(sources, 'runtimes'),
+      build_tools: firstFromSources(sources, 'build_tools'),
+      architecture_pattern: firstFromSources(sources, 'architecture_pattern'),
     },
     command_catalog: bundle.command_catalog,
   };
   if (bundle.automation) result.automation = bundle.automation;
   if (bundle.readme_run_sections) result.readme_run_sections = bundle.readme_run_sections;
   return result;
+}
+
+/**
+ * Collect ordered findings-shape sources from a Phase 2 consolidation
+ * blob. Mirrors the helper in `build-catalog-from-consolidation.ts`
+ * to keep the navigation contract consistent across both consumers.
+ */
+function collectFindingsSources(root: Record<string, unknown>): Record<string, unknown>[] {
+  const sources: Record<string, unknown>[] = [];
+  if (isObject(root.consolidated_findings)) {
+    for (const value of Object.values(root.consolidated_findings)) {
+      if (!isObject(value)) continue;
+      if (isObject(value.findings)) sources.push(value.findings);
+      sources.push(value);
+    }
+    sources.push(root.consolidated_findings);
+  }
+  if (isObject(root.findings)) sources.push(root.findings);
+  sources.push(root);
+  return sources;
+}
+
+/**
+ * Pull the first defined value for any of the given keys across an
+ * ordered list of source objects. Returns `undefined` when no key
+ * resolves on any source.
+ */
+function firstFromSources(sources: Record<string, unknown>[], ...keys: string[]): unknown {
+  for (const src of sources) {
+    for (const key of keys) {
+      const v = src[key];
+      if (v !== undefined && v !== null) return v;
+    }
+  }
+  return undefined;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

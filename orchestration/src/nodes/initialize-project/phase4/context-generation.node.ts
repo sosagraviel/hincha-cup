@@ -391,6 +391,39 @@ export async function contextGenerationNode(
         }
         stackProfile.command_catalog = catalogBundle.command_catalog;
 
+        // Plan 16 §C.9 — catalog visibility. Without this, an empty
+        // catalog (the original Plan-15 bug) was a silent failure;
+        // operators only noticed when CLAUDE.md showed the
+        // "(no commands discovered)" placeholder. One log line per
+        // run makes the contract auditable.
+        const tierCounts: Record<string, number> = {
+          wrapper: 0,
+          readme: 0,
+          package_manager: 0,
+          ci: 0,
+        };
+        let totalEntries = 0;
+        for (const entries of Object.values(catalogBundle.command_catalog)) {
+          for (const entry of entries) {
+            totalEntries++;
+            tierCounts[entry.tier] = (tierCounts[entry.tier] ?? 0) + 1;
+          }
+        }
+        const opCount = Object.keys(catalogBundle.command_catalog).length;
+        phaseLogger.info(
+          ` catalog: ${totalEntries} entries across ${opCount} operations ` +
+            `(${tierCounts.wrapper} wrapper, ${tierCounts.readme} readme, ` +
+            `${tierCounts.package_manager} package_manager, ${tierCounts.ci} ci)`,
+        );
+        if (totalEntries === 0) {
+          phaseLogger.warn(
+            ' ⚠ Catalog is EMPTY. CLAUDE.md will render the' +
+              ' "(no commands discovered)" placeholder. Check Phase 1 ' +
+              'analyzer outputs for `automation`, `readme_run_sections`, ' +
+              'and per-service `build_tools`.',
+          );
+        }
+
         // Plan 15 §D.6: deterministically render
         // `docs/llm-wiki/wiki/getting-started.md` from the catalog +
         // README extracts. Pure rendering — no LLM, no editorial

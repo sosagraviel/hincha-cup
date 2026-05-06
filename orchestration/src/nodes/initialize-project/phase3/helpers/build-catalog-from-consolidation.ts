@@ -46,18 +46,33 @@ export interface BuiltCatalogBundle {
  * Assemble the Plan-15 catalog bundle from a Phase 2 consolidation
  * blob. Defensive against schema variation: every input is read
  * with `isObject` / `Array.isArray` guards.
+ *
+ * Plan 16 §C.1 — the Phase 2 consolidation's
+ * `consolidated_findings` is **keyed by analyzer slug**
+ * (`01-structure-architecture`, `02-tech-stack-dependencies`, …)
+ * NOT a flat-merged map. The pre-fix builder treated it as flat
+ * and silently produced an empty catalog for every project. We
+ * now collect a list of `findings` source-slices to walk:
+ *
+ *   1. Each `consolidated_findings.<slug>.findings` (the real
+ *      analyzer-keyed shape).
+ *   2. `consolidated_findings` itself, when it looks flat (carries
+ *      `automation` / `build_tools` / etc. at the top level —
+ *      used by hand-built test fixtures and by some legacy
+ *      callers that pre-trim the consolidation).
+ *   3. `root.findings` and `root` itself, as final fallbacks.
+ *
+ * Each picker walks the source list in order; the first source
+ * that has a usable value wins. Order matters: analyzer-keyed
+ * slices come first because they're the primary contract.
  */
 export function buildCatalogFromConsolidation(consolidation: unknown): BuiltCatalogBundle {
   const root = isObject(consolidation) ? consolidation : {};
-  const findings = isObject(root.consolidated_findings)
-    ? root.consolidated_findings
-    : isObject(root.findings)
-      ? root.findings
-      : {};
+  const sources = collectFindingsSources(root);
 
-  const automation = pickAutomation(findings, root);
-  const readmeRunSections = pickReadmeRunSections(findings, root);
-  const packageManagerCommands = collectPackageManagerCandidates(findings, root);
+  const automation = pickAutomation(...sources);
+  const readmeRunSections = pickReadmeRunSections(...sources);
+  const packageManagerCommands = collectPackageManagerCandidates(...sources);
 
   const catalog = buildCommandCatalog({
     automation,
@@ -71,6 +86,44 @@ export function buildCatalogFromConsolidation(consolidation: unknown): BuiltCata
     bundle.readme_run_sections = readmeRunSections;
   }
   return bundle;
+}
+
+/**
+ * Build the ordered list of `findings`-shape source-slices that
+ * the per-tier pickers walk. See the docstring on
+ * `buildCatalogFromConsolidation` for the contract.
+ */
+function collectFindingsSources(root: Record<string, unknown>): Record<string, unknown>[] {
+  const sources: Record<string, unknown>[] = [];
+
+  // Primary: analyzer-keyed shape.
+  // `consolidated_findings: { '01-structure-architecture': { findings: {...} }, ... }`
+  if (isObject(root.consolidated_findings)) {
+    for (const value of Object.values(root.consolidated_findings)) {
+      if (!isObject(value)) continue;
+      // Standard shape: per-analyzer entry has a `findings` sub-object.
+      if (isObject(value.findings)) {
+        sources.push(value.findings);
+      }
+      // Some legacy / partial fixtures inline per-analyzer fields
+      // directly under the analyzer key (no `findings` wrapper). Add
+      // the analyzer entry itself as a source so we can still find
+      // `automation` / `build_tools` / etc.
+      sources.push(value);
+    }
+    // Some persisted shapes inline the per-analyzer fields directly
+    // under `consolidated_findings` (the Phase 2 trimmer's previous
+    // layout, plus all hand-built test fixtures from Plan 15).
+    sources.push(root.consolidated_findings);
+  }
+
+  // Fallback: top-level `findings` slice (legacy callers).
+  if (isObject(root.findings)) sources.push(root.findings);
+
+  // Last resort: the root itself.
+  sources.push(root);
+
+  return sources;
 }
 
 // ---------------------------------------------------------------------------

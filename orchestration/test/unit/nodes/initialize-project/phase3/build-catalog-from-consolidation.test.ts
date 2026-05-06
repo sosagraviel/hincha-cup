@@ -220,3 +220,203 @@ describe('buildCatalogFromConsolidation', () => {
     });
   });
 });
+
+/**
+ * Plan 16 §C.2 — analyzer-keyed consolidation shape (the REAL one).
+ *
+ * The Phase 2 consolidator emits `consolidated_findings` keyed by
+ * analyzer slug (`01-structure-architecture`,
+ * `02-tech-stack-dependencies`, etc.), with each value carrying
+ * its own `findings` sub-object. The Plan-15 builder treated
+ * `consolidated_findings` as flat-merged and silently produced an
+ * empty catalog for every project. These tests pin the
+ * analyzer-keyed contract end-to-end so the bug cannot return.
+ *
+ * Stack-agnostic: every fixture uses generic ids and structural
+ * assertions only.
+ */
+describe('buildCatalogFromConsolidation: analyzer-keyed consolidation shape', () => {
+  /**
+   * A faithful sketch of the gira-shape `phase2-consolidation.json`
+   * the consolidator actually writes to disk. `automation` lives
+   * under the structure analyzer's `findings`; `build_tools` and
+   * `monorepo` live under the tech-stack analyzer's `findings`.
+   */
+  const giraShapeAnalyzerKeyed = {
+    consolidated_findings: {
+      '01-structure-architecture': {
+        agent_name: 'structure-architecture-analyzer',
+        timestamp: '2026-05-06T00:00:00.000Z',
+        findings: {
+          automation: {
+            makefiles: [
+              {
+                path: 'Makefile',
+                targets: [
+                  {
+                    name: 'setup',
+                    group: 'setup',
+                    description: 'Full dev environment setup (install, docker, keycloak, seed)',
+                  },
+                  {
+                    name: 'tests',
+                    group: 'test',
+                    description: 'Run all tests (unit, integration, e2e)',
+                  },
+                ],
+              },
+            ],
+          },
+          readme_run_sections: [
+            {
+              path: 'README.md',
+              heading: 'Getting Started',
+              body: 'Run `make setup` then open localhost:2712.',
+              fenced_blocks: ['make setup'],
+            },
+          ],
+        },
+      },
+      '02-tech-stack-dependencies': {
+        agent_name: 'tech-stack-dependencies-analyzer',
+        timestamp: '2026-05-06T00:00:00.000Z',
+        findings: {
+          build_tools: {
+            backend: {
+              tool: 'NestJS CLI',
+              config_file: 'services/backend/package.json',
+              lint_command: 'eslint --max-warnings=0',
+              format_command: 'prettier --write src',
+              test_command: 'NODE_ENV=testing NODE_OPTIONS=--experimental-vm-modules jest',
+              build_command: 'pnpm --filter @livonit/shared build && nest build',
+            },
+            'web-frontend': {
+              tool: 'Vite',
+              config_file: 'services/web-frontend/package.json',
+              test_command: 'playwright test',
+              build_command: 'tsc -b && vite build',
+            },
+          },
+          monorepo: {
+            enabled: true,
+            tool: 'pnpm workspaces',
+            package_manager: 'pnpm',
+            workspace_config: 'pnpm-workspace.yaml',
+            build_all_command: 'pnpm -r build',
+            test_all_command: 'pnpm -r test',
+          },
+          databases: [
+            {
+              type: 'postgresql',
+              migration_tool: 'TypeORM migrations',
+              migration_commands: ['pnpm --filter backend migration:run'],
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  it('extracts automation from `01-structure-architecture.findings`', () => {
+    const bundle = buildCatalogFromConsolidation(giraShapeAnalyzerKeyed);
+    expect(bundle.automation?.makefiles).toHaveLength(1);
+    expect(bundle.automation?.makefiles[0].targets.map((t) => t.name)).toEqual(['setup', 'tests']);
+  });
+
+  it('extracts readme_run_sections from `01-structure-architecture.findings`', () => {
+    const bundle = buildCatalogFromConsolidation(giraShapeAnalyzerKeyed);
+    expect(bundle.readme_run_sections).toHaveLength(1);
+    expect(bundle.readme_run_sections?.[0].heading).toBe('Getting Started');
+  });
+
+  it('extracts build_tools per service from `02-tech-stack-dependencies.findings`', () => {
+    const catalog = buildCatalogFromConsolidation(giraShapeAnalyzerKeyed).command_catalog;
+    expect(catalog.run_lint?.some((e) => e.command === 'eslint --max-warnings=0')).toBe(true);
+    // `test_command` keys route via `script_name: 'test'` → run_tests.
+    // The command content (`playwright test`) is NOT re-classified —
+    // the analyzer used the generic `test_command` slot for an e2e
+    // tool, so we honour the slot. If e2e specificity matters, the
+    // analyzer should expose a dedicated field downstream.
+    expect(catalog.run_tests?.some((e) => e.command === 'playwright test')).toBe(true);
+  });
+
+  it('extracts monorepo build_all/test_all commands from the tech-stack slice', () => {
+    const catalog = buildCatalogFromConsolidation(giraShapeAnalyzerKeyed).command_catalog;
+    expect(catalog.run_build?.some((e) => e.command === 'pnpm -r build')).toBe(true);
+    expect(catalog.run_tests?.some((e) => e.command === 'pnpm -r test')).toBe(true);
+  });
+
+  it('extracts databases[].migration_commands from the tech-stack slice', () => {
+    const catalog = buildCatalogFromConsolidation(giraShapeAnalyzerKeyed).command_catalog;
+    expect(catalog.run_migrations?.[0].command).toBe('pnpm --filter backend migration:run');
+  });
+
+  it('lists wrapper-tier `make tests` BEFORE per-service pnpm test commands (gira regression contract)', () => {
+    const catalog = buildCatalogFromConsolidation(giraShapeAnalyzerKeyed).command_catalog;
+    const tests = catalog.run_tests!;
+    expect(tests[0]).toMatchObject({ tier: 'wrapper', command: 'make tests' });
+  });
+
+  it('produces a non-empty catalog for the realistic analyzer-keyed shape (the original Plan 16 bug)', () => {
+    // The minimum bar: catalog must NOT be `{}`. The pre-fix builder
+    // returned an empty object for every project, which manifested
+    // as the gira "(no commands discovered)" placeholder.
+    const catalog = buildCatalogFromConsolidation(giraShapeAnalyzerKeyed).command_catalog;
+    const opCount = Object.keys(catalog).length;
+    expect(opCount).toBeGreaterThan(0);
+  });
+
+  it('tolerates analyzer-keyed shape WITHOUT the optional `findings` wrapper (defensive)', () => {
+    // Some legacy / partial fixtures inline the per-analyzer fields
+    // directly under the analyzer key, no `findings` sub-object.
+    // The walker should still find them via the flat-shape fallback.
+    const consolidation = {
+      consolidated_findings: {
+        '02-tech-stack-dependencies': {
+          build_tools: {
+            api: {
+              config_file: 'pyproject.toml',
+              test_command: 'poetry run pytest',
+            },
+          },
+        },
+      },
+    };
+    const catalog = buildCatalogFromConsolidation(consolidation).command_catalog;
+    // The flat-shape fallback in collectFindingsSources catches this.
+    // (Note: the bug we fixed in Plan 16 §C.1 is specifically about
+    // the analyzer-keyed `.findings` slice — the flat-on-analyzer
+    // shape still resolves via the `consolidated_findings` fallback.)
+    expect(Object.keys(catalog).length).toBeGreaterThan(0);
+  });
+
+  it('merges fields across multiple analyzers without dropping any', () => {
+    const consolidation = {
+      consolidated_findings: {
+        '01-structure-architecture': {
+          findings: {
+            automation: {
+              makefiles: [{ path: 'Makefile', targets: [{ name: 'tests' }] }],
+            },
+          },
+        },
+        '02-tech-stack-dependencies': {
+          findings: {
+            build_tools: {
+              backend: {
+                config_file: 'package.json',
+                test_command: 'pnpm test',
+              },
+            },
+          },
+        },
+      },
+    };
+    const bundle = buildCatalogFromConsolidation(consolidation);
+    expect(bundle.automation?.makefiles).toHaveLength(1);
+    const tests = bundle.command_catalog.run_tests!;
+    // Both wrapper (from 01) and package_manager (from 02) candidates appear.
+    expect(tests.some((e) => e.tier === 'wrapper' && e.command === 'make tests')).toBe(true);
+    expect(tests.some((e) => e.tier === 'package_manager' && e.command === 'pnpm test')).toBe(true);
+  });
+});
