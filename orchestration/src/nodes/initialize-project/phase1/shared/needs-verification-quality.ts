@@ -166,7 +166,18 @@ export interface NeedsVerificationViolation {
     | 'invalid_attempted_resolution_entry'
     | 'graph_internals_in_user_prose'
     | 'fabricated_numbers_in_question'
-    | 'missing_or_generic_impact';
+    | 'missing_or_generic_impact'
+    // Plan 17 §C.1 — agent's `attempted_resolution` proves the answer
+    // ("Grep aws-sdk — zero matches") but the question asks
+    // a yes/no presence question ("Is an AWS SDK installed?").
+    // The evidence already answers it; report as a finding, not
+    // a needs_verification item.
+    | 'found_no_evidence_yesno'
+    // Plan 17 §C.2 — agent admits in `attempted_resolution` that it
+    // didn't finish the search ("file contents were not read").
+    // The framework cannot substitute the operator for work the
+    // agent could have done.
+    | 'confessed_incomplete_search';
   /** Index into the `needs_verification` array (or -1 when array-shape). */
   index: number;
   /** Human-readable agent-facing message. */
@@ -246,6 +257,182 @@ const TOOL_TOKEN_PATTERNS: RegExp[] = [
   /^\s*(?:grep|find|ls|cat|head|tail|rg)\b/i,
 ];
 
+// ============================================================================
+// PLAN 17 §C.1 — "Found-No-Evidence" rule.
+//
+// Agent's `attempted_resolution` proves the answer ("Grep aws-sdk —
+// zero matches"), but the question asks a yes/no presence question
+// ("Is an AWS SDK installed?"). The evidence already answers it.
+// Report as a finding, not a needs_verification item.
+// ============================================================================
+
+/**
+ * Negative-evidence tokens. When ANY `attempted_resolution` entry
+ * matches one of these, the agent has already established absence
+ * of whatever was searched for.
+ *
+ * Stack-agnostic: pure search-vocabulary tokens; no language-family
+ * branches.
+ */
+const NEGATIVE_EVIDENCE_PATTERNS: RegExp[] = [
+  /\b(?:zero|0)\s+matches?\b/i,
+  /\breturned\s+zero\b/i,
+  /\bno\s+result(?:s)?\b/i,
+  /\bno\s+[-_/\w]+\s+(?:found|present|installed|declared|configured|defined|exists|specified)\b/i,
+  /\bnot\s+(?:installed|declared|present|defined|configured|specified)\b/i,
+  /\bdoes\s+not\s+(?:appear|exist|contain|reference)\b/i,
+  /\bno\s+[-_/\w@.]{0,40}\s+(?:package|module|import|dependency|key|file|script|config|hook|rule|threshold)\b/i,
+  /\bno\s+[\w-]+\.(?:yml|yaml|json|toml|js|ts|mjs|cjs|md)\s+(?:found|exists|present)\b/i,
+  /\b(?:absent|missing)\b/i,
+];
+
+/**
+ * Yes/no presence question shape. The question must START with a
+ * yes/no auxiliary AND end with `?` to qualify. This precision keeps
+ * legitimate "what is X used for?" / "how does Y work?" questions
+ * from triggering the rule when the agent searched and found nothing.
+ *
+ * Stack-agnostic — auxiliaries are English-language constants.
+ */
+const YESNO_QUESTION_PATTERN =
+  /^\s*(?:is|are|does|do|has|have|was|were|will|can|could|should|did)\b[^?]+\?\s*$/i;
+const IS_THERE_QUESTION_PATTERN = /^\s*is\s+there\b[^?]+\?\s*$/i;
+
+/**
+ * Questions about PRODUCTION / runtime state (not source-code state)
+ * are legitimate operator-only items even when their attempted_resolution
+ * contains negative-evidence tokens. The negative tokens establish
+ * source-code context (e.g. "no @IsOptional() decorator" — proving a
+ * var is required at startup); the question asks whether production
+ * VALUES / production INFRA are correctly configured, which the
+ * framework cannot verify from the repo.
+ *
+ * When any of these tokens appear in the question, the rule does
+ * not fire.
+ */
+const PRODUCTION_RUNTIME_QUESTION_PATTERNS: RegExp[] = [
+  /\bin\s+(?:the\s+)?production\b/i,
+  /\bproduction\s+(?:environment|values|deployment|server|infra|infrastructure|setup|runtime|host|grade|cluster|instance|database|broker|queue)\b/i,
+  /\bproduction-grade\b/i,
+  /\bset\s+correctly\b/i,
+  /\bconfigured\s+correctly\b/i,
+  /\bruntime\s+(?:state|values|behaviour|behavior|configuration)\b/i,
+  /\b(?:persistent|ephemeral)\s+(?:deployment|container|instance)\b/i,
+];
+
+function questionIsYesNo(question: unknown): boolean {
+  if (typeof question !== 'string') return false;
+  const trimmed = question.trim();
+  if (trimmed.length === 0) return false;
+  return YESNO_QUESTION_PATTERN.test(trimmed) || IS_THERE_QUESTION_PATTERN.test(trimmed);
+}
+
+function questionIsAboutProductionRuntime(question: unknown): boolean {
+  if (typeof question !== 'string') return false;
+  for (const pattern of PRODUCTION_RUNTIME_QUESTION_PATTERNS) {
+    if (pattern.test(question)) return true;
+  }
+  return false;
+}
+
+function findNegativeEvidence(entries: string[]): { entry: string; match: string } | null {
+  for (const entry of entries) {
+    for (const pattern of NEGATIVE_EVIDENCE_PATTERNS) {
+      const m = pattern.exec(entry);
+      if (m) return { entry, match: m[0] };
+    }
+  }
+  return null;
+}
+
+function validateNoFoundNoEvidenceYesNo(
+  item: Record<string, unknown>,
+  index: number,
+): NeedsVerificationViolation[] {
+  if (!questionIsYesNo(item.question)) return [];
+  // Production / runtime questions are legitimate operator-only items
+  // — the negative-evidence tokens in attempted_resolution typically
+  // establish source-code context, not the production-state answer.
+  if (questionIsAboutProductionRuntime(item.question)) return [];
+  const ar = readStringArray(item.attempted_resolution);
+  if (ar.length === 0) return [];
+  const hit = findNegativeEvidence(ar);
+  if (!hit) return [];
+  return [
+    {
+      code: 'found_no_evidence_yesno',
+      index,
+      message:
+        `needs_verification[${index}] is self-contradicting: the question "${truncate(
+          (item.question as string).trim(),
+          120,
+        )}" asks about presence/installation/configuration, but ` +
+        `attempted_resolution already proves the answer is "no" ` +
+        `("${hit.match}" in entry "${truncate(hit.entry, 120)}"). ` +
+        `Report this as a finding (record the absence as a fact in the relevant ` +
+        `\`findings.<...>\` field), not a needs_verification question. ` +
+        `The operator should not be asked to confirm what the evidence already proves.`,
+    },
+  ];
+}
+
+// ============================================================================
+// PLAN 17 §C.2 — "Confessed Incomplete Search" rule.
+//
+// Agent admits in `attempted_resolution` that it did not finish the
+// search the question requires ("file contents were not read", "did
+// not inspect"). The framework cannot substitute the operator for
+// work the agent could have done.
+// ============================================================================
+
+const CONFESSED_INCOMPLETE_PATTERNS: RegExp[] = [
+  /\bcontents?\s+(?:were|was)\s+not\s+(?:read|inspected|opened|examined)\b/i,
+  /\b(?:were|was)\s+not\s+(?:read|inspected|searched|opened|examined)\b/i,
+  /\bdid\s+not\s+(?:read|inspect|search|open|examine)\b/i,
+  /\bfiles?\s+not\s+read\b/i,
+  /\bnot\s+yet\s+(?:read|inspected|searched)\b/i,
+  /\bunknown\s+because\s+(?:we|i)\s+did\s+not\b/i,
+  /\bhave(?:n['']t)?\s+(?:read|inspected|searched|opened)\b/i,
+];
+
+function findConfessedIncompleteSearch(entries: string[]): { entry: string; match: string } | null {
+  for (const entry of entries) {
+    for (const pattern of CONFESSED_INCOMPLETE_PATTERNS) {
+      const m = pattern.exec(entry);
+      if (m) return { entry, match: m[0] };
+    }
+  }
+  return null;
+}
+
+function validateNoConfessedIncompleteSearch(
+  item: Record<string, unknown>,
+  index: number,
+): NeedsVerificationViolation[] {
+  const ar = readStringArray(item.attempted_resolution);
+  if (ar.length === 0) return [];
+  const hit = findConfessedIncompleteSearch(ar);
+  if (!hit) return [];
+  return [
+    {
+      code: 'confessed_incomplete_search',
+      index,
+      message:
+        `needs_verification[${index}].attempted_resolution admits the search was incomplete ` +
+        `("${hit.match}" in entry "${truncate(hit.entry, 140)}"). ` +
+        `Complete the search (Read / Grep / Glob the file you skipped) before emitting ` +
+        `needs_verification. The framework cannot ask the operator to substitute for an ` +
+        `unfinished investigation.`,
+    },
+  ];
+}
+
+function readStringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((x): x is string => typeof x === 'string');
+}
+// `truncate` is defined further below and shared with other helpers.
+
 /**
  * Inspect every `needs_verification` item and return hard-violation
  * messages. Empty array = pass.
@@ -265,6 +452,13 @@ export function validateNeedsVerificationProse(items: unknown): NeedsVerificatio
     violations.push(...validateNoGraphInternals(item as Record<string, unknown>, i));
     violations.push(...validateNoFabricatedNumbers(item as Record<string, unknown>, i));
     violations.push(...validateImpactField(item as Record<string, unknown>, i));
+    // Plan 17 §C — self-contradiction checks. Both rules look at
+    // the agent's own evidence in `attempted_resolution`; one fires
+    // when that evidence already proves the answer to a yes/no
+    // presence question; the other fires when the evidence admits
+    // the search was never completed.
+    violations.push(...validateNoFoundNoEvidenceYesNo(item as Record<string, unknown>, i));
+    violations.push(...validateNoConfessedIncompleteSearch(item as Record<string, unknown>, i));
   }
   return violations;
 }

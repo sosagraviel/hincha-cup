@@ -240,3 +240,53 @@ Bad: Graph internals leak into question + reason; agent never tried `Grep "@Cont
 </example>
 
 </examples>
+
+## Final self-check before emitting (Plan 17 §C — load-bearing)
+
+Two anti-patterns the Stop hook will reject. Walk every
+`needs_verification` item through this checklist:
+
+### 1. Self-contradicting question (`found_no_evidence_yesno`)
+
+If your `attempted_resolution` already proves the answer is "no"
+(tokens like `zero matches`, `no X found`, `not installed`, `not
+declared`, `does not exist`), and the question is a yes/no
+presence question (`Is X installed?`, `Are there Y?`, `Does the
+project have Z?`, `Is there a W?`), the answer is already
+established. **Do NOT ask the operator** — record the absence as
+a finding instead.
+
+<example type="bad">
+```json
+{
+  "question": "Is an AWS SDK installed?",
+  "attempted_resolution": [
+    "Grep \"aws-sdk\" services/backend/package.json — zero matches; no AWS SDK declared",
+    "Grep \"aws-sdk\" services/web-frontend/package.json — zero matches"
+  ]
+}
+```
+Bad: the evidence proves no AWS SDK is installed. Report this as a finding (e.g. `findings.dependencies.aws_sdk: not_installed`, or simply omit AWS-related dependencies from the list). Do not ask the operator to confirm.
+</example>
+
+### 2. Confessed incomplete search (`confessed_incomplete_search`)
+
+If your `attempted_resolution` admits the search was skipped
+(`file contents were not read`, `did not inspect`, `was not
+searched`, `unknown because we did not …`), **finish the search
+first.** Read / Grep / Glob the file you skipped. The framework
+cannot ask the operator to substitute for work the agent could
+have done in one more tool call.
+
+<example type="bad">
+```json
+{
+  "question": "What commands do the husky git hooks execute?",
+  "attempted_resolution": [
+    "Glob .husky/* — found commit-msg, pre-push, pre-commit but file contents were not read",
+    "Read services/backend/package.json — scripts define lint:check, type:check, test:unit"
+  ]
+}
+```
+Bad: the agent admits the .husky files were not read. Run `Read .husky/pre-commit` (then `pre-push`, `commit-msg`). After reading, the answer is usually direct (e.g. "pre-commit runs `pnpm lint && pnpm test:unit`") and no question is needed.
+</example>

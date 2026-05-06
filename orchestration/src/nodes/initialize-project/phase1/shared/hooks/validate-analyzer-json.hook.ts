@@ -632,7 +632,21 @@ async function main() {
             '  - missing_or_generic_impact: `impact` MUST name a concrete\n' +
             '    artefact (wiki page / skill body / finding) AND what changes\n' +
             '    about it. ≥40 chars. "Important for documentation" / "useful\n' +
-            '    to know" / "nice to have" are rejected.\n\n' +
+            '    to know" / "nice to have" are rejected.\n' +
+            '  - found_no_evidence_yesno (Plan 17 §C.1): your\n' +
+            '    `attempted_resolution` already proves the answer (e.g.\n' +
+            '    "Grep aws-sdk — zero matches"), and the question is a\n' +
+            '    yes/no presence question (e.g. "Is an AWS SDK installed?").\n' +
+            '    Report this as a finding (record absence as a fact in the\n' +
+            '    relevant `findings.<...>` field), NOT a needs_verification\n' +
+            '    item. The operator should not be asked to confirm what your\n' +
+            '    evidence already proves.\n' +
+            '  - confessed_incomplete_search (Plan 17 §C.2): your\n' +
+            '    `attempted_resolution` admits the search was incomplete\n' +
+            '    ("file contents were not read", "did not inspect"). Finish\n' +
+            '    the search (Read / Grep / Glob the file you skipped) before\n' +
+            '    emitting the question. The framework cannot ask the operator\n' +
+            '    to substitute for an unfinished investigation.\n\n' +
             'Re-emit with the offending items either resolved (you found the\n' +
             'answer) or removed (the item should not have been there).',
         );

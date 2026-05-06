@@ -412,6 +412,309 @@ describe('validateNeedsVerificationProse — defensive shapes', () => {
   });
 });
 
+describe('validateNeedsVerificationProse — Plan 17 §C.1 found_no_evidence_yesno', () => {
+  // The gira 2026-05-06 run produced these self-contradicting questions:
+  //  - "Is an AWS S3 client library installed?" + attempted_resolution
+  //    showing `Grep aws-sdk — zero matches`
+  //  - "Is there a CI/CD pipeline configured?" + attempted_resolution
+  //    showing `Glob {.github/workflows/*.yml,...} — returned zero matches`
+  //  - "Is a minimum Jest code-coverage threshold enforced?" +
+  //    attempted_resolution showing `no coverageThreshold key found`
+  //
+  // Each one has well-formed evidence that already proves the answer
+  // is "no". The rule rejects them so the operator gets a clean list.
+
+  const GIRA_AR_AWS_SDK = [
+    'Grep "aws-sdk" services/backend/package.json — zero matches; no AWS SDK declared in backend dependencies',
+    'Grep "aws-sdk" services/web-frontend/package.json — zero matches across all remaining packages',
+  ];
+
+  it('fires on the gira "AWS SDK" shape (Q1)', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'Is an AWS S3 client library installed for the attachment storage feature?',
+        attempted_resolution: GIRA_AR_AWS_SDK,
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'found_no_evidence_yesno')).toBe(true);
+  });
+
+  it('fires on the gira "CI/CD pipeline" shape (Q2)', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'Is there a CI/CD pipeline configured for this project?',
+        attempted_resolution: [
+          'Glob "{.github/workflows/*.yml,.gitlab-ci.yml,.circleci/config.yml}" — returned zero matches',
+          'Grep "deploy" package.json — only keycloak:export-realm script found; no publish or release automation',
+        ],
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'found_no_evidence_yesno')).toBe(true);
+  });
+
+  it('fires on the gira "Jest coverage threshold" shape (Q4)', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'Is a minimum Jest code-coverage threshold enforced for the backend service?',
+        attempted_resolution: [
+          'Read services/backend/jest.config.mjs — collectCoverageFrom present, no coverageThreshold key found',
+          'Grep "coverageThreshold" services/backend/ — zero matches across all backend config files',
+        ],
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'found_no_evidence_yesno')).toBe(true);
+  });
+
+  it('does NOT fire on legitimate operator questions (gira Q5 — Keycloak prod env vars)', () => {
+    // The agent established the code's behavior. The question asks
+    // whether production VALUES are correct — production-only,
+    // operator-only. The attempted_resolution contains negative
+    // tokens ("no @IsOptional()", "no defaults") that establish
+    // source-code context but do NOT answer the production-values
+    // question. The production-runtime exemption keeps this from
+    // false-positive firing.
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question:
+          'Are KEYCLOAK_INTERNAL_URL, KEYCLOAK_EXTERNAL_URL, KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID, KEYCLOAK_ADMIN_USERNAME, and KEYCLOAK_ADMIN_PASSWORD set correctly in the production environment?',
+        attempted_resolution: [
+          'Read services/backend/src/modules/config/keycloak.config.ts — confirms all six vars are marked @IsString() with no @IsOptional() and no defaults',
+          'Grep "KEYCLOAK" services/backend/src — 7 source files reference these vars but no .env.example or fallback defaults appear in any of them',
+        ],
+      },
+    ]);
+    expect(violations.filter((v) => v.code === 'found_no_evidence_yesno')).toHaveLength(0);
+  });
+
+  it('does NOT fire on production-runtime questions (gira Q6 — Redis production deployment)', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question:
+          'Is the Redis instance pointed to by REDIS_HOST and REDIS_PORT a persistent, production-grade deployment rather than a local or ephemeral container?',
+        attempted_resolution: [
+          'Read services/backend/src/modules/queue/queues.config.ts — getRedisConnection() defaults REDIS_HOST to localhost and REDIS_PORT to 6379',
+          'Read services/backend/src/modules/auth/middleware/auth.middleware.ts — RedisService.getJson call has no try/catch or graceful degradation',
+        ],
+      },
+    ]);
+    expect(violations.filter((v) => v.code === 'found_no_evidence_yesno')).toHaveLength(0);
+  });
+
+  it('does NOT fire on "configured correctly" / "set correctly" question shapes', () => {
+    // These ask about CORRECTNESS of production state, not source-code presence.
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'Are SENTRY_DSN and SENTRY_ENVIRONMENT configured correctly?',
+        attempted_resolution: [
+          'Read sentry.config.ts — vars are required at startup',
+          'Grep "SENTRY" services/backend/src — 5 files reference; no defaults in code',
+        ],
+      },
+    ]);
+    expect(violations.filter((v) => v.code === 'found_no_evidence_yesno')).toHaveLength(0);
+  });
+
+  it('does NOT fire on non-yes/no questions even when attempted_resolution has negative evidence', () => {
+    // Questions like "What testing strategy is enforced?" deserve to be
+    // asked even when the agent searched and found nothing — they ask
+    // about strategy, not pure presence.
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'What testing strategy is enforced for the backend service?',
+        attempted_resolution: [
+          'Read services/backend/jest.config.mjs — no coverageThreshold key found',
+          'Grep "coverageThreshold" services/backend/ — zero matches',
+        ],
+      },
+    ]);
+    expect(violations.filter((v) => v.code === 'found_no_evidence_yesno')).toHaveLength(0);
+  });
+
+  it('does NOT fire when the question is yes/no but the evidence is positive', () => {
+    // "Is X used at runtime?" + AR proving X is used — this is well-shaped;
+    // the rule must only catch yes/no + negative-evidence pairs.
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'Is BullMQ used as the queue transport?',
+        attempted_resolution: [
+          'Read services/backend/src/queue/queue.module.ts — imports @nestjs/bullmq and registers two queues',
+          'Grep "from \'bullmq\'" services/backend/src/ — 4 import sites confirmed',
+        ],
+      },
+    ]);
+    expect(violations.filter((v) => v.code === 'found_no_evidence_yesno')).toHaveLength(0);
+  });
+});
+
+describe('validateNeedsVerificationProse — Plan 17 §C.2 confessed_incomplete_search', () => {
+  // The gira 2026-05-06 run produced this confessed-incomplete question:
+  //  - "What commands do the husky git hooks actually execute?" +
+  //    attempted_resolution explicitly stating "file contents were not read"
+  // The .husky/* files are short shell scripts; the agent had Read
+  // available; the fix is to read them.
+
+  it('fires on the gira "husky hooks" shape (Q3)', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question:
+          'What commands do the husky git hooks (commit-msg, pre-push, pre-commit) actually execute?',
+        attempted_resolution: [
+          'Glob .husky/* — found commit-msg, pre-push, pre-commit but file contents were not read',
+          'Read services/backend/package.json — scripts define lint:check, type:check, test:unit',
+        ],
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'confessed_incomplete_search')).toBe(true);
+  });
+
+  it('fires on "did not inspect" phrasing', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        attempted_resolution: [
+          'Read services/backend/package.json — confirmed deps',
+          'Found 3 config files but did not inspect their contents',
+        ],
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'confessed_incomplete_search')).toBe(true);
+  });
+
+  it('fires on "was not searched" phrasing', () => {
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        attempted_resolution: [
+          'Read services/backend/package.json',
+          'The /docs directory was not searched for additional context',
+        ],
+      },
+    ]);
+    expect(violations.some((v) => v.code === 'confessed_incomplete_search')).toBe(true);
+  });
+
+  it('does NOT fire on completed searches (no admit-incomplete tokens)', () => {
+    const violations = validateNeedsVerificationProse([GOOD_ITEM]);
+    expect(violations.filter((v) => v.code === 'confessed_incomplete_search')).toHaveLength(0);
+  });
+
+  it('does NOT fire on negative results that simply report "not found" (different from confessed)', () => {
+    // "no X found" is a completed search with a negative result —
+    // that's the §C.1 territory (and only fires for yes/no questions).
+    // The confessed-incomplete rule must not trip on negative results.
+    const violations = validateNeedsVerificationProse([
+      {
+        ...GOOD_ITEM,
+        question: 'How are background jobs scheduled?',
+        attempted_resolution: [
+          'Grep "BullMQ" services/backend/src — no matches found',
+          'Read services/backend/src/queue/queue.module.ts',
+        ],
+      },
+    ]);
+    expect(violations.filter((v) => v.code === 'confessed_incomplete_search')).toHaveLength(0);
+  });
+});
+
+describe('Plan 17 acceptance — all 4 self-contradicting gira questions are blocked', () => {
+  it('blocks Q1, Q2, Q3, Q4 in a single batch; passes Q5, Q6 unchanged', () => {
+    // The complete gira 2026-05-06 set, as shipped to the operator
+    // in the interactive prompt. The expectation: 4 reject, 2 pass
+    // through (subject to the existing Plan-14 gates which we already
+    // know they pass).
+    const giraSet = [
+      // Q1 — found-no-evidence
+      {
+        ...GOOD_ITEM,
+        question: 'Is an AWS S3 client library installed for the attachment storage feature?',
+        attempted_resolution: [
+          'Grep "aws-sdk" services/backend/package.json — zero matches; no AWS SDK declared in backend dependencies',
+          'Grep "aws-sdk" services/web-frontend/package.json seeds/scripts/package.json packages/shared/package.json — zero matches across all remaining packages',
+        ],
+      },
+      // Q2 — found-no-evidence
+      {
+        ...GOOD_ITEM,
+        question:
+          'Is there a CI/CD pipeline configured for this project, and if so where is it defined?',
+        attempted_resolution: [
+          'Glob "{.github/workflows/*.yml,.gitlab-ci.yml,.circleci/config.yml,Jenkinsfile,.travis.yml,azure-pipelines.yml}" — returned zero matches',
+          'Grep "deploy" package.json — only keycloak:export-realm script found; no publish, deploy, or release automation scripts present',
+        ],
+      },
+      // Q3 — confessed-incomplete-search
+      {
+        ...GOOD_ITEM,
+        question:
+          'What commands do the husky git hooks (commit-msg, pre-push, pre-commit) actually execute?',
+        attempted_resolution: [
+          'Glob .husky/* — found commit-msg, pre-push, pre-commit but file contents were not read',
+          'Read services/backend/package.json — scripts define lint:check, type:check, test:unit',
+        ],
+      },
+      // Q4 — found-no-evidence
+      {
+        ...GOOD_ITEM,
+        question: 'Is a minimum Jest code-coverage threshold enforced for the backend service?',
+        attempted_resolution: [
+          'Read services/backend/jest.config.mjs — collectCoverageFrom present, no coverageThreshold key found',
+          'Grep "coverageThreshold" services/backend/ — zero matches across all backend config files',
+        ],
+      },
+      // Q5 — legitimate operator question
+      {
+        ...GOOD_ITEM,
+        question:
+          'Are KEYCLOAK_INTERNAL_URL, KEYCLOAK_EXTERNAL_URL, KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID, KEYCLOAK_ADMIN_USERNAME, and KEYCLOAK_ADMIN_PASSWORD set correctly in the production environment?',
+        attempted_resolution: [
+          'Read services/backend/src/modules/config/keycloak.config.ts — confirms all six vars are marked @IsString() with no @IsOptional() and no defaults',
+          'Grep "KEYCLOAK" services/backend/src — 7 source files reference these vars',
+        ],
+      },
+      // Q6 — legitimate operator question
+      {
+        ...GOOD_ITEM,
+        question:
+          'Is the Redis instance pointed to by REDIS_HOST and REDIS_PORT a persistent, production-grade deployment rather than a local or ephemeral container?',
+        attempted_resolution: [
+          'Read services/backend/src/modules/queue/queues.config.ts — getRedisConnection() defaults REDIS_HOST to localhost and REDIS_PORT to 6379',
+          'Read services/backend/src/modules/auth/middleware/auth.middleware.ts — RedisService.getJson call has no try/catch',
+        ],
+      },
+    ];
+
+    const violations = validateNeedsVerificationProse(giraSet);
+    const blockedIndexes = new Set(
+      violations
+        .filter(
+          (v) => v.code === 'found_no_evidence_yesno' || v.code === 'confessed_incomplete_search',
+        )
+        .map((v) => v.index),
+    );
+    // Q1, Q2, Q3, Q4 are at indexes 0, 1, 2, 3.
+    expect(blockedIndexes.has(0)).toBe(true);
+    expect(blockedIndexes.has(1)).toBe(true);
+    expect(blockedIndexes.has(2)).toBe(true);
+    expect(blockedIndexes.has(3)).toBe(true);
+    // Q5, Q6 (indexes 4, 5) MUST NOT be flagged by the new rules.
+    const q5q6New = violations.filter(
+      (v) =>
+        (v.index === 4 || v.index === 5) &&
+        (v.code === 'found_no_evidence_yesno' || v.code === 'confessed_incomplete_search'),
+    );
+    expect(q5q6New).toHaveLength(0);
+  });
+});
+
 describe('Plan 14 acceptance — the 7 gira questions are blocked', () => {
   // Each fixture is the gira question rephrased as a needs_verification
   // item with the worst-case shape (empty / generic resolution + impact).
