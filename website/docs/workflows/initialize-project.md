@@ -22,15 +22,240 @@ The initialize project workflow:
 ## Quick Start
 
 ```bash
-cd orchestration
+# From your project root, clone the framework
+cd your-project-directory
+git clone https://github.com/thisisqubika/qubika-agentic-framework.git
 
-# Initialize a project
-pnpm initialize -- \
-  -p /path/to/your/project \
-  -f /path/to/framework
+# Run automated initialization (auto-detects provider)
+./qubika-agentic-framework/scripts/initialize-project.sh
 
-# Result: .claude/ directory created with full configuration
+# Or pick a provider explicitly
+./qubika-agentic-framework/scripts/initialize-project.sh --provider claude
+./qubika-agentic-framework/scripts/initialize-project.sh --provider codex
+
+# Result: .claude/ (or .codex/) directory created with full configuration
 ```
+
+The script installs dependencies, builds the TypeScript orchestration, and runs all six phases. Project and framework paths are inferred from the script's location — no flags required for the happy path. See [Installation Guide](/docs/getting-started/installation) for prerequisites.
+
+## Multi-Repository Setup
+
+Use this setup when a product is split across **two or more Git repositories** that are developed together (for example, one repo for the backend and another for the frontend). QAF will be initialized once at a shared parent folder so it understands all the repositories as a single product. This enables **traversal tickets** — a single ticket that touches more than one repo, such as adding a field to the API and rendering it in the UI.
+
+If your project lives in a single repository, use the [Quick Start](#quick-start) above instead.
+
+### Folder layout
+
+You create one **parent folder** that holds the related repositories side by side, plus the framework. The parent folder does **not** need to be a Git repository — it is just a workspace.
+
+```
+my-product/                          ← parent folder (you create this)
+├── app-backend/                     ← cloned repo #1
+├── app-frontend/                    ← cloned repo #2
+└── qubika-agentic-framework/        ← cloned framework
+```
+
+After initialization, a single `.claude/` (or `.codex/`) directory will live next to those folders, and it will be aware of every repository.
+
+### Step-by-step
+
+#### 1. Create the parent folder
+
+Pick any name you like (here we use `my-product`):
+
+```bash
+mkdir my-product
+cd my-product
+```
+
+#### 2. Clone each related repository
+
+From inside the parent folder, clone every repository that belongs to the product:
+
+```bash
+git clone https://github.com/your-org/app-backend.git
+git clone https://github.com/your-org/app-frontend.git
+```
+
+#### 3. Clone the framework
+
+Still inside the parent folder, clone QAF:
+
+```bash
+git clone https://github.com/thisisqubika/qubika-agentic-framework.git
+```
+
+Your folder should now match the layout shown above.
+
+#### 4. Run initialization from the parent folder
+
+From the parent folder, run the initialization script. Replace `<provider>` with `claude` or `codex`:
+
+```bash
+./qubika-agentic-framework/scripts/initialize-project.sh --provider <provider>
+```
+
+Examples:
+
+```bash
+# Claude Code
+./qubika-agentic-framework/scripts/initialize-project.sh --provider claude
+
+# Codex CLI
+./qubika-agentic-framework/scripts/initialize-project.sh --provider codex
+```
+
+The script will:
+- Detect that the parent folder contains multiple repositories
+- Analyze each repository's language, framework, and patterns
+- Generate one `.claude/` (or `.codex/`) configuration at the parent folder, aware of every repo
+
+#### 5. Verify
+
+When the script finishes, the generated config sits at the parent folder:
+
+```bash
+ls .claude/
+# CLAUDE.md  agents/  framework-config.json  skills/
+```
+
+Open `framework-config.json` and confirm that each repository appears in the discovered services.
+
+### Tracking the parent configuration (optional)
+
+The parent folder itself is **not** a Git repository, so the generated `.claude/` (or `.codex/`) is not tracked anywhere by default. If you want to share the multi-repo aware configuration with your team — instead of every developer regenerating it locally — create a dedicated GitHub repository for it.
+
+#### 1. Create an empty GitHub repository
+
+For example, `my-product-qaf-config` on your organization. Do **not** initialize it with a README.
+
+#### 2. Initialize Git inside the parent folder
+
+From the parent folder:
+
+```bash
+git init
+```
+
+#### 3. Ignore the cloned repos and the framework
+
+The parent repo should only track the QAF-generated files — not the source repositories or the framework itself. Add a `.gitignore`:
+
+```gitignore
+# Cloned product repositories — each has its own GitHub repo
+app-backend/
+app-frontend/
+
+# The framework — cloned per developer
+qubika-agentic-framework/
+
+# Local QAF temp files
+.claude-temp/
+.codex-temp/
+.claude-backups/
+.codex-backups/
+```
+
+#### 4. Commit and push the generated config
+
+```bash
+git add .gitignore .claude/      # or .codex/ when using Codex
+git commit -m "Add multi-repo QAF configuration"
+git remote add origin git@github.com:your-org/my-product-qaf-config.git
+git branch -M main
+git push -u origin main
+```
+
+#### 5. Teammates clone the config alongside the product repos
+
+Each teammate sets up their parent folder once, then pulls updates as the config evolves:
+
+```bash
+mkdir my-product
+cd my-product
+git clone git@github.com:your-org/my-product-qaf-config.git .   # config + .gitignore
+git clone https://github.com/your-org/app-backend.git
+git clone https://github.com/your-org/app-frontend.git
+git clone https://github.com/thisisqubika/qubika-agentic-framework.git
+```
+
+After that, anyone re-running initialization can `git commit && git push` updates from the parent folder, and the rest of the team gets them with `git pull`.
+
+### Implementing a traversal ticket
+
+Once initialization is complete, run QAF workflows from the parent folder. They will reason about the whole product.
+
+Example — a ticket that adds a "user avatar" field to the API and renders it on the frontend:
+
+```bash
+# from inside my-product/
+
+# Claude Code
+/implement-ticket --from-jira PROJ-123
+
+# Codex CLI
+$implement-ticket --from-jira PROJ-123
+```
+
+QAF will plan and apply the changes in `app-backend/`, plan and apply the matching changes in `app-frontend/`, and open one pull request per affected repository.
+
+### Tips
+
+- **Always run commands from the parent folder.** That is where the `.claude/` (or `.codex/`) lives.
+- **Add a new repository later** by cloning it into the parent folder and re-running the initialization script.
+- **Each developer sets up their own parent folder.** By default the parent is not versioned, so every team member creates it locally and clones the same repositories into it. To share the generated config across the team, see [Tracking the parent configuration](#tracking-the-parent-configuration-optional).
+- Each repository keeps its own `.git`, branches, and pull requests exactly as before — QAF only coordinates across them.
+
+### FAQ
+
+#### What happens if a child repo already has its own `.claude/` (custom config or custom skills)?
+
+Nothing breaks. The parent and child configurations are independent **and** the child config keeps contributing to your sessions thanks to how Claude Code loads context hierarchically.
+
+**Independence.** Running initialization from the parent folder only writes to the parent's `.claude/` — it does **not** modify or delete an existing `.claude/` inside any child repo. Likewise, running QAF again later inside a child repo does not touch the parent's config. Whichever folder you launch the CLI from determines which config is the "primary" one for the session:
+
+- Launched from the **parent folder** → the parent's `.claude/` drives the session.
+- Launched from **inside a child repo** → only that child's `.claude/` is in scope; the parent config is invisible.
+
+**What Claude Code sees when launched from `my-product/` (parent) folder:**
+
+✅ **Loaded immediately at session start**
+
+`CLAUDE.md` and `CLAUDE.local.md` files in the directory hierarchy *above* the working directory are loaded in full at launch. Since you launched from `my-product/`, that means:
+
+- `my-product/.claude/CLAUDE.md` ✅ — loaded immediately
+- `~/.claude/CLAUDE.md` (your personal global config) ✅ — loaded immediately
+- Any managed policy `CLAUDE.md` (enterprise-wide) ✅ — loaded immediately
+
+⏳ **Loaded on-demand (lazily)**
+
+Files in subdirectories load on demand when Claude reads files in those directories. So `app-backend/.claude/CLAUDE.md` is **not** loaded at startup — it gets pulled in the moment Claude actually reads or touches a file inside `app-backend/`. At that point it is injected into context automatically.
+
+So for your structure, **anything inside `app-backend/.claude/` — including custom skills under `app-backend/.claude/skills/` — will be discovered**, but only once Claude starts touching files in `app-backend/`. It mirrors the `CLAUDE.md` lazy-loading behavior exactly.
+
+> The same hierarchical and lazy-loading model applies to Codex CLI with `AGENTS.md` and `.codex/` directories.
+
+#### Do I need to delete the child repos' `.claude/` folders before running QAF at the parent?
+
+No. Leave them in place. Each child can still be opened standalone (CLI launched from inside it), and the parent setup will simply add a new layer above them.
+
+#### What if my child repos have very different stacks (e.g. Python backend + TypeScript frontend)?
+
+That is the supported case. Phase 1 analyzers detect stack and patterns **per repository** (via the `by_service` map in `framework-config.json`). The generated parent config includes skills and agents for every detected stack — for example, `mastering-python` for `app-backend/` and `mastering-typescript` for `app-frontend/`.
+
+#### Where do pull requests go for a traversal ticket?
+
+Each repository keeps its own `.git` and its own remote. When `implement-ticket` runs from the parent folder and modifies files in `app-backend/` and `app-frontend/`, it creates a branch and a pull request **inside each affected repo** — not in the parent folder. You end up with one PR per touched repository.
+
+#### Will re-running initialization at the parent overwrite child configs?
+
+No. The parent initialization only writes to the parent folder's `.claude/` (or `.codex/`). Each child repo's own `.claude/` is left untouched.
+
+#### Can I still commit a child repo's `.claude/` to that child repo's GitHub?
+
+Yes. That is the standard single-repo flow and is fully independent from the multi-repo parent config. Many teams keep both: the per-repo `.claude/` for solo work inside that repo, and the parent `.claude/` for cross-repo tickets.
+
+---
 
 ## Generated Structure
 
@@ -156,63 +381,68 @@ const graph = new StateGraph(InitializeProjectAnnotation)
 
 ## Command Options
 
-```bash
-# Required flags
--p, --project-path <path>      # Path to project (absolute)
--f, --framework-path <path>    # Path to framework (absolute)
+The script auto-detects project and framework paths from its own location, so no path flags are required.
 
+```bash
 # Optional flags
---resume                       # Resume from last completed phase
---model-tier <tier>           # Model tier (standard | fast | advanced)
---skip-validation             # Skip Phase 6 validation
+--provider <claude|codex>     # AI provider (auto-detected if omitted)
+--start-phase <N>             # Start from phase N (1-6); skips earlier phases
+--skip-gap-questions          # Skip Phase 2 gap analysis questions (full auto)
+--timeout <seconds>           # Max execution time (default: 3600)
+--clean                       # Remove .claude-temp/.codex-temp after completion
+--help, -h                    # Show help
+```
+
+```bash
+# Environment variables
+MODEL_TIER=<tier>             # fast | standard (default) | advanced | openai | gemini
+ANTHROPIC_API_KEY=<key>       # Required for Claude provider (or use claude auth login)
+OPENAI_API_KEY=<key>          # Required for Codex provider (or use codex login)
+GOOGLE_API_KEY=<key>          # Required for Gemini tier
 ```
 
 ## Usage Examples
 
-### Example 1: Initialize TypeScript Project
+### Example 1: Standard Initialization
 
 ```bash
-cd orchestration
-pnpm initialize -- \
-  -p ~/projects/my-app \
-  -f ~/framework
+cd ~/projects/my-app
+git clone https://github.com/thisisqubika/qubika-agentic-framework.git
+./qubika-agentic-framework/scripts/initialize-project.sh
 
-# Detects: TypeScript, React, pnpm, Vitest
-# Includes: typescript-development, react-development, testing skills
+# Detects stack automatically (TypeScript, React, pnpm, Vitest, etc.)
+# Includes matching skills (typescript-development, react-development, testing)
 ```
 
-### Example 2: Initialize Python Project
+### Example 2: Initialize for Codex
 
 ```bash
-pnpm initialize -- \
-  -p ~/projects/python-api \
-  -f ~/framework
+./qubika-agentic-framework/scripts/initialize-project.sh --provider codex
 
-# Detects: Python, FastAPI, Poetry, Pytest
-# Includes: python-development, fastapi-development, testing skills
+# Generates .codex/ instead of .claude/
 ```
 
 ### Example 3: Resume After Interruption
 
 ```bash
-# If Phase 3 was interrupted
-pnpm initialize -- \
-  -p ~/projects/my-app \
-  -f ~/framework \
-  --resume
-
-# Resumes from Phase 4 (skips Phases 1-3)
+# If Phase 3 was interrupted, resume from Phase 4
+./qubika-agentic-framework/scripts/initialize-project.sh --start-phase 4
 ```
 
 ### Example 4: Use Advanced Models
 
 ```bash
-pnpm initialize -- \
-  -p ~/projects/complex-app \
-  -f ~/framework \
-  --model-tier advanced
+MODEL_TIER=advanced ./qubika-agentic-framework/scripts/initialize-project.sh
 
-# Uses Opus 4.6 for all phases (highest quality)
+# Uses the advanced tier (Opus) for all phases — highest quality
+```
+
+### Example 5: Fully Automated (CI/CD)
+
+```bash
+./qubika-agentic-framework/scripts/initialize-project.sh \
+  --skip-gap-questions \
+  --provider claude
 ```
 
 ## Stack Support
@@ -228,52 +458,44 @@ pnpm initialize -- \
 
 ## Troubleshooting
 
-### Error: "Project path does not exist"
+### Error: "Framework is not inside a project directory"
 
-**Solution**: Ensure project path is absolute and exists
+**Cause**: The framework must be cloned **inside** your project root, not at the same level.
 
-```bash
-# Check path
-ls -la /path/to/project
-
-# Use absolute path
-pnpm initialize -- -p $(pwd)/my-project -f $(pwd)/framework
-```
-
-### Error: "Framework path does not exist"
-
-**Solution**: Clone framework first
+**Solution**:
 
 ```bash
+cd /path/to/your/project
 git clone https://github.com/thisisqubika/qubika-agentic-framework.git
-pnpm initialize -- -p /path/to/project -f $(pwd)/qubika-agentic-framework
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
-### Error: "Phase 1 analyzer timeout"
+### Error: "node not found" or "npm not found"
 
-**Solution**: Large codebases may need more time
+**Solution**: Install Node.js v20+ from [nodejs.org](https://nodejs.org/).
+
+### Error: Phase 1 analyzer timeout
+
+**Solution**: Large codebases may need more time, or use the fast tier.
 
 ```bash
-# Use fast tier for Phase 1 analyzers
-pnpm initialize -- \
-  -p /path/to/large-project \
-  -f /path/to/framework \
-  --model-tier fast
+# Increase timeout (default: 3600s)
+./qubika-agentic-framework/scripts/initialize-project.sh --timeout 5400
+
+# Use the fast tier (Haiku models)
+MODEL_TIER=fast ./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
-### Error: "Validation failed"
+### Error: Phase failed midway
 
-**Solution**: Check validation errors in output
+**Solution**: Re-run from the failing phase using `--start-phase`.
 
 ```bash
-# Skip validation to see generated files
-pnpm initialize -- \
-  -p /path/to/project \
-  -f /path/to/framework \
-  --skip-validation
+# Resume from phase 4
+./qubika-agentic-framework/scripts/initialize-project.sh --start-phase 4
 
-# Manually inspect .claude/ directory
-ls -la /path/to/project/.claude/
+# Inspect previous phase outputs
+ls .claude-temp/initialize-project/
 ```
 
 ## Performance
@@ -290,8 +512,8 @@ ls -la /path/to/project/.claude/
 **Total**: 5-10 minutes
 
 **Cost Optimization**:
-- Use `--model-tier fast` for Phase 1 analyzers (Haiku)
-- Use `--model-tier advanced` for critical projects (Opus)
+- Use `MODEL_TIER=fast` for quicker, cheaper runs (Haiku)
+- Use `MODEL_TIER=advanced` for critical projects (Opus)
 
 ## Best Practices
 
@@ -299,28 +521,30 @@ ls -la /path/to/project/.claude/
 
 ```bash
 # Initial setup
-pnpm initialize -- -p ~/projects/my-app -f ~/framework
+./qubika-agentic-framework/scripts/initialize-project.sh
 
 # Framework updates: re-run to sync new skills/agents
-pnpm initialize -- -p ~/projects/my-app -f ~/framework
+./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
-### 2. Commit .claude/ Directory
+### 2. Commit the Generated Config
 
 ```bash
-# Add to version control
-git add .claude/
+# Add to version control (single-repo setup)
+git add .claude/   # or .codex/ when using Codex
 git commit -m "Add AI framework configuration"
 
 # Team members get configuration automatically
 git pull
 ```
 
+For [Multi-Repository Setup](#multi-repository-setup), the parent folder is not versioned — each developer recreates it locally.
+
 ### 3. Update After Major Changes
 
 ```bash
-# After adding new tech stack
-pnpm initialize -- -p ~/projects/my-app -f ~/framework
+# After adding a new tech stack or repository
+./qubika-agentic-framework/scripts/initialize-project.sh
 
 # New skills/agents will be synced
 ```
