@@ -306,6 +306,16 @@ Use `needs_verification` ONLY when ALL hold:
 
 Maximum 3 verification items. Do NOT ask about credentials / secrets / production endpoints / production-grade infrastructure / "managed outside this repository" / "by another team" — the Stop hook hard-rejects those (`speculative_out_of_scope`).
 
+### Record absence as a finding — never drop info on the floor
+
+When evidence proves a fact (positive OR negative), record it in the right `findings.<sub-field>` BEFORE deciding whether to ask. The Stop hook hard-rejects yes/no questions whose evidence proves "no" (`found_no_evidence_yesno`); the right move is to record the absence as a finding and drop the question, NOT drop the item silently. Facts go in `findings.*`; only intent / business decisions go in `needs_verification`.
+
+Generic shapes (stack-agnostic):
+
+- AR `Grep X — zero matches` → omit X from the relevant list, or add a `notable_absent` entry.
+- AR `Read <config> — no <key> found` → record the absence on that config's findings slice (e.g. `provider: "none"`, `coverage_threshold: "not_enforced"`) or in `notes:`.
+- AR `Glob X — contents not read` → finish the search and record what each file does.
+
 </verification_guidelines>
 
 ## Token efficiency

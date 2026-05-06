@@ -112,7 +112,7 @@ describe('analyzer Glob/Read budget — Fix 2.3 anti-regression', () => {
   });
 
   describe('aggregate', () => {
-    it('total size meets the §C 2.3 acceptance criterion (≥21% drop from 73938)', () => {
+    it('total size meets the §C 2.3 acceptance criterion (≥16% drop from 73938)', () => {
       // Same baseline as prompt-builder-dedupe.test.ts. Two assertions
       // rather than one test because this file is the canonical home
       // for the §C 2.3 contract; the dedupe test is the broader
@@ -134,13 +134,24 @@ describe('analyzer Glob/Read budget — Fix 2.3 anti-regression', () => {
       // prompts produced operator-noise questions every run; the
       // savings from §C 2.3's earlier dedupe pass are smaller than
       // the correctness gain from these additions.
+      //
+      // Plan 20 (2026-05-06): all four analyzers gained a "Record
+      // absence as a finding" paragraph (~700 chars per analyzer)
+      // that closes a documented information-loss bug — Plan 17's
+      // found_no_evidence_yesno blocks the question but the agent
+      // was silently dropping the underlying fact instead of
+      // recording it on `findings.*`. The previous gira run lost
+      // "no Jest coverage threshold enforced" entirely. Floor moves
+      // 21% → 16%. The correctness gain (operator gets the wiki
+      // facts without having to be asked confirmed-yes/no questions)
+      // outweighs the prompt-size cost.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
       const baseline = 73938;
       const reduction = (baseline - total) / baseline;
-      expect(reduction).toBeGreaterThanOrEqual(0.21);
+      expect(reduction).toBeGreaterThanOrEqual(0.16);
     });
   });
 });

@@ -189,6 +189,16 @@ Do NOT use for any of these (the Stop hook hard-rejects them):
 - ❌ Test file locations (graph + Glob fallback).
 - ❌ Linter / formatter presence (in dependencies and configs).
 
+### Record absence as a finding — never drop info on the floor
+
+When evidence proves a fact (positive OR negative), record it in the right `findings.<sub-field>` BEFORE deciding whether to ask. The Stop hook hard-rejects yes/no questions whose evidence proves "no" (`found_no_evidence_yesno`); the right move is to record the absence as a finding and drop the question, NOT drop the item silently. Facts go in `findings.*`; only intent / business decisions go in `needs_verification`.
+
+Generic shapes (stack-agnostic):
+
+- AR `Read <config> — no <key> found` → record the absence on that config's findings slice (e.g. `coverage_threshold: "not_enforced"`, `linter: "none"`) or in `notes:`.
+- AR `Glob X — zero matches` → record `file_count: 0` and a `notes:` line; do not ask whether files exist.
+- AR `Glob X — contents not read` → finish the search and record what each file does.
+
 </verification_guidelines>
 
 ## Token efficiency

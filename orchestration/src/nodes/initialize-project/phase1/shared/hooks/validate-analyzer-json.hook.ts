@@ -633,20 +633,30 @@ async function main() {
             '    artefact (wiki page / skill body / finding) AND what changes\n' +
             '    about it. ≥40 chars. "Important for documentation" / "useful\n' +
             '    to know" / "nice to have" are rejected.\n' +
-            '  - found_no_evidence_yesno (Plan 17 §C.1): your\n' +
+            '  - found_no_evidence_yesno (Plan 17 §C.1 + Plan 20): your\n' +
             '    `attempted_resolution` already proves the answer (e.g.\n' +
             '    "Grep aws-sdk — zero matches"), and the question is a\n' +
-            '    yes/no presence question (e.g. "Is an AWS SDK installed?").\n' +
-            '    Report this as a finding (record absence as a fact in the\n' +
-            '    relevant `findings.<...>` field), NOT a needs_verification\n' +
-            '    item. The operator should not be asked to confirm what your\n' +
-            '    evidence already proves.\n' +
-            '  - confessed_incomplete_search (Plan 17 §C.2): your\n' +
+            '    yes/no presence question. The fix is NOT to silently\n' +
+            '    delete the item — that loses the fact. RECORD THE\n' +
+            '    ABSENCE in the right `findings.<sub-field>` path FIRST,\n' +
+            '    THEN drop the question. Examples:\n' +
+            '      • AR has "no coverageThreshold key found" → add to\n' +
+            '        `findings.testing.<svc>.unit.coverage_threshold:\n' +
+            '        "not_enforced"` or in `notes:`.\n' +
+            '      • AR has "Grep X — zero matches" → omit X from the\n' +
+            '        dep list OR add `findings.dependencies.<svc>.notable_absent`.\n' +
+            '      • AR has "Glob workflows — zero matches" → add\n' +
+            '        `findings.ci_cd.provider: "none"`.\n' +
+            '    The fact still belongs in the wiki/CLAUDE.md; only the\n' +
+            "    QUESTION is wrong (the operator can't add information\n" +
+            '    your evidence already gathered).\n' +
+            '  - confessed_incomplete_search (Plan 17 §C.2 + Plan 20): your\n' +
             '    `attempted_resolution` admits the search was incomplete\n' +
-            '    ("file contents were not read", "did not inspect"). Finish\n' +
-            '    the search (Read / Grep / Glob the file you skipped) before\n' +
-            '    emitting the question. The framework cannot ask the operator\n' +
-            '    to substitute for an unfinished investigation.\n' +
+            '    ("file contents were not read", "did not inspect"). The\n' +
+            '    fix is two steps: (1) finish the search (Read / Grep /\n' +
+            '    Glob the file you skipped) and (2) RECORD what you found\n' +
+            "    in the right `findings.<sub-field>` path. Don't drop the\n" +
+            '    item without finishing — the fact belongs in the wiki.\n' +
             '  - speculative_out_of_scope (Plan 18): the question is about\n' +
             '    credentials / secrets / production endpoints / production\n' +
             '    deployment / infrastructure managed outside the repo. The\n' +

@@ -101,11 +101,16 @@ describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan
       //     items the Stop hook hard-rejects. This correctness
       //     content costs ~1600 chars across the four analyzers.
       //     Budget bumped 56500 → 58500.
+      //   - 2026-05-06 (Plan 20): all four analyzers gained a
+      //     "Record absence as a finding" paragraph closing a
+      //     documented info-loss bug (Plan 17 blocks the question,
+      //     agent silently drops the fact). ~700 chars per analyzer.
+      //     Budget bumped 58500 → 62500.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
-      expect(total).toBeLessThan(58500);
+      expect(total).toBeLessThan(62500);
     });
   });
 });
