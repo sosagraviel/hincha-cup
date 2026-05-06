@@ -41,8 +41,9 @@ For anything else, the graph MUST be your first call. If a graph call returns em
 2. Identify repository type (monorepo/polyrepo/single-service) from workspace configs
 3. Map each service/package with: id, path, type, language, frameworks
 4. Report architecture patterns based on directory structure analysis
-5. Discover project automation files (Makefiles, shell scripts, justfiles)
-6. Output valid JSON with at least one service in findings.services array
+5. Discover the **full Tier-1 automation surface** (Plan 15 §D.3) — Make / Just / Task / shell scripts / devcontainer / CI hints
+6. Extract the README "Getting Started" / "Setup" / "Quickstart" sections **verbatim**
+7. Output valid JSON with at least one service in findings.services array
 
 ## Constraints
 
@@ -53,21 +54,146 @@ For anything else, the graph MUST be your first call. If a graph call returns em
 - You CANNOT fix code, improve documentation, or make ANY changes
 - Your ONLY job: search → read → analyze → output JSON
 
-**Automation Discovery:**
+## Automation discovery (Plan 15 §D.3) — load-bearing
 
-- Search for automation files: `**/Makefile`, `**/*.sh`, `**/justfile`, `**/*.bash`
-- Prioritize root-level and `scripts/` directory locations
-- Extract Makefile targets by reading files and looking for lines matching pattern `^[\w-]+:`
-- Extract shell script names and purposes from comments or usage functions
-- Store automation findings in `findings.automation` field with makefiles, shell_scripts, justfiles arrays
+The downstream Phase 3 synthesizer renders `Essential Commands` from
+this surface. If you under-discover here, the generated CLAUDE.md will
+list raw package-manager commands (`npm test`, `pnpm install`) that
+silently skip dependent services in many real projects (databases,
+auth servers, queues, seed data). **Discover everything below; emit
+the structured shape exactly.**
 
-**Output:**
+### What to look for (cross-language, stack-agnostic)
 
-- Raw JSON only
-- First character: `{` Last character: `}`
-- No markdown, no code blocks, no explanations
-- Use needs_verification sparingly (maximum 3 items) for genuinely unknowable information
-- The `graph_queries_used` field is **derived from your transcript by the Stop hook** — you do NOT need to populate it. Just call the graph tools when relevant; the framework records what you actually did.
-- Structure: `{"agent_name": "structure-architecture-analyzer", "timestamp": "...", "findings": {"services": [...], "automation": {"makefiles": [], "shell_scripts": [], "justfiles": []}}, "needs_verification": []}`
+- **Make-family**: `Makefile`, `GNUmakefile`, `makefile`
+- **Just**: `Justfile`, `justfile`, `.justfile`
+- **Task**: `Taskfile.yml`, `Taskfile.yaml`, `Taskfile.dist.yml`
+- **Mage / Invoke / Doit**: `magefile.go`, `tasks.py`, `dodo.py`
+- **Shell scripts at conventional paths**: `scripts/setup`,
+  `scripts/bootstrap`, `bin/setup`, `bin/dev`, `setup.sh`,
+  `bootstrap.sh`, `dev.sh`, `start.sh`, `quickstart.sh`,
+  `scripts/test*`, `scripts/reset*`
+- **Rails / Django / Mix / etc. conventions**: `bin/setup`,
+  `bin/dev`, `bin/rails`, `manage.py`, `mix.exs`, `Rakefile`
+- **Devcontainer**: `.devcontainer/devcontainer.json` →
+  `postCreateCommand` / `postStartCommand`
+- **CI hints (LAST RESORT only)**: `.github/workflows/*.yml`,
+  `.gitlab-ci.yml`, `.circleci/config.yml`,
+  `azure-pipelines.yml`. Extract `run:` lines from setup / test
+  jobs.
 
-The graph is your PRIMARY discovery surface. Glob/Read/Grep are fallback only, restricted to the explicit question classes listed above. If you find yourself reaching for Glob to answer a structural or relational question, stop and use the graph instead.
+### How to extract Make / Just / Task targets
+
+1. **Read** the file (Glob/Read are allowed for this — config/file metadata).
+2. For each target line, capture:
+   - `name` — the target identifier (left of `:` for Make, recipe
+     name for Just, key for Task).
+   - `group` — annotation extracted from leading comment if present.
+     Common patterns:
+     - `target: ## @group description` (Make)
+     - `target: ## description` (Make, no group)
+     - `target:` followed by a comment line above (Just)
+     - `desc:` field in Taskfile YAML
+   - `description` — the human-readable text after `## ` or in `desc:`.
+     **Quote it verbatim — do NOT paraphrase or translate stack-specific
+     terms** (the synthesizer relies on this text being authoritative).
+3. **Skip** internal/utility targets that aren't meant to be invoked
+   directly by an operator: `.PHONY` declarations, helpers prefixed
+   with `_`, the `help` target itself.
+
+### How to classify shell scripts
+
+Set `purpose` to ONE of: `setup` | `bootstrap` | `dev` | `test` |
+`reset` | `unknown`. Use the script's filename, shebang, or top
+comment block to decide. When unsure, use `unknown` — the catalog
+builder applies a filename fallback.
+
+## README run-section extraction (Plan 15 Tier 2)
+
+Read `README.md` (and `README.markdown` / `readme.md` variants) at
+the repo root. Find every section whose heading matches
+**case-insensitively** any of:
+
+- `## Getting Started`
+- `## Setup`
+- `## Installation`
+- `## Quickstart` / `## Quick Start`
+- `## Running Locally` / `## Local Development`
+- `## Development`
+- `## How to Run`
+
+For each match, capture:
+
+- `path` — the README file path
+- `heading` — the heading text **verbatim** (preserve case)
+- `body` — the section body raw markdown until the next `##` heading
+- `fenced_blocks` — the contents of every fenced code block in the
+  section (the strings between ` ``` ` lines), in document order
+
+Do not paraphrase. Do not summarise. Do not translate. The README
+extract is reproduced verbatim downstream.
+
+## Output schema (Plan 15 — the synthesizer depends on this exact shape)
+
+```json
+{
+  "agent_name": "structure-architecture-analyzer",
+  "timestamp": "...",
+  "findings": {
+    "services": [...],
+    "automation": {
+      "makefiles": [
+        {
+          "path": "Makefile",
+          "targets": [
+            { "name": "setup", "group": "setup", "description": "Full dev environment setup (install, docker, keycloak, seed)" },
+            { "name": "tests", "group": "test", "description": "Run all tests (unit, integration, e2e)" }
+          ]
+        }
+      ],
+      "justfiles": [],
+      "taskfiles": [],
+      "shell_scripts": [
+        { "path": "scripts/wait_for_service", "purpose": "unknown" }
+      ],
+      "devcontainer": {
+        "postCreateCommand": "pnpm install"
+      },
+      "ci_hints": [
+        { "file": ".github/workflows/test.yml", "commands": ["pnpm install", "pnpm test"] }
+      ]
+    },
+    "readme_run_sections": [
+      {
+        "path": "README.md",
+        "heading": "Getting Started",
+        "body": "...verbatim section markdown...",
+        "fenced_blocks": ["pnpm install\nmake setup"]
+      }
+    ]
+  },
+  "needs_verification": []
+}
+```
+
+**Output rules:**
+
+- Raw JSON only. First character: `{` Last character: `}`. No
+  markdown fences, no prose before or after.
+- Use `needs_verification` sparingly (maximum 3 items) for
+  genuinely unknowable information — Plan 14 quality rules apply.
+- The `graph_queries_used` field is **derived from your transcript
+  by the Stop hook** — do NOT populate it.
+- Empty arrays are fine when nothing was found. Do not omit the
+  fields entirely; emit `automation: {makefiles: [], justfiles: [],
+taskfiles: [], shell_scripts: [], ci_hints: []}` even if every
+  list is empty.
+- If no README run-section heading matches, omit `readme_run_sections`
+  or emit `[]`.
+
+The graph is your PRIMARY discovery surface for _services_ and
+_architecture_. Glob/Read/Grep are fallback only, restricted to the
+explicit question classes listed above PLUS automation/README
+extraction (which are file-content tasks the graph cannot help with).
+If you find yourself reaching for Glob to answer a structural or
+relational question, stop and use the graph instead.

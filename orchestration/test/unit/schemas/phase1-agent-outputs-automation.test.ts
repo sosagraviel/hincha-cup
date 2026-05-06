@@ -34,28 +34,32 @@ describe('Phase 1 Agent Output Schemas - Automation Features', () => {
             makefiles: [
               {
                 path: 'Makefile',
-                targets: ['build', 'test', 'clean', 'deploy'],
+                targets: [
+                  { name: 'build', description: 'Compile the project.' },
+                  { name: 'test' },
+                  { name: 'clean' },
+                  { name: 'deploy', group: 'release' },
+                ],
               },
               {
                 path: 'scripts/Makefile',
-                targets: ['lint', 'format'],
+                targets: [{ name: 'lint' }, { name: 'format' }],
               },
             ],
             shell_scripts: [
               {
                 path: 'scripts/setup.sh',
-                name: 'setup.sh',
-                purpose: 'Initial project setup and dependency installation',
+                purpose: 'setup',
               },
               {
                 path: 'deploy.sh',
-                name: 'deploy.sh',
+                purpose: 'unknown',
               },
             ],
             justfiles: [
               {
                 path: 'justfile',
-                targets: ['dev', 'build', 'test'],
+                targets: [{ name: 'dev' }, { name: 'build' }, { name: 'test' }],
               },
             ],
           },
@@ -68,10 +72,11 @@ describe('Phase 1 Agent Output Schemas - Automation Features', () => {
       expect(result.findings.automation?.makefiles).toHaveLength(2);
       expect(result.findings.automation?.shell_scripts).toHaveLength(2);
       expect(result.findings.automation?.justfiles).toHaveLength(1);
-      expect(result.findings.automation?.makefiles?.[0].targets).toContain('build');
-      expect(result.findings.automation?.shell_scripts?.[0].purpose).toBe(
-        'Initial project setup and dependency installation',
+      const buildTarget = result.findings.automation?.makefiles?.[0].targets.find(
+        (t) => t.name === 'build',
       );
+      expect(buildTarget?.description).toBe('Compile the project.');
+      expect(result.findings.automation?.shell_scripts?.[0].purpose).toBe('setup');
     });
 
     it('should accept output with partial automation (only makefiles)', () => {
@@ -92,7 +97,7 @@ describe('Phase 1 Agent Output Schemas - Automation Features', () => {
             makefiles: [
               {
                 path: 'Makefile',
-                targets: ['all', 'clean'],
+                targets: [{ name: 'all' }, { name: 'clean' }],
               },
             ],
           },
@@ -102,8 +107,9 @@ describe('Phase 1 Agent Output Schemas - Automation Features', () => {
 
       const result = StructureAnalyzerOutputSchema.parse(outputWithMakefileOnly);
       expect(result.findings.automation?.makefiles).toHaveLength(1);
-      expect(result.findings.automation?.shell_scripts).toBeUndefined();
-      expect(result.findings.automation?.justfiles).toBeUndefined();
+      // Plan 15: AutomationSchema defaults missing arrays to []
+      expect(result.findings.automation?.shell_scripts).toEqual([]);
+      expect(result.findings.automation?.justfiles).toEqual([]);
     });
 
     it('should accept output without automation field (backward compatibility)', () => {
@@ -176,7 +182,36 @@ describe('Phase 1 Agent Output Schemas - Automation Features', () => {
             makefiles: [
               {
                 path: 'Makefile',
-                targets: 'invalid', // Should be array
+                targets: 'invalid', // Should be array of structured target objects
+              },
+            ],
+          },
+        },
+        needs_verification: [],
+      };
+
+      expect(() => StructureAnalyzerOutputSchema.parse(invalidOutput)).toThrow();
+    });
+
+    it('should reject legacy string-array targets (Plan 15 requires structured shape)', () => {
+      const invalidOutput = {
+        agent_name: 'structure-architecture-analyzer',
+        timestamp: '2026-04-13T10:00:00.000Z',
+        findings: {
+          services: [
+            {
+              id: 'backend',
+              path: 'src',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: { main: 'NestJS' },
+            },
+          ],
+          automation: {
+            makefiles: [
+              {
+                path: 'Makefile',
+                targets: ['build', 'test'], // legacy string array — no longer valid
               },
             ],
           },
@@ -347,7 +382,7 @@ describe('Phase 1 Agent Output Schemas - Automation Features', () => {
             makefiles: [
               {
                 path: 'Makefile',
-                targets: ['dev', 'build'],
+                targets: [{ name: 'dev' }, { name: 'build' }],
               },
             ],
           },
@@ -376,9 +411,44 @@ describe('Phase 1 Agent Output Schemas - Automation Features', () => {
       const structureResult = StructureAnalyzerOutputSchema.parse(structureOutput);
       const techStackResult = TechStackAnalyzerOutputSchema.parse(techStackOutput);
 
-      expect(structureResult.findings.automation?.makefiles?.[0].targets).toContain('dev');
+      const targetNames = structureResult.findings.automation?.makefiles?.[0].targets.map(
+        (t) => t.name,
+      );
+      expect(targetNames).toContain('dev');
       expect(techStackResult.findings.documented_commands?.by_task?.dev).toBe('make dev');
       expect(techStackResult.findings.documented_commands?.source).toBe('makefile');
+    });
+  });
+
+  describe('Structure Analyzer - Plan 15 readme_run_sections', () => {
+    it('accepts a readme_run_sections array with verbatim heading + body + fenced blocks', () => {
+      const output = {
+        agent_name: 'structure-architecture-analyzer',
+        timestamp: '2026-05-05T00:00:00.000Z',
+        findings: {
+          services: [
+            {
+              id: 'backend',
+              path: 'src',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: { main: 'NestJS' },
+            },
+          ],
+          readme_run_sections: [
+            {
+              path: 'README.md',
+              heading: 'Getting Started',
+              body: '```sh\nmake setup\n```\n\nThen open localhost:3000.',
+              fenced_blocks: ['make setup'],
+            },
+          ],
+        },
+        needs_verification: [],
+      };
+      const result = StructureAnalyzerOutputSchema.parse(output);
+      expect(result.findings.readme_run_sections).toHaveLength(1);
+      expect(result.findings.readme_run_sections?.[0].heading).toBe('Getting Started');
     });
   });
 });

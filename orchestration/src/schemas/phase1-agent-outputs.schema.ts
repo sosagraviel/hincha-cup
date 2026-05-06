@@ -1,5 +1,6 @@
 import { z, ZodSchema } from 'zod';
 import { normalizeLanguage } from './language-normalization.js';
+import { AutomationSchema, ReadmeRunSectionEntrySchema } from './stack-profile.schema.js';
 
 // ============================================================================
 // PHASE 1 AGENT OUTPUT SCHEMAS
@@ -216,42 +217,27 @@ export const StructureAnalyzerOutputSchema = z
           .describe(
             'Architectural topology surfaced from the graph. `coupling` is the canonical home for hub/bridge findings.',
           ),
-        automation: z
-          .object({
-            makefiles: z
-              .array(
-                z.object({
-                  path: z.string().describe('Path to Makefile relative to repo root'),
-                  targets: z.array(z.string()).describe('List of make targets found in the file'),
-                }),
-              )
-              .optional()
-              .describe('Makefiles found in the project'),
-            shell_scripts: z
-              .array(
-                z.object({
-                  path: z.string().describe('Path to shell script relative to repo root'),
-                  name: z.string().describe('Script name (filename without path)'),
-                  purpose: z
-                    .string()
-                    .optional()
-                    .describe('Script purpose inferred from comments or usage'),
-                }),
-              )
-              .optional()
-              .describe('Shell scripts found in the project'),
-            justfiles: z
-              .array(
-                z.object({
-                  path: z.string().describe('Path to justfile relative to repo root'),
-                  targets: z.array(z.string()).describe('List of just targets found in the file'),
-                }),
-              )
-              .optional()
-              .describe('Justfiles found in the project'),
-          })
+        // Plan 15 §D.3 — full Tier-1 automation surface:
+        // makefiles / justfiles / taskfiles with structured targets
+        // (`{name, group?, description?}`), shell_scripts with the
+        // `purpose` enum, devcontainer hooks, and CI hints.
+        // Reuses `AutomationSchema` from `stack-profile.schema.ts` so the
+        // analyzer output and the persisted stack profile share one
+        // contract end-to-end.
+        automation: AutomationSchema.optional().describe(
+          'Project automation surface (Tier-1 wrapper entry points). Structured ' +
+            'shape — see AutomationSchema in stack-profile.schema.ts.',
+        ),
+        // Plan 15 §D.3 — README "Getting Started" / "Setup" / "Quickstart"
+        // verbatim extracts. Drives Tier-2 of the command catalog.
+        readme_run_sections: z
+          .array(ReadmeRunSectionEntrySchema)
           .optional()
-          .describe('Project automation scripts and build files'),
+          .describe(
+            'README sections matching `Getting Started` / `Setup` / `Quickstart` / ' +
+              '`Installation` / `Development` / `Running Locally` / `How to Run` ' +
+              '(case-insensitive). Reproduced verbatim with attribution.',
+          ),
       })
       .passthrough(), // Allow languages[], runtimes{}, architecture_pattern, file_placement{}, path_aliases{}, database{} (multi_stack merged into services)
     needs_verification: z
