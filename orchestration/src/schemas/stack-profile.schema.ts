@@ -187,6 +187,140 @@ export const ServiceSchema = z.object({
 export type Service = z.infer<typeof ServiceSchema>;
 
 // ----------------------------------------------------------------------------
+// Plan 15 — Automation surface, README run-section, command catalog
+// ----------------------------------------------------------------------------
+// Stack-agnostic command-discovery contract: Phase 1 captures Tier-1
+// wrapper entry points (Make/Just/Task/scripts/devcontainer/CI) plus
+// the README "Getting Started" section verbatim, then a pure
+// deterministic builder produces a `command_catalog` keyed by
+// operation. The closed-book Phase 3 synthesizer renders the catalog
+// directly — it never decides tier ordering itself.
+// ----------------------------------------------------------------------------
+
+export const AutomationTargetSchema = z.object({
+  name: z.string().min(1).describe('Target / recipe / task name (e.g., "setup", "test:e2e")'),
+  group: z
+    .string()
+    .optional()
+    .describe(
+      'Group annotation extracted from leading comment (e.g., "@docker" → "docker"). ' +
+        'Free-form; the Makefile / Justfile / Taskfile author chose it.',
+    ),
+  description: z
+    .string()
+    .optional()
+    .describe('Description text extracted verbatim from the target comment.'),
+});
+export type AutomationTarget = z.infer<typeof AutomationTargetSchema>;
+
+export const AutomationFileSchema = z.object({
+  path: z.string().min(1).describe('Path relative to repo root (or relative to per-service root).'),
+  targets: z
+    .array(AutomationTargetSchema)
+    .describe('Targets / recipes / tasks discovered in the file.'),
+});
+export type AutomationFile = z.infer<typeof AutomationFileSchema>;
+
+export const AutomationShellScriptSchema = z.object({
+  path: z.string().min(1).describe('Path relative to repo root.'),
+  purpose: z
+    .enum(['setup', 'bootstrap', 'dev', 'test', 'reset', 'unknown'])
+    .describe('Inferred purpose from filename / shebang / comment block.'),
+  shebang: z.string().optional().describe('First line if it starts with `#!`.'),
+});
+export type AutomationShellScript = z.infer<typeof AutomationShellScriptSchema>;
+
+export const AutomationDevcontainerSchema = z.object({
+  postCreateCommand: z.string().optional(),
+  postStartCommand: z.string().optional(),
+});
+export type AutomationDevcontainer = z.infer<typeof AutomationDevcontainerSchema>;
+
+export const AutomationCiHintSchema = z.object({
+  file: z
+    .string()
+    .min(1)
+    .describe('Path to the CI definition (e.g., ".github/workflows/test.yml")'),
+  commands: z
+    .array(z.string().min(1))
+    .describe('Command lines extracted from `run:` / script steps in the CI file.'),
+});
+export type AutomationCiHint = z.infer<typeof AutomationCiHintSchema>;
+
+export const AutomationSchema = z.object({
+  makefiles: z.array(AutomationFileSchema).default([]),
+  justfiles: z.array(AutomationFileSchema).default([]),
+  taskfiles: z.array(AutomationFileSchema).default([]),
+  shell_scripts: z.array(AutomationShellScriptSchema).default([]),
+  devcontainer: AutomationDevcontainerSchema.optional(),
+  ci_hints: z.array(AutomationCiHintSchema).default([]),
+});
+export type Automation = z.infer<typeof AutomationSchema>;
+
+export const ReadmeRunSectionEntrySchema = z.object({
+  path: z.string().min(1).describe('README path (e.g., "README.md")'),
+  heading: z.string().min(1).describe('Heading text matched verbatim (e.g., "Getting Started")'),
+  body: z.string().describe('Section body verbatim (raw markdown until next `## ` heading).'),
+  fenced_blocks: z
+    .array(z.string())
+    .describe('Fenced code-block contents within the section, in document order.'),
+});
+export type ReadmeRunSectionEntry = z.infer<typeof ReadmeRunSectionEntrySchema>;
+
+export const CommandCatalogOperationEnum = z.enum([
+  'setup',
+  'start_dev',
+  'run_tests',
+  'run_unit_tests',
+  'run_integration_tests',
+  'run_e2e',
+  'run_lint',
+  'run_format',
+  'run_typecheck',
+  'run_build',
+  'run_migrations',
+  'generate_migration',
+  'revert_migration',
+  'seed',
+  'reset',
+]);
+export type CommandCatalogOperation = z.infer<typeof CommandCatalogOperationEnum>;
+
+export const CommandCatalogTierEnum = z.enum(['wrapper', 'readme', 'package_manager', 'ci']);
+export type CommandCatalogTier = z.infer<typeof CommandCatalogTierEnum>;
+
+export const CommandCatalogEntrySchema = z.object({
+  tier: CommandCatalogTierEnum.describe(
+    'Preference tier: `wrapper` > `readme` > `package_manager` > `ci`. ' +
+      'The synthesizer renders entries grouped by tier; lower tiers are ' +
+      'never listed before higher tiers for the same operation.',
+  ),
+  command: z.string().min(1).describe('Exact command line (e.g., "make setup", "pnpm test")'),
+  description: z
+    .string()
+    .optional()
+    .describe(
+      'Description verbatim from source (Makefile comment, README prose, etc.). ' +
+        'Never paraphrased — preserves stack-specific terms only when the source used them.',
+    ),
+  source: z.string().min(1).describe('File path the command came from (provenance, audit-trail).'),
+  per_service: z
+    .string()
+    .optional()
+    .describe('Service id when the command runs against a single service (Tier 3 only).'),
+});
+export type CommandCatalogEntry = z.infer<typeof CommandCatalogEntrySchema>;
+
+export const CommandCatalogSchema = z
+  .partialRecord(CommandCatalogOperationEnum, z.array(CommandCatalogEntrySchema))
+  .describe(
+    'Map of operation → ordered array of candidate commands across all four tiers. ' +
+      'Operations with no candidates are omitted. The first array entry is the ' +
+      'preferred command; subsequent entries are fallbacks.',
+  );
+export type CommandCatalog = z.infer<typeof CommandCatalogSchema>;
+
+// ----------------------------------------------------------------------------
 // Stack Profile Schema - CLEAN, SERVICE-CENTRIC ONLY
 // ----------------------------------------------------------------------------
 
@@ -228,6 +362,31 @@ export const StackProfileSchema = z
       })
       .optional()
       .describe('File statistics for the repository'),
+
+    // Plan 15 — Automation surface (Tier-1 wrapper entry points)
+    automation: AutomationSchema.optional().describe(
+      'Discovered Tier-1 automation entry points: Make/Just/Task targets, ' +
+        'shell scripts, devcontainer hooks, CI hints. Populated by Phase 1 ' +
+        'structure-architecture-analyzer.',
+    ),
+
+    // Plan 15 — README "Getting Started" extracts (Tier-2 verbatim source)
+    readme_run_sections: z
+      .array(ReadmeRunSectionEntrySchema)
+      .optional()
+      .describe(
+        'README sections matching `Getting Started` / `Setup` / `Quickstart` / ' +
+          '`Installation` / `Development` / `Running Locally` / `How to Run` ' +
+          '(case-insensitive). Reproduced verbatim with attribution.',
+      ),
+
+    // Plan 15 — Deterministic command catalog (built at Phase 2→3 boundary)
+    command_catalog: CommandCatalogSchema.optional().describe(
+      'Operation → ordered list of candidate commands. Built deterministically ' +
+        'from `automation`, `readme_run_sections`, and per-service package- ' +
+        'manager scripts. Closed-book consumers (synthesizer, wiki generator, ' +
+        'skills) render this verbatim — never re-order tiers.',
+    ),
   })
   .refine(
     (data) => {
