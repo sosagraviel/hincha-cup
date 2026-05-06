@@ -7,7 +7,19 @@ import type { Gap, ConsolidatedGap } from './types.js';
 import { extractStructuredGaps } from './helpers/extract-structured-gaps.js';
 import { consolidateQuestions } from './helpers/consolidate-questions.js';
 import { askGapQuestions } from './helpers/ask-gap-questions.js';
+import { exactTextDedupe } from './helpers/exact-text-dedupe.js';
 import { resolveTempPath } from '../../../../utils/provider-paths.js';
+
+/**
+ * Plan 14 §C.9.2 — gap-count threshold below which the LLM
+ * consolidator is NOT spawned. Below this threshold there's almost
+ * never a duplicate to merge; spawning the agent costs ~10-15s for
+ * zero expected gain. Calibrated against the typical post-Plan-14
+ * distribution: 0–2 gaps per analyzer × 4 analyzers = 0–8 gaps;
+ * after the deterministic exact-text dedupe pre-pass collapses
+ * literal duplicates, most projects fall under 4.
+ */
+const LLM_CONSOLIDATOR_THRESHOLD = 3;
 
 /**
  * Consolidates outputs from all 4 Phase 1 analyzer agents
@@ -108,51 +120,118 @@ export async function consolidationNode(
     // ========================================================================
     if (gaps.length > 1) {
       phaseLogger.info(' Step 3: Consolidating similar questions...');
-      phaseLogger.info('  Running AI-powered question consolidation agent...');
-      logger.blank();
 
-      const consolidationResult = await consolidateQuestions(
-        gaps,
-        state.project_path,
-        state.framework_path,
-        tempDir,
-        consolidatedPath,
-      );
-
-      if (consolidationResult.success && consolidationResult.consolidated) {
-        // Update consolidation.json with consolidated gaps
-        const consolidatedGaps = consolidationResult.consolidated.consolidated_gaps;
-
-        // Ensure every gap has an agent field (fallback to first consolidated_from if missing)
-        consolidatedGaps.forEach((gap) => {
-          if (!gap.agent && gap.consolidated_from && gap.consolidated_from.length > 0) {
-            gap.agent = gap.consolidated_from[0];
-          }
-        });
-
-        consolidationData.gaps = consolidatedGaps;
-        consolidationData.question_consolidation =
-          consolidationResult.consolidated.consolidation_metadata;
-        writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
-
-        const newGapCount = consolidationResult.consolidated.consolidated_gaps.length;
-        phaseLogger.info(`  Questions after consolidation: ${newGapCount} (was ${gaps.length})`);
-        gaps = consolidationResult.consolidated.consolidated_gaps;
-      } else {
-        phaseLogger.info('  ⚠ WARNING: Question consolidation failed');
-        phaseLogger.info('  Proceeding with original unconsolidated gaps');
-
-        // Convert gaps to ConsolidatedGap format (each gap is its own group)
-        const consolidatedGaps: ConsolidatedGap[] = gaps.map((gap) => ({
-          ...gap,
-          consolidated_from: [gap.agent],
-          original_count: 1,
-        }));
-
-        consolidationData.gaps = consolidatedGaps;
-        writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
+      // Plan 14 §C.9.3: deterministic exact-text dedupe BEFORE the
+      // LLM. This collapses literal-duplicate questions (multiple
+      // analyzers asking the same question with byte-identical
+      // wording) at near-zero cost — a single Map walk over the
+      // gaps array. The LLM only sees genuinely paraphrased
+      // duplicates that need semantic merge.
+      const dedupePass = exactTextDedupe(gaps);
+      if (dedupePass.eliminatedDuplicates > 0) {
+        phaseLogger.info(
+          `  Pre-pass dedupe: collapsed ${dedupePass.eliminatedDuplicates} exact-text duplicate(s) ` +
+            `(${gaps.length} → ${dedupePass.dedupedGaps.length} gap(s))`,
+        );
       }
-      logger.blank();
+
+      // Plan 14 §C.9.2: ≤3-gap fast path. If the deterministic
+      // pass already brought the gap count to ≤3, skip the LLM
+      // entirely. The LLM's value is semantic paraphrase merging;
+      // below 3 gaps the chance of two paraphrases being mergeable
+      // is vanishingly small (and even if missed, the operator
+      // sees both items and the cost is just one extra question).
+      if (dedupePass.dedupedGaps.length <= LLM_CONSOLIDATOR_THRESHOLD) {
+        phaseLogger.info(
+          `  Fast path: ≤${LLM_CONSOLIDATOR_THRESHOLD} gap(s) after dedupe — skipping LLM consolidator (saves ~10-15s).`,
+        );
+        consolidationData.gaps = dedupePass.dedupedGaps;
+        consolidationData.question_consolidation = {
+          original_gap_count: gaps.length,
+          consolidated_gap_count: dedupePass.dedupedGaps.length,
+          reduction_percentage:
+            gaps.length > 0
+              ? Math.round(((gaps.length - dedupePass.dedupedGaps.length) / gaps.length) * 100)
+              : 0,
+          consolidation_groups: dedupePass.deterministicGroups,
+          fast_path: true,
+        };
+        writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
+        gaps = dedupePass.dedupedGaps;
+        logger.blank();
+      } else {
+        phaseLogger.info('  Running AI-powered question consolidation agent...');
+        logger.blank();
+
+        // Pass the DEDUPED set to the LLM, not the raw set —
+        // shorter input, faster response, no semantic work for
+        // duplicates the deterministic pass already merged.
+        const consolidationResult = await consolidateQuestions(
+          dedupePass.dedupedGaps,
+          state.project_path,
+          state.framework_path,
+          tempDir,
+          consolidatedPath,
+        );
+
+        if (consolidationResult.success && consolidationResult.consolidated) {
+          // Update consolidation.json with consolidated gaps
+          const consolidatedGaps = consolidationResult.consolidated.consolidated_gaps;
+
+          // Ensure every gap has an agent field (fallback to first consolidated_from if missing)
+          consolidatedGaps.forEach((gap) => {
+            if (!gap.agent && gap.consolidated_from && gap.consolidated_from.length > 0) {
+              gap.agent = gap.consolidated_from[0];
+            }
+          });
+
+          // Merge the deterministic groups (from the pre-pass) with the
+          // LLM's groups so the run report shows both layers of
+          // consolidation.
+          const llmGroups =
+            consolidationResult.consolidated.consolidation_metadata.consolidation_groups ?? [];
+          const mergedGroups = [
+            ...dedupePass.deterministicGroups,
+            ...llmGroups.map((g, idx) => ({
+              ...g,
+              group_id: dedupePass.deterministicGroups.length + idx + 1,
+            })),
+          ];
+
+          consolidationData.gaps = consolidatedGaps;
+          consolidationData.question_consolidation = {
+            ...consolidationResult.consolidated.consolidation_metadata,
+            original_gap_count: gaps.length,
+            consolidation_groups: mergedGroups,
+            fast_path: false,
+            deterministic_eliminated: dedupePass.eliminatedDuplicates,
+          };
+          writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
+
+          const newGapCount = consolidationResult.consolidated.consolidated_gaps.length;
+          phaseLogger.info(`  Questions after consolidation: ${newGapCount} (was ${gaps.length})`);
+          gaps = consolidationResult.consolidated.consolidated_gaps;
+        } else {
+          phaseLogger.info('  ⚠ WARNING: Question consolidation failed');
+          phaseLogger.info('  Proceeding with deterministic dedupe result only');
+
+          consolidationData.gaps = dedupePass.dedupedGaps;
+          consolidationData.question_consolidation = {
+            original_gap_count: gaps.length,
+            consolidated_gap_count: dedupePass.dedupedGaps.length,
+            reduction_percentage:
+              gaps.length > 0
+                ? Math.round(((gaps.length - dedupePass.dedupedGaps.length) / gaps.length) * 100)
+                : 0,
+            consolidation_groups: dedupePass.deterministicGroups,
+            fast_path: true,
+            llm_failure_fallback: true,
+          };
+          writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
+          gaps = dedupePass.dedupedGaps;
+        }
+        logger.blank();
+      }
     } else if (gaps.length === 1) {
       phaseLogger.info(' Step 3: Only 1 gap found - skipping consolidation');
 

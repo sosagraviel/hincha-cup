@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'fs';
+import { dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import {
   buildCoreSpecs,
   buildPrompt,
@@ -7,6 +10,9 @@ import {
 import { buildConsolidationPrompt } from '../../../../src/nodes/initialize-project/phase2/question-consolidator/prompt-builder.js';
 import { buildSynthesisPrompt } from '../../../../src/nodes/initialize-project/phase3/prompt-builder.js';
 import { Provider } from '../../../../src/providers/types.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * Wave 2 Fix 6.2 — closed-book prompt hygiene.
@@ -160,6 +166,62 @@ describe('closed-book prompt hygiene — Wave 2 Fix 6.2', () => {
       );
       const prompt = buildPrompt(spec, '/tmp/x');
       expect(containsCatalog(prompt)).toBe(false);
+    });
+  });
+
+  describe('Phase 2 consolidator agent file (Plan 14 §C.9.1 anti-regression)', () => {
+    // Plan 14 §0 architectural split: the consolidator is a dumb
+    // set-deduplicator with no code-analysis responsibility. This
+    // suite locks the agent file's tool surface to `none` and
+    // forbids the prompt from describing code-analysis behaviour.
+    // If a future change adds tools or analyser-style language to
+    // the consolidator, these tests fail and the change is
+    // rejected at CI time.
+    const agentPath = resolve(
+      __dirname,
+      '../../../../src/nodes/initialize-project/phase2/question-consolidator/prompts/agent.md',
+    );
+    const agentBody = readFileSync(agentPath, 'utf-8');
+
+    it('frontmatter declares tools: none', () => {
+      // Match the literal line in the YAML frontmatter. Anchored to
+      // newlines so a `tools: [Read]` line sneaking in elsewhere
+      // (or a stray `tools:` before the closing `---`) fails.
+      const frontmatter = agentBody.match(/^---\n([\s\S]*?)\n---/);
+      expect(frontmatter, 'agent.md must start with YAML frontmatter').toBeTruthy();
+      expect(frontmatter![1]).toMatch(/^tools:\s*none\s*$/m);
+    });
+
+    it('does NOT mention any actual tool name (Read / Grep / Glob / Bash / mcp__code_graph__*)', () => {
+      // The prompt may MENTION these tools to forbid them
+      // (e.g. "Do not attempt to read files, run grep"). What it
+      // must NOT do is describe them as available. Case-sensitive
+      // match — capitalised tool names (`Read`, `Grep`) are
+      // framework tool tokens; lowercase `read` / `grep` in
+      // "do not run grep" prose is a verb, not a tool reference.
+      const forbiddenAvailability = [
+        /you\s+have\s+access\s+to\s+(?:Read|Grep|Glob|Bash)/,
+        /use\s+(?:Read|Grep|Glob|Bash)\s+to/,
+        /call\s+mcp__code_graph__/,
+        /run\s+(?:Read|Grep|Glob|Bash)\b/,
+      ];
+      for (const pattern of forbiddenAvailability) {
+        expect(agentBody, `forbidden availability pattern: ${pattern}`).not.toMatch(pattern);
+      }
+    });
+
+    it('explicitly forbids code analysis (You are NOT section)', () => {
+      // Plan 14 §C.9.4 mandates a "You are NOT" section that calls
+      // out the three categories the consolidator must NOT do:
+      // code analyzer, quality reviewer, editor.
+      expect(agentBody).toMatch(/You are NOT/);
+      expect(agentBody.toLowerCase()).toMatch(/code analyzer/);
+      expect(agentBody.toLowerCase()).toMatch(/quality reviewer/);
+      expect(agentBody.toLowerCase()).toMatch(/editor/);
+    });
+
+    it('does NOT contain a graph-tool catalog block', () => {
+      expect(containsCatalog(agentBody)).toBe(false);
     });
   });
 });

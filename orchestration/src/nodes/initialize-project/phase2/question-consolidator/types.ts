@@ -16,6 +16,12 @@ export interface Overlap {
 
 /**
  * Gap in analyzer findings (missing or needs verification)
+ *
+ * `attempted_resolution` and `impact` are required on `needs_verification`
+ * entries by the Plan 14 §C.1 + §C.7 schema, but optional in the type
+ * because `sparse_findings` / `missing_language_coverage` types do not
+ * carry them. The deterministic dedupe pre-pass passes these through
+ * verbatim when present.
  */
 export interface Gap {
   type: 'needs_verification' | 'sparse_findings' | 'missing_language_coverage';
@@ -24,6 +30,8 @@ export interface Gap {
   question?: string;
   reason?: string;
   priority: 'high' | 'medium' | 'low';
+  attempted_resolution?: string[];
+  impact?: string;
 }
 
 /**
