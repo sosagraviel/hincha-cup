@@ -15,6 +15,10 @@ import path from 'path';
 import { validateAgentOutput } from '../../../../../schemas/phase1-agent-outputs.schema.js';
 import { extractJSON } from '../../../../../utils/validator.js';
 import { validateNeedsVerificationProse } from '../needs-verification-quality.js';
+import {
+  detectAutomationDiscoveryViolations,
+  formatAutomationDiscoveryViolations,
+} from '../../structure-analyzer/hooks/validate-automation-discovery.js';
 
 /**
  * Names of the three downstream Phase 1 analyzers — those that consume the
@@ -631,6 +635,23 @@ async function main() {
             '    to know" / "nice to have" are rejected.\n\n' +
             'Re-emit with the offending items either resolved (you found the\n' +
             'answer) or removed (the item should not have been there).',
+        );
+      }
+    }
+
+    // Plan 16 §C.4 — automation-discovery hard validator.
+    // Only fires for the structure-architecture-analyzer because it owns
+    // `findings.automation`. Checks the project filesystem for canonical
+    // wrapper files (Makefile, Justfile, Taskfile, scripts/setup,
+    // bin/setup, devcontainer.json) and the README's run-section headings;
+    // rejects when any of those exist but the analyzer's output does not
+    // represent them. Stack-agnostic — pure file-presence + heading-shape
+    // checks.
+    if (agentName === 'structure-architecture-analyzer') {
+      const automationViolations = detectAutomationDiscoveryViolations(data, input.cwd);
+      if (automationViolations.length > 0) {
+        return blockWithFeedback(
+          formatAutomationDiscoveryViolations(automationViolations).join('\n'),
         );
       }
     }
