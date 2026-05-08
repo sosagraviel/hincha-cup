@@ -81,6 +81,12 @@
       "trigger_mode": "always"
     },
     {
+      "name": "generate-test-cases",
+      "path": "030-quality-assurance/generate-test-cases",
+      "description": "Generate test cases from a ticket or description and publish to test management tools",
+      "trigger_mode": "always"
+    },
+    {
       "name": "jest-coverage-automation",
       "path": "030-quality-assurance/jest-coverage-automation",
       "description": "Jest testing framework automation",
