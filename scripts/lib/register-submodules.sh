@@ -64,6 +64,30 @@ _qaf_safe_to_manage() {
   [ ! -e "$1/.gitmodules" ]
 }
 
+# Returns 0 (true) when <parent> is a multi-repo layout that this helper
+# would actually act on: a git repo, no pre-existing `.gitmodules`, and at
+# least one nested top-level child git repo (excluding the framework dir).
+# Mirrors the conditions inside `register_child_repos_for_indexing` so
+# detection and registration agree by construction.
+#
+# Used by both setup-code-graph.sh's bash decide_graph_tier and the TS
+# decideGraphTier in code-graph.service.ts (via the `is-multi-repo`
+# sub-CLI) to short-circuit to tier3. In multi-repo mode the parent's
+# `git rev-parse HEAD` doesn't move when children advance, so the
+# usual staleness signals (sqlite `git_head_sha` and `.state.json`'s
+# `last_indexed_commit`) report a false-fresh tier1 forever — and
+# `code-review-graph update` with `git diff HEAD~1` can't see child
+# diffs either, so tier2 is unsafe too. Forcing tier3 every run is
+# the simplest correct fix.
+is_multi_repo() {
+  local parent="$1" framework="$2"
+  _qaf_is_git_repo "$parent" || return 1
+  _qaf_safe_to_manage "$parent" || return 1
+  local children
+  children="$(_qaf_discover_children "$parent" "$framework")"
+  [ -n "$children" ]
+}
+
 # Returns the path of <child> relative to <parent>, with no leading or
 # trailing slashes.
 _qaf_relpath() {
@@ -158,8 +182,17 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     unregister)
       unregister_child_repos "${2:?usage: $0 unregister <parent> <framework>}" "${3:?usage: $0 unregister <parent> <framework>}"
       ;;
+    is-multi-repo)
+      # Boolean probe: silent stdout/stderr; exit code is the answer.
+      # 0 = multi-repo, 1 = single-repo (or unsupported layout).
+      if is_multi_repo "${2:?usage: $0 is-multi-repo <parent> <framework>}" "${3:?usage: $0 is-multi-repo <parent> <framework>}"; then
+        exit 0
+      else
+        exit 1
+      fi
+      ;;
     *)
-      echo "Usage: $0 {register|unregister} <parent> <framework>" >&2
+      echo "Usage: $0 {register|unregister|is-multi-repo} <parent> <framework>" >&2
       exit 2
       ;;
   esac

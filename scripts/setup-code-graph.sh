@@ -212,6 +212,14 @@ decide_graph_tier() {
     echo "tier3"
     return
   fi
+  # Multi-repo: parent HEAD doesn't track child commits, so neither the
+  # `Built at commit:` sqlite metadata nor `code-review-graph update`'s
+  # `git diff HEAD~1` can see child changes. Force tier3 every run.
+  # See is_multi_repo in scripts/lib/register-submodules.sh.
+  if is_multi_repo "$PROJECT_PATH" "$FRAMEWORK_PATH"; then
+    echo "tier3"
+    return
+  fi
   if [ ! -f "$CODE_GRAPH_DB_PATH" ]; then
     echo "tier3"
     return

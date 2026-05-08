@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { execSync, spawn } from 'child_process';
+import { execFileSync, execSync, spawn } from 'child_process';
 import {
   accessSync,
   closeSync,
@@ -465,7 +465,34 @@ export function writeExtractionManifest(
  */
 export type GraphTier = 'tier1' | 'tier2' | 'tier3';
 
-export function decideGraphTier(projectPath: string): GraphTier {
+/**
+ * Multi-repo probe via the shared bash helper (single source of truth
+ * with `setup-code-graph.sh`). Exit code 0 → multi-repo; anything else
+ * → single-repo or unsupported layout.
+ *
+ * Multi-repo means the parent dir is a git repo without `.gitmodules`
+ * that contains nested top-level child git repos. In that layout the
+ * parent's `git rev-parse HEAD` doesn't move when children advance, so
+ * the staleness signals collapse to false-fresh; tier2's `code-review-graph
+ * update` can't see child diffs either. We force tier3 every run.
+ */
+function isMultiRepo(projectPath: string, frameworkPath: string): boolean {
+  const helper = join(frameworkPath, 'scripts', 'lib', 'register-submodules.sh');
+  if (!existsSync(helper)) return false;
+  try {
+    execFileSync('bash', [helper, 'is-multi-repo', projectPath, frameworkPath], {
+      stdio: ['ignore', 'ignore', 'ignore'],
+      timeout: 5_000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function decideGraphTier(projectPath: string, frameworkPath: string): GraphTier {
+  if (isMultiRepo(projectPath, frameworkPath)) return 'tier3';
+
   const dbPath = graphDbPath(projectPath);
   if (!existsSync(dbPath)) return 'tier3';
 
@@ -509,7 +536,7 @@ export async function buildCodeGraph(
   }
 
   // ===== State-first tier check (pure file reads; no graph subprocess) =====
-  const tier = decideGraphTier(options.projectPath);
+  const tier = decideGraphTier(options.projectPath, options.frameworkPath);
 
   let buildTimeMs = 0;
 
