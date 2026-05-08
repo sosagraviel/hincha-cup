@@ -627,13 +627,41 @@ export async function buildCodeGraph(
  * Attempts `code-review-graph update --repo <projectPath>`. Returns true on
  * success, false when the command exits non-zero so the caller can fall back
  * to a full build.
+ *
+ * Wraps the update with a transient submodule registration so nested child
+ * repos under a git-tracked parent are indexed. The Tier 3 path goes
+ * through `setup-code-graph.sh`, which handles registration via its own
+ * EXIT trap; this Tier 2 fast path bypasses the bash script and must do the
+ * same work itself. See scripts/lib/register-submodules.sh.
  */
 async function tryIncrementalUpdate(projectPath: string, frameworkPath: string): Promise<boolean> {
+  const helper = join(frameworkPath, 'scripts', 'lib', 'register-submodules.sh');
+  const haveHelper = existsSync(helper);
+  let registered = false;
+
   try {
+    if (haveHelper) {
+      try {
+        await runCommand('bash', [helper, 'register', projectPath, frameworkPath], {
+          cwd: projectPath,
+          env: getCodeGraphEnv(),
+          timeoutMs: 30_000,
+        });
+        registered = true;
+      } catch {
+        // Best-effort; proceed without registration. A non-multi-repo
+        // project, a non-git parent, or a user-managed `.gitmodules` all
+        // make the helper a no-op anyway, so failure here is unlikely and
+        // doesn't justify aborting the update.
+      }
+    }
+
     await runCodeGraphCommand(['update', '--repo', projectPath], {
       projectPath,
       frameworkPath,
-      env: getCodeGraphEnv(),
+      // CRG_RECURSE_SUBMODULES=1 makes code-review-graph walk the gitlinks
+      // we just registered. No-op when the parent has no submodules.
+      env: { ...getCodeGraphEnv(), CRG_RECURSE_SUBMODULES: '1' },
       timeoutMs: COMMAND_TIMEOUT_MS,
     });
     return true;
@@ -643,6 +671,20 @@ async function tryIncrementalUpdate(projectPath: string, frameworkPath: string):
       `[code-graph] WARNING: incremental update failed (${message}); falling back to full build\n`,
     );
     return false;
+  } finally {
+    if (registered) {
+      try {
+        await runCommand('bash', [helper, 'unregister', projectPath, frameworkPath], {
+          cwd: projectPath,
+          env: getCodeGraphEnv(),
+          timeoutMs: 30_000,
+        });
+      } catch {
+        // Best-effort cleanup. The bash helper itself guards every git
+        // command with `|| true`, so a failure here means something more
+        // fundamental is broken and surfacing it would be noise.
+      }
+    }
   }
 }
 
