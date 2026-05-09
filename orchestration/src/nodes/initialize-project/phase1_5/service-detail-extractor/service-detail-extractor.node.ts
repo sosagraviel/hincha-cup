@@ -69,7 +69,7 @@ const PER_SERVICE_TIMEOUT_MS = 5 * 60 * 1000; // 5 min
 const SUB_AGENT_NAME = 'service-detail-extractor';
 const AGENT_FILE = '08-service-detail-extractor.md';
 
-interface SliceOutcome {
+export interface SliceOutcome {
   serviceId: string;
   status: 'completed' | 'failed' | 'timed_out';
   slicePath?: string; // relative to tempDir when completed
@@ -174,6 +174,13 @@ export async function serviceDetailExtractorNode(
     index.soft_warning.push('service_detail_extraction_complete_failure');
   }
   writeIndex(indexPath, index);
+
+  // Plan v4 Phase I — write `<tempDir>/phase1_5.metrics.json` for the
+  // run-summary aggregator. Captures per-service durations, failures,
+  // timeouts, and the parallelism cap actually used. The aggregator
+  // (separate PR) will join this with the other phase metrics into a
+  // single run-summary.json with regression-guard thresholds.
+  writeMetrics(tempDir, services.length, outcomes, maxParallel);
 
   if (index.services_completed === index.services_total) {
     phaseLogger.success(
@@ -357,6 +364,109 @@ export function buildServiceBlock(service: AuthoritativeService): string {
 export function writeIndex(indexPath: string, index: ServiceDetailIndex): void {
   const parsed = ServiceDetailIndexSchema.parse(index);
   writeFileSync(indexPath, JSON.stringify(parsed, null, 2));
+}
+
+/**
+ * Phase 1.5 metrics shape — single source of truth, exported for tests
+ * and the future run-summary aggregator. Stack-agnostic — every leaf
+ * is a number or a service-id string.
+ */
+export interface Phase1_5Metrics {
+  timestamp: string;
+  services_total: number;
+  services_completed: number;
+  services_failed: number;
+  services_timed_out: number;
+  /** Per-service wall-clock duration in ms, keyed by canonical service id. */
+  durations_ms: Record<string, number>;
+  /** Aggregate metrics — what the run-summary regression guard checks. */
+  aggregate: {
+    /** max(durations_ms) — Phase 1.5 wall-clock = max(per-service). */
+    max_duration_ms: number;
+    /** Sum of every sub-agent's wall-clock; for capacity planning, not regression. */
+    sum_duration_ms: number;
+    /** Average per-service duration (sum / completed). 0 when none completed. */
+    avg_duration_ms: number;
+  };
+  /** Effective parallelism cap used in this run (post env override, post min(cap, services)). */
+  parallelism: {
+    cap: number;
+    in_flight_max: number;
+  };
+  /** Sub-agent ids that timed out / failed for quick log triage. */
+  failed_service_ids: string[];
+  timed_out_service_ids: string[];
+}
+
+/**
+ * Build the Phase 1.5 metrics object. Pure function over the
+ * orchestrator's `outcomes[]` so it's trivially testable without
+ * filesystem I/O.
+ */
+export function buildPhase1_5Metrics(
+  servicesTotal: number,
+  outcomes: ReadonlyArray<SliceOutcome>,
+  parallelismCap: number,
+): Phase1_5Metrics {
+  const durations: Record<string, number> = {};
+  let completed = 0;
+  let failed = 0;
+  let timedOut = 0;
+  const failedIds: string[] = [];
+  const timedOutIds: string[] = [];
+  let sumAll = 0;
+  let sumCompleted = 0;
+  let max = 0;
+  for (const o of outcomes) {
+    if (!o) continue;
+    durations[o.serviceId] = o.durationMs;
+    sumAll += o.durationMs;
+    if (o.durationMs > max) max = o.durationMs;
+    if (o.status === 'completed') {
+      completed += 1;
+      sumCompleted += o.durationMs;
+    } else if (o.status === 'timed_out') {
+      timedOut += 1;
+      timedOutIds.push(o.serviceId);
+    } else {
+      failed += 1;
+      failedIds.push(o.serviceId);
+    }
+  }
+  const inFlightMax = Math.min(parallelismCap, servicesTotal);
+  return {
+    timestamp: new Date().toISOString(),
+    services_total: servicesTotal,
+    services_completed: completed,
+    services_failed: failed,
+    services_timed_out: timedOut,
+    durations_ms: durations,
+    aggregate: {
+      max_duration_ms: max,
+      sum_duration_ms: sumAll,
+      // Avg covers ONLY completed runs — failed / timed-out durations are
+      // not representative of normal-path wall-clock and would skew the
+      // average when, e.g., a single 5-min timeout dwarfs 5×60s completions.
+      avg_duration_ms: completed > 0 ? Math.round(sumCompleted / completed) : 0,
+    },
+    parallelism: {
+      cap: parallelismCap,
+      in_flight_max: inFlightMax,
+    },
+    failed_service_ids: failedIds.sort(),
+    timed_out_service_ids: timedOutIds.sort(),
+  };
+}
+
+function writeMetrics(
+  tempDir: string,
+  servicesTotal: number,
+  outcomes: ReadonlyArray<SliceOutcome>,
+  parallelismCap: number,
+): void {
+  const metricsPath = join(tempDir, 'phase1_5.metrics.json');
+  const metrics = buildPhase1_5Metrics(servicesTotal, outcomes, parallelismCap);
+  writeFileSync(metricsPath, JSON.stringify(metrics, null, 2));
 }
 
 export function allSlicesAlreadyOnDisk(
