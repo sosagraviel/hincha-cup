@@ -112,11 +112,21 @@ describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan
       //     — runtime infrastructure ports (Postgres / Redis /
       //     Keycloak server) were missing from CLAUDE.md
       //     `Services & Ports`. Budget bumped 62500 → 64500.
+      //   - 2026-05-09 (Plan v4 Phase B): each analyzer's prompt
+      //     gained a "Step 0 — read project-inspection.json" preamble.
+      //     The tech-stack-analyzer additionally got a HARD GLOB BAN
+      //     table mapping forbidden Glob patterns to the inspection
+      //     fields that already cover them — load-bearing on
+      //     archive/v3-iteration-100 (run 2026-05-09T00-21-00) the
+      //     analyzer ran 9 redundant Globs. Budget bumped
+      //     64500 → 70500. Phase H of v4 will reclaim some of this
+      //     by trimming downstream steps the inspection makes
+      //     redundant.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
-      expect(total).toBeLessThan(64500);
+      expect(total).toBeLessThan(70500);
     });
   });
 });

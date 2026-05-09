@@ -9,9 +9,14 @@ import {
   upsertCodeGraphMcpConfig,
   upsertCodexPathRestrictionHookConfig,
 } from '../../../services/framework/mcp-config.service.js';
-import { getActiveProvider } from '../../../utils/provider-paths.js';
+import { getActiveProvider, resolveTempPath } from '../../../utils/provider-paths.js';
 import { Provider } from '../../../providers/types.js';
 import { logger } from '../../../utils/logger.js';
+import {
+  inspectProject,
+  writeProjectInspection,
+} from '../../../services/framework/project-inspection/index.js';
+import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
 
 /** Formats a build duration as "2.4s" for durations under a minute, or "1m 12s" for longer. */
 function formatBuildTime(ms: number | undefined): string {
@@ -126,6 +131,35 @@ export async function graphFoundationNode(
     } catch (prefetchErr) {
       const msg = prefetchErr instanceof Error ? prefetchErr.message : String(prefetchErr);
       phaseLogger.warn(`  Graph prefetch failed (non-fatal): ${msg}`);
+    }
+
+    // Plan v4 Phase B (2026-05-09) — project-inspection. Walks the
+    // project filesystem and produces deterministic, parsed data the
+    // Phase-1 analyzers consume instead of re-deriving via LLM. Best-
+    // effort: any failure logs at INFO and continues with no inspection
+    // file written; analyzers fall through to LLM-based discovery.
+    //
+    // Stack/structure/naming agnostic: every language-specific decision
+    // lives in a lookup table (lock-file-table, manifest-parser-table,
+    // runtime-version-table). Adding a stack is a one-row append.
+    try {
+      const tempDirForInspection = resolveTempPath(state.project_path, 'initialize-project');
+      const inspectionResult = await inspectProject({
+        projectPath: state.project_path,
+        excludedDirs: getExcludedDirectories(state.project_path, state.framework_path),
+      });
+      writeProjectInspection(tempDirForInspection, inspectionResult.inspection);
+      phaseLogger.info(
+        `  Project inspection: ${inspectionResult.inspection.repository_type} / ` +
+          `${inspectionResult.inspection.manifests.length} manifests / ` +
+          `${inspectionResult.inspection.lock_files.length} lock files / ` +
+          `${Object.keys(inspectionResult.inspection.runtime_versions).length} runtimes / ` +
+          `${inspectionResult.inspection.infrastructure.length} infra tools ` +
+          `(${(inspectionResult.durationMs / 1000).toFixed(1)}s)`,
+      );
+    } catch (inspectionErr) {
+      const msg = inspectionErr instanceof Error ? inspectionErr.message : String(inspectionErr);
+      phaseLogger.info(`  Project inspection skipped (non-fatal): ${msg}`);
     }
 
     return {

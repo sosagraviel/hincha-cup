@@ -152,6 +152,19 @@ describe('analyzer Glob/Read budget — Fix 2.3 anti-regression', () => {
       // — Keycloak / Postgres / Redis ports were missing from the
       // generated CLAUDE.md `Services & Ports` table. Floor moves
       // 16% → 13%.
+      //
+      // Plan v4 Phase B (2026-05-09): each analyzer's prompt gained a
+      // "Step 0 — read project-inspection.json" preamble (the
+      // tech-stack-analyzer additionally gained a HARD GLOB BAN table).
+      // ~ 6 KB of new load-bearing content across the four prompts —
+      // load-bearing because the inspection delegation is what stops
+      // the analyzer from re-globbing manifests / lock-files / CI /
+      // .env templates (the regression observed on
+      // archive/v3-iteration-100, run 2026-05-09T00-21-00, where
+      // tech-stack ran 9 redundant Globs). Floor moves 13% → 5% to
+      // accommodate the new preambles. Phase H of v4 will reclaim
+      // some of this by trimming downstream steps the inspection
+      // makes redundant.
 
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
@@ -159,7 +172,7 @@ describe('analyzer Glob/Read budget — Fix 2.3 anti-regression', () => {
       }
       const baseline = 73938;
       const reduction = (baseline - total) / baseline;
-      expect(reduction).toBeGreaterThanOrEqual(0.13);
+      expect(reduction).toBeGreaterThanOrEqual(0.05);
     });
   });
 });

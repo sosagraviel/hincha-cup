@@ -10,6 +10,14 @@ Analyze repository structure and identify all services/packages with their langu
 
 > **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block (lean parameters, drill-in caps, forbidden tools). The steps below specialise _which_ lean tools to use for each question — never override the defaults.
 
+## Step 0: Read the pre-Phase-1 project inspection (MANDATORY)
+
+```text
+Read <tempDir>/project-inspection.json
+```
+
+The inspection carries `manifests[]` (parsed when JSON), `lock_files[]`, `runtime_versions{}`, `ci_cd?`, `infrastructure[]`, `environment?`, `monorepo?`, and `repository_type`. Use it AS the authoritative source for all of those fields — copy values verbatim into your output. Do NOT re-Glob `**/package.json`, `**/Cargo.toml`, `**/pyproject.toml`, `**/.env*`, `**/Dockerfile*`, `**/.github/workflows/*`, etc. — every one is in the inspection. Re-globbing trips a `tech_stack_inspection_redundant_glob` soft warning and burns your tool-call budget.
+
 ## Step 1: Cheap orientation via graph
 
 Call `get_minimal_context` with `task: "Map service boundaries and the architectural shape"`. The response (~100 tokens) gives you top communities, top flows, risk, and suggested next tools. Use it to seed your service inventory.

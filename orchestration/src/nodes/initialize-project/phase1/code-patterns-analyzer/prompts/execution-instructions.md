@@ -19,6 +19,14 @@ Analyze testing strategies, code quality tools, and development practices for ea
 
 > **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block (lean parameters, drill-in caps, forbidden tools). Specialise _which_ lean tools you call for each question; never override the defaults.
 
+## Mandatory first step — read the project inspection
+
+```text
+Read <tempDir>/project-inspection.json
+```
+
+The inspection carries pre-parsed manifests, lock files, runtime versions, CI / infra / env templates. Do NOT re-Glob `**/package.json`, `**/.env*`, `**/Dockerfile*`, `**/.github/workflows/*`, lock files, or workspace configs — every one is in the inspection. Re-globbing trips a `tech_stack_inspection_redundant_glob` soft warning and burns your tool-call budget.
+
 ## Step 0: Cheap orientation via graph
 
 Call `get_minimal_context` with `task: "Survey testing approach, code-quality signals, and recurring patterns"`. The response (~100 tokens) gives you top communities, top flows, and suggested next tools — use it before any other graph call.

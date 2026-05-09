@@ -18,6 +18,41 @@ Analyze dependencies, databases, infrastructure tools, CI/CD pipelines, and depl
 
 > **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block (lean parameters, drill-in caps, forbidden tools). Specialise _which_ lean tools you call for each question; never override the defaults.
 
+## Step 0: Read the pre-Phase-1 project inspection (MANDATORY)
+
+The framework's Phase 0 has produced a deterministic, parsed inspection of the project at `<tempDir>/project-inspection.json`. **Read it FIRST.** It is the source of truth for the fields below; do not re-derive any of them by globbing.
+
+```text
+Read <tempDir>/project-inspection.json
+```
+
+The inspection carries:
+
+- `manifests[]` — every recognised manifest (one entry per discovered file), parsed to JSON for `package.json` / `composer.json` / `*.csproj` / `*.fsproj` / `Package.swift` and surfaced as raw text for the rest. Each entry has `path`, `kind`, `format`, `raw`.
+- `lock_files[]` — `{ path, manager }` for every lock file (pnpm / yarn / npm / bun / poetry / pipenv / uv / cargo / go-modules / bundler / composer / mix / pub / nuget / shards / gleam / opam / cabal / stack). The `manager` is canonical; copy it directly into `findings.dependencies.by_service[<svc>].manager`.
+- `runtime_versions{}` — free-form map keyed by language family (`node` / `python` / `ruby` / `java` / `go` / `rust` / `php` / `swift` / `dotnet` / `crystal` / `nim` / `ocaml` / `deno`, plus per-runtime entries from `.tool-versions`). Copy verbatim into `findings.runtime_versions`.
+- `ci_cd?` — `{ provider, config_files[] }` when a known CI/CD provider was detected. Copy provider verbatim; only Read individual files to extract command-level data.
+- `infrastructure[]` — concrete tool names (`docker`, `docker-compose`, `kubernetes`, `helm`, `terraform`, `pulumi`, `serverless`, `sam`, `nginx`, `ansible`, `netlify`, `vercel`). Copy verbatim into `findings.infrastructure`.
+- `environment?` — `{ required_vars[], template_files[] }` from `.env.example` / `.env.template` / `.env.sample`. Copy verbatim.
+- `monorepo?` — `{ package_manager, workspace_tool, workspace_config }` when a workspace tool was detected.
+- `repository_type` — `monorepo` / `polyrepo` / `single-service` / `unknown`.
+
+### HARD GLOB BAN — these are already in the inspection
+
+After Step 0 lands, you **MUST NOT** invoke `Glob` for any of these patterns. Doing so wastes the analyzer's tool-call budget and surfaces a `tech_stack_inspection_redundant_glob` soft warning in the run report.
+
+| FORBIDDEN Glob pattern                                                                                                                                                                                                                | Inspection field that already covers it                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `**/package.json`, `**/pyproject.toml`, `**/Cargo.toml`, `**/go.mod`, `**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/Package.swift`, `**/mix.exs`, `**/build.gradle*`, `**/pom.xml`, `**/pubspec.yaml`                          | `inspection.manifests[]`                                      |
+| `**/pnpm-lock.yaml`, `**/yarn.lock`, `**/package-lock.json`, `**/bun.lockb`, `**/poetry.lock`, `**/Pipfile.lock`, `**/uv.lock`, `**/Cargo.lock`, `**/go.sum`, `**/Gemfile.lock`, `**/composer.lock`, `**/mix.lock`, `**/pubspec.lock` | `inspection.lock_files[]`                                     |
+| `**/.env*`, `.env.example`, `.env.sample`, `.env.template`                                                                                                                                                                            | `inspection.environment.template_files[]` + `required_vars[]` |
+| `**/Dockerfile*`, `**/Containerfile`, `**/docker-compose*.{yml,yaml}`                                                                                                                                                                 | `inspection.infrastructure[]`                                 |
+| `**/k8s/**`, `**/Chart.yaml`, `**/values.yaml`, `**/*.tf`, `**/Pulumi.yaml`, `**/serverless.yml`, `**/netlify.toml`, `**/vercel.json`                                                                                                 | `inspection.infrastructure[]`                                 |
+| `**/.github/workflows/*.{yml,yaml}`, `.gitlab-ci.yml`, `.circleci/config.yml`, `Jenkinsfile`, `.travis.yml`, `azure-pipelines.yml`, `bitbucket-pipelines.yml`, `buildspec.yml`, `cloudbuild.yaml`                                     | `inspection.ci_cd.config_files[]`                             |
+| `**/pnpm-workspace.yaml`, `**/lerna.json`, `**/nx.json`, `**/turbo.json`, `**/go.work`, `**/.tool-versions`, `**/.nvmrc`, `**/.python-version`, `**/.ruby-version`                                                                    | `inspection.monorepo` / `inspection.runtime_versions`         |
+
+The legitimate Globs in this analyzer are: graph-driven `semantic_search_nodes` queries (Steps 1-3), and the per-service build-tool config Read in Step 11.
+
 ## Step 1: Cheap orientation via graph
 
 Call `get_minimal_context` with `task: "Inventory the tech stack and dependencies"`. The response (~100 tokens) gives you top communities and suggested next tools. Use it to seed Step 2.
