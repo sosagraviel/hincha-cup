@@ -32,6 +32,8 @@ import { validateSkillContent } from './validate-skill-content.js';
 import { validateLineCount } from './validate-line-count.js';
 import { extractSynthesisMarkdown } from './extract-synthesis-markdown.js';
 import { formatErrorsForAgent } from './format-errors-for-agent.js';
+import { detectInputUnavailableStub } from './detect-input-unavailable-stub.js';
+import { detectNonPortableAbsolutePath } from './detect-non-portable-absolute-path.js';
 
 const REQUIRED_FORMAT_HINT = [
   '📋 REQUIRED FORMAT (in this exact order, separated by --- on its own line):',
@@ -194,6 +196,26 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
       requiresCodeExamples: true,
     }),
   );
+
+  // ========================================================================
+  // CHECK 8b: Plan v4 Phase F — reject input-unavailable apology stubs
+  // and non-portable absolute paths in EVERY section. The stubs leak into
+  // the operator's CLAUDE.md / SKILL.md when a composer view is empty;
+  // user-home absolute paths leak the developer's local machine state
+  // onto the 6000+ machines the framework ships to.
+  // ========================================================================
+  for (const [label, body] of [
+    ['CLAUDE.md', extracted.claudemd],
+    ['code-conventions', extracted.codeConventions],
+    ['multi-file-workflows', extracted.multiFileWorkflows],
+    ['testing-conventions', extracted.testingConventions],
+    ['architectural-narrative', extracted.architecturalNarrative],
+  ] as const) {
+    const stubError = detectInputUnavailableStub(body);
+    if (stubError) errors.push(`[${label}] ${stubError}`);
+    const pathError = detectNonPortableAbsolutePath(body);
+    if (pathError) errors.push(`[${label}] ${pathError}`);
+  }
 
   // ========================================================================
   // CHECK 9: Architectural narrative is text only, no schema; just non-empty

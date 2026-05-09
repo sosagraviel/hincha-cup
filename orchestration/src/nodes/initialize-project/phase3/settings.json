@@ -10,6 +10,10 @@
           {
             "type": "command",
             "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/src/nodes/initialize-project/shared/hooks/restrict-agent-paths.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "${FRAMEWORK_PATH}/orchestration/node_modules/.bin/tsx ${FRAMEWORK_PATH}/orchestration/src/nodes/initialize-project/phase3/hooks/restrict-synthesizer-reads.hook.ts"
           }
         ]
       }

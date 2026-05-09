@@ -20,6 +20,7 @@ import { getFrameworkAgentPath } from '../shared/index.js';
 import { reasoningPrefix } from '../../../utils/shared/context-tags.js';
 import { resolveTempPath } from '../../../utils/provider-paths.js';
 import { getInitializeProjectPhase } from '../../../services/framework/debug-store/index.js';
+import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
 
 /**
  * Phase 3: Opus Synthesis Node
@@ -119,6 +120,18 @@ export async function synthesisNode(
       // reasoning matters — for Codex that's delivered via --config model_reasoning_effort.
       const inputPrompt = `${reasoningPrefix(factory.getAuthConfig())}${contextPrompt}\n\nSynthesize comprehensive results for: ${state.project_path}`;
 
+      // Plan v4 Phase F — drop `.claude-temp` / `.codex-temp` from the
+      // exclusion list so the synthesizer can read its composer views
+      // and the consolidation file. Same pattern proposed in Phase A.1
+      // for the deny-rule fix; finally consumed here. The override is
+      // threaded into BOTH the resolved settings.json deny list AND
+      // the FRAMEWORK_EXCLUDED_DIRS env var (the path-restriction hook
+      // reads it) so the two layers agree.
+      const baseExcluded = getExcludedDirectories(state.project_path, state.framework_path);
+      const synthesizerExcluded = baseExcluded.filter(
+        (d) => d !== '.claude-temp' && d !== '.codex-temp',
+      );
+
       const agent = await factory.createAgent({
         agentName,
         agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
@@ -131,6 +144,14 @@ export async function synthesisNode(
           state.framework_path,
           'orchestration/src/nodes/initialize-project/phase3/settings.json',
         ),
+        excludedDirsOverride: synthesizerExcluded,
+        // Plan v4 Phase F: tell the layered restrict-synthesizer-reads
+        // hook this is a synthesizer spawn so it activates. Without
+        // FRAMEWORK_PHASE the hook silently no-ops (so ad-hoc Claude
+        // CLI invocations are unaffected).
+        extraEnv: {
+          FRAMEWORK_PHASE: 'phase-3-synthesis',
+        },
         // Internal validation layer for Codex. Claude enforces this via the
         // stop hook in settings.json; Codex has no blocking-hook equivalent, so
         // the impl runs this validator after each exec and resumes the session
