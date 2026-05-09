@@ -315,6 +315,7 @@ export async function consolidationNode(
     // views the synthesizer reads. The synthesizer composes
     // deterministically over these — never walks the source tree.
     phaseLogger.info(' Step 5: Building composer views...');
+    const composerViewWarnings: string[] = [];
     try {
       const composerViewsDir = join(tempDir, 'composer-views');
       mkdirSync(composerViewsDir, { recursive: true });
@@ -343,6 +344,32 @@ export async function consolidationNode(
         `architecture-narrative=${bundle.architecture_narrative.present.repository_shape_summary ? '✓' : '∅'}`,
       ].join(' ');
       phaseLogger.success(`  ✓ composer views written (${presentSummary})`);
+
+      // Plan v4 Phase G — `composer_view_empty_section_count`. Count
+      // every `present.*: false` flag across all four views; surface as
+      // a warning when ≥ 4 sections are empty so the operator knows the
+      // synthesizer will have very little to compose from. The actual
+      // count is recorded for telemetry; the warning fires on the
+      // threshold.
+      let emptyCount = 0;
+      for (const flagsObj of [
+        bundle.code_conventions.present,
+        bundle.multi_file_workflows.present,
+        bundle.testing_conventions.present,
+        bundle.architecture_narrative.present,
+      ] as ReadonlyArray<Record<string, boolean>>) {
+        for (const v of Object.values(flagsObj)) {
+          if (v === false) emptyCount += 1;
+        }
+      }
+      if (emptyCount >= 4) {
+        composerViewWarnings.push(
+          `[phase2] composer_view_empty_section_count=${emptyCount} — the synthesizer will skip several sections; review Phase 1 / Phase 1.5 outputs to see why analyzers found little to populate them with.`,
+        );
+        phaseLogger.warn(
+          `  ⚠ ${emptyCount} composer-view section(s) empty (present.*: false). Synthesizer will skip them.`,
+        );
+      }
     } catch (err) {
       phaseLogger.warn(
         `  ⚠ composer-views build failed: ${(err as Error).message}. Phase 3 will fall back to legacy consolidation.`,
@@ -369,6 +396,9 @@ export async function consolidationNode(
         timestamp: new Date().toISOString(),
       },
       current_phase: 'phase2_consolidation',
+      ...(composerViewWarnings.length > 0
+        ? { warnings: [...state.warnings, ...composerViewWarnings] }
+        : {}),
     };
   } catch (error) {
     const errorMessage = `Consolidation failed: ${(error as Error).message}`;

@@ -262,6 +262,51 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
     });
   });
 
+  describe('mcp_completely_unavailable (Plan v4 Phase G)', () => {
+    // Heuristic: agent ran tools (nonGraphCount > 0) but produced ZERO
+    // graph hits despite having a per-tool cap entry (i.e. the framework
+    // expected at least some graph use). Either MCP failed completely or
+    // the agent ignored the catalog — both are operator-actionable.
+
+    it('fires when graphCount=0 and nonGraphCount>0 for an analyzer with per-tool caps', () => {
+      const out = computeSoftWarnings('structure-architecture-analyzer', 0, 12, {});
+      expect(out).toContain('mcp_completely_unavailable');
+    });
+
+    it('does NOT fire when the agent legitimately ran nothing (both counts zero)', () => {
+      const out = computeSoftWarnings('structure-architecture-analyzer', 0, 0, {});
+      expect(out).not.toContain('mcp_completely_unavailable');
+    });
+
+    it('does NOT fire when ANY graph call succeeded (graphCount > 0)', () => {
+      const out = computeSoftWarnings('structure-architecture-analyzer', 1, 12, {});
+      expect(out).not.toContain('mcp_completely_unavailable');
+    });
+
+    it('does NOT fire for analyzer names with no per-tool caps (forward-compat)', () => {
+      // An unknown analyzer name has no entry in PER_ANALYZER_PER_TOOL_CAPS,
+      // so the heuristic would be guessing about expected graph use. We
+      // err on the silent side until an explicit cap is registered.
+      const out = computeSoftWarnings('experimental-future-analyzer', 0, 12, {});
+      expect(out).not.toContain('mcp_completely_unavailable');
+    });
+
+    it('fires for every Phase 1 analyzer (smoke check)', () => {
+      // Stack-agnostic: the heuristic is the same shape for every
+      // analyzer. Run it across all four to confirm the per-tool-caps
+      // gate is wired for each.
+      for (const name of [
+        'structure-architecture-analyzer',
+        'tech-stack-dependencies-analyzer',
+        'code-patterns-testing-analyzer',
+        'data-flows-integrations-analyzer',
+      ]) {
+        const out = computeSoftWarnings(name, 0, 8, {});
+        expect(out).toContain('mcp_completely_unavailable');
+      }
+    });
+  });
+
   describe('PER_ANALYZER_PER_TOOL_CAPS — sanity', () => {
     it('covers all four Phase 1 analyzers', () => {
       expect(PER_ANALYZER_PER_TOOL_CAPS).toHaveProperty('structure-architecture-analyzer');

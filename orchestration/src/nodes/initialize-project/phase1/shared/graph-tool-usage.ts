@@ -288,6 +288,24 @@ export function computeSoftWarnings(
     warnings.add('graph_overflow_detected');
   }
 
+  // Plan v4 Phase G — `mcp_completely_unavailable`. The analyzer ran tools
+  // (nonGraphCount > 0) but never produced a single graph hit AND the
+  // analyzer was supposed to use the graph (we have a per-tool cap entry
+  // for it — i.e. the framework expected at least some graph use).
+  //
+  // Heuristic: an agent that legitimately decided "this question doesn't
+  // need the graph" produces nonGraphCount === 0 too (it just doesn't
+  // call any tools). Conversely, an agent that ran tools but never hit
+  // MCP either had MCP completely fail or ignored the catalog entirely.
+  // Either case is operator-actionable: re-run with verbose MCP logs.
+  //
+  // Stack-agnostic — pure number comparison. The heuristic does not
+  // assume any particular project shape; it triggers when the agent
+  // demonstrably had work to do AND skipped MCP for all of it.
+  if (graphCount === 0 && nonGraphCount > 0 && perToolCaps) {
+    warnings.add('mcp_completely_unavailable');
+  }
+
   return Array.from(warnings).sort();
 }
 
