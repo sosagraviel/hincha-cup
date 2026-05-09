@@ -12,7 +12,20 @@ import { STANDARD_IGNORE_DIRS } from '../../../utils/shared/prompt-loader.js';
 // ============================================================================
 
 /**
- * Map of language names to their file extensions
+ * Map of language names to their file extensions.
+ *
+ * Stack-agnostic by enumeration: every entry pairs a canonical language
+ * key with the extensions projects in the wild use. Adding a stack is a
+ * one-row append; the file-counter, language-validator, and stack-profile
+ * all consult this single table.
+ *
+ * Plan v4 Phase A.2 (2026-05-09) — extended with the canonical languages
+ * the file-counter previously couldn't see (`shell`, `sql`, `dart`,
+ * `lua`, `r`, `julia`, `perl`, `powershell`, `html`, `css`, `fsharp`,
+ * `vbnet`, `objectivec`, `erlang`). Without these, projects with one
+ * `.sh` or `.sql` file produced misleading "Language X in profile but
+ * no files found" warnings. The keys mirror
+ * `schemas/language-normalization.ts::CANONICAL_LANGUAGES`.
  */
 export const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
   typescript: ['.ts', '.tsx'],
@@ -24,6 +37,8 @@ export const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
   ruby: ['.rb', '.rake'],
   php: ['.php'],
   csharp: ['.cs'],
+  fsharp: ['.fs', '.fsx'],
+  vbnet: ['.vb'],
   cpp: ['.cpp', '.cc', '.cxx', '.hpp', '.h', '.hxx'],
   c: ['.c', '.h'],
   swift: ['.swift'],
@@ -32,6 +47,18 @@ export const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
   elixir: ['.ex', '.exs'],
   clojure: ['.clj', '.cljs', '.cljc'],
   haskell: ['.hs', '.lhs'],
+  erlang: ['.erl', '.hrl'],
+  shell: ['.sh', '.bash', '.zsh', '.fish'],
+  powershell: ['.ps1', '.psm1', '.psd1'],
+  sql: ['.sql'],
+  html: ['.html', '.htm'],
+  css: ['.css', '.scss', '.sass', '.less', '.styl'],
+  dart: ['.dart'],
+  lua: ['.lua'],
+  r: ['.r', '.rmd'],
+  julia: ['.jl'],
+  perl: ['.pl', '.pm', '.t'],
+  objectivec: ['.m', '.mm'],
 } as const;
 
 // ============================================================================

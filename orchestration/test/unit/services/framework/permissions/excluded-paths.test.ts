@@ -196,3 +196,84 @@ describe('end-to-end placeholder substitution shape', () => {
     }
   });
 });
+
+describe('buildClaudeDenyRules — excludedDirsOverride (Plan v4 Phase A.1)', () => {
+  let projectPath: string;
+  let frameworkPath: string;
+
+  beforeEach(() => {
+    projectPath = mkdtempSync(join(tmpdir(), 'excluded-paths-override-proj-'));
+    frameworkPath = mkdtempSync(join(tmpdir(), 'excluded-paths-override-fw-'));
+  });
+
+  afterEach(() => {
+    rmSync(projectPath, { recursive: true, force: true });
+    rmSync(frameworkPath, { recursive: true, force: true });
+  });
+
+  it('omits `.claude-temp` and `.codex-temp` from deny rules when the override drops them', () => {
+    // The Phase 3 synthesizer drops the two provider temp dirs from its
+    // exclusion list so it can read composer views + the consolidation
+    // file. Without the override threading through to deny rules, the
+    // settings.json deny would still block every `.claude-temp` read.
+    const baseline = buildClaudeDenyRules(projectPath, frameworkPath);
+    expect(baseline).toContain('Read(./.claude-temp/**)');
+    expect(baseline).toContain('Read(**/.claude-temp/**)');
+    expect(baseline).toContain('Read(./.codex-temp/**)');
+    expect(baseline).toContain('Read(**/.codex-temp/**)');
+
+    const override = ['node_modules', '.git', 'dist', 'qubika-agentic-framework'];
+    const restricted = buildClaudeDenyRules(projectPath, frameworkPath, override);
+
+    // The override-driven set carries ONLY the four supplied dirs (× 2
+    // forms each = 8 rules).
+    expect(restricted).toEqual([
+      'Read(./node_modules/**)',
+      'Read(**/node_modules/**)',
+      'Read(./.git/**)',
+      'Read(**/.git/**)',
+      'Read(./dist/**)',
+      'Read(**/dist/**)',
+      'Read(./qubika-agentic-framework/**)',
+      'Read(**/qubika-agentic-framework/**)',
+    ]);
+
+    // And critically: NO `.claude-temp` rules. This is the bug the v3
+    // run audit (archive/v3-iteration-100, run 2026-05-08T23-30-20)
+    // surfaced — the synthesizer's reads were silently denied for
+    // ~ 5 minutes before it gave up.
+    expect(restricted.some((r) => r.includes('.claude-temp'))).toBe(false);
+    expect(restricted.some((r) => r.includes('.codex-temp'))).toBe(false);
+    expect(restricted.length).toBeLessThan(baseline.length);
+  });
+
+  it('treats an empty override as "deny nothing" (every dir is exempt)', () => {
+    // Edge case: an empty array is a meaningful override — "the caller
+    // wants no deny rules at all" — distinct from `undefined` which
+    // means "fall back to the project default".
+    const empty = buildClaudeDenyRules(projectPath, frameworkPath, []);
+    expect(empty).toEqual([]);
+  });
+
+  it('falls back to the project default when override is undefined', () => {
+    const explicitUndefined = buildClaudeDenyRules(projectPath, frameworkPath, undefined);
+    const noArg = buildClaudeDenyRules(projectPath, frameworkPath);
+    expect(explicitUndefined).toEqual(noArg);
+    expect(explicitUndefined).toContain('Read(./node_modules/**)');
+  });
+
+  it('emits BOTH top-level and any-depth forms for every override entry', () => {
+    const restricted = buildClaudeDenyRules(projectPath, frameworkPath, ['target']);
+    expect(restricted).toContain('Read(./target/**)');
+    expect(restricted).toContain('Read(**/target/**)');
+    expect(restricted).toHaveLength(2);
+  });
+
+  it('cleans whitespace / leading slashes in override entries (defensive)', () => {
+    const restricted = buildClaudeDenyRules(projectPath, frameworkPath, ['  /weird/  ', 'normal']);
+    expect(restricted).toContain('Read(./weird/**)');
+    expect(restricted).toContain('Read(**/weird/**)');
+    expect(restricted).toContain('Read(./normal/**)');
+    expect(restricted).toContain('Read(**/normal/**)');
+  });
+});

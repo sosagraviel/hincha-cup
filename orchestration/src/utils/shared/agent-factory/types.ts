@@ -41,6 +41,24 @@ export interface AgentConfig {
   validator?: (output: string) => ValidationResult;
   /** Max in-session self-correction attempts for Codex when validator is set. Defaults to 5. */
   maxInternalIterations?: number;
+  /**
+   * Optional override of the framework's standard excluded-directories list.
+   * When provided, this list (instead of `getExcludedDirectories()`) drives
+   *   - the PreToolUse path-restriction hook's deny list (env var
+   *     `FRAMEWORK_EXCLUDED_DIRS`),
+   *   - the resolved settings.json `permissions.deny` rules built by
+   *     `buildClaudeDenyRules()`.
+   *
+   * Use sparingly — Phase 3's synthesizer is the only current caller, and
+   * passes a list that drops `.claude-temp` / `.codex-temp` so it can read
+   * its composer views. Every other agent uses the framework default.
+   *
+   * Plan v4 Phase A.1 (2026-05-09): introduced to fix the deny-shadowing
+   * bug surfaced in archive/v3-iteration-100 (run 2026-05-08T23-30-20),
+   * where the broader deny rule shadowed a more-specific allow rule and
+   * the synthesizer could not read its inputs.
+   */
+  excludedDirsOverride?: ReadonlyArray<string>;
 }
 
 export interface AgentInvokeInput {

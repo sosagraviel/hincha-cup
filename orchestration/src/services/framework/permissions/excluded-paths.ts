@@ -32,8 +32,8 @@ import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
 /**
  * Build the canonical list of `Read(...)` deny rules for a project.
  *
- * For each directory in `getExcludedDirectories(projectPath, frameworkPath)`
- * we emit two rules:
+ * For each directory in `excludedDirsOverride ??
+ * getExcludedDirectories(projectPath, frameworkPath)` we emit two rules:
  *
  *   1. `Read(./<dir>/**)` — top-level only (the gitignore pattern that
  *      most projects expect — matches the project root's `node_modules/`).
@@ -47,9 +47,24 @@ import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
  *
  * Stack-agnostic: every dir name is a noun, not a path; the function
  * has no knowledge of any specific language or framework.
+ *
+ * Plan v4 Phase A.1 (2026-05-09) — `excludedDirsOverride` MUST be
+ * threaded through from the agent-spawn layer so an agent that
+ * legitimately needs access to an "excluded" directory (the Phase 3
+ * synthesizer reads `<projectPath>/.claude-temp/`) is not silently
+ * blocked by `permissions.deny`. Claude CLI 2.1.x evaluates deny rules
+ * before allow rules regardless of allow-rule specificity, so the only
+ * way to grant a per-agent exemption is to omit the directory from the
+ * deny list itself. The override shape mirrors the value that flows to
+ * the PreToolUse path-restriction hook so both layers agree on what
+ * the agent can touch.
  */
-export function buildClaudeDenyRules(projectPath: string, frameworkPath?: string): string[] {
-  const dirs = getExcludedDirectories(projectPath, frameworkPath);
+export function buildClaudeDenyRules(
+  projectPath: string,
+  frameworkPath?: string,
+  excludedDirsOverride?: ReadonlyArray<string>,
+): string[] {
+  const dirs = excludedDirsOverride ?? getExcludedDirectories(projectPath, frameworkPath);
   const rules: string[] = [];
   for (const dir of dirs) {
     if (!dir || typeof dir !== 'string') continue;

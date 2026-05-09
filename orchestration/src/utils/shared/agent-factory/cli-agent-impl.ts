@@ -261,7 +261,23 @@ async function invokeCLI(
           // quoted entries — see services/framework/permissions/excluded-paths.ts
           // for the rationale and the load-bearing official-docs quote that
           // guarantees these rules filter Glob/Grep results.
-          const denyRules = buildClaudeDenyRules(config.projectPath, config.frameworkPath);
+          // Plan v4 Phase A.1 (2026-05-09) — when the caller supplies an
+          // `excludedDirsOverride` (Phase 3's synthesizer drops `.claude-temp`
+          // and `.codex-temp` from its exclusion list so it can read the
+          // composer views), the override MUST flow through to the deny-rules
+          // builder too. Claude CLI 2.1.x evaluates deny rules BEFORE allow
+          // rules regardless of specificity, so even an explicit
+          // `Read(./.claude-temp/initialize-project/composer-views/**)` allow
+          // is shadowed by the broader `Read(./.claude-temp/**)` deny. The
+          // archive (archive/v3-iteration-100, run 2026-05-08T23-30-20) shows
+          // the synthesizer's reads being silently denied for ~ 5 minutes
+          // before it gave up and emitted a stub. Threading the override here
+          // is the single load-bearing fix.
+          const denyRules = buildClaudeDenyRules(
+            config.projectPath,
+            config.frameworkPath,
+            config.excludedDirsOverride,
+          );
           const denyRulesPlaceholderValue = renderDenyRulesPlaceholderValue(denyRules);
           const resolvedSettings = originalSettings
             .replace(/\$\{FRAMEWORK_PATH\}|\$FRAMEWORK_PATH/g, config.frameworkPath)
@@ -304,7 +320,17 @@ async function invokeCLI(
       // (`restrict-agent-paths.hook.ts`) can hard-block tool calls that leave
       // the project or enter excluded dirs — which prompt-only guidance
       // doesn't reliably enforce.
-      const excludedDirs = getExcludedDirectories(config.projectPath, config.frameworkPath);
+      //
+      // Plan v4 Phase A.1 (2026-05-09) — `excludedDirsOverride` (when set)
+      // takes precedence over the project default. The Phase 3 synthesizer
+      // uses this to drop `.claude-temp` and `.codex-temp` from the
+      // exclusion list so it can read composer views + the consolidation.
+      // The override flows to BOTH the hook env var (here) AND the deny
+      // rules (above) — keep them aligned or the synthesizer's reads
+      // will pass one layer and fail the other.
+      const excludedDirs =
+        config.excludedDirsOverride ??
+        getExcludedDirectories(config.projectPath, config.frameworkPath);
 
       claudeProcess = spawn(claudeCLI.path, cliArgs, {
         cwd: config.projectPath,

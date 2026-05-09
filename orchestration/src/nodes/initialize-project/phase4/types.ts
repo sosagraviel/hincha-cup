@@ -27,12 +27,22 @@ export interface FileCount {
 
 /**
  * Result of file counting operation
+ *
+ * Plan v4 Phase A.2 (2026-05-09) — `tooling_config_counts` is the
+ * per-language count of files the counter recognised as build / lint /
+ * test tooling (matching `TOOLING_CONFIG_PATTERNS`) and intentionally
+ * EXCLUDED from `by_language`. Validators consult it to differentiate
+ * "the analyzer fabricated this language" (no source, no tooling, warn)
+ * from "this language ships only as build tooling in this project"
+ * (no source but tooling > 0, info). Optional for back-compat with
+ * older mocks; the runtime always populates it.
  */
 export interface FileCountResult {
   total_files: number;
   by_language: FileCount[];
   scanned_directories: number;
   errors: string[];
+  tooling_config_counts?: Record<string, number>;
 }
 
 // ============================================================================

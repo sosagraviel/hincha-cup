@@ -409,4 +409,58 @@ describe('file-counter', () => {
       expect(lang).toBe('typescript');
     });
   });
+
+  // ==========================================================================
+  // Plan v4 Phase A.2 — newly-covered canonical languages
+  // ==========================================================================
+
+  describe('Plan v4 Phase A.2 — newly-covered canonical languages', () => {
+    it('counts a single .sh file as `shell`', async () => {
+      await writeFile(join(testDir, 'deploy.sh'), '#!/bin/bash\necho ok\n');
+      const result = await countFilesByLanguage(testDir);
+      const shell = result.by_language.find((b) => b.language === 'shell');
+      expect(shell?.count).toBe(1);
+    });
+
+    it('counts a single .sql file as `sql`', async () => {
+      await writeFile(join(testDir, 'init.sql'), 'CREATE TABLE x (id INT);\n');
+      const result = await countFilesByLanguage(testDir);
+      const sql = result.by_language.find((b) => b.language === 'sql');
+      expect(sql?.count).toBe(1);
+    });
+
+    it('counts other newly-covered canonical extensions (dart / lua / r / html / css / erlang)', async () => {
+      await writeFile(join(testDir, 'app.dart'), 'void main() {}\n');
+      await writeFile(join(testDir, 'init.lua'), 'print("x")\n');
+      await writeFile(join(testDir, 'analysis.r'), 'x <- 1\n');
+      await writeFile(join(testDir, 'index.html'), '<!doctype html>\n');
+      await writeFile(join(testDir, 'main.css'), 'body{}\n');
+      await writeFile(join(testDir, 'gen.erl'), '-module(gen).\n');
+      const result = await countFilesByLanguage(testDir);
+      const lookup = (lang: string) => result.by_language.find((b) => b.language === lang)?.count;
+      expect(lookup('dart')).toBe(1);
+      expect(lookup('lua')).toBe(1);
+      expect(lookup('r')).toBe(1);
+      expect(lookup('html')).toBe(1);
+      expect(lookup('css')).toBe(1);
+      expect(lookup('erlang')).toBe(1);
+    });
+
+    it('counts powershell + perl + julia + objectivec + fsharp + vbnet too', async () => {
+      await writeFile(join(testDir, 'deploy.ps1'), 'Write-Host x\n');
+      await writeFile(join(testDir, 'munge.pl'), 'print "hi";\n');
+      await writeFile(join(testDir, 'sim.jl'), 'println("x")\n');
+      await writeFile(join(testDir, 'view.m'), '#import <Foundation/Foundation.h>\n');
+      await writeFile(join(testDir, 'app.fs'), 'let x = 1\n');
+      await writeFile(join(testDir, 'app.vb'), 'Module App\nEnd Module\n');
+      const result = await countFilesByLanguage(testDir);
+      const lookup = (lang: string) => result.by_language.find((b) => b.language === lang)?.count;
+      expect(lookup('powershell')).toBe(1);
+      expect(lookup('perl')).toBe(1);
+      expect(lookup('julia')).toBe(1);
+      expect(lookup('objectivec')).toBe(1);
+      expect(lookup('fsharp')).toBe(1);
+      expect(lookup('vbnet')).toBe(1);
+    });
+  });
 });
