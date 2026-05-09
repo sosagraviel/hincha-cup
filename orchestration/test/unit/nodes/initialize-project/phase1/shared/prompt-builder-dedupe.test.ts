@@ -122,11 +122,20 @@ describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan
       //     64500 → 70500. Phase H of v4 will reclaim some of this
       //     by trimming downstream steps the inspection makes
       //     redundant.
+      //   - 2026-05-09 (Plan v4 Phase H — ratchet): current measured
+      //     aggregate is ~70944 chars (structure 20393 + tech-stack
+      //     22977 + code-patterns 12622 + data-flows 14952). Ratchet
+      //     the cap to 71500 — leaves 556 chars of slack for surgical
+      //     edits but blocks any silent regrowth back toward the
+      //     2026-05-04 baseline. The plan's eventual target is ≤ 60 KB
+      //     once Phase D's per-service fan-out lets us delete the
+      //     per-service `code_patterns` snippet-selection guidance
+      //     from code-patterns-analyzer's body.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
-      expect(total).toBeLessThan(72000);
+      expect(total).toBeLessThan(71500);
     });
   });
 });
