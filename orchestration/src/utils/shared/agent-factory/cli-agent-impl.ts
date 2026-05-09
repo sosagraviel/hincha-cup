@@ -336,6 +336,9 @@ async function invokeCLI(
         cwd: config.projectPath,
         env: {
           ...process.env,
+          // Plan v4 Phase D: per-spawn extras layered FIRST so framework-
+          // controlled vars below always win on a key collision.
+          ...(config.extraEnv ?? {}),
           CLAUDE_SKIP_CONFIRMATIONS: '1',
           // ────────────────────────────────────────────────────────────────────
           // ONLY ALLOWED ENV-INJECTION POINT for FRAMEWORK_PATH/FRAMEWORK_PROJECT_PATH.

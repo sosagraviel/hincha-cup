@@ -7,6 +7,7 @@ import { structureArchitectureAnalyzerNode } from '../nodes/initialize-project/p
 import { techStackDependenciesAnalyzerNode } from '../nodes/initialize-project/phase1/tech-stack-analyzer/tech-stack-dependencies-analyzer.node.js';
 import { codePatternsTestingAnalyzerNode } from '../nodes/initialize-project/phase1/code-patterns-analyzer/code-patterns-testing-analyzer.node.js';
 import { dataFlowsIntegrationsAnalyzerNode } from '../nodes/initialize-project/phase1/data-flows-analyzer/data-flows-integrations-analyzer.node.js';
+import { serviceDetailExtractorNode } from '../nodes/initialize-project/phase1_5/service-detail-extractor/service-detail-extractor.node.js';
 import { consolidationNode } from '../nodes/initialize-project/phase2/question-consolidator/question-consolidator.node.js';
 import { synthesisNode } from '../nodes/initialize-project/phase3/synthesis.node.js';
 import { contextGenerationNode } from '../nodes/initialize-project/phase4/context-generation.node.js';
@@ -116,6 +117,7 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addNode('tech_stack_dependencies_analyzer', techStackDependenciesAnalyzerNode)
   .addNode('code_patterns_testing_analyzer', codePatternsTestingAnalyzerNode)
   .addNode('data_flows_integrations_analyzer', dataFlowsIntegrationsAnalyzerNode)
+  .addNode('service_detail_extractor', serviceDetailExtractorNode)
   .addNode('consolidation', consolidationNode)
   .addNode('synthesis', synthesisNode)
   .addNode('context_generation', contextGenerationNode)
@@ -134,10 +136,16 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   // analyzers read structure-analyzer's persisted output for the authoritative
   // services[] list before building their own prompts.
   .addConditionalEdges('structure_architecture_analyzer', routeAfterStructureAnalyzer)
-  // [02, 03, 04] → consolidation
-  .addEdge('tech_stack_dependencies_analyzer', 'consolidation')
-  .addEdge('code_patterns_testing_analyzer', 'consolidation')
-  .addEdge('data_flows_integrations_analyzer', 'consolidation')
+  // Plan v4 Phase D — [02, 03, 04] → service_detail_extractor → consolidation.
+  // The orchestrator spawns N parallel sub-agents (one per service in the
+  // structure-analyzer's authoritative list) inside this single LangGraph
+  // node — fan-out is internal so we don't need N graph nodes for what is
+  // logically one phase. Idempotent / disk-first: skipped when an existing
+  // `<tempDir>/service-details/_index.json` already covers the service set.
+  .addEdge('tech_stack_dependencies_analyzer', 'service_detail_extractor')
+  .addEdge('code_patterns_testing_analyzer', 'service_detail_extractor')
+  .addEdge('data_flows_integrations_analyzer', 'service_detail_extractor')
+  .addEdge('service_detail_extractor', 'consolidation')
   // Linear flow from Phase 2 through Phase 4 context generation
   .addEdge('consolidation', 'synthesis')
   .addEdge('synthesis', 'context_generation')

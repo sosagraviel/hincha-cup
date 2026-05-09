@@ -350,6 +350,7 @@ async function invokeCodexCLI(
     frameworkPath: config.frameworkPath,
     timeout,
     iteration: 0,
+    extraEnv: config.extraEnv,
   });
 
   if (first.code !== 0) {
@@ -408,6 +409,7 @@ async function invokeCodexCLI(
       frameworkPath: config.frameworkPath,
       timeout,
       iteration,
+      extraEnv: config.extraEnv,
     });
     if (resumeRun.code !== 0) {
       await finalizeCodexFailure(recorder, resumeRun, run.sessionId, feedbackPrompt);
@@ -598,6 +600,12 @@ function runCodex(params: {
   frameworkPath: string;
   timeout: number;
   iteration: number;
+  /**
+   * Plan v4 Phase D — per-spawn extras forwarded into the spawned process.
+   * The framework-controlled vars below always win on a key collision so
+   * callers cannot accidentally weaken FRAMEWORK_ENFORCE / FRAMEWORK_PATH.
+   */
+  extraEnv?: Record<string, string>;
 }): Promise<{
   code: number | null;
   stdout: string;
@@ -642,6 +650,9 @@ function runCodex(params: {
         cwd: params.cwd,
         env: {
           ...process.env,
+          // Plan v4 Phase D: per-spawn extras layered FIRST so framework-
+          // controlled vars below always win on a key collision.
+          ...(params.extraEnv ?? {}),
           FRAMEWORK_PATH: params.frameworkPath,
           FRAMEWORK_PROJECT_PATH: params.cwd,
           FRAMEWORK_EXCLUDED_DIRS: JSON.stringify(excludedDirs),

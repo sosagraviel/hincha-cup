@@ -26,6 +26,9 @@ export function getFrameworkAgentPath(frameworkPath: string, agentFile: string):
       'orchestration/src/nodes/initialize-project/phase2/question-consolidator/prompts/agent.md',
     '07-wiki-generator.md':
       'orchestration/src/nodes/initialize-project/phase4/wiki-generator/prompts/agent.md',
+    // Plan v4 Phase D — per-service detail extractor sub-agent.
+    '08-service-detail-extractor.md':
+      'orchestration/src/nodes/initialize-project/phase1_5/service-detail-extractor/prompts/agent.md',
   };
 
   const newPath = agentPathMap[agentFile];

@@ -67,6 +67,11 @@ export const PER_ANALYZER_TOOL_CALL_CAPS: Record<string, number> = {
   'tech-stack-dependencies-analyzer': 30, // was 20 — gira distribution: 30
   'code-patterns-testing-analyzer': 30, // was 25 — gira distribution: 25
   'data-flows-integrations-analyzer': 40, // was 30 — gira distribution: 42 (legitimately exceeds)
+  // Plan v4 Phase D — per-service detail extractor. Tighter than the
+  // analyzers above because each sub-agent is scoped to ONE service:
+  // ≤ 6 graph calls + ≤ 8 reads (per execution-instructions.md) → 14
+  // expected, with headroom for retries / verification.
+  'service-detail-extractor': 20,
 };
 
 /**
@@ -135,6 +140,17 @@ export const PER_ANALYZER_PER_TOOL_CAPS: Record<string, Record<string, number>> 
     mcp__code_graph__semantic_search_nodes_tool: 6,
     mcp__code_graph__query_graph_tool: 6,
     mcp__code_graph__traverse_graph_tool: 2,
+  },
+  'service-detail-extractor': {
+    // Single-service scope: tight per-tool budgets so the sub-agent
+    // doesn't drift into broad surveys. The execution-instructions
+    // spell out the same shape (≤ 6 graph + ≤ 8 reads); this table
+    // is the numerical guardrail.
+    mcp__code_graph__get_minimal_context_tool: 3,
+    mcp__code_graph__semantic_search_nodes_tool: 4,
+    mcp__code_graph__list_communities_tool: 1,
+    mcp__code_graph__query_graph_tool: 2,
+    mcp__code_graph__get_community_tool: 1,
   },
 };
 

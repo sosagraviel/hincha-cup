@@ -59,6 +59,18 @@ export interface AgentConfig {
    * the synthesizer could not read its inputs.
    */
   excludedDirsOverride?: ReadonlyArray<string>;
+  /**
+   * Optional per-spawn environment variables forwarded into the spawned
+   * Claude/Codex CLI process. Layered on top of the framework's standard
+   * env (FRAMEWORK_PATH / FRAMEWORK_PROJECT_PATH / FRAMEWORK_EXCLUDED_DIRS /
+   * FRAMEWORK_ENFORCE) — these standard vars always win on a key collision.
+   *
+   * Plan v4 Phase D (2026-05-09): the per-service detail extractor sets
+   * FRAMEWORK_SERVICE_ID / FRAMEWORK_SERVICE_PATH / FRAMEWORK_TEMP_DIR so
+   * the layered PreToolUse and Stop hooks can scope the agent to its
+   * assigned service. Other agent spawns leave this undefined.
+   */
+  extraEnv?: Record<string, string>;
 }
 
 export interface AgentInvokeInput {
