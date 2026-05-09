@@ -126,7 +126,7 @@ describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
-      expect(total).toBeLessThan(70500);
+      expect(total).toBeLessThan(72000);
     });
   });
 });

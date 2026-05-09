@@ -1,6 +1,11 @@
 import { z, ZodSchema } from 'zod';
 import { normalizeLanguage } from './language-normalization.js';
 import { AutomationSchema, ReadmeRunSectionEntrySchema } from './stack-profile.schema.js';
+import { CodeSnippetSchema } from './phase1-base.schema.js';
+
+// Re-export so existing imports continue to work alongside the v4 base.
+export { CodeSnippetSchema };
+export type { CodeSnippet } from './phase1-base.schema.js';
 
 // ============================================================================
 // PHASE 1 AGENT OUTPUT SCHEMAS
@@ -238,6 +243,37 @@ export const StructureAnalyzerOutputSchema = z
               '`Installation` / `Development` / `Running Locally` / `How to Run` ' +
               '(case-insensitive). Reproduced verbatim with attribution.',
           ),
+        // Plan v4 Phase C (2026-05-09) — repository_shape_summary.
+        repository_shape_summary: z
+          .string()
+          .max(600)
+          .optional()
+          .describe(
+            'One short paragraph (≤ 600 chars) summarising the repository shape: ' +
+              'monorepo vs single-service, top-level layout, language families, ' +
+              'workspace tooling, and any unusual conventions. Read by the ' +
+              'synthesizer (Phase 3) instead of re-derived from services[] / ' +
+              'monorepo_layout. Stack-agnostic free-form prose.',
+          ),
+        // Plan v4 Phase C (2026-05-09) — project-level architecture_decisions[].
+        // Per-service architecture_decisions move to Phase D fan-out.
+        architecture_decisions: z
+          .array(
+            z
+              .object({
+                decision: z.string().min(1).max(200),
+                rationale: z.string().min(1).max(400),
+              })
+              .strict(),
+          )
+          .max(8)
+          .optional()
+          .describe(
+            '3–5 project-level architecture decisions. `decision` ≤ 200 chars; ' +
+              '`rationale` ≤ 400 chars. Free-form text — no closed enum on decision ' +
+              'category. Stack-agnostic by construction: a Go monorepo, a PHP ' +
+              'MVC monolith, and a Rust CLI all surface their own decision shapes.',
+          ),
       })
       .passthrough(), // Allow languages[], runtimes{}, architecture_pattern, file_placement{}, path_aliases{}, database{} (multi_stack merged into services)
     needs_verification: z
@@ -389,8 +425,52 @@ export const TechStackAnalyzerOutputSchema = z
           })
           .optional()
           .describe('Commands documented in project README, CONTRIBUTING, etc.'),
+        // Plan v4 Phase C (2026-05-09) — runtime_versions copied verbatim
+        // from the Phase 0 inspection. Free-form { language: version }
+        // map; analyzers do not normalise. Stack-agnostic.
+        runtime_versions: z
+          .record(z.string(), z.string())
+          .optional()
+          .describe(
+            'Free-form { language-family: version } map copied verbatim from ' +
+              '`<tempDir>/project-inspection.json::runtime_versions`. The synthesizer ' +
+              'reads from here for the `Tech Stack` block. Examples: ' +
+              '`{ node: "22.5.1", python: "3.11.5", go: "1.22" }`. ' +
+              'No normalisation — the inspection is authoritative.',
+          ),
+        // Plan v4 Phase C (2026-05-09) — external_services[] with optional
+        // provenance. The `sample_usage_quote` (CodeSnippet) is OPTIONAL
+        // here; per-service rich extraction goes to Phase D fan-out.
+        external_services: z
+          .array(
+            z
+              .object({
+                name: z.string().min(1).describe('Vendor / product name (e.g. "Stripe", "Sentry")'),
+                sdk: z
+                  .string()
+                  .optional()
+                  .describe('SDK package name + version when known (e.g. "stripe@14.0.0")'),
+                config_location: z
+                  .string()
+                  .optional()
+                  .describe('Where the SDK is configured (path / env-var / config block).'),
+                purpose: z.string().optional().describe('One-line purpose of the integration.'),
+                sample_usage_quote: CodeSnippetSchema.optional().describe(
+                  'OPTIONAL in Phase C — Phase D fan-out per-service extractors fill ' +
+                    'this in for graph-confirmed integrations.',
+                ),
+              })
+              .passthrough(),
+          )
+          .optional()
+          .describe(
+            'Third-party services the project integrates with (Stripe, Sentry, ' +
+              'Sendgrid, Twilio, Auth0, etc.). Free-form `name` (no closed enum). ' +
+              '`sample_usage_quote` provenance is filled in by Phase D fan-out, not ' +
+              'this analyzer.',
+          ),
       })
-      .passthrough(), // Allow infrastructure[], ci_cd{}, deployment{}, environment{}, databases[], external_services[], build_tools{}
+      .passthrough(), // Allow infrastructure[], ci_cd{}, deployment{}, environment{}, databases[], build_tools{}
     needs_verification: z
       .array(NeedsVerificationEntrySchema)
       .max(3)
@@ -481,6 +561,30 @@ export const CodePatternsAnalyzerOutputSchema = z
           )
           .optional()
           .describe("Testing configuration by service ID (e.g., 'backend': { unit: {...} })"),
+        // Plan v4 Phase C (2026-05-09) — quality_tools.enforcement_summary
+        // (project-level, ≤ 600 chars). The synthesizer drops this paragraph
+        // verbatim into the quality skill. NO per-service `code_patterns`
+        // map yet — that's the heaviest §B.3 field and goes to Phase D
+        // fan-out (one per-service sub-agent) to keep the analyzer's
+        // wall-clock bounded.
+        quality_tools: z
+          .object({
+            linter: z.string().optional(),
+            formatter: z.string().optional(),
+            type_checker: z.string().optional(),
+            pre_commit: z.string().optional(),
+            enforcement_summary: z
+              .string()
+              .max(600)
+              .optional()
+              .describe(
+                'One short paragraph (≤ 600 chars) describing how lint / format / ' +
+                  'pre-commit / CI gates compose end-to-end. Free-form prose. ' +
+                  'Synthesizer drops this verbatim into the quality skill body.',
+              ),
+          })
+          .passthrough()
+          .optional(),
       })
       .passthrough(), // Allow additional code pattern and architecture information (api_patterns, naming_conventions, error_handling, async_patterns, etc.)
     needs_verification: z
@@ -598,6 +702,53 @@ export const DataFlowsAnalyzerOutputSchema = z.object({
         )
         .optional()
         .describe('Service-to-service communication patterns (use service IDs as keys)'),
+      // Plan v4 Phase C (2026-05-09) — project-level event_pipeline (single
+      // object, not per-service). Per-service request_lifecycle moves to
+      // Phase D fan-out. Free-form `pattern` and `technology` (no closed
+      // enum): a Go project might emit `{ pattern: "channel-fanout",
+      // technology: "stdlib" }`; an Erlang project `{ pattern: "actor-mailbox",
+      // technology: "OTP" }`; a Node project `{ pattern: "task-queue",
+      // technology: "BullMQ" }`. Examples optional in Phase C; Phase D
+      // fan-out fills snippets when applicable.
+      event_pipeline: z
+        .object({
+          pattern: z
+            .string()
+            .min(1)
+            .max(80)
+            .describe(
+              'Free-form pattern label — verbatim from the project. ' +
+                'Examples: "task-queue" / "pubsub" / "websocket" / "actor-mailbox" / ' +
+                '"channel-fanout" / "kafka-streams" / "genserver-message-passing". ' +
+                'No closed enum.',
+            ),
+          technology: z
+            .string()
+            .min(1)
+            .max(80)
+            .describe(
+              'Concrete library / runtime ("BullMQ" / "Celery" / "OTP" / "stdlib" / ' +
+                '"akka.actor"). Free-form.',
+            ),
+          examples: z.array(CodeSnippetSchema).max(3).optional(),
+        })
+        .strict()
+        .optional()
+        .describe('Absent when no event pipeline exists.'),
+      // Plan v4 Phase C (2026-05-09) — project-level auth_flow. Per-service
+      // request_lifecycle (the per-service auth chain) moves to Phase D
+      // fan-out. Free-form strategy: "jwt-bearer" / "session-cookie" /
+      // "oauth2-pkce" / "basic-auth" / "api-key" / "mtls" / "none" / etc.
+      auth_flow: z
+        .object({
+          strategy: z.string().min(1).max(80),
+          libraries: z.array(z.string().min(1)).min(1).max(10),
+          summary: z.string().min(1).max(800),
+          examples: z.array(CodeSnippetSchema).max(3).optional(),
+        })
+        .strict()
+        .optional()
+        .describe('Present only when authentication is observable.'),
     })
     .passthrough(), // Allow authentication{}, external_integrations{}, api_design{}, data_patterns{}, etc.
   needs_verification: z
