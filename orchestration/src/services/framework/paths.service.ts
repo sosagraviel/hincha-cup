@@ -89,9 +89,7 @@ function isDogfoodingFramework(framework: string): boolean {
   // framework lives at `<project>/qubika-agentic-framework` (only one level).
   const symlinkPrefix = candidate + sep;
   const callerPaths = [process.argv[1], process.env.PWD, process.cwd()];
-  return callerPaths.some(
-    (p): p is string => typeof p === 'string' && p.startsWith(symlinkPrefix),
-  );
+  return callerPaths.some((p): p is string => typeof p === 'string' && p.startsWith(symlinkPrefix));
 }
 
 /** Test-only: resets the per-process memoization. */
