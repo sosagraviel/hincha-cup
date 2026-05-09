@@ -9,6 +9,8 @@ import { consolidateQuestions } from './helpers/consolidate-questions.js';
 import { askGapQuestions } from './helpers/ask-gap-questions.js';
 import { exactTextDedupe } from './helpers/exact-text-dedupe.js';
 import { resolveTempPath } from '../../../../utils/provider-paths.js';
+import { buildComposerViewsFromDisk } from '../composer-views/build-composer-views.js';
+import { mkdirSync } from 'fs';
 
 /**
  * Plan 14 §C.9.2 — gap-count threshold below which the LLM
@@ -305,6 +307,48 @@ export async function consolidationNode(
     phaseLogger.info(' Step 4: Finalizing consolidation...');
 
     const finalConsolidation = JSON.parse(readFileSync(consolidatedPath, 'utf-8'));
+
+    // ========================================================================
+    // STEP 5b: BUILD COMPOSER VIEWS (Plan v4 Phase E)
+    // ========================================================================
+    // Pre-flatten Phase 1 + Phase 1.5 outputs into the four composer
+    // views the synthesizer reads. The synthesizer composes
+    // deterministically over these — never walks the source tree.
+    phaseLogger.info(' Step 5: Building composer views...');
+    try {
+      const composerViewsDir = join(tempDir, 'composer-views');
+      mkdirSync(composerViewsDir, { recursive: true });
+      const bundle = buildComposerViewsFromDisk(tempDir, new Date().toISOString());
+      writeFileSync(
+        join(composerViewsDir, 'code-conventions.input.json'),
+        JSON.stringify(bundle.code_conventions, null, 2),
+      );
+      writeFileSync(
+        join(composerViewsDir, 'multi-file-workflows.input.json'),
+        JSON.stringify(bundle.multi_file_workflows, null, 2),
+      );
+      writeFileSync(
+        join(composerViewsDir, 'testing-conventions.input.json'),
+        JSON.stringify(bundle.testing_conventions, null, 2),
+      );
+      writeFileSync(
+        join(composerViewsDir, 'architecture-narrative.input.json'),
+        JSON.stringify(bundle.architecture_narrative, null, 2),
+      );
+      writeFileSync(join(composerViewsDir, '_bundle.json'), JSON.stringify(bundle, null, 2));
+      const presentSummary = [
+        `code-conventions=${bundle.code_conventions.present.any_service_patterns ? '✓' : '∅'}`,
+        `multi-file-workflows=${bundle.multi_file_workflows.present.any_request_lifecycle ? '✓' : '∅'}`,
+        `testing-conventions=${bundle.testing_conventions.present.any_service_tests ? '✓' : '∅'}`,
+        `architecture-narrative=${bundle.architecture_narrative.present.repository_shape_summary ? '✓' : '∅'}`,
+      ].join(' ');
+      phaseLogger.success(`  ✓ composer views written (${presentSummary})`);
+    } catch (err) {
+      phaseLogger.warn(
+        `  ⚠ composer-views build failed: ${(err as Error).message}. Phase 3 will fall back to legacy consolidation.`,
+      );
+    }
+    logger.blank();
 
     phaseLogger.success('Consolidation ready for synthesis');
     phaseLogger.info(`  File: ${consolidatedPath}`);
