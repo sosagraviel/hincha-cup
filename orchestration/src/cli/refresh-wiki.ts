@@ -17,8 +17,6 @@ program
   .name('refresh-wiki')
   .description('Incrementally refresh the LLM wiki at docs/llm-wiki/ after code changes')
   .version('1.0.0')
-  // --project-path / --framework-path are no longer accepted: paths.service.ts
-  // resolves both locally from import.meta.url. Single source of truth.
   .option('--provider <claude|codex>', 'AI provider (auto-detected from config if omitted)')
   .option('--since <sha>', 'Refresh only pages affected since this git commit')
   .option('--force', 'Force full regeneration even when .state.json exists', false)

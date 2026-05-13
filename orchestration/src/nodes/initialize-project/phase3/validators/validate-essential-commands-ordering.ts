@@ -1,17 +1,15 @@
 /**
- * Plan 15 §D.8.2 — hard validator: `Essential Commands` MUST list
- * wrapper-tier rows before package_manager-tier rows for the same
- * operation.
+ * Hard validator: `Essential Commands` MUST list wrapper-tier rows before
+ * package_manager-tier rows for the same operation.
  *
- * The closed-book synthesizer receives a pre-built `command_catalog`
- * with deterministic tier ordering. If the rendered CLAUDE.md ends
- * up listing `pnpm --filter backend test` BEFORE `make tests` (when
- * both exist in the catalog), this validator fires and the agent
- * retries with feedback.
+ * The closed-book synthesizer receives a pre-built `command_catalog` with
+ * deterministic tier ordering. If the rendered CLAUDE.md lists a
+ * package-manager command before its wrapper equivalent, this validator
+ * fires and the agent retries with feedback.
  *
- * Stack-agnostic: operates on `command_catalog` entries, not on
- * specific tools. Works the same for Make/Just/Task/script wrappers
- * and any package-manager fallback.
+ * Stack-agnostic: operates on `command_catalog` entries, not on specific
+ * tools. Works the same for Make/Just/Task/script wrappers and any
+ * package-manager fallback.
  */
 
 import type {
@@ -40,7 +38,10 @@ export function detectEssentialCommandsOrderingViolations(
   catalog: CommandCatalog,
 ): OrderingViolation[] {
   const violations: OrderingViolation[] = [];
-  const lines = claudeMdBody.split('\n');
+  const lines = extractEssentialCommandsSection(claudeMdBody);
+  if (lines.length === 0) {
+    return violations;
+  }
 
   for (const [op, entries] of Object.entries(catalog) as Array<
     [CommandCatalogOperation, CommandCatalogEntry[]]
@@ -49,11 +50,6 @@ export function detectEssentialCommandsOrderingViolations(
     const pkgs = entries.filter((e) => e.tier === 'package_manager');
     if (wrappers.length === 0 || pkgs.length === 0) continue;
 
-    // First-occurrence line index for any wrapper command on this op.
-    // We use the SHORTEST wrapper line as the bar — if the wrapper is
-    // absent entirely we cannot conclude the synthesizer omitted it
-    // legitimately (it might be unrendered for valid reasons), so we
-    // skip the check for that case rather than over-fire.
     const wrapperLine = firstLineContainingAny(
       lines,
       wrappers.map((w) => w.command),
@@ -62,7 +58,7 @@ export function detectEssentialCommandsOrderingViolations(
 
     for (const pkg of pkgs) {
       const pkgLine = firstLineContaining(lines, pkg.command);
-      if (pkgLine === -1) continue; // synthesizer omitted this fallback — fine
+      if (pkgLine === -1) continue;
       if (pkgLine < wrapperLine) {
         violations.push({
           operation: op,
@@ -120,15 +116,39 @@ export function formatOrderingViolations(violations: OrderingViolation[]): strin
   return out;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function firstLineContaining(lines: string[], needle: string): number {
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].includes(needle)) return i;
   }
   return -1;
+}
+
+/**
+ * Pull only the `## Essential Commands` section out of the rendered
+ * CLAUDE.md body. The section starts at the heading `## Essential
+ * Commands` (case-sensitive — the synthesizer is required to emit
+ * exactly that header) and ends at the next `## ` heading.
+ *
+ * Returns an empty array if no Essential Commands heading is found.
+ */
+function extractEssentialCommandsSection(claudeMdBody: string): string[] {
+  const allLines = claudeMdBody.split('\n');
+  let startIdx = -1;
+  for (let i = 0; i < allLines.length; i++) {
+    if (/^##\s+Essential\s+Commands\s*$/i.test(allLines[i].trim())) {
+      startIdx = i;
+      break;
+    }
+  }
+  if (startIdx === -1) return [];
+  let endIdx = allLines.length;
+  for (let i = startIdx + 1; i < allLines.length; i++) {
+    if (/^##\s+/.test(allLines[i])) {
+      endIdx = i;
+      break;
+    }
+  }
+  return allLines.slice(startIdx, endIdx);
 }
 
 function firstLineContainingAny(lines: string[], needles: string[]): number {
@@ -146,8 +166,6 @@ function matchingWrapperFor(
   lines: string[],
   wrapperLineIndex: number,
 ): string {
-  // Return the wrapper command whose first occurrence is on this line
-  // (used to make the violation message specific).
   for (const w of wrappers) {
     if (lines[wrapperLineIndex]?.includes(w.command)) return w.command;
   }

@@ -1,5 +1,5 @@
 /**
- * Plan v3 §A — project-inspection module entry-point.
+ * Project-inspection module entry-point.
  *
  * The inspector runs in Phase 0 and produces deterministic, parsed
  * data that Phase-1 analyzers consume instead of re-deriving via
@@ -60,7 +60,5 @@ export function writeProjectInspection(tempDir: string, inspection: ProjectInspe
     const path = projectInspectionPath(tempDir);
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify(inspection, null, 2));
-  } catch {
-    // Telemetry never fails the workflow.
-  }
+  } catch {}
 }

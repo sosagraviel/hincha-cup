@@ -6,7 +6,7 @@
  *  - The base fields propagate (`timestamp`, `graph_queries_used`,
  *    `graph_overflow_*`, `soft_warning`, `needs_verification`).
  *  - The supplied `findingsSchema` is plumbed through.
- *  - `CodeSnippetSchema` enforces the ≤ 600 char `code` cap and the
+ *  - `CodeSnippetSchema` enforces the ≤ 1500 char `code` cap and the
  *    optional `source_file` / `source_line` / `note` shape.
  *  - `NeedsVerificationEntrySchema` still enforces the ≥ 2
  *    `attempted_resolution` and ≥ 40 char `impact` rules.
@@ -17,6 +17,7 @@ import { z } from 'zod';
 import {
   buildPhase1AnalyzerSchema,
   CodeSnippetSchema,
+  CodeSnippetWithCitationSchema,
   NeedsVerificationEntrySchema,
   Phase1AnalyzerBaseFields,
 } from '../../../src/schemas/phase1-base.schema.js';
@@ -114,13 +115,22 @@ describe('CodeSnippetSchema', () => {
     expect(ok.success).toBe(true);
   });
 
-  it('rejects code longer than 600 chars', () => {
+  it('rejects code longer than 1500 chars', () => {
     const result = CodeSnippetSchema.safeParse({
       kind: 'pattern',
       language: 'python',
-      code: 'x'.repeat(601),
+      code: 'x'.repeat(1501),
     });
     expect(result.success).toBe(false);
+  });
+
+  it('accepts code at the 1500-char boundary', () => {
+    const result = CodeSnippetSchema.safeParse({
+      kind: 'pattern',
+      language: 'python',
+      code: 'x'.repeat(1500),
+    });
+    expect(result.success).toBe(true);
   });
 
   it('rejects empty kind / language / code', () => {
@@ -150,6 +160,54 @@ describe('CodeSnippetSchema', () => {
       language: 'typescript',
       code: 'a',
       mystery: 1,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('CodeSnippetWithCitationSchema', () => {
+  // Plan v9 Phase 5 — every per-service judgment snippet must carry
+  // `source_file` + `source_line`. Loose `CodeSnippetSchema` remains
+  // available for project-level shape examples that legitimately have
+  // no single canonical line.
+  it('accepts a snippet with both citation fields', () => {
+    const ok = CodeSnippetWithCitationSchema.safeParse({
+      kind: 'controller-shape',
+      language: 'typescript',
+      code: 'export class UsersController {}',
+      source_file: 'services/api/src/users/users.controller.ts',
+      source_line: 4,
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('rejects a snippet missing source_file', () => {
+    const result = CodeSnippetWithCitationSchema.safeParse({
+      kind: 'controller-shape',
+      language: 'typescript',
+      code: 'export class UsersController {}',
+      source_line: 4,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a snippet missing source_line', () => {
+    const result = CodeSnippetWithCitationSchema.safeParse({
+      kind: 'controller-shape',
+      language: 'typescript',
+      code: 'export class UsersController {}',
+      source_file: 'services/api/src/users/users.controller.ts',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a non-positive source_line', () => {
+    const result = CodeSnippetWithCitationSchema.safeParse({
+      kind: 'controller-shape',
+      language: 'typescript',
+      code: 'export class UsersController {}',
+      source_file: 'services/api/src/users/users.controller.ts',
+      source_line: 0,
     });
     expect(result.success).toBe(false);
   });

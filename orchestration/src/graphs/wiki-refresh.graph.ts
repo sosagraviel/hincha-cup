@@ -61,22 +61,17 @@ export const wikiRefreshGraph = new StateGraph(WikiRefreshAnnotation)
   .addNode('run_lint', runLintNode)
   .addNode('update_state', updateStateNode)
   .addNode('write_pages', writePagesNode)
-  // Entry point
   .addEdge(START, 'read_state')
-  // Linear through read_state → compute_diff
   .addEdge('read_state', 'compute_diff')
-  // Conditional: skip regeneration when nothing changed
   .addConditionalEdges('compute_diff', routeAfterComputeDiff, {
     code_graph_update: 'code_graph_update',
     [END]: END,
   })
-  // Regeneration pipeline
   .addEdge('code_graph_update', 'compute_refresh_set')
   .addEdge('compute_refresh_set', 'refresh_pages')
   .addEdge('refresh_pages', 'write_changelog')
   .addEdge('write_changelog', 'write_log')
   .addEdge('write_log', 'run_lint')
-  // Conditional: skip update_state on structural lint failures
   .addConditionalEdges('run_lint', routeAfterRunLint, {
     update_state: 'update_state',
     [END]: 'write_pages',

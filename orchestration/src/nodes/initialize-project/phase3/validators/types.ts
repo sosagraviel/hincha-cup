@@ -34,10 +34,6 @@
  * the wiki and ignores the four prescriptive sections.
  */
 
-// ============================================================================
-// TYPES
-// ============================================================================
-
 export interface ExtractedSynthesisSections {
   /** CLAUDE.md (or AGENTS.md on Codex) cheat-sheet body, no header line. */
   claudemd: string;
@@ -53,8 +49,8 @@ export interface ExtractedSynthesisSections {
 
 export interface SynthesisValidationResult {
   valid: boolean;
-  errors: string[]; // Specific, actionable error messages
-  warnings?: string[]; // Non-blocking issues
+  errors: string[];
+  warnings?: string[];
   extracted?: ExtractedSynthesisSections;
 }
 
@@ -64,10 +60,6 @@ export interface LineCountResult {
   minRequired: number;
   maxAllowed: number;
 }
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
 
 /**
  * Per-section line-count bounds. Each prescriptive skill is intentionally
@@ -118,7 +110,6 @@ export const SECTION_MARKERS = {
   SEPARATOR: '---',
 } as const;
 
-// Patterns that indicate the agent is describing what it did instead of outputting content
 export const PREAMBLE_PATTERNS = [
   /^(let me|i('ll| will)|here('s| is)|now i|allowing me to)/i,
   /^(based on|according to|as requested|following your)/i,
@@ -129,11 +120,10 @@ export const PREAMBLE_PATTERNS = [
   /^generating/i,
 ];
 
-// Patterns that indicate Write tool usage or file operations
 export const WRITE_TOOL_PATTERNS = [
   /wrote\s+(to|file|content)/i,
   /created\s+(file|directory)/i,
-  /saved.{0,20}(to|file|as)/i, // Allow up to 20 chars between "saved" and "to/file/as"
+  /saved.{0,20}(to|file|as)/i,
   /write\s+tool/i,
   /writefilesync/i,
   /fs\.write/i,

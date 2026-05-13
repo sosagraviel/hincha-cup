@@ -1,29 +1,19 @@
 #!/usr/bin/env node
 /**
- * Plan v4 Phase F — synthesizer-scope PreToolUse hook.
+ * Synthesizer-scope PreToolUse hook.
  *
- * The architect-synthesizer is a *composer*, not an investigator. The
- * shared `restrict-agent-paths.hook.ts` enforces the framework-wide
- * safety baseline (path exclusion, project boundary). This hook is
- * layered on top to enforce composer-discipline:
+ * The architect-synthesizer is a composer, not an investigator. This hook
+ * enforces composer-discipline on top of the shared path-exclusion baseline:
  *
  *   ✓ Read inside `<tempDir>/` (composer views, consolidation,
  *     architectural-narrative.md, project-inspection.json).
  *   ✓ Grep (used for cross-section consistency checks).
- *   ✗ Glob — the synthesizer should not enumerate files; everything
- *     it needs is in the composer views.
+ *   ✗ Glob — the synthesizer should not enumerate files.
  *   ✗ Bash / Write / Edit / MultiEdit / NotebookEdit / LS — the
- *     synthesizer doesn't run commands or modify files; the
- *     orchestration layer writes the four output files from the
- *     synthesizer's text response.
+ *     synthesizer doesn't run commands or modify files.
  *
- * SECURITY POSTURE — FAIL CLOSED:
- *   When `FRAMEWORK_PHASE=phase-3-synthesis` is set (our spawn path
- *   does this via the existing `phase` slot), any internal error
- *   here blocks the tool call.
- *
- *   Without that env var the hook is a silent no-op so ad-hoc
- *   `claude` invocations are unaffected.
+ * Activates only when `FRAMEWORK_PHASE=phase-3-synthesis` is set.
+ * Without that env var the hook is a silent no-op.
  */
 
 import path from 'path';
@@ -83,13 +73,9 @@ interface Config {
 
 function readConfig(): Config | null {
   const projectPath = process.env.FRAMEWORK_PROJECT_PATH;
-  // Use the shared phase env-var when present so this hook activates
-  // only for synthesizer spawns. The orchestrator sets it; ad-hoc
-  // invocations leave it unset and the hook silently no-ops.
   const phase = process.env.FRAMEWORK_PHASE;
   if (!projectPath) return null;
   if (phase && phase !== 'phase-3-synthesis') return null;
-  // Both possible provider-specific temp dirs are allowed reads.
   const tempDirs = [
     path.join(projectPath, '.claude-temp', 'initialize-project'),
     path.join(projectPath, '.codex-temp', 'initialize-project'),
@@ -148,18 +134,12 @@ async function main(): Promise<void> {
   }
 
   if (!ALLOWED_READ_TOOLS.has(toolName)) {
-    // Tool we don't know — let the shared hook decide. We only enforce
-    // the "must be Read or Grep" rule for the listed forbidden tools above.
     return allow();
   }
 
-  // Read / Grep — the path argument must be inside one of the temp dirs.
   const argName = toolName === 'Grep' ? 'path' : 'file_path';
   const rawPath = toolInput[argName];
   if (typeof rawPath !== 'string' || rawPath === '') {
-    // Grep can run without a path arg (recursive from cwd); allow that
-    // and let the shared hook's path-exclusion logic handle the cwd
-    // restriction.
     return allow();
   }
   const abs = path.resolve(baseCwd, rawPath);

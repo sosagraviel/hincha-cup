@@ -99,13 +99,20 @@ describe('trimSynthesisInput — Wave 3 §I.4', () => {
       },
     });
     const keys = Object.keys(trimmed);
-    // Plan 15 §D.4 — `command_catalog` is added unconditionally; `automation`
-    // and `readme_run_sections` only when discovered.
+    // Plan 15 §D.4 — `command_catalog` is added unconditionally.
+    // Plan v6 Phase 8 — `essential_commands_markdown` is added
+    // unconditionally too (it's the pre-rendered markdown the
+    // synthesizer copies verbatim). `automation` and
+    // `readme_run_sections` only when discovered.
     expect(keys.sort()).toEqual([
       'command_catalog',
       'consolidated_gaps',
       'consolidation_metadata',
+      'directory_structure_markdown',
+      'essential_commands_markdown',
+      'services_and_ports_markdown',
       'summary',
+      'tech_stack_markdown',
     ]);
     // None of the dropped fields leak into the summary.
     const summaryKeys = Object.keys(trimmed.summary);
@@ -120,15 +127,17 @@ describe('trimSynthesisInput — Wave 3 §I.4', () => {
         services: [{ id: 'legacy', path: 'src' }],
       },
     });
-    expect(trimmed.summary.services).toEqual([{ id: 'legacy' }]);
+    expect(trimmed.summary.services).toEqual([{ id: 'legacy', path: 'src' }]);
   });
 
   it('handles a top-level services array (alternative consolidator shape)', () => {
     const trimmed = trimSynthesisInput({
-      services: [{ id: 'svc', type: 'cli', language: 'go', frameworks: { main: 'Cobra' } }],
+      services: [
+        { id: 'svc', type: 'cli', language: 'go', frameworks: { main: 'Cobra' }, path: 'cmd/svc' },
+      ],
     });
     expect(trimmed.summary.services).toEqual([
-      { id: 'svc', type: 'cli', language: 'go', framework_main: 'Cobra' },
+      { id: 'svc', type: 'cli', language: 'go', framework_main: 'Cobra', path: 'cmd/svc' },
     ]);
   });
 

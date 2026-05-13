@@ -1,29 +1,12 @@
 /**
- * Skill Assignment Validator (Plan §C 6.1, gira-exhaustive followup,
- * 2026-05-05).
+ * Skill Assignment Validator.
  *
- * The 2026-05-04 gira run produced agents with 6+ skills that had
- * heavy body-content overlap (e.g. `atomic-design-react`,
- * `react-frontend`, `mastering-typescript` all assigned to the same
- * implementer). The skill-assigner already de-duplicates by NAME,
- * but two skills with different names can ship 60-90% identical
- * prose — the agent's context fills with redundant rules.
+ * Runs after skill-assigner returns. Emits two non-blocking warnings:
+ *   - `overlapping_skills` — any pair of skills attached to the same agent share ≥60% of their
+ *     meaningful body tokens (Jaccard similarity, code fences and frontmatter stripped).
+ *   - `skill_cap_exceeded` — any agent has more than 8 skills attached.
  *
- * This validator runs AFTER skill-assigner returns. Two non-blocking
- * warnings:
- *
- *   - `overlapping_skills` — fired when any pair of skills attached
- *     to the same agent share ≥60% of their meaningful tokens
- *     (Jaccard similarity on the skill bodies, code-fences /
- *     boilerplate-frontmatter stripped first).
- *   - `skill_cap_exceeded` — fired when any agent has more than 8
- *     skills attached. The cap is a budget heuristic, not an error;
- *     legitimate stacks (full-stack monorepos) can hit 8 naturally.
- *
- * Stack-agnostic: every check is content-shape based. The token set
- * is derived from the skill body's prose (not its name or path), so
- * a Java skill and a Python skill that happen to ship identical
- * prescriptive rules would both surface the warning.
+ * Stack-agnostic: checks are content-shape based, not language or framework specific.
  */
 
 import { existsSync, readFileSync } from 'fs';
@@ -93,10 +76,8 @@ export function validateSkillAssignments(
 }
 
 /**
- * Lookup or compute the meaningful-token set for a skill body. Skills
- * whose body cannot be read (file missing, readable error, etc.) are
- * treated as empty — they cannot drive the overlap warning, but they
- * also cannot suppress it. Defensive by design.
+ * Looks up or computes the meaningful-token set for a skill body.
+ * Skills whose body cannot be read are treated as empty sets.
  */
 function loadSkillTokens(skill: ResolvedSkill, cache: Map<string, Set<string>>): Set<string> {
   const cached = cache.get(skill.path);
@@ -107,8 +88,6 @@ function loadSkillTokens(skill: ResolvedSkill, cache: Map<string, Set<string>>):
 }
 
 function readSkillBody(skillDirOrFile: string): string {
-  // The skill `path` may point to either the SKILL.md file directly
-  // or the parent directory. Both are seen in the wild.
   const candidates = [
     skillDirOrFile,
     join(skillDirOrFile, 'SKILL.md'),
@@ -120,7 +99,7 @@ function readSkillBody(skillDirOrFile: string): string {
       try {
         return readFileSync(candidate, 'utf-8');
       } catch {
-        // ignore — try the next candidate
+        /* try the next candidate */
       }
     }
   }
@@ -128,15 +107,8 @@ function readSkillBody(skillDirOrFile: string): string {
 }
 
 /**
- * Tokenise the meaningful prose of a skill body. We:
- *   - drop YAML frontmatter (delimited by `---` on its own line);
- *   - drop fenced code blocks (` ``` ... ``` `) — code is not the
- *     overlap signal we care about; two skills can ship the same
- *     hello-world fence without overlapping;
- *   - lowercase and strip punctuation;
- *   - drop common stopwords (so "the / a / and / is" don't dominate).
- *
- * Returns the unique-token set for Jaccard comparison.
+ * Tokenises the meaningful prose of a skill body for Jaccard comparison.
+ * Strips YAML frontmatter, fenced code blocks, punctuation, and common stopwords.
  */
 const STOPWORDS = new Set<string>([
   'a',
@@ -177,15 +149,12 @@ const STOPWORDS = new Set<string>([
 function bodyTokens(body: string): Set<string> {
   if (!body) return new Set();
   let text = body;
-  // Strip YAML frontmatter at the top of the body.
   text = text.replace(/^---[\s\S]*?---\n/, '');
-  // Strip fenced code blocks.
   text = text.replace(/```[\s\S]*?```/g, '');
-  // Normalise: lowercase, strip non-letters/digits, collapse whitespace.
   text = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
   const set = new Set<string>();
   for (const tok of text.split(/\s+/)) {
-    if (tok.length < 3) continue; // ignore single + double letters
+    if (tok.length < 3) continue;
     if (STOPWORDS.has(tok)) continue;
     set.add(tok);
   }

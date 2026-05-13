@@ -11,10 +11,6 @@ import type {
   ServiceEnvironment,
 } from '../../../schemas/stack-profile.schema.js';
 
-// ============================================================================
-// FILE COUNTER TYPES
-// ============================================================================
-
 /**
  * File count information for a specific language
  */
@@ -26,16 +22,10 @@ export interface FileCount {
 }
 
 /**
- * Result of file counting operation
- *
- * Plan v4 Phase A.2 (2026-05-09) — `tooling_config_counts` is the
- * per-language count of files the counter recognised as build / lint /
- * test tooling (matching `TOOLING_CONFIG_PATTERNS`) and intentionally
- * EXCLUDED from `by_language`. Validators consult it to differentiate
- * "the analyzer fabricated this language" (no source, no tooling, warn)
- * from "this language ships only as build tooling in this project"
- * (no source but tooling > 0, info). Optional for back-compat with
- * older mocks; the runtime always populates it.
+ * Result of file counting operation. `tooling_config_counts` is the
+ * per-language count of tooling-config files excluded from `by_language`.
+ * Validators use it to differentiate fabricated languages from config-only ones.
+ * Optional for back-compat with older mocks; the runtime always populates it.
  */
 export interface FileCountResult {
   total_files: number;
@@ -44,10 +34,6 @@ export interface FileCountResult {
   errors: string[];
   tooling_config_counts?: Record<string, number>;
 }
-
-// ============================================================================
-// WORKSPACE DETECTOR TYPES
-// ============================================================================
 
 /**
  * Represents a discovered workspace in a project
@@ -78,10 +64,6 @@ export interface ManifestInfo {
   type: string;
 }
 
-// ============================================================================
-// CONFIG GENERATOR TYPES
-// ============================================================================
-
 /**
  * Phase 1 Analysis Data (read from disk files)
  */
@@ -91,10 +73,6 @@ export interface Phase1AnalysisData {
   code_patterns_testing: any;
   data_flows_integrations?: any;
 }
-
-// ============================================================================
-// LANGUAGE EXTRACTION TYPES
-// ============================================================================
 
 /**
  * Result of language extraction from Phase 1 analyzers
@@ -117,10 +95,6 @@ export interface LanguageValidationResult {
   added_from_file_count: string[];
   added_from_workspaces: string[];
 }
-
-// ============================================================================
-// SERVICE EXTRACTION TYPES
-// ============================================================================
 
 /**
  * Context for extracting service information
@@ -161,10 +135,6 @@ export interface ServiceExtractionHelpers {
   extractManifestFileForService: (serviceId: string, techStackFindings: any) => string | undefined;
 }
 
-// ============================================================================
-// FRAMEWORK EXTRACTION TYPES
-// ============================================================================
-
 /**
  * Result of framework extraction
  */
@@ -173,20 +143,12 @@ export interface FrameworkExtractionResult {
   backendFrameworks: string[];
 }
 
-// ============================================================================
-// INFRASTRUCTURE EXTRACTION TYPES
-// ============================================================================
-
 /**
  * Result of infrastructure extraction
  */
 export interface InfrastructureExtractionResult {
   infrastructure: string[];
 }
-
-// ============================================================================
-// STACK PROFILE VALIDATION TYPES
-// ============================================================================
 
 /**
  * Result of stack profile validation
@@ -196,10 +158,6 @@ export interface StackProfileValidationResult {
   errors: string[];
   warnings: string[];
 }
-
-// ============================================================================
-// SYNTHESIS EXTRACTION TYPES
-// ============================================================================
 
 /**
  * Result of synthesis content extraction and writing.

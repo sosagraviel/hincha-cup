@@ -4,11 +4,6 @@ import type { Provider } from '../../providers/types.js';
 import { WikiDeltaHintSchema } from '../../services/graph-wiki/wiki-delta-hints.js';
 export type { WikiDeltaHint } from '../../services/graph-wiki/wiki-delta-hints.js';
 
-// ============================================================================
-// LINT REPORT SHAPE
-// Returns an empty lint report. Full structural + semantic checks are added in Phase E.
-// ============================================================================
-
 export const LintViolationSchema = z.object({
   page: z.string(),
   rule: z.string(),
@@ -29,20 +24,12 @@ export const LintReportSchema = z.object({
 
 export type LintReport = z.infer<typeof LintReportSchema>;
 
-// ============================================================================
-// GENERATED PAGE SHAPE
-// ============================================================================
-
 export const GeneratedPageSchema = z.object({
   filename: z.string(),
   content: z.string(),
 });
 
 export type GeneratedPage = z.infer<typeof GeneratedPageSchema>;
-
-// ============================================================================
-// WIKI-REFRESH ZOD SCHEMA
-// ============================================================================
 
 export const WikiRefreshStateSchema = z.object({
   project_path: z.string(),
@@ -63,14 +50,14 @@ export const WikiRefreshStateSchema = z.object({
 
 export type WikiRefreshState = z.infer<typeof WikiRefreshStateSchema>;
 
-// ============================================================================
-// LANGGRAPH ANNOTATION
-// Reducers:
-//   - scalar fields (strings, booleans, optional objects): last-write-wins
-//   - array fields (changed_files, refresh_set, generated_pages, errors): concat
-//   - lint_report: merge (nested object, last-write-wins the whole report)
-// ============================================================================
-
+/**
+ * LangGraph annotation reducers:
+ *   - scalar fields (strings, booleans, optional objects): last-write-wins.
+ *   - array fields (`changed_files`, `refresh_set`, `generated_pages`,
+ *     `errors`): concatenate.
+ *   - `lint_report`: merge (nested object, last-write-wins the whole
+ *     report).
+ */
 export const WikiRefreshAnnotation = {
   project_path: Annotation<string>({
     reducer: (_existing, update) => update,

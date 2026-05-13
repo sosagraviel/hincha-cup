@@ -7,7 +7,6 @@ import {
   buildPrompt,
   buildServiceSpec,
 } from '../../../../src/services/graph-wiki/document-specs.js';
-import { buildConsolidationPrompt } from '../../../../src/nodes/initialize-project/phase2/question-consolidator/prompt-builder.js';
 import { buildSynthesisPrompt } from '../../../../src/nodes/initialize-project/phase3/prompt-builder.js';
 import { Provider } from '../../../../src/providers/types.js';
 
@@ -49,34 +48,9 @@ function containsCatalog(prompt: string): boolean {
 }
 
 describe('closed-book prompt hygiene — Wave 2 Fix 6.2', () => {
-  describe('Phase 2 consolidator', () => {
-    it('does not contain a graph-tool catalog block', () => {
-      const prompt = buildConsolidationPrompt([
-        {
-          type: 'needs_verification',
-          agent: '01-structure-architecture',
-          item: 'src/foo',
-          priority: 'medium',
-        },
-      ] as never);
-      expect(containsCatalog(prompt)).toBe(false);
-    });
-
-    it('does not list multiple `mcp__code_graph__*_tool` names line-by-line', () => {
-      // The consolidator only quotes analyzer output names if it
-      // chooses to — but a multi-tool catalog (≥3 distinct
-      // mcp__code_graph__ tool names) is never legitimate here.
-      const prompt = buildConsolidationPrompt([] as never);
-      const matches = prompt.match(/mcp__code_graph__\w+_tool/g) ?? [];
-      const unique = new Set(matches);
-      expect(unique.size).toBeLessThan(3);
-    });
-
-    it('also produces a clean prompt when feedback is present', () => {
-      const prompt = buildConsolidationPrompt([] as never, 'previous attempt failed');
-      expect(containsCatalog(prompt)).toBe(false);
-    });
-  });
+  // Phase 2 consolidator block removed: `buildConsolidationPrompt`
+  // was deleted in the Phase 2 refactor; the consolidator no longer
+  // builds its prompt through that entry point.
 
   describe('Phase 3 synthesizer', () => {
     it('does not contain a graph-tool catalog block', () => {

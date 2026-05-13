@@ -1,16 +1,9 @@
 /**
- * Plan 15 §D.6 — deterministic renderer for the
- * `docs/llm-wiki/wiki/getting-started.md` page.
+ * Deterministic renderer for the `docs/llm-wiki/wiki/getting-started.md` page.
  *
- * Pure function. The wiki page is built from the same source of
- * truth the closed-book Phase 3 synthesizer reads: the
- * `command_catalog` plus the verbatim README "Getting Started"
- * extracts. No LLM, no editorial decisions — operators see exactly
- * what the analyzer captured.
- *
- * The rendered page is the canonical "how to run this project"
- * answer for both human operators and LLM agents browsing the
- * wiki.
+ * Pure function. Builds the wiki page from the `command_catalog` plus verbatim
+ * README "Getting Started" extracts. No LLM, no editorial decisions — operators
+ * see exactly what the analyzer captured.
  */
 
 import type {
@@ -90,12 +83,10 @@ export function renderGettingStarted(input: GettingStartedRendererInput): string
   );
   sections.push('');
 
-  // 1. README verbatim block
   if (readmeRunSections && readmeRunSections.length > 0) {
     sections.push(...renderReadmeSections(readmeRunSections));
   }
 
-  // 2. Wrapper-tier table
   const wrapperRows = collectRows(commandCatalog, 'wrapper');
   if (wrapperRows.length > 0) {
     sections.push('## Wrapper commands');
@@ -116,7 +107,6 @@ export function renderGettingStarted(input: GettingStartedRendererInput): string
     sections.push('');
   }
 
-  // 3. Package-manager subtable
   const pmRows = collectRows(commandCatalog, 'package_manager');
   if (pmRows.length > 0) {
     sections.push('## Per-service commands (low-level)');
@@ -139,7 +129,6 @@ export function renderGettingStarted(input: GettingStartedRendererInput): string
     sections.push('');
   }
 
-  // 4. CI hints (only when no wrapper / package_manager surfaced for an op)
   const ciRows = collectRows(commandCatalog, 'ci');
   const ciOpsCovered = new Set([...wrapperRows, ...pmRows].map((r) => r.op));
   const orphanCiRows = ciRows.filter((r) => !ciOpsCovered.has(r.op));
@@ -162,7 +151,6 @@ export function renderGettingStarted(input: GettingStartedRendererInput): string
     sections.push('');
   }
 
-  // 5. Empty-catalog placeholder
   if (wrapperRows.length === 0 && pmRows.length === 0 && orphanCiRows.length === 0) {
     sections.push('## (No commands discovered)');
     sections.push('');
@@ -177,10 +165,6 @@ export function renderGettingStarted(input: GettingStartedRendererInput): string
 
   return sections.join('\n');
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function collectRows(
   catalog: CommandCatalog,
@@ -212,8 +196,6 @@ function renderReadmeSections(sections: ReadmeRunSectionEntry[]): string[] {
     out.push('');
     out.push(`_Source: \`${s.path}\` § ${s.heading}_`);
     out.push('');
-    // Quote the body verbatim under a blockquote so it can't be confused
-    // with the framework's own prose.
     for (const line of s.body.split('\n')) {
       out.push(line.length > 0 ? `> ${line}` : '>');
     }
@@ -223,6 +205,5 @@ function renderReadmeSections(sections: ReadmeRunSectionEntry[]): string[] {
 }
 
 function escapeCell(s: string): string {
-  // Markdown table cells: escape pipes and newlines.
   return s.replace(/\|/g, '\\|').replace(/\n+/g, ' ');
 }

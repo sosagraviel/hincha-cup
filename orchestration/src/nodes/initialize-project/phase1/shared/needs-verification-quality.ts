@@ -1,24 +1,12 @@
 /**
  * Heuristic quality gates for `needs_verification` items.
  *
- * The 2026-05-04 gira run (plan 13 §C 4.3) showed analyzers
- * shipping speculative items the framework rule already excluded.
- * The 2026-05-05 gira re-run (plan 14, this module) showed those
- * items evading the original prose-token detector by paraphrasing
- * — synonyms ("infrastructure repository", "external system"),
- * graph-internals leakage ("Class search returned 0", "during
- * graph parsing"), fabricated numbers ("~180 files"), and
- * missing search-attempt provenance.
+ * Exposes:
  *
- * Plan 14 (`/ai-documentation-strategy/14-needs-verification-quality-hardening/plan.md`)
- * goes structural. This module exposes:
- *
- *   - The legacy prose-token detector
- *     (`hasSpeculativeNeedsVerification` / `findSpeculativeNeedsVerification`)
- *     for back-compat with §C 4.3's `speculative_needs_verification`
- *     soft warning.
- *   - Four new validators (Plan 14 §C.1, C.2, C.3, C.7) that target
- *     the structural failure modes:
+ *   - A prose-token detector (`hasSpeculativeNeedsVerification` /
+ *     `findSpeculativeNeedsVerification`) backing the
+ *     `speculative_needs_verification` soft warning.
+ *   - Structural validators that target specific failure modes:
  *       - missing or insufficient `attempted_resolution`
  *       - graph-internals language in user-facing prose
  *       - fabricated numbers in question text
@@ -31,24 +19,16 @@
  */
 
 const SPECULATIVE_TOKENS: Array<{ pattern: RegExp; reason: string }> = [
-  // Credentials / secrets — always external by design.
   {
     pattern:
       /\b(?:credentials?|api\s+keys?|secrets?|tokens?|dsn|connection\s+strings?|passwords?)\b/i,
     reason: 'credentials are always external — repos intentionally do not contain them',
   },
-  // Plan 18 — env-var-style credential identifiers. The previous
-  // regex matched standalone words ("dsn", "password") but NOT
-  // identifiers like `SENTRY_DSN` / `KEYCLOAK_ADMIN_PASSWORD` /
-  // `STRIPE_API_KEY` because `_` is a word character (no \b between
-  // `_` and the suffix). Common credential env-var suffixes get
-  // their own pattern.
   {
     pattern: /\b[A-Z][A-Z0-9_]*_(?:DSN|SECRET|TOKEN|PASSWORD|KEY|CREDENTIAL|CREDENTIALS)\b/,
     reason:
       'environment-variable-style credential identifiers (`*_DSN`, `*_SECRET`, `*_TOKEN`, `*_PASSWORD`, `*_API_KEY`) are always external',
   },
-  // Things outside the repo — CI/CD elsewhere, vendor systems, etc.
   {
     pattern: /\boutside\s+(?:this\s+)?(?:repository|repo|codebase)\b/i,
     reason: 'items outside this repo cannot be verified by reading this repo',
@@ -57,11 +37,6 @@ const SPECULATIVE_TOKENS: Array<{ pattern: RegExp; reason: string }> = [
     pattern: /\b(?:configured|managed|maintained)\s+(?:outside|by\s+another\s+team|elsewhere)\b/i,
     reason: 'items managed outside this repo cannot be verified by reading this repo',
   },
-  // Plan 14 §C.5 synonym expansion (gira-exhaustive-followup-2,
-  // 2026-05-05): the Q4 question "managed in a separate
-  // infrastructure repository or external system" should have
-  // fired the original "outside this repository" rule but evaded
-  // it by phrasing. These synonym patterns close the gap.
   {
     pattern: /\b(?:infrastructure|separate|another|sibling)\s+repository\b/i,
     reason:
@@ -79,9 +54,6 @@ const SPECULATIVE_TOKENS: Array<{ pattern: RegExp; reason: string }> = [
     pattern: /\binfrastructure\s+managed\s+(?:elsewhere|outside|by\s+(?:another|a\s+different))/i,
     reason: 'infrastructure managed elsewhere is, by definition, not in this repo',
   },
-  // Build-environment reachability is a network-state question,
-  // not a repo question — the repo has no way to know whether host
-  // X is reachable from CI runner Y.
   {
     pattern:
       /\b(?:from|in)\s+(?:production\s+)?(?:build|ci|deployment)\s+environments?\b.*\b(?:reachable|accessible)/i,
@@ -92,7 +64,6 @@ const SPECULATIVE_TOKENS: Array<{ pattern: RegExp; reason: string }> = [
       /\b(?:reachable|accessible)\s+from\s+(?:production\s+)?(?:build|ci|deployment)\s+environments?\b/i,
     reason: 'reachability from build / CI environments is network state, not repository state',
   },
-  // Production deployment / infra topology that lives elsewhere.
   {
     pattern: /\bproduction\s+(?:deployment|infrastructure|environment|server|host|url|endpoint)\b/i,
     reason:
@@ -102,10 +73,6 @@ const SPECULATIVE_TOKENS: Array<{ pattern: RegExp; reason: string }> = [
     pattern: /\bdeployment\s+server\b/i,
     reason: 'deployment server details live outside the repo',
   },
-  // Plan 18 — hyphenated / compound production terms the gira
-  // 2026-05-06 run exposed: "production-grade deployment", "Are X
-  // set correctly in production?", "persistent, production-grade
-  // … instance".
   {
     pattern: /\bproduction-grade\b/i,
     reason:
@@ -183,10 +150,6 @@ export function findSpeculativeNeedsVerification(items: unknown): SpeculativeMat
   return out;
 }
 
-// ============================================================================
-// PLAN 14 — STRUCTURAL VALIDATORS
-// ============================================================================
-
 /** A hard-violation entry the Stop hook surfaces back to the agent. */
 export interface NeedsVerificationViolation {
   /** Stable code so consumers can switch on / aggregate it. */
@@ -196,29 +159,20 @@ export interface NeedsVerificationViolation {
     | 'graph_internals_in_user_prose'
     | 'fabricated_numbers_in_question'
     | 'missing_or_generic_impact'
-    // Plan 17 §C.1 — agent's `attempted_resolution` proves the answer
-    // ("Grep aws-sdk — zero matches") but the question asks
-    // a yes/no presence question ("Is an AWS SDK installed?").
-    // The evidence already answers it; report as a finding, not
-    // a needs_verification item.
     | 'found_no_evidence_yesno'
-    // Plan 17 §C.2 — agent admits in `attempted_resolution` that it
-    // didn't finish the search ("file contents were not read").
-    // The framework cannot substitute the operator for work the
-    // agent could have done.
     | 'confessed_incomplete_search'
-    // Plan 18 — the question asks about something the framework
-    // cannot verify from the repo (credentials, production values,
-    // infrastructure managed elsewhere) — i.e. it matches the
-    // SPECULATIVE_TOKENS list. The wiki/CLAUDE.md is generated from
-    // CODE; production-only state is out-of-scope. Was previously
-    // a soft warning (`speculative_needs_verification` in
-    // graph-tool-usage soft warnings); now a hard rejection.
     | 'speculative_out_of_scope';
   /** Index into the `needs_verification` array (or -1 when array-shape). */
   index: number;
-  /** Human-readable agent-facing message. */
+  /** Human-readable agent-facing message (long form for debug). */
   message: string;
+  /**
+   * Compact args used by `formatValidationError()` to render the short
+   * `VALIDATION_E0xx_*: <what> | <fix>` form. Each sub-code consumes a
+   * specific subset of keys (`match`, `detail`, `index`); see
+   * `shared/validation-codes/codes.ts`.
+   */
+  args?: Record<string, string>;
 }
 
 /**
@@ -250,13 +204,11 @@ const GRAPH_INTERNALS_PATTERNS: RegExp[] = [
  * deterministically).
  */
 const FABRICATED_NUMBER_PATTERNS: RegExp[] = [
-  // Tilde / approx prefix immediately before a number
   /[~≈]\s*\d+/,
   /\bapproximately\s+\d+/i,
   /\broughly\s+\d+/i,
   /\baround\s+\d+\s+(?:files?|functions?|classes?|lines?|tests?|services?|packages?|modules?|endpoints?|routes?|controllers?|gateways?)\b/i,
   /\babout\s+\d+\s+(?:files?|functions?|classes?|lines?|tests?|services?|packages?|modules?|endpoints?|routes?|controllers?|gateways?)\b/i,
-  // Multi-number guess block: "backend ~180, web-frontend ~120, shared ~25"
   /[~≈]\s*\d+[^?]{0,40}[~≈]\s*\d+/,
 ];
 
@@ -293,15 +245,6 @@ const TOOL_TOKEN_PATTERNS: RegExp[] = [
   /^\s*mcp__code_graph__\w+/,
   /^\s*(?:grep|find|ls|cat|head|tail|rg)\b/i,
 ];
-
-// ============================================================================
-// PLAN 17 §C.1 — "Found-No-Evidence" rule.
-//
-// Agent's `attempted_resolution` proves the answer ("Grep aws-sdk —
-// zero matches"), but the question asks a yes/no presence question
-// ("Is an AWS SDK installed?"). The evidence already answers it.
-// Report as a finding, not a needs_verification item.
-// ============================================================================
 
 /**
  * Negative-evidence tokens. When ANY `attempted_resolution` entry
@@ -342,13 +285,6 @@ function questionIsYesNo(question: unknown): boolean {
   return YESNO_QUESTION_PATTERN.test(trimmed) || IS_THERE_QUESTION_PATTERN.test(trimmed);
 }
 
-// Plan 18: the previous Plan 17 production-runtime exemption
-// (`questionIsAboutProductionRuntime`) was removed. Production-only
-// questions are now rejected outright by `validateNoSpeculative`
-// below — the framework cannot verify production state from the
-// repo, so asking the operator about it produces no useful change
-// to the generated wiki / CLAUDE.md.
-
 function findNegativeEvidence(entries: string[]): { entry: string; match: string } | null {
   for (const entry of entries) {
     for (const pattern of NEGATIVE_EVIDENCE_PATTERNS) {
@@ -382,18 +318,10 @@ function validateNoFoundNoEvidenceYesNo(
         `Report this as a finding (record the absence as a fact in the relevant ` +
         `\`findings.<...>\` field), not a needs_verification question. ` +
         `The operator should not be asked to confirm what the evidence already proves.`,
+      args: { index: String(index), match: hit.match },
     },
   ];
 }
-
-// ============================================================================
-// PLAN 17 §C.2 — "Confessed Incomplete Search" rule.
-//
-// Agent admits in `attempted_resolution` that it did not finish the
-// search the question requires ("file contents were not read", "did
-// not inspect"). The framework cannot substitute the operator for
-// work the agent could have done.
-// ============================================================================
 
 const CONFESSED_INCOMPLETE_PATTERNS: RegExp[] = [
   /\bcontents?\s+(?:were|was)\s+not\s+(?:read|inspected|opened|examined)\b/i,
@@ -433,6 +361,7 @@ function validateNoConfessedIncompleteSearch(
         `Complete the search (Read / Grep / Glob the file you skipped) before emitting ` +
         `needs_verification. The framework cannot ask the operator to substitute for an ` +
         `unfinished investigation.`,
+      args: { index: String(index), match: hit.match },
     },
   ];
 }
@@ -441,21 +370,6 @@ function readStringArray(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
   return v.filter((x): x is string => typeof x === 'string');
 }
-// `truncate` is defined further below and shared with other helpers.
-
-// ============================================================================
-// PLAN 18 — Promote speculative detector to a HARD rejection.
-//
-// `hasSpeculativeNeedsVerification` (Plan 14 §C 4.3) was emitted as a
-// soft warning only. The 2026-05-06 gira run showed three of four
-// analyzer prompts explicitly directing the agent to ask about
-// credentials / production endpoints / external system state — the
-// exact topics SPECULATIVE_TOKENS already classifies as out-of-scope.
-// The fix: any item that matches a speculative token is rejected
-// with retry feedback. The wiki/CLAUDE.md is generated from the
-// CODE; production state, vendor secrets, and infrastructure
-// managed elsewhere are framework-out-of-scope by design.
-// ============================================================================
 
 function validateNoSpeculative(
   item: Record<string, unknown>,
@@ -481,6 +395,7 @@ function validateNoSpeculative(
           `the repo, and the operator's answer would not change the ` +
           `generated wiki / CLAUDE.md. Drop this item entirely (do NOT ` +
           `rephrase to evade the rule — the topic itself is out of scope).`,
+        args: { index: String(index), match: m[0] },
       },
     ];
   }
@@ -506,17 +421,8 @@ export function validateNeedsVerificationProse(items: unknown): NeedsVerificatio
     violations.push(...validateNoGraphInternals(item as Record<string, unknown>, i));
     violations.push(...validateNoFabricatedNumbers(item as Record<string, unknown>, i));
     violations.push(...validateImpactField(item as Record<string, unknown>, i));
-    // Plan 17 §C — self-contradiction checks. Both rules look at
-    // the agent's own evidence in `attempted_resolution`; one fires
-    // when that evidence already proves the answer to a yes/no
-    // presence question; the other fires when the evidence admits
-    // the search was never completed.
     violations.push(...validateNoFoundNoEvidenceYesNo(item as Record<string, unknown>, i));
     violations.push(...validateNoConfessedIncompleteSearch(item as Record<string, unknown>, i));
-    // Plan 18 — promote the speculative detector (credentials,
-    // production state, infrastructure managed elsewhere) from a
-    // soft warning to a hard rejection. The wiki/CLAUDE.md is
-    // generated from the code; production state is out-of-scope.
     violations.push(...validateNoSpeculative(item as Record<string, unknown>, i));
   }
   return violations;
@@ -534,6 +440,7 @@ function validateAttemptedResolution(
       code: 'missing_attempted_resolution',
       index,
       message: `needs_verification[${index}].attempted_resolution is missing. Run AT LEAST ${ATTEMPTED_RESOLUTION_MIN_ENTRIES} concrete tool calls (Read / Grep / Glob / Bash / mcp__code_graph__*) trying to answer the question, and list them here. Each entry must be a tool invocation, not prose.`,
+      args: { index: String(index), detail: 'missing' },
     });
     return violations;
   }
@@ -542,6 +449,10 @@ function validateAttemptedResolution(
       code: 'missing_attempted_resolution',
       index,
       message: `needs_verification[${index}].attempted_resolution has only ${raw.length} entrie(s); minimum is ${ATTEMPTED_RESOLUTION_MIN_ENTRIES}. Items without sufficient search provenance are blocked.`,
+      args: {
+        index: String(index),
+        detail: `${raw.length}/${ATTEMPTED_RESOLUTION_MIN_ENTRIES} entries`,
+      },
     });
   }
 
@@ -553,6 +464,7 @@ function validateAttemptedResolution(
         code: 'invalid_attempted_resolution_entry',
         index,
         message: `needs_verification[${index}].attempted_resolution[${j}] is empty or non-string.`,
+        args: { index: String(index), detail: `entry[${j}] empty/non-string` },
       });
       continue;
     }
@@ -562,6 +474,7 @@ function validateAttemptedResolution(
         code: 'invalid_attempted_resolution_entry',
         index,
         message: `needs_verification[${index}].attempted_resolution[${j}] is too short ("${trimmed}"); each entry must be a concrete tool invocation or a "human:"-prefixed explanation.`,
+        args: { index: String(index), detail: `entry[${j}] too short ("${trimmed}")` },
       });
       continue;
     }
@@ -576,6 +489,7 @@ function validateAttemptedResolution(
       code: 'invalid_attempted_resolution_entry',
       index,
       message: `needs_verification[${index}].attempted_resolution[${j}] ("${truncate(trimmed, 80)}") doesn't reference a recognised tool (Read/Grep/Glob/Bash/mcp__code_graph__*) and isn't a "human:"-prefixed entry. Use a concrete tool invocation, e.g. \`Grep "@aws-sdk" services/\`.`,
+      args: { index: String(index), detail: `entry[${j}] not a tool/human token` },
     });
   }
   if (raw.length >= ATTEMPTED_RESOLUTION_MIN_ENTRIES && !hasToolEntry) {
@@ -583,6 +497,7 @@ function validateAttemptedResolution(
       code: 'invalid_attempted_resolution_entry',
       index,
       message: `needs_verification[${index}].attempted_resolution has no tool invocation entries. At least one entry MUST be a concrete tool call; "human:"-prefixed entries supplement, not replace, tool entries.`,
+      args: { index: String(index), detail: 'no tool entries (≥1 required)' },
     });
   }
   return violations;
@@ -607,6 +522,7 @@ function validateNoGraphInternals(
           code: 'graph_internals_in_user_prose',
           index,
           message: `needs_verification[${index}] leaks graph internals ("${match[0]}") into user-facing prose. The user does not know what the graph is — phrase questions in terms of project state ("does X integrate with Y?"), never tool internals.`,
+          args: { index: String(index), match: match[0] },
         },
       ];
     }
@@ -628,6 +544,7 @@ function validateNoFabricatedNumbers(
           code: 'fabricated_numbers_in_question',
           index,
           message: `needs_verification[${index}].question contains a fabricated number ("${match[0]}"). Either compute the count deterministically (Glob + count) or omit the number entirely; do not ask the human to confirm a guess.`,
+          args: { index: String(index), match: match[0] },
         },
       ];
     }
@@ -646,6 +563,7 @@ function validateImpactField(
       code: 'missing_or_generic_impact',
       index,
       message: `needs_verification[${index}].impact is missing. Name the concrete artefact (wiki page / skill body / finding) the answer changes, e.g. "Determines whether the testing-conventions skill body lists 'enforced 80% coverage' or 'no enforced threshold'." (≥${IMPACT_MIN_LENGTH} chars).`,
+      args: { index: String(index), detail: 'missing' },
     });
     return violations;
   }
@@ -654,6 +572,7 @@ function validateImpactField(
       code: 'missing_or_generic_impact',
       index,
       message: `needs_verification[${index}].impact is too short (${impact.trim().length} chars; minimum ${IMPACT_MIN_LENGTH}). Spell out which downstream artefact the answer changes.`,
+      args: { index: String(index), detail: `${impact.trim().length}/${IMPACT_MIN_LENGTH} chars` },
     });
     return violations;
   }
@@ -664,6 +583,7 @@ function validateImpactField(
         code: 'missing_or_generic_impact',
         index,
         message: `needs_verification[${index}].impact uses generic phrasing ("${match[0]}"). Replace with a concrete reference: which wiki page / skill body / finding does the answer change, and how?`,
+        args: { index: String(index), detail: `generic phrasing ("${match[0]}")` },
       });
       return violations;
     }
@@ -677,10 +597,6 @@ function looksLikeToolInvocation(entry: string): boolean {
   }
   return false;
 }
-
-// ============================================================================
-// PLAN 14 §C.4 — manifest-vs-import cross-check (soft warning)
-// ============================================================================
 
 /**
  * Heuristic: the item references a manifest-declared dependency
@@ -706,11 +622,8 @@ const MANIFEST_DECLARATION_PATTERNS: RegExp[] = [
 ];
 
 const IMPORT_SEARCH_PATTERNS: RegExp[] = [
-  // Tool patterns that look like an import-site search across stacks.
   /\b(?:Grep|grep|rg|ripgrep)\b[^\n]*\b(?:import|require|use|using|from|include|@import)\b/i,
-  // Search by package name with a string match shape — often a Grep / find.
   /(?:Grep|grep|rg)\b[^\n]*['"]\s*[@\w][\w./-]+\s*['"]/,
-  // mcp__code_graph__semantic_search with the package name in the query.
   /mcp__code_graph__semantic_search_nodes_tool/i,
 ];
 

@@ -47,13 +47,6 @@ export async function graphFoundationNode(
         `Build: ${formatBuildTime(s.build_time_ms)}`,
     );
 
-    // Codex MCP parity: write <project>/.codex/config.toml (or .mcp.json for
-    // Claude) NOW so Phase 1 analyzers spawned via Codex CLI find the
-    // `code_graph` MCP server in their auto-discovered project config. The
-    // Claude codepath also benefits — it has per-node mcp.json passed via
-    // --mcp-config, but downstream phases (e.g. wiki generation) still rely
-    // on the project-level .mcp.json. Phase 5/resources also calls this; we
-    // pre-create here so analyzers in either provider have what they need.
     try {
       const provider = getActiveProvider();
       upsertCodeGraphMcpConfig({
@@ -65,13 +58,6 @@ export async function graphFoundationNode(
         `  MCP config written for ${provider === Provider.CODEX ? '.codex/config.toml' : '.mcp.json'}`,
       );
 
-      // Codex parity for path restriction. Claude sessions get directory
-      // exclusion via permissions.deny rules in their per-spawn settings.json
-      // (see services/framework/permissions/excluded-paths.ts). Codex has no
-      // permissions.deny equivalent, so we register the same hook script
-      // (restrict-agent-paths.hook.ts) as a Codex PreToolUse hook in
-      // .codex/config.toml. Idempotent; preserves user config around the
-      // managed block. See codex-hooks-toml.ts for rationale.
       if (provider === Provider.CODEX) {
         upsertCodexPathRestrictionHookConfig({
           projectPath: state.project_path,
@@ -85,8 +71,6 @@ export async function graphFoundationNode(
       );
     }
 
-    // Fetch the live MCP tool catalog so analyzer prompts template the real
-    // tool names (and not hand-written ones that drift on every server release).
     let toolCatalog: { name: string; description: string }[] = [];
     try {
       toolCatalog = await fetchCodeGraphToolCatalog({
@@ -108,14 +92,15 @@ export async function graphFoundationNode(
       };
     }
 
-    // Plan §I.2 (Wave 3, 2026-05-05): pre-run the four cheapest
-    // graph-orientation queries (get_minimal_context_tool +
-    // list_communities_tool + get_hub_nodes_tool +
-    // get_bridge_nodes_tool) ONCE here, snapshot the results to
-    // graph-prefetch.json, and let Phase 1 analyzers read from the
-    // snapshot instead of re-issuing the same queries 4 times each.
-    // Best-effort: failure does NOT fail Phase 0; the analyzers
-    // gracefully fall back to calling the tools themselves.
+    /*
+     * Pre-run the four cheapest graph-orientation queries
+     * (`get_minimal_context_tool` + `list_communities_tool` +
+     * `get_hub_nodes_tool` + `get_bridge_nodes_tool`) ONCE here,
+     * snapshot the results to `graph-prefetch.json`, and let Phase 1
+     * analyzers read from the snapshot instead of re-issuing the same
+     * queries four times each. Best-effort — failure does NOT fail
+     * Phase 0; analyzers fall back to calling the tools themselves.
+     */
     try {
       const graphSha = hashGraphDb(result.code_graph_path);
       const prefetch = await runGraphPrefetch({
@@ -133,15 +118,17 @@ export async function graphFoundationNode(
       phaseLogger.warn(`  Graph prefetch failed (non-fatal): ${msg}`);
     }
 
-    // Plan v4 Phase B (2026-05-09) — project-inspection. Walks the
-    // project filesystem and produces deterministic, parsed data the
-    // Phase-1 analyzers consume instead of re-deriving via LLM. Best-
-    // effort: any failure logs at INFO and continues with no inspection
-    // file written; analyzers fall through to LLM-based discovery.
-    //
-    // Stack/structure/naming agnostic: every language-specific decision
-    // lives in a lookup table (lock-file-table, manifest-parser-table,
-    // runtime-version-table). Adding a stack is a one-row append.
+    /*
+     * Project-inspection: walks the filesystem and produces
+     * deterministic, parsed data that Phase 1 analyzers consume
+     * instead of re-deriving via LLM. Best-effort — any failure logs
+     * at INFO and continues with no inspection file written;
+     * analyzers fall through to LLM-based discovery.
+     *
+     * Stack-agnostic by construction: every language-specific
+     * decision lives in a lookup table (lock-file table, manifest-
+     * parser table, runtime-version table).
+     */
     try {
       const tempDirForInspection = resolveTempPath(state.project_path, 'initialize-project');
       const inspectionResult = await inspectProject({

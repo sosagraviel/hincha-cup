@@ -1,0 +1,38 @@
+openapi: 3.0.3
+info:
+  title: mini-serverless API
+  version: 0.1.0
+servers:
+  - url: https://gateway.mini-serverless.example.com
+paths:
+  /audit:
+    post:
+      summary: Record an audit entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditRequest'
+      responses:
+        '201':
+          description: Audit entry persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditResponse'
+
+components:
+  schemas:
+    AuditRequest:
+      type: object
+      required: [event, user_id]
+      properties:
+        event: { type: string }
+        user_id: { type: string }
+        payload: { type: object, additionalProperties: true }
+    AuditResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        recordId: { type: string }

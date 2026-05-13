@@ -37,7 +37,6 @@ export function allow(): never {
  * @returns Parsed transcript messages
  */
 export function readTranscript(input: HookInput): any[] {
-  // Validate transcript path
   if (!input.transcript_path) {
     blockWithFeedback(
       '❌ HOOK ERROR: No transcript path provided\n\n' +
@@ -54,7 +53,6 @@ export function readTranscript(input: HookInput): any[] {
     );
   }
 
-  // Read and parse JSONL transcript
   const transcriptContent = fs.readFileSync(input.transcript_path, 'utf-8');
   const lines = transcriptContent.split('\n').filter((line: string) => line.trim());
 
@@ -78,7 +76,6 @@ export function readTranscript(input: HookInput): any[] {
 export function getLastAssistantMessage(transcript: any[]): string {
   const assistantMessages = transcript
     .filter((msg: any) => {
-      // Support both formats: direct (msg.type === "assistant") and wrapped (msg.message.role === "assistant")
       return msg.type === 'assistant' || (msg.message && msg.message.role === 'assistant');
     })
     .reverse();
@@ -93,7 +90,6 @@ export function getLastAssistantMessage(transcript: any[]): string {
 
   const lastMessage = assistantMessages[0];
 
-  // Get content from either direct format or wrapped format
   const messageContent = lastMessage.message ? lastMessage.message.content : lastMessage.content;
 
   if (!messageContent || !Array.isArray(messageContent)) {

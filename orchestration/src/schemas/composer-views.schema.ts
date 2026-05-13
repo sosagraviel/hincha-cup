@@ -1,8 +1,8 @@
 /**
- * Plan v4 Phase E — Composer-views schemas.
+ * Composer-views schemas.
  *
  * The synthesizer (Phase 3) is a *composer*, not an investigator. Phase 2
- * pre-flattens analyzer outputs + Phase 1.5 per-service slices into four
+ * pre-flattens analyzer outputs + per-service slices into four
  * input views — one per output section — that the synthesizer reads
  * verbatim. Each view carries:
  *
@@ -28,6 +28,17 @@ import { RequestLifecycleStepSchema, TestingExampleSchema } from './service-deta
 const SCHEMA_VERSION = 1;
 
 /**
+ * Provenance tag for every composer-view sub-section. Tells the run
+ * report (and the synthesizer prompt) where each field came from: a
+ * per-service slice, a Phase 1 analyzer's direct rollup, the
+ * deterministic-derivation library, or nowhere (the project genuinely
+ * lacks the evidence). Priority order in the composer fallback chain:
+ * slice > analyzer > deterministic > absent.
+ */
+export const SourceTagSchema = z.enum(['slice', 'analyzer', 'deterministic', 'absent']);
+export type SourceTag = z.infer<typeof SourceTagSchema>;
+
+/**
  * Per-service summary surfaced into every view's `services[]` array.
  * The composer copies only the descriptive fields (id / path / type /
  * language) — never the full structure-analyzer service entry — so
@@ -43,17 +54,13 @@ export const ComposerServiceRefSchema = z
   .strict();
 export type ComposerServiceRef = z.infer<typeof ComposerServiceRefSchema>;
 
-/* --------------------------------------------------------------------- */
-/* code-conventions.input.json                                           */
-/* --------------------------------------------------------------------- */
-
 /**
  * Input view for `<project>/.claude/skills/code-conventions/SKILL.md`.
  *
  * Fed by:
  *   - Phase 1 code-patterns analyzer findings (project-level
  *     `quality_tools.enforcement_summary` + cross-cutting patterns).
- *   - Phase 1.5 per-service slices (`code_patterns[]` per service →
+ *   - Per-service slices (`code_patterns[]` per service →
  *     grouped into a `by_service` map keyed by canonical id).
  *
  * The synthesizer renders one section per non-empty `by_service` entry
@@ -65,7 +72,7 @@ export const CodeConventionsViewSchema = z
     schema_version: z.literal(SCHEMA_VERSION),
     generated_at: z.string(),
     services: z.array(ComposerServiceRefSchema).default([]),
-    /** Per-service code patterns from Phase 1.5 slices. Empty when no slice. */
+    /** Per-service code patterns. Empty when no slice. */
     by_service: z
       .record(
         z.string(),
@@ -88,22 +95,20 @@ export const CodeConventionsViewSchema = z
       .object({
         any_service_patterns: z.boolean(),
         enforcement_summary: z.boolean(),
+        any_service_patterns_source: SourceTagSchema.optional(),
+        enforcement_summary_source: SourceTagSchema.optional(),
       })
       .strict(),
   })
   .strict();
 export type CodeConventionsView = z.infer<typeof CodeConventionsViewSchema>;
 
-/* --------------------------------------------------------------------- */
-/* multi-file-workflows.input.json                                       */
-/* --------------------------------------------------------------------- */
-
 /**
  * Input view for `<project>/.claude/skills/multi-file-workflows/SKILL.md`.
  *
  * Fed by:
  *   - Phase 1 data-flows analyzer (`event_pipeline`, `auth_flow`).
- *   - Phase 1.5 slices (`request_lifecycle` per service).
+ *   - Per-service slices (`request_lifecycle` per service).
  *
  * The synthesizer renders one "Request Lifecycle" subsection per
  * service that has a populated `request_lifecycle` and one
@@ -144,15 +149,14 @@ export const MultiFileWorkflowsViewSchema = z
         any_request_lifecycle: z.boolean(),
         event_pipeline: z.boolean(),
         auth_flow: z.boolean(),
+        any_request_lifecycle_source: SourceTagSchema.optional(),
+        event_pipeline_source: SourceTagSchema.optional(),
+        auth_flow_source: SourceTagSchema.optional(),
       })
       .strict(),
   })
   .strict();
 export type MultiFileWorkflowsView = z.infer<typeof MultiFileWorkflowsViewSchema>;
-
-/* --------------------------------------------------------------------- */
-/* testing-conventions.input.json                                        */
-/* --------------------------------------------------------------------- */
 
 /**
  * Input view for `<project>/.claude/skills/testing-conventions/SKILL.md`.
@@ -160,7 +164,7 @@ export type MultiFileWorkflowsView = z.infer<typeof MultiFileWorkflowsViewSchema
  * Fed by:
  *   - Phase 1 code-patterns analyzer findings (project-level testing
  *     summary, runner names).
- *   - Phase 1.5 slices (`testing.representative_examples` per service).
+ *   - Per-service slices (`testing.representative_examples` per service).
  *
  * The synthesizer renders one "Examples in <service>" subsection per
  * service that has populated examples + a "Project-level conventions"
@@ -193,15 +197,13 @@ export const TestingConventionsViewSchema = z
       .object({
         any_service_tests: z.boolean(),
         project_summary: z.boolean(),
+        any_service_tests_source: SourceTagSchema.optional(),
+        project_summary_source: SourceTagSchema.optional(),
       })
       .strict(),
   })
   .strict();
 export type TestingConventionsView = z.infer<typeof TestingConventionsViewSchema>;
-
-/* --------------------------------------------------------------------- */
-/* architecture-narrative.input.json                                     */
-/* --------------------------------------------------------------------- */
 
 /**
  * Input view for `<tempDir>/architectural-narrative.md` — the
@@ -214,7 +216,7 @@ export type TestingConventionsView = z.infer<typeof TestingConventionsViewSchema
  *     `architecture_decisions`).
  *   - Phase 1 tech-stack analyzer (`runtime_versions`,
  *     `external_services`).
- *   - Phase 1.5 slices (`notable[]` per service rolled up into a
+ *   - Per-service slices (`notable[]` per service rolled up into a
  *     `by_service.notable` map).
  *
  * The synthesizer composes a 3-5 paragraph narrative covering the
@@ -257,15 +259,16 @@ export const ArchitectureNarrativeViewSchema = z
         runtime_versions: z.boolean(),
         external_services: z.boolean(),
         any_service_notable: z.boolean(),
+        repository_shape_summary_source: SourceTagSchema.optional(),
+        architecture_decisions_source: SourceTagSchema.optional(),
+        runtime_versions_source: SourceTagSchema.optional(),
+        external_services_source: SourceTagSchema.optional(),
+        any_service_notable_source: SourceTagSchema.optional(),
       })
       .strict(),
   })
   .strict();
 export type ArchitectureNarrativeView = z.infer<typeof ArchitectureNarrativeViewSchema>;
-
-/* --------------------------------------------------------------------- */
-/* All-views envelope                                                    */
-/* --------------------------------------------------------------------- */
 
 /**
  * Convenience envelope returned by `buildComposerViews`. Each view is

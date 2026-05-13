@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /paymentservice
+    schedule: { interval: weekly }
+  - package-ecosystem: gomod
+    directory: /frontend
+    schedule: { interval: weekly }
+  - package-ecosystem: gomod
+    directory: /productcatalogservice
+    schedule: { interval: weekly }
+  - package-ecosystem: pip
+    directory: /recommendationservice
+    schedule: { interval: weekly }
+  - package-ecosystem: nuget
+    directory: /cartservice
+    schedule: { interval: weekly }

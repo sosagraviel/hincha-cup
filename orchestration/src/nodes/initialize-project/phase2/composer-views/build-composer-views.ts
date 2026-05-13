@@ -1,15 +1,12 @@
 /**
- * Plan v4 Phase E — build the four composer views from Phase 1 outputs +
- * Phase 1.5 per-service slices.
+ * Build the four composer views from Phase 1 outputs + Phase 1.5 per-service
+ * slices. The synthesizer (Phase 3) reads one view per output section; by
+ * pre-flattening here the synthesizer composes deterministically over
+ * already-merged data.
  *
- * The synthesizer (Phase 3) reads ONE view per output section. By
- * pre-flattening here we eliminate the synthesizer's investigation
- * surface — it composes deterministically over already-merged data.
- *
- * Stack-agnostic by construction: every leaf string flows through
- * verbatim. The merge logic uses universal structural categorisation
- * (the structure analyzer's `service.type` enum), never matches on
- * service names, framework strings, or language tokens.
+ * Stack-agnostic: every leaf string flows through verbatim. Merge logic uses
+ * structural categorisation (the structure analyzer's `service.type` enum) —
+ * never matches on service names, framework strings, or language tokens.
  */
 
 import { existsSync, readFileSync } from 'fs';
@@ -35,8 +32,21 @@ import {
 } from '../../../../schemas/service-detail-slice.schema.js';
 import type {
   CodeSnippet,
+  CodeSnippetWithCitation,
   NeedsVerificationEntry,
 } from '../../../../schemas/phase1-base.schema.js';
+import type { ProjectInspection } from '../../../../schemas/project-inspection.schema.js';
+import {
+  deriveAuthFlow,
+  deriveEnforcementSummary,
+  deriveEventPipeline,
+  deriveExternalServices,
+  deriveQualityTools,
+  deriveRepositoryShapeSummary,
+  deriveTestingFrameworksByService,
+  deriveTestingProjectSummary,
+  deriveTestingRunners,
+} from '../../../../services/framework/composer-derivation/index.js';
 
 /**
  * Phase 1 + Phase 1.5 inputs for the builder. The orchestrator reads
@@ -53,6 +63,25 @@ export interface BuildComposerViewsInput {
   serviceSlices: Record<string, ServiceDetailSlice>;
   /** Provided by the caller for deterministic snapshots. */
   generatedAt: string;
+  /**
+   * Phase 0 project-inspection JSON. When provided, the composer's
+   * deterministic-derivation layer fills sub-sections that the slice +
+   * analyzer paths left empty. Stack-agnostic: derivation flows through
+   * the language-config registry.
+   */
+  inspection?: ProjectInspection;
+  /**
+   * Absolute project path. Only used by the derivation layer to
+   * file-presence-check pre-commit signals (`.husky/`,
+   * `.pre-commit-config.yaml`). When absent, pre-commit detection falls
+   * back to dep-token signals.
+   */
+  projectPath?: string;
+  /**
+   * Phase 4 file-count summary. Enables per-language stats in
+   * `repository_shape_summary`.
+   */
+  fileCounts?: ReadonlyArray<{ language: string; count: number }>;
 }
 
 /**
@@ -82,8 +111,6 @@ export function buildComposerViews(input: BuildComposerViewsInput): ComposerView
     needs_verification: needsVerification,
   };
 
-  // Validate before returning so a builder bug surfaces here, not in
-  // the synthesizer's Read.
   return ComposerViewsBundleSchema.parse(bundle);
 }
 
@@ -105,6 +132,10 @@ export function buildComposerViews(input: BuildComposerViewsInput): ComposerView
 export function buildComposerViewsFromDisk(
   tempDir: string,
   generatedAt: string,
+  options: {
+    projectPath?: string;
+    fileCounts?: ReadonlyArray<{ language: string; count: number }>;
+  } = {},
 ): ComposerViewsBundle {
   const phase1Dir = join(tempDir, 'phase1-outputs');
   const structure = readJsonOrThrow(join(phase1Dir, '01-structure-architecture.json'));
@@ -115,6 +146,17 @@ export function buildComposerViewsFromDisk(
   const sliceDir = join(tempDir, 'service-details');
   const serviceSlices = readServiceSlices(sliceDir);
 
+  const inspectionPath = join(tempDir, 'project-inspection.json');
+  let inspection: ProjectInspection | undefined;
+  if (existsSync(inspectionPath)) {
+    try {
+      const raw = JSON.parse(readFileSync(inspectionPath, 'utf-8'));
+      inspection = raw as ProjectInspection;
+    } catch {
+      inspection = undefined;
+    }
+  }
+
   return buildComposerViews({
     structure,
     techStack,
@@ -122,12 +164,11 @@ export function buildComposerViewsFromDisk(
     dataFlows,
     serviceSlices,
     generatedAt,
+    inspection,
+    projectPath: options.projectPath,
+    fileCounts: options.fileCounts,
   });
 }
-
-/* --------------------------------------------------------------------- */
-/* Service-ref extraction (used by every view)                           */
-/* --------------------------------------------------------------------- */
 
 function extractServiceRefs(structure: AnalyzerOutputLike): ComposerServiceRef[] {
   const findings = getRecord(structure, 'findings');
@@ -147,27 +188,63 @@ function extractServiceRefs(structure: AnalyzerOutputLike): ComposerServiceRef[]
   return refs;
 }
 
-/* --------------------------------------------------------------------- */
-/* code-conventions view                                                  */
-/* --------------------------------------------------------------------- */
-
 function buildCodeConventionsView(
   input: BuildComposerViewsInput,
   services: ComposerServiceRef[],
   generatedAt: string,
 ): CodeConventionsView {
   const codePatterns = getRecord(input.codePatterns, 'findings');
-  const enforcementSummary = optionalString(
+  let enforcementSummary = optionalString(
     getRecord(codePatterns, 'quality_tools')?.enforcement_summary,
   );
+  let enforcementSource: 'analyzer' | 'deterministic' | 'absent' = enforcementSummary
+    ? 'analyzer'
+    : 'absent';
+  if (!enforcementSummary && input.inspection) {
+    const qualityTools = deriveQualityTools(
+      { inspection: input.inspection, services },
+      input.projectPath ?? '.',
+    );
+    if (Object.keys(qualityTools).length > 0) {
+      const ciProvider = input.inspection.ci_cd?.provider;
+      enforcementSummary = deriveEnforcementSummary(
+        { inspection: input.inspection, services },
+        qualityTools,
+        ciProvider,
+      );
+      enforcementSource = 'deterministic';
+    }
+  }
 
+  const analyzerCodePatterns = getRecord(codePatterns, 'code_patterns');
   const byService: CodeConventionsView['by_service'] = {};
   let anyServicePatterns = false;
   for (const svc of services) {
     const slice = input.serviceSlices[svc.id];
-    if (!slice) continue;
-    const patterns = slice.findings.code_patterns ?? [];
-    const notable = slice.findings.notable ?? [];
+    const sliceSource = slice
+      ? {
+          patterns: slice.findings.code_patterns ?? [],
+          notable: slice.findings.notable ?? [],
+        }
+      : null;
+    const analyzerEntry = isRecord(analyzerCodePatterns?.[svc.id])
+      ? (analyzerCodePatterns![svc.id] as Record<string, unknown>)
+      : null;
+    const analyzerSource = analyzerEntry
+      ? {
+          patterns: getArray(analyzerEntry, 'patterns')
+            .filter(isRecord)
+            .map((s) => parseSnippet(s))
+            .filter((s): s is CodeSnippet => s !== null),
+          notable: getArray(analyzerEntry, 'notable').filter(
+            (n): n is string => typeof n === 'string' && n.length > 0,
+          ),
+        }
+      : null;
+    const source = sliceSource ?? analyzerSource;
+    if (!source) continue;
+    const patterns = source.patterns;
+    const notable = source.notable;
     if (patterns.length === 0 && notable.length === 0) continue;
     byService[svc.id] = {
       code_patterns: patterns as CodeSnippet[],
@@ -185,13 +262,26 @@ function buildCodeConventionsView(
     present: {
       any_service_patterns: anyServicePatterns,
       enforcement_summary: !!enforcementSummary,
+      any_service_patterns_source: anyServicePatterns
+        ? Object.values(byService).every((_) => true)
+          ? sourceForCodeConventions(input, byService)
+          : 'absent'
+        : 'absent',
+      enforcement_summary_source: enforcementSource,
     },
   });
 }
 
-/* --------------------------------------------------------------------- */
-/* multi-file-workflows view                                              */
-/* --------------------------------------------------------------------- */
+function sourceForCodeConventions(
+  input: BuildComposerViewsInput,
+  byService: CodeConventionsView['by_service'],
+): 'slice' | 'analyzer' {
+  const ids = Object.keys(byService);
+  for (const id of ids) {
+    if (input.serviceSlices[id]) return 'slice';
+  }
+  return 'analyzer';
+}
 
 function buildMultiFileWorkflowsView(
   input: BuildComposerViewsInput,
@@ -199,18 +289,50 @@ function buildMultiFileWorkflowsView(
   generatedAt: string,
 ): MultiFileWorkflowsView {
   const dataFlows = getRecord(input.dataFlows, 'findings');
-  const eventPipeline = parseFlow(dataFlows?.event_pipeline);
-  const authFlow = parseFlow(dataFlows?.auth_flow);
+  let eventPipeline = parseFlow(dataFlows?.event_pipeline);
+  let authFlow = parseFlow(dataFlows?.auth_flow);
+  let eventSource: 'analyzer' | 'deterministic' | 'absent' = eventPipeline ? 'analyzer' : 'absent';
+  let authSource: 'analyzer' | 'deterministic' | 'absent' = authFlow ? 'analyzer' : 'absent';
 
+  if (input.inspection) {
+    if (!eventPipeline) {
+      const derived = deriveEventPipeline({ inspection: input.inspection, services });
+      if (derived) {
+        eventPipeline = {
+          summary: `${derived.pattern} via ${derived.technology}.`,
+          examples: [],
+        };
+        eventSource = 'deterministic';
+      }
+    }
+    if (!authFlow) {
+      const derived = deriveAuthFlow({ inspection: input.inspection, services });
+      if (derived) {
+        authFlow = { summary: derived.summary, examples: [] };
+        authSource = 'deterministic';
+      }
+    }
+  }
+
+  const analyzerLifecycles = getRecord(dataFlows, 'request_lifecycle');
   const byService: MultiFileWorkflowsView['by_service'] = {};
   let anyRequestLifecycle = false;
+  let lifecycleSource: 'slice' | 'analyzer' | 'absent' = 'absent';
   for (const svc of services) {
     const slice = input.serviceSlices[svc.id];
-    if (!slice) continue;
-    const lifecycle = slice.findings.request_lifecycle ?? [];
+    const sliceLifecycle = slice?.findings.request_lifecycle ?? [];
+    const analyzerLifecycleRaw = analyzerLifecycles?.[svc.id];
+    const analyzerLifecycle = Array.isArray(analyzerLifecycleRaw)
+      ? (analyzerLifecycleRaw.filter(isRecord) as Record<string, unknown>[])
+          .map((s) => parseLifecycleStep(s))
+          .filter((s): s is { step: string; where: string; note?: string } => s !== null)
+      : [];
+    const lifecycle = sliceLifecycle.length > 0 ? sliceLifecycle : analyzerLifecycle;
     if (lifecycle.length === 0) continue;
     byService[svc.id] = { request_lifecycle: [...lifecycle] };
     anyRequestLifecycle = true;
+    if (sliceLifecycle.length > 0) lifecycleSource = 'slice';
+    else if (lifecycleSource === 'absent') lifecycleSource = 'analyzer';
   }
 
   return MultiFileWorkflowsViewSchema.parse({
@@ -224,6 +346,9 @@ function buildMultiFileWorkflowsView(
       any_request_lifecycle: anyRequestLifecycle,
       event_pipeline: !!eventPipeline,
       auth_flow: !!authFlow,
+      any_request_lifecycle_source: lifecycleSource,
+      event_pipeline_source: eventSource,
+      auth_flow_source: authSource,
     },
   });
 }
@@ -256,9 +381,41 @@ function parseSnippet(raw: Record<string, unknown>): CodeSnippet | null {
   return snippet;
 }
 
-/* --------------------------------------------------------------------- */
-/* testing-conventions view                                              */
-/* --------------------------------------------------------------------- */
+function parseLifecycleStep(
+  raw: Record<string, unknown>,
+): { step: string; where: string; note?: string } | null {
+  const step = stringOrEmpty(raw.step);
+  const where = stringOrEmpty(raw.where);
+  if (!step || !where) return null;
+  const out: { step: string; where: string; note?: string } = { step, where };
+  const note = optionalString(raw.note);
+  if (note) out.note = note;
+  return out;
+}
+
+function parseTestingExample(
+  raw: Record<string, unknown>,
+): { file: string; name?: string; snippet: CodeSnippetWithCitation } | null {
+  const file = stringOrEmpty(raw.file);
+  if (!file) return null;
+  const snippetRaw = isRecord(raw.snippet) ? raw.snippet : null;
+  if (!snippetRaw) return null;
+  const snippet = parseSnippet(snippetRaw);
+  if (!snippet) return null;
+  if (!snippet.source_file || typeof snippet.source_line !== 'number') return null;
+  const citedSnippet: CodeSnippetWithCitation = {
+    ...snippet,
+    source_file: snippet.source_file,
+    source_line: snippet.source_line,
+  };
+  const out: { file: string; name?: string; snippet: CodeSnippetWithCitation } = {
+    file,
+    snippet: citedSnippet,
+  };
+  const name = optionalString(raw.name);
+  if (name) out.name = name;
+  return out;
+}
 
 function buildTestingConventionsView(
   input: BuildComposerViewsInput,
@@ -267,24 +424,84 @@ function buildTestingConventionsView(
 ): TestingConventionsView {
   const codePatterns = getRecord(input.codePatterns, 'findings');
   const testing = getRecord(codePatterns, 'testing');
-  const projectSummary = optionalString(testing?.summary ?? testing?.notes);
-  const runners = getArray(testing, 'runners')
+  let projectSummary = optionalString(testing?.summary ?? testing?.notes);
+  let summarySource: 'analyzer' | 'deterministic' | 'absent' = projectSummary
+    ? 'analyzer'
+    : 'absent';
+  let runners = getArray(testing, 'runners')
     .filter((r): r is string => typeof r === 'string' && r.length > 0)
     .map(String);
 
+  if (input.inspection) {
+    if (runners.length === 0) {
+      runners = deriveTestingRunners({ inspection: input.inspection, services }).map((r) => r);
+    }
+    if (!projectSummary && runners.length > 0) {
+      projectSummary = deriveTestingProjectSummary(
+        { inspection: input.inspection, services },
+        runners,
+      );
+      summarySource = 'deterministic';
+    }
+  }
+
+  const analyzerTesting = getRecord(codePatterns, 'testing');
   const byService: TestingConventionsView['by_service'] = {};
   let anyServiceTests = false;
+  let testsSource: 'slice' | 'analyzer' | 'deterministic' | 'absent' = 'absent';
   for (const svc of services) {
     const slice = input.serviceSlices[svc.id];
-    if (!slice?.findings.testing) continue;
-    const examples = slice.findings.testing.representative_examples ?? [];
-    const notes = slice.findings.testing.notes;
+    const sliceTesting = slice?.findings.testing;
+    const analyzerEntry = isRecord(analyzerTesting?.[svc.id])
+      ? (analyzerTesting![svc.id] as Record<string, unknown>)
+      : null;
+    const analyzerExamples = analyzerEntry
+      ? getArray(analyzerEntry, 'representative_examples')
+          .filter(isRecord)
+          .map((s) => parseTestingExample(s))
+          .filter(
+            (s): s is { file: string; name?: string; snippet: CodeSnippetWithCitation } =>
+              s !== null,
+          )
+      : [];
+    const analyzerNotes = analyzerEntry ? optionalString(analyzerEntry.notes) : undefined;
+    const examples = sliceTesting?.representative_examples ?? analyzerExamples;
+    const notes = sliceTesting?.notes ?? analyzerNotes;
     if (examples.length === 0 && !notes) continue;
     byService[svc.id] = {
       representative_examples: [...examples],
       notes,
     };
-    if (examples.length > 0) anyServiceTests = true;
+    if (examples.length > 0) {
+      anyServiceTests = true;
+      if (sliceTesting?.representative_examples?.length) testsSource = 'slice';
+      else if (testsSource === 'absent') testsSource = 'analyzer';
+    }
+  }
+
+  if (!anyServiceTests && input.inspection) {
+    const frameworksByService = deriveTestingFrameworksByService({
+      inspection: input.inspection,
+      services,
+    });
+    for (const [svcId, frameworks] of Object.entries(frameworksByService)) {
+      if (!frameworks.unit && !frameworks.integration && !frameworks.e2e) continue;
+      const tokens = [frameworks.unit, frameworks.integration, frameworks.e2e].filter(
+        (t): t is string => !!t,
+      );
+      const notesParts: string[] = [];
+      if (frameworks.unit) notesParts.push(`unit tests use ${frameworks.unit}`);
+      if (frameworks.integration)
+        notesParts.push(`integration tests use ${frameworks.integration}`);
+      if (frameworks.e2e) notesParts.push(`e2e tests use ${frameworks.e2e}`);
+      byService[svcId] = {
+        representative_examples: [],
+        notes: `Detected from ${svcId} manifest: ${notesParts.join('; ')}.`,
+      };
+      anyServiceTests = true;
+      testsSource = 'deterministic';
+      void tokens;
+    }
   }
 
   const projectLevel =
@@ -299,13 +516,11 @@ function buildTestingConventionsView(
     present: {
       any_service_tests: anyServiceTests,
       project_summary: !!projectSummary,
+      any_service_tests_source: testsSource,
+      project_summary_source: summarySource,
     },
   });
 }
-
-/* --------------------------------------------------------------------- */
-/* architecture-narrative view                                           */
-/* --------------------------------------------------------------------- */
 
 function buildArchitectureNarrativeView(
   input: BuildComposerViewsInput,
@@ -315,7 +530,8 @@ function buildArchitectureNarrativeView(
   const structureFindings = getRecord(input.structure, 'findings');
   const techStackFindings = getRecord(input.techStack, 'findings');
 
-  const repoShape = optionalString(structureFindings?.repository_shape_summary);
+  let repoShape = optionalString(structureFindings?.repository_shape_summary);
+  let repoShapeSource: 'analyzer' | 'deterministic' | 'absent' = repoShape ? 'analyzer' : 'absent';
   const decisions = getArray(structureFindings, 'architecture_decisions')
     .filter((d): d is string => typeof d === 'string' && d.length > 0)
     .map(String);
@@ -326,6 +542,16 @@ function buildArchitectureNarrativeView(
     for (const [k, v] of Object.entries(runtimeVersionsRaw)) {
       if (typeof v === 'string' && v.length > 0) runtimeVersions[k] = v;
     }
+  }
+  let runtimeVersionsSource: 'analyzer' | 'deterministic' | 'absent' =
+    Object.keys(runtimeVersions).length > 0 ? 'analyzer' : 'absent';
+  if (Object.keys(runtimeVersions).length === 0 && input.inspection) {
+    const insp = input.inspection.runtime_versions ?? {};
+    for (const [k, v] of Object.entries(insp)) {
+      if (typeof v === 'string' && v.length > 0 && k !== 'tool-versions-raw')
+        runtimeVersions[k] = v;
+    }
+    if (Object.keys(runtimeVersions).length > 0) runtimeVersionsSource = 'deterministic';
   }
 
   const externalServicesRaw = getArray(techStackFindings, 'external_services').filter(isRecord);
@@ -341,15 +567,35 @@ function buildArchitectureNarrativeView(
       return item;
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
+  let externalServicesSource: 'analyzer' | 'deterministic' | 'absent' =
+    externalServices.length > 0 ? 'analyzer' : 'absent';
+  if (externalServices.length === 0 && input.inspection) {
+    const derived = deriveExternalServices({ inspection: input.inspection, services });
+    for (const d of derived) {
+      externalServices.push({ name: d.name, kind: d.purpose });
+    }
+    if (externalServices.length > 0) externalServicesSource = 'deterministic';
+  }
 
   const byService: ArchitectureNarrativeView['by_service'] = {};
   let anyServiceNotable = false;
+  let notableSource: 'slice' | 'absent' = 'absent';
   for (const svc of services) {
     const slice = input.serviceSlices[svc.id];
     const notable = slice?.findings.notable ?? [];
     if (notable.length === 0) continue;
     byService[svc.id] = { notable: [...notable] };
     anyServiceNotable = true;
+    notableSource = 'slice';
+  }
+
+  if (!repoShape && input.inspection) {
+    repoShape = deriveRepositoryShapeSummary({
+      inspection: input.inspection,
+      services,
+      fileCounts: input.fileCounts ?? [],
+    });
+    if (repoShape) repoShapeSource = 'deterministic';
   }
 
   return ArchitectureNarrativeViewSchema.parse({
@@ -367,13 +613,14 @@ function buildArchitectureNarrativeView(
       runtime_versions: Object.keys(runtimeVersions).length > 0,
       external_services: externalServices.length > 0,
       any_service_notable: anyServiceNotable,
+      repository_shape_summary_source: repoShapeSource,
+      architecture_decisions_source: decisions.length > 0 ? 'analyzer' : 'absent',
+      runtime_versions_source: runtimeVersionsSource,
+      external_services_source: externalServicesSource,
+      any_service_notable_source: notableSource,
     },
   });
 }
-
-/* --------------------------------------------------------------------- */
-/* needs_verification roll-up                                            */
-/* --------------------------------------------------------------------- */
 
 function collectNeedsVerification(input: BuildComposerViewsInput): NeedsVerificationEntry[] {
   const items: NeedsVerificationEntry[] = [];
@@ -406,10 +653,6 @@ function isNeedsVerification(value: unknown): value is NeedsVerificationEntry {
   if (typeof value.impact !== 'string') return false;
   return true;
 }
-
-/* --------------------------------------------------------------------- */
-/* I/O helpers (file-system access in one place — easy to mock)          */
-/* --------------------------------------------------------------------- */
 
 function readJsonOrThrow(path: string): AnalyzerOutputLike {
   if (!existsSync(path)) {
@@ -448,15 +691,11 @@ function readServiceSlices(sliceDir: string): Record<string, ServiceDetailSlice>
       if (sliceParsed.data.service_id !== serviceId) continue;
       slices[serviceId] = sliceParsed.data;
     } catch {
-      // best-effort: a malformed slice falls back to "no slice for this service"
+      continue;
     }
   }
   return slices;
 }
-
-/* --------------------------------------------------------------------- */
-/* Tiny utility helpers                                                  */
-/* --------------------------------------------------------------------- */
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

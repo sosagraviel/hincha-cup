@@ -1,5 +1,5 @@
 /**
- * Canonical texts for Phase 1 analyzer prompts (plan §G, 2026-05-05).
+ * Canonical texts for Phase 1 analyzer prompts.
  *
  * The cache-eligible prefix built by `buildPhase1SharedPrefix` is
  * byte-identical across all four analyzer prompts. That guarantee is
@@ -56,10 +56,6 @@ export const FORBIDDEN_FRAGMENTS_IN_ANALYZER_PROMPTS: ReadonlyArray<{
       'The first-call startup-race retry guidance is part of the discipline body. Analyzer prompts must NOT inline a second copy.',
   },
   {
-    // Use a distinctive line from the rendered body, not the bare
-    // tag — analyzer prompts may legitimately *reference* the block
-    // (e.g. "see the <excluded_directories> block in your prefix")
-    // without re-emitting the body.
     fragment: 'The directories below are off-limits',
     canonicalHome:
       'orchestration/src/utils/shared/context-tags.ts (buildExcludedDirsTag) — emitted from the cache-eligible prefix.',

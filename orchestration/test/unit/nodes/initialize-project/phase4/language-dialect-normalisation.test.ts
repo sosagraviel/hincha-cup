@@ -124,6 +124,9 @@ describe('extractLanguagesFromPhase1 — Plan v4 Phase A.2 dialect normalisation
 describe('Phase 4 validators — Plan v4 Phase A.2 dialect normalisation', () => {
   it('crossValidateWithFileCount normalises before adding to the set', () => {
     const detected = new Set<string>();
+    // Plan v9 Phase 8 — utility languages (shell, bash, etc.) are
+    // skipped, not added to the stack profile. `bash` normalises to
+    // `shell` which is in UTILITY_LANGUAGES.
     crossValidateWithFileCount(
       detected,
       {
@@ -138,7 +141,33 @@ describe('Phase 4 validators — Plan v4 Phase A.2 dialect normalisation', () =>
       },
       makeLogger(),
     );
-    expect(Array.from(detected).sort()).toEqual(['kotlin', 'shell', 'typescript']);
+    expect(Array.from(detected).sort()).toEqual(['kotlin', 'typescript']);
+  });
+
+  it('crossValidateWithFileCount skips utility languages (Plan v9 Phase 8)', () => {
+    const detected = new Set<string>();
+    const sink = makeLogger();
+    crossValidateWithFileCount(
+      detected,
+      {
+        total_files: 50,
+        scanned_directories: 1,
+        errors: [],
+        by_language: [
+          { language: 'css', count: 20, extensions: ['.css'], directories: ['styles'] },
+          { language: 'yaml', count: 10, extensions: ['.yml'], directories: ['.github'] },
+          { language: 'json', count: 8, extensions: ['.json'], directories: ['.'] },
+          { language: 'dockerfile', count: 5, extensions: [], directories: ['.'] },
+          { language: 'sql', count: 7, extensions: ['.sql'], directories: ['migrations'] },
+        ],
+      },
+      sink,
+    );
+    expect(Array.from(detected)).toEqual([]);
+    // Each utility language demoted to info, never to warn.
+    expect(sink.warns).toEqual([]);
+    expect(sink.infos.length).toBeGreaterThanOrEqual(5);
+    expect(sink.infos.some((m) => /css/.test(m) && /utility/.test(m))).toBe(true);
   });
 
   it('mergeWorkspaceLanguages normalises workspace-detection output', () => {
@@ -201,9 +230,9 @@ describe('validateStackProfile — Plan v4 Phase A.2 warning hygiene', () => {
     expect(sink.warns).toEqual([]);
   });
 
-  it('emits info (not warn) when a profile language has only tooling-config files', () => {
+  it('drops a config-only language and emits info (Plan v8 Phase D)', () => {
     const sink = makeLogger();
-    validateStackProfile(
+    const cleaned = validateStackProfile(
       ['typescript', 'javascript'],
       baseFileCount({
         total_files: 100,
@@ -215,13 +244,16 @@ describe('validateStackProfile — Plan v4 Phase A.2 warning hygiene', () => {
       sink,
     );
     expect(sink.warns).toEqual([]);
-    expect(sink.infos.some((m) => /Language javascript .* configuration-only/.test(m))).toBe(true);
-    expect(sink.infos.some((m) => /4 tooling-config files/.test(m))).toBe(true);
+    expect(
+      sink.infos.some((m) => /Language javascript dropped .* configuration-only/.test(m)),
+    ).toBe(true);
+    expect(sink.infos.some((m) => /4 tooling-config file/.test(m))).toBe(true);
+    expect(cleaned).toEqual(['typescript']);
   });
 
-  it('still warns when a profile language has zero files AND zero tooling configs', () => {
+  it('drops a no-files language and emits a warn (Plan v8 Phase D)', () => {
     const sink = makeLogger();
-    validateStackProfile(
+    const cleaned = validateStackProfile(
       ['typescript', 'erlang'],
       baseFileCount({
         total_files: 100,
@@ -232,9 +264,8 @@ describe('validateStackProfile — Plan v4 Phase A.2 warning hygiene', () => {
       }),
       sink,
     );
-    expect(sink.warns.some((m) => /Language erlang in profile but no files found/.test(m))).toBe(
-      true,
-    );
+    expect(sink.warns.some((m) => /Language erlang dropped .* no files found/.test(m))).toBe(true);
+    expect(cleaned).toEqual(['typescript']);
   });
 
   it('still throws on the 20+ files / not-in-profile case', () => {
@@ -251,5 +282,33 @@ describe('validateStackProfile — Plan v4 Phase A.2 warning hygiene', () => {
         sink,
       ),
     ).toThrow(/Stack profile missing python/);
+  });
+
+  // Plan v9 Phase 8 — utility languages (CSS / YAML / JSON / shell /
+  // SQL / …) must never trigger the advisory warn or the hard error.
+  // Analyzers correctly omit them from the stack profile by design.
+  it('does NOT warn or throw on utility languages not in profile (Plan v9 Phase 8)', () => {
+    const sink = makeLogger();
+    expect(() =>
+      validateStackProfile(
+        ['typescript'],
+        baseFileCount({
+          total_files: 80,
+          by_language: [
+            { language: 'typescript', count: 50, extensions: ['.ts'], directories: ['src'] },
+            { language: 'css', count: 16, extensions: ['.css'], directories: ['web/styles'] },
+            { language: 'sql', count: 5, extensions: ['.sql'], directories: ['migrations'] },
+            { language: 'yaml', count: 25, extensions: ['.yml'], directories: ['.github'] },
+            { language: 'shell', count: 3, extensions: ['.sh'], directories: ['scripts'] },
+          ],
+        }),
+        sink,
+      ),
+    ).not.toThrow();
+    expect(sink.warns).toEqual([]);
+    // 25 YAML files would have hit the ≥20 hard-error path for a
+    // programming language; for a utility language it becomes a
+    // single info line confirming detection.
+    expect(sink.infos.some((m) => /yaml.*utility language/.test(m))).toBe(true);
   });
 });

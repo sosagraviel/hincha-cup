@@ -318,7 +318,7 @@ describe('synthesisNode', () => {
     await synthesisNode(mockState);
 
     expect(mockAgent.invoke).toHaveBeenCalledWith({
-      inputPrompt: expect.stringContaining('Synthesize comprehensive results for: /test/project'),
+      inputPrompt: expect.stringContaining('CONSOLIDATED ANALYSIS'),
     });
   });
 

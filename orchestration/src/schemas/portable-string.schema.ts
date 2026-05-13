@@ -17,7 +17,6 @@ const ALLOWLIST_HINT_PREFIXES = ['/tmp/', 'https://', 'http://', 'file://'];
 
 function isPortableValue(s: string): boolean {
   if (!s) return true;
-  // If the whole string is one allowlisted prefix, pass.
   if (ALLOWLIST_HINT_PREFIXES.some((p) => s.startsWith(p))) {
     return !NON_PORTABLE_ABSOLUTE_PATTERN.test(s.replace(/^https?:\/\/[^\/]+/, ''));
   }

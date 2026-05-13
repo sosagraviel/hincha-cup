@@ -68,16 +68,10 @@ export class PortableWriter {
    */
   private deepRelativize(value: unknown): unknown {
     if (typeof value === 'string') {
-      // Leave strings that aren't absolute filesystem paths alone (URLs, free text).
       if (!isLikelyAbsoluteFsPath(value)) return value;
-      // We can't safely rewrite arbitrary text with absolutes embedded mid-string;
-      // assertPortable will catch those at write time. Only rewrite when the entire
-      // string IS the absolute path.
       try {
-        // Cast: at this branch we believe the value is an absolute path.
         return this.resolver.toProjectRelative(value as AbsolutePath);
       } catch {
-        // Out-of-project — let assertPortable surface a clear error message.
         return value;
       }
     }
@@ -96,7 +90,6 @@ export class PortableWriter {
 
   private assertPortable(content: string, target: string): void {
     if (this.resolver.isNonPortable(content)) {
-      // Find and report the first offending line for a useful error.
       const lines = content.split('\n');
       let offendingLine: { line: number; text: string } | undefined;
       for (let i = 0; i < lines.length; i++) {
@@ -117,7 +110,5 @@ export class PortableWriter {
 }
 
 function isLikelyAbsoluteFsPath(s: string): boolean {
-  // Match the entire string, not embedded substrings — embedded paths inside
-  // larger strings are caught at write-time by assertPortable.
   return /^\/(?:Users|home|opt|var|etc|usr)\//.test(s) || /^\/[a-z][a-z0-9_-]*\//.test(s);
 }

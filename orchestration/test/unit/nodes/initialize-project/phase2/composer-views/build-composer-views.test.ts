@@ -110,6 +110,8 @@ function makeApiSlice(): ServiceDetailSlice {
               kind: 'test-case',
               language: 'typescript',
               code: "it('creates a user', async () => { ... })",
+              source_file: 'services/api/src/users/users.spec.ts',
+              source_line: 8,
             },
           },
         ],
@@ -270,5 +272,191 @@ describe('buildComposerViews', () => {
     expect(bundle.architecture_narrative.by_service.core?.notable[0]).toBe(
       'supervised by `core_sup`',
     );
+  });
+
+  // Plan v8 Phase C — analyzer-direct fallback. When no Phase 1.5 slice
+  // exists, the composer view reads per-service rollups directly from
+  // the Phase 1 analyzer outputs (code-patterns + data-flows).
+  it('falls back to analyzer-direct by-service rollups when no slices exist', () => {
+    const structure = makeStructure([
+      { id: 'api', path: 'services/api', type: 'backend', language: 'typescript' },
+    ]);
+
+    // code-patterns analyzer emits the by-service rollups inline
+    const codePatterns = {
+      agent_name: 'code-patterns-testing-analyzer',
+      timestamp: generatedAt,
+      findings: {
+        code_patterns: {
+          api: {
+            patterns: [
+              {
+                kind: 'controller-shape',
+                language: 'typescript',
+                code: 'export class UsersController {}',
+                source_file: 'services/api/src/users/users.controller.ts',
+                source_line: 4,
+              },
+            ],
+            notable: ['DTO validation via class-validator'],
+          },
+        },
+        testing: {
+          api: {
+            representative_examples: [
+              {
+                file: 'services/api/src/users/users.spec.ts',
+                name: 'creates a user',
+                snippet: {
+                  kind: 'test-case',
+                  language: 'typescript',
+                  code: "it('creates a user', async () => { ... })",
+                  source_file: 'services/api/src/users/users.spec.ts',
+                  source_line: 6,
+                },
+              },
+            ],
+            notes: 'Integration-first spec files.',
+          },
+        },
+      },
+    };
+
+    // data-flows analyzer emits per-service request_lifecycle inline
+    const dataFlows = {
+      agent_name: 'data-flows-integrations-analyzer',
+      timestamp: generatedAt,
+      findings: {
+        request_lifecycle: {
+          api: [
+            {
+              step: 'Receive HTTP request',
+              where: 'services/api/src/users/users.controller.ts:UsersController.create',
+            },
+            {
+              step: 'Validate body',
+              where: 'services/api/src/users/dto/create-user.dto.ts:CreateUserDto',
+            },
+          ],
+        },
+      },
+    };
+
+    const bundle = buildComposerViews({
+      structure,
+      techStack: undefined,
+      codePatterns,
+      dataFlows,
+      serviceSlices: {}, // NO Phase 1.5 slices — the load-bearing case
+      generatedAt,
+    });
+
+    // code-conventions — code_patterns + notable come from analyzer
+    expect(bundle.code_conventions.by_service.api?.code_patterns).toHaveLength(1);
+    expect(bundle.code_conventions.by_service.api?.code_patterns[0].kind).toBe('controller-shape');
+    expect(bundle.code_conventions.by_service.api?.notable[0]).toBe(
+      'DTO validation via class-validator',
+    );
+    expect(bundle.code_conventions.present.any_service_patterns).toBe(true);
+
+    // testing-conventions — examples + notes come from analyzer
+    expect(bundle.testing_conventions.by_service.api?.representative_examples).toHaveLength(1);
+    expect(bundle.testing_conventions.by_service.api?.notes).toBe('Integration-first spec files.');
+    expect(bundle.testing_conventions.present.any_service_tests).toBe(true);
+
+    // multi-file-workflows — request_lifecycle comes from analyzer
+    expect(bundle.multi_file_workflows.by_service.api?.request_lifecycle).toHaveLength(2);
+    expect(bundle.multi_file_workflows.by_service.api?.request_lifecycle[0].step).toBe(
+      'Receive HTTP request',
+    );
+    expect(bundle.multi_file_workflows.present.any_request_lifecycle).toBe(true);
+  });
+
+  // Plan v9 — deterministic-derivation fallback. Even when neither slices
+  // nor analyzer-direct rollups are present, the composer-view builder
+  // populates `present.*` from the language-config registry × the
+  // project-inspection JSON.
+  it('falls back to deterministic derivation when slices + analyzer outputs are empty', () => {
+    const structure = makeStructure([
+      { id: 'api', path: 'services/api', type: 'backend', language: 'typescript' },
+    ]);
+    // Clear analyzer-direct rollups so deterministic derivation is the only
+    // source the composer can fall back to.
+    structure.findings.repository_shape_summary = undefined as any;
+    structure.findings.architecture_decisions = [];
+    const inspection = {
+      generated_at: '2026-05-12T00:00:00Z',
+      schema_version: '1',
+      repository_type: 'monorepo',
+      monorepo: { workspace_tool: 'pnpm workspaces', workspace_paths: ['services/*'] },
+      runtime_versions: { node: '22.5.1' },
+      manifests: [
+        {
+          kind: 'package.json',
+          path: 'services/api/package.json',
+          raw: {
+            dependencies: {
+              '@nestjs/jwt': '^11',
+              bullmq: '^5',
+              stripe: '^14',
+              '@sentry/node': '^7',
+            },
+            devDependencies: {
+              eslint: '^9',
+              prettier: '^3',
+              typescript: '^5',
+              vitest: '^4',
+              husky: '^9',
+            },
+          },
+        },
+      ],
+      infrastructure: [],
+      port_candidates: {},
+    } as any;
+    const bundle = buildComposerViews({
+      structure,
+      techStack: undefined,
+      codePatterns: undefined,
+      dataFlows: undefined,
+      serviceSlices: {},
+      generatedAt,
+      inspection,
+      projectPath: '/nonexistent',
+      fileCounts: [{ language: 'typescript', count: 100 }],
+    });
+
+    // multi-file-workflows: event_pipeline derived from bullmq, auth_flow from @nestjs/jwt
+    expect(bundle.multi_file_workflows.event_pipeline?.summary).toMatch(/task-queue.*BullMQ/);
+    expect(bundle.multi_file_workflows.present.event_pipeline).toBe(true);
+    expect(bundle.multi_file_workflows.present.event_pipeline_source).toBe('deterministic');
+    expect(bundle.multi_file_workflows.auth_flow?.summary).toMatch(/JWT-bearer/);
+    expect(bundle.multi_file_workflows.present.auth_flow).toBe(true);
+    expect(bundle.multi_file_workflows.present.auth_flow_source).toBe('deterministic');
+
+    // code-conventions: enforcement_summary derived from eslint+prettier+typescript+husky
+    expect(bundle.code_conventions.enforcement_summary).toMatch(/eslint \+ prettier \+ typescript/);
+    expect(bundle.code_conventions.present.enforcement_summary).toBe(true);
+    expect(bundle.code_conventions.present.enforcement_summary_source).toBe('deterministic');
+
+    // testing-conventions: runners derived from vitest, summary templated
+    expect(bundle.testing_conventions.project_level?.runners).toContain('vitest');
+    expect(bundle.testing_conventions.project_level?.summary).toMatch(/vitest/i);
+    expect(bundle.testing_conventions.present.project_summary).toBe(true);
+    expect(bundle.testing_conventions.present.project_summary_source).toBe('deterministic');
+
+    // architecture-narrative: shape summary + runtimes + external services
+    expect(bundle.architecture_narrative.repository_shape_summary).toMatch(
+      /pnpm workspaces monorepo/,
+    );
+    expect(bundle.architecture_narrative.present.repository_shape_summary_source).toBe(
+      'deterministic',
+    );
+    expect(bundle.architecture_narrative.runtime_versions.node).toBe('22.5.1');
+    expect(bundle.architecture_narrative.present.runtime_versions_source).toBe('deterministic');
+    const externalNames = bundle.architecture_narrative.external_services.map((e) => e.name);
+    expect(externalNames).toContain('Stripe');
+    expect(externalNames).toContain('Sentry');
+    expect(bundle.architecture_narrative.present.external_services_source).toBe('deterministic');
   });
 });

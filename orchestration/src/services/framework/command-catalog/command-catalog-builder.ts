@@ -30,10 +30,6 @@ import type {
   ReadmeRunSectionEntry,
 } from '../../../schemas/stack-profile.schema.js';
 
-// ---------------------------------------------------------------------------
-// Inputs
-// ---------------------------------------------------------------------------
-
 /**
  * Per-service package-manager command — pre-assembled by the caller
  * (which has access to root vs per-service package manager info).
@@ -56,10 +52,6 @@ export interface CommandCatalogBuilderInput {
   package_manager_commands?: PackageManagerCandidate[];
 }
 
-// ---------------------------------------------------------------------------
-// Operation classifier
-// ---------------------------------------------------------------------------
-
 /**
  * Classify a target / script / command name into a
  * `CommandCatalogOperation`. Returns `undefined` when no operation
@@ -75,7 +67,6 @@ export function classifyOperation(name: string): CommandCatalogOperation | undef
   const lower = name.trim().toLowerCase();
   if (lower.length === 0) return undefined;
 
-  // Migration ops — must match before plain `migrate`/`generate`
   if (/(migration[:_-]?generate|generate[:_-]?migration|makemigration)/.test(lower)) {
     return 'generate_migration';
   }
@@ -88,7 +79,6 @@ export function classifyOperation(name: string): CommandCatalogOperation | undef
     return 'run_migrations';
   }
 
-  // Test ops — most specific first
   if (/(test[:_-]?e2e|cypress|playwright|test[:_-]?end[:_-]?to[:_-]?end)/.test(lower)) {
     return 'run_e2e';
   }
@@ -102,7 +92,6 @@ export function classifyOperation(name: string): CommandCatalogOperation | undef
     return 'run_tests';
   }
 
-  // Lint / format / typecheck
   if (/^(lint|eslint|ruff|flake8|rubocop|clippy|golangci|stylelint)/.test(lower)) {
     return 'run_lint';
   }
@@ -113,12 +102,10 @@ export function classifyOperation(name: string): CommandCatalogOperation | undef
     return 'run_typecheck';
   }
 
-  // Build
   if (/^(build|compile|package|dist|webpack|vite[:_-]?build|tsc[:_-]?build)/.test(lower)) {
     return 'run_build';
   }
 
-  // Seed / reset
   if (/^seed/.test(lower)) {
     return 'seed';
   }
@@ -126,12 +113,10 @@ export function classifyOperation(name: string): CommandCatalogOperation | undef
     return 'reset';
   }
 
-  // Setup / bootstrap / install
   if (/^(setup|bootstrap|init|install|install[:_-]?all|init[:_-]?dev)$/.test(lower)) {
     return 'setup';
   }
 
-  // Dev / start / run / up — match late so it doesn't shadow the others
   if (/^(start|run|dev|serve|up|launch[:_-]?dev|start[:_-]?dev|runserver)/.test(lower)) {
     return 'start_dev';
   }
@@ -214,16 +199,11 @@ export function classifyCommandLine(line: string): CommandCatalogOperation | und
   const tokens = line.trim().split(/\s+/).filter(Boolean);
   for (let i = 0; i < tokens.length; i++) {
     const tok = tokens[i];
-    // Skip invoker prefixes (pnpm, npm, make, ...).
     if (COMMAND_INVOKER_TOKENS.has(tok.toLowerCase())) continue;
-    // Skip `--flag value` pairs entirely (e.g. `--filter backend`).
     if (tok.startsWith('--') || (tok.startsWith('-') && tok.length === 2)) {
-      i += 1; // also skip the flag's value
+      i += 1;
       continue;
     }
-    // Skip path-like operands that don't carry op hints
-    // (`./scripts/test.sh` is handled at the script-walker layer, not
-    // by classifying random README lines).
     if (tok.startsWith('./') || tok.startsWith('/')) continue;
 
     const op = classifyOperation(tok);
@@ -231,10 +211,6 @@ export function classifyCommandLine(line: string): CommandCatalogOperation | und
   }
   return undefined;
 }
-
-// ---------------------------------------------------------------------------
-// Tier-1 walkers — automation files
-// ---------------------------------------------------------------------------
 
 function entriesFromAutomationFile(
   file: AutomationFile,
@@ -258,8 +234,6 @@ function entriesFromAutomationFile(
 }
 
 function classifyTarget(target: AutomationTarget): CommandCatalogOperation | undefined {
-  // The group annotation (e.g. `@setup`, `@test`, `@docker`) is a
-  // strong hint when the target name is generic.
   const byName = classifyOperation(target.name);
   if (byName) return byName;
 
@@ -291,7 +265,6 @@ function entriesFromShellScripts(
 }
 
 function shellScriptOperation(script: AutomationShellScript): CommandCatalogOperation | undefined {
-  // Trust an explicit purpose first.
   switch (script.purpose) {
     case 'setup':
     case 'bootstrap':
@@ -304,7 +277,6 @@ function shellScriptOperation(script: AutomationShellScript): CommandCatalogOper
       return 'reset';
     case 'unknown':
     default: {
-      // Fall back to filename classification.
       const base = (script.path.split('/').pop() ?? '').replace(/\.[^.]+$/, '');
       return classifyOperation(base);
     }
@@ -330,15 +302,9 @@ function shellScriptDescription(script: AutomationShellScript): string | undefin
 }
 
 function invokeShellScript(path: string): string {
-  // POSIX-style invocation. If the path is already './…' keep as-is,
-  // otherwise prefix with `./` so it's unambiguously executable.
   if (path.startsWith('./') || path.startsWith('/')) return path;
   return `./${path}`;
 }
-
-// ---------------------------------------------------------------------------
-// Tier-2 walker — README run sections
-// ---------------------------------------------------------------------------
 
 const README_COMMAND_PREFIX_RE =
   /^\s*(make|just|task|mage|invoke|doit|npm|pnpm|yarn|bun|composer|poetry|uv|pip|pipenv|hatch|pdm|python|python3|node|npx|go|cargo|mvn|mvnw|gradle|gradlew|sbt|mix|stack|cabal|rake|bundle|bin\/[\w-]+|scripts\/[\w-]+|\.\/[\w./-]+|dotnet|docker|docker-compose|kubectl|terraform|pulumi|ansible)\b/i;
@@ -352,7 +318,7 @@ function entriesFromReadme(
       for (const rawLine of block.split('\n')) {
         const line = rawLine.trim();
         if (line.length === 0) continue;
-        if (line.startsWith('#') || line.startsWith('//')) continue; // comment lines
+        if (line.startsWith('#') || line.startsWith('//')) continue;
         if (!README_COMMAND_PREFIX_RE.test(line)) continue;
         const op = classifyCommandLine(line) ?? 'setup';
         out.push({
@@ -378,10 +344,6 @@ function slug(s: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-// ---------------------------------------------------------------------------
-// Tier-3 walker — per-service package-manager candidates
-// ---------------------------------------------------------------------------
-
 function entriesFromPackageManagerCandidates(
   candidates: PackageManagerCandidate[],
 ): Array<{ op: CommandCatalogOperation; entry: CommandCatalogEntry }> {
@@ -402,10 +364,6 @@ function entriesFromPackageManagerCandidates(
   }
   return out;
 }
-
-// ---------------------------------------------------------------------------
-// Tier-4 walker — CI hints
-// ---------------------------------------------------------------------------
 
 function entriesFromCiHints(
   hints: AutomationCiHint[],
@@ -429,10 +387,6 @@ function entriesFromCiHints(
   }
   return out;
 }
-
-// ---------------------------------------------------------------------------
-// Top-level builder
-// ---------------------------------------------------------------------------
 
 const TIER_ORDER: Record<CommandCatalogTier, number> = {
   wrapper: 0,
@@ -498,7 +452,6 @@ export function buildCommandCatalog(input: CommandCatalogBuilderInput): CommandC
   candidates.push(...entriesFromPackageManagerCandidates(input.package_manager_commands ?? []));
   candidates.push(...entriesFromCiHints(input.automation?.ci_hints ?? []));
 
-  // Group by op
   const grouped = new Map<CommandCatalogOperation, CommandCatalogEntry[]>();
   for (const { op, entry } of candidates) {
     const list = grouped.get(op) ?? [];
@@ -506,7 +459,6 @@ export function buildCommandCatalog(input: CommandCatalogBuilderInput): CommandC
     grouped.set(op, list);
   }
 
-  // Stable sort + dedupe per operation
   const catalog: Partial<Record<CommandCatalogOperation, CommandCatalogEntry[]>> = {};
   for (const [op, entries] of grouped) {
     const sorted = [...entries].sort(compareEntries);

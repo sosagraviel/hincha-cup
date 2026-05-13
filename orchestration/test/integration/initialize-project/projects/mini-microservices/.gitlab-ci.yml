@@ -1,0 +1,27 @@
+# Alternate-CI fixture — exercises the gitlab path. Real projects pick
+# one (gitlab or github actions); this fixture ships BOTH so the
+# alternate-CI detector code path is exercised.
+stages:
+  - test
+  - deploy
+
+go-test:
+  stage: test
+  image: golang:1.22
+  script:
+    - cd frontend && go test ./...
+    - cd productcatalogservice && go test ./...
+
+dotnet-test:
+  stage: test
+  image: mcr.microsoft.com/dotnet/sdk:8.0
+  script:
+    - cd cartservice && dotnet test
+
+deploy:
+  stage: deploy
+  image: bitnami/kubectl:1.30
+  script:
+    - kubectl apply -k kubernetes/
+  only:
+    - main

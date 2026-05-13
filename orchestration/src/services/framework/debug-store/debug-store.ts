@@ -16,7 +16,7 @@ import type {
   ValidationFailureEntry,
 } from './types.js';
 
-const MAX_STREAM_BYTES = 4 * 1024 * 1024; // 4 MB per stream (matches legacy cap)
+const MAX_STREAM_BYTES = 4 * 1024 * 1024;
 
 function truncate(s: string | undefined, cap = MAX_STREAM_BYTES): string | undefined {
   if (s === undefined) return undefined;
@@ -154,11 +154,7 @@ export class DebugStore {
   /**
    * Find the on-disk attempt directory for a given (agentName, sessionId)
    * pair, scanning the run's directory tree. Used by Phase 1 analyzer nodes
-   * to overlay the post-sidecar persisted output onto the debug bucket
-   * (gira-init-run audit findings F6 / F18 — the raw debug snapshot was
-   * captured before applyGraphToolUsageFromSidecar overlay, so overflow
-   * telemetry was invisible in the debug bucket even when present in the
-   * persisted phase1-outputs file).
+   * to overlay the post-sidecar persisted output onto the debug bucket.
    *
    * Returns null when no matching directory exists (legitimate: the run may
    * not have produced a debug attempt for this session, e.g. when the
@@ -250,15 +246,11 @@ export class DebugStore {
     const target = this.context.runId;
     try {
       await rm(latest, { force: true });
-    } catch {
-      // ignore
-    }
+    } catch {}
     try {
       const { symlink } = await import('fs/promises');
       await symlink(target, latest, 'dir');
-    } catch {
-      // Symlinks fail on some platforms — fine, `latest` is convenience only.
-    }
+    } catch {}
   }
 
   /**
@@ -288,7 +280,7 @@ export class DebugStore {
             return { name: e.name, full, mtime: s?.mtimeMs ?? 0 };
           }),
       );
-      folders.sort((a, b) => a.mtime - b.mtime); // oldest first
+      folders.sort((a, b) => a.mtime - b.mtime);
       const excess = folders.length - keep;
       if (excess <= 0) return [];
       const toDelete = folders.slice(0, excess);
@@ -297,9 +289,7 @@ export class DebugStore {
         try {
           await rm(f.full, { recursive: true, force: true });
           deleted.push(f.name);
-        } catch {
-          // best-effort
-        }
+        } catch {}
       }
       return deleted;
     } catch {
@@ -370,19 +360,14 @@ export class AttemptWriter {
 
   /**
    * Last value written via `writeOutput`. Used by `writeOutputRaw` to skip
-   * the byte-identical duplicate file (see gira-init-run audit F26 — the
-   * raw file always equalled the parsed view, so half the disk footprint
-   * was redundant). Caller can opt back into a separate raw view with
-   * `writeOutputRaw(raw, { force: true })`.
+   * byte-identical duplicate files. Caller can opt back into a separate raw
+   * view with `writeOutputRaw(raw, { force: true })`.
    */
   private lastOutputValue: string | undefined;
   private lastOutputExtension: 'json' | 'md' | 'txt' | undefined;
 
   async writeOutputRaw(raw: string, opts: { force?: boolean } = {}): Promise<void> {
     if (!opts.force && this.lastOutputValue !== undefined && raw === this.lastOutputValue) {
-      // No-op: caller already wrote this exact value via writeOutput. Skipping
-      // avoids the byte-identical output.raw.txt duplicate that bloated every
-      // analyzer attempt's debug bucket in the gira run.
       return;
     }
     try {
@@ -396,8 +381,7 @@ export class AttemptWriter {
   /**
    * Best-effort structured output write. Detects the format (JSON / Markdown /
    * plain text), pretty-prints JSON for readability, and writes to
-   * `output.<ext>`. Pretty-print fixes gira-run finding F30 (data-flows
-   * analyzer emitted single-line minified JSON; on-disk debug was unreadable).
+   * `output.<ext>`.
    */
   async writeOutput(value: string): Promise<void> {
     try {
@@ -409,7 +393,6 @@ export class AttemptWriter {
         truncate(formatted) ?? '',
         'utf-8',
       );
-      // Track for the writeOutputRaw dedup check (see F26).
       this.lastOutputValue = formatted;
       this.lastOutputExtension = ext;
     } catch (err) {
@@ -419,14 +402,8 @@ export class AttemptWriter {
 
   /**
    * Overlay the persisted (post-sidecar) view of an analyzer's output onto
-   * the existing `output.<ext>` file. Used by Phase 1 analyzer nodes after
-   * `applyGraphToolUsageFromSidecar` adds graph_overflow_count and the
-   * deterministic graph_queries_used list — see gira-init-run audit findings
-   * F6 / F18 (the raw debug snapshot was missing this telemetry, so anyone
-   * reading the debug bucket alone could not tell whether the run had any
-   * graph-tool overflows).
-   *
-   * Idempotent: takes a parsed object or a raw string. Pretty-prints JSON.
+   * the existing `output.<ext>` file. Idempotent: takes a parsed object or
+   * a raw string. Pretty-prints JSON.
    */
   async updateOutput(value: string | object): Promise<void> {
     const raw = typeof value === 'string' ? value : JSON.stringify(value);
@@ -509,8 +486,6 @@ export class AttemptWriter {
   async writeNormalizedEvents(content: string): Promise<void> {
     try {
       await this.ensureDir();
-      // Prepend a schemaVersion line + dedup consecutive identical
-      // passthrough-* events. See gira-init-run audit F24.
       const enriched = enrichEventsJsonl(content);
       await writeFile(path.join(this.attemptDir, 'events.jsonl'), enriched, 'utf-8');
     } catch (err) {
@@ -595,10 +570,6 @@ function looksLikeJson(value: string): boolean {
  * unchanged when parsing fails (defensive — never throw from a debug-store
  * writer; a bad `output.json` shouldn't break the run). Stack-agnostic and
  * input-shape-agnostic.
- *
- * Fixes gira-init-run finding F30: the data-flows analyzer emitted
- * single-line minified JSON; the debug `output.json` was 9 KB on a single
- * line — unreadable on inspection.
  */
 function prettyPrintJson(value: string): string {
   try {
@@ -619,13 +590,10 @@ export const EVENTS_JSONL_SCHEMA_VERSION = 1;
 /**
  * Enrich a normalized events.jsonl payload by:
  *   1. Prepending a `{"t":"meta","schemaVersion":N,...}` line so consumers
- *      can tell which envelope shape they're reading. See gira-init-run
- *      audit F24 — events.jsonl had no schema marker, forcing reverse-
- *      engineering of every field.
- *   2. Dropping consecutive duplicate `passthrough-*` events (e.g. two
- *      identical `passthrough-ai-title` lines emitted by the parser). The
- *      dedup is conservative: only consecutive duplicates with identical
- *      `subtype` + `text|payload` are dropped.
+ *      can tell which envelope shape they're reading.
+ *   2. Dropping consecutive duplicate `passthrough-*` events. The dedup is
+ *      conservative: only consecutive duplicates with identical `subtype` +
+ *      `text|payload` are dropped.
  *
  * Idempotent: detecting an existing meta line at the head leaves the
  * payload untouched on a second pass.
@@ -640,7 +608,6 @@ export function enrichEventsJsonl(content: string): string {
     });
   }
 
-  // Idempotency check.
   let firstParsed: { t?: unknown; schemaVersion?: unknown } | null = null;
   try {
     firstParsed = JSON.parse(lines[0]);
@@ -650,7 +617,6 @@ export function enrichEventsJsonl(content: string): string {
   const alreadyEnriched =
     firstParsed && firstParsed.t === 'meta' && typeof firstParsed.schemaVersion === 'number';
 
-  // Dedup consecutive identical passthrough-* lines.
   const deduped: string[] = [];
   let lastPassthroughKey: string | null = null;
   const startIdx = alreadyEnriched ? 1 : 0;
@@ -663,8 +629,6 @@ export function enrichEventsJsonl(content: string): string {
       parsed = null;
     }
     if (parsed && typeof parsed.subtype === 'string' && parsed.subtype.startsWith('passthrough-')) {
-      // Stable key from subtype + text|payload (stringified) so consecutive
-      // dupes collapse without false positives across distinct events.
       const key = `${parsed.subtype}::${typeof parsed.text === 'string' ? parsed.text : JSON.stringify(parsed.payload ?? null)}`;
       if (key === lastPassthroughKey) continue;
       lastPassthroughKey = key;

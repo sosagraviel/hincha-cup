@@ -13,7 +13,6 @@ program
   .name('lint-wiki')
   .description('Run structural and semantic lint checks over docs/llm-wiki/wiki/')
   .version('1.0.0')
-  // --project-path is no longer accepted: paths.service.ts resolves locally.
   .option(
     '--graph-db <path>',
     'Path to the code-graph DB (default: <project>/.code-review-graph/graph.db)',

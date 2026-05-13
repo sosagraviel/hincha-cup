@@ -3,3 +3,7 @@ node_modules/
 coverage/
 *.min.js
 pnpm-lock.yaml
+# Plan v5 §1.7 — fixtures are test data, not framework source. Their
+# formatting is owned by each fixture's per-language config; the
+# framework's prettier rules should not bleed into them.
+test/integration/initialize-project/projects/

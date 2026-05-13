@@ -2,30 +2,12 @@
  * Single source of truth for translating the framework's excluded-directories
  * list into Claude Code `permissions.deny` rules.
  *
- * Why this exists: the gira-init-run audit (.claude-temp/plans/2026-04-29-glob-node-modules-leak-fix.md)
- * showed that prompt-level guidance + the PreToolUse path-restriction hook
- * are not sufficient to stop Claude's `Glob` tool from returning thousands
- * of `node_modules/**` matches when the agent calls
- * `Glob({ pattern: "package.json", path: "<repo>" })`. The agent's input is
- * benign (no forbidden tokens); the leak happens entirely inside Claude
- * CLI's recursive Glob expansion.
- *
- * Anthropic's official mechanism for filtering Glob/Grep output is
- * `permissions.deny` rules in `settings.json`. From the official settings
- * docs (https://code.claude.com/docs/en/settings, "Excluding sensitive
- * files"):
- *
- *   "Files matching these patterns are excluded from file discovery and
- *    search results, and read operations on these files are denied."
- *
  * Rule format: `Read(<gitignore-pattern>)`. The Read prefix applies
  * "best-effort" to all built-in file-reading tools (Read, Glob, Grep) per
  * the official permissions docs (https://code.claude.com/docs/en/permissions).
  *
  * Stack-agnostic: only directory NAMES (no language-specific extensions, no
- * framework-specific path roots). Works on PHP monoliths, .NET solutions,
- * Python services, Go binaries, Rust crates, COBOL bridges — every project
- * shape the same way.
+ * framework-specific path roots).
  */
 import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
 
@@ -48,16 +30,9 @@ import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
  * Stack-agnostic: every dir name is a noun, not a path; the function
  * has no knowledge of any specific language or framework.
  *
- * Plan v4 Phase A.1 (2026-05-09) — `excludedDirsOverride` MUST be
- * threaded through from the agent-spawn layer so an agent that
- * legitimately needs access to an "excluded" directory (the Phase 3
- * synthesizer reads `<projectPath>/.claude-temp/`) is not silently
- * blocked by `permissions.deny`. Claude CLI 2.1.x evaluates deny rules
- * before allow rules regardless of allow-rule specificity, so the only
- * way to grant a per-agent exemption is to omit the directory from the
- * deny list itself. The override shape mirrors the value that flows to
- * the PreToolUse path-restriction hook so both layers agree on what
- * the agent can touch.
+ * `excludedDirsOverride` allows a per-agent exemption list so agents that
+ * legitimately need access to an "excluded" directory are not silently
+ * blocked. The override shape mirrors the PreToolUse path-restriction hook.
  */
 export function buildClaudeDenyRules(
   projectPath: string,
@@ -68,8 +43,6 @@ export function buildClaudeDenyRules(
   const rules: string[] = [];
   for (const dir of dirs) {
     if (!dir || typeof dir !== 'string') continue;
-    // Trim accidental whitespace / slashes from the directory name. The
-    // source list is curated and shouldn't contain those, but defensive.
     const cleaned = dir.replace(/^[/\\\s]+|[/\\\s]+$/g, '');
     if (!cleaned) continue;
     rules.push(`Read(./${cleaned}/**)`);

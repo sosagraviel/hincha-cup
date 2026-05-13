@@ -1,0 +1,50 @@
+{
+  "name": "@mini-monorepo/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "test": "jest --config jest.config.mjs",
+    "test:unit": "jest --config jest.config.mjs",
+    "test:integration": "jest --config jest.integration.config.ts",
+    "test:e2e": "playwright test",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:migrate": "typeorm migration:run -d src/typeorm.datasource.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.11",
+    "@nestjs/config": "^4.0.1",
+    "@nestjs/core": "^11.0.11",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.0.11",
+    "@nestjs/typeorm": "^11.0.0",
+    "@mini-monorepo/shared": "workspace:*",
+    "axios": "^1.9.0",
+    "bullmq": "^5.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "ioredis": "^5.9.2",
+    "passport-jwt": "^4.0.1",
+    "pg": "^8.12.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.0",
+    "typeorm": "^0.3.20"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.0.11",
+    "@playwright/test": "^1.45.0",
+    "@types/jest": "^29.0.0",
+    "@types/node": "^22.0.0",
+    "@types/passport-jwt": "^4.0.0",
+    "jest": "^29.0.0",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.5.0"
+  }
+}

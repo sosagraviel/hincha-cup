@@ -30,7 +30,6 @@ const PROVIDER_PATHS: Record<Provider, ProviderPaths> = {
   },
 };
 
-// Module-level active provider (set during initialization)
 let activeProvider: Provider = Provider.CLAUDE;
 
 /**

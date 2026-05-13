@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: productcatalogservice-config
+data:
+  PORT: "7000"
+  LOG_LEVEL: "info"

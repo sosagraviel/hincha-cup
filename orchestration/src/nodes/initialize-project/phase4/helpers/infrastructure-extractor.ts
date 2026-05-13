@@ -1,19 +1,12 @@
 /**
  * Phase 4: Infrastructure Extractor Helper
  *
- * Extracts and normalises infrastructure information from Phase 1
- * tech-stack analyzer output.
+ * Extracts and normalises infrastructure information from Phase 1 tech-stack
+ * analyzer output. Drops category abstractions emitted by the analyzer
+ * (`containerization`, `orchestration`, etc.) and substitutes concrete
+ * technology names from project filesystem evidence.
  *
- * Plan 16 §C.6 — drop category abstractions emitted by the
- * analyzer (`containerization`, `orchestration`,
- * `infrastructure-as-code`, …) and substitute concrete technology
- * names from project filesystem evidence (`docker-compose.yml`,
- * `Dockerfile`, `.k8s/`, `terraform/`, etc.). Categories are not
- * useful to the operator — `make sh` against a category-named
- * tool doesn't exist; `docker compose exec backend bash` does.
- *
- * Stack-agnostic — only generic file-presence checks. No language
- * assumptions.
+ * Stack-agnostic — only generic file-presence checks. No language assumptions.
  */
 
 import { existsSync, statSync } from 'fs';
@@ -21,10 +14,7 @@ import { join } from 'path';
 
 /**
  * Category words the analyzer sometimes emits in place of concrete
- * technology names. Matched case-insensitively. When found, dropped
- * from the output unless we can't replace them with project
- * evidence (in which case still drop them — leaving an empty list
- * is more honest than a category abstraction).
+ * technology names. Matched case-insensitively; dropped from output.
  */
 const CATEGORY_WORDS = new Set([
   'containerization',
@@ -87,7 +77,6 @@ const FILESYSTEM_PROBES: FilesystemProbe[] = [
 export function extractInfrastructure(techStackFindings: unknown, projectPath?: string): string[] {
   const tools = new Set<string>();
 
-  // 1. Pull from analyzer output, dropping categorical strings.
   const fromAnalyzer = readInfrastructureArray(techStackFindings);
   for (const entry of fromAnalyzer) {
     const cleaned = entry.trim().toLowerCase();
@@ -96,7 +85,6 @@ export function extractInfrastructure(techStackFindings: unknown, projectPath?: 
     tools.add(cleaned);
   }
 
-  // 2. Augment with project-filesystem evidence when available.
   if (projectPath && projectPath.length > 0) {
     for (const probe of FILESYSTEM_PROBES) {
       for (const candidate of probe.evidence) {
@@ -110,10 +98,6 @@ export function extractInfrastructure(techStackFindings: unknown, projectPath?: 
 
   return Array.from(tools).sort();
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function readInfrastructureArray(findings: unknown): string[] {
   if (!findings || typeof findings !== 'object') return [];

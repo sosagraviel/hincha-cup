@@ -131,11 +131,28 @@ describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan
       //     once Phase D's per-service fan-out lets us delete the
       //     per-service `code_patterns` snippet-selection guidance
       //     from code-patterns-analyzer's body.
+      //   - 2026-05-11 (Plan v5):
+      //       * structure-analyzer gained an inspection→output mapping
+      //         table (~280 chars) so the agent knows which findings
+      //         field each Phase 0 inspection slot maps to;
+      //       * data-flows-analyzer Step 9 gained a "Framework-provided
+      //         hints (Plan v5 Phase 4)" block (~900 chars) describing
+      //         the new `infrastructure_services_hints[]` inspection
+      //         field — eliminates the agent's docker-compose port
+      //         re-discovery loop on the common shape;
+      //       * code-patterns-analyzer Step 5 / Step 7 were net-rewritten
+      //         to delegate `quality_tools` + readme/contributing
+      //         booleans to the framework (smaller, not larger).
+      //     Net delta: +~1100 chars. Bumping cap 71500 → 73000 keeps
+      //     the prompt-size ratchet meaningful (still below the 73938
+      //     pre-cleanup baseline) while accommodating the v5
+      //     deterministic-post-fill documentation that the agents
+      //     legitimately need to coordinate with the framework.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
-      expect(total).toBeLessThan(71500);
+      expect(total).toBeLessThan(73000);
     });
   });
 });

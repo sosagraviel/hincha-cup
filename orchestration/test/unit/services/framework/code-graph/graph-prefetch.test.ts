@@ -121,6 +121,49 @@ describe('renderPrefetchHint', () => {
     expect(hint).toContain('svc-a, svc-b');
   });
 
+  // Plan v9 Phase 9 — fat-cluster names must never reach the agent's
+  // prefetch hint. Each name below is a real-world community label that
+  // would overflow the agent's context if the agent drilled into it.
+  it('filters every fat-cluster community-name pattern (Plan v9 Phase 9)', () => {
+    const offenders = [
+      'users-it:should-create-user',
+      'auth-test:reject-invalid-token',
+      'billing-tests:archive-invoice',
+      'orders-describe',
+      'orders-asserts',
+      'orders-constructor',
+      'orders-constructors',
+      'orders-handle',
+      'orders-handles',
+      'orders-upsert',
+      'orders-exception',
+      'orders-exceptions',
+      'shared',
+      'helpers',
+      'utils',
+      'base',
+      'core',
+      'main',
+      'index',
+      'foo-shared',
+      'pkg-utils',
+    ];
+    const realServices = ['auth', 'billing', 'orders', 'users', 'inventory'];
+    const hint = renderPrefetchHint({
+      generatedAt: '2026-05-05T00:00:00Z',
+      graphSha: 'abc',
+      minimalContext: {
+        topCommunities: [...realServices, ...offenders].map((n) => ({ name: n, size: 50 })),
+      },
+    });
+    for (const bad of offenders) {
+      expect(hint, `fat-cluster name "${bad}" leaked into prefetch hint`).not.toContain(bad);
+    }
+    for (const good of realServices) {
+      expect(hint, `real service "${good}" should appear in prefetch hint`).toContain(good);
+    }
+  });
+
   it('caps the hint to a reasonable size (≤ 1 KB)', () => {
     const hint = renderPrefetchHint({
       generatedAt: '2026-05-05T00:00:00Z',

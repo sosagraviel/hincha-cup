@@ -52,8 +52,6 @@ export async function wikiGenerationNode(
       stackProfile: context.stackProfile,
       digestedUpstream: context.digestedUpstream,
       codeGraphToolCatalog: state.code_graph_tool_catalog,
-      // Phase coordinate so debug attempts go under phase-4-wiki/ instead of
-      // phase-unknown/ — see plans/2026-04-29-gira-init-run-audit-refactor.md F2.
       phase: getInitializeProjectPhase('phase4Wiki'),
       graph: {
         available: state.code_graph_available,
@@ -70,9 +68,6 @@ export async function wikiGenerationNode(
       context.graphCommit ?? 'unknown',
     );
 
-    // Build the index AFTER every other page so its summary catalog can read
-    // each page's frontmatter (summary / confidence / tags / related). Tier 1
-    // retrieval at consumer time becomes one read instead of N.
     const indexInputPages: GeneratedWikiFile[] = [architecture, servicesCatalog, ...serviceDocs];
     const index = wiki.buildIndex(
       indexInputPages,
@@ -115,10 +110,6 @@ export async function wikiGenerationNode(
       pipeline_version: 'ai-agentic-framework',
       last_indexed_commit: context.graphCommit ?? 'unknown',
       last_ingest_at: context.generatedAt,
-      // Thread Phase 0 graph stats into .state.json so consumers (wiki
-      // refresh, lint, the metrics dashboard) can read graph metrics
-      // without re-running `code-review-graph stats`. Stack-agnostic —
-      // the stats shape is language-derived from the graph itself.
       graph_stats: state.code_graph_stats,
     });
 
@@ -142,14 +133,6 @@ export async function wikiGenerationNode(
     );
     const disciplineSection = buildGraphDisciplineSection();
 
-    // Upsert both fenced sections into the project's main schema doc
-    // (CLAUDE.md / AGENTS.md). The wiki context pointer only needs to live in
-    // ONE place — the schema doc that every Claude or Codex agent already
-    // reads at session start. The three prescriptive convention skills
-    // (code-conventions, multi-file-workflows, testing-conventions) carry
-    // prescriptive rules only and intentionally do NOT reference the wiki.
-    // Idempotent across re-runs: the regex replaces the prior section in
-    // place rather than appending duplicates.
     const claudeMdContent = readFileSync(claudeMdPath, 'utf-8');
     writeFileSync(
       claudeMdPath,

@@ -6,7 +6,6 @@
  * Detect if output is JSON format instead of markdown
  */
 export function detectJSONFormat(output: string): string | null {
-  // Quick check: starts with { and contains agent_name
   if (output.startsWith('{') && output.includes('"agent_name"')) {
     return [
       'OUTPUT IS JSON FORMAT - MUST BE MARKDOWN',
@@ -35,7 +34,6 @@ export function detectJSONFormat(output: string): string | null {
     ].join('\n');
   }
 
-  // Check for JSON object anywhere in output (handles preamble + JSON)
   const jsonObjectMatch = output.match(/\{[^{}]*"agent_name"[^{}]*\}/s);
   if (jsonObjectMatch) {
     return [
@@ -66,7 +64,6 @@ export function detectJSONFormat(output: string): string | null {
     ].join('\n');
   }
 
-  // Additional check: valid JSON object
   if (output.startsWith('{') && output.endsWith('}')) {
     try {
       const parsed = JSON.parse(output);
@@ -81,9 +78,7 @@ export function detectJSONFormat(output: string): string | null {
           '   Output the markdown content directly, starting with "# CLAUDE.md Content"',
         ].join('\n');
       }
-    } catch {
-      // Not valid JSON, that's fine
-    }
+    } catch {}
   }
 
   return null;

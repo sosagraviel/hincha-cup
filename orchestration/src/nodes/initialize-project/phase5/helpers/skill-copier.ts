@@ -70,7 +70,6 @@ function selectSkillFile(srcDir: string, provider: Provider): SkillFileSelection
     return { sourcePath: providerVariantPath, variantFileNames };
   }
   if (variantFileNames.size > 0 && !providerVariantPath) {
-    // Provider-specific skill with no variant for the requested provider
     return { sourcePath: null, variantFileNames };
   }
   if (hasPlain) {
@@ -142,10 +141,8 @@ export function copySkillForProvider(srcDir: string, destDir: string, provider: 
 
   const { sourcePath, variantFileNames } = selectSkillFile(srcDir, provider);
 
-  // Skip every provider-specific SKILL variant at the top level; we write the
-  // selected one (if any) as `SKILL.md` manually below.
   const skipTopLevel = new Set<string>(variantFileNames);
-  skipTopLevel.add('SKILL.md'); // handled explicitly
+  skipTopLevel.add('SKILL.md');
 
   let fileCount = copyTree(srcDir, destDir, provider, skipTopLevel, true);
 

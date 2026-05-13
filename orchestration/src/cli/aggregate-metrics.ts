@@ -19,7 +19,6 @@ program
   .name('aggregate-metrics')
   .description('Aggregate token-usage JSONL into a per-run summary with SLA comparisons')
   .version('1.0.0')
-  // --project-path is no longer accepted: paths.service.ts resolves locally.
   .option('--artifacts-dir <path>', 'Override ARTIFACTS_DIR')
   .action(async (options) => {
     try {

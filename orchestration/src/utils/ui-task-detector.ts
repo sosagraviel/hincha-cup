@@ -15,10 +15,6 @@ import type { StackProfile } from '../schemas/index.js';
  *   5. Acceptance Criteria Visual References (max 10)
  */
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const PRIMARY_UI_KEYWORDS = [
   'screen',
   'page',
@@ -96,10 +92,6 @@ const VISUAL_AC_TERMS = [
 const FIGMA_URL_PATTERN =
   /https?:\/\/(?:www\.)?figma\.com\/(?:design|file)\/([a-zA-Z0-9]+)(?:\/[^?\s]*)?(?:\?[^?\s]*node-id=([0-9]+-[0-9]+))?/gi;
 
-// ---------------------------------------------------------------------------
-// Interfaces
-// ---------------------------------------------------------------------------
-
 export interface FigmaReference {
   url: string;
   fileKey: string;
@@ -120,10 +112,6 @@ export interface UITaskClassification {
   detectedKeywords: string[];
   recommendation: 'ui-visual-testing' | 'regression-only' | 'no-ui';
 }
-
-// ---------------------------------------------------------------------------
-// Signal Scoring Functions
-// ---------------------------------------------------------------------------
 
 /**
  * Signal 1: Ticket Content Keywords (max 30 points)
@@ -164,7 +152,6 @@ function scoreFigmaReferences(text: string): { score: number; references: FigmaR
   const references: FigmaReference[] = [];
   let hasNodeId = false;
 
-  // Reset lastIndex for the global regex
   FIGMA_URL_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -252,10 +239,6 @@ function scoreAcceptanceCriteria(text: string): number {
 
   return Math.min(score, 10);
 }
-
-// ---------------------------------------------------------------------------
-// Main Classifier
-// ---------------------------------------------------------------------------
 
 /**
  * Classify whether a task involves UI work.

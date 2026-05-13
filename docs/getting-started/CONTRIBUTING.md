@@ -349,16 +349,19 @@ $implement-ticket TEST-123    # Codex CLI
 
 ## Testing Your Changes
 
-### Integration Tests
+### Unit + Integration Tests
 
-The framework includes integration tests for the full SDLC workflow:
+All tests live under `orchestration/test/`:
 
 ```bash
-# Run all integration tests
-./qubika-agentic-framework/tests/run-integration-tests.sh
+# Unit tests
+pnpm --filter orchestration test:unit
 
-# Run specific test
-./qubika-agentic-framework/tests/run-integration-tests.sh go-microservice
+# Integration tests (require live Claude CLI; burns tokens — see fixture-runner scripts)
+pnpm --filter orchestration test:integration
+
+# Run a specific integration fixture end-to-end (heaviest path)
+./orchestration/test/integration/initialize-project/scripts/run-fixture.sh mini-monorepo --confirm
 ```
 
 ### Manual Testing
@@ -404,8 +407,11 @@ git checkout -b feature/add-vue-skill
 3. **Test thoroughly**
 
 ```bash
-# Run integration tests
-./qubika-agentic-framework/tests/run-integration-tests.sh
+# Unit tests
+pnpm --filter orchestration test:unit
+
+# Integration tests (requires live Claude CLI)
+pnpm --filter orchestration test:integration
 
 # Test on real projects
 ./qubika-agentic-framework/scripts/initialize-project.sh
@@ -510,6 +516,35 @@ Include:
 4. **Actual Behavior**: What actually happened?
 5. **Environment**: OS, Claude Code version, project type
 6. **Logs**: Relevant error messages or logs
+
+---
+
+## Extending the Language Registry
+
+The `/initialize-project` workflow runs deterministic post-fills driven by `orchestration/src/services/framework/language-config/`. Adding a new external service / auth library / event-queue library / framework / language / manifest kind takes one or two files — never an analyzer-prompt edit.
+
+### Where each token lives
+
+| Category | File | Field |
+|---|---|---|
+| External-service SDK (Stripe, Sentry, …) | `languages/<lang>.ts` | `toolTokens.externalServiceSdks[]` |
+| Auth library (Passport, NextAuth, …) | `languages/<lang>.ts` | `toolTokens.authLibraries[]` |
+| Event-queue library (BullMQ, Kafka, …) | `languages/<lang>.ts` | `toolTokens.eventQueueLibraries[]` |
+| Linter / formatter / type-checker / test-runner / common framework / database | `languages/<lang>.ts` | `toolTokens.*` |
+| Manifest kind for service discovery | `languages/<lang>.ts` | `manifests[]` |
+| Lock file → package manager mapping | `languages/<lang>.ts` | `lockFiles[]` |
+| Runtime-version pin file | `languages/<lang>.ts` | `runtimeVersionFiles[]` |
+| New language family | new `languages/<key>.ts` + one import line in `languages/index.ts` |
+
+### Worked example — add SendGrid for Python
+
+Open `orchestration/src/services/framework/language-config/languages/python.ts` and add one line to `externalServiceSdks`:
+
+```ts
+{ pkg: 'sendgrid', vendor: 'SendGrid', purpose: 'transactional email' },
+```
+
+That's it. The composer-derivation library picks it up at `/initialize-project` time, the composer view surfaces it under `architecture-narrative.external_services[]`, the synthesizer renders it into the architectural narrative, and the LLM wiki notes the integration — without any prompt edits or analyzer changes. Adding a new manifest kind (e.g. `BUILD.bazel`) automatically widens the service-completeness validator's discovery surface in the same way.
 
 ---
 

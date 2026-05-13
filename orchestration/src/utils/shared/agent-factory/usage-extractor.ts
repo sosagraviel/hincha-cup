@@ -1,26 +1,7 @@
 /**
- * Plan §E, commit C (2026-05-05) — cache hit observability for both
- * CLI modes (Claude CLI + Codex CLI).
- *
- * Before this commit both `cli-agent-impl.ts` and `codex-cli-agent-impl.ts`
- * hardcoded `cache_hit: false` in `emitTokenUsage(...)`. Only DeepAgents
- * read `cache_read_input_tokens` from the response. So `run-stats.ts`
- * always rolled up `Cache hit rate: 0%` for any CLI run — making the
- * sidebar dishonest about whether caching was actually engaged.
- *
- * The data IS available in the JSONL streams the CLIs emit; the framework
- * just wasn't using it for emit-time telemetry. This module is the pure
- * extractor both CLI impls call before `emitTokenUsage` to surface real
- * cache reads.
- *
- * Both extractors are best-effort:
- *   - empty / malformed input → return all-unknown rollup (`-1` tokens,
- *     `cache_hit: false`)
- *   - unknown event shapes → skip
- *   - JSON parse failures → skip
- *
- * `cli-agent-impl.ts` and `codex-cli-agent-impl.ts` swallow exceptions
- * around the call site so observability never breaks the surrounding
+ * Cache-hit observability extractors for Claude CLI and Codex CLI JSONL streams.
+ * Both extractors are best-effort — malformed or empty input returns the unknown-marker
+ * rollup (`-1` tokens). Callers swallow exceptions so observability never breaks an
  * agent invocation.
  */
 
@@ -42,20 +23,8 @@ const UNKNOWN: UsageRollup = {
 };
 
 /**
- * Walk a Claude Code JSONL transcript stream and sum token usage across
- * every assistant message. Cache fields:
- *
- *   - `cache_creation_input_tokens` — first time the prefix was cached
- *     (charged at ~125% of normal input rate)
- *   - `cache_read_input_tokens` — every subsequent read of the cached
- *     prefix (charged at ~10% of normal input rate)
- *
- * Both are sums across the run; a session with `cacheReadInputTokens > 0`
- * means at least one assistant turn read from the cache.
- *
- * The shape is the one the framework's
- * `claude-transcript.parser.ts:103-106` already extracts. Reusing the
- * field names verbatim keeps the two parsers in sync.
+ * Walk a Claude Code JSONL transcript stream and sum token usage across every assistant message.
+ * A session with `cacheReadInputTokens > 0` means at least one turn read from the cache.
  */
 export function extractUsageFromClaudeJsonl(jsonl: string): UsageRollup {
   if (!jsonl || !jsonl.trim()) return { ...UNKNOWN };
@@ -166,9 +135,6 @@ export function extractUsageFromCodexJsonl(jsonl: string): UsageRollup {
     inputTokens,
     outputTokens,
     cacheReadInputTokens,
-    // OpenAI's automatic prompt cache does not surface a creation-cost
-    // counter — we report 0 so downstream consumers can still distinguish
-    // "no info" (-1) from "info present, no creation".
     cacheCreationInputTokens: 0,
   };
 }
@@ -207,9 +173,6 @@ function pickCodexUsageObject(entry: Record<string, unknown>): Record<string, un
     if (inner && typeof inner === 'object') return inner;
   }
 
-  // Last-resort: the flat shape. Only treat as usage when at least one
-  // recognised field is present so we don't false-positive on every
-  // entry.
   const flat = entry as Record<string, unknown>;
   if (
     typeof flat.input_tokens === 'number' ||

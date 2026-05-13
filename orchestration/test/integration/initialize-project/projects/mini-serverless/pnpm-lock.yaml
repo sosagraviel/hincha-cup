@@ -1,0 +1,24 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+
+importers:
+  .:
+    devDependencies:
+      eslint: { specifier: ^9.0.0, version: 9.0.0 }
+      husky: { specifier: ^9.0.0, version: 9.0.0 }
+      prettier: { specifier: ^3.3.0, version: 3.3.0 }
+      cypress: { specifier: ^13.0.0, version: 13.0.0 }
+      '@playwright/test': { specifier: ^1.45.0, version: 1.45.0 }
+  firebase:
+    dependencies:
+      firebase-admin: { specifier: ^12.0.0, version: 12.0.0 }
+      firebase-functions: { specifier: ^5.0.0, version: 5.0.0 }
+  functions/js:
+    dependencies:
+      '@google-cloud/functions-framework': { specifier: ^3.0.0, version: 3.0.0 }
+  web:
+    dependencies:
+      react: { specifier: ^18.3.0, version: 18.3.0 }
+      vite: { specifier: ^5.4.0, version: 5.4.0 }

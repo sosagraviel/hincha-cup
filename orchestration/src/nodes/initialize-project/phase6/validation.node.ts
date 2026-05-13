@@ -52,9 +52,6 @@ export async function validationNode(
     const instructionFilePath = resolveInstructionFilePath(state.project_path);
     const instructionFileName = getInstructionFileName();
 
-    // The three prescriptive convention skills emitted by Phase 3 synthesis
-    // and written by Phase 4a. All three are required — every project gets
-    // all three regardless of stack.
     const conventionSkillPaths: Array<{ label: string; path: string }> = [
       {
         label: 'code-conventions/SKILL.md',
@@ -81,10 +78,8 @@ export async function validationNode(
     const shouldValidateWiki = Boolean(state.llm_wiki_path || state.phase4_wiki_generation);
     const llmWikiPath = state.llm_wiki_path || join(state.project_path, 'docs', 'llm-wiki');
 
-    // Get standard directory paths
     const directories = getClaudeDirectories(state.project_path);
 
-    // 1. Validate instruction file (CLAUDE.md or AGENTS.md) exists and is valid
     const claudeMdResult = validateMarkdownFile(instructionFilePath, instructionFileName);
     validationErrors.push(...claudeMdResult.errors);
     validationWarnings.push(...claudeMdResult.warnings);
@@ -92,9 +87,6 @@ export async function validationNode(
       phaseLogger.success(` ✓ ${instructionFileName} validated`);
     }
 
-    // 2. Validate the three prescriptive convention skills exist and are
-    // valid markdown. All three are required — every project gets all three
-    // regardless of stack (the bodies are stack-specific but the set is not).
     for (const { label, path } of conventionSkillPaths) {
       const skillResult = validateMarkdownFile(path, label);
       validationErrors.push(...skillResult.errors);
@@ -104,7 +96,6 @@ export async function validationNode(
       }
     }
 
-    // 3. Validate framework-config.json exists and is valid
     const configResult = validateFrameworkConfig(frameworkConfigPath);
     validationErrors.push(...configResult.errors);
     validationWarnings.push(...configResult.warnings);
@@ -112,7 +103,6 @@ export async function validationNode(
       phaseLogger.success(' ✓ framework-config.json validated');
     }
 
-    // 4. Validate AI knowledge wiki when this workflow generated it
     if (shouldValidateWiki) {
       const wikiErrors: string[] = [];
       const wikiStackProfile = readStackProfileForWiki(state, frameworkConfigPath);
@@ -134,21 +124,18 @@ export async function validationNode(
       }
     }
 
-    // 5. Validate skills directory exists
     const skillsResult = validateDirectoryExists(directories.skills, 'Skills');
     validationErrors.push(...skillsResult.errors);
     if (skillsResult.valid) {
       phaseLogger.success(' ✓ Skills directory exists');
     }
 
-    // 6. Validate agents directory exists and has minimum agents
     const agentsResult = validateDirectoryWithFiles(directories.agents, 'Agents');
     validationErrors.push(...agentsResult.errors);
 
     if (agentsResult.valid && agentsResult.files) {
       phaseLogger.success(` ✓ Agents directory exists with ${agentsResult.fileCount} agents`);
 
-      // Validate agent coverage
       const coverageResult = validateAgentCoverage(agentsResult.files, frameworkConfigPath);
       validationErrors.push(...coverageResult.errors);
       validationWarnings.push(...coverageResult.warnings);
@@ -170,7 +157,6 @@ export async function validationNode(
       }
     }
 
-    // 7. Validate code graph MCP for the active provider's native config format
     const graphMcpResult = validateCodeGraphMcpConfig({
       projectPath: state.project_path,
       frameworkPath: state.framework_path,
@@ -182,16 +168,10 @@ export async function validationNode(
       phaseLogger.success(' ✓ Code graph MCP config validated');
     }
 
-    // 8. Validate all phases completed
     const phaseCompletionResult = validatePhaseCompletion(state);
     validationErrors.push(...phaseCompletionResult.errors);
     validationWarnings.push(...phaseCompletionResult.warnings);
 
-    // 9. Portability scan: walk the generated <project>/.claude/ + .codex/ tree
-    // and fail the run on any non-portable absolute path. This is the runtime
-    // safety net for D6 — even if a writer slips past the type system, Zod
-    // refinement, and PortableWriter assertion, this scan catches it before
-    // the run reports success and the developer commits non-portable artifacts.
     phaseLogger.info(' Validating portability of generated .claude/ + .codex/ artifacts...');
     const portability = validatePortability(state.project_path);
     if (!portability.ok) {
@@ -214,7 +194,6 @@ export async function validationNode(
       );
     }
 
-    // Check for validation errors
     if (validationErrors.length > 0) {
       phaseLogger.error(' ✗ Validation failed:');
       validationErrors.forEach((err) => phaseLogger.error(`  - ${err}`));
@@ -226,7 +205,6 @@ export async function validationNode(
       };
     }
 
-    // Success!
     const completedAt = new Date().toISOString();
     const totalDuration = state.started_at
       ? new Date(completedAt).getTime() - new Date(state.started_at).getTime()
@@ -255,7 +233,6 @@ export async function validationNode(
       completed_at: completedAt,
       total_duration_ms: totalDuration,
       warnings: [...state.warnings, ...validationWarnings],
-      // Set paths in state if they weren't already set (for --start-phase 6)
       claude_md_path: instructionFilePath,
       code_conventions_path: state.code_conventions_path || conventionSkillPaths[0].path,
       multi_file_workflows_path: state.multi_file_workflows_path || conventionSkillPaths[1].path,

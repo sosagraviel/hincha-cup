@@ -1,0 +1,7 @@
+node_modules
+*.lock
+pnpm-lock.yaml
+go.sum
+poetry.lock
+packages.lock.json
+.claude-temp

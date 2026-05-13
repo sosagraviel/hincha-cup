@@ -6,10 +6,6 @@
 
 import { z } from 'zod';
 
-// ============================================================================
-// AGENT GENERATOR TYPES
-// ============================================================================
-
 /**
  * Agent metadata
  */
@@ -45,10 +41,6 @@ export interface AgentSkillAssignments {
   planner: ResolvedSkill[];
   [agentName: string]: ResolvedSkill[]; // implementer-typescript, implementer-python, etc.
 }
-
-// ============================================================================
-// SKILL RESOLVER TYPES
-// ============================================================================
 
 /**
  * Skill Config Schema
@@ -94,7 +86,7 @@ export type AgentRole = 'planner' | 'implementer';
 export interface ResolvedSkill {
   name: string;
   path: string;
-  relative_path: string; // Original path in framework (e.g., "050-language-frameworks/mastering-javascript"), used for reference only
+  relative_path: string;
   reason: string;
   description: string;
   compatible_languages?: string[];
@@ -114,8 +106,8 @@ export interface ResolvedSkill {
  * Detected stack with both normalized and original package names
  */
 export interface DetectedStack {
-  normalized: Set<string>; // For exact matching: "firebase" -> "firebase"
-  original: Set<string>; // For prefix matching with delimiters: "@google-cloud/firestore"
+  normalized: Set<string>;
+  original: Set<string>;
 }
 
 /**
@@ -125,10 +117,6 @@ export interface TriggerMatchResult {
   matches: boolean;
   matchedTriggers: string[];
 }
-
-// ============================================================================
-// COMMAND EXTRACTION TYPES
-// ============================================================================
 
 /**
  * Language-specific command set

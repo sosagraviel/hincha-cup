@@ -1,21 +1,21 @@
 /**
- * Codex parity for the gira-followup work — plan §C (commit A, 2026-05-05).
+ * Codex graph-tool-uses extractor.
  *
  * Claude CLI sessions get a graph-tool-uses sidecar written by the Stop
  * hook (`validate-analyzer-json.hook.ts`). Codex CLI has no Stop hook
- * equivalent (per OpenAI's hook docs only `PreToolUse` is supported), so
- * the framework needs to do the same extraction in-process after the
- * Codex run completes.
+ * equivalent (per OpenAI's hook docs only `PreToolUse` is supported),
+ * so the framework needs to do the same extraction in-process after
+ * the Codex run completes.
  *
- * This module is the pure, testable extractor that walks a Codex rollout
- * JSONL stream and returns the same `GraphToolUsesSidecar` shape the
- * Claude path produces. Same downstream consumers, same telemetry, same
- * soft-warning vocabulary — the only difference is where the bytes
- * originated.
+ * This module is the pure, testable extractor that walks a Codex
+ * rollout JSONL stream and returns the same `GraphToolUsesSidecar`
+ * shape the Claude path produces. Same downstream consumers, same
+ * telemetry, same soft-warning vocabulary — the only difference is
+ * where the bytes originated.
  *
- * Stack-agnostic by construction: works on any Codex rollout regardless
- * of which graph tools were called or which language the project is
- * written in.
+ * Stack-agnostic by construction: works on any Codex rollout
+ * regardless of which graph tools were called or which language the
+ * project is written in.
  */
 import type { GraphToolUsesSidecar } from './graph-tool-usage.js';
 
@@ -71,6 +71,7 @@ export function extractGraphToolUsesFromCodexJsonl(jsonl: string): GraphToolUses
   const useByCallId = new Map<string, { tool: string; callIndex: number }>();
   let callIndex = 0;
   const overflows: NonNullable<GraphToolUsesSidecar['overflows']> = [];
+  const globPatterns = new Set<string>();
 
   for (const rawLine of jsonl.split('\n')) {
     const trimmed = rawLine.trim();
@@ -97,9 +98,14 @@ export function extractGraphToolUsesFromCodexJsonl(jsonl: string): GraphToolUses
           useByCallId.set(callId, { tool: name, callIndex });
         }
       } else {
-        // Read / Glob / Grep / Bash / apply_patch / etc. — counted to
-        // drive the `low_graph_ratio` soft warning downstream.
         nonGraphCount += 1;
+        if (name === 'Glob') {
+          const args = extractCallArgs(item);
+          const pattern = args?.pattern;
+          if (typeof pattern === 'string' && pattern.length > 0) {
+            globPatterns.add(pattern);
+          }
+        }
       }
       continue;
     }
@@ -127,7 +133,32 @@ export function extractGraphToolUsesFromCodexJsonl(jsonl: string): GraphToolUses
     nameCounts,
     nonGraphCount,
     overflows,
+    globPatterns: globPatterns.size > 0 ? Array.from(globPatterns).sort() : undefined,
   };
+}
+
+/**
+ * Pull the arguments object from a Codex `function_call` item — supports
+ * the two common shapes (`arguments` as JSON string or `input` as object).
+ * Returns `null` when neither shape is parseable.
+ */
+function extractCallArgs(item: Record<string, unknown>): Record<string, unknown> | null {
+  const raw = item.arguments ?? item.input;
+  if (raw == null) return null;
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 /**

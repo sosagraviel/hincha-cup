@@ -23,7 +23,6 @@ export function generateRunId(now: Date = new Date()): string {
  */
 export function timestampStamp(now: Date = new Date()): string {
   const iso = now.toISOString();
-  // 2026-04-23T12:34:56.789Z  →  2026-04-23T12-34-56
   return iso.slice(0, 19).replace(/[:]/g, '-');
 }
 

@@ -23,7 +23,6 @@ import {
 import { locateClaudeTranscript } from '../../../services/framework/transcripts/capture.js';
 import { extractUsageFromClaudeJsonl, rollupToCacheHit } from './usage-extractor.js';
 
-// Track active processes and invocations for cleanup
 const activeProcesses: Set<ChildProcess> = new Set();
 const activeInvocations: Map<number, (reason: Error) => void> = new Map();
 let invocationCounter = 0;
@@ -182,11 +181,6 @@ async function invokeCLI(
     activeInvocations.set(invocationId, reject);
 
     (async () => {
-      // Transient scratch dir for the subprocess — holds the prompt file that
-      // Claude CLI reads via stdin and (optionally) the resolved settings
-      // file passed via `--settings`. We deliberately keep this OUT of the
-      // project's `.<provider>-temp/` tree: every debug artifact lives under
-      // `debug/runs/<runId>/…` (via the DebugStore). Cleaned up after exit.
       const sessionTempDir = await mkdtemp(path.join(os.tmpdir(), 'framework-claude-'));
       const promptFile = path.join(sessionTempDir, 'prompt.txt');
 
@@ -231,8 +225,6 @@ async function invokeCLI(
       const cliArgs = ['--agent', config.agentFilePath, '--model', run.model];
 
       if (toolsRestriction) {
-        // Split frontmatter list into built-in tools vs MCP permission patterns.
-        // --tools gates built-ins; --allowedTools auto-approves MCP permission names.
         const entries = toolsRestriction
           .split(',')
           .map((tool) => tool.trim())
@@ -253,26 +245,6 @@ async function invokeCLI(
       if (config.settingsPath) {
         try {
           const originalSettings = fs.readFileSync(config.settingsPath, 'utf-8');
-          // First substitution: ${FRAMEWORK_PATH} → absolute framework root.
-          // Second substitution: "${FRAMEWORK_EXCLUDED_DENY_RULES}" → expanded
-          // list of Claude Code `permissions.deny` rules covering every
-          // excluded directory for this project. The placeholder is a single
-          // quoted entry inside a JSON array, replaced with N comma-separated
-          // quoted entries — see services/framework/permissions/excluded-paths.ts
-          // for the rationale and the load-bearing official-docs quote that
-          // guarantees these rules filter Glob/Grep results.
-          // Plan v4 Phase A.1 (2026-05-09) — when the caller supplies an
-          // `excludedDirsOverride` (Phase 3's synthesizer drops `.claude-temp`
-          // and `.codex-temp` from its exclusion list so it can read the
-          // composer views), the override MUST flow through to the deny-rules
-          // builder too. Claude CLI 2.1.x evaluates deny rules BEFORE allow
-          // rules regardless of specificity, so even an explicit
-          // `Read(./.claude-temp/initialize-project/composer-views/**)` allow
-          // is shadowed by the broader `Read(./.claude-temp/**)` deny. The
-          // archive (archive/v3-iteration-100, run 2026-05-08T23-30-20) shows
-          // the synthesizer's reads being silently denied for ~ 5 minutes
-          // before it gave up and emitted a stub. Threading the override here
-          // is the single load-bearing fix.
           const denyRules = buildClaudeDenyRules(
             config.projectPath,
             config.frameworkPath,
@@ -288,16 +260,6 @@ async function invokeCLI(
           await recorder.writeSettings(resolvedSettings);
           cliArgs.push('--settings', tempSettingsFile);
 
-          // Claude CLI settings do not carry MCP server definitions; if an
-          // mcp.json sits next to settings.json, resolve and pass it explicitly.
-          //
-          // Codex parity note: the Codex CLI does NOT take a per-session MCP
-          // config flag. Codex auto-discovers `<cwd>/.codex/config.toml` (and
-          // `~/.codex/config.toml`) on session start. The framework writes the
-          // project-level `.codex/config.toml` in Phase 0 (graph-foundation)
-          // via upsertCodeGraphMcpConfig so Codex Phase 1 analyzers find the
-          // `code_graph` MCP server too. See codex-cli-agent-impl.ts for the
-          // Codex spawn (no --mcp-config flag is needed there).
           const mcpConfigSource = path.join(path.dirname(config.settingsPath), 'mcp.json');
           if (fs.existsSync(mcpConfigSource)) {
             const originalMcp = fs.readFileSync(mcpConfigSource, 'utf-8');
@@ -316,18 +278,6 @@ async function invokeCLI(
         }
       }
 
-      // Pass project boundary + excluded dirs so the PreToolUse hook
-      // (`restrict-agent-paths.hook.ts`) can hard-block tool calls that leave
-      // the project or enter excluded dirs — which prompt-only guidance
-      // doesn't reliably enforce.
-      //
-      // Plan v4 Phase A.1 (2026-05-09) — `excludedDirsOverride` (when set)
-      // takes precedence over the project default. The Phase 3 synthesizer
-      // uses this to drop `.claude-temp` and `.codex-temp` from the
-      // exclusion list so it can read composer views + the consolidation.
-      // The override flows to BOTH the hook env var (here) AND the deny
-      // rules (above) — keep them aligned or the synthesizer's reads
-      // will pass one layer and fail the other.
       const excludedDirs =
         config.excludedDirsOverride ??
         getExcludedDirectories(config.projectPath, config.frameworkPath);
@@ -336,25 +286,11 @@ async function invokeCLI(
         cwd: config.projectPath,
         env: {
           ...process.env,
-          // Plan v4 Phase D: per-spawn extras layered FIRST so framework-
-          // controlled vars below always win on a key collision.
           ...(config.extraEnv ?? {}),
           CLAUDE_SKIP_CONFIRMATIONS: '1',
-          // ────────────────────────────────────────────────────────────────────
-          // ONLY ALLOWED ENV-INJECTION POINT for FRAMEWORK_PATH/FRAMEWORK_PROJECT_PATH.
-          // The bash MCP launcher inside the spawned subprocess uses
-          // `${FRAMEWORK_PATH}` substitution in mcp.json; the PreToolUse path-
-          // restriction hook reads FRAMEWORK_PROJECT_PATH. The orchestration's
-          // own code never reads these env vars — it uses paths.service instead.
-          // Do NOT add new framework-internal call sites that read these env vars.
-          // ────────────────────────────────────────────────────────────────────
           FRAMEWORK_PATH: config.frameworkPath,
           FRAMEWORK_PROJECT_PATH: config.projectPath,
           FRAMEWORK_EXCLUDED_DIRS: JSON.stringify(excludedDirs),
-          // FRAMEWORK_ENFORCE=1 tells the PreToolUse hook that path exclusion
-          // is mandatory for this invocation — any internal hook error must
-          // fail closed (block), not fall back to allow. Unset in ad-hoc CLI
-          // usage outside our spawn, where the hook silently no-ops.
           FRAMEWORK_ENFORCE: '1',
         },
         stdio: [promptFd, 'pipe', 'pipe'],
@@ -408,14 +344,6 @@ async function invokeCLI(
           await recorder.captureTranscript({ outcome: 'success' });
           await recorder.finalize('success', { code });
           await removeScratchDir();
-          // Plan §E, commit C (2026-05-05) — extract real cache hit /
-          // token usage from the JSONL transcript Claude CLI wrote at
-          // `~/.claude/projects/<slug>/<sessionId>.jsonl`. Before this
-          // commit `cache_hit` was hardcoded `false`, so the run-stats
-          // sidebar always showed 0% cache hit rate even when caching
-          // was working. Best-effort: any IO/parse failure falls back
-          // to the prior unknown-marker shape (`-1` tokens,
-          // `cache_hit: false`).
           const usage = await readClaudeUsage(config.projectPath, run.sessionId);
           emitTokenUsage(config.projectPath, {
             ts: new Date().toISOString(),
@@ -488,18 +416,8 @@ async function invokeCLI(
 }
 
 /**
- * Plan §E, commit C (2026-05-05) — best-effort read of the Claude
- * JSONL transcript and rollup of token usage / cache reads. Returns the
- * unknown-marker shape on any failure so the surrounding `emitTokenUsage`
- * call still succeeds with the same fallback values it used before this
- * commit.
- *
- * Why we re-locate the transcript here instead of plumbing it through
- * the recorder: the recorder handles transcript capture for HTML
- * rendering and meta tracking; usage rollup is a separate concern that
- * happens in parallel, and decoupling them keeps the recorder API
- * narrow. Locator + parser are both pure / cheap, so the small bit of
- * duplicated IO is fine.
+ * Best-effort read of the Claude JSONL transcript and rollup of token usage / cache reads.
+ * Returns the unknown-marker shape on any failure.
  */
 async function readClaudeUsage(
   projectPath: string,

@@ -4,16 +4,6 @@ import type { PhaseSlot } from '../framework/debug-store/index.js';
 
 export const LLM_WIKI_FILE_NAMES = ['index.md', 'ARCHITECTURE.md', 'SERVICES.md'] as const;
 
-// Core docs that are LLM-generated. The previous `DATA-FLOWS.md` and
-// `PATTERNS.md` cross-cutting wiki pages were retired:
-//   - Data flows: now described per-service in `wiki/services/<id>.md`
-//     where they have actual context. A cross-cutting flow doc duplicated
-//     facts the per-service docs already carry.
-//   - Patterns: prescriptive content, moved to the `code-conventions` and
-//     `testing-conventions` skills (where rules belong). The wiki carries
-//     descriptive prose only — what IS, not what to DO.
-// SERVICES.md is intentionally excluded from this list — it is a
-// deterministic catalog assembled in the finalization step, not LLM-generated.
 export const LLM_WIKI_CORE_GENERATION_ORDER = ['ARCHITECTURE.md'] as const;
 
 export const LLM_WIKI_CONTEXT_START = '<!-- LLM_WIKI_START -->';
@@ -130,16 +120,6 @@ export type WikiAgentInvoker = (invocation: WikiAgentInvocation) => Promise<stri
 
 /**
  * Digested upstream artifacts piped into the closed-book wiki-generator.
- * All four are produced by earlier phases of the same workflow and live on
- * disk before Phase 4b runs:
- *   - analyzer JSONs in `.<provider>-temp/initialize-project/phase1-outputs/`
- *   - `synthesis-raw.md` in `.<provider>-temp/initialize-project/`
- *   - generated CLAUDE.md / AGENTS.md under `.<provider>/`
- *   - `architectural-narrative.md` in `.<provider>-temp/initialize-project/`
- *     (the descriptive section emitted by Phase 3 synthesis — replaces the
- *     old monolithic project-context skill, which is now split into
- *     prescriptive convention skills not consumed by the wiki).
- *
  * The wiki-generator agent has no filesystem access — these strings are the
  * sole source of truth for every page it renders.
  */
@@ -160,8 +140,7 @@ export interface WikiGeneratorServiceOptions {
   digestedUpstream?: WikiDigestedUpstream;
   /**
    * Maximum number of per-service docs the generator may render concurrently.
-   * Service docs are LLM-backed; unbounded fan-out left half the sessions in
-   * `pending` state during the gira smoke run. Default 3.
+   * Default 3.
    */
   serviceDocConcurrency?: number;
   /**
@@ -172,15 +151,8 @@ export interface WikiGeneratorServiceOptions {
   codeGraphToolCatalog?: Array<{ name: string; description: string }>;
   agentInvoker?: WikiAgentInvoker;
   /**
-   * Phase coordinate threaded through to the per-attempt debug bucket. When
-   * absent, debug attempts are bucketed under `phase-unknown/` — see
-   * plans/2026-04-29-gira-init-run-audit-refactor.md finding F2 (the gira
-   * run had eight wiki sessions tagged `phase-unknown` because this
-   * coordinate was never wired through).
-   *
-   * For initialize-project callers, use
-   * `getInitializeProjectPhase('phase4Wiki')`. For wiki-refresh callers,
-   * use `getWikiRefreshPhase('refresh')` (or whichever slot is canonical).
+   * Phase coordinate threaded through to the per-attempt debug bucket.
+   * When absent, debug attempts are bucketed under `phase-unknown/`.
    */
   phase?: PhaseSlot;
 }

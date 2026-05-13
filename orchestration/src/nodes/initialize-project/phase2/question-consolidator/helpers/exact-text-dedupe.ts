@@ -1,23 +1,13 @@
 /**
- * Plan 14 §C.9.3 (gira-exhaustive-followup-2, 2026-05-05) —
- * deterministic exact-text dedupe for the Phase 2 consolidator.
+ * Deterministic exact-text dedupe for the Phase 2 consolidator. Runs before
+ * the LLM consolidator is spawned and collapses gaps whose question text is
+ * byte-identical after whitespace + case normalisation into a single
+ * canonical entry whose `consolidated_from` is the union of source agents.
  *
- * The consolidator's job is set-dedupe by question text. Most
- * duplicates analyzers emit are byte-identical (or near-identical
- * after whitespace normalisation): three of four analyzers asking
- * "What is the testing coverage policy?" with identical wording
- * is the common shape. Spawning the LLM agent to handle that case
- * costs ~10-15s for zero semantic work — the dedupe is structural,
- * not semantic.
+ * Anything left in `dedupedGaps` is genuinely paraphrased or genuinely
+ * unique and worth the LLM round-trip.
  *
- * This pre-pass runs BEFORE the LLM agent is spawned. It collapses
- * normalised-text duplicates into a single canonical entry whose
- * `consolidated_from` is the union of source agents. Anything left
- * in `dedupedGaps` is genuinely paraphrased (or genuinely unique)
- * and worth the LLM round-trip.
- *
- * Stack-agnostic: text normalisation is whitespace + lowercase
- * only; no language-family or framework token assumptions.
+ * Stack-agnostic: text normalisation is whitespace + lowercase only.
  */
 
 import type { Gap, ConsolidatedGap } from '../types.js';

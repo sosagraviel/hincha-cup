@@ -143,10 +143,7 @@ function stripStaleFrameworkConfigFields(configDirRoot: string, projectPath: str
     logger.info(
       `[portability] stripped stale project_path field from ${relative(projectPath, filePath)}`,
     );
-  } catch {
-    // Best-effort: if the rewrite fails, the scanner will still report the
-    // violation and the developer can fix it manually.
-  }
+  } catch {}
 }
 
 /**
@@ -182,9 +179,7 @@ function stripStaleCodexMcpServerBlock(configDirRoot: string, projectPath: strin
       `[portability] stripped stale [mcp_servers.code_graph] block from ${relative(projectPath, filePath)} ` +
         `(ensure-context.sh re-emits it locally with the developer's absolute paths)`,
     );
-  } catch {
-    // Best-effort: scanner will catch the leak if the rewrite fails.
-  }
+  } catch {}
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

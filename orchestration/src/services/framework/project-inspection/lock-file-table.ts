@@ -1,15 +1,20 @@
 /**
- * Plan v3 §A — lock-file → manager mapping.
+ * Lock-file → manager mapping.
  *
- * Stack-agnostic by enumeration: every entry is a canonical filename
- * recognised in some language ecosystem. Adding a new language family
- * is a one-line addition here. An unmapped lock file is silently
- * skipped — the inspector simply doesn't surface it, and analyzers
- * fall through to LLM-based discovery for that service.
+ * This module is a thin view over the centralized language-config registry.
+ * Add a new lock file by adding/updating its language entry under
+ * `language-config/languages/`, not by editing this table.
  *
- * The `manager` value is a free-form lowercase identifier the rest
- * of the framework treats as opaque — no closed enum.
+ * Stack-agnostic by enumeration — every entry comes from the language
+ * registry. The `manager` value is a free-form lowercase identifier the
+ * rest of the framework treats as opaque.
  */
+
+import {
+  knownLockFileBasenames,
+  resolveLockFileManager as registryResolveLockFileManager,
+  allLockFiles,
+} from '../language-config/index.js';
 
 export interface LockFileMapping {
   /** Exact filename (no glob expansion needed for the canonical cases). */
@@ -19,35 +24,13 @@ export interface LockFileMapping {
 }
 
 /**
- * Initial table — non-exhaustive by design. Order is alphabetical by
- * filename for stability. Add a new entry by appending alphabetically;
- * test coverage in `services/framework/project-inspection/__tests__/
- * lock-file-table.test.ts` enforces no duplicate filenames and no
- * empty manager strings.
+ * Computed once at module-load time from the language registry.
+ * Kept for back-compat with consumers that read the table directly.
  */
-export const LOCK_FILE_TABLE: ReadonlyArray<LockFileMapping> = [
-  { filename: 'Berksfile.lock', manager: 'berkshelf' },
-  { filename: 'Cargo.lock', manager: 'cargo' },
-  { filename: 'Gemfile.lock', manager: 'bundler' },
-  { filename: 'Pipfile.lock', manager: 'pipenv' },
-  { filename: 'bun.lockb', manager: 'bun' },
-  { filename: 'cabal.project.freeze', manager: 'cabal' },
-  { filename: 'composer.lock', manager: 'composer' },
-  { filename: 'deno.lock', manager: 'deno' },
-  { filename: 'dune.lock', manager: 'opam' },
-  { filename: 'gleam.lock', manager: 'gleam' },
-  { filename: 'go.sum', manager: 'go-modules' },
-  { filename: 'mix.lock', manager: 'mix' },
-  { filename: 'package-lock.json', manager: 'npm' },
-  { filename: 'packages.lock.json', manager: 'nuget' },
-  { filename: 'pnpm-lock.yaml', manager: 'pnpm' },
-  { filename: 'poetry.lock', manager: 'poetry' },
-  { filename: 'pubspec.lock', manager: 'pub' },
-  { filename: 'shard.lock', manager: 'shards' },
-  { filename: 'stack.yaml.lock', manager: 'stack' },
-  { filename: 'uv.lock', manager: 'uv' },
-  { filename: 'yarn.lock', manager: 'yarn' },
-] as const;
+export const LOCK_FILE_TABLE: ReadonlyArray<LockFileMapping> = allLockFiles().map((e) => ({
+  filename: e.filename,
+  manager: e.manager,
+}));
 
 /**
  * Resolve the manager identifier for a given filename. Returns null
@@ -55,13 +38,8 @@ export const LOCK_FILE_TABLE: ReadonlyArray<LockFileMapping> = [
  * "ignore this file, analyzers will figure it out".
  */
 export function resolveLockFileManager(filename: string): string | null {
-  for (const entry of LOCK_FILE_TABLE) {
-    if (entry.filename === filename) return entry.manager;
-  }
-  return null;
+  return registryResolveLockFileManager(filename);
 }
 
 /** All canonical lock-file basenames the inspector recognises. */
-export function knownLockFileBasenames(): ReadonlyArray<string> {
-  return LOCK_FILE_TABLE.map((e) => e.filename);
-}
+export { knownLockFileBasenames };

@@ -138,13 +138,11 @@ const ENUMERATOR_RULES: EnumeratorRule[] = [
     name: 'find',
     match: /^find(\s|$)/,
     alreadyFiltered: (cmd, excluded) => {
-      // Consider it filtered if at least one excluded dir is pruned explicitly.
       return excluded.some((d) =>
         new RegExp(String.raw`-(prune|path)[\s=]+['"]?[^\s]*${escapeRe(d)}\b`, 'i').test(cmd),
       );
     },
     scansFromRoot: (cmd, projectPath) => {
-      // `find .` / `find ./` / `find <abs projectPath>` / bare `find -type …`
       if (/^find\s+(\.|\.\/)(\s|$)/.test(cmd)) return true;
       const absMatch = cmd.match(/^find\s+('?)([^\s'"]+)/);
       if (absMatch) {
@@ -152,7 +150,6 @@ const ENUMERATOR_RULES: EnumeratorRule[] = [
         if (path.isAbsolute(arg)) return arg === projectPath || arg === projectPath + path.sep;
         return false;
       }
-      // `find -type f …` with no start path is implicitly `.`
       if (/^find\s+-/.test(cmd)) return true;
       return false;
     },
@@ -170,7 +167,7 @@ const ENUMERATOR_RULES: EnumeratorRule[] = [
         new RegExp(String.raw`--exclude-dir[=\s]+['"]?${escapeRe(d)}\b`, 'i').test(cmd),
       );
     },
-    scansFromRoot: () => true, // `grep -r` without `--exclude-dir` scans everything
+    scansFromRoot: () => true,
     suggest: (cmd, excluded) => {
       const flags = grepExcludeFlags(excluded);
       return cmd.replace(/^grep\s+/, `grep ${flags} `);
@@ -180,8 +177,6 @@ const ENUMERATOR_RULES: EnumeratorRule[] = [
     name: 'rg',
     match: /^rg(\s|$)/,
     alreadyFiltered: (cmd, excluded) => {
-      // rg respects .gitignore by default, so it IS filtered — unless
-      // --no-ignore / -u is present.
       if (!/\s(-u+|--no-ignore(-dir|-files|-global|-parent|-vcs)?)\b/.test(cmd)) return true;
       return excluded.some((d) =>
         new RegExp(String.raw`--glob\s+['"]?!${escapeRe(d)}\b`, 'i').test(cmd),
@@ -228,11 +223,6 @@ function scanBashCommand(
 ): { reason: string; suggestion?: string } | null {
   const normalized = command.trim();
 
-  // (1) Absolute paths — escape or excluded dir.
-  // Only match a leading `/` that sits at a boundary (start of the command,
-  // or after whitespace / quote / shell separator). Otherwise `./node_modules`
-  // looks like it contains an absolute path `/node_modules`, which is a
-  // false positive (it's a relative path whose next segment starts with `/`).
   const absRe = /(?:^|[\s'"`|;&<>()=])(\/[^\s'"`|;&<>()]+)/g;
   let match: RegExpExecArray | null;
   while ((match = absRe.exec(normalized)) !== null) {
@@ -246,12 +236,6 @@ function scanBashCommand(
     if (seg) return { reason: `path '${abs}' contains excluded dir '${seg}'` };
   }
 
-  // (2) Enumerator commands scanning from root without filters
-  // Also: if an enumerator rule matches (whether already-filtered or not),
-  // we skip the token scan below — the agent is using a recognized scanning
-  // tool and the enumerator rule has decided. Without this, a correctly
-  // filtered `find . \( -path './node_modules' … \) -prune …` would trip the
-  // token scan merely because the command text mentions 'node_modules'.
   let matchedEnumerator = false;
   for (const rule of ENUMERATOR_RULES) {
     if (!rule.match.test(normalized)) continue;
@@ -265,8 +249,6 @@ function scanBashCommand(
   }
   if (matchedEnumerator) return null;
 
-  // (3) Token-level scan for excluded dir names used as bare words in
-  // commands we don't have a dedicated rule for (e.g. `cat ./node_modules/x`).
   for (const dir of excluded) {
     const escaped = escapeRe(dir);
     const re = new RegExp(
@@ -305,7 +287,7 @@ function readConfig(): Config | null {
   const frameworkPath = process.env.FRAMEWORK_PATH;
   const excludedRaw = process.env.FRAMEWORK_EXCLUDED_DIRS;
 
-  if (!enforce) return null; // silent no-op outside our spawn
+  if (!enforce) return null;
   if (!projectPath || !excludedRaw) return null;
 
   let excluded: string[];
@@ -321,7 +303,7 @@ function readConfig(): Config | null {
 
 async function main(): Promise<void> {
   const cfg = readConfig();
-  if (!cfg) return allow(); // ad-hoc invocation → silent no-op
+  if (!cfg) return allow();
 
   let raw: string;
   try {
@@ -347,7 +329,6 @@ async function main(): Promise<void> {
   const toolInput = input.tool_input ?? {};
   const baseCwd = input.cwd || cfg.projectPath;
 
-  // Bash — free-form scan
   if (toolName === 'Bash') {
     const cmd = (toolInput.command as string | undefined) ?? '';
     const hit = scanBashCommand(cmd, cfg.excluded, cfg.projectPath);
@@ -368,7 +349,6 @@ async function main(): Promise<void> {
     return allow();
   }
 
-  // Glob — pattern validation even without a path
   if (toolName === 'Glob') {
     const reason = validateGlobPattern(toolInput, cfg.excluded);
     if (reason) {
@@ -384,10 +364,8 @@ async function main(): Promise<void> {
         ].join('\n'),
       );
     }
-    // fall through for the generic path check on Glob.path
   }
 
-  // Generic path-argument check for path-aware tools
   const argNames = PATH_TOOLS[toolName];
   if (!argNames) return allow();
 
@@ -432,8 +410,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  // FAIL CLOSED: if anything in the hook throws, block the tool call.
-  // Silent-allow here would defeat the security purpose of the hook.
   const msg = err instanceof Error ? (err.stack ?? err.message) : String(err);
   process.stderr.write(`❌ PATH EXCLUSION: hook internal error — failing closed.\n${msg}\n`);
   process.exit(2);

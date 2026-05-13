@@ -70,11 +70,8 @@ export function validateAnalyzerOutput(
       data = output;
     }
 
-    // Treat explicit nulls as absent keys so OpenAI Structured Outputs (which
-    // emits `null` for optional fields) round-trips through Zod's `.optional()`.
     data = stripNullValues(data);
 
-    // Use centralized validator with automatic schema selection
     const result = validateAgentOutput(data);
 
     if (!result.success) {
@@ -85,7 +82,6 @@ export function validateAnalyzerOutput(
       logger.error(`Agent (from output): ${result.agentName || 'unknown'}`);
       logger.error(`Data keys: ${Object.keys(data || {}).join(', ')}`);
 
-      // Extract error messages from Zod error
       let errors: string[] = [];
 
       if (zodError && zodError.issues) {
@@ -163,26 +159,19 @@ export function validateAnalyzerOutput(
 export function extractJSON(output: string): string {
   const cleaned = output.trim();
 
-  // Case 1: Check if output contains markdown code block
-  // Matches bash: if grep -q '```json' "$OUTPUT_FILE"; then
   if (cleaned.includes('```json')) {
-    // Extract content between ```json and ``` (excluding the markers)
-    // Matches bash: sed -n '/```json/,/```/p' "$OUTPUT_FILE" | sed '1d;$d'
     const jsonBlockMatch = cleaned.match(/```json\s*\n([\s\S]*?)\n```/);
     if (jsonBlockMatch && jsonBlockMatch[1]) {
       return jsonBlockMatch[1].trim();
     }
-    // If we found ```json but couldn't extract, try fallback
   }
 
-  // Case 2: Find first '{' and extract the balanced JSON object
   const startIndex = cleaned.indexOf('{');
   if (startIndex >= 0) {
     const extracted = extractBalancedJSON(cleaned, startIndex);
     if (extracted) {
       return extracted;
     }
-    // Fallback: take from first { to end (original behavior)
     const lines = cleaned.split('\n');
     const firstBraceIndex = lines.findIndex((line) => line.trimStart().startsWith('{'));
     if (firstBraceIndex >= 0) {
@@ -190,7 +179,6 @@ export function extractJSON(output: string): string {
     }
   }
 
-  // If no JSON found, return as-is and let validation fail with helpful error
   return cleaned;
 }
 
@@ -251,7 +239,6 @@ export function extractBalancedJSON(text: string, startIndex: number): string | 
     }
   }
 
-  // Braces never balanced
   return null;
 }
 
@@ -280,7 +267,6 @@ export function validateAndParseAgentOutput(
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error('[validator] Exception during validation', err);
 
-    // Show first 500 chars of raw output for debugging
     const preview = rawOutput.substring(0, 500);
     const hasMore = rawOutput.length > 500;
 

@@ -8,9 +8,7 @@ import {
   DEFAULT_RETRY_CONFIG,
 } from '../../../../../utils/enhanced-retry.js';
 import { logger } from '../../../../../utils/logger.js';
-import { buildConsolidationPrompt } from '../prompt-builder.js';
 import { getFrameworkAgentPath } from '../../../shared/index.js';
-import { reasoningPrefix } from '../../../../../utils/shared/context-tags.js';
 import { getInitializeProjectPhase } from '../../../../../services/framework/debug-store/index.js';
 import { validateConsolidationOutput } from './validate-consolidation-output.js';
 
@@ -42,32 +40,22 @@ export async function consolidateQuestions(
   const consolidationLogger = logger.child('Phase 2: Consolidation');
 
   try {
-    const consolidationInstructions = loadConsolidationInstructions();
-
-    // Define agent invocation function with feedback support and session resumption
     const agentInvoke = async (
       feedbackPrompt: string,
       resumeSessionId?: string,
       attemptNumber?: number,
     ): Promise<{ output: string; sessionId: string }> => {
-      // Build input prompt using shared utility
-      const contextPrompt = buildConsolidationPrompt(gaps, feedbackPrompt);
-
-      // Create agent using new interface
       const factory = await AgentFactory.create();
 
-      // Provider-aware reasoning prefix (ultrathink for Claude, empty for Codex)
-      const inputPrompt = `${reasoningPrefix(factory.getAuthConfig())}${contextPrompt}
-
-${consolidationInstructions}`;
+      const inputPrompt = loadConsolidationInstructions();
 
       const agent = await factory.createAgent({
         agentName: 'question-consolidator',
         agentFilePath: getFrameworkAgentPath(frameworkPath, '06-question-consolidator.md'),
         projectPath,
         frameworkPath,
-        timeout: 600000, // 10 minutes
-        resumeSessionId, // Pass session ID for context-preserving retry
+        timeout: 600000,
+        resumeSessionId,
         phase: getInitializeProjectPhase('phase2'),
         settingsPath: join(
           frameworkPath,
@@ -83,10 +71,6 @@ ${consolidationInstructions}`;
       };
     };
 
-    // Strict validator — single source of truth for the agent contract.
-    // Rejects any divergence from the canonical 2-key shape so prompt
-    // regressions surface as retry feedback instead of being silently
-    // papered over.
     const { data: parsed } = await retryWithEnhancedFeedback<QuestionConsolidationOutput>(
       agentInvoke,
       validateConsolidationOutput,

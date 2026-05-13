@@ -6,10 +6,6 @@
 
 import type { CommandSet } from './types.js';
 
-// ============================================================================
-// COMMAND DEFAULTS
-// ============================================================================
-
 /**
  * Command defaults for different languages
  * Used to generate agent configuration when project doesn't have explicit commands
@@ -86,10 +82,6 @@ export const COMMAND_DEFAULTS: Record<string, CommandSet> = {
     build: 'bundle install',
   },
 };
-
-// ============================================================================
-// SUPPORTED LANGUAGES
-// ============================================================================
 
 /**
  * Languages supported by the framework for dedicated implementer agents

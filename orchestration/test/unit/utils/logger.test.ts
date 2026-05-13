@@ -113,11 +113,11 @@ describe('Logger', () => {
       expect(call).toContain('success message');
     });
 
-    it('should log warn message', () => {
+    it('should log warn message to stderr (so it does not collide with Spinnies stdout redraw)', () => {
       const logger = new Logger('test', LogLevel.WARN);
       logger.warn('warn message');
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const call = consoleLogSpy.mock.calls[0][0];
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const call = consoleErrorSpy.mock.calls[0][0];
       expect(call).toContain('warn message');
     });
 

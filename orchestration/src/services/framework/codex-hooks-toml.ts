@@ -114,12 +114,8 @@ export function removeCodexPathRestrictionHookBlock(content: string): string {
   if (start === -1) return content;
   let end = lines.findIndex((line, idx) => idx > start && line.trim() === MANAGED_BLOCK_END);
   if (end === -1) {
-    // Defensive: no end sentinel found (file was hand-edited; broke our
-    // markers). Strip to end of file rather than leaving half a block.
     end = lines.length - 1;
   }
-  // Also drop the trailing blank line we wrote after the end sentinel, if
-  // present, so repeated upserts don't accumulate blank lines.
   let cutEnd = end + 1;
   if (cutEnd < lines.length && lines[cutEnd].trim() === '') cutEnd += 1;
   return [...lines.slice(0, start), ...lines.slice(cutEnd)].join('\n');

@@ -1,19 +1,15 @@
 /**
- * Reads the structure-architecture-analyzer's persisted output and returns
- * the canonical, authoritative service list that downstream Phase 1 analyzers
- * (02 tech-stack, 03 code-patterns, 04 data-flows) must consume verbatim.
+ * Reads the structure-architecture-analyzer's persisted output and
+ * returns the canonical, authoritative service list that downstream
+ * Phase 1 analyzers (tech-stack, code-patterns, data-flows) must
+ * consume verbatim.
  *
- * Single source of truth — see plans/2026-04-29-gira-init-run-audit-refactor.md
- * (findings F7, F8, F9, F22). The earlier parallel topology let every analyzer
- * re-derive its own service list, producing inconsistent IDs and dropped
- * services across runs. With the new sequential head, structure runs first
- * and persists `01-structure-architecture.json`; the downstream nodes call
+ * Structure runs first as a single source of truth and persists
+ * `01-structure-architecture.json`; the downstream nodes call
  * `loadAuthoritativeServices()` before building their own prompts.
  *
- * Stack-agnostic: every field surfaced here (`id`, `path`, `type`, `language`)
- * is descriptive, not language- or framework-specific. Works on PHP monoliths,
- * .NET Framework solutions, Python services, Go binaries, Rust crates, or
- * any mix of legacy + modern stacks the same way.
+ * Stack-agnostic: every field surfaced here (`id`, `path`, `type`,
+ * `language`) is descriptive, not language- or framework-specific.
  */
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';

@@ -241,7 +241,7 @@ Bad: Graph internals leak into question + reason; agent never tried `Grep "@Cont
 
 </examples>
 
-## Final self-check before emitting (Plan 17 §C + Plan 18 — load-bearing)
+## Final self-check before emitting (load-bearing)
 
 Three anti-patterns the Stop hook will reject. Walk every
 `needs_verification` item through this checklist:

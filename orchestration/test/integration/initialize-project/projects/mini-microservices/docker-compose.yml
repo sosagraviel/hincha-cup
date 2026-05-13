@@ -1,0 +1,42 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+
+  frontend:
+    build: ./frontend
+    environment:
+      PRODUCT_CATALOG_SERVICE_ADDR: productcatalogservice:7000
+      CART_SERVICE_ADDR: cartservice:7070
+      RECOMMENDATION_SERVICE_ADDR: recommendationservice:8080
+      PAYMENT_SERVICE_ADDR: paymentservice:50051
+    ports: ["8080:8080"]
+    depends_on:
+      productcatalogservice: { condition: service_started }
+      cartservice: { condition: service_started }
+
+  productcatalogservice:
+    build: ./productcatalogservice
+    ports: ["7000:7000"]
+
+  cartservice:
+    build: ./cartservice
+    environment:
+      REDIS_ADDR: redis:6379
+    ports: ["7070:7070"]
+    depends_on:
+      redis: { condition: service_healthy }
+
+  recommendationservice:
+    build: ./recommendationservice
+    ports: ["8081:8080"]
+    depends_on:
+      productcatalogservice: { condition: service_started }
+
+  paymentservice:
+    build: ./paymentservice
+    ports: ["50051:50051"]

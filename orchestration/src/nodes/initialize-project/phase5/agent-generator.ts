@@ -40,7 +40,6 @@ export function generateAgents(
   templatesPath: string,
   frameworkPath: string,
 ): GeneratedAgent[] {
-  // Register Handlebars helpers before generating agents
   registerHandlebarsHelpers();
 
   const agents: GeneratedAgent[] = [];
@@ -58,9 +57,7 @@ export function generateAgents(
     for (const language of languages) {
       const langLower = language.toLowerCase();
 
-      // Only generate dedicated implementer for framework-supported languages
       if (!isLanguageSupported(langLower)) {
-        // Unsupported language (e.g., SQL) - will be handled by implementer-generic
         continue;
       }
 
@@ -93,9 +90,6 @@ export function generateAgents(
 
   const visualVerifier = generateVisualVerifierAgent(templatesPath, stackProfile);
   if (visualVerifier) {
-    // visual-verifier is template-only; it doesn't carry the convention
-    // skills (it has its own visual-verification responsibilities), so it
-    // gets an empty assignedSkills list and the Codex inliner is a no-op.
     visualVerifier.assignedSkills = [];
     agents.push(visualVerifier);
   }
@@ -198,16 +192,9 @@ export function writeAgents(agents: GeneratedAgent[], projectPath: string): void
   mkdirSync(agentsDir, { recursive: true });
 
   const provider = getActiveProvider();
-  // Resolve each Codex skill-body path relative to the target project's
-  // .codex/skills/ tree. The skills have already been copied there by
-  // `copyResolvedSkills` (run in resources.node.ts BEFORE writeAgents).
-  // Generated convention skills live alongside framework skills under the
-  // same flattened `<provider>/skills/<name>/SKILL.md` shape.
   const codexSkillsRoot = join('.codex', 'skills');
   const resolveCodexSkillPath = makeCodexSkillPathResolver(projectPath, codexSkillsRoot);
 
-  // Single chokepoint for committed .claude/.codex writes — asserts the rendered
-  // template body contains no machine-specific absolute paths before flushing.
   const portableWriter = new PortableWriter(new PortablePathResolver(asAbsolutePath(projectPath)));
   for (const agent of agents) {
     const agentPath = join(agentsDir, agent.filename);
@@ -221,8 +208,6 @@ export function writeAgents(agents: GeneratedAgent[], projectPath: string): void
       });
     }
 
-    // Validate after all per-provider transforms so the check sees the
-    // exact bytes about to land on disk.
     assertAgentRenderedShippable({ ...agent, content });
 
     portableWriter.writeMarkdown(asAbsolutePath(agentPath), content);

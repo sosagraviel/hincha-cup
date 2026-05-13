@@ -1,11 +1,10 @@
 /**
- * Plan v4 Phase C — shared base for every Phase 1 analyzer schema.
+ * Shared base for every Phase 1 analyzer schema.
  *
- * Removes ~80 lines of duplicated `agent_name` / `timestamp` /
- * `graph_queries_used` / `graph_overflow_*` / `soft_warning` /
- * `needs_verification` declarations across the four analyzer schemas.
- * A single change to the base shape (e.g. adding a `cache_metadata`
- * field) propagates to all four.
+ * Centralises the `agent_name` / `timestamp` / `graph_queries_used` /
+ * `graph_overflow_*` / `soft_warning` / `needs_verification`
+ * declarations so a single change to the base shape propagates to all
+ * four analyzers.
  *
  * Stack/structure/naming agnostic by construction: every field here
  * is text-shape only — no language family, framework token, or naming
@@ -14,17 +13,11 @@
 
 import { z, ZodLiteral, ZodTypeAny } from 'zod';
 
-/* --------------------------------------------------------------------- */
-/* CodeSnippet — shared shape for analyzer-emitted code examples         */
-/* --------------------------------------------------------------------- */
-
 /**
- * Plan v4 Phase D will use this shape for every per-service code
- * snippet the per-service detail extractors emit. Plan v4 Phase C
- * defines the shape here so it's available for the cheap project-level
- * fields (`event_pipeline.examples`, `auth_flow.examples`,
- * `external_services[].sample_usage_quote`) and the Phase D extractors
- * pick up the same definition.
+ * Shared shape for analyzer-emitted code examples. Used both by
+ * project-level fields (`event_pipeline.examples`, `auth_flow.examples`,
+ * `external_services[].sample_usage_quote`) and by the per-service
+ * detail extractors.
  *
  * Stack-agnostic: `kind` and `language` are free-form strings. A Go
  * project might emit `kind: "error-return-pattern"`; a Haskell
@@ -52,11 +45,12 @@ export const CodeSnippetSchema = z
     code: z
       .string()
       .min(1)
-      .max(600)
+      .max(1500)
       .describe(
-        'Verbatim code snippet (≤ 600 chars). Trim trailing whitespace; preserve ' +
-          'indentation. Snippets longer than 600 chars must be summarised down to ' +
-          'the most representative excerpt.',
+        'Verbatim code snippet (≤ 1500 chars). Trim trailing whitespace; preserve ' +
+          'indentation. Snippets longer than 1500 chars must be summarised down to ' +
+          'the most representative excerpt. This snippet is rendered into the wiki ' +
+          'and loaded on demand by skills — wider than CLAUDE.md / agent.md bounds.',
       ),
     source_file: z
       .string()
@@ -70,16 +64,42 @@ export const CodeSnippetSchema = z
       .describe('1-based line number in `source_file` where the snippet begins.'),
     note: z
       .string()
-      .max(120)
+      .max(400)
       .optional()
-      .describe('Optional one-liner (≤ 120 chars) explaining the snippet.'),
+      .describe('Optional explanation (≤ 400 chars) accompanying the snippet in the wiki.'),
   })
   .strict();
 export type CodeSnippet = z.infer<typeof CodeSnippetSchema>;
 
-/* --------------------------------------------------------------------- */
-/* needs_verification — every analyzer's escape hatch                    */
-/* --------------------------------------------------------------------- */
+/**
+ * Groundedness contract for LLM-judgment snippets.
+ *
+ * Whenever an analyzer attaches a code snippet to a *per-service* judgment
+ * field (`code_patterns[].patterns`, `testing[].representative_examples`,
+ * etc.), the schema requires the citation pair `source_file` +
+ * `source_line` so a reader can open the exact line. Loose snippets used
+ * for project-level project-shape examples (`event_pipeline.examples`,
+ * `auth_flow.examples`, `external_services[].sample_usage_quote`) keep
+ * the original optional citation shape — they describe cross-cutting
+ * patterns that may not have a single canonical line.
+ */
+export const CodeSnippetWithCitationSchema = CodeSnippetSchema.extend({
+  source_file: z
+    .string()
+    .min(1)
+    .max(240)
+    .describe(
+      'REQUIRED for per-service judgment fields. Verbatim path from project ' +
+        'root to the file the snippet was lifted from (e.g. ' +
+        '"services/api/src/auth/middleware.ts").',
+    ),
+  source_line: z
+    .number()
+    .int()
+    .positive()
+    .describe('REQUIRED for per-service judgment fields. 1-based line number.'),
+});
+export type CodeSnippetWithCitation = z.infer<typeof CodeSnippetWithCitationSchema>;
 
 /**
  * `attempted_resolution` (≥ 2 entries) and `impact` (≥ 40 chars) are
@@ -115,10 +135,6 @@ export const NeedsVerificationEntrySchema = z
   })
   .passthrough();
 export type NeedsVerificationEntry = z.infer<typeof NeedsVerificationEntrySchema>;
-
-/* --------------------------------------------------------------------- */
-/* Phase1AnalyzerBaseFields — reused by every analyzer schema            */
-/* --------------------------------------------------------------------- */
 
 /**
  * The base fields every Phase 1 analyzer emits at the top level. Each
@@ -161,8 +177,8 @@ export const Phase1AnalyzerBaseFields = {
  *
  * Top-level `findings.passthrough()` (caller's choice) is preserved
  * for back-compat — analyzers that emit fields not yet in the schema
- * pass through silently. Tightening to `.strict()` is a Phase H
- * concern after prompts are aligned.
+ * pass through silently. Tightening to `.strict()` is intentionally
+ * deferred until the analyzer prompts are aligned with the schema.
  */
 export function buildPhase1AnalyzerSchema<N extends string, F extends ZodTypeAny>(
   agentName: N,

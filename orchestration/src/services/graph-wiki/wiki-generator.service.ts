@@ -111,15 +111,7 @@ export class WikiGeneratorService {
 
   /**
    * Generate every per-service doc with bounded concurrency.
-   *
-   * Service docs are LLM-backed and each prompt carries the (sliced) Phase 1
-   * analyzer JSON for that service. Unbounded `Promise.all` left half the
-   * sessions in `pending` state during the gira smoke run with five services.
-   * Default bound is 3 in flight; override via
-   * `WikiGeneratorServiceOptions.serviceDocConcurrency`.
-   *
-   * Order of the returned array matches the service inventory order — the
-   * downstream finalization node (and tests) rely on positional stability.
+   * Order of the returned array matches the service inventory order.
    */
   async generateServiceDocsConcurrent(
     generatedAt: string,
@@ -381,20 +373,12 @@ export class WikiGeneratorService {
       }
     } catch {}
 
-    // Pass through externally-ingested docs from the prior /wiki-refresh run
-    // (or from an explicit /ingest-external-docs invocation). The skill drops
-    // these under `<projectPath>/docs/llm-wiki/raw/external/`; the
-    // wiki-generator forwards them with their original filenames so the on-disk
-    // path survives regeneration.
     const externalRoot = join(projectPath, 'docs', 'llm-wiki', 'raw', 'external');
     if (existsSync(externalRoot)) {
       try {
         const externalEntries = readdirSync(externalRoot, { withFileTypes: true });
         for (const entry of externalEntries) {
           if (!entry.isFile()) continue;
-          // Forward any committed file. The skill is responsible for the
-          // content shape (`.md` for markdown, raw bytes for diagrams);
-          // we don't second-guess the staging contract.
           const filePath = join(externalRoot, entry.name);
           const content = readFileSync(filePath, 'utf-8');
           files.push({
@@ -418,10 +402,6 @@ export class WikiGeneratorService {
     const { generatedAt, graphVersion, graphCommit } = this.computeMetadata();
     const projectName = basename(this.options.projectPath);
 
-    // ARCHITECTURE.md is the only cross-cutting LLM-generated wiki page.
-    // The previous DATA-FLOWS.md and PATTERNS.md were retired:
-    //   - data flows now live per-service in wiki/services/<id>.md
-    //   - patterns are prescriptive, in code-conventions / testing-conventions skills
     const architecture = await this.generateCoreDoc(
       'architecture',
       generatedAt,
@@ -441,9 +421,6 @@ export class WikiGeneratorService {
       graphCommit,
     );
 
-    // Build the index AFTER every other page so it can read each page's
-    // frontmatter (summary / confidence / tags / related) and emit the summary
-    // catalog inline. Tier 1 retrieval becomes one read, not N.
     const indexInputPages: GeneratedWikiFile[] = [architecture, servicesCatalog, ...serviceDocs];
     const index = this.buildIndex(indexInputPages, generatedAt, graphVersion, graphCommit);
 
@@ -549,10 +526,6 @@ export class WikiGeneratorService {
     graphCommit: string,
   ): GeneratedWikiFile {
     const projectName = basename(this.options.projectPath);
-    // Plan §C 3.2 (gira-exhaustive followup): index.md is a deterministic
-    // catalog — it does not query the graph. Emit an empty
-    // graph_queries_used (was: union across all 4 analyzers, which leaked
-    // architectural-analyzer queries into a page that never used them).
     const graphQueriesUsed: string[] = [];
 
     const entries = pages
@@ -667,8 +640,6 @@ function groupIndexEntries(entries: IndexEntry[]): Map<string, IndexEntry[]> {
 }
 
 function formatIndexLine(entry: IndexEntry): string {
-  // Strip the leading `wiki/` so the link is relative to index.md (which lives
-  // alongside the wiki/ subdirectory's pages).
   const linkPath = entry.filename.startsWith('wiki/')
     ? entry.filename.slice('wiki/'.length)
     : entry.filename;
@@ -774,9 +745,6 @@ function buildSchemaDocBody(
     '',
   ];
 
-  // Optional section: live graph-tool catalog from Phase 0. Present only when
-  // the workflow captured a non-empty catalog from the running MCP server, so
-  // the router can never claim a tool that the server does not expose.
   if (graphToolCatalog && graphToolCatalog.length > 0) {
     lines.push('## Available graph tools');
     lines.push('');
@@ -791,12 +759,6 @@ function buildSchemaDocBody(
     lines.push('');
   }
 
-  // Graph navigation discipline — short summary in the router doc, with a
-  // pointer to the canonical fenced section in the project's CLAUDE.md /
-  // AGENTS.md. Keeping the full body in one place (the project root file)
-  // avoids triple-copy drift between the prompt-builder, the router doc, and
-  // the project root. The router only needs to forbid the load-bearing call
-  // and tell the agent where to read the rest.
   lines.push('## Graph navigation discipline');
   lines.push('');
   lines.push(
@@ -807,8 +769,6 @@ function buildSchemaDocBody(
     `**Forbidden:** \`mcp__code_graph__get_architecture_overview_tool\` — its response cannot be bounded and overflows. Use \`mcp__code_graph__get_minimal_context_tool\` (~100 tokens) as the cheap entry point, then drill in selectively with \`list_communities_tool({ detail_level: "minimal" })\`, \`get_community_tool({ include_members: false })\`, \`get_hub_nodes_tool\`, \`get_bridge_nodes_tool\`.`,
   );
   lines.push('');
-  // Provider-aware file location for the canonical discipline section. Claude
-  // writes CLAUDE.md under .claude/; Codex writes AGENTS.md under .codex/.
   const projectInstructionDir =
     schemaFilename === 'CLAUDE.md'
       ? '.claude'
@@ -868,12 +828,6 @@ function extractServiceDescription(
   serviceId: string,
   serviceDocs: GeneratedWikiFile[],
 ): string {
-  // Plan §C 3.4 (gira-exhaustive followup, 2026-05-05): the catalog
-  // is a pointer index, not a long-form summary. Prefer a stack-agnostic
-  // role one-liner derived from `service.type` + `service.frameworks.main`
-  // before falling back to free-form description fields. Pre-fix the
-  // catalog inlined the whole first-paragraph of each service doc,
-  // bloating the catalog to 30+ lines for 5 services on the gira run.
   const role = deriveStackAgnosticRole(service);
   if (role) return role;
 
@@ -902,15 +856,8 @@ function extractServiceDescription(
 }
 
 /**
- * Stack-agnostic role one-liner. Plan §B.21 (gira-exhaustive followup):
- * `<role>` is a noun phrase derived from `service.type` and the main
- * framework name. The mapping covers every language family the
- * framework targets — JS/TS, Python, Java, Kotlin, Ruby, PHP, Go,
- * Rust, .NET, Scala, Elixir.
- *
- * Returns undefined when there is not enough signal to derive a
- * canonical phrase (e.g. an `infrastructure` type with no framework);
- * caller falls back to the next layer.
+ * Derives a stack-agnostic role one-liner from `service.type` and `service.frameworks.main`.
+ * Returns undefined when signal is insufficient; caller falls back to the next layer.
  */
 export function deriveStackAgnosticRole(service: Record<string, unknown>): string | undefined {
   const type =
@@ -927,9 +874,6 @@ export function deriveStackAgnosticRole(service: Record<string, unknown>): strin
     : undefined;
   const mainFrameworkLower = mainFrameworkClean?.toLowerCase();
 
-  // Type + framework family lookup. Each key matches a substring of the
-  // lowercased framework name; first match wins. Stack-agnostic — the
-  // tokens are framework family names, not language-specific identifiers.
   const FRAMEWORK_BY_TYPE: Record<string, Array<{ pattern: RegExp; phrase: string }>> = {
     backend: [
       { pattern: /\bnest(?:js)?\b/, phrase: 'NestJS REST/WebSocket API' },
@@ -1007,9 +951,6 @@ export function deriveStackAgnosticRole(service: Record<string, unknown>): strin
     }
   }
 
-  // Fallback by service type alone (no framework match). Mirrors the
-  // examples in plan §B.21 — library / cli / serverless / etc. are
-  // self-describing.
   const TYPE_FALLBACK: Record<string, string> = {
     library: 'Internal library',
     cli: 'CLI tool',
@@ -1022,8 +963,6 @@ export function deriveStackAgnosticRole(service: Record<string, unknown>): strin
     infrastructure: 'Infrastructure component',
   };
   if (type && TYPE_FALLBACK[type]) {
-    // Even on fallback, prefix with the framework name when one is
-    // present so the role still carries stack signal.
     if (mainFrameworkClean && mainFrameworkClean.length <= 40) {
       return `${mainFrameworkClean} ${TYPE_FALLBACK[type].toLowerCase()}`;
     }

@@ -1,16 +1,14 @@
 /**
- * Shared utilities for initialize-project workflow nodes
- * Contains only truly cross-phase utilities
+ * Cross-phase shared utilities for initialize-project workflow nodes.
  */
 
 import { join } from 'path';
 
 /**
- * Get path to framework agent file
- * Maps old agent file names to new phase-specific locations
+ * Resolve an agent prompt file inside the framework to its on-disk location.
+ * Every supported agent must be in the explicit map — missing entries throw.
  */
 export function getFrameworkAgentPath(frameworkPath: string, agentFile: string): string {
-  // Map old agent file names to new locations
   const agentPathMap: Record<string, string> = {
     '01-structure-architecture.md':
       'orchestration/src/nodes/initialize-project/phase1/structure-analyzer/prompts/agent.md',
@@ -26,9 +24,6 @@ export function getFrameworkAgentPath(frameworkPath: string, agentFile: string):
       'orchestration/src/nodes/initialize-project/phase2/question-consolidator/prompts/agent.md',
     '07-wiki-generator.md':
       'orchestration/src/nodes/initialize-project/phase4/wiki-generator/prompts/agent.md',
-    // Plan v4 Phase D — per-service detail extractor sub-agent.
-    '08-service-detail-extractor.md':
-      'orchestration/src/nodes/initialize-project/phase1_5/service-detail-extractor/prompts/agent.md',
   };
 
   const newPath = agentPathMap[agentFile];
@@ -36,7 +31,6 @@ export function getFrameworkAgentPath(frameworkPath: string, agentFile: string):
     return join(frameworkPath, newPath);
   }
 
-  // No fallback - all agent files must be explicitly mapped
   throw new Error(
     `Agent file '${agentFile}' not found in agent path map. ` +
       `Available agents: ${Object.keys(agentPathMap).join(', ')}`,

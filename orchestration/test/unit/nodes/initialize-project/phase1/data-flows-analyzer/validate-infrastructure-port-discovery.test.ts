@@ -187,7 +187,7 @@ describe('formatInfrastructurePortViolations', () => {
     expect(formatInfrastructurePortViolations([])).toEqual([]);
   });
 
-  it('emits actionable retry feedback citing stack-agnostic sources + opt-out shape', () => {
+  it('emits compressed VALIDATION_E012_* feedback citing the service ID + SaaS opt-out (Plan v7 Phase 7)', () => {
     const lines = formatInfrastructurePortViolations([
       {
         service_id: 'postgres',
@@ -196,13 +196,11 @@ describe('formatInfrastructurePortViolations', () => {
         message: 'Service postgres has no port.',
       },
     ]);
-    const joined = lines.join('\n');
-    expect(joined).toMatch(/INFRASTRUCTURE-SERVICE PORT DISCOVERY MISSING/);
-    expect(joined).toContain('postgres');
-    expect(joined).toMatch(/docker-compose|Firebase|k8s|wrangler/);
-    expect(joined).toMatch(/SaaS/);
-    expect(joined).toMatch(/port_applies/);
-    expect(joined).toMatch(/port_search_evidence/);
-    expect(joined).toMatch(/HOW TO FIX/);
+    expect(lines).toHaveLength(1);
+    const line = lines[0];
+    expect(line).toMatch(/^VALIDATION_E012_infrastructure_port_gap: /);
+    expect(line).toContain('postgres');
+    expect(line).toMatch(/compose|SaaS|evidence/);
+    expect(line.length).toBeLessThanOrEqual(180);
   });
 });

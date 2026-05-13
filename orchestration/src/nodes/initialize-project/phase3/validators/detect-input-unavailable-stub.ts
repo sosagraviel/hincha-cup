@@ -1,22 +1,14 @@
 /**
- * Plan v4 Phase F — reject "input unavailable" stub markers.
+ * Rejects "input unavailable" apology stubs in synthesis output.
  *
- * Pre-fix the synthesizer would, on a missing composer view or
- * incomplete consolidation, write an apology stub like
+ * When a composer view is empty or incomplete, the synthesizer may emit
+ * phrases like "Insufficient data to complete this section" instead of
+ * simply omitting the H2. This validator detects those stubs and returns
+ * feedback telling the agent to skip the section entirely.
  *
- *   > Insufficient data to complete this section.
- *
- * straight into the operator's CLAUDE.md / SKILL.md. The deny rule
- * fix (Plan v4 Phase A.1) closed the most common cause, but the
- * agent can still reach for the apology when a section's underlying
- * `present.<flag>` is false. This validator is the second-line
- * defence — it rejects the apology with feedback telling the agent
- * to skip the H2 entirely, not stub it.
- *
- * Stack-agnostic: the regex matches English-language framework-
- * emitted phrases the agent might mimic. Stack-specific stubs
- * (e.g. "no Laravel routes detected") are NOT rejected here — they
- * may be legitimate findings from the analyzer.
+ * Stack-agnostic: matches English-language framework-emitted phrases only.
+ * Stack-specific findings (e.g. "no Laravel routes detected") are not
+ * rejected here.
  */
 
 const STUB_PHRASES: ReadonlyArray<RegExp> = [

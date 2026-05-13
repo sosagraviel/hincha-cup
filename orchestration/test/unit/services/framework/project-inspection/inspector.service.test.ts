@@ -204,6 +204,111 @@ describe('inspectProject — infrastructure detection', () => {
   });
 });
 
+describe('inspectProject — infrastructure_services_hints (Plan v5 Phase 4)', () => {
+  it('extracts named service → port pairs from docker-compose', async () => {
+    write(
+      'docker-compose.yml',
+      [
+        'version: "3.9"',
+        'services:',
+        '  postgres:',
+        '    image: postgres:16',
+        '    ports:',
+        '      - "5432:5432"',
+        '  redis:',
+        '    image: redis:7',
+        '    ports:',
+        '      - 6379:6379',
+        '  keycloak:',
+        '    image: quay.io/keycloak/keycloak:24',
+        '    ports:',
+        '      - "${KEYCLOAK_HTTP_PORT:-8080}:8080"',
+        '  no-port-service:',
+        '    image: x',
+      ].join('\n'),
+    );
+
+    const { inspection } = await inspectProject({
+      projectPath,
+      excludedDirs: STANDARD_EXCLUDES,
+    });
+
+    const hints = inspection.infrastructure_services_hints ?? [];
+    const byName = Object.fromEntries(hints.map((h) => [h.name, h.port]));
+    expect(byName).toEqual({ postgres: 5432, redis: 6379, keycloak: 8080 });
+    expect(hints.every((h) => h.source_file === 'docker-compose.yml')).toBe(true);
+  });
+
+  it('extracts ports from inline flow-array shape (ports: ["6379:6379"])', async () => {
+    write(
+      'docker-compose.yml',
+      [
+        'services:',
+        '  redis:',
+        '    image: redis:7-alpine',
+        '    ports: ["6379:6379"]',
+        '  postgres:',
+        '    image: postgres:16',
+        '    ports: [5432]',
+        '  app:',
+        '    build: ./app',
+        '    ports: ["${APP_PORT:-3000}:3000", "9229:9229"]',
+      ].join('\n'),
+    );
+
+    const { inspection } = await inspectProject({
+      projectPath,
+      excludedDirs: STANDARD_EXCLUDES,
+    });
+
+    const hints = inspection.infrastructure_services_hints ?? [];
+    const byName = Object.fromEntries(hints.map((h) => [h.name, h.port]));
+    expect(byName).toEqual({ redis: 6379, postgres: 5432, app: 3000 });
+  });
+
+  it('extracts firebase emulator ports', async () => {
+    write(
+      'firebase.json',
+      JSON.stringify(
+        {
+          emulators: {
+            firestore: { port: 8080 },
+            functions: { port: 5001 },
+            auth: { port: 9099 },
+            ui: { enabled: true },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const { inspection } = await inspectProject({
+      projectPath,
+      excludedDirs: STANDARD_EXCLUDES,
+    });
+
+    const hints = inspection.infrastructure_services_hints ?? [];
+    expect(hints).toContainEqual({ name: 'firestore', port: 8080, source_file: 'firebase.json' });
+    expect(hints).toContainEqual({ name: 'functions', port: 5001, source_file: 'firebase.json' });
+    expect(hints).toContainEqual({ name: 'auth', port: 9099, source_file: 'firebase.json' });
+    // No port on `ui` → no entry.
+    expect(hints.find((h) => h.name === 'ui')).toBeUndefined();
+  });
+
+  it('emits no entry when neither compose nor firebase configs are present', async () => {
+    write('package.json', '{"name":"x","version":"0.0.0"}');
+
+    const { inspection } = await inspectProject({
+      projectPath,
+      excludedDirs: STANDARD_EXCLUDES,
+    });
+
+    // Schema marks the field optional — undefined when no signal.
+    expect(inspection.infrastructure_services_hints).toBeUndefined();
+  });
+});
+
 describe('inspectProject — env templates', () => {
   it('extracts variable names without values', async () => {
     write(

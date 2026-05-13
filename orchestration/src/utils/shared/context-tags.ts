@@ -7,55 +7,19 @@ import { AuthMode } from '../../auth/auth-detector.js';
  */
 
 /**
- * Prefix to prepend for "extended thinking" / deep reasoning.
- *
- * - Claude (CLI or API): the literal `ultrathink` keyword switches Claude into
- *   extended thinking mode. It's a Claude-specific directive.
- * - Codex / OpenAI: reasoning effort is controlled via the CLI flag
- *   `--config model_reasoning_effort=high` — `ultrathink` is meaningless and
- *   would just be noise tokens at the top of the prompt.
- *
- * Callers should use this helper instead of hardcoding `ultrathink\n\n` so the
- * prompt adapts to the active provider.
- */
-export function reasoningPrefix(authConfig: AuthConfig): string {
-  const isClaude =
-    authConfig.mode === AuthMode.CLAUDE_CLI ||
-    (authConfig.mode === AuthMode.API_KEY && authConfig.provider === 'anthropic');
-  return isClaude ? 'ultrathink\n\n' : '';
-}
-
-/**
  * Build excluded directories XML tag.
  *
- * The block is intentionally forceful: agents routinely ignore a weak
- * comma-separated list and then walk into node_modules / dist / the framework
- * itself, blowing the token budget on a single run. The instructions here are
- * written so that every tool call the agent makes (Glob, Grep, Read, Bash) can
- * be checked against them.
+ * Framework deny-rules + PreToolUse hooks enforce these at runtime
+ * across Glob/Grep/Read/Bash, so the agent only needs the list itself,
+ * not a treatise on why. Brief is better — the agent reads the same
+ * block on every spawn.
  */
 export function buildExcludedDirsTag(dirs: string[]): string {
-  const bullets = dirs.map((d) => `  - ${d}`).join('\n');
   return [
     '<excluded_directories>',
-    'The directories below are off-limits — they contain dependencies,',
-    'build artifacts, generated output, caches, framework internals, and',
-    'gitignored paths. Analyzing them wastes token budget and produces',
-    'irrelevant findings.',
-    '',
-    'The framework enforces this at runtime: Claude `permissions.deny`',
-    'rules filter Glob/Grep/Read results before they reach you, and a',
-    'PreToolUse hook (both Claude and Codex providers) blocks Bash calls',
-    'that would walk these paths. You should still avoid them in your',
-    'reasoning so you do not propose plans that get blocked.',
-    '',
-    'Excluded directories (apply recursively at every level of nesting):',
-    bullets,
-    '',
-    'When using Bash with `find` / `ls` / `grep -r`, exclude these',
-    'directories explicitly (use `-prune`, `--exclude-dir`, or `grep -vE`).',
-    'The hook will block calls that would walk these paths anyway, but a',
-    'clean call avoids the retry round-trip.',
+    'The directories below are off-limits (deny-rules + PreToolUse hooks',
+    'block tool calls that walk them; reason as if they do not exist):',
+    dirs.map((d) => `  - ${d}`).join('\n'),
     '</excluded_directories>',
   ].join('\n');
 }

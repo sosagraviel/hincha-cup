@@ -1,0 +1,90 @@
+{
+  "name": "mini-microservices",
+  "shape": "polyglot-microservices",
+  "expected_file_count_max": 160,
+  "expected_source_file_count_max": 35,
+  "languages": ["go", "csharp", "python", "javascript", "protobuf"],
+  "services_count": 6,
+  "service_types_present": ["backend", "cli"],
+  "required_categories": {
+    "ci_workflows": [".github/workflows/ci.yml", ".github/workflows/deploy.yml"],
+    "alternate_ci": [".gitlab-ci.yml"],
+    "husky": [".husky/pre-commit", ".husky/commit-msg", ".husky/pre-push"],
+    "pre_commit_python_go": [".pre-commit-config.yaml"],
+    "commitlint": ["commitlint.config.js"],
+    "lint_staged": ["package.json#lint-staged"],
+    "linter_config": [".golangci.yml", "pyproject.toml"],
+    "formatter_config": ["prettier.config.mjs", ".prettierignore"],
+    "editor_config": [".editorconfig"],
+    "vscode": [".vscode/settings.json", ".vscode/extensions.json"],
+    "devcontainer": [".devcontainer/devcontainer.json"],
+    "automation": ["Makefile", "scripts/setup.sh", "scripts/gen-protos.sh"],
+    "containers": ["docker-compose.yml", "docker-compose.test.yml"],
+    "multi_stage_dockerfile": [
+      "frontend/Dockerfile",
+      "productcatalogservice/Dockerfile",
+      "cartservice/Dockerfile",
+      "recommendationservice/Dockerfile",
+      "paymentservice/Dockerfile",
+      "loadgenerator/Dockerfile"
+    ],
+    "k8s_manifests": [
+      "kubernetes/kustomization.yaml",
+      "kubernetes/productcatalogservice/deployment.yaml",
+      "kubernetes/productcatalogservice/service.yaml",
+      "kubernetes/productcatalogservice/configmap.yaml",
+      "kubernetes/frontend/deployment.yaml",
+      "kubernetes/frontend/service.yaml"
+    ],
+    "skaffold": ["skaffold.yaml"],
+    "runtime_versions": [".nvmrc", ".python-version", ".tool-versions"],
+    "lockfiles": [
+      "frontend/go.sum",
+      "productcatalogservice/go.sum",
+      "cartservice/packages.lock.json",
+      "recommendationservice/poetry.lock",
+      "paymentservice/pnpm-lock.yaml"
+    ],
+    "test_configs": [
+      "paymentservice/jest.config.cjs",
+      "cartservice/tests/cartservice.tests.csproj"
+    ],
+    "real_tests": [
+      "frontend/handlers_test.go",
+      "productcatalogservice/server_test.go",
+      "cartservice/tests/CartTests.cs",
+      "recommendationservice/tests/test_recommendation.py",
+      "paymentservice/tests/server.test.js",
+      "e2e/checkout_smoke_test.go"
+    ],
+    "python_conftest": ["recommendationservice/conftest.py"],
+    "protobuf": ["pb/demo.proto"],
+    "db_schema": ["productcatalogservice/schema.sql"],
+    "docs": [
+      "README.md",
+      "CONTRIBUTING.md",
+      "docs/architecture.md",
+      "docs/deploy.md",
+      "docs/upstream-attribution.md"
+    ],
+    "github_governance": [
+      ".github/CODEOWNERS",
+      ".github/pull_request_template.md",
+      ".github/dependabot.yml",
+      ".github/ISSUE_TEMPLATE/bug_report.md"
+    ],
+    "license_security": ["LICENSE", "NOTICE", "SECURITY.md"],
+    "renovate": ["renovate.json"],
+    "per_service_readmes": [
+      "frontend/README.md",
+      "productcatalogservice/README.md",
+      "cartservice/README.md",
+      "recommendationservice/README.md",
+      "paymentservice/README.md",
+      "loadgenerator/README.md",
+      "e2e/README.md",
+      "pb/README.md",
+      "kubernetes/README.md"
+    ]
+  }
+}

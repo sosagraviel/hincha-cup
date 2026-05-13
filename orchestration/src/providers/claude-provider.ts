@@ -90,7 +90,6 @@ export class ClaudeProvider implements ProviderAdapter {
   }
 
   mapModelToCLI(modelId: string): string {
-    // Claude CLI accepts short names derived from modelId
     const id = modelId.toLowerCase();
     if (id.includes('sonnet')) return 'sonnet';
     if (id.includes('opus')) return 'opus';
@@ -154,9 +153,7 @@ export class ClaudeProvider implements ProviderAdapter {
             return { path: localClaudePath, version: versionMatch[1] };
           }
         }
-      } catch {
-        // Fall through to global check
-      }
+      } catch {}
     }
 
     try {

@@ -1,0 +1,10 @@
+node_modules
+dist
+build
+.env*
+.claude-temp
+.codex-temp
+.git
+docs/llm-wiki
+*.log
+coverage

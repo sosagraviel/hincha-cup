@@ -22,16 +22,6 @@ import { sanitizeWikiUpstream, scopeUpstreamForService } from './wiki-input-sani
 
 export function buildCoreSpecs(options: WikiGeneratorServiceOptions): WikiDocumentSpec[] {
   const { analyzers, stackProfile, graph, digestedUpstream } = options;
-  // Strip framework-internal jargon ("the X tool overflowed", "automated
-  // run", etc.) BEFORE every downstream slicer so no consumer can reintroduce
-  // it. See wiki-input-sanitizer.ts + plans/2026-04-29-gira-init-run-audit-refactor
-  // finding F15.
-  //
-  // Only ARCHITECTURE.md is rendered as a cross-cutting LLM-generated wiki
-  // page. Data flows are now described per-service in `wiki/services/<id>.md`
-  // (where they have actual context), and patterns moved to the prescriptive
-  // `code-conventions` and `testing-conventions` skills (where they belong —
-  // patterns describe what to DO, not what IS).
   const sanitizedUpstream = sanitizeWikiUpstream(digestedUpstream);
   return [architectureSpec(analyzers, stackProfile, graph, sanitizedUpstream)];
 }
@@ -51,14 +41,6 @@ export function buildServiceSpec(
   if (!isEmptyValue(dependencies)) frontmatterExtras.dependencies = dependencies;
   if (communityId) frontmatterExtras.community_id = communityId;
 
-  // Per-service upstream scoping: the prompt for service A must not carry
-  // every paragraph about service B. First strip framework-internal jargon,
-  // then narrow to sections mentioning the target service's id / name / path
-  // leaf. Stack-agnostic — string-token matching only, no role mappings.
-  // See wiki-input-sanitizer.ts + plans/2026-04-29-gira-init-run-audit-refactor
-  // finding F3 (the prior wiki-generator passed digestedUpstream verbatim
-  // to every service doc, inflating each prompt by ~64 KB of cross-service
-  // narrative).
   const sanitized = sanitizeWikiUpstream(digestedUpstream);
   const scoped = scopeUpstreamForService(sanitized, {
     id: serviceId,
@@ -70,18 +52,14 @@ export function buildServiceSpec(
     filename: `services/${slugifyServiceId(serviceId)}.md`,
     documentType: 'service',
     title: `Service: ${serviceId}`,
-    // Plan §C 3.2 (gira-exhaustive followup, 2026-05-05): per-page
-    // graph_queries_used carries only the queries from analyzers that
-    // actually have findings for THIS service id. Pre-fix, every
-    // service doc unioned all four analyzers' queries — leaking
-    // architectural-overview tools into a per-service page that never
-    // touched them. Now: structure-arch always contributes (it's the
-    // discovery source), and the other three contribute only if their
-    // by_service / by_package map has an entry for this id.
     graphQueriesUsed: scopeQueriesToService(serviceId, analyzers),
     promptFocus: [
       `Document only the "${serviceId}" service.`,
       'Use the service-scoped analyzer slice as the inventory of facts about this service.',
+      '',
+      'Doc length target: **aim 120–200 lines total**, hard cap 400. Sections',
+      'with sparse evidence get 1–3 lines and a `(not determined by analysis)`',
+      'marker instead of padding. Sharper service docs are more useful.',
       '',
       'Required sections (omit a section ONLY when the analyzer slice has nothing to say about it):',
       '',
@@ -185,19 +163,11 @@ function cleanFrameworkTokens(raw: string): string[] {
   for (const part of parts) {
     if (part.length === 0) continue;
 
-    // Strip version-like trailing tokens. Examples we kill:
-    //   "NestJS ^11.0.11"     → "NestJS"
-    //   "class-transformer ~0.5.1" → "class-transformer"
-    //   "pg 8.13.1"           → "pg"
-    //   "Foo >=2.0"           → "Foo"
     let cleaned = part.replace(/\s+[\^~>=<]?[\d][\w.\-*]*\s*$/, '').trim();
     if (cleaned.length === 0) continue;
 
-    // Drop scope prefix `@scope/` so e.g. `@keycloak/keycloak-admin-client`
-    // becomes `keycloak-admin-client` (the package name is what readers grep).
     cleaned = cleaned.replace(/^@[^/]+\//, '');
 
-    // Slugify whitespace runs to dashes; drop residual non-tag characters.
     cleaned = cleaned.toLowerCase().replace(/\s+/g, '-');
 
     if (cleaned.length === 0 || cleaned.length > 30) continue;
@@ -207,19 +177,8 @@ function cleanFrameworkTokens(raw: string): string[] {
 }
 
 /**
- * Plan §I.5 (gira-exhaustive followup, 2026-05-05): byte-identical
- * cache-eligible prefix shared by every wiki-gen prompt in this run.
- *
- * The prefix carries the constant framing (closed-book synthesis
- * rules + the project path) that does NOT vary across the 5+
- * wiki-gen calls a typical run makes. Putting these constant
- * sentences AT THE START of every prompt makes the Anthropic /
- * OpenAI prefix cache hit on calls 2..N — the agent re-uses the
- * cached tokens for the framing and only pays for the spec-specific
- * tail.
- *
- * Stack-agnostic: every line is general framing; no
- * project-shape assumptions.
+ * Byte-identical cache-eligible prefix shared by every wiki-gen prompt in this run.
+ * Constant framing placed at the start so the provider prefix cache hits on calls 2..N.
  */
 export function buildWikiSharedPrefix(projectPath: string): string {
   return [
@@ -234,9 +193,6 @@ export function buildWikiSharedPrefix(projectPath: string): string {
 }
 
 export function buildPrompt(spec: WikiDocumentSpec, projectPath: string): string {
-  // Byte-identical prefix first (cache-eligible across all wiki-gen
-  // calls in this run). Spec-specific framing comes AFTER the
-  // prefix so the cache key advances only at the divergence point.
   const lines: string[] = [
     buildWikiSharedPrefix(projectPath),
     `Generate ${spec.title} as narrative markdown.`,
@@ -297,17 +253,12 @@ function architectureSpec(
     'Describe monorepo / multi-repo shape, service boundaries, communities, and high-level relationships.',
     'Use `structure_architecture` analyzer findings as the structural ground truth.',
     'Architecture docs live under docs/llm-wiki/wiki/. Output filename: ARCHITECTURE.md',
-    // Plan §C 3.1 (gira-exhaustive followup): wikilink every discovered
-    // service ID so the rendered page navigates to the per-service docs.
-    // Stack-agnostic — service IDs are agent-discovered (community
-    // names from the structure analyzer), independent of language.
+    'Doc length target: **aim 150–250 lines**, hard cap 500. Each major',
+    'section should be 2–4 paragraphs; lists of services / communities can',
+    'be longer but should be tabular, not prose.',
     'When you mention a discovered service ID (any `id` from `structure_architecture.findings.services`), wrap the FIRST mention of each ID in `[[<id>]]` so it links to the per-service doc at `services/<id>.md`. Subsequent mentions of the same id may be plain text or `[[<id>]]`. Do NOT wikilink ids that were not discovered by the structure analyzer.',
   ];
 
-  // Plan §C 2.4 (gira-exhaustive followup): when the structure analyzer
-  // surfaced architecture.coupling, instruct the wiki-gen agent to emit
-  // a "Coupling hotspots" section listing the top hubs and bridges by
-  // qualified_name. Stack-agnostic — graph-native fields only.
   if (hasCouplingHotspots(analyzers.structure_architecture)) {
     promptFocus.push(
       'Include a "## Coupling hotspots" section listing the hub and bridge nodes from `structure_architecture.findings.architecture.coupling`. For each entry render `- \\`<qualified_name>\\` (<kind>, score <score>)`. Use the qualified_name verbatim from the analyzer slice — do not invent or rename. Hubs are the most-connected nodes in the graph; bridges sit on shortest paths between communities.',
@@ -325,14 +276,8 @@ function architectureSpec(
     sourceContext: {
       graph_stats: graph.stats ?? null,
       stack_profile: stackProfile,
-      structure_architecture: analyzers.structure_architecture,
+      structure_architecture: pruneWikiUnusedFields(analyzers.structure_architecture),
     },
-    // Plan §C 3.3 (gira-exhaustive followup): the architecture page is
-    // descriptive — convention-skill sections (which are prescriptive
-    // "should/must" rules) don't belong in its prompt. Drop them
-    // explicitly. The keep-keywords list pulls in architecture/topology/
-    // monorepo/workspace/services sections; the drop tokens strip
-    // convention-skill sections by their canonical heading tokens.
     digestedUpstream: scopeDigestedUpstream(
       digestedUpstream,
       ['architecture', 'topology', 'monorepo', 'workspace', 'services'],
@@ -353,25 +298,13 @@ function architectureSpec(
 }
 
 /**
- * Scope graph_queries_used to the analyzers that have findings for the
- * given service id. Plan §C 3.2 of the gira-exhaustive followup — the
- * union-everything approach over-attributed queries to per-service docs.
- *
- * Rules:
- *   - structure-architecture is ALWAYS included — it's the discovery
- *     source for every service id.
- *   - The other three analyzers are included only when their findings
- *     carry an entry keyed by this service id (in any of the conventional
- *     by-service map names: `by_service`, `by_package`, `<topic>.<id>`,
- *     `dependencies.by_service.<id>`, `testing.<id>`, etc.).
- *
- * Stack-agnostic: the check is a string-key lookup; no language
- * assumption.
+ * Scope graph_queries_used to the analyzers that have findings for the given service id.
+ * structure-architecture is always included; others contribute only when their findings
+ * carry an entry keyed by this service id.
  */
 function scopeQueriesToService(serviceId: string, analyzers: WikiAnalyzerOutputs): string[] {
   const queries: string[] = [];
 
-  // structure-arch is always relevant (it's the source of truth for ids).
   queries.push(...((analyzers.structure_architecture?.graph_queries_used ?? []) as string[]));
 
   for (const analyzerKey of [
@@ -497,10 +430,6 @@ function scopeDigestedUpstream(
 /**
  * Walk a markdown document by `## ` headings; drop any section whose
  * heading line contains any of the provided drop tokens (case-insensitive).
- * Used by the architecture spec to strip convention-skill sections from
- * the digested upstream — those skills are prescriptive rules that don't
- * belong in a descriptive architecture page (plan §C 3.3,
- * gira-exhaustive followup).
  */
 function dropMarkdownSections(markdown: string, dropTokens: string[]): string {
   const lower = dropTokens.map((t) => t.toLowerCase());
@@ -576,11 +505,45 @@ function sliceAnalyzersForService(
   analyzers: WikiAnalyzerOutputs,
 ): WikiAnalyzerOutputs {
   return {
-    structure_architecture: sliceAnalyzerForService(analyzers.structure_architecture, serviceId),
-    tech_stack_dependencies: sliceAnalyzerForService(analyzers.tech_stack_dependencies, serviceId),
-    code_patterns_testing: sliceAnalyzerForService(analyzers.code_patterns_testing, serviceId),
-    data_flows_integrations: sliceAnalyzerForService(analyzers.data_flows_integrations, serviceId),
+    structure_architecture: pruneWikiUnusedFields(
+      sliceAnalyzerForService(analyzers.structure_architecture, serviceId),
+    ),
+    tech_stack_dependencies: pruneWikiUnusedFields(
+      sliceAnalyzerForService(analyzers.tech_stack_dependencies, serviceId),
+    ),
+    code_patterns_testing: pruneWikiUnusedFields(
+      sliceAnalyzerForService(analyzers.code_patterns_testing, serviceId),
+    ),
+    data_flows_integrations: pruneWikiUnusedFields(
+      sliceAnalyzerForService(analyzers.data_flows_integrations, serviceId),
+    ),
   };
+}
+
+/**
+ * Drop debug-only or verbose fields the wiki-generator prompt does not need.
+ * Removes top-level telemetry (`graph_queries_used`, `agent_name`, `timestamp`),
+ * full dep lists (`production`, `development`, `shared_across_services`), and
+ * verbose test-file regexes (`file_pattern`, `file_patterns`).
+ */
+function pruneWikiUnusedFields<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((entry) => pruneWikiUnusedFields(entry)) as unknown as T;
+  }
+  if (!isRecord(value)) return value;
+  const TOP_LEVEL_DROP = new Set(['graph_queries_used', 'agent_name', 'timestamp']);
+  const next: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (TOP_LEVEL_DROP.has(key)) continue;
+    if (key === 'production' || key === 'development' || key === 'shared_across_services') {
+      continue;
+    }
+    if (key === 'file_pattern' || key === 'file_patterns') {
+      continue;
+    }
+    next[key] = pruneWikiUnusedFields(raw);
+  }
+  return next as T;
 }
 
 function sliceAnalyzerForService<T>(value: T, serviceId: string): T {

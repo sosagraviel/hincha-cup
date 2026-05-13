@@ -34,12 +34,6 @@ export async function wikiPreparationNode(
     const stackProfile = readStackProfile(tempDir, state);
     const provider = getActiveProvider();
 
-    // Load digested upstream — the wiki-generator agent runs closed-book over
-    // these. Phase 3 synthesis lives at <tempDir>/synthesis-raw.md (written by
-    // the synthesis node); CLAUDE.md and the architectural narrative were
-    // both produced in Phase 4a. The wiki-generator no longer reads
-    // project-context — that monolithic skill was split into prescriptive
-    // convention skills not consumed by the wiki.
     const synthesisPath = join(tempDir, 'synthesis-raw.md');
     const digestedUpstream = {
       synthesis: existsSync(synthesisPath) ? readFileSync(synthesisPath, 'utf-8') : undefined,
@@ -55,8 +49,6 @@ export async function wikiPreparationNode(
       stackProfile,
       digestedUpstream,
       codeGraphToolCatalog: state.code_graph_tool_catalog,
-      // Phase coordinate so debug attempts go under phase-4-wiki/ instead of
-      // phase-unknown/ — see plans/2026-04-29-gira-init-run-audit-refactor.md F2.
       phase: getInitializeProjectPhase('phase4Wiki'),
       graph: {
         available: state.code_graph_available,

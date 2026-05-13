@@ -251,7 +251,7 @@ describe('formatPortDiscoveryViolations', () => {
     expect(formatPortDiscoveryViolations([])).toEqual([]);
   });
 
-  it('emits actionable retry feedback with stack-agnostic search list', () => {
+  it('emits compressed VALIDATION_E011_* feedback citing the service ID (Plan v7 Phase 7)', () => {
     const lines = formatPortDiscoveryViolations([
       {
         service_id: 'backend',
@@ -260,19 +260,13 @@ describe('formatPortDiscoveryViolations', () => {
         message: 'Service `backend` has no port and no opt-out.',
       },
     ]);
-    const joined = lines.join('\n');
-    expect(joined).toMatch(/PORT DISCOVERY MISSING/);
-    expect(joined).toContain('backend');
-    // Suggests sources across cloud / orchestration / per-language /
-    // source code — none specific to a single stack.
-    expect(joined).toMatch(/firebase\.json/);
-    expect(joined).toMatch(/serverless\.yml/);
-    expect(joined).toMatch(/wrangler\.toml/);
-    expect(joined).toMatch(/Bun\.serve/);
-    expect(joined).toMatch(/k8s/);
-    expect(joined).toMatch(/HOW TO FIX/);
-    // Names the opt-out shape so the agent knows the escape hatch.
-    expect(joined).toMatch(/port_applies/);
-    expect(joined).toMatch(/port_search_evidence/);
+    expect(lines).toHaveLength(1);
+    const line = lines[0];
+    expect(line).toMatch(/^VALIDATION_E011_port_discovery_gap: /);
+    expect(line).toContain('backend');
+    // Names at least one search source token (Dockerfile/listen/etc.) and
+    // the opt-out escape hatch tokens.
+    expect(line).toMatch(/EXPOSE|listen|opt-out/);
+    expect(line.length).toBeLessThanOrEqual(180);
   });
 });

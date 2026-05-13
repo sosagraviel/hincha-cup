@@ -15,12 +15,11 @@
  *
  * The CANONICAL_LANGUAGES set is the curated allowlist of languages that
  * downstream consumers (synthesis, wiki templates) special-case. It is NOT
- * a hard enum — values outside it are accepted but flagged via a soft warning
- * channel for telemetry (Phase E in the gira-init-run audit refactor plan).
+ * a hard enum — values outside it are accepted but flagged via a soft
+ * warning channel for telemetry.
  */
 
 const ALIASES: Record<string, string> = {
-  // TypeScript/JavaScript dialects
   ts: 'typescript',
   tsx: 'typescript',
   mts: 'typescript',
@@ -29,13 +28,11 @@ const ALIASES: Record<string, string> = {
   jsx: 'javascript',
   mjs: 'javascript',
   cjs: 'javascript',
-  // Python
   py: 'python',
   py2: 'python',
   py3: 'python',
   python2: 'python',
   python3: 'python',
-  // .NET family
   cs: 'csharp',
   'c#': 'csharp',
   'c-sharp': 'csharp',
@@ -44,39 +41,27 @@ const ALIASES: Record<string, string> = {
   vb: 'vbnet',
   'visual basic': 'vbnet',
   'vb.net': 'vbnet',
-  // C / C++
   cpp: 'cpp',
   'c++': 'cpp',
   cc: 'cpp',
   cxx: 'cpp',
   hpp: 'cpp',
-  // Ruby
   rb: 'ruby',
-  // Go
   golang: 'go',
-  // Rust
   rs: 'rust',
-  // Kotlin
   kt: 'kotlin',
   kts: 'kotlin',
-  // Swift / ObjC
   'objective-c': 'objectivec',
   'objective c': 'objectivec',
   objc: 'objectivec',
-  // PHP
   phtml: 'php',
-  // Java
   jav: 'java',
-  // Scala
   sc: 'scala',
-  // Perl
   pl: 'perl',
-  // Shell
   sh: 'shell',
   bash: 'shell',
   zsh: 'shell',
   fish: 'shell',
-  // R / Julia / Lua / Dart / Elixir / Clojure / Haskell / Erlang
   jl: 'julia',
   ex: 'elixir',
   exs: 'elixir',
@@ -84,7 +69,6 @@ const ALIASES: Record<string, string> = {
   cljs: 'clojure',
   hs: 'haskell',
   erl: 'erlang',
-  // Elm / OCaml / F-Sharp etc. left as-is — pass through.
 };
 
 /**

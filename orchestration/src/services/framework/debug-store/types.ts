@@ -85,6 +85,8 @@ export interface AttemptMeta {
   rateLimit?: boolean;
   /** Whether a native transcript was captured and copied in. */
   transcriptCaptured?: boolean;
+  /** Error captured when transcript capture threw — surfaces in debug HTML. */
+  transcriptCaptureError?: string;
   /** Whether HTML was rendered. */
   htmlRendered?: boolean;
   /** Where the native transcript originated (home dir, synthesized, etc.). */

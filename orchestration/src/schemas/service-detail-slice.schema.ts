@@ -1,15 +1,10 @@
 /**
- * Plan v4 Phase D — per-service detail slice.
+ * Per-service detail slice.
  *
- * The shape every Phase 1.5 service-detail-extractor sub-agent emits, one
+ * The shape every service-detail-extractor sub-agent emits, one
  * file per service, written to `<tempDir>/service-details/<service-id>.json`.
- *
- * Why this exists: v3's monolithic §B.3 contract asked the single
- * code-patterns-testing-analyzer to produce per-service `code_patterns[]`
- * for every service in one pass. On gira (six services) the output grew 13×
- * and wall-clock 7× (155 s → 1091 s). v4 splits the work N-ways: one
- * sub-agent per service, MAX_PARALLEL_FANOUT=8 in flight, wall-clock =
- * max(per-service) ≈ 100 s.
+ * One sub-agent per service runs with MAX_PARALLEL_FANOUT=8 in flight,
+ * keeping wall-clock close to max(per-service) instead of the sum.
  *
  * Stack-agnostic: every field below is text-shape only — no language,
  * framework, or naming convention is enumerated. The agent decides what
@@ -18,11 +13,19 @@
  */
 
 import { z } from 'zod';
-import { CodeSnippetSchema, NeedsVerificationEntrySchema } from './phase1-base.schema.js';
+import {
+  CodeSnippetWithCitationSchema,
+  NeedsVerificationEntrySchema,
+} from './phase1-base.schema.js';
 
-/* --------------------------------------------------------------------- */
-/* RequestLifecycleStep — one row in a service's per-request narrative.  */
-/* --------------------------------------------------------------------- */
+/**
+ * `where` MUST anchor the step to a concrete code location. Shape:
+ * `<path>:<symbol>`. Both halves are mandatory. The regex deliberately
+ * tolerates dotted module paths (`my.module:Class.method`) and dashed
+ * package names; it rejects bare paths (no `:symbol`) and bare symbols
+ * (no `:` separator).
+ */
+export const REQUEST_LIFECYCLE_WHERE_REGEX = /^[A-Za-z0-9_./\-]+:[A-Za-z_][A-Za-z0-9_.]*$/;
 
 /**
  * One step in the request → handler → service → repo → response chain.
@@ -48,9 +51,14 @@ export const RequestLifecycleStepSchema = z
       .string()
       .min(1)
       .max(200)
+      .regex(
+        REQUEST_LIFECYCLE_WHERE_REGEX,
+        'must match `<path>:<symbol>` (e.g. "src/users/users.controller.ts:UsersController.create")',
+      )
       .describe(
         'Concrete code anchor — file path + symbol name where this step is implemented ' +
-          '(e.g. "src/users/users.controller.ts:UsersController.create"). ≤ 200 chars.',
+          '(e.g. "src/users/users.controller.ts:UsersController.create"). REQUIRED shape: ' +
+          '`<path>:<symbol>`. ≤ 200 chars.',
       ),
     note: z
       .string()
@@ -80,17 +88,15 @@ export const TestingExampleSchema = z
       .max(240)
       .describe('Path from repo root to the test file (e.g. "src/users/users.spec.ts").'),
     name: z.string().max(160).optional().describe('Optional test/describe name. ≤ 160 chars.'),
-    snippet: CodeSnippetSchema.describe(
-      'Representative excerpt (≤ 600 chars). The agent picks the most illustrative ' +
-        "test from this service — one that shows the project's testing conventions.",
+    snippet: CodeSnippetWithCitationSchema.describe(
+      'Representative excerpt (≤ 1500 chars) WITH citation. The agent picks the most ' +
+        "illustrative test from this service — one that shows the project's testing " +
+        'conventions. `source_file` + `source_line` are REQUIRED so a reader can open ' +
+        'the exact line.',
     ),
   })
   .strict();
 export type TestingExample = z.infer<typeof TestingExampleSchema>;
-
-/* --------------------------------------------------------------------- */
-/* ServiceDetailSlice — top-level shape per sub-agent.                   */
-/* --------------------------------------------------------------------- */
 
 /**
  * One file per service under `<tempDir>/service-details/<service-id>.json`.
@@ -128,13 +134,14 @@ export const ServiceDetailSliceSchema = z
     findings: z
       .object({
         code_patterns: z
-          .array(CodeSnippetSchema)
+          .array(CodeSnippetWithCitationSchema)
           .max(12)
           .default([])
           .describe(
             'Representative code-shape patterns used by this service (≤ 12 entries). ' +
-              'Each entry is a short verbatim snippet with a free-form `kind` label ' +
-              '(e.g. "error-return-pattern", "dto-validation", "controller-shape"). ' +
+              'Each entry is a short verbatim snippet WITH citation (`source_file` + ' +
+              '`source_line` are required) and a free-form `kind` label (e.g. ' +
+              '"error-return-pattern", "dto-validation", "controller-shape"). ' +
               'Stack-agnostic: the framework never enumerates a closed list of kinds.',
           ),
         request_lifecycle: z
@@ -176,9 +183,9 @@ export type ServiceDetailSlice = z.infer<typeof ServiceDetailSliceSchema>;
 
 /**
  * Shape of the merged `<tempDir>/service-details/_index.json` written
- * after all per-service files land. This is what Phase E composer-views
- * (and the consolidation step) read — they never walk the directory
- * themselves.
+ * after all per-service files land. This is what the composer-views
+ * builder (and the consolidation step) read — they never walk the
+ * directory themselves.
  */
 export const ServiceDetailIndexSchema = z
   .object({

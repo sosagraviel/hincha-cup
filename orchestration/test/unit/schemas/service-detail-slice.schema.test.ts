@@ -1,15 +1,18 @@
 /**
- * Plan v4 Phase D — `service-detail-slice.schema.ts` unit tests.
+ * Unit tests for `service-detail-slice.schema.ts`.
  *
- * Asserts:
- *   - `ServiceDetailSliceSchema` accepts a minimal slice and a fully-attributed
- *     slice; rejects unknown top-level keys (strict).
- *   - `service_id` is required + non-empty; `agent_name` is locked to the
- *     `service-detail-extractor` literal.
+ * Covers:
+ *   - `ServiceDetailSliceSchema` accepts a minimal slice and a
+ *     fully-attributed slice; rejects unknown top-level keys (strict).
+ *   - `service_id` is required + non-empty; `agent_name` is locked to
+ *     the `service-detail-extractor` literal.
  *   - `code_patterns` cap (≤ 12), `request_lifecycle` cap (≤ 10),
  *     `representative_examples` cap (≤ 5), `notable` cap (≤ 8).
- *   - `RequestLifecycleStepSchema` enforces the `step` ≤ 120 / `where` ≤ 200 /
- *     `note` ≤ 240 char limits.
+ *   - `RequestLifecycleStepSchema` enforces `step` ≤ 120 / `where` ≤ 200
+ *     and the canonical `path:symbol` shape for `where`.
+ *   - `TestingExampleSchema` requires `file` + `snippet`, and the
+ *     snippet carries `source_file` + `source_line` citations.
+ *   - `code_patterns[]` snippets require citations.
  *   - `ServiceDetailIndexSchema` strict shape + count sanity.
  */
 
@@ -19,6 +22,7 @@ import {
   ServiceDetailIndexSchema,
   ServiceDetailSliceSchema,
   TestingExampleSchema,
+  REQUEST_LIFECYCLE_WHERE_REGEX,
 } from '../../../src/schemas/service-detail-slice.schema.js';
 
 const baseSnippet = {
@@ -160,7 +164,90 @@ describe('ServiceDetailSliceSchema', () => {
   });
 });
 
+describe('ServiceDetailSliceSchema.code_patterns — citations required', () => {
+  const base = {
+    agent_name: 'service-detail-extractor' as const,
+    timestamp: '2026-05-12T00:00:00.000Z',
+    service_id: 'api',
+    graph_queries_used: [],
+  };
+
+  it('accepts patterns with citations', () => {
+    const ok = ServiceDetailSliceSchema.safeParse({
+      ...base,
+      findings: {
+        code_patterns: [
+          {
+            kind: 'controller-shape',
+            language: 'typescript',
+            code: 'export class UsersController {}',
+            source_file: 'services/api/src/users/users.controller.ts',
+            source_line: 4,
+          },
+        ],
+      },
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('rejects patterns missing citations', () => {
+    const result = ServiceDetailSliceSchema.safeParse({
+      ...base,
+      findings: {
+        code_patterns: [
+          {
+            kind: 'controller-shape',
+            language: 'typescript',
+            code: 'export class UsersController {}',
+          },
+        ],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts an empty patterns array (library / CLI services)', () => {
+    const ok = ServiceDetailSliceSchema.safeParse({
+      ...base,
+      findings: { code_patterns: [] },
+    });
+    expect(ok.success).toBe(true);
+  });
+});
+
 describe('RequestLifecycleStepSchema', () => {
+  it('accepts a path:symbol shape', () => {
+    const ok = RequestLifecycleStepSchema.safeParse({
+      step: 'Receive HTTP request',
+      where: 'services/api/src/users/users.controller.ts:UsersController.create',
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('accepts dotted module paths (Python / Java)', () => {
+    const ok = RequestLifecycleStepSchema.safeParse({
+      step: 'Validate body',
+      where: 'app/api/users.py:UsersResource.post',
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('rejects a bare path with no symbol', () => {
+    const result = RequestLifecycleStepSchema.safeParse({
+      step: 'Validate body',
+      where: 'services/api/src/users/dto/create-user.dto.ts',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a bare symbol with no path', () => {
+    const result = RequestLifecycleStepSchema.safeParse({
+      step: 'Persist row',
+      where: 'UsersRepository.save',
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejects step longer than 120 chars', () => {
     const result = RequestLifecycleStepSchema.safeParse({
       step: 'a'.repeat(121),
@@ -172,7 +259,7 @@ describe('RequestLifecycleStepSchema', () => {
   it('rejects where longer than 200 chars', () => {
     const result = RequestLifecycleStepSchema.safeParse({
       step: 'Receive request',
-      where: 'a'.repeat(201),
+      where: 'a'.repeat(201) + ':fn',
     });
     expect(result.success).toBe(false);
   });
@@ -185,9 +272,41 @@ describe('RequestLifecycleStepSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('exports the canonical regex for reuse', () => {
+    expect(REQUEST_LIFECYCLE_WHERE_REGEX.test('a/b.ts:Foo.bar')).toBe(true);
+    expect(REQUEST_LIFECYCLE_WHERE_REGEX.test('a/b.ts')).toBe(false);
+  });
 });
 
 describe('TestingExampleSchema', () => {
+  it('accepts a fully-cited example', () => {
+    const ok = TestingExampleSchema.safeParse({
+      file: 'services/api/src/users/users.spec.ts',
+      name: 'creates a user',
+      snippet: {
+        kind: 'test-case',
+        language: 'typescript',
+        code: "it('creates a user', async () => { ... })",
+        source_file: 'services/api/src/users/users.spec.ts',
+        source_line: 8,
+      },
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('rejects a snippet without a citation', () => {
+    const result = TestingExampleSchema.safeParse({
+      file: 'services/api/src/users/users.spec.ts',
+      snippet: {
+        kind: 'test-case',
+        language: 'typescript',
+        code: "it('creates a user', async () => { ... })",
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('requires file + snippet', () => {
     const ok = TestingExampleSchema.safeParse({
       file: 'services/api/src/x.spec.ts',

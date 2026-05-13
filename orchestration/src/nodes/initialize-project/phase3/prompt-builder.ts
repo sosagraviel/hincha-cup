@@ -87,13 +87,6 @@ function loadSynthesisInstructions(): string {
  * and any validation feedback.
  */
 export function buildSynthesisPrompt(consolidatedData: any, feedbackPrompt?: string): string {
-  // Plan §I.4 (gira-exhaustive followup, 2026-05-05): trim the
-  // consolidation blob to the synthesizer-relevant subset
-  // (consolidated_gaps + consolidation_metadata + curated summary).
-  // Saves ~37 KB per run on the gira measurement; proportional
-  // savings on any sufficiently-detailed Phase 2 output. The
-  // synthesizer can Read raw analyzer JSONs on demand if it needs
-  // them (and almost never does in practice).
   const consolidatedJson = JSON.stringify(trimSynthesisInput(consolidatedData), null, 2);
 
   const parts: string[] = [

@@ -11,7 +11,6 @@
 
 import fs from 'fs';
 import path from 'path';
-// Import centralized validator from Phase 0 schema registry
 import { validateAgentOutput } from '../../../../../schemas/phase1-agent-outputs.schema.js';
 import { extractJSON } from '../../../../../utils/validator.js';
 import { validateNeedsVerificationProse } from '../needs-verification-quality.js';
@@ -24,9 +23,23 @@ import {
   formatPortDiscoveryViolations,
 } from '../../structure-analyzer/hooks/validate-port-discovery.js';
 import {
+  detectServiceCompletenessViolations,
+  formatServiceCompletenessViolations,
+} from '../../structure-analyzer/hooks/validate-service-completeness.js';
+import { getExcludedDirectories } from '../../../../../utils/shared/prompt-loader.js';
+import {
   detectInfrastructurePortViolations,
   formatInfrastructurePortViolations,
 } from '../../data-flows-analyzer/hooks/validate-infrastructure-port-discovery.js';
+import {
+  detectMissingJudgmentFields,
+  formatJudgmentFieldViolations,
+  loadServiceTypeMap,
+} from './validate-judgment-fields.js';
+import {
+  formatValidationError,
+  NEEDS_VERIFICATION_SUBCODE_TO_KEY,
+} from '../../../shared/validation-codes/index.js';
 
 /**
  * Names of the three downstream Phase 1 analyzers — those that consume the
@@ -50,24 +63,9 @@ interface HookInput {
 const CODE_GRAPH_TOOL_PREFIX = 'mcp__code_graph__';
 
 /**
- * Count code-graph MCP tool_use events across all assistant messages in a
- * transcript. Returns the unique tool names called and the total event count.
- *
- * This is the deterministic ground truth for `graph_queries_used` — the agent
- * cannot lie about it because we read the same transcript Claude CLI already
- * wrote. Used in two places below:
- *   1. The hook blocks when the agent claims graph use but the transcript
- *      count is zero (the gira-run failure mode).
- *   2. Even on success, the orchestration node will read this sidecar and
- *      replace whatever the agent put in `graph_queries_used` with the real
- *      list, eliminating the field from agent responsibility entirely.
- */
-/**
  * MCP server sentinel emitted when a tool result exceeds the per-call token
- * cap. The full payload is dumped to a sidecar file under `~/.claude/projects/
- * <slug>/<sessionId>/tool-results/...` and the agent receives this message in
- * place of the result. Treated as a calling error: the framework counts
- * overflows so they cannot regress silently.
+ * cap. Treated as a calling error so overflows are surfaced rather than
+ * regressing silently.
  */
 const SPILLOVER_SENTINEL =
   /Error: result \(\d[\d,]* characters\) exceeds maximum allowed tokens\. Output has been saved to /;
@@ -77,31 +75,29 @@ interface GraphToolUseRecord {
   count: number;
   /** Sorted unique canonical tool names actually called. */
   uniqueNames: string[];
-  /**
-   * Per-tool call counts for graph tools (key = full
-   * `mcp__code_graph__<name>` string). Surfaces oversearch (e.g.
-   * semantic_search_nodes_tool > 8). See gira-init-run audit F27.
-   */
+  /** Per-tool call counts (key = full `mcp__code_graph__<name>` string). */
   nameCounts: Record<string, number>;
-  /**
-   * Total non-graph tool_use events (Read / Glob / Grep / Bash / Edit /
-   * Write / etc.). Used to compute the graph_call_ratio soft warning so
-   * analyzers that grep-spam over the graph get nudged on retry. See
-   * gira-init-run audit F10.
-   */
+  /** Total non-graph tool_use events. Drives the `low_graph_ratio` soft warning. */
   nonGraphCount: number;
   /** One entry per overflowing tool result (sentinel match). */
   overflows: Array<{ tool: string; callIndex: number }>;
+  /** Unique Glob pattern args (verbatim). */
+  globPatterns: string[];
 }
 
+/**
+ * Count code-graph MCP tool_use events across all assistant messages in a
+ * transcript. Returns the unique tool names called and the total event count.
+ * Deterministic ground truth for `graph_queries_used` — the agent cannot
+ * fabricate it because we read the same transcript Claude CLI wrote.
+ */
 function countGraphToolUses(transcript: unknown[]): GraphToolUseRecord {
   const uses = new Map<string, number>();
   let nonGraphCount = 0;
-  // Track tool_use events by their `id` so we can attribute a later
-  // overflowing tool_result back to the specific tool that produced it.
   const useByCallId = new Map<string, { tool: string; callIndex: number }>();
   let callIndex = 0;
   const overflows: GraphToolUseRecord['overflows'] = [];
+  const globPatterns = new Set<string>();
 
   for (const msg of transcript) {
     if (!isObject(msg)) continue;
@@ -121,9 +117,13 @@ function countGraphToolUses(transcript: unknown[]): GraphToolUseRecord {
             useByCallId.set(block.id, { tool: name, callIndex });
           }
         } else {
-          // Read / Glob / Grep / Bash / Edit / Write / NotebookEdit / etc.
-          // Counted to compute graph_call_ratio downstream.
           nonGraphCount += 1;
+          if (name === 'Glob' && isObject(block.input)) {
+            const pattern = (block.input as Record<string, unknown>).pattern;
+            if (typeof pattern === 'string' && pattern.length > 0) {
+              globPatterns.add(pattern);
+            }
+          }
         }
       }
     }
@@ -134,8 +134,6 @@ function countGraphToolUses(transcript: unknown[]): GraphToolUseRecord {
         const useId = typeof block.tool_use_id === 'string' ? block.tool_use_id : '';
         const matched = useId ? useByCallId.get(useId) : undefined;
         if (!matched) continue;
-        // Result content can be a string OR an array of `{type:"text", text}`
-        // blocks. Normalize.
         const raw = block.content;
         const text = Array.isArray(raw)
           ? raw
@@ -161,6 +159,7 @@ function countGraphToolUses(transcript: unknown[]): GraphToolUseRecord {
     nameCounts,
     nonGraphCount,
     overflows,
+    globPatterns: Array.from(globPatterns).sort(),
   };
 }
 
@@ -169,16 +168,15 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Loads the authoritative service IDs the structure-analyzer persisted at
- * `<tempDir>/phase1-outputs/01-structure-architecture.json`. The downstream
- * analyzers (02, 03, 04) MUST stay within this set — any service-shaped key
- * referencing an ID that isn't in the authoritative set is a regression
- * (see plans/2026-04-29-gira-init-run-audit-refactor.md findings F7/F22).
+ * Loads the authoritative service IDs the structure-analyzer
+ * persisted at `<tempDir>/phase1-outputs/01-structure-architecture.json`.
+ * The downstream analyzers (tech-stack / code-patterns / data-flows)
+ * MUST stay within this set — any service-shaped key referencing an ID
+ * that isn't in the authoritative set is a regression.
  *
  * Returns an empty `Set` when the file is missing or malformed (e.g. a
- * single-analyzer replay where 01 wasn't run). The caller treats an empty
- * set as "no consistency check possible — skip" rather than failing the
- * agent on missing infrastructure.
+ * single-analyzer replay where structure wasn't run). The caller
+ * treats an empty set as "no consistency check possible — skip".
  *
  * Stack-agnostic: only consumes service `id` strings; no language or
  * framework assumptions.
@@ -203,7 +201,7 @@ function loadAuthoritativeServiceIds(cwd: string | undefined): Set<string> {
       }
       if (ids.size > 0) return ids;
     } catch {
-      // Continue to the next candidate — best-effort, never fail open here.
+      continue;
     }
   }
   return new Set();
@@ -224,15 +222,11 @@ function candidateTempDirs(cwd: string | undefined): string[] {
 }
 
 /**
- * Walk every leaf string value in a parsed analyzer output looking for
- * service IDs that don't appear in the authoritative set. Heuristic: collect
- * keys of every record at the top level of `findings.{by_service|testing|
- * api_patterns|service_communication|...}` — these are conventionally keyed
- * by service ID per the schema. Also scan top-level keys whose value is an
- * object that itself contains an `id` field (defensive).
- *
- * Returns an array of `{key, parent}` records describing every offending
- * appearance so the feedback message can list them precisely.
+ * Walk every leaf string value in a parsed analyzer output looking
+ * for service IDs that don't appear in the authoritative set.
+ * Returns an array of `{id, location}` records describing every
+ * offending appearance so the feedback message can list them
+ * precisely.
  */
 function findUnknownServiceIds(
   data: unknown,
@@ -244,16 +238,8 @@ function findUnknownServiceIds(
 
   const offenders: Array<{ id: string; location: string }> = [];
 
-  // 1. Scan top-level objects in `findings` whose entries are conventionally
-  //    keyed by service ID. We do NOT assume any specific key name —
-  //    the schemas use `by_service`, `testing`, `service_communication`,
-  //    `api_patterns`, etc., and consumers may evolve. Heuristic: any
-  //    record-shaped value in `findings` whose keys look like identifiers.
   for (const [parentKey, parentValue] of Object.entries(findings)) {
     if (!isObject(parentValue)) continue;
-    // Skip plainly-not-by-service-id structures: ones that have well-known
-    // non-id keys at the top level (e.g. `dependencies` has `by_service` as
-    // a nested map, not its top level).
     if (parentKey === 'dependencies') {
       const inner = (parentValue as Record<string, unknown>).by_service;
       if (isObject(inner)) {
@@ -265,30 +251,19 @@ function findUnknownServiceIds(
       }
       continue;
     }
-    // Scan record-shaped containers: top-level keys that look like service IDs.
     for (const candidateId of Object.keys(parentValue)) {
-      // Heuristic guard: reject keys that obviously aren't IDs (whitespace,
-      // single-char, or "raw" container keys we don't want to flag like
-      // "source", "conflicts", "by_task").
       if (candidateId.length < 2) continue;
       if (/\s/.test(candidateId)) continue;
-      // Skip well-known schema-sanctioned non-service keys: a record-shaped
-      // object can also be a config block, not a service-id map.
       if (
         ['source', 'conflicts', 'by_task', 'main', 'orm', 'package_manager'].includes(candidateId)
       ) {
         continue;
       }
-      // Lower-case identifier-ish; flag if not in authoritative set.
       if (
         /^[a-z][a-z0-9_-]+$/i.test(candidateId) &&
         !authoritative.has(candidateId) &&
-        // Allow known structural keys per schema (these are NOT service IDs).
         !STRUCTURAL_KEY_ALLOWLIST.has(`${parentKey}.${candidateId}`)
       ) {
-        // Shallow heuristic — only flag when the value is itself an object
-        // (record-shaped) AND the parent key is one we expect to be keyed
-        // by service ID.
         if (isObject((parentValue as Record<string, unknown>)[candidateId])) {
           if (BY_SERVICE_PARENT_KEYS.has(parentKey)) {
             offenders.push({
@@ -305,10 +280,12 @@ function findUnknownServiceIds(
 }
 
 /**
- * Conservative allowlist: keys we KNOW are conventionally keyed by service ID
- * across the three downstream analyzers. The check only flags unknown IDs
- * inside these parents — every other shape is left alone, so adding a new
- * non-service-id-keyed structure to a schema doesn't cause false positives.
+ * Conservative allowlist of parent keys whose immediate subkeys are
+ * conventionally service IDs. Unknown IDs are only flagged inside these
+ * parents — every other shape is left alone so non-service-id-keyed
+ * structures don't trigger false positives. `environment` is intentionally
+ * excluded: its subkeys (`required_vars`, `template_files`, `environments`,
+ * `config_approach`) are config metadata, not service IDs.
  */
 const BY_SERVICE_PARENT_KEYS = new Set<string>([
   'testing',
@@ -317,12 +294,11 @@ const BY_SERVICE_PARENT_KEYS = new Set<string>([
   'naming_conventions',
   'error_handling',
   'async_patterns',
-  'environment',
 ]);
 
 /**
- * Top-level subkeys we want to ignore even when they appear inside a
- * by-service parent — they're container metadata, not service IDs.
+ * Subkeys to ignore even when they appear inside a by-service parent —
+ * container metadata rather than service IDs.
  */
 const STRUCTURAL_KEY_ALLOWLIST = new Set<string>([
   'testing.unit',
@@ -335,38 +311,36 @@ const STRUCTURAL_KEY_ALLOWLIST = new Set<string>([
  * Write the deterministic graph-tool-use record next to the transcript so the
  * orchestration node can merge it into the persisted analyzer output. The
  * orchestration node is the single writer of the agent's `output.json` file —
- * the hook only emits a sidecar; the node does the rewrite. This keeps the
- * hook's responsibility narrow (block on lies) and makes deterministic
- * `graph_queries_used` easy to verify in Phase 6 validation.
+ * the hook only emits a sidecar; the node does the rewrite.
  */
 function writeGraphToolUseSidecar(transcriptPath: string, data: GraphToolUseRecord): void {
   try {
     const sidecarPath = transcriptPath.replace(/\.jsonl$/, '') + '.graph-tool-uses.json';
     fs.writeFileSync(sidecarPath, JSON.stringify(data, null, 2));
   } catch {
-    // Best-effort — sidecar failure must not block analyzer completion.
+    return;
   }
 }
 
 /**
- * Block Claude from finishing with feedback
- * Exit code 2 signals blocking to Claude CLI (exit 1 is just an error, not a block!)
+ * Block Claude from finishing and provide retry feedback on stderr.
+ * Exit code 2 is the Claude CLI signal for "block" (exit 1 is just an error).
  */
 function blockWithFeedback(reason: string): void {
-  console.error(reason); // Print feedback to stderr for Claude CLI to show
-  process.exit(2); // Exit code 2 = BLOCK agent from completing
+  console.error(reason);
+  process.exit(2);
 }
 
 /**
- * Allow Claude to finish
+ * Allow Claude to finish.
  */
 function allow(): void {
   process.exit(0);
 }
 
 /**
- * Read stdin using async iterator (production-ready, handles non-blocking pipes)
- * Solves EAGAIN errors that occur with fs.readFileSync(0) on non-blocking stdin
+ * Read stdin via async iterator. Avoids EAGAIN on non-blocking pipes that
+ * `fs.readFileSync(0)` runs into.
  */
 async function readStdinAsync(): Promise<string> {
   const chunks: string[] = [];
@@ -380,28 +354,19 @@ async function readStdinAsync(): Promise<string> {
 
 async function main() {
   try {
-    // Read stdin to get hook input metadata (production-ready async method)
     const stdinBuffer = await readStdinAsync();
     const input: HookInput = JSON.parse(stdinBuffer);
 
-    // Require transcript for validation
     if (!input.transcript_path) {
-      return blockWithFeedback(
-        '❌ HOOK ERROR: No transcript path provided\n\n' +
-          'The validation hook requires a transcript to validate output.\n' +
-          'This is a framework error, not an agent error.',
-      );
+      return blockWithFeedback(formatValidationError('E015_hook_transcript_missing', {}));
     }
 
     if (!fs.existsSync(input.transcript_path)) {
       return blockWithFeedback(
-        '❌ HOOK ERROR: Transcript file not found\n\n' +
-          `Expected transcript at: ${input.transcript_path}\n` +
-          'This is a framework error, not an agent error.',
+        formatValidationError('E015_hook_transcript_missing', { path: input.transcript_path }),
       );
     }
 
-    // Read transcript file (JSONL format - one JSON object per line)
     const transcriptContent = fs.readFileSync(input.transcript_path, 'utf-8');
     const lines = transcriptContent.split('\n').filter((line: string) => line.trim());
 
@@ -415,7 +380,6 @@ async function main() {
       })
       .filter(Boolean);
 
-    // Find last assistant message (supports both direct and wrapped formats)
     const assistantMessages = transcript
       .filter((msg: any) => {
         return msg.type === 'assistant' || (msg.message && msg.message.role === 'assistant');
@@ -423,35 +387,21 @@ async function main() {
       .reverse();
 
     if (assistantMessages.length === 0) {
-      return blockWithFeedback(
-        '❌ HOOK ERROR: No assistant messages found in transcript\n\n' +
-          "The agent hasn't produced any output yet.\n" +
-          'This is unexpected - the hook should only run after agent output.',
-      );
+      return blockWithFeedback(formatValidationError('E001_no_assistant_message'));
     }
 
     const lastMessage = assistantMessages[0];
 
-    // Get content from either direct format or wrapped format
     const messageContent = lastMessage.message ? lastMessage.message.content : lastMessage.content;
 
     if (!messageContent || !Array.isArray(messageContent)) {
-      return blockWithFeedback(
-        '❌ HOOK ERROR: Last message has invalid content structure\n\n' +
-          'Expected an array of content blocks.\n' +
-          'This is a framework error, not an agent error.',
-      );
+      return blockWithFeedback(formatValidationError('E002_invalid_content_structure'));
     }
 
-    // Extract text blocks from content
     const textBlocks = messageContent.filter((c: any) => c.type === 'text');
 
     if (textBlocks.length === 0) {
-      return blockWithFeedback(
-        '❌ OUTPUT ERROR: No text content in response\n\n' +
-          "Your response doesn't contain any text output.\n" +
-          'You must output JSON in the required format.',
-      );
+      return blockWithFeedback(formatValidationError('E003_no_text_in_response'));
     }
 
     const text = textBlocks
@@ -460,232 +410,81 @@ async function main() {
       .trim();
 
     if (!text) {
-      return blockWithFeedback(
-        '❌ OUTPUT ERROR: No output received\n\n' +
-          'Your response is empty.\n' +
-          'You must output JSON in the required format.',
-      );
+      return blockWithFeedback(formatValidationError('E004_empty_output'));
     }
 
-    // Extract JSON from the output (handles markdown code blocks, explanatory text, etc.)
     const jsonString = extractJSON(text);
 
     if (!jsonString) {
-      return blockWithFeedback(
-        '❌ No JSON object found in your response.\n\n' +
-          'REQUIRED FORMAT:\n' +
-          '  1. Output ONLY raw JSON (no explanatory text)\n' +
-          '  2. First character must be { and last character must be }\n' +
-          '  3. Do NOT wrap in markdown code blocks (no ```json)\n' +
-          '  4. Do NOT add any text before or after the JSON\n\n' +
-          'Expected structure:\n' +
-          '{\n' +
-          '  "agent_name": "structure-architecture-analyzer",\n' +
-          '  "timestamp": "2026-04-02T10:30:00.000Z",\n' +
-          '  "findings": { /* your analysis data */ },\n' +
-          '  "needs_verification": [] // Maximum 3 items\n' +
-          '}\n\n' +
-          'Please output the corrected JSON now.',
-      );
+      return blockWithFeedback(formatValidationError('E005_no_json_object'));
     }
 
-    // Parse the JSON
     let data: unknown;
     try {
       data = JSON.parse(jsonString);
     } catch (parseError) {
       const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown error';
       return blockWithFeedback(
-        `❌ JSON parsing failed: ${errorMsg}\n\n` +
-          'COMMON JSON SYNTAX ERRORS:\n' +
-          '  1. Missing or extra commas between fields\n' +
-          '  2. Unclosed braces { } or brackets [ ]\n' +
-          '  3. Unquoted strings (all keys and values must use double quotes "")\n' +
-          '  4. Trailing commas in objects or arrays (not allowed in JSON)\n' +
-          '  5. Single quotes instead of double quotes\n\n' +
-          'TIP: Copy your JSON to a validator (jsonlint.com) or check the exact error above.\n\n' +
-          'Please fix these syntax errors and output valid JSON.',
+        formatValidationError('E006_json_parse_failed', { error: errorMsg }),
       );
     }
 
-    // Compute the deterministic graph-tool-use record from the transcript.
-    // This is the load-bearing fix for D5: the agent claimed graph_queries_used
-    // values that did not match its actual tool_use events. We read the same
-    // transcript Claude CLI wrote and count for ourselves.
     const graphUses = countGraphToolUses(transcript);
     writeGraphToolUseSidecar(input.transcript_path!, graphUses);
 
-    // Detect the "agent lied about graph usage" failure mode: the parsed JSON
-    // claims one or more graph_queries_used entries but the transcript shows
-    // zero `mcp__code_graph__*` tool_use events. Block + feedback so the agent
-    // retries either by actually calling the graph or by honestly reporting
-    // it had to fall back.
     const claimed =
       isObject(data) && Array.isArray((data as Record<string, unknown>).graph_queries_used)
         ? ((data as Record<string, unknown>).graph_queries_used as unknown[]).length
         : 0;
     if (claimed > 0 && graphUses.count === 0) {
       return blockWithFeedback(
-        '❌ Output claims graph_queries_used has entries but the transcript records zero ' +
-          `mcp__${CODE_GRAPH_TOOL_PREFIX.replace(/^mcp__/, '').replace(/__$/, '')}__* tool_use events.\n\n` +
-          'You did not actually call any code-graph MCP tool. Either:\n' +
-          '  1. Call at least one tool from the "Available MCP tools" list in your CODE GRAPH CONTEXT, OR\n' +
-          '  2. Set graph_queries_used to [] and explain in your output why the graph was not used.\n\n' +
-          'Do not invent tool names or fabricate query lists. The Stop hook reads the transcript directly ' +
-          'and will reject any future attempt that does not match what you actually executed.',
+        formatValidationError('E007_graph_use_fabricated', { claimed: String(claimed) }),
       );
     }
 
-    // Validate against schema
     const result = validateAgentOutput(data);
 
     if (!result.success) {
-      // Enhanced error messages with specific guidance
-      const agentInfo = result.agentName ? ` for agent "${result.agentName}"` : '';
       const errors = result.errors
         ? result.errors.issues
-            .map((err, index) => {
-              const pathStr = err.path.length > 0 ? `${err.path.join('.')}` : 'root';
-              let errorMsg = `  ${index + 1}. Field "${pathStr}": ${err.message}`;
-
-              // Add specific guidance for common errors
+            .map((err) => {
+              const pathStr = err.path.length > 0 ? err.path.join('.') : 'root';
               if (err.code === 'too_big' && pathStr === 'needs_verification') {
-                const actual = (err as any).actual || 'unknown';
-                const max = (err as any).maximum || 3;
-                errorMsg += `\n     → You provided ${actual} items, but the maximum is ${max}`;
-                errorMsg += `\n     → Remove ${actual - max} item(s) from needs_verification array`;
-                errorMsg += `\n     → Keep only the MOST IMPORTANT questions that cannot be determined from code`;
+                const actual = (err as any).actual ?? '?';
+                const max = (err as any).maximum ?? 3;
+                return `${pathStr}=${actual} (max ${max})`;
               }
-
-              return errorMsg;
+              return `${pathStr}: ${err.message}`;
             })
-            .join('\n')
-        : 'Unknown validation error';
+            .join('; ')
+        : 'unknown';
 
       return blockWithFeedback(
-        `❌ Schema validation failed${agentInfo}. Fix these issues:\n\n${errors}\n\n` +
-          'REQUIRED JSON STRUCTURE:\n' +
-          '{\n' +
-          '  "agent_name": "structure-architecture-analyzer" | "tech-stack-dependencies-analyzer" | "code-patterns-testing-analyzer" | "data-flows-integrations-analyzer",\n' +
-          '  "timestamp": "2026-04-02T10:30:00.000Z", // ISO 8601 format\n' +
-          '  "findings": {\n' +
-          '    // For structure-architecture-analyzer: findings.services[] is REQUIRED (≥1 service).\n' +
-          '    // For the three downstream analyzers: findings.services[] is FORBIDDEN — use the\n' +
-          '    // service-ID-keyed maps documented in your schema (by_service / testing / api_patterns / etc.).\n' +
-          '  },\n' +
-          '  "needs_verification": [\n' +
-          '    { "id": "v1", "question": "Clear question?", "reason": "context" }\n' +
-          '  ] // OPTIONAL, MAXIMUM 3 ITEMS\n' +
-          '}\n\n' +
-          'IMPORTANT:\n' +
-          '  - agent_name must exactly match one of the 4 analyzer names above\n' +
-          '  - timestamp must be valid ISO 8601 format\n' +
-          '  - For analyzer 01 only: findings.services[] is REQUIRED (≥1 service, each with an id).\n' +
-          '  - For analyzers 02/03/04: do NOT emit findings.services[] — that key is forbidden.\n' +
-          '  - ⚠️  needs_verification MAXIMUM 3 ITEMS - prioritize the most critical unknowns\n\n' +
-          'Please output the corrected JSON with all required fields.',
+        formatValidationError('E008_schema_validation_failed', {
+          agent: result.agentName ?? '',
+          errors,
+        }),
       );
     }
 
-    // Service-ID consistency check for downstream analyzers (02/03/04). The
-    // structure-architecture-analyzer's services[] is the authoritative set;
-    // any service-id-keyed structure in this output that references an unknown
-    // ID is a regression (see plans/2026-04-29-gira-init-run-audit-refactor.md
-    // findings F7/F22). Stack-agnostic — only consumes id strings.
     const agentName =
       isObject(data) && typeof (data as Record<string, unknown>).agent_name === 'string'
         ? ((data as Record<string, unknown>).agent_name as string)
         : '';
 
-    // Plan 14 §C.8.1 (gira-exhaustive-followup-2, 2026-05-05):
-    // structural prose validation runs AFTER the schema check passes
-    // so per-item violations are reported with the correct array
-    // index. Each rule maps to a typed code the agent's retry
-    // feedback can switch on:
-    //   - missing_attempted_resolution        — searched too little
-    //   - invalid_attempted_resolution_entry  — entry isn't a tool / human:
-    //   - graph_internals_in_user_prose       — leaks framework internals
-    //   - fabricated_numbers_in_question      — guessed counts
-    //   - missing_or_generic_impact           — no concrete artefact named
     if (isObject(data) && Array.isArray((data as Record<string, unknown>).needs_verification)) {
       const proseViolations = validateNeedsVerificationProse(
         (data as Record<string, unknown>).needs_verification,
       );
       if (proseViolations.length > 0) {
-        const numbered = proseViolations
-          .map((v, i) => `  ${i + 1}. [${v.code}] ${v.message}`)
-          .join('\n');
-        return blockWithFeedback(
-          '❌ needs_verification quality gate failed (Plan 14 §C):\n\n' +
-            numbered +
-            '\n\n' +
-            'How to fix every category:\n' +
-            '  - missing_attempted_resolution: run AT LEAST 2 concrete tool\n' +
-            '    calls (Read / Grep / Glob / Bash / mcp__code_graph__*) for\n' +
-            '    each item and list them in `attempted_resolution`. At least\n' +
-            '    one entry MUST be a tool invocation; `human:`-prefixed\n' +
-            '    explanations supplement, never replace, tool entries.\n' +
-            '  - invalid_attempted_resolution_entry: each entry MUST start\n' +
-            '    with a recognised tool token (Read / Grep / Glob / Bash /\n' +
-            '    mcp__code_graph__*) OR `human:` followed by a ≥20-char\n' +
-            '    explanation. Prose like "I tried to find it" is rejected.\n' +
-            '  - graph_internals_in_user_prose: do NOT mention "graph",\n' +
-            '    "Class search", "semantic search", "community", or\n' +
-            '    `mcp__code_graph__*` in `question`/`reason`. The user\n' +
-            '    does not know what the graph is. Phrase the question in\n' +
-            '    terms of project state.\n' +
-            '  - fabricated_numbers_in_question: never ask the human to\n' +
-            '    confirm `~N`, `≈N`, `approximately N`, `roughly N`. Either\n' +
-            '    compute the count deterministically or omit the number.\n' +
-            '  - missing_or_generic_impact: `impact` MUST name a concrete\n' +
-            '    artefact (wiki page / skill body / finding) AND what changes\n' +
-            '    about it. ≥40 chars. "Important for documentation" / "useful\n' +
-            '    to know" / "nice to have" are rejected.\n' +
-            '  - found_no_evidence_yesno (Plan 17 §C.1 + Plan 20): your\n' +
-            '    `attempted_resolution` already proves the answer (e.g.\n' +
-            '    "Grep aws-sdk — zero matches"), and the question is a\n' +
-            '    yes/no presence question. The fix is NOT to silently\n' +
-            '    delete the item — that loses the fact. RECORD THE\n' +
-            '    ABSENCE in the right `findings.<sub-field>` path FIRST,\n' +
-            '    THEN drop the question. Examples:\n' +
-            '      • AR has "no coverageThreshold key found" → add to\n' +
-            '        `findings.testing.<svc>.unit.coverage_threshold:\n' +
-            '        "not_enforced"` or in `notes:`.\n' +
-            '      • AR has "Grep X — zero matches" → omit X from the\n' +
-            '        dep list OR add `findings.dependencies.<svc>.notable_absent`.\n' +
-            '      • AR has "Glob workflows — zero matches" → add\n' +
-            '        `findings.ci_cd.provider: "none"`.\n' +
-            '    The fact still belongs in the wiki/CLAUDE.md; only the\n' +
-            "    QUESTION is wrong (the operator can't add information\n" +
-            '    your evidence already gathered).\n' +
-            '  - confessed_incomplete_search (Plan 17 §C.2 + Plan 20): your\n' +
-            '    `attempted_resolution` admits the search was incomplete\n' +
-            '    ("file contents were not read", "did not inspect"). The\n' +
-            '    fix is two steps: (1) finish the search (Read / Grep /\n' +
-            '    Glob the file you skipped) and (2) RECORD what you found\n' +
-            "    in the right `findings.<sub-field>` path. Don't drop the\n" +
-            '    item without finishing — the fact belongs in the wiki.\n' +
-            '  - speculative_out_of_scope (Plan 18): the question is about\n' +
-            '    credentials / secrets / production endpoints / production\n' +
-            '    deployment / infrastructure managed outside the repo. The\n' +
-            '    wiki/CLAUDE.md documents what the CODE says; production\n' +
-            '    state is out-of-scope by design. DROP these items entirely\n' +
-            "    — do not rephrase to evade the rule. The operator's answer\n" +
-            '    would not change any generated artefact.\n\n' +
-            'Re-emit with the offending items either resolved (you found the\n' +
-            'answer) or removed (the item should not have been there).',
-        );
+        const lines = proseViolations.map((v) => {
+          const key = NEEDS_VERIFICATION_SUBCODE_TO_KEY[v.code];
+          return formatValidationError(key, v.args ?? { index: String(v.index) });
+        });
+        return blockWithFeedback(lines.join('\n'));
       }
     }
 
-    // Plan 16 §C.4 — automation-discovery hard validator.
-    // Only fires for the structure-architecture-analyzer because it owns
-    // `findings.automation`. Checks the project filesystem for canonical
-    // wrapper files (Makefile, Justfile, Taskfile, scripts/setup,
-    // bin/setup, devcontainer.json) and the README's run-section headings;
-    // rejects when any of those exist but the analyzer's output does not
-    // represent them. Stack-agnostic — pure file-presence + heading-shape
-    // checks.
     if (agentName === 'structure-architecture-analyzer') {
       const automationViolations = detectAutomationDiscoveryViolations(data, input.cwd);
       if (automationViolations.length > 0) {
@@ -694,24 +493,24 @@ async function main() {
         );
       }
 
-      // Plan 21 — output-shape validator for per-service port
-      // discovery. Stack-agnostic — never opens any project file;
-      // only inspects the analyzer's output JSON. Forces the agent
-      // to either find a port (in any source the project uses) or
-      // declare an explicit opt-out with reason and evidence.
       const portViolations = detectPortDiscoveryViolations(data);
       if (portViolations.length > 0) {
         return blockWithFeedback(formatPortDiscoveryViolations(portViolations).join('\n'));
       }
+
+      const excludedDirs = input.cwd ? getExcludedDirectories(input.cwd) : [];
+      const completenessViolations = detectServiceCompletenessViolations(
+        data,
+        input.cwd,
+        excludedDirs,
+      );
+      if (completenessViolations.length > 0) {
+        return blockWithFeedback(
+          formatServiceCompletenessViolations(completenessViolations).join('\n'),
+        );
+      }
     }
 
-    // Plan 22 — output-shape validator for infrastructure-service
-    // ports. Mirrors Plan 21 but for the data-flows analyzer's
-    // `infrastructure_services[]` slice (Postgres / Redis /
-    // Keycloak server / Mailhog / etc.). Stack-agnostic — never
-    // opens any project file. Forces the agent to either find a
-    // port for each runtime infrastructure service OR declare an
-    // explicit SaaS opt-out with reason and ≥2 evidence entries.
     if (agentName === 'data-flows-integrations-analyzer') {
       const infraPortViolations = detectInfrastructurePortViolations(data);
       if (infraPortViolations.length > 0) {
@@ -723,8 +522,6 @@ async function main() {
 
     if (DOWNSTREAM_ANALYZERS.has(agentName)) {
       const authoritative = loadAuthoritativeServiceIds(input.cwd);
-      // Empty authoritative set = no consistency check possible (single-
-      // analyzer replay or interrupted run). Skip rather than fail open.
       if (authoritative.size > 0) {
         const offenders = findUnknownServiceIds(data, authoritative);
         if (offenders.length > 0) {
@@ -732,39 +529,33 @@ async function main() {
             .map(({ id, location }) => `  - "${id}" at ${location}`)
             .join('\n');
           const authoritativeList = Array.from(authoritative).sort().join(', ');
+          const offendersSummary = offenders.map((o) => o.id).join(',');
           return blockWithFeedback(
-            '❌ Service-ID consistency check failed.\n\n' +
-              'Your output references service IDs that are NOT in the AUTHORITATIVE SERVICE\n' +
-              'LIST you were given. The structure-architecture-analyzer ran first and is\n' +
-              'the single source of truth for service discovery; you may not introduce new\n' +
-              'IDs of your own.\n\n' +
-              'Unknown IDs found in your output:\n' +
-              offenderList +
-              '\n\n' +
-              `Authoritative service IDs (from your prompt's AUTHORITATIVE SERVICE LIST): ${authoritativeList}\n\n` +
-              'How to fix:\n' +
-              '  - If a finding belongs to one of the authoritative services, use that service ID verbatim.\n' +
-              '  - If the finding is genuinely cross-cutting (not tied to a specific service), put it under\n' +
-              '    a top-level non-service key (e.g. an analyzer-specific section), not under a service-ID map.\n' +
-              '  - If you believe an authoritative ID is missing entirely from the list, that decision was\n' +
-              '    made by analyzer 01 — it is NOT your job to override it. Either drop the finding or surface\n' +
-              "    it as a needs_verification item with a clear 'reason' so the human reviewer can decide.\n\n" +
-              'Please re-emit the corrected JSON.',
+            formatValidationError('E013_unknown_service_id', {
+              offenders: offendersSummary,
+              authoritative: authoritativeList,
+              offenderList,
+            }),
           );
         }
       }
     }
 
+    if (
+      agentName === 'code-patterns-testing-analyzer' ||
+      agentName === 'data-flows-integrations-analyzer'
+    ) {
+      const typeMap = loadServiceTypeMap(input.cwd);
+      const missing = detectMissingJudgmentFields(data, typeMap);
+      if (missing.length > 0) {
+        return blockWithFeedback(formatJudgmentFieldViolations(missing).join('\n'));
+      }
+    }
+
     return allow();
   } catch (error) {
-    // CRITICAL: On hook error, BLOCK (fail-safe) - don't allow potentially bad output
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    return blockWithFeedback(
-      `❌ HOOK CRASHED: ${errorMsg}\n\n` +
-        'The validation hook encountered an unexpected error.\n' +
-        'This is a framework error. The output cannot be validated.\n\n' +
-        'Please report this issue if it persists.',
-    );
+    return blockWithFeedback(formatValidationError('E014_hook_crashed', { error: errorMsg }));
   }
 }
 

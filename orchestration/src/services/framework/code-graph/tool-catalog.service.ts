@@ -96,9 +96,7 @@ function writeDiskCache(projectPath: string, key: string, tools: CodeGraphTool[]
       tools,
     };
     writeFileSync(diskCachePath(projectPath), JSON.stringify(file, null, 2), 'utf-8');
-  } catch {
-    // Best-effort. Cache miss next run is the worst outcome.
-  }
+  } catch {}
 }
 
 /**
@@ -240,7 +238,6 @@ class McpStdioConversation {
           try {
             parsed = JSON.parse(line) as typeof parsed;
           } catch {
-            // Non-JSON output (some servers log to stdout). Skip.
             continue;
           }
           if (parsed.id !== expectedId) continue;

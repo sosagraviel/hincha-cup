@@ -168,14 +168,21 @@ function renderMessageEvent(idx: number, event: UserMessageEvent | AssistantMess
 function renderContentBlock(block: ContentBlock): string {
   switch (block.type) {
     case 'text': {
-      // Prefer Markdown when the block looks like prose.
       if (looksLikeMarkdown(block.text)) {
-        return renderMarkdown(block.text);
+        try {
+          return renderMarkdown(block.text);
+        } catch {
+          return `<p>${escapeHtml(block.text).replace(/\n/g, '<br>')}</p>`;
+        }
       }
       return `<p>${escapeHtml(block.text).replace(/\n/g, '<br>')}</p>`;
     }
     case 'thinking':
-      return `<div class="thinking">${renderMarkdown(block.text)}</div>`;
+      try {
+        return `<div class="thinking">${renderMarkdown(block.text)}</div>`;
+      } catch {
+        return `<div class="thinking">${escapeHtml(block.text).replace(/\n/g, '<br>')}</div>`;
+      }
     case 'tool_use':
       return `<details class="collapsible"><summary>tool_use · ${escapeHtml(block.name)} · ${escapeHtml(block.id)}</summary>${formatJsonBlock(block.input)}</details>`;
     case 'tool_result':
@@ -224,13 +231,19 @@ function renderToolResultEvent(
 }
 
 function renderThinkingEvent(idx: number, ev: { text: string; ts?: string }): string {
+  let body: string;
+  try {
+    body = renderMarkdown(ev.text);
+  } catch {
+    body = `<pre>${escapeHtml(ev.text)}</pre>`;
+  }
   return `<article class="event thinking" id="event-${idx}" data-event-type="thinking">
     <header class="event-header">
       <span class="role thinking">thinking</span>
       <span>#${idx + 1}</span>
       <span>${escapeHtml(ev.ts ?? '')}</span>
     </header>
-    <div class="event-body">${renderMarkdown(ev.text)}</div>
+    <div class="event-body">${body}</div>
   </article>`;
 }
 

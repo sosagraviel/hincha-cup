@@ -47,7 +47,6 @@ export function validateSkillContent(
     return errors;
   }
 
-  // 1. Frontmatter must be present and closed.
   const frontmatterStart = content.indexOf('---');
   if (frontmatterStart === -1) {
     errors.push(
@@ -114,7 +113,6 @@ export function validateSkillContent(
     }
   }
 
-  // 2. At least one level-1 markdown heading in the body (after frontmatter).
   const lines = content.split('\n');
   const hasH1 = lines.some((line) => /^#\s+\S/.test(line));
   if (!hasH1) {
@@ -130,7 +128,6 @@ export function validateSkillContent(
     );
   }
 
-  // 3. Code-bearing skills MUST include at least one fenced code block.
   if (requiresCodeExamples) {
     const hasCodeBlock = content.includes('```');
     if (!hasCodeBlock) {

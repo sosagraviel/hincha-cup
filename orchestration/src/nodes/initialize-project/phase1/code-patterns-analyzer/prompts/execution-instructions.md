@@ -1,214 +1,130 @@
-# Code Patterns & Testing Analysis Instructions
+# Code Patterns & Testing Analysis
 
-> **Tool naming.** Bare tool names below (e.g. `find_large_functions`) are semantic identifiers. The canonical names are listed in the **CODE GRAPH CONTEXT** block in your system prompt — they share the `mcp__code_graph__` prefix and may carry a `_tool` suffix. Always call the catalog name, not a name you find here.
+Testing frameworks (per service), API patterns (project-level), code
+quality tools, documentation, large-function signals.
 
-<objective>
-Analyze testing strategies, code quality tools, and development practices for each service. Identify test frameworks, categorize tests, and document quality tooling.
-</objective>
+**Service IDs come from the structure analyzer** — never redeclare;
+key per-service findings under `testing.<service_id>`. Legacy
+`services` array is deprecated. DO NOT create `frameworks.testing` —
+framework info goes under `testing.<service_id>.framework` only.
 
-**IMPORTANT: Service Discovery Ownership**
+Follow the **Graph navigation discipline** templated into your system
+prompt: lean parameters everywhere; respect drill-in caps;
+`get_architecture_overview` is **forbidden**.
 
-- **Structure Analyzer (Agent 01)** is the SINGLE SOURCE OF TRUTH for service discovery
-- DO NOT redeclare services in your output
-- REFERENCE services by ID from Structure Analyzer
-- Organize findings using service IDs as keys (e.g., `testing.backend.unit`)
-- The `services` array field is DEPRECATED - use maps with service ID keys instead
-- DO NOT create `frameworks.testing` field - framework info belongs in `testing.*.framework` only
+## Step 0 — Read inspection FIRST (MANDATORY)
 
-<discovery_process>
+`Read <tempDir>/project-inspection.json`. Inspection covers
+`manifests[]`, `lock_files[]`, `runtime_versions{}`, `ci_cd?`,
+`infrastructure[]`, `environment?`, `documentation?`. Do NOT re-glob
+those — the inspection has them.
 
-> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block (lean parameters, drill-in caps, forbidden tools). Specialise _which_ lean tools you call for each question; never override the defaults.
+Forbidden Globs (inspection covers them, framework post-fills the
+rest): `**/package.json`, `**/.env*`, `**/Dockerfile*`,
+`**/.github/workflows/*`, lock files, `.eslintrc*`, `.prettierrc*`,
+`tsconfig.json`, `.husky/*`, `.pre-commit-config.yaml`, `lefthook.yml`,
+`**/README*`, `**/CONTRIBUTING*`.
 
-## Mandatory first step — read the project inspection
+## Step 1 — Cheapest entry point
 
-```text
-Read <tempDir>/project-inspection.json
+`get_minimal_context({ task: "Survey testing, quality signals, patterns" })`.
+
+## Step 2 — Find test files (graph)
+
+`semantic_search_nodes({ kind: "Test", limit: 20, detail_level:
+"minimal" })`. For test → source linkage: `query_graph({ pattern:
+"tests_for", target: "<service-id>", detail_level: "minimal" })` per
+top-3 services — `<service-id>` comes from your AUTHORITATIVE SERVICE
+LIST, not from `list_communities` (community names are code-pattern
+clusters, not services).
+
+Empty-graph fallback: Glob the language family's canonical test path
+(`**/*.spec.{ts,js}` / `**/*_test.go` / `**/test_*.py` /
+`**/*Spec.java` / `**/*_spec.rb` / `**/Tests/**/*.cs` etc.). Pick the
+right shape from the language the structure-analyzer detected; never
+enumerate all.
+
+Do NOT call `find_large_functions({ min_lines: 1 })` — forbidden because it overflows.
+
+## Step 3 — Test config (one Glob, read up to 5)
+
+```
+{jest.config.{js,ts,mjs,cjs},vitest.config.{js,ts,mjs},vite.config.{js,ts},playwright.config.{ts,js},cypress.config.{ts,js},pytest.ini,pyproject.toml,phpunit.xml,phpunit.xml.dist,karma.conf.js}
 ```
 
-The inspection carries pre-parsed manifests, lock files, runtime versions, CI / infra / env templates. Do NOT re-Glob `**/package.json`, `**/.env*`, `**/Dockerfile*`, `**/.github/workflows/*`, lock files, or workspace configs — every one is in the inspection. Re-globbing trips a `tech_stack_inspection_redundant_glob` soft warning and burns your tool-call budget.
+Extract per config: `file_patterns`, `environment`, `coverage_thresholds`,
+`test_commands`.
 
-## Step 0: Cheap orientation via graph
+## Step 4 — Test count + framework per service
 
-Call `get_minimal_context` with `task: "Survey testing approach, code-quality signals, and recurring patterns"`. The response (~100 tokens) gives you top communities, top flows, and suggested next tools — use it before any other graph call.
+For each service from the structure analyzer's list, set
+`findings.testing.<service_id>.{unit, integration, e2e}` =
+`{framework, config_file, file_count}`. Pull framework name from
+manifest devDependencies via the tech-stack analyzer's
+`dependencies.by_service.<id>.notable` AND a quick name-token scan of
+testing libs (jest / vitest / mocha / ava / pytest / unittest / nose /
+testify / ginkgo / mockall / proptest / junit / testng / rspec /
+phpunit / pest / xunit / nunit / scalatest / exunit / playwright /
+cypress / selenium).
 
-## Step 1: Testing Frameworks from Dependencies
+## Step 5 — quality_tools (framework-owned — SKIP)
 
-The tech-stack analyzer's `dependencies.by_service` already lists each service's libraries. Look for testing frameworks by name token within the dev-dependency section: `jest`, `vitest`, `mocha`, `ava`, `tap`, `pytest`, `unittest`, `nose`, `testify`, `ginkgo`, `gomega`, `mockall`, `proptest`, `junit`, `testng`, `spring-boot-starter-test`, `rspec`, `minitest`, `phpunit`, `pest`, `xunit`, `nunit`, `mstest`, `scalatest`, `specs2`, `exunit`. E2E: `playwright`, `cypress`, `puppeteer`, `selenium`, `capybara`, `testcafe`. Record per service.
+Framework post-fills `findings.quality_tools.{linter, formatter,
+type_checker, pre_commit}` from manifests deterministically. Do NOT
+emit these fields yourself unless you spot a non-canonical tool the
+post-fill missed (then it wins).
 
-## Step 2: Find Test Files via graph
+## Step 6 — API patterns (graph)
 
-Call `semantic_search_nodes({ kind: "Test", limit: 20, detail_level: "minimal" })` (the graph indexes test nodes natively). For test → source linkage, call `query_graph({ pattern: "tests_for", target: "<community>", detail_level: "minimal" })` per service, capped at top 3 communities.
+ONE `semantic_search_nodes({ kind: "Class", limit: 15, detail_level:
+"minimal" })` per protocol with the canonical name token (see
+data-flows analyzer's Step 4). Report `findings.api_patterns =
+{rest, graphql, grpc, websockets}` as booleans + any other detected
+protocols (`mqtt`, `amqp`, `kafka`).
 
-**Only when the graph returns 0 Test nodes** (true empty-graph fallback): use Glob with the language family's canonical test path. Common shapes are language-tied (`**/*.spec.{ts,js}`, `**/*_test.go`, `**/test_*.py`, `**/*Spec.java`, `**/*_spec.rb`, `**/Tests/**/*.cs`, …). Use the structure analyzer's detected language to pick the right shape — never enumerate all of them. Do NOT call `find_large_functions({ min_lines: 1 })` — it returns every function and overflows.
+## Step 7 — Code quality signals (graph)
 
-## Step 3: Test Configuration (one Glob, then read)
+`find_large_functions({ min_lines: 50, kind: "Function", limit: 30 })`.
+Surface count + distribution per service in `findings.code_quality.
+{large_functions_count, large_functions_threshold_lines: 50}`.
 
-ONE Glob over canonical test-config filenames, then read each match (cap: 5):
+**Floor**: `min_lines: 50`. Never go lower — overflows on big
+codebases.
 
-```
-{jest.config.{js,ts,mjs,cjs},vitest.config.{js,ts,mjs},vite.config.{js,ts},playwright.config.{ts,js},cypress.config.{ts,js},cypress.json,pytest.ini,pyproject.toml,setup.cfg,phpunit.xml,phpunit.xml.dist,rspec,karma.conf.js,nightwatch.conf.js}
-```
+## Step 8 — Documentation (partial — only api_docs + static_site)
 
-Extract per-config: file patterns, environment settings, coverage thresholds, test commands.
+- `findings.documentation.readme` + `.contributing_guide` are
+  framework-owned (post-fill reads `inspection.documentation`).
+- You own `findings.documentation.api_docs[]` (OpenAPI / Swagger files
+  - API-doc generators like `@nestjs/swagger`, `fastapi`,
+    `springdoc-openapi`, `swashbuckle`, `flask-swagger`) and
+    `findings.documentation.static_site` (vitepress / docusaurus /
+    mkdocs / sphinx / jekyll / hugo / astro / nextra / vuepress).
 
-## Step 4: API/Interface Patterns via graph
+Detect via name-token scan of dependencies; ONE Glob over OpenAPI
+files (`{swagger.{json,yaml},openapi.{json,yaml}}`) only if no
+generator was found.
 
-ONE `semantic_search_nodes({ kind: "Class", limit: 15, detail_level: "minimal" })` per protocol you want to confirm, with the appropriate name token:
+## Output
 
-- **REST**: `Controller | Handler | Route | Endpoint`
-- **GraphQL**: `Resolver | Schema | ObjectType`
-- **gRPC**: `ServiceDefinition | GrpcMethod | RpcService`
-- **WebSocket**: `WebSocketGateway | SubscribeMessage`
+Emit the shape below. Optional fields use the `"name?"` suffix — OMIT
+the field entirely when no value (do NOT emit `null`). Per-service
+maps key by IDs from your AUTHORITATIVE SERVICE LIST.
 
-**Report `findings.api_patterns`** as `{ rest, graphql, grpc, websockets }` booleans, plus any other detected protocols (`mqtt`, `amqp`, `kafka`).
-
-## Step 5: Code Quality Tools (manifest + one config-file glob)
-
-The tech-stack analyzer's `dependencies.by_service` already lists installed tools. Recognise quality tools by name token:
-
-- **linters**: eslint / tslint / pylint / flake8 / ruff / golangci-lint / clippy / checkstyle / spotbugs / pmd / rubocop / phpstan / phpcs / detekt / scalafmt / credo
-- **formatters**: prettier / dprint / black / yapf / autopep8 / gofmt / goimports / rustfmt / google-java-format / rubocop / php-cs-fixer / ktlint / scalafmt / mix-format
-- **type checkers**: tsc / flow / mypy / pyright / pyre / sorbet (Ruby) / psalm (PHP)
-- **pre-commit**: husky / lint-staged / lefthook / pre-commit (Python) / overcommit / git-hooks-go
-
-ONE Glob over typical config locations: `{.eslintrc*,.prettierrc*,.flake8,.pylintrc,pyproject.toml,clippy.toml,tsconfig.json,.husky/*,.pre-commit-config.yaml,lefthook.yml,phpstan.neon,.rubocop.yml,checkstyle.xml,detekt.yml}`. Note presence; read only when extracting non-default settings.
-
-## Step 6: Code Quality via graph
-
-Call `find_large_functions({ min_lines: 50, kind: "Function", limit: 30 })` to surface functions that are candidates for complexity review. This is a quality signal the graph provides directly. Do NOT lower `min_lines` below 50 — smaller thresholds risk overflowing the result on large codebases.
-
-Record the count and distribution of large functions per service in `findings.code_quality`.
-
-## Step 7: Documentation Patterns (Glob — required)
-
-ONE Glob over: `{swagger.{json,yaml},openapi.{json,yaml},README*,CONTRIBUTING*,DEVELOPMENT*,docs/**/{*.md,*.rst,*.adoc}}`. Plus one tech-stack lookup for static-site generators (`vitepress`, `docusaurus`, `mkdocs`, `sphinx`, `jekyll`, `hugo`, `astro`, `nextra`, `vuepress`). API-doc generators (`@nestjs/swagger`, `fastapi`, `springdoc-openapi`, `swashbuckle`, `flask-swagger`) emit OpenAPI from code; surface presence in `findings.documentation.api_docs`.
-
-**Report**: `findings.documentation` with `api_docs[]`, `static_site`, `readme`, `contributing_guide`.
-
-## Step 8: Categorise Tests by Type
-
-Use the graph's `tests_for` edges from Step 2 as primary signal. Categorise:
-
-- **unit** — same package as source, fast.
-- **integration** — DB / API / cross-component; often in a parallel `tests/integration` shape.
-- **e2e** — browser/automation; recognised by playwright/cypress/selenium imports OR a dedicated config file (Step 3).
-
-Counts per category go in `testing.<service_id>.{unit,integration,e2e}.file_count`.
-
-</discovery_process>
-
-<critical_thinking>
-
-## Self-Verification Checklist
-
-1. **Called `get_minimal_context` first?** It must be the first graph call. If you skipped it, you almost certainly over-pulled later.
-2. **Used lean parameters everywhere?** All `semantic_search_nodes` with `limit: 15-20` MAX and `detail_level: "minimal"`; `find_large_functions` with `min_lines: 50` minimum (never `min_lines: 1`). (The discipline already forbids `get_architecture_overview` — see §3 of the navigation discipline.)
-3. **Called semantic_search_nodes for test discovery?** Graph results should be primary test file inventory.
-4. **Called query_graph with tests_for pattern?** Test → source linkage from graph edges, capped at top 3 communities.
-5. **Called semantic_search_nodes for API patterns?** Controller/Resolver/Service class detection via graph.
-6. **Testing framework in dependencies but no test files?** Check if graph returned results; if not, try Glob fallback patterns
-7. **No testing framework in dependencies?** Valid to report "none" (MVP projects, separate test repo)
-8. **Linter in dependencies but no config?** Check package.json, pyproject.toml for inline config
-9. **Documentation tools checked?** Look for Swagger/OpenAPI, static site generators, docs/ directory
-10. **Pre-commit hooks detected?** Search for .husky/, .pre-commit-config.yaml, lefthook.yml
-
-</critical_thinking>
-
-<output_format>
-
-See shared output format documentation at: `../../../shared/prompts/output-format.md`
-
-## Key Points
-
-- Output raw JSON only (no markdown, no commentary)
-- Required field: `findings.services` array with at least 1 service
-- Each service must match Agent 01's service IDs
-- Optional nested objects: `testing.unit`, `testing.integration`, `testing.e2e`
-- Optional field: `needs_verification` array (maximum 3 items)
-- Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
-
-## Example Output Shape (language-neutral skeleton)
-
-```json
-{
-  "agent_name": "code-patterns-testing-analyzer",
-  "timestamp": "<ISO-8601>",
-  "findings": {
-    "api_patterns": { "rest": false, "graphql": false, "grpc": false, "websockets": false },
-    "quality_tools": {
-      "linter": "<tool>",
-      "formatter": "<tool>",
-      "type_checker": "<tool>",
-      "pre_commit": "<tool>"
-    },
-    "code_quality": { "large_functions_count": 0, "large_functions_threshold_lines": 50 },
-    "documentation": {
-      "api_docs": ["<format>"],
-      "static_site": "<tool|none>",
-      "readme": false,
-      "contributing_guide": false
-    },
-    "testing": {
-      "<service-id>": {
-        "unit": {
-          "framework": "<framework>",
-          "config_file": "<path>",
-          "file_pattern": "<regex>",
-          "file_count": 0
-        },
-        "integration": {
-          "framework": "<framework>",
-          "config_file": "<path>",
-          "file_pattern": "<regex>",
-          "file_count": 0
-        },
-        "e2e": {
-          "framework": "<framework>",
-          "config_file": "<path>",
-          "file_pattern": "<regex>",
-          "file_count": 0
-        }
-      }
-    }
-  },
-  "graph_queries_used": [],
-  "needs_verification": []
-}
+```jsonc
+<<script:schema-skeleton agent=code-patterns-testing-analyzer>>
 ```
 
-</output_format>
+## `needs_verification` rules
 
-<verification_guidelines>
+Only when ALL hold: (a) cannot be determined from code/configs after
+exhaustive search, (b) in-scope, (c) business/intent decision.
 
-See shared verification format documentation at: `../../../shared/prompts/verification-format.md`
+Hard-rejected: coverage threshold enforcement (Read the jest/pytest
+config — `coverageThreshold` block presence is the answer), husky
+hook contents (Read them — contents ARE the answer), testing
+frameworks (in dependencies), test locations (graph + Glob fallback),
+linter/formatter presence (post-fill handles).
 
-Use `needs_verification` ONLY when ALL hold:
-
-1. The fact cannot be determined from code/configs/manifests after exhaustive searching.
-2. The answer is IN SCOPE — it changes a concrete generated artefact (wiki page / skill body / finding). Production state and externally-managed infrastructure are NOT in scope.
-3. The question is a business / intent decision the operator is uniquely positioned to answer (intentional-vs-accidental gap, deprecation policy, etc.).
-
-Do NOT use for any of these (the Stop hook hard-rejects them):
-
-- ❌ "Load testing configurations managed externally" / production-only state — out-of-scope.
-- ❌ Coverage threshold ENFORCEMENT (Read the jest/pytest config; if no `coverageThreshold` block exists, report that as a finding — do NOT ask the operator whether one is enforced).
-- ❌ Husky / git-hook contents (Read each `.husky/*` file; the contents ARE the answer).
-- ❌ Testing frameworks (discoverable from dependencies).
-- ❌ Test file locations (graph + Glob fallback).
-- ❌ Linter / formatter presence (in dependencies and configs).
-
-### Record absence as a finding — never drop info on the floor
-
-When evidence proves a fact (positive OR negative), record it in the right `findings.<sub-field>` BEFORE deciding whether to ask. The Stop hook hard-rejects yes/no questions whose evidence proves "no" (`found_no_evidence_yesno`); the right move is to record the absence as a finding and drop the question, NOT drop the item silently. Facts go in `findings.*`; only intent / business decisions go in `needs_verification`.
-
-Generic shapes (stack-agnostic):
-
-- AR `Read <config> — no <key> found` → record the absence on that config's findings slice (e.g. `coverage_threshold: "not_enforced"`, `linter: "none"`) or in `notes:`.
-- AR `Glob X — zero matches` → record `file_count: 0` and a `notes:` line; do not ask whether files exist.
-- AR `Glob X — contents not read` → finish the search and record what each file does.
-
-</verification_guidelines>
-
-## Token efficiency
-
-Graph queries are O(1) on warm cache (the graph is built once per init). Glob+Read scales with file count. For projects with thousands of files, the difference is 10–100×. Use the graph.
+**Record absence as a finding** (e.g. `coverage_threshold:
+"not_enforced"`, `linter: "none"`).

@@ -1,51 +1,29 @@
 /**
- * Sanitization helpers for the digested-upstream content fed into the
- * wiki-generator agent. Two concerns:
+ * Sanitization helpers for the digested-upstream content fed into the wiki-generator agent.
  *
  * 1. **Framework-internal jargon must not leak into user-facing wiki prose.**
- *    The Phase 3 synthesizer sometimes carries phrasing that makes sense
- *    inside the framework run log but reads as nonsense to a developer
- *    consulting the wiki months later (e.g. "exceeded token limit",
- *    "the community tool overflowed during the automated run"). This module
- *    strips such phrases from the upstream BEFORE the wiki agent sees them.
- *    See plans/2026-04-29-gira-init-run-audit-refactor.md finding F15.
+ *    Strips phrases like "exceeded token limit" or "the community tool overflowed
+ *    during the automated run" from synthesis, CLAUDE.md, and the architectural narrative.
  *
- * Note: applied to synthesis, CLAUDE.md, and the architectural narrative —
- * the three text-bearing fields of `WikiDigestedUpstream`.
- *
- * 2. **Per-service upstream slicing must keep the prompt cheap.** When
- *    generating a service doc, the prompt should not carry every paragraph
- *    of the synthesis narrative — it should keep only sections that mention
- *    the target service. Stack-agnostic by construction: matches on the
- *    service's `id`, `name`, and `path` tokens; no language-specific or
- *    framework-specific role mappings. See finding F3.
+ * 2. **Per-service upstream slicing keeps prompts cheap.**
+ *    Retains only sections mentioning the target service by id, name, or path token.
  */
 import type { WikiDigestedUpstream } from './types.js';
 
 /**
- * Phrases that read as framework-internal noise in user-facing wiki prose.
- * Each pattern is a regex applied with the `g` flag against synthesis,
- * CLAUDE.md, and architectural-narrative excerpts. Hit phrases are replaced
- * with an empty string and the surrounding whitespace is collapsed; the agent
- * never sees them.
- *
- * Curated and stack-agnostic — these are framework-runtime artefacts, not
- * project-specific terms. Adding a new pattern here is the right action when
- * a new failure mode leaks into wiki output.
+ * Patterns that match framework-internal noise in user-facing wiki prose.
+ * Applied with the `g` flag; hits are replaced with empty string and surrounding
+ * whitespace collapsed.
  */
 const FRAMEWORK_INTERNAL_PATTERNS: RegExp[] = [
-  // Exact match groups from gira-run wiki ARCHITECTURE.md leakage:
-  //   "the community tool overflowed during the automated run"
   /the [a-z_-]+ tool overflowed during the automated run\b/gi,
   /tool result overflow\b/gi,
   /tool-result overflow\b/gi,
   /exceeded token limit\b/gi,
   /exceeds maximum allowed tokens\b/gi,
-  // Phrasing that places the framework's run inside user-facing prose:
   /\bduring the automated run\b/gi,
   /\bduring the framework run\b/gi,
   /\bthe automated run\b/gi,
-  // Soft sentinels:
   /\bspilled to a sidecar file\b/gi,
 ];
 
@@ -60,8 +38,6 @@ export function stripFrameworkInternalJargon(text: string | undefined): string |
   for (const pattern of FRAMEWORK_INTERNAL_PATTERNS) {
     out = out.replace(pattern, '');
   }
-  // Collapse double-spaces and double-blank-lines that can be left behind by
-  // surgical strips. Stack-agnostic — pure whitespace cleanup.
   out = out.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n');
   return out;
 }
@@ -150,10 +126,6 @@ export function scopeMarkdownToTokens(markdown: string, tokens: Set<string>): st
 
   if (matched.length === 0) return '';
 
-  // Document-level framing always rides along when at least one section
-  // matches: (a) any preamble before the first heading, (b) the H1 section
-  // (typically the document title). Both are project-wide context useful
-  // even on a per-service slice.
   const matchedSet = new Set(matched);
   const h1Sections = sections.filter((s) => s.level === 1);
   const carriers: typeof sections = [];
@@ -166,8 +138,6 @@ export function scopeMarkdownToTokens(markdown: string, tokens: Set<string>): st
     out.push(preamble.join('\n').trimEnd());
     out.push('');
   }
-  // Render in original document order: walk `sections`, emit any that's
-  // either matched or in carriers; skip the rest.
   for (const section of sections) {
     if (matchedSet.has(section) || carriers.includes(section)) {
       if (section.heading) out.push(section.heading);
@@ -180,9 +150,7 @@ export function scopeMarkdownToTokens(markdown: string, tokens: Set<string>): st
 /**
  * Per-service upstream slicer. Returns the same digested-upstream shape with
  * each text field narrowed to sections that mention the target service's id,
- * name, or path leaf. Combined with `sanitizeWikiUpstream` upstream, this
- * removes both the cross-service contamination (F3) and the framework-
- * internal jargon (F15) from per-service prompts.
+ * name, or path leaf.
  */
 export function scopeUpstreamForService(
   upstream: WikiDigestedUpstream | undefined,

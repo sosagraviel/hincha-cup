@@ -34,16 +34,10 @@ export function resolveSkills(stackProfile: StackProfile, frameworkPath: string)
   const resolved: ResolvedSkill[] = [];
 
   for (const skill of skills) {
-    // Skip generated skills — those are emitted per-project by Phase 3
-    // synthesis (currently: code-conventions, multi-file-workflows,
-    // testing-conventions). Their bodies live at
-    // <project>/.claude/skills/<name>/SKILL.md and are attached to agents
-    // by the skill-assigner, not by resolveSkills.
     if (skill.trigger_mode === 'generated') {
       continue;
     }
 
-    // Always include "always" skills
     if (skill.trigger_mode === 'always') {
       resolved.push({
         name: skill.name,
@@ -59,7 +53,6 @@ export function resolveSkills(stackProfile: StackProfile, frameworkPath: string)
       continue;
     }
 
-    // Check if triggered skills match
     const { matches, matchedTriggers } = matchesTriggers(skill, detectedStack);
     if (matches) {
       resolved.push({
@@ -76,10 +69,6 @@ export function resolveSkills(stackProfile: StackProfile, frameworkPath: string)
     }
   }
 
-  // NOTE: the three generated convention skills (code-conventions,
-  // multi-file-workflows, testing-conventions) are NOT added here —
-  // skill-assigner injects them onto every agent's allowlist after
-  // resolveSkills returns.
   return resolved;
 }
 
@@ -99,7 +88,6 @@ export function copyResolvedSkills(resolvedSkills: ResolvedSkill[], projectPath:
   let totalFiles = 0;
 
   for (const skill of resolvedSkills) {
-    // Flatten the structure - use skill name only (last directory in path)
     const targetPath = join(skillsTargetDir, skill.name);
     const copiedFiles = copySkillForProvider(skill.path, targetPath, provider);
     totalFiles += copiedFiles;

@@ -54,14 +54,14 @@ export class CodexProvider implements ProviderAdapter {
 
   getCLIConfig(): ProviderCLIConfig {
     return {
-      agentFileFlag: null, // Codex reads AGENTS.md from directory hierarchy
+      agentFileFlag: null,
       modelFlag: '--model',
       bypassPermissionsFlag: '--full-auto',
-      toolsFlag: null, // Codex manages tools internally
-      sessionFlag: null, // Codex manages sessions internally
-      resumeFlag: 'resume', // codex resume <id>
+      toolsFlag: null,
+      sessionFlag: null,
+      resumeFlag: 'resume',
       settingsFlag: '--config',
-      skipConfirmationsEnvVar: null, // Use --full-auto instead
+      skipConfirmationsEnvVar: null,
       nonInteractiveMode: 'exec',
       jsonOutputFlag: '--json',
     };
@@ -87,7 +87,6 @@ export class CodexProvider implements ProviderAdapter {
   }
 
   mapModelToCLI(modelId: string): string {
-    // Codex CLI accepts full model IDs directly — no mapping needed
     return modelId;
   }
 
@@ -118,14 +117,12 @@ export class CodexProvider implements ProviderAdapter {
       const os = await import('os');
       const path = await import('path');
 
-      // Check ~/.codex/auth.json for stored credentials
       const authPath = path.join(os.homedir(), '.codex', 'auth.json');
       if (existsSync(authPath)) {
         const authData = JSON.parse(readFileSync(authPath, 'utf-8'));
         return !!(authData.access_token || authData.api_key || authData.refresh_token);
       }
 
-      // Fallback: check OPENAI_API_KEY env var
       return !!process.env.OPENAI_API_KEY;
     } catch {
       return false;
@@ -145,9 +142,7 @@ export class CodexProvider implements ProviderAdapter {
         if (versionMatch) {
           return { path: localCodexPath, version: versionMatch[1] };
         }
-      } catch {
-        // Fall through to global check
-      }
+      } catch {}
     }
 
     try {
@@ -172,8 +167,6 @@ export class CodexProvider implements ProviderAdapter {
   }
 
   parseCLIOutput(stdout: string): string {
-    // Codex --json outputs newline-delimited JSON events
-    // Extract the final message content
     const lines = stdout.trim().split('\n').filter(Boolean);
     for (let i = lines.length - 1; i >= 0; i--) {
       try {
@@ -185,7 +178,6 @@ export class CodexProvider implements ProviderAdapter {
         continue;
       }
     }
-    // Fallback: return raw stdout
     return stdout;
   }
 
@@ -225,8 +217,6 @@ export class CodexProvider implements ProviderAdapter {
   }
 
   getValidFrontmatterFields(): string[] {
-    // Codex doesn't have a formal agent file format with frontmatter,
-    // but our framework uses frontmatter for metadata
     return ['name', 'description', 'model'];
   }
 

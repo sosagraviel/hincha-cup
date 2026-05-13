@@ -23,6 +23,5 @@
 export { AgentFactory } from './agent-factory.js';
 export type { Agent, AgentConfig, AgentInvokeInput, AgentInvokeResult } from './types.js';
 
-// Export utility functions for advanced use cases
 export { getAgentAction } from './agent-utils.js';
 export { getCLIModelForAgent, getClaudeCLIPath, parseToolsFromFrontmatter } from './cli-utils.js';

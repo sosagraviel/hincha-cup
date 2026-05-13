@@ -1,0 +1,18 @@
+[project]
+name = "loadgenerator"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.poetry]
+name = "loadgenerator"
+version = "0.1.0"
+authors = ["Qubika"]
+description = "Plan v5 fixture — Online Boutique loadgenerator."
+
+[tool.poetry.dependencies]
+python = "^3.12"
+locust = "^2.30.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

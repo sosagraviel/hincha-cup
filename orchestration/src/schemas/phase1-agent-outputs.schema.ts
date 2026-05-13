@@ -1,29 +1,30 @@
 import { z, ZodSchema } from 'zod';
 import { normalizeLanguage } from './language-normalization.js';
 import { AutomationSchema, ReadmeRunSectionEntrySchema } from './stack-profile.schema.js';
-import { CodeSnippetSchema } from './phase1-base.schema.js';
+import { CodeSnippetSchema, CodeSnippetWithCitationSchema } from './phase1-base.schema.js';
+import { RequestLifecycleStepSchema, TestingExampleSchema } from './service-detail-slice.schema.js';
 
-// Re-export so existing imports continue to work alongside the v4 base.
 export { CodeSnippetSchema };
 export type { CodeSnippet } from './phase1-base.schema.js';
 
-// ============================================================================
-// PHASE 1 AGENT OUTPUT SCHEMAS
-// ============================================================================
-// These schemas define the expected output structure for each Phase 1 analyzer agent.
-// They are used for:
-// 1. Validation in hooks (Stop hooks that validate agent output)
-// 2. Validation in external validators (Phase 1 node validators)
-// 3. Type inference in Phase 4 (context generation reads these with TypeScript types)
-// 4. Documentation in agent prompts (agents know exact structure to produce)
-// ============================================================================
+/**
+ * Phase 1 agent output schemas.
+ *
+ * These schemas define the expected output structure for each Phase 1
+ * analyzer agent. They are used for:
+ * 1. Validation in hooks (Stop hooks that validate agent output)
+ * 2. Validation in external validators (Phase 1 node validators)
+ * 3. Type inference in Phase 4 (context generation reads these with
+ *    TypeScript types)
+ * 4. Documentation in agent prompts (agents know exact structure to
+ *    produce)
+ */
 
 /**
  * Shared shape for every `needs_verification` entry across all four
  * Phase 1 analyzers AND the Phase 2 consolidator (the consolidator
  * passes the fields through unchanged).
  *
- * Plan 14 §C.1 + §C.7 (gira-exhaustive-followup-2, 2026-05-05):
  * `attempted_resolution` (≥2 entries) and `impact` (≥40 chars) are
  * required so an item proves the agent searched and that the
  * answer changes a concrete artefact. The text-shape rules
@@ -61,10 +62,6 @@ export const NeedsVerificationEntrySchema = z
   })
   .passthrough();
 export type NeedsVerificationEntry = z.infer<typeof NeedsVerificationEntrySchema>;
-
-// ----------------------------------------------------------------------------
-// Agent 01: Structure & Architecture Analyzer
-// ----------------------------------------------------------------------------
 
 export const StructureAnalyzerServiceSchema = z
   .object({
@@ -138,8 +135,6 @@ export const StructureAnalyzerOutputSchema = z
     /**
      * Count of graph tool calls whose result exceeded the per-call token cap.
      * Derived by `applyGraphToolUsageFromSidecar` from the Stop hook's sidecar.
-     * Optional for back-compat (older replays predate Phase 3 of the
-     * graph-navigation redesign and have no value here).
      */
     graph_overflow_count: z.number().optional(),
     /** Sorted unique tool names whose results overflowed; empty array when count = 0. */
@@ -149,7 +144,7 @@ export const StructureAnalyzerOutputSchema = z
      * comparing the analyzer's tool-call distribution against per-analyzer
      * caps and graph-first thresholds. Non-blocking; values come from a
      * fixed vocabulary: `low_graph_ratio`, `graph_search_overuse`,
-     * `tool_call_budget_exceeded`. See gira-init-run audit Phase E.
+     * `tool_call_budget_exceeded`.
      */
     soft_warning: z.array(z.string()).optional(),
     findings: z
@@ -164,7 +159,6 @@ export const StructureAnalyzerOutputSchema = z
         monorepo_layout: z
           .object({
             root: z.string(),
-            // REMOVED: packages array - derivable from services[].path, creates redundancy
             workspace_tool: z
               .string()
               .optional()
@@ -181,8 +175,7 @@ export const StructureAnalyzerOutputSchema = z
           .object({
             /**
              * Hub + bridge nodes from the graph's top topology results.
-             * Plan §C 2.4 (gira-exhaustive followup, 2026-05-05): the
-             * structure-architecture analyzer must surface these so the
+             * The structure-architecture analyzer must surface these so the
              * Phase 4 architecture wiki page can render a "Coupling
              * hotspots" section. Stack-agnostic — `qualified_name`,
              * `kind`, and `score` are graph-native.
@@ -222,19 +215,10 @@ export const StructureAnalyzerOutputSchema = z
           .describe(
             'Architectural topology surfaced from the graph. `coupling` is the canonical home for hub/bridge findings.',
           ),
-        // Plan 15 §D.3 — full Tier-1 automation surface:
-        // makefiles / justfiles / taskfiles with structured targets
-        // (`{name, group?, description?}`), shell_scripts with the
-        // `purpose` enum, devcontainer hooks, and CI hints.
-        // Reuses `AutomationSchema` from `stack-profile.schema.ts` so the
-        // analyzer output and the persisted stack profile share one
-        // contract end-to-end.
         automation: AutomationSchema.optional().describe(
           'Project automation surface (Tier-1 wrapper entry points). Structured ' +
             'shape — see AutomationSchema in stack-profile.schema.ts.',
         ),
-        // Plan 15 §D.3 — README "Getting Started" / "Setup" / "Quickstart"
-        // verbatim extracts. Drives Tier-2 of the command catalog.
         readme_run_sections: z
           .array(ReadmeRunSectionEntrySchema)
           .optional()
@@ -243,39 +227,35 @@ export const StructureAnalyzerOutputSchema = z
               '`Installation` / `Development` / `Running Locally` / `How to Run` ' +
               '(case-insensitive). Reproduced verbatim with attribution.',
           ),
-        // Plan v4 Phase C (2026-05-09) — repository_shape_summary.
         repository_shape_summary: z
           .string()
-          .max(600)
+          .max(2400)
           .optional()
           .describe(
-            'One short paragraph (≤ 600 chars) summarising the repository shape: ' +
+            'Paragraph(s) (≤ 2400 chars) summarising the repository shape: ' +
               'monorepo vs single-service, top-level layout, language families, ' +
-              'workspace tooling, and any unusual conventions. Read by the ' +
-              'synthesizer (Phase 3) instead of re-derived from services[] / ' +
-              'monorepo_layout. Stack-agnostic free-form prose.',
+              'workspace tooling, and any unusual conventions. Lands in the wiki ' +
+              'main page; loaded on-demand.',
           ),
-        // Plan v4 Phase C (2026-05-09) — project-level architecture_decisions[].
-        // Per-service architecture_decisions move to Phase D fan-out.
         architecture_decisions: z
           .array(
             z
               .object({
-                decision: z.string().min(1).max(200),
-                rationale: z.string().min(1).max(400),
+                decision: z.string().min(1).max(400),
+                rationale: z.string().min(1).max(1200),
               })
               .strict(),
           )
-          .max(8)
+          .max(15)
           .optional()
           .describe(
-            '3–5 project-level architecture decisions. `decision` ≤ 200 chars; ' +
-              '`rationale` ≤ 400 chars. Free-form text — no closed enum on decision ' +
-              'category. Stack-agnostic by construction: a Go monorepo, a PHP ' +
-              'MVC monolith, and a Rust CLI all surface their own decision shapes.',
+            'Project-level architecture decisions (≤ 15). `decision` ≤ 400 chars; ' +
+              '`rationale` ≤ 1200 chars. Free-form text — no closed enum on decision ' +
+              'category. Stack-agnostic. Rendered into the ADR wiki section; ' +
+              'loaded on-demand.',
           ),
       })
-      .passthrough(), // Allow languages[], runtimes{}, architecture_pattern, file_placement{}, path_aliases{}, database{} (multi_stack merged into services)
+      .passthrough(),
     needs_verification: z
       .array(NeedsVerificationEntrySchema)
       .max(3)
@@ -284,10 +264,6 @@ export const StructureAnalyzerOutputSchema = z
   })
   .passthrough();
 export type StructureAnalyzerOutput = z.infer<typeof StructureAnalyzerOutputSchema>;
-
-// ----------------------------------------------------------------------------
-// Agent 02: Tech Stack & Dependencies Analyzer
-// ----------------------------------------------------------------------------
 
 export const TechStackAnalyzerServiceSchema = z
   .object({
@@ -336,8 +312,6 @@ export const TechStackAnalyzerOutputSchema = z
     /**
      * Count of graph tool calls whose result exceeded the per-call token cap.
      * Derived by `applyGraphToolUsageFromSidecar` from the Stop hook's sidecar.
-     * Optional for back-compat (older replays predate Phase 3 of the
-     * graph-navigation redesign and have no value here).
      */
     graph_overflow_count: z.number().optional(),
     /** Sorted unique tool names whose results overflowed; empty array when count = 0. */
@@ -347,18 +321,11 @@ export const TechStackAnalyzerOutputSchema = z
      * comparing the analyzer's tool-call distribution against per-analyzer
      * caps and graph-first thresholds. Non-blocking; values come from a
      * fixed vocabulary: `low_graph_ratio`, `graph_search_overuse`,
-     * `tool_call_budget_exceeded`. See gira-init-run audit Phase E.
+     * `tool_call_budget_exceeded`.
      */
     soft_warning: z.array(z.string()).optional(),
     findings: z
       .object({
-        // FORBIDDEN: the `services` array is no longer accepted on this analyzer.
-        // Structure Analyzer (01) is the single source of truth for service
-        // discovery (its services[] is injected into this prompt as the
-        // AUTHORITATIVE SERVICE LIST). Use the `dependencies.by_service` map
-        // keyed by those service IDs instead. Schema rejects any output that
-        // includes this key (see plans/2026-04-29-gira-init-run-audit-refactor.md
-        // findings F8/F22).
         services: z
           .never()
           .optional()
@@ -425,9 +392,6 @@ export const TechStackAnalyzerOutputSchema = z
           })
           .optional()
           .describe('Commands documented in project README, CONTRIBUTING, etc.'),
-        // Plan v4 Phase C (2026-05-09) — runtime_versions copied verbatim
-        // from the Phase 0 inspection. Free-form { language: version }
-        // map; analyzers do not normalise. Stack-agnostic.
         runtime_versions: z
           .record(z.string(), z.string())
           .optional()
@@ -438,9 +402,6 @@ export const TechStackAnalyzerOutputSchema = z
               '`{ node: "22.5.1", python: "3.11.5", go: "1.22" }`. ' +
               'No normalisation — the inspection is authoritative.',
           ),
-        // Plan v4 Phase C (2026-05-09) — external_services[] with optional
-        // provenance. The `sample_usage_quote` (CodeSnippet) is OPTIONAL
-        // here; per-service rich extraction goes to Phase D fan-out.
         external_services: z
           .array(
             z
@@ -456,8 +417,8 @@ export const TechStackAnalyzerOutputSchema = z
                   .describe('Where the SDK is configured (path / env-var / config block).'),
                 purpose: z.string().optional().describe('One-line purpose of the integration.'),
                 sample_usage_quote: CodeSnippetSchema.optional().describe(
-                  'OPTIONAL in Phase C — Phase D fan-out per-service extractors fill ' +
-                    'this in for graph-confirmed integrations.',
+                  'Optional per-vendor code excerpt populated by the per-service ' +
+                    'extractor for graph-confirmed integrations.',
                 ),
               })
               .passthrough(),
@@ -466,11 +427,11 @@ export const TechStackAnalyzerOutputSchema = z
           .describe(
             'Third-party services the project integrates with (Stripe, Sentry, ' +
               'Sendgrid, Twilio, Auth0, etc.). Free-form `name` (no closed enum). ' +
-              '`sample_usage_quote` provenance is filled in by Phase D fan-out, not ' +
-              'this analyzer.',
+              '`sample_usage_quote` provenance is filled in by the per-service ' +
+              'extractor, not this analyzer.',
           ),
       })
-      .passthrough(), // Allow infrastructure[], ci_cd{}, deployment{}, environment{}, databases[], build_tools{}
+      .passthrough(),
     needs_verification: z
       .array(NeedsVerificationEntrySchema)
       .max(3)
@@ -479,10 +440,6 @@ export const TechStackAnalyzerOutputSchema = z
   })
   .passthrough();
 export type TechStackAnalyzerOutput = z.infer<typeof TechStackAnalyzerOutputSchema>;
-
-// ----------------------------------------------------------------------------
-// Agent 03: Code Patterns & Testing Analyzer
-// ----------------------------------------------------------------------------
 
 export const TestingConfigSchema = z
   .object({
@@ -499,7 +456,6 @@ export const TestingConfigSchema = z
 export const CodePatternsAnalyzerServiceSchema = z
   .object({
     id: z.string().min(1).describe('Service ID (must match Agent 01 output)'),
-    // REMOVED: frameworks.testing - duplicates testing.*.framework information
     testing: z
       .object({
         unit: TestingConfigSchema.optional().describe(
@@ -523,8 +479,6 @@ export const CodePatternsAnalyzerOutputSchema = z
     /**
      * Count of graph tool calls whose result exceeded the per-call token cap.
      * Derived by `applyGraphToolUsageFromSidecar` from the Stop hook's sidecar.
-     * Optional for back-compat (older replays predate Phase 3 of the
-     * graph-navigation redesign and have no value here).
      */
     graph_overflow_count: z.number().optional(),
     /** Sorted unique tool names whose results overflowed; empty array when count = 0. */
@@ -534,14 +488,11 @@ export const CodePatternsAnalyzerOutputSchema = z
      * comparing the analyzer's tool-call distribution against per-analyzer
      * caps and graph-first thresholds. Non-blocking; values come from a
      * fixed vocabulary: `low_graph_ratio`, `graph_search_overuse`,
-     * `tool_call_budget_exceeded`. See gira-init-run audit Phase E.
+     * `tool_call_budget_exceeded`.
      */
     soft_warning: z.array(z.string()).optional(),
     findings: z
       .object({
-        // FORBIDDEN: see TechStackAnalyzerOutputSchema for the rationale.
-        // Use the `testing` / `api_patterns` / etc. records keyed by the
-        // service IDs supplied in your AUTHORITATIVE SERVICE LIST.
         services: z
           .never()
           .optional()
@@ -556,17 +507,45 @@ export const CodePatternsAnalyzerOutputSchema = z
                 unit: TestingConfigSchema.optional(),
                 integration: TestingConfigSchema.optional(),
                 e2e: TestingConfigSchema.optional(),
+                representative_examples: z
+                  .array(TestingExampleSchema)
+                  .max(5)
+                  .optional()
+                  .describe(
+                    "Up to 5 concrete tests illustrating this service's conventions. " +
+                      'Feeds the testing-conventions composer view.',
+                  ),
+                notes: z
+                  .string()
+                  .max(2400)
+                  .optional()
+                  .describe(
+                    'Free-form narrative (≤ 2400) about how this service tests. ' +
+                      'Feeds the testing-conventions composer view.',
+                  ),
               })
               .passthrough(),
           )
           .optional()
           .describe("Testing configuration by service ID (e.g., 'backend': { unit: {...} })"),
-        // Plan v4 Phase C (2026-05-09) — quality_tools.enforcement_summary
-        // (project-level, ≤ 600 chars). The synthesizer drops this paragraph
-        // verbatim into the quality skill. NO per-service `code_patterns`
-        // map yet — that's the heaviest §B.3 field and goes to Phase D
-        // fan-out (one per-service sub-agent) to keep the analyzer's
-        // wall-clock bounded.
+        code_patterns: z
+          .record(
+            z.string(),
+            z
+              .object({
+                patterns: z.array(CodeSnippetWithCitationSchema).max(15).optional(),
+                notable: z.array(z.string().max(280)).max(8).optional(),
+              })
+              .passthrough(),
+          )
+          .optional()
+          .describe(
+            'Per-service code-shape patterns (≤ 15) + notable gotchas (≤ 8). ' +
+              'Keys are service IDs from your AUTHORITATIVE SERVICE LIST. ' +
+              'Each pattern is a code snippet WITH citation (`source_file` + ' +
+              '`source_line` are required). ' +
+              'Feeds the code-conventions composer view.',
+          ),
         quality_tools: z
           .object({
             linter: z.string().optional(),
@@ -575,18 +554,19 @@ export const CodePatternsAnalyzerOutputSchema = z
             pre_commit: z.string().optional(),
             enforcement_summary: z
               .string()
-              .max(600)
+              .max(2400)
               .optional()
               .describe(
-                'One short paragraph (≤ 600 chars) describing how lint / format / ' +
+                'Paragraph(s) (≤ 2400 chars) describing how lint / format / ' +
                   'pre-commit / CI gates compose end-to-end. Free-form prose. ' +
-                  'Synthesizer drops this verbatim into the quality skill body.',
+                  'Synthesizer drops this verbatim into the quality skill body; ' +
+                  'skills are loaded on-demand so length is not a prompt cost.',
               ),
           })
           .passthrough()
           .optional(),
       })
-      .passthrough(), // Allow additional code pattern and architecture information (api_patterns, naming_conventions, error_handling, async_patterns, etc.)
+      .passthrough(),
     needs_verification: z
       .array(NeedsVerificationEntrySchema)
       .max(3)
@@ -595,10 +575,6 @@ export const CodePatternsAnalyzerOutputSchema = z
   })
   .passthrough();
 export type CodePatternsAnalyzerOutput = z.infer<typeof CodePatternsAnalyzerOutputSchema>;
-
-// ----------------------------------------------------------------------------
-// Agent 04: Data Flows & Integrations Analyzer (Optional)
-// ----------------------------------------------------------------------------
 
 export const InfrastructureServiceSchema = z
   .object({
@@ -616,12 +592,6 @@ export const InfrastructureServiceSchema = z
       .describe(
         'Array of service IDs that use this infrastructure (references Structure Analyzer services)',
       ),
-    // Plan 22 — explicit opt-out for infrastructure services that
-    // legitimately have no localhost port (SaaS / vendor-hosted /
-    // accessed via HTTPS to a remote URL). Same shape as the
-    // per-service opt-out in `ServiceEnvironmentSchema` (Plan 21).
-    // The data-flows-analyzer Stop hook hard-rejects entries that
-    // omit port AND don't carry the explicit opt-out.
     port_applies: z
       .boolean()
       .optional()
@@ -662,21 +632,12 @@ export const DataFlowsAnalyzerOutputSchema = z.object({
   graph_overflow_tools: z.array(z.string()).optional(),
   findings: z
     .object({
-      // FORBIDDEN: top-level `findings.services[]` is rejected here. Application
-      // services come from Structure Analyzer (01) via the AUTHORITATIVE SERVICE
-      // LIST in this analyzer's prompt. This analyzer's job is to surface
-      // INFRASTRUCTURE services (caches, databases, queues, mail servers) under
-      // `infrastructure_services` and inter-service communication patterns
-      // under `service_communication`. Schema rejects the deprecated key
-      // (see plans/2026-04-29-gira-init-run-audit-refactor.md finding F8).
       services: z
         .never()
         .optional()
         .describe(
           'FORBIDDEN: this analyzer does not emit application services. Use infrastructure_services[] for caches/DBs/queues/mail and service_communication{} for service-to-service patterns.',
         ),
-      // IMPORTANT: Focus ONLY on infrastructure services (redis, postgres, message queues, email servers)
-      // DO NOT list application services here - Structure Analyzer (01) is the single source of truth
       infrastructure_services: z
         .array(InfrastructureServiceSchema)
         .optional()
@@ -702,55 +663,40 @@ export const DataFlowsAnalyzerOutputSchema = z.object({
         )
         .optional()
         .describe('Service-to-service communication patterns (use service IDs as keys)'),
-      // Plan v4 Phase C (2026-05-09) — project-level event_pipeline (single
-      // object, not per-service). Per-service request_lifecycle moves to
-      // Phase D fan-out. Free-form `pattern` and `technology` (no closed
-      // enum): a Go project might emit `{ pattern: "channel-fanout",
-      // technology: "stdlib" }`; an Erlang project `{ pattern: "actor-mailbox",
-      // technology: "OTP" }`; a Node project `{ pattern: "task-queue",
-      // technology: "BullMQ" }`. Examples optional in Phase C; Phase D
-      // fan-out fills snippets when applicable.
+      request_lifecycle: z
+        .record(z.string(), z.array(RequestLifecycleStepSchema).max(10))
+        .optional()
+        .describe(
+          'Per-service request / job lifecycle (≤ 10 steps each). Keys are ' +
+            'service IDs from your AUTHORITATIVE SERVICE LIST (backend / serverless / ' +
+            'worker only — skip libraries / CLI / infrastructure). Feeds the ' +
+            'multi-file-workflows composer view.',
+        ),
       event_pipeline: z
         .object({
           pattern: z
             .string()
             .min(1)
-            .max(80)
-            .describe(
-              'Free-form pattern label — verbatim from the project. ' +
-                'Examples: "task-queue" / "pubsub" / "websocket" / "actor-mailbox" / ' +
-                '"channel-fanout" / "kafka-streams" / "genserver-message-passing". ' +
-                'No closed enum.',
-            ),
-          technology: z
-            .string()
-            .min(1)
-            .max(80)
-            .describe(
-              'Concrete library / runtime ("BullMQ" / "Celery" / "OTP" / "stdlib" / ' +
-                '"akka.actor"). Free-form.',
-            ),
-          examples: z.array(CodeSnippetSchema).max(3).optional(),
+            .max(200)
+            .describe('Free-form pattern label — verbatim from the project. No closed enum.'),
+          technology: z.string().min(1).max(200).describe('Concrete library / runtime. Free-form.'),
+          examples: z.array(CodeSnippetSchema).max(5).optional(),
         })
         .strict()
         .optional()
         .describe('Absent when no event pipeline exists.'),
-      // Plan v4 Phase C (2026-05-09) — project-level auth_flow. Per-service
-      // request_lifecycle (the per-service auth chain) moves to Phase D
-      // fan-out. Free-form strategy: "jwt-bearer" / "session-cookie" /
-      // "oauth2-pkce" / "basic-auth" / "api-key" / "mtls" / "none" / etc.
       auth_flow: z
         .object({
-          strategy: z.string().min(1).max(80),
-          libraries: z.array(z.string().min(1)).min(1).max(10),
-          summary: z.string().min(1).max(800),
-          examples: z.array(CodeSnippetSchema).max(3).optional(),
+          strategy: z.string().min(1).max(200),
+          libraries: z.array(z.string().min(1)).min(1).max(20),
+          summary: z.string().min(1).max(2400),
+          examples: z.array(CodeSnippetSchema).max(5).optional(),
         })
         .strict()
         .optional()
         .describe('Present only when authentication is observable.'),
     })
-    .passthrough(), // Allow authentication{}, external_integrations{}, api_design{}, data_patterns{}, etc.
+    .passthrough(),
   needs_verification: z
     .array(NeedsVerificationEntrySchema)
     .max(3)
@@ -758,10 +704,6 @@ export const DataFlowsAnalyzerOutputSchema = z.object({
     .describe('Items that need clarification or verification'),
 });
 export type DataFlowsAnalyzerOutput = z.infer<typeof DataFlowsAnalyzerOutputSchema>;
-
-// ============================================================================
-// SCHEMA REGISTRY - Centralized schema lookup by agent name
-// ============================================================================
 
 export const AGENT_OUTPUT_SCHEMAS = {
   'structure-architecture-analyzer': StructureAnalyzerOutputSchema,
@@ -803,7 +745,6 @@ export function validateAgentOutput(output: unknown): {
   errors?: z.ZodError;
   agentName?: string;
 } {
-  // First, check if output is an object with agent_name
   if (!output || typeof output !== 'object' || !('agent_name' in output)) {
     return {
       success: false,
@@ -831,7 +772,6 @@ export function validateAgentOutput(output: unknown): {
     };
   }
 
-  // Get schema for this agent
   const schema = getSchemaForAgent(agentName);
   if (!schema) {
     return {
@@ -847,7 +787,6 @@ export function validateAgentOutput(output: unknown): {
     };
   }
 
-  // Validate against schema
   const result = schema.safeParse(output);
   if (result.success) {
     return {

@@ -71,7 +71,6 @@ export interface AuthConfig {
  * ```
  */
 export async function detectAuthMode(): Promise<AuthConfig> {
-  // Check CLI availability for both providers
   const hasClaudeCLI = await isClaudeCLIAvailable();
   const claudeCLIVersion = hasClaudeCLI ? await getClaudeCLIVersion() : undefined;
   const hasCodexCLI = await isCodexCLIAvailable();
@@ -82,7 +81,6 @@ export async function detectAuthMode(): Promise<AuthConfig> {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
 
-  // Priority 1: Explicit PROVIDER env var — STRICT (no fallback)
   const explicitProvider = process.env.PROVIDER?.toLowerCase();
 
   if (explicitProvider === 'codex' || explicitProvider === 'openai') {
@@ -145,7 +143,6 @@ export async function detectAuthMode(): Promise<AuthConfig> {
     };
   }
 
-  // Priority 2: Provider API keys select the matching CLI implementation.
   if (anthropicKey) {
     if (!hasClaudeCLI) {
       throw new Error(
@@ -195,9 +192,6 @@ export async function detectAuthMode(): Promise<AuthConfig> {
     };
   }
 
-  // GOOGLE_API_KEY is intentionally ignored: there is no supported Google CLI provider.
-
-  // Priority 3: Auto-detect CLI (Claude first, then Codex)
   if (hasClaudeCLI && (await isClaudeCLIAuthenticated())) {
     return {
       mode: AuthMode.CLAUDE_CLI,
@@ -216,7 +210,6 @@ export async function detectAuthMode(): Promise<AuthConfig> {
     };
   }
 
-  // Priority 4: No authentication available
   return { mode: AuthMode.NONE, hasAPIKey: false, ...baseConfig };
 }
 
@@ -275,15 +268,11 @@ export async function isClaudeCLIAuthenticated(): Promise<boolean> {
   if (process.env.ANTHROPIC_API_KEY) return true;
 
   try {
-    // Try a simple command that requires authentication
-    // Using --version should work without auth, but we can try a more specific check
     execSync('claude --help', {
       stdio: 'ignore',
       timeout: 5000,
     });
 
-    // If we got here, Claude CLI is installed
-    // Now check if credentials exist
     return await hasClaudeCredentials();
   } catch {
     return false;
@@ -302,12 +291,8 @@ async function hasClaudeCredentials(): Promise<boolean> {
     const os = process.platform;
 
     if (os === 'darwin') {
-      // macOS: Check keychain
-      // Note: We can't directly query keychain without prompting user
-      // Instead, we'll assume if CLI is installed, credentials are set
       return true;
     } else {
-      // Linux/Windows: Check credentials file
       const fs = await import('fs');
       const path = await import('path');
       const os = await import('os');
@@ -324,10 +309,8 @@ async function hasClaudeCredentials(): Promise<boolean> {
  * Check if Codex CLI is installed (local bundled or global)
  */
 export async function isCodexCLIAvailable(): Promise<boolean> {
-  // Check local bundled first
   if (resolveLocalCLIPath('codex')) return true;
 
-  // Check global
   try {
     execSync('which codex', { stdio: 'ignore', timeout: 5000 });
     return true;
@@ -379,14 +362,12 @@ export function getAuthErrorMessage(authConfig: AuthConfig): string {
     '',
   ];
 
-  // Option 1: API keys as CLI provider authentication/selection
   lines.push('Option 1: Use a provider CLI with an API key in the environment');
   lines.push('  Set one of the following environment variables before running the CLI:');
   lines.push('  export ANTHROPIC_API_KEY=sk-ant-...');
   lines.push('  export OPENAI_API_KEY=sk-...');
   lines.push('');
 
-  // Option 2: Codex CLI
   if (authConfig.hasCodexCLI) {
     lines.push('Option 2: Authenticate Codex CLI (uses your ChatGPT subscription)');
     lines.push('  codex login');
@@ -398,7 +379,6 @@ export function getAuthErrorMessage(authConfig: AuthConfig): string {
     lines.push('');
   }
 
-  // Option 3: Claude CLI
   if (authConfig.hasClaudeCLI) {
     lines.push('Option 3: Authenticate Claude CLI (uses your Claude Pro/Max subscription)');
     lines.push('  claude login');

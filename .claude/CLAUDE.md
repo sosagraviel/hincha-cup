@@ -99,6 +99,8 @@ Per-attempt debug artifacts (prompts, outputs, stdout/stderr, native transcripts
 | Integration tests | `orchestration/test/integration/**/*.integration.test.ts` | Require live Claude CLI |
 | Test fixtures | `orchestration/test/fixtures/automation-projects/` | npm-project, makefile-project, mixed-project, minimal-project |
 
+**Hard rule — test location.** All test files live under `orchestration/test/`. Do not create test trees anywhere else (no `<repo-root>/test/`, no `<repo-root>/tests/`, no per-package `test/` folders, no scratch `*.test.ts` files at any other path). The deprecated `<repo-root>/tests/` directory has been deleted; no PR may re-introduce it.
+
 ## CRITICAL: Framework Development
 
 - ✅ ALWAYS modify in root: `skills/`, `agents/templates/`, `commands/`

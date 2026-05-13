@@ -4,7 +4,6 @@
  * Central export point for all schema definitions
  */
 
-// Stack Profile schemas (Service-Centric)
 export {
   StackProfileSchema,
   ServiceSchema,
@@ -22,7 +21,6 @@ export {
   type ServiceDatabase,
   type ServiceEnvironment,
   type ServiceFrameworks,
-  // Helper functions
   getLanguagesFromStackProfile,
   getPrimaryLanguage,
   getAllDatabases,
@@ -32,7 +30,6 @@ export {
   getAllTestingFrameworks,
 } from './stack-profile.schema.js';
 
-// Framework Config schemas
 export {
   FrameworkConfigSchema,
   ResourceInfoSchema,
@@ -48,7 +45,6 @@ export {
   type ResourceState,
 } from './framework-config.schema.js';
 
-// UI Visual Testing schemas
 export {
   ViewportSchema,
   IgnoreRegionSchema,

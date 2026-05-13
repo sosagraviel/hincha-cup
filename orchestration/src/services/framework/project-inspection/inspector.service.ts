@@ -1,10 +1,8 @@
 /**
- * Plan v3 §A — project-inspection service.
+ * Project-inspection service.
  *
  * Walks the project filesystem at Phase 0 and produces the
  * `ProjectInspection` structure consumed by every Phase-1 analyzer.
- * Replaces ~70 seconds of Phase-1 LLM time per analyzer with a
- * single deterministic pass.
  *
  * Stack-agnostic by design: every language-specific decision lives
  * in a lookup table (`runtime-version-table.ts`,
@@ -12,13 +10,10 @@
  * language family is a one-line PR per table.
  *
  * Naming-agnostic: the inspector NEVER pattern-matches on role
- * names (Controller / Service / Repository / etc.). It surfaces
- * paths and parsed manifests verbatim; analyzers / synthesizer
- * extract patterns using the project's own names.
+ * names. It surfaces paths and parsed manifests verbatim.
  *
- * Best-effort: any individual file failure (parse error, IO
- * error, permission denied) is logged at INFO and skipped. The
- * inspector NEVER throws — Phase 0 must continue even on a
+ * Best-effort: any individual file failure is logged and skipped.
+ * The inspector NEVER throws — Phase 0 must continue even on a
  * malformed project.
  */
 
@@ -73,9 +68,6 @@ export interface InspectProjectResult {
   };
 }
 
-/* ------------------------------ Constants ------------------------------ */
-
-/** Reasonable hard ceiling on filesystem walk to keep Phase 0 bounded. */
 const FAST_GLOB_OPTIONS = {
   dot: true,
   onlyFiles: true,
@@ -84,12 +76,10 @@ const FAST_GLOB_OPTIONS = {
   unique: true,
 };
 
-/** Soft cap on how many candidate files to scan per pattern (prevents explosion on enormous repos). */
 const MAX_FILES_PER_PATTERN = 500;
 
 /**
  * CI provider table — file-presence → provider name. Stack-agnostic.
- * Each entry is ordered by specificity (most-specific first).
  */
 const CI_PROVIDER_TABLE: ReadonlyArray<{ provider: string; pattern: string }> = [
   { provider: 'GitHub Actions', pattern: '.github/workflows/*.{yml,yaml}' },
@@ -109,7 +99,6 @@ const CI_PROVIDER_TABLE: ReadonlyArray<{ provider: string; pattern: string }> = 
 
 /**
  * Infrastructure tool table — filename → tool name. Stack-agnostic.
- * Order is alphabetical for stability.
  */
 const INFRASTRUCTURE_TABLE: ReadonlyArray<{ tool: string; pattern: string }> = [
   { tool: 'ansible', pattern: '**/ansible.cfg' },
@@ -132,7 +121,7 @@ const INFRASTRUCTURE_TABLE: ReadonlyArray<{ tool: string; pattern: string }> = [
 
 /**
  * Workspace-tool detection table — file presence → workspace tool name.
- * Stack-agnostic and order-sensitive: the FIRST match wins.
+ * Stack-agnostic and order-sensitive: the first match wins.
  */
 const WORKSPACE_TOOL_TABLE: ReadonlyArray<{ tool: string; pattern: string }> = [
   { tool: 'pnpm workspaces', pattern: 'pnpm-workspace.yaml' },
@@ -140,10 +129,7 @@ const WORKSPACE_TOOL_TABLE: ReadonlyArray<{ tool: string; pattern: string }> = [
   { tool: 'Turborepo', pattern: 'turbo.json' },
   { tool: 'Lerna', pattern: 'lerna.json' },
   { tool: 'go workspaces', pattern: 'go.work' },
-  // Cargo workspace lives in `Cargo.toml::[workspace]`; we detect via filename + content sniff below.
 ];
-
-/* --------------------------- Main entry point --------------------------- */
 
 /**
  * Run the project inspection. Pure I/O — never throws, returns even
@@ -168,7 +154,6 @@ export async function inspectProject(args: InspectProjectArgs): Promise<InspectP
     runtime_versions_extracted: 0,
   };
 
-  // ---------------- Lock files ----------------
   const lockFiles: LockFileEntry[] = [];
   for (const basename of knownLockFileBasenames()) {
     const matches = await safeGlob(`**/${basename}`, baseGlobOptions);
@@ -181,10 +166,8 @@ export async function inspectProject(args: InspectProjectArgs): Promise<InspectP
   }
   diagnostic.lock_files_found = lockFiles.length;
 
-  // ---------------- Manifests ----------------
   const manifestEntries: ManifestEntry[] = [];
 
-  // Exact-filename manifests (package.json, pyproject.toml, etc.).
   for (const filename of knownExactManifestBasenames()) {
     const matches = await safeGlob(`**/${filename}`, baseGlobOptions);
     diagnostic.files_scanned += matches.length;
@@ -201,7 +184,6 @@ export async function inspectProject(args: InspectProjectArgs): Promise<InspectP
     }
   }
 
-  // Suffix-based manifests (*.csproj, *.gemspec, *.fsproj, *.vbproj).
   for (const suffix of knownManifestSuffixes()) {
     const matches = await safeGlob(`**/*${suffix}`, baseGlobOptions);
     diagnostic.files_scanned += matches.length;
@@ -218,7 +200,6 @@ export async function inspectProject(args: InspectProjectArgs): Promise<InspectP
     }
   }
 
-  // ---------------- Runtime versions ----------------
   const runtimeVersions: Record<string, string> = {};
   for (const filename of knownRuntimeVersionFilenames()) {
     const matches = await safeGlob(`**/${filename}`, baseGlobOptions);
@@ -236,7 +217,6 @@ export async function inspectProject(args: InspectProjectArgs): Promise<InspectP
     }
   }
 
-  // `.tool-versions` — multi-runtime line-per-runtime file (asdf).
   const toolVersionsFiles = await safeGlob('**/.tool-versions', baseGlobOptions);
   for (const path of toolVersionsFiles) {
     const contents = safeReadText(join(args.projectPath, path));
@@ -250,27 +230,21 @@ export async function inspectProject(args: InspectProjectArgs): Promise<InspectP
     }
   }
 
-  // ---------------- Repository type + monorepo ----------------
   const { repositoryType, monorepo } = await detectRepositoryShape({
     projectPath: args.projectPath,
     baseGlobOptions,
     manifestEntries,
   });
 
-  // ---------------- Infrastructure ----------------
   const infrastructure = await detectInfrastructure(baseGlobOptions);
-
-  // ---------------- CI/CD ----------------
   const ciCd = await detectCiCd(baseGlobOptions);
-
-  // ---------------- Environment ----------------
   const environment = await detectEnvironment(args.projectPath, baseGlobOptions);
-
-  // ---------------- Documentation ----------------
   const documentation = await detectDocumentation(baseGlobOptions);
-
-  // ---------------- Port candidates ----------------
   const portCandidates = await detectPortCandidates(args.projectPath, baseGlobOptions);
+  const infrastructureServicesHints = await detectInfrastructureServicesHints(
+    args.projectPath,
+    baseGlobOptions,
+  );
 
   const inspection: ProjectInspection = {
     generated_at: generatedAt,
@@ -285,10 +259,11 @@ export async function inspectProject(args: InspectProjectArgs): Promise<InspectP
     ...(environment ? { environment } : {}),
     ...(documentation ? { documentation } : {}),
     port_candidates: portCandidates,
+    ...(infrastructureServicesHints.length > 0
+      ? { infrastructure_services_hints: infrastructureServicesHints }
+      : {}),
   };
 
-  // Schema-validate the result so a future schema change can never
-  // silently produce an out-of-shape file.
   const validated = ProjectInspectionSchema.parse(inspection);
 
   return {
@@ -299,8 +274,6 @@ export async function inspectProject(args: InspectProjectArgs): Promise<InspectP
   };
 }
 
-/* --------------------------- Sub-detectors --------------------------- */
-
 async function detectRepositoryShape(args: {
   projectPath: string;
   baseGlobOptions: { cwd: string; ignore: string[]; [k: string]: unknown };
@@ -309,7 +282,6 @@ async function detectRepositoryShape(args: {
   repositoryType: ProjectInspection['repository_type'];
   monorepo: ProjectInspection['monorepo'];
 }> {
-  // Explicit workspace-tool table first.
   for (const entry of WORKSPACE_TOOL_TABLE) {
     const matches = await safeGlob(entry.pattern, args.baseGlobOptions);
     if (matches.length > 0) {
@@ -329,7 +301,6 @@ async function detectRepositoryShape(args: {
     }
   }
 
-  // Cargo workspace — sniff `Cargo.toml::[workspace]`.
   const cargoToml = args.manifestEntries.find((m) => basename(m.path) === 'Cargo.toml');
   if (cargoToml && typeof cargoToml.raw === 'string' && /^\s*\[workspace\]/m.test(cargoToml.raw)) {
     return {
@@ -342,9 +313,8 @@ async function detectRepositoryShape(args: {
     };
   }
 
-  // package.json::workspaces (npm / yarn / bun workspaces) — sniff JSON.
   const rootPackageJson = args.manifestEntries.find(
-    (m) => basename(m.path) === 'package.json' && !m.path.includes('/'), // root only
+    (m) => basename(m.path) === 'package.json' && !m.path.includes('/'),
   );
   if (
     rootPackageJson &&
@@ -366,7 +336,6 @@ async function detectRepositoryShape(args: {
     };
   }
 
-  // Heuristic: ≥ 2 manifests of the same kind in different directories ⇒ polyrepo (or multi-service mono).
   const manifestPathCounts = new Map<string, Set<string>>();
   for (const m of args.manifestEntries) {
     const key = m.kind;
@@ -394,7 +363,6 @@ async function sniffMonorepoPackageManager(
   projectPath: string,
   baseGlobOptions: { cwd: string; ignore: string[]; [k: string]: unknown },
 ): Promise<string | null> {
-  // Prefer root-level lock files.
   const candidates: ReadonlyArray<string> = [
     'pnpm-lock.yaml',
     'yarn.lock',
@@ -406,7 +374,6 @@ async function sniffMonorepoPackageManager(
       return resolveLockFileManager(filename);
     }
   }
-  // Fall back to anywhere in the project.
   for (const filename of candidates) {
     const matches = await safeGlob(`**/${filename}`, baseGlobOptions);
     if (matches.length > 0) {
@@ -455,7 +422,6 @@ async function detectEnvironment(
   baseGlobOptions: { cwd: string; ignore: string[]; [k: string]: unknown },
 ): Promise<ProjectInspection['environment']> {
   const templateFiles = await safeGlob('**/*.{example,sample,template}', baseGlobOptions);
-  // Filter to .env.* templates (the most common shape).
   const envTemplates = templateFiles.filter((p) => /\.env\.(example|sample|template)/.test(p));
   if (envTemplates.length === 0) return undefined;
 
@@ -493,7 +459,6 @@ async function detectDocumentation(baseGlobOptions: {
   ) {
     return undefined;
   }
-  // Surface dirs that contain docs, deduped + sorted.
   const docsDirs = Array.from(new Set(docsDirMatches.map((p) => dirname(p)))).sort();
   return {
     readme_paths: readmeMatches.sort(),
@@ -514,7 +479,6 @@ async function detectPortCandidates(
 ): Promise<Record<string, number[]>> {
   const result: Record<string, Set<number>> = {};
 
-  // .env.example files: extract per-directory PORT-like values.
   const envFiles = await safeGlob('**/*.env.{example,sample,template}', baseGlobOptions);
   for (const path of envFiles) {
     const contents = safeReadText(join(projectPath, path));
@@ -527,7 +491,6 @@ async function detectPortCandidates(
     }
   }
 
-  // docker-compose files at the root: extract `ports:` sections (dir = '.').
   const composeFiles = await safeGlob('docker-compose*.{yml,yaml}', baseGlobOptions);
   for (const path of composeFiles) {
     const contents = safeReadText(join(projectPath, path));
@@ -540,7 +503,6 @@ async function detectPortCandidates(
     }
   }
 
-  // Convert to sorted arrays.
   const out: Record<string, number[]> = {};
   for (const [dir, set] of Object.entries(result)) {
     out[dir] = Array.from(set).sort((a, b) => a - b);
@@ -550,12 +512,10 @@ async function detectPortCandidates(
 
 function extractPortNumbers(body: string): number[] {
   const out: number[] = [];
-  // PORT=<n> / EXAMPLE_PORT=<n>
   for (const match of body.matchAll(/(?:^|\b)([A-Z_]*PORT)\s*=\s*(\d+)/gm)) {
     const n = parseInt(match[2], 10);
     if (Number.isFinite(n) && n > 0 && n <= 65535) out.push(n);
   }
-  // YAML `port: <n>` / `ports: - <n>` / `"<host>:<container>"`
   for (const match of body.matchAll(/\bport(?:s)?\s*:\s*(\d+)/gi)) {
     const n = parseInt(match[1], 10);
     if (Number.isFinite(n) && n > 0 && n <= 65535) out.push(n);
@@ -569,7 +529,199 @@ function extractPortNumbers(body: string): number[] {
   return Array.from(new Set(out));
 }
 
-/* ----------------------------- Helpers ----------------------------- */
+/**
+ * Extract NAMED infrastructure-service → port pairs from common compose /
+ * emulator config shapes.
+ *
+ * Stack-agnostic, regex-driven (no yaml dep). Source files covered:
+ *   - docker-compose.{yml,yaml} / compose.{yml,yaml} → service-block parser
+ *   - firebase.json → emulators.<name>.port
+ *
+ * The output feeds the data-flows analyzer's `infrastructure_services[]`
+ * field. The analyzer still owns SaaS opt-outs and the wiki-label
+ * normalisation — the inspector just provides the raw {name, port,
+ * source_file} signal so the analyzer doesn't have to re-Glob and
+ * re-parse the same files.
+ */
+async function detectInfrastructureServicesHints(
+  projectPath: string,
+  baseGlobOptions: { cwd: string; ignore: string[]; [k: string]: unknown },
+): Promise<Array<{ name: string; port: number; source_file: string }>> {
+  const hints: Array<{ name: string; port: number; source_file: string }> = [];
+
+  const composeFiles = await safeGlob('**/docker-compose*.{yml,yaml}', baseGlobOptions);
+  composeFiles.push(...(await safeGlob('**/compose.{yml,yaml}', baseGlobOptions)));
+
+  for (const relPath of composeFiles) {
+    const contents = safeReadText(join(projectPath, relPath));
+    if (contents == null) continue;
+    const parsed = parseDockerComposeServicePorts(contents);
+    for (const entry of parsed) {
+      hints.push({ ...entry, source_file: relPath });
+    }
+  }
+
+  const firebaseFiles = await safeGlob('**/firebase.json', baseGlobOptions);
+  for (const relPath of firebaseFiles) {
+    const contents = safeReadText(join(projectPath, relPath));
+    if (contents == null) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(contents);
+    } catch {
+      continue;
+    }
+    if (!isObject(parsed)) continue;
+    const emulators = (parsed as Record<string, unknown>).emulators;
+    if (!isObject(emulators)) continue;
+    for (const [name, value] of Object.entries(emulators as Record<string, unknown>)) {
+      if (!isObject(value)) continue;
+      const port = (value as Record<string, unknown>).port;
+      if (typeof port === 'number' && Number.isFinite(port) && port > 0 && port <= 65535) {
+        hints.push({ name, port, source_file: relPath });
+      }
+    }
+  }
+
+  const seen = new Set<string>();
+  const out: typeof hints = [];
+  for (const h of hints) {
+    const key = `${h.source_file}::${h.name}::${h.port}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(h);
+  }
+  return out;
+}
+
+/**
+ * Regex-based docker-compose service-block parser. Extracts
+ * `<service_name>: ports: ["<host>:<container>", …]` mappings.
+ * Returns one entry per (service, first host port). Variables like
+ * `${X_PORT:-5432}` are resolved to the default when present; otherwise
+ * we use the literal numeric host port. The agent retains responsibility
+ * for handling exotic shapes (multi-line literals, anchors / aliases).
+ */
+function parseDockerComposeServicePorts(yaml: string): Array<{ name: string; port: number }> {
+  const lines = yaml.split('\n');
+  const out: Array<{ name: string; port: number }> = [];
+
+  let inServices = false;
+  let servicesIndent = -1;
+  let currentService: string | null = null;
+  let currentServiceIndent = -1;
+  let inPorts = false;
+  let portsIndent = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const stripped = line.replace(/#.*$/, '').trimEnd();
+    if (stripped.trim().length === 0) continue;
+    const indent = line.length - line.trimStart().length;
+
+    if (!inServices) {
+      const m = stripped.match(/^services\s*:\s*$/);
+      if (m) {
+        inServices = true;
+        servicesIndent = indent;
+      }
+      continue;
+    }
+
+    if (indent <= servicesIndent && stripped.trim().length > 0) {
+      inServices = false;
+      currentService = null;
+      inPorts = false;
+      continue;
+    }
+
+    const serviceHeader = stripped.match(/^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*$/);
+    if (serviceHeader && indent > servicesIndent) {
+      if (currentService !== null && indent > currentServiceIndent) {
+        if (serviceHeader[1] === 'ports') {
+          inPorts = true;
+          portsIndent = indent;
+        }
+        continue;
+      }
+      currentService = serviceHeader[1];
+      currentServiceIndent = indent;
+      inPorts = false;
+      continue;
+    }
+
+    if (currentService !== null && indent > currentServiceIndent) {
+      const inlinePorts = stripped.match(/^\s*ports\s*:\s*\[(.+)\]\s*$/);
+      if (inlinePorts) {
+        const port = extractFirstHostPort(inlinePorts[1]);
+        if (port != null) {
+          out.push({ name: currentService, port });
+        }
+        continue;
+      }
+    }
+
+    if (!inPorts || currentService == null) continue;
+
+    if (indent <= portsIndent && !stripped.trimStart().startsWith('-')) {
+      inPorts = false;
+      continue;
+    }
+
+    const portLine = stripped.trim();
+    if (!portLine.startsWith('-')) continue;
+    const value = portLine
+      .slice(1)
+      .trim()
+      .replace(/^["']|["']$/g, '');
+
+    let port: number | null = null;
+    const interpMatch = value.match(/^\$\{[^}]*:-(\d+)\}/);
+    if (interpMatch) {
+      port = parseInt(interpMatch[1], 10);
+    } else {
+      const colonIdx = value.indexOf(':');
+      const hostSide = colonIdx >= 0 ? value.slice(0, colonIdx) : value;
+      if (/^\d+$/.test(hostSide)) port = parseInt(hostSide, 10);
+    }
+    if (port != null && port > 0 && port <= 65535) {
+      out.push({ name: currentService, port });
+      inPorts = false;
+    }
+  }
+
+  return out;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Extract the FIRST host port from a YAML flow-array body. Accepts:
+ *   `"6379:6379"` → 6379
+ *   `6379:6379`   → 6379
+ *   `"${X:-5432}:5432"` → 5432
+ *   `6379`        → 6379
+ */
+function extractFirstHostPort(body: string): number | null {
+  const first = body
+    .split(',')[0]
+    .trim()
+    .replace(/^["']|["']$/g, '');
+  const interp = first.match(/^\$\{[^}]*:-(\d+)\}/);
+  if (interp) {
+    const n = parseInt(interp[1], 10);
+    if (n > 0 && n <= 65535) return n;
+  }
+  const colonIdx = first.indexOf(':');
+  const hostSide = colonIdx >= 0 ? first.slice(0, colonIdx) : first;
+  if (/^\d+$/.test(hostSide)) {
+    const n = parseInt(hostSide, 10);
+    if (n > 0 && n <= 65535) return n;
+  }
+  return null;
+}
 
 async function safeGlob(
   pattern: string,
@@ -587,8 +739,7 @@ function safeReadText(absolutePath: string): string | null {
     if (!existsSync(absolutePath)) return null;
     const stat = statSync(absolutePath);
     if (!stat.isFile()) return null;
-    // Bound the read to avoid pulling huge files into memory.
-    if (stat.size > 1_000_000) return null; // > 1 MB — skip
+    if (stat.size > 1_000_000) return null;
     return readFileSync(absolutePath, 'utf-8');
   } catch {
     return null;
@@ -605,16 +756,11 @@ function readManifest(
   const contents = safeReadText(absPath);
   if (contents == null) return null;
 
-  // Only JSON gets a full parse out-of-the-box; other formats are
-  // surfaced as raw text so analyzers can parse with their own
-  // language-specific tooling. Adding a TOML / YAML / XML parser
-  // is a follow-up improvement that doesn't change the schema.
   let raw: unknown = contents;
   if (format === 'json') {
     try {
       raw = JSON.parse(contents);
     } catch {
-      // Malformed JSON — keep as text so the analyzer can still see it.
       raw = contents;
     }
   }

@@ -15,7 +15,6 @@ import {
   getSidecarLoaderForProvider,
 } from '../shared/graph-tool-usage.js';
 import { getFrameworkAgentPath } from '../../shared/index.js';
-import { reasoningPrefix } from '../../../../utils/shared/context-tags.js';
 import { resolveTempPath, getActiveProvider } from '../../../../utils/provider-paths.js';
 import { Provider } from '../../../../providers/types.js';
 import {
@@ -41,8 +40,6 @@ export async function dataFlowsIntegrationsAnalyzerNode(
   const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   mkdirSync(join(tempDir, 'phase1-outputs'), { recursive: true });
 
-  // Read structure-analyzer's authoritative services from disk. The graph
-  // topology guarantees structure-architecture-analyzer ran before this node.
   const { services: authoritativeServices, error: servicesLoadError } =
     loadAuthoritativeServices(tempDir);
   if (servicesLoadError) {
@@ -55,12 +52,11 @@ export async function dataFlowsIntegrationsAnalyzerNode(
       resumeSessionId?: string,
       attemptNumber?: number,
     ): Promise<{ output: string; sessionId: string }> => {
-      // Build input prompt using shared utility
-      const contextPrompt = buildPhase1AnalyzerPrompt(
+      const inputPrompt = buildPhase1AnalyzerPrompt(
         state.project_path,
         state.framework_path,
         agentName,
-        feedbackPrompt, // Feedback for retry
+        feedbackPrompt,
         {
           available: state.code_graph_available ?? false,
           dbPath: state.code_graph_path,
@@ -70,19 +66,15 @@ export async function dataFlowsIntegrationsAnalyzerNode(
         authoritativeServices,
       );
 
-      // Create agent using new interface
       const factory = await AgentFactory.create();
-
-      // Provider-aware reasoning prefix (ultrathink for Claude, empty for Codex)
-      const inputPrompt = `${reasoningPrefix(factory.getAuthConfig())}${contextPrompt}\n\nAnalyze the data flows and integrations at: ${state.project_path}`;
 
       const agent = await factory.createAgent({
         agentName,
         agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
-        timeout: 1800000, // 30 minutes
-        resumeSessionId, // Pass session ID for context-preserving retry
+        timeout: 1800000,
+        resumeSessionId,
         phase: getInitializeProjectPhase('phase1'),
         settingsPath: join(
           state.framework_path,
@@ -115,9 +107,6 @@ export async function dataFlowsIntegrationsAnalyzerNode(
       },
     );
 
-    // Overwrite agent-supplied graph_queries_used with the canonical sorted
-    // list of `mcp__code_graph__*_tool` names from the per-provider sidecar.
-    // Plan §C, commit A — see structure-architecture-analyzer.node.ts.
     const provider = getActiveProvider() === Provider.CODEX ? 'codex' : 'claude';
     const persisted = applyGraphToolUsageFromSidecar(
       validatedData,
@@ -129,8 +118,6 @@ export async function dataFlowsIntegrationsAnalyzerNode(
 
     writeFileSync(outputPath, JSON.stringify(persisted, null, 2));
 
-    // Overlay onto debug bucket — see structure-analyzer for rationale
-    // (gira-init-run audit findings F6 / F18).
     const activeStore = tryActiveDebugStore();
     if (activeStore && sessionId) {
       await activeStore.overlaySessionOutput(agentName, sessionId, persisted);

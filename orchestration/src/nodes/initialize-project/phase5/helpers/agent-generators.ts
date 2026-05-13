@@ -43,7 +43,7 @@ export function generatePlannerAgent(
     model: 'opus',
     description: 'Create detailed implementation plans with full architecture awareness',
     content,
-    path: '', // Will be set when writing
+    path: '',
   };
 }
 
@@ -68,27 +68,10 @@ export function generateImplementerAgent(
   const template = readFileSync(actualTemplatePath, 'utf-8');
   const skillNames = skills.map((s) => s.name);
 
-  // Detect the project's build tool / package manager (per-language) and
-  // thread it through both the extracted scripts and the language
-  // defaults. The 2026-05-04 gira run shipped `npm` commands on a pnpm
-  // project because both helpers hardcoded `npm`; the fix generalises
-  // to every supported language family (see §C 1.1 of the
-  // gira-exhaustive followup plan). detectBuildTool returns
-  // 'unknown' for languages outside the supported matrix; in that case
-  // both helpers gracefully fall back to the COMMAND_DEFAULTS verbatim.
   const buildTool = detectBuildTool(projectPath, language);
   const packageCommands = extractCommandsFromManifest(projectPath, language, buildTool);
   const defaultCommands = getDefaultCommands(language, projectPath, buildTool);
 
-  // Resolve every command cell with a strict `package.json → language
-  // default` fallback chain. The variable names here MUST match the
-  // template's Handlebars placeholders (see
-  // `agents/templates/implementer.template.md` — `{{lint_command}}`,
-  // `{{type_check_command}}`, `{{unit_test_command}}`, `{{build_command}}`,
-  // `{{format_command}}`). Mismatched names render as empty cells; the
-  // 2026-05-04 gira run lost typecheck + test + build because of one
-  // such mismatch (plan §E.3). The validation guard in writeAgents
-  // catches any future drift.
   const lintCommand = packageCommands.lint || defaultCommands.lint || '';
   const formatCommand = packageCommands.format || defaultCommands.format || '';
   const typecheckCommand = packageCommands.typecheck || defaultCommands.typecheck || '';
@@ -96,15 +79,11 @@ export function generateImplementerAgent(
   const buildCommand = packageCommands.build || defaultCommands.build || '';
 
   const commands = {
-    // Names must match the Handlebars placeholders in the template.
     lint_command: lintCommand,
     format_command: formatCommand,
     type_check_command: typecheckCommand,
     unit_test_command: testCommand,
     build_command: buildCommand,
-    // Legacy aliases — keep the old names available so any consumer
-    // still using them (e.g. an out-of-tree fork of the template) still
-    // renders. Same value, two keys.
     typecheck_command: typecheckCommand,
     test_command: testCommand,
   };
@@ -121,7 +100,7 @@ export function generateImplementerAgent(
     model: 'sonnet',
     description: `Implement ${language} code following team conventions`,
     content,
-    path: '', // Will be set when writing
+    path: '',
   };
 }
 
@@ -152,7 +131,7 @@ export function generateGenericImplementerAgent(
     description:
       'Expert full-stack and DevOps specialist implementing any file type following best practices',
     content,
-    path: '', // Will be set when writing
+    path: '',
   };
 }
 
@@ -184,7 +163,7 @@ export function generateVisualVerifierAgent(
     model: 'opus',
     description: 'Visual verification and UI diff analysis',
     content,
-    path: '', // Will be set when writing
+    path: '',
   };
 }
 

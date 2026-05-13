@@ -11,6 +11,12 @@ export default defineConfig({
       "**/test/integration/self-test.integration.test.ts",
       "**/test/integration/initialize-project.integration.test.ts",
       "**/test/integration/phase1-automation-detection.integration.test.ts",
+      // Plan v5 §1.7 — the fixture trees under
+      // test/integration/initialize-project/projects/<fixture>/qubika-agentic-framework
+      // are symlinks back to the framework root. Without this exclude,
+      // vitest discovers `test/unit/**` via each symlink and runs the
+      // same suite N+1 times.
+      "**/test/integration/initialize-project/projects/**",
     ],
     coverage: {
       provider: "v8",

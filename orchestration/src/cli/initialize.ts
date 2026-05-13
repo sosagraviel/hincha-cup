@@ -28,8 +28,6 @@ program
   .name('orchestrate:initialize')
   .description('Initialize AI Agentic Framework for a project using TypeScript CLI orchestration')
   .version('1.0.0')
-  // --project-path / --framework-path are no longer accepted: paths.service.ts
-  // resolves both locally from import.meta.url. Single source of truth.
   .option(
     '--model-tier <tier>',
     'Set model tier: fast, standard, advanced, openai, or gemini (default: standard)',
@@ -95,9 +93,6 @@ program
     });
 
     try {
-      // ================================================================
-      // PROVIDER & TIER SETUP (must happen BEFORE getLLMFactory singleton)
-      // ================================================================
       if (options.modelTier) {
         process.env.MODEL_TIER = options.modelTier;
       }
@@ -119,7 +114,6 @@ program
         }
       }
 
-      // Reset factory in case it was created with wrong tier before
       resetLLMFactory();
       let llmFactory = getLLMFactory();
 
@@ -157,28 +151,20 @@ program
       }
 
       /**
-       * Derive schema key from agent name
-       * Pattern: "structure-architecture-analyzer" → "structure_architecture"
-       * 1. Remove "-analyzer" suffix
-       * 2. Replace hyphens with underscores
+       * Derive a schema key from an analyzer agent name. Strips the
+       * `-analyzer` suffix and converts hyphens to underscores. Example:
+       * `"structure-architecture-analyzer"` → `"structure_architecture"`.
        */
       const getSchemaKeyFromAgentName = (agentName: string): string => {
-        return agentName
-          .replace(/-analyzer$/, '') // Remove -analyzer suffix
-          .replace(/-/g, '_'); // Replace hyphens with underscores
+        return agentName.replace(/-analyzer$/, '').replace(/-/g, '_');
       };
 
-      // Import fs for phase data loading (when using --start-phase)
       const fs = await import('fs');
 
-      // ========================================================================
-      // PREFLIGHT CHECKS - SINGLE SOURCE OF TRUTH
-      // ========================================================================
       logger.section('Preflight Checks');
 
       const preflightResult = await runPreflightChecks(projectPath, frameworkPath);
 
-      // Display warnings (non-blocking)
       if (preflightResult.warnings.length > 0) {
         logger.blank();
         preflightResult.warnings.forEach((warning) => {
@@ -187,7 +173,6 @@ program
         logger.blank();
       }
 
-      // Display errors and exit if any
       if (!preflightResult.success) {
         logger.blank();
         logger.error('Preflight checks failed:');
@@ -199,7 +184,6 @@ program
         process.exit(1);
       }
 
-      // Display success
       logger.success(`✓ Node.js ${preflightResult.nodeVersion}`);
       logger.success(`✓ npm ${preflightResult.npmVersion}`);
       if (preflightResult.claudeVersion) {
@@ -209,7 +193,6 @@ program
         logger.success(`✓ Codex CLI ${preflightResult.codexVersion}`);
       }
 
-      // Auto-detect provider from preflight if not explicitly set
       if (!options.provider) {
         if (preflightResult.authMode === 'claude_cli') {
           setActiveProvider(Provider.CLAUDE);
@@ -219,14 +202,12 @@ program
           process.env.PROVIDER = 'codex';
           if (!options.modelTier) {
             process.env.MODEL_TIER = 'openai';
-            resetLLMFactory(); // Tier changed, need to re-create factory
+            resetLLMFactory();
             llmFactory = getLLMFactory();
           }
         }
-        // claude is already the default
       }
 
-      // Show auth mode
       if (preflightResult.authMode === 'claude_cli') {
         if (process.env.ANTHROPIC_API_KEY) {
           logger.success('✓ Authentication: Anthropic API key');
@@ -247,27 +228,6 @@ program
         logger.success('✓ .gitignore contains required entries');
       }
       logger.blank();
-
-      // // Copy initialization agent files and hooks to target project BEFORE Phase 1
-      // // Store in .claude/agents/initialization/ subdirectory to separate from implementer/planner agents
-      // // This ensures Claude CLI can find them by name when invoked with --agent flag
-      // const targetInitAgentsDir = path.join(projectPath, ".claude", "agents", "initialization");
-      // const sourceAgentsDir = path.join(frameworkPath, "orchestration", "agents");
-
-      // // Create target .claude/agents/initialization directory
-      // fs.mkdirSync(targetInitAgentsDir, { recursive: true });
-
-      // // Copy all initialization agent markdown files and hooks directory
-      // // This includes: 01-04 (analyzers), 05 (synthesizer), 06 (consolidator), hooks/
-      // if (fs.existsSync(sourceAgentsDir)) {
-      //   fs.cpSync(sourceAgentsDir, targetInitAgentsDir, {
-      //     recursive: true,
-      //     filter: (src) => {
-      //       // Copy all .md files and the hooks directory
-      //       return src.endsWith(".md") || src.includes("hooks") || src === sourceAgentsDir;
-      //     },
-      //   });
-      // }
 
       logger.spinner('Initializing workflow...', 'init');
       await initializeDevCheckpointer();
@@ -302,9 +262,6 @@ program
 
       const tempDir = resolveTempPath(projectPath, 'initialize-project');
 
-      // ================================================================
-      // DEBUG STORE — always-on per-run artifact capture
-      // ================================================================
       const runStartedAt = new Date();
       const debugStore = await DebugStore.create({
         projectPath,
@@ -328,7 +285,6 @@ program
       );
 
       const keepRuns = parseInt(options.keepRuns ?? '10', 10) || 10;
-      // Prune oldest runs in the background so we don't delay the workflow.
       DebugStore.pruneRuns(projectPath, 'initialize-project', keepRuns)
         .then((deleted) => {
           if (deleted.length > 0) {
@@ -487,7 +443,6 @@ program
 
       logger.blank();
 
-      // Finalize debug run — update manifest with end time, render index.html.
       try {
         const endedAt = new Date();
         await debugStore.updateRunManifest({
@@ -581,7 +536,7 @@ program
         logger.info('You can resume this workflow later using:');
         logger.info(`  npm run initialize -- --resume <thread-id>`);
         logger.blank();
-        process.exit(130); // Standard SIGINT exit code (128 + 2)
+        process.exit(130);
       }
 
       logger.error('Workflow failed', error instanceof Error ? error : new Error(String(error)));
@@ -653,10 +608,6 @@ async function buildRunIndexHtml(debugStore: DebugStore): Promise<string> {
     debug: false,
     startedAt: debugStore.getRunContext().startedAt,
   };
-  // Plan §F.6 + commit 9: aggregate cache hit rate and graph
-  // overflow count and surface them in the index sidebar. Best
-  // effort — `computeRunStats` swallows any IO/parse failures and
-  // returns zeroed counters rather than crashing the renderer.
   const stats = await computeRunStats(runDir);
   return renderRunIndexHtml({ manifest, attempts: filtered, stats });
 }

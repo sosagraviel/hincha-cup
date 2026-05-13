@@ -7,25 +7,12 @@
 import type { ManifestInfo } from './types.js';
 import { STANDARD_IGNORE_DIRS } from '../../../utils/shared/prompt-loader.js';
 
-// ============================================================================
-// LANGUAGE EXTENSIONS
-// ============================================================================
-
 /**
  * Map of language names to their file extensions.
  *
- * Stack-agnostic by enumeration: every entry pairs a canonical language
- * key with the extensions projects in the wild use. Adding a stack is a
- * one-row append; the file-counter, language-validator, and stack-profile
- * all consult this single table.
- *
- * Plan v4 Phase A.2 (2026-05-09) — extended with the canonical languages
- * the file-counter previously couldn't see (`shell`, `sql`, `dart`,
- * `lua`, `r`, `julia`, `perl`, `powershell`, `html`, `css`, `fsharp`,
- * `vbnet`, `objectivec`, `erlang`). Without these, projects with one
- * `.sh` or `.sql` file produced misleading "Language X in profile but
- * no files found" warnings. The keys mirror
- * `schemas/language-normalization.ts::CANONICAL_LANGUAGES`.
+ * Stack-agnostic by enumeration. Adding a stack is a one-row append; the
+ * file-counter, language-validator, and stack-profile all consult this
+ * single table. Keys mirror `schemas/language-normalization.ts::CANONICAL_LANGUAGES`.
  */
 export const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
   typescript: ['.ts', '.tsx'],
@@ -60,10 +47,6 @@ export const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
   perl: ['.pl', '.pm', '.t'],
   objectivec: ['.m', '.mm'],
 } as const;
-
-// ============================================================================
-// MANIFEST FILES
-// ============================================================================
 
 /**
  * Map of manifest files to their language and package manager type
@@ -117,39 +100,16 @@ export const PRIMARY_MANIFESTS = new Set([
   'deps.edn',
 ]);
 
-// ============================================================================
-// IGNORE DIRECTORIES
-// ============================================================================
-
 /**
  * Directories to ignore during workspace detection and file counting.
- * Single source of truth is `STANDARD_IGNORE_DIRS` in prompt-loader so the
- * file-counter, workspace-detector, analyzer prompts, and PreToolUse hook
- * all agree on what counts as "ignorable".
- *
- * Runtime exclusions (framework dir, `.gitignore` entries) are layered on
- * via `getExcludedDirectories(projectPath, frameworkPath)` at call sites.
+ * Single source of truth is `STANDARD_IGNORE_DIRS` in prompt-loader.
  */
 export const IGNORE_DIRS: Set<string> = new Set(STANDARD_IGNORE_DIRS);
 
-// ============================================================================
-// TOOLING CONFIG FILES
-// ============================================================================
-
 /**
  * Regex patterns that match JavaScript/TypeScript tooling configuration
- * filenames (linters, test runners, build tools, commit hooks, etc.). These
- * are legitimate JS/TS files but they don't describe the project's source
- * language — a TypeScript repo with ten `*.config.mjs` files should still be
- * reported as TypeScript, not as "also has JavaScript".
- *
- * Used by `file-counter.ts` to exclude tooling configs from per-language
- * counts so the language-validator doesn't tag JS purely because of
- * `eslint.config.mjs` / `commitlint.config.js` / `jest.config.mjs`.
- *
- * Two patterns cover the vast majority of cases in the wild:
- *   - `<name>.config.{js,mjs,cjs,ts,tsx}`  — eslint.config.mjs, jest.config.ts
- *   - `.<name>rc.{js,mjs,cjs,ts,tsx}`      — .eslintrc.js, .babelrc.cjs
+ * filenames (`<name>.config.{js,mjs,cjs,ts,tsx}` and `.<name>rc.{js,...}`).
+ * Used by `file-counter.ts` to exclude these from per-language counts.
  */
 export const TOOLING_CONFIG_PATTERNS: ReadonlyArray<RegExp> = [
   /^[^.].+\.config\.(?:js|mjs|cjs|ts|tsx)$/i,
@@ -159,10 +119,6 @@ export const TOOLING_CONFIG_PATTERNS: ReadonlyArray<RegExp> = [
 export function isToolingConfigFile(filename: string): boolean {
   return TOOLING_CONFIG_PATTERNS.some((re) => re.test(filename));
 }
-
-// ============================================================================
-// WORKSPACE NAMES
-// ============================================================================
 
 /**
  * Common workspace directory names
@@ -182,10 +138,6 @@ export const WORKSPACE_NAMES = new Set([
   'common',
   'core',
 ]);
-
-// ============================================================================
-// FRAMEWORK KEYWORDS
-// ============================================================================
 
 /**
  * Frontend framework keywords for categorization
@@ -214,9 +166,30 @@ export const BACKEND_FRAMEWORK_KEYWORDS = [
   'gin',
 ] as const;
 
-// ============================================================================
-// VALIDATION THRESHOLDS
-// ============================================================================
+/**
+ * Languages that legitimately appear in file counts (shell scripts, JSON configs, YAML CI, CSS,
+ * SQL migrations, etc.) but are correctly omitted from the stack profile by design. Validators
+ * must not raise warnings when a utility language has files but is absent from the profile.
+ */
+export const UTILITY_LANGUAGES: ReadonlySet<string> = new Set<string>([
+  'css',
+  'scss',
+  'sass',
+  'less',
+  'html',
+  'sql',
+  'shell',
+  'bash',
+  'dockerfile',
+  'markdown',
+  'yaml',
+  'json',
+  'toml',
+  'xml',
+  'csv',
+  'ini',
+  'env',
+]);
 
 /**
  * Minimum file count to consider a language significant

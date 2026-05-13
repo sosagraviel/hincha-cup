@@ -1,14 +1,9 @@
 /**
- * Plan v4 Phase F — reject non-portable absolute paths in synthesis output.
+ * Rejects non-portable absolute paths in synthesis output.
  *
- * The operator's CLAUDE.md / SKILL.md ships to many machines (the
- * framework lands on 6000+). A path like
- *
- *   /Users/alice/projects/my-repo/src/api.ts
- *
- * leaks the developer's home directory and is meaningless on every
- * other machine. The synthesizer prompt forbids them; this validator
- * is the deterministic enforcement layer.
+ * The operator's CLAUDE.md / SKILL.md ships to many machines. A path like
+ * `/Users/alice/projects/my-repo/src/api.ts` leaks the developer's home
+ * directory and is meaningless on every other machine.
  *
  * Path-shape rule:
  *   ✓ project-relative paths               ("services/api/src/main.ts")
@@ -17,11 +12,7 @@
  *   ✓ tmp / cache / null device            ("/tmp/foo", "/var/cache", "/dev/null")
  *   ✗ user-home absolute paths             ("/Users/<name>/...", "/home/<name>/...")
  *
- * Stack/structure-agnostic: the rule checks PATH SHAPE only. It
- * doesn't peek at the user's actual `$HOME` (the synthesizer can run
- * in CI with `/root` as $HOME and the rule still works) — the regex
- * targets the universal `/Users/...` (macOS) and `/home/...` (Linux)
- * shapes that always indicate per-machine state.
+ * Stack/structure-agnostic: checks PATH SHAPE only.
  */
 
 const HOME_PATH_RE = /(?:^|[\s'"`(<])(\/(?:Users|home)\/[A-Za-z0-9_.-]+\/[^\s'"`)>]+)/g;
@@ -33,15 +24,11 @@ export function detectNonPortableAbsolutePath(body: string): string | null {
   let match: RegExpExecArray | null;
   while ((match = HOME_PATH_RE.exec(body)) !== null) {
     const candidate = match[1];
-    // Defensive: skip any candidate that *starts* with an allowed prefix
-    // (the regex prefix-anchors on /Users|/home so this only catches a
-    // future regex change that might let other prefixes through).
     if (ALLOWED_PREFIXES.some((p) => candidate.startsWith(p))) continue;
     offenders.push(candidate);
   }
   if (offenders.length === 0) return null;
 
-  // Reset the regex lastIndex so subsequent calls start fresh.
   HOME_PATH_RE.lastIndex = 0;
 
   const sample = offenders.slice(0, 6).map((p) => `   • ${p}`);

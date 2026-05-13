@@ -1,43 +1,14 @@
 /**
  * Codex skill-body inliner.
  *
- * Why this exists:
- *   Claude Code subagents auto-load the FULL body of every skill listed in
- *   the agent's `skills:` frontmatter at spawn time (verified verbatim
- *   against official Claude Code documentation). Codex CLI does NOT — when
- *   a Codex agent spawns, the framework's frontmatter rewriter strips the
- *   `skills:` line entirely (see codex-cli-agent-impl.ts). On Codex, every
- *   `skills: [a, b, c]` becomes dead text.
+ * Claude Code auto-loads skill bodies from the `skills:` frontmatter list at spawn time.
+ * Codex CLI does not — the framework strips `skills:` entirely for Codex agents. This
+ * module inlines each skill's body directly into the agent prompt (wrapped in
+ * `<skill name="...">` tags) at Phase 5 build time so Codex agents receive the same
+ * prescriptive context as Claude agents.
  *
- *   That gap meant the per-project convention skills (`code-conventions`,
- *   `multi-file-workflows`, `testing-conventions`) shipped to Codex agents
- *   as zero context — a 6000-developer regression for any team running
- *   Codex.
- *
- * The bridge:
- *   At resource generation time (Phase 5), when the active provider is
- *   Codex, we inline each agent's resolved skill bodies directly into the
- *   agent prompt body, immediately after the agent's role/responsibility
- *   section. Each skill body is wrapped in `<skill name="...">` tags so the
- *   agent can see the boundary and know it's reading prescriptive guidance
- *   (rules / examples / checklists) rather than role instructions.
- *
- * What gets inlined:
- *   ALL resolved skills attached to the agent — both framework-shipped
- *   skills (mastering-typescript, mastering-python, etc., resolved from the
- *   target project's `<project>/.codex/skills/<name>/SKILL.md` after
- *   provider-aware copying) AND the three generated convention skills
- *   (code-conventions, multi-file-workflows, testing-conventions). Per the
- *   user's H3 directive: inline all listed skills; the list will be cleaned
- *   up in a follow-up iteration.
- *
- * Stack-agnostic by construction — operates on the resolved-skill list
- * passed in, no language- or framework-specific assumptions.
- *
- * Invariant: Claude Code agents are NOT touched by this helper. Claude's
- * native skill-preload mechanic already handles their bodies; inlining
- * twice would burn tokens and create drift between the on-disk skill body
- * and the inlined copy.
+ * Claude Code agents are not touched by this helper; their native skill-preload mechanic
+ * already handles the bodies.
  */
 
 import { existsSync, readFileSync } from 'fs';
@@ -91,11 +62,9 @@ export function inlineSkillBodiesForCodex(content: string, options: InlineOption
 
   const block = renderInlineBlock(options);
   if (!block) {
-    // No skill bodies could be loaded — strip any prior block but emit nothing new.
     return stripPriorInlineBlock(content);
   }
 
-  // Strip any existing block before inserting (idempotent re-runs).
   const stripped = stripPriorInlineBlock(after);
   return `${before}\n${block}\n${stripped.trimStart()}`;
 }
@@ -106,12 +75,9 @@ export function inlineSkillBodiesForCodex(content: string, options: InlineOption
  */
 function findFrontmatterEnd(content: string): number {
   if (!content.startsWith('---')) return -1;
-  // Look for the closing `---` on its own line.
   const closeMatch = content.slice(3).match(/^---\s*$/m);
   if (!closeMatch || closeMatch.index === undefined) return -1;
-  // Index in the original string of the closing `---`.
   const absoluteCloseIdx = 3 + closeMatch.index;
-  // Advance past the closing `---` and its trailing newline.
   const newlineIdx = content.indexOf('\n', absoluteCloseIdx);
   return newlineIdx === -1 ? content.length : newlineIdx + 1;
 }
@@ -121,23 +87,13 @@ function stripPriorInlineBlock(content: string): string {
   if (startIdx === -1) return content;
   const endIdx = content.indexOf(SKILL_INLINE_END, startIdx);
   if (endIdx === -1) return content;
-  // Remove the entire block including a trailing newline if present.
   const after = content.slice(endIdx + SKILL_INLINE_END.length).replace(/^\n/, '');
   return content.slice(0, startIdx) + after;
 }
 
 function renderInlineBlock(options: InlineOptions): string {
-  // Plan §I.3 (gira-exhaustive followup, 2026-05-05): dedupe
-  // contiguous-paragraph overlap between skills. Pre-fix every skill
-  // body was inlined verbatim — so two skills that share a long
-  // prescriptive paragraph (e.g. both prescribe the same testing
-  // policy boilerplate) shipped the same paragraph twice. The dedup:
-  // for every paragraph in skill_N's body, if a byte-identical
-  // paragraph already appeared in any earlier skill_<N's body, skip
-  // it and emit a `<see-skill name="<earlier>"/>` cross-reference
-  // instead. Stack-agnostic — paragraph comparison only.
   const sections: string[] = [];
-  const seenParagraphs = new Map<string, string>(); // paragraph → first skill name that shipped it
+  const seenParagraphs = new Map<string, string>();
 
   for (const skill of options.skills) {
     const skillBody = loadSkillBody(skill, options);
@@ -177,14 +133,10 @@ function loadSkillBody(skill: ResolvedSkill, options: InlineOptions): string | n
     return null;
   }
 
-  // Drop frontmatter from the inlined copy — the agent already knows the
-  // skill's name from the wrapping `<skill name="...">` tag, and the
-  // YAML metadata has no value once the body is inlined inline.
   try {
     const parsed = matter(raw);
     return parsed.content.trim();
   } catch {
-    // Malformed frontmatter — emit the raw body and let the agent see it.
     return raw.trim();
   }
 }
@@ -202,19 +154,9 @@ export function makeCodexSkillPathResolver(
 }
 
 /**
- * Plan §I.3: dedupe paragraphs that already shipped in an earlier
- * skill. Splits the body on blank-line boundaries (the canonical
- * paragraph separator in markdown), looks up each paragraph in the
- * `seen` map, and either emits the paragraph (and records it) OR
- * emits a cross-reference and skips it.
- *
- * Only paragraphs over `MIN_DEDUPE_BYTES` qualify — short
- * boilerplate like a single sentence is not worth a cross-reference
- * (the cross-reference itself takes ~50 bytes).
- *
- * Code fences are preserved as-is (no dedup). The cross-reference
- * pattern `<see-skill name="<other>"/>` is stable so downstream
- * consumers can recognise it.
+ * Deduplicates paragraphs across skills. Paragraphs over `MIN_DEDUPE_BYTES` that
+ * already appeared in an earlier skill are replaced with a `<see-skill name="..."/>`
+ * cross-reference. Code fences are never deduped.
  */
 const MIN_DEDUPE_BYTES = 200;
 
@@ -257,9 +199,8 @@ interface ParagraphBlock {
 }
 
 /**
- * Split markdown on paragraph (blank-line) boundaries. Code fences
- * are returned as a single block so the dedup never breaks a fence
- * apart. Stack-agnostic — pure string split.
+ * Splits markdown on paragraph (blank-line) boundaries. Code fences are returned as
+ * a single block so dedup never breaks a fence apart.
  */
 function splitOnParagraphsPreservingFences(body: string): ParagraphBlock[] {
   const blocks: ParagraphBlock[] = [];

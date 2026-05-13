@@ -1,20 +1,9 @@
 /**
- * Plan 16 §C.5 — deterministic service-id normalisation.
+ * Deterministic service-id normalisation.
  *
- * The structure analyzer is supposed to emit `services[].id` as a
- * stable, human-meaningful identifier. In practice (gira run
- * 2026-05-06) it adopts graph community names (`src-app`,
- * `chat-handle`, `scripts-upsert`, `base-aggregation`) verbatim
- * because the prompt says "use community-detection tools for
- * service boundaries." Community IDs are semantic clusters, not
- * folder names — they drift across runs, leak into
- * `framework-config.json`, become keys in `build_tools.<id>`,
- * `testing.<id>`, etc.
- *
- * This normaliser is a deterministic safety net at the Phase 1 →
- * Phase 4 boundary. For every service whose `id !== basename(path)`,
- * we rewrite it to the basename and propagate the mapping through
- * every downstream id-keyed map across all four analyzer slices.
+ * Rewrites every service whose `id !== basename(path)` to the folder basename
+ * and propagates the mapping through every downstream id-keyed map across all
+ * four analyzer slices (`build_tools`, `testing`, `dependencies.by_service`, etc.).
  *
  * Stack-agnostic: pure path manipulation. No language assumptions.
  */
@@ -52,8 +41,6 @@ export function normaliseServiceIds(consolidation: unknown): NormaliseResult {
     return { consolidation, rewrites: {} };
   }
 
-  // Deep clone so we never mutate the caller's blob. structuredClone
-  // is available in Node 17+ which is well below our 22 floor.
   const cloned = structuredClone(consolidation) as Record<string, unknown>;
 
   const sources = collectFindingsSources(cloned);
@@ -119,9 +106,6 @@ export function applyServiceIdRewritesToFindings(
   if (isObject(findings.dependencies)) {
     rewriteIdKeyedMap(findings.dependencies.by_service, rewrites);
   }
-  // Some analyzers nest a per-service shape under custom keys
-  // (`patterns_by_service`, `flows_by_service`, etc.). Walk every
-  // top-level key matching `*_by_service` defensively.
   for (const [key, value] of Object.entries(findings)) {
     if (!key.endsWith('_by_service')) continue;
     rewriteIdKeyedMap(value, rewrites);
@@ -143,7 +127,6 @@ export function applyServiceIdRewritesToFindings(
 export function canonicalIdFromPath(path: string): string {
   const trimmed = path.replace(/\/+$/, '').replace(/^\/+/, '');
   if (trimmed.length === 0 || trimmed === '.') return '';
-  // Find the last path segment that's not empty / '@scope'.
   const segments = trimmed.split('/').filter((s) => s.length > 0 && !s.startsWith('@'));
   if (segments.length === 0) return '';
   const base = segments[segments.length - 1];
@@ -156,10 +139,6 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -201,8 +180,6 @@ function rewriteIdKeyedMap(value: unknown, rewrites: ServiceIdRewrites): void {
     const canonical = rewrites[key];
     if (!canonical) continue;
     if (canonical === key) continue;
-    // Move the entry under the canonical key. If the canonical key
-    // already exists, prefer the existing one (defensive).
     if (!(canonical in value)) {
       value[canonical] = entry;
     }

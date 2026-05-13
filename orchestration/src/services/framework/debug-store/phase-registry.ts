@@ -11,15 +11,10 @@ export const INITIALIZE_PROJECT_PHASES: Record<string, PhaseSlot> = {
     phaseNumber: 1,
     phaseLabel: 'Phase 1 — Discovery',
   },
-  // Plan v4 Phase D — per-service detail extraction (the win). Sits between
-  // the parallel analyzer tail and consolidation. N parallel sub-agents,
-  // one per service, each scoped to ≤ ONE service path. Distinct phase slot
-  // so debug attempts land under `phase-1.5-service-details/<service-id>/`
-  // and don't drown the four analyzer buckets.
   phase1_5: {
-    phaseId: 'phase-1.5-service-details',
+    phaseId: 'phase-1-discovery',
     phaseNumber: 1,
-    phaseLabel: 'Phase 1.5 — Service detail extraction',
+    phaseLabel: 'Phase 1 — Discovery',
   },
   phase2: {
     phaseId: 'phase-2-consolidation',
@@ -36,10 +31,6 @@ export const INITIALIZE_PROJECT_PHASES: Record<string, PhaseSlot> = {
     phaseNumber: 4,
     phaseLabel: 'Phase 4 — Context Generation',
   },
-  // Wiki generation runs at the tail of Phase 4 (a parallel sub-graph fans
-  // out per page). Distinct slot so debug artifacts don't pile into the
-  // context-generation bucket — and so the prior `phase-unknown/` bucket
-  // (gira-run finding F2) never recurs.
   phase4Wiki: {
     phaseId: 'phase-4-wiki',
     phaseNumber: 4,

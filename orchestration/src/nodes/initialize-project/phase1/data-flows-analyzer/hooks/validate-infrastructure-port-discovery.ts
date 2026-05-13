@@ -1,28 +1,24 @@
 /**
- * Plan 22 — output-shape validator for infrastructure-service port
- * discovery. NEVER opens or parses any project file. Only checks
- * the data-flows-analyzer's output JSON.
+ * Output-shape validator for infrastructure-service port discovery. Never
+ * opens or parses any project file — only checks the data-flows-analyzer's
+ * output JSON.
  *
- * For every entry in `findings.infrastructure_services[]`, the
- * agent must emit either:
- *   1. `port: <integer>` — a real port discovered in any project
- *      source (docker-compose, Firebase emulators, k8s Service,
- *      wrangler.toml [env] vars, .env files, source code, README),
+ * For every entry in `findings.infrastructure_services[]`, the agent must
+ * emit either:
+ *   1. `port: <integer>` — a real port discovered in any project source,
  *      OR
  *   2. The explicit opt-out:
  *        - `port_applies: false`
  *        - `port_applies_reason: "<one-line>"`
  *        - `port_search_evidence: [..., ...]` (≥2 entries)
  *
- * The validator does NOT classify by `type` ("monitoring" /
- * "database" / "saas") — different projects run different things
- * differently (a project might self-host monitoring, or use a
- * managed Postgres). The agent decides per-entry; the validator
- * just requires the decision to be explicit.
+ * The validator does not classify by `type`. The agent decides per-entry;
+ * the validator just requires the decision to be explicit.
  *
- * Stack-agnostic by construction: only inspects what the agent
- * already produced.
+ * Stack-agnostic: only inspects what the agent already produced.
  */
+
+import { formatValidationError } from '../../../shared/validation-codes/index.js';
 
 const MIN_SEARCH_EVIDENCE_ENTRIES = 2;
 
@@ -56,10 +52,8 @@ export function detectInfrastructurePortViolations(data: unknown): Infrastructur
     const id = typeof svc.id === 'string' ? svc.id : '<unknown>';
     const type = typeof svc.type === 'string' ? svc.type : '';
 
-    // Path A: a real port was discovered.
     if (typeof svc.port === 'number' && svc.port > 0) continue;
 
-    // Path B: explicit opt-out. All three pieces required.
     const optout = svc.port_applies === false;
     const reason = typeof svc.port_applies_reason === 'string' ? svc.port_applies_reason : '';
     const evidence: string[] = Array.isArray(svc.port_search_evidence)
@@ -122,61 +116,17 @@ function isObject(v: unknown): v is Record<string, unknown> {
 }
 
 /**
- * Format violations as agent-facing retry feedback. Returns
- * `string[]` so the caller can append directly to its existing
- * error array.
+ * Format violations as agent-facing retry feedback — one compressed
+ * `VALIDATION_E012_*` line per violation. The long-form repair guidance
+ * lives in `formatValidationErrorLong` for debug rendering.
  */
 export function formatInfrastructurePortViolations(
   violations: InfrastructurePortViolation[],
 ): string[] {
   if (violations.length === 0) return [];
-  const out: string[] = [
-    'INFRASTRUCTURE-SERVICE PORT DISCOVERY MISSING',
-    '',
-    '🔴 WHAT WENT WRONG:',
-    '   One or more entries in `findings.infrastructure_services[]` have no',
-    "   `port` and no explicit opt-out. The framework can't document",
-    '   "where to reach this service" without that information.',
-    '',
-    '   The validator never opens project files — you choose the search',
-    '   sources. Stack-agnostic: works for docker-compose, Firebase emulators,',
-    '   k8s Service ports, Cloudflare Wrangler, Heroku Procfile, fly.toml,',
-    '   any vendor cloud / managed deployment, etc.',
-    '',
-    '🟡 SPECIFIC VIOLATIONS:',
-  ];
-  for (const v of violations) {
-    out.push(`   • [${v.code}] ${v.message}`);
-  }
-  out.push(
-    '',
-    '🟢 HOW TO FIX:',
-    '',
-    '   For LOCAL-RUNTIME services (Postgres, Redis, Keycloak server,',
-    '   Mailhog, RabbitMQ, MongoDB, Elasticsearch, etc. that run in your',
-    "   project's docker-compose / Firebase emulators / k8s / Procfile /",
-    '   any orchestration shape), find the port in whichever orchestration',
-    '   file the project uses. Examples:',
-    '     - docker-compose.yml:  services.<svc>.ports: ["${X_PORT:-N}:M"] → host port',
-    '     - .env files:          *_PORT keys (DB_PORT, REDIS_PORT, KEYCLOAK_HTTP_PORT)',
-    '     - Firebase:            firebase.json emulators.firestore.port',
-    '     - k8s:                 Service.spec.ports[].port',
-    '     - Heroku-style:        Procfile / app.json env',
-    '   Set `port: <integer>` on the entry.',
-    '',
-    '   For SAAS / vendor-hosted services (Sentry, Datadog, Stripe, Auth0,',
-    '   Mixpanel, etc. accessed via HTTPS to a vendor URL), declare:',
-    '     "port_applies": false,',
-    '     "port_applies_reason": "SaaS — accessed via HTTPS to vendor URL, no localhost port",',
-    '     "port_search_evidence": [',
-    '       "Read package.json — @sentry/* via cloud DSN",',
-    '       "Glob docker-compose — no sentry container"',
-    '     ]',
-    '',
-    '   Do NOT classify by `type` field guesses — the SAME type can be',
-    '   local in one project and SaaS in another (e.g. self-hosted Sentry',
-    '   vs cloud Sentry). Decide per entry based on what THIS project',
-    '   actually uses.',
+  return violations.map((v) =>
+    formatValidationError('E012_infrastructure_port_gap', {
+      violations: `${v.service_id}: ${v.message}`,
+    }),
   );
-  return out;
 }

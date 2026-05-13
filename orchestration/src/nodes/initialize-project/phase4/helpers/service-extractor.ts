@@ -52,7 +52,6 @@ export function extractTestingFrameworkForService(
   const serviceTests = codePatternsFindings?.testing?.[serviceId];
   if (!serviceTests) return undefined;
 
-  // Extract framework from unit/integration/e2e tests
   if (serviceTests.unit?.framework) return serviceTests.unit.framework;
   if (serviceTests.integration?.framework) return serviceTests.integration.framework;
   if (serviceTests.e2e?.framework) return serviceTests.e2e.framework;
@@ -177,7 +176,6 @@ export function extractServicesFromPhase1Analyzers(
 ): Service[] {
   const services: Service[] = [];
 
-  // Use explicit services[] from Agent 01 (structure-architecture)
   if (!structureFindings?.services || !Array.isArray(structureFindings.services)) {
     throw new Error(
       'Phase 1 structure analyzer did not output services[] array. ' +
@@ -190,7 +188,7 @@ export function extractServicesFromPhase1Analyzers(
     const service: Service = {
       id: svc.id,
       name: svc.name,
-      path: svc.path, // DYNAMIC path from agent discovery
+      path: svc.path,
       type: svc.type,
       language: svc.language.toLowerCase(),
       language_version: svc.language_version,
@@ -209,7 +207,7 @@ export function extractServicesFromPhase1Analyzers(
       file_count: svc.file_count,
       package_manager:
         svc.package_manager || extractPackageManagerForService(svc.id, techStackFindings),
-      manifest_file: svc.manifest_file || extractManifestFileForService(svc.id, techStackFindings), // DYNAMIC path
+      manifest_file: svc.manifest_file || extractManifestFileForService(svc.id, techStackFindings),
     };
 
     services.push(service);

@@ -1,0 +1,6 @@
+# Plan v5 fixture — illustrative ownership, not real teams.
+*                            @platform-team
+/services/backend/           @backend-team
+/services/web-frontend/      @frontend-team
+/services/keycloak/          @platform-team @security-team
+/.github/                    @platform-team

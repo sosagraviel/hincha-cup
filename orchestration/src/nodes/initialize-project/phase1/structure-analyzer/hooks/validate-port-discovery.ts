@@ -1,28 +1,23 @@
 /**
- * Plan 21 §A.2 — output-shape validator for per-service port
- * discovery. NEVER opens or parses any project file. Only checks
- * the analyzer's output JSON.
+ * Output-shape validator for per-service port discovery. Never opens or
+ * parses any project file — only checks the analyzer's output JSON.
  *
- * The agent must, for each service whose `type` is in
- * `{ backend, frontend, serverless, worker }`, emit either:
- *   1. `environment.port: <integer>` — a real port discovered in
- *      any project source (docker-compose, Firebase emulators,
- *      wrangler.toml, k8s Service, package.json scripts, source
- *      code `Bun.serve({port})` / `Deno.serve({port})`,
- *      `application.yml server.port`, Procfile, README, ANY
- *      shape the project actually uses), OR
+ * For each service whose `type` is in `{ backend, frontend, serverless,
+ * worker }` the agent must emit either:
+ *   1. `environment.port: <integer>` — a real port discovered in any
+ *      project source the project actually uses, OR
  *   2. The explicit opt-out:
  *        - `environment.port_applies: false`
  *        - `environment.port_applies_reason: "<one-line>"`
  *        - `environment.port_search_evidence: [..., ...]` (≥2 entries)
  *
- * Service types `library`, `cli`, `infrastructure`, `mobile`, and
- * `desktop` are skipped — they never expose a server port.
+ * Service types `library`, `cli`, `infrastructure`, `mobile`, and `desktop`
+ * are skipped — they never expose a server port.
  *
- * Stack-agnostic by construction: the validator only reads what
- * the agent already produced. The agent's freedom to search any
- * project source is preserved.
+ * Stack-agnostic: the validator only reads what the agent already produced.
  */
+
+import { formatValidationError } from '../../../shared/validation-codes/index.js';
 
 const PORT_REQUIRED_TYPES = new Set(['backend', 'frontend', 'serverless', 'worker']);
 
@@ -64,10 +59,8 @@ export function detectPortDiscoveryViolations(data: unknown): PortDiscoveryViola
 
     const env = isObject(svc.environment) ? svc.environment : {};
 
-    // Path A: a real port was discovered.
     if (typeof env.port === 'number' && env.port > 0) continue;
 
-    // Path B: explicit opt-out. All three pieces required.
     const optout = env.port_applies === false;
     const reason = typeof env.port_applies_reason === 'string' ? env.port_applies_reason : '';
     const evidence: string[] = Array.isArray(env.port_search_evidence)
@@ -93,7 +86,6 @@ export function detectPortDiscoveryViolations(data: unknown): PortDiscoveryViola
       continue;
     }
 
-    // Opt-out is set; verify reason + evidence shape.
     if (reason.length === 0) {
       violations.push({
         service_id: id,
@@ -131,70 +123,15 @@ function isObject(v: unknown): v is Record<string, unknown> {
 }
 
 /**
- * Format violations as agent-facing retry feedback. Returns
- * `string[]` so the caller can append directly to its existing
- * error array.
+ * Format violations as agent-facing retry feedback — one compressed
+ * `VALIDATION_E011_*` line per violation. The long-form repair guidance
+ * lives in `formatValidationErrorLong` for debug rendering.
  */
 export function formatPortDiscoveryViolations(violations: PortDiscoveryViolation[]): string[] {
   if (violations.length === 0) return [];
-  const out: string[] = [
-    'PORT DISCOVERY MISSING',
-    '',
-    '🔴 WHAT WENT WRONG:',
-    '   One or more services in `findings.services[]` have no `environment.port`',
-    '   and no explicit opt-out. The framework can\'t document "how to run this',
-    '   service" without that information. Stack-agnostic enforcement: the',
-    '   validator never opens project files — you choose the search sources.',
-    '',
-    '🟡 SPECIFIC VIOLATIONS:',
-  ];
-  for (const v of violations) {
-    out.push(`   • [${v.code}] ${v.message}`);
-  }
-  out.push(
-    '',
-    '🟢 HOW TO FIX — search the project for port-related signals:',
-    '',
-    '   Every project shape has SOMETHING. Look across these source families;',
-    '   pick whichever ones the project actually uses (do NOT assume any',
-    '   specific shape — the framework runs on Firebase, Lambda, Cloudflare,',
-    '   Vercel, Bun, Deno, k8s, Heroku, traditional VMs, monorepos, polyrepos,',
-    '   serverless, etc.):',
-    '',
-    '   - Container / orchestration: docker-compose.yml, Dockerfile EXPOSE,',
-    '     k8s Service.spec.ports, helm values.yaml, fly.toml, app.yaml,',
-    '     Procfile (`web: gunicorn -b 0.0.0.0:$PORT`).',
-    '   - Cloud-platform configs: firebase.json (emulators.*.port),',
-    '     serverless.yml (provider.dev.port), wrangler.toml ([dev] port),',
-    '     vercel.json (dev.port), netlify.toml (dev.port).',
-    '   - Per-service manifest scripts: package.json (--port N / -p N /',
-    '     PORT=N anywhere in scripts), pyproject.toml [tool.poetry.scripts] /',
-    '     manage.py runserver, application.{yml,properties} (server.port),',
-    '     Cargo.toml or main.rs bind(), config/puma.rb, artisan serve --port,',
-    '     launchSettings.json applicationUrl, config/{dev,prod,runtime}.exs',
-    '     Endpoint http: [port: N].',
-    "   - Source code: any language's `listen(N)` / `serve({port})` /",
-    '     `Bun.serve({port})` / `Deno.serve({port})` / `app.run(port=N)`.',
-    '   - .env* files at repo root or per-service: `*PORT` / `*_PORT` keys.',
-    '   - README "Getting Started" code blocks (e.g. `localhost:N`).',
-    '',
-    '   When you find one, set:',
-    '     "environment": { "port": <integer> }',
-    '',
-    '   When the service genuinely has NO port (event-triggered Lambda',
-    '   with no API Gateway, library package, CLI tool, build/seed script),',
-    '   set the explicit opt-out instead — DO NOT silently omit:',
-    '     "environment": {',
-    '       "port_applies": false,',
-    '       "port_applies_reason": "<one-line reason>",',
-    '       "port_search_evidence": [',
-    '         "<concrete search 1 — e.g. Read serverless.yml — no provider.dev>",',
-    '         "<concrete search 2 — e.g. Glob **/*.{toml,yml} — no port key found>"',
-    '       ]',
-    '     }',
-    '',
-    '   Service types `library`, `cli`, `infrastructure`, `mobile`, and',
-    '   `desktop` are exempt — the validator skips them.',
+  return violations.map((v) =>
+    formatValidationError('E011_port_discovery_gap', {
+      violations: `${v.service_id} (type=${v.service_type}): ${v.message}`,
+    }),
   );
-  return out;
 }

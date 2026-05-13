@@ -15,15 +15,12 @@ export function extractDetectedStack(stackProfile: StackProfile): DetectedStack 
   const normalized = new Set<string>();
   const original = new Set<string>();
 
-  // Extract from services (new service-centric structure)
   if (stackProfile.services && Array.isArray(stackProfile.services)) {
     stackProfile.services.forEach((service) => {
-      // Add language
       const lang = service.language.toLowerCase();
       normalized.add(lang);
       original.add(lang);
 
-      // Add frameworks
       if (service.frameworks) {
         if (service.frameworks.main) {
           normalized.add(service.frameworks.main.toLowerCase().replace(/[^a-z0-9]/g, ''));
@@ -49,7 +46,6 @@ export function extractDetectedStack(stackProfile: StackProfile): DetectedStack 
         }
       }
 
-      // Add testing frameworks
       if (service.testing) {
         if (service.testing.unit?.framework) {
           normalized.add(service.testing.unit.framework.toLowerCase().replace(/[^a-z0-9]/g, ''));
@@ -69,7 +65,6 @@ export function extractDetectedStack(stackProfile: StackProfile): DetectedStack 
     });
   }
 
-  // Add infrastructure (docker, kubernetes, etc.)
   if (stackProfile.infrastructure) {
     stackProfile.infrastructure.forEach((infra) => {
       const lower = infra.toLowerCase();

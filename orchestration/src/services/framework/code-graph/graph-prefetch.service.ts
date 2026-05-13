@@ -1,13 +1,11 @@
 /**
- * Plan §I.2 (gira-exhaustive followup, 2026-05-05) — graph prefetch
- * snapshot. End-to-end: read path + snapshot shape + write path.
+ * Graph prefetch snapshot. End-to-end: read path + snapshot shape + write path.
  *
  * Phase 0 calls the four cheapest graph orientation queries ONCE
  * (after the graph is built) and snapshots the results to
  * `<project>/.<provider>-temp/initialize-project/graph-prefetch.json`.
  * Phase 1 analyzers read the snapshot from their cache-eligible
- * prefix and skip those four calls in their own sessions. Saves up
- * to 4 × 4 = 16 graph tool calls per run.
+ * prefix and skip those four calls in their own sessions.
  *
  * What this module exports:
  *   - `GraphPrefetchSnapshot` — canonical JSON shape.
@@ -154,19 +152,45 @@ export function renderPrefetchHint(snapshot: GraphPrefetchSnapshot | null): stri
   if (!snapshot) return '';
 
   const sections: string[] = ['### Pre-fetched graph orientation (Phase 0 snapshot)'];
+  const FAT_CLUSTER_PATTERNS: RegExp[] = [
+    /(?:^|-)it:should(?:$|-)/i,
+    /(?:^|-)tests?:/i,
+    /(?:^|-)tests?(?:$|-)/i,
+    /(?:^|-)describes?(?:$|-)/i,
+    /(?:^|-)asserts?(?:$|-)/i,
+    /(?:^|-)constructors?(?:$|-)/i,
+    /(?:^|-)handles?(?:$|-)/i,
+    /(?:^|-)upserts?(?:$|-)/i,
+    /(?:^|-)exceptions?(?:$|-)/i,
+    /(?:^|-)helpers(?:$|-)/i,
+    /(?:^|-)utils(?:$|-)/i,
+    /(?:^|-)shared(?:$|-)/i,
+    /(?:^|-)base(?:$|-)/i,
+    /(?:^|-)core(?:$|-)/i,
+    /(?:^|-)main(?:$|-)/i,
+    /(?:^|-)index(?:$|-)/i,
+  ];
+  const isFatClusterName = (name: string): boolean =>
+    FAT_CLUSTER_PATTERNS.some((re) => re.test(name));
+
+  const filterFatClusters = <T extends { name: string }>(items: T[]): T[] =>
+    items.filter((c) => !isFatClusterName(c.name));
+
   if (snapshot.minimalContext?.topCommunities?.length) {
-    const names = snapshot.minimalContext.topCommunities
+    const filtered = filterFatClusters(snapshot.minimalContext.topCommunities);
+    const names = filtered
       .slice(0, 8)
       .map((c) => c.name)
       .join(', ');
-    sections.push(`- Top communities: ${names}.`);
+    if (names) sections.push(`- Top communities: ${names}.`);
   }
   if (snapshot.communities?.length && !snapshot.minimalContext?.topCommunities) {
-    const names = snapshot.communities
+    const filtered = filterFatClusters(snapshot.communities);
+    const names = filtered
       .slice(0, 8)
       .map((c) => c.name)
       .join(', ');
-    sections.push(`- Communities (minimal): ${names}.`);
+    if (names) sections.push(`- Communities (minimal): ${names}.`);
   }
   if (snapshot.hubs?.length) {
     const names = snapshot.hubs
@@ -187,10 +211,6 @@ export function renderPrefetchHint(snapshot: GraphPrefetchSnapshot | null): stri
   );
   return sections.join('\n');
 }
-
-// ============================================================================
-// WRITE PATH — invoked from Phase 0 after the graph is built/validated.
-// ============================================================================
 
 const PREFETCH_REQUEST_TIMEOUT_MS = 20_000;
 const PREFETCH_SHUTDOWN_GRACE_MS = 2_000;
@@ -233,8 +253,6 @@ export async function runGraphPrefetch(
 ): Promise<RunGraphPrefetchResult> {
   const path = graphPrefetchPath(args.projectPath);
 
-  // Cheap short-circuit: if a fresh snapshot already exists for this
-  // graph SHA, do not re-query.
   if (args.graphSha) {
     const existing = readGraphPrefetch(args.projectPath, args.graphSha);
     if (existing) {
@@ -434,7 +452,6 @@ function parseTopNodes(
 function unwrapMcpToolResult(raw: unknown): unknown {
   if (raw === null || raw === undefined) return null;
   if (!isObject(raw)) return raw;
-  // Text-shape response: { content: [{ type: 'text', text: '<json>' }] }
   if (Array.isArray(raw.content)) {
     for (const part of raw.content) {
       if (
@@ -456,13 +473,6 @@ function unwrapMcpToolResult(raw: unknown): unknown {
 function isObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
-
-// ============================================================================
-// MCP stdio client — minimal JSON-RPC 2.0 over child stdio. Same wire
-// shape as `tool-catalog.service.ts::McpStdioConversation`, generalised
-// to expose `tools/call`. Self-contained so this service has no
-// circular dep with the catalog service.
-// ============================================================================
 
 class McpStdioClient {
   private buffer = '';

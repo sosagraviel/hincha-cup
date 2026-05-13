@@ -27,7 +27,6 @@ import { codexSidecarDir } from '../../../nodes/initialize-project/phase1/shared
 import { locateCodexRollout } from '../../../services/framework/transcripts/capture.js';
 import { extractUsageFromCodexJsonl, rollupToCacheHit } from './usage-extractor.js';
 
-// Track active processes and invocations for cleanup
 const activeCodexProcesses: Set<ChildProcess> = new Set();
 const activeCodexInvocations: Map<number, (reason: Error) => void> = new Map();
 let codexInvocationCounter = 0;
@@ -49,7 +48,7 @@ export function killAllActiveCodexProcesses() {
     try {
       if (proc.pid && !proc.killed) proc.kill('SIGKILL');
     } catch {
-      // ignore
+      continue;
     }
   }
   activeCodexProcesses.clear();
@@ -208,13 +207,6 @@ export async function createCodexCLIAgentImpl(
           `Completed in ${(executionTimeMs / 1000).toFixed(1)}s`,
         );
 
-        // Plan §E, commit C (2026-05-05) — extract real cache hit /
-        // token usage from the Codex rollout JSONL the CLI wrote
-        // under `~/.codex/sessions/`. Before this commit `cache_hit`
-        // was hardcoded `false`, so the run-stats sidebar always
-        // showed 0% cache hit rate even when OpenAI's automatic
-        // prefix cache was engaged. Best-effort: any IO/parse
-        // failure falls back to the prior unknown-marker shape.
         const usage = await readCodexUsage(codexSessionId);
         emitTokenUsage(config.projectPath, {
           ts: new Date().toISOString(),
@@ -267,13 +259,6 @@ async function invokeCodexCLI(
   if (isCodexAborting) throw new Error('SIGINT: Workflow interrupted by user (CTRL+C)');
 
   const timeout = config.timeout ?? 300000;
-  // Transient scratch dir for the subprocess — holds the per-iteration prompt
-  // file (stdin to `codex exec`), the `-o` output capture file, and the
-  // generated JSON Schema passed via `--output-schema`. All of these are
-  // internal to Codex's invocation; debug artifacts live under the
-  // DebugStore's run dir. Keeping scratch out of `.<provider>-temp/<agent>/`
-  // avoids the orphan "agent/<uuid>/prompt.txt" folders the project used to
-  // accumulate after successful runs.
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'framework-codex-'));
   const removeScratchDir = async () => {
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
@@ -282,26 +267,6 @@ async function invokeCodexCLI(
   const agentContent = fs.readFileSync(config.agentFilePath, 'utf-8');
   const agentBody = agentContent.replace(/^---[\s\S]*?---\n?/, '');
 
-  // Plan §D, commit B (2026-05-05) — keep the cache-eligible Phase 1
-  // prompt prefix at byte 0 of the user message so OpenAI's automatic
-  // prefix cache can hit on it.
-  //
-  // The four parallel analyzer spawns share a byte-identical prefix
-  // built by `buildPhase1SharedPrefix` (plan §F.3); that prefix is the
-  // first ~19 KB of `run.inputPrompt`. Prepending the analyzer-specific
-  // `agentBody` would push the prefix past byte 0, and OpenAI's prefix
-  // cache only matches from byte 0 — so the cache could never hit and
-  // we'd silently lose the savings the parent series shipped.
-  //
-  // Reversing the concat keeps the prefix where the cache can see it.
-  // The agent body becomes part of the analyzer-specific tail; LLMs
-  // weight recent content at decode time, so role/contract instructions
-  // appearing right before the response is generated is at least as
-  // effective as having them at the top of the prompt.
-  //
-  // Anti-regression: `prompt-builder-cache.test.ts` has a Codex-specific
-  // assertion that `fullPrompt.slice(0, sharedPrefix.length)` SHA-256s
-  // identically across all four analyzers.
   const fullPrompt = `${run.inputPrompt}\n\n---\n\n${agentBody}`;
 
   const codexCLI = getCodexCLIPath(config.frameworkPath);
@@ -458,33 +423,15 @@ async function invokeCodexCLI(
     codexSessionIdOverride: codexSessionId ?? undefined,
   });
   await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null);
-  // We still return output so the external retry layer can observe the failure.
   await recorder.finalize('success', { code: 0, failureReason: 'internal-validation-exhausted' });
   await removeScratchDir();
   return { output, sessionId: run.sessionId, codexSessionId };
 }
 
 /**
- * Plan §C, commit A (2026-05-05) — Codex equivalent of Claude's Stop
- * hook sidecar writer.
- *
- * Claude CLI sessions get a graph-tool-uses sidecar written by
- * `validate-analyzer-json.hook.ts` (Stop hook). Codex CLI has no Stop
- * hook (per OpenAI's hook docs only `PreToolUse` is supported), so
- * this function does the same job in-process after `runCodex`
- * returns: locate the rollout JSONL the CLI wrote into
- * `~/.codex/sessions/...`, parse it via
- * `extractGraphToolUsesFromCodexJsonl`, and write the sidecar to a
- * framework-owned path that `loadCodexSidecar` knows how to find.
- *
- * The sidecar lives at
- *   `<projectPath>/.codex-temp/initialize-project/graph-tool-uses/<frameworkSessionId>.graph-tool-uses.json`
- *
- * Best-effort by design: if the rollout cannot be located or parsed,
- * `applyGraphToolUsageFromSidecar` will see no sidecar and return the
- * empty-telemetry shape (the Claude path has the same fallback when a
- * Stop hook fails). Logging happens at warn level so a single missing
- * sidecar shows up in the run output without breaking the pipeline.
+ * Codex equivalent of Claude's Stop hook sidecar writer. Locates the rollout JSONL,
+ * parses graph tool uses, and writes the sidecar so the analyzer node can read it.
+ * Best-effort: a missing sidecar causes the analyzer to return empty telemetry.
  */
 async function writeCodexGraphToolUsesSidecar(
   projectPath: string,
@@ -492,9 +439,6 @@ async function writeCodexGraphToolUsesSidecar(
   codexSessionId: string | null,
 ): Promise<void> {
   if (!codexSessionId) {
-    // Without the Codex session id we cannot locate the rollout. The
-    // analyzer node will see the missing sidecar and force empty
-    // telemetry — same fallback path as a Claude hook failure.
     return;
   }
 
@@ -600,11 +544,6 @@ function runCodex(params: {
   frameworkPath: string;
   timeout: number;
   iteration: number;
-  /**
-   * Plan v4 Phase D — per-spawn extras forwarded into the spawned process.
-   * The framework-controlled vars below always win on a key collision so
-   * callers cannot accidentally weaken FRAMEWORK_ENFORCE / FRAMEWORK_PATH.
-   */
   extraEnv?: Record<string, string>;
 }): Promise<{
   code: number | null;
@@ -634,24 +573,12 @@ function runCodex(params: {
 
       let timeoutId: NodeJS.Timeout | undefined;
 
-      // Codex hook plumbing: per the official Codex hooks docs
-      // (https://developers.openai.com/codex/hooks), `PreToolUse` supports
-      // `permissionDecision: "deny"` to block tool calls before execution.
-      // The framework's `restrict-agent-paths.hook.ts` is wired into Codex
-      // via `[[hooks.PreToolUse]]` in `.codex/config.toml` (written by
-      // `upsertCodexPathRestrictionHookConfig` during Phase 0). The hook is
-      // matcher-scoped to `Bash` + `apply_patch` so Codex's `find` / `grep`
-      // walks get the same blocking guarantee Claude sessions have via
-      // `permissions.deny`. The env vars below feed the hook with the same
-      // contract Claude uses; both providers run the identical hook script.
       const excludedDirs = getExcludedDirectories(params.cwd, params.frameworkPath);
 
       const proc = spawn(params.codexPath, cliArgs, {
         cwd: params.cwd,
         env: {
           ...process.env,
-          // Plan v4 Phase D: per-spawn extras layered FIRST so framework-
-          // controlled vars below always win on a key collision.
           ...(params.extraEnv ?? {}),
           FRAMEWORK_PATH: params.frameworkPath,
           FRAMEWORK_PROJECT_PATH: params.cwd,
@@ -749,13 +676,8 @@ function parseCodexJsonOutput(jsonStream: string): string {
 }
 
 /**
- * Plan §E, commit C (2026-05-05) — best-effort read of the Codex
- * rollout JSONL and rollup of token usage / cache reads.
- *
- * Returns the unknown-marker shape on any failure (codexSessionId is
- * null, rollout missing, parse error). The surrounding `emitTokenUsage`
- * call still succeeds with the same fallback values it used before this
- * commit.
+ * Best-effort read of the Codex rollout JSONL and rollup of token usage / cache reads.
+ * Returns the unknown-marker shape on any failure.
  */
 async function readCodexUsage(codexSessionId: string | null): Promise<{
   inputTokens: number;
@@ -780,5 +702,4 @@ async function readCodexUsage(codexSessionId: string | null): Promise<{
   }
 }
 
-// Re-exposed to match the prior export surface used by the validator
 export type { ValidationResult };

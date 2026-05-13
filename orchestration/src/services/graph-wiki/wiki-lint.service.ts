@@ -122,9 +122,7 @@ function collectMarkdownPages(wikiDir: string): string[] {
           results.push(full);
         }
       }
-    } catch {
-      // Unreadable directory — skip silently.
-    }
+    } catch {}
   }
 
   walk(wikiDir);
@@ -150,10 +148,6 @@ function resolveCurrentHead(projectPath: string): string | undefined {
     return undefined;
   }
 }
-
-// ============================================================================
-// Structural checks
-// ============================================================================
 
 function checkMissingFrontmatter(
   relPage: string,
@@ -312,10 +306,6 @@ function checkGraphCommitMismatch(
     });
   }
 }
-
-// ============================================================================
-// Semantic checks
-// ============================================================================
 
 function buildInboundLinksIndex(pages: string[], wikiDir: string): Map<string, Set<string>> {
   const index = new Map<string, Set<string>>();
@@ -712,10 +702,6 @@ function buildContradictionPrompt(
     `If no contradiction, respond with: NO_CONTRADICTION`
   );
 }
-
-// ============================================================================
-// Output writers
-// ============================================================================
 
 function writeReports(report: LintReport, artifactsDir: string): void {
   const lintDir = join(artifactsDir, 'lint');

@@ -1,5 +1,5 @@
 /**
- * Plan v3 §A — project-inspection schema.
+ * Project-inspection schema.
  *
  * The project-inspection helper runs in Phase 0 BEFORE any LLM call.
  * It walks the project filesystem and produces deterministic, parsed
@@ -177,6 +177,33 @@ export const ProjectInspectionSchema = z
      * / config files. Empty map when nothing is found.
      */
     port_candidates: z.record(z.string(), z.array(z.number())),
+
+    /**
+     * Infrastructure-services hints with named service → port mappings.
+     * Parsed from docker-compose service
+     * blocks + firebase.json emulators when present; empty array
+     * otherwise. The data-flows analyzer treats these as PRESUMPTIVE
+     * authority — emit them verbatim into
+     * `findings.infrastructure_services[]` unless the service is
+     * better described as SaaS (per the standard opt-out shape).
+     *
+     * `name` is the raw service identifier from the source file
+     * (`postgres`, `redis`, `keycloak`, `mailhog`, `firestore`, …)
+     * preserved verbatim; the analyzer maps to wiki-canonical labels.
+     * `port` is the HOST-side port the operator hits. `source_file`
+     * is the inspection source path relative to the project root.
+     */
+    infrastructure_services_hints: z
+      .array(
+        z
+          .object({
+            name: z.string().min(1),
+            port: z.number().int().positive(),
+            source_file: z.string().min(1),
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict();
 

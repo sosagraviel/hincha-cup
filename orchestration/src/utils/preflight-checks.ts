@@ -1,8 +1,21 @@
 import { existsSync, readFileSync, appendFileSync, writeFileSync } from 'fs';
-import { join, basename } from 'path';
+import { join, basename, resolve } from 'path';
 import { execSync } from 'child_process';
 import { getAllProviderTempDirs, getAllProviderBackupDirs } from './provider-paths.js';
 import { ensureCodexAuthentication } from '../auth/codex-auth.js';
+
+/**
+ * Returns true when `inner` resolves to a path strictly inside `outer`.
+ * Used to detect the v5-fixture / dogfooding shape where the project being
+ * analysed lives INSIDE the framework checkout instead of having the
+ * framework as a sibling/subdirectory.
+ */
+function isPathInsideFramework(inner: string, outer: string): boolean {
+  const innerResolved = resolve(inner);
+  const outerResolved = resolve(outer);
+  if (innerResolved === outerResolved) return true;
+  return innerResolved.startsWith(outerResolved + '/');
+}
 
 /**
  * Preflight validation results
@@ -55,14 +68,10 @@ export async function runPreflightChecks(
   let authMode: 'claude_cli' | 'codex_cli' | 'none' = 'none';
   let provider: string | undefined;
 
-  // ============================================================================
-  // CHECK 1: Project Path Exists
-  // ============================================================================
   if (!existsSync(projectPath)) {
     errors.push(
       `Project path does not exist: ${projectPath}\n` + `Please provide a valid project directory.`,
     );
-    // Can't continue without valid project path
     return {
       success: false,
       errors,
@@ -75,16 +84,12 @@ export async function runPreflightChecks(
     };
   }
 
-  // ============================================================================
-  // CHECK 2: Framework Path Exists
-  // ============================================================================
   if (!existsSync(frameworkPath)) {
     errors.push(
       `Framework path does not exist: ${frameworkPath}\n` +
         `Set FRAMEWORK_PATH environment variable or use --framework-path flag\n` +
         `Default: <project>/../.. (two levels up from project)`,
     );
-    // Can't continue without valid framework path
     return {
       success: false,
       errors,
@@ -97,16 +102,12 @@ export async function runPreflightChecks(
     };
   }
 
-  // ============================================================================
-  // CHECK 3: Node.js version >= 20
-  // ============================================================================
   try {
     const nodeVersionOutput = execSync('node --version', {
       encoding: 'utf-8',
     }).trim();
     nodeVersion = nodeVersionOutput;
 
-    // Parse version number (e.g., "v20.11.0" -> 20)
     const versionMatch = nodeVersionOutput.match(/^v(\d+)\./);
     if (!versionMatch) {
       errors.push(
@@ -130,9 +131,6 @@ export async function runPreflightChecks(
     );
   }
 
-  // ============================================================================
-  // CHECK 4: npm is available
-  // ============================================================================
   try {
     const npmVersionOutput = execSync('npm --version', {
       encoding: 'utf-8',
@@ -145,12 +143,6 @@ export async function runPreflightChecks(
         `Install from: https://nodejs.org/`,
     );
   }
-
-  // ============================================================================
-  // CHECK 5: CLI detection and authentication (determines auth mode)
-  // ============================================================================
-  // Provider-aware: if PROVIDER is set, validate ONLY that provider's CLI.
-  // Otherwise, auto-detect (Claude first, then Codex).
 
   const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
   const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
@@ -288,7 +280,6 @@ export async function runPreflightChecks(
       }
     }
 
-    // Fallback to global Codex CLI if local not found or failed
     try {
       const codexVersionOutput = execSync('codex --version', {
         encoding: 'utf-8',
@@ -351,7 +342,6 @@ export async function runPreflightChecks(
   } else if (hasOpenAIKey) {
     await validateCodexCLI(true);
   } else {
-    // GOOGLE_API_KEY is ignored: no Google CLI provider is supported.
     await validateClaudeCLI(false);
     if (authMode === 'none') {
       await validateCodexCLI(false);
@@ -374,9 +364,6 @@ export async function runPreflightChecks(
     }
   }
 
-  // ============================================================================
-  // CHECK 6: Workspace Structure Validation
-  // ============================================================================
   const rootPackageJsonPath = join(frameworkPath, 'package.json');
   const pnpmWorkspacePath = join(frameworkPath, 'pnpm-workspace.yaml');
 
@@ -394,33 +381,20 @@ export async function runPreflightChecks(
     );
   }
 
-  // ============================================================================
-  // CHECK 7: .gitignore automation
-  // ============================================================================
   const gitignorePath = join(projectPath, '.gitignore');
 
-  // Determine framework directory name to exclude
-  // CRITICAL: Must match logic in file-counter.ts and prompt-loader.ts
-  // Framework is ALWAYS at project root: <project>/<framework-name>/
   const frameworkDirName = basename(frameworkPath);
+  const projectInsideFramework = isPathInsideFramework(projectPath, frameworkPath);
 
-  // All provider-managed temp/backup dirs come from the central provider-paths
-  // registry so we don't have to update this list when a new provider is added.
   const requiredEntries = [
     ...getAllProviderTempDirs(),
     ...getAllProviderBackupDirs(),
-    frameworkDirName,
+    ...(projectInsideFramework ? [] : [frameworkDirName]),
   ];
 
-  // Files (no trailing slash) that must also be gitignored. `.mcp.json` is
-  // re-emitted on every `ensure-context.sh` run with the local machine's
-  // absolute path; committing it would push that absolute path to every
-  // teammate.
   const requiredFileEntries = ['.mcp.json'];
 
-  // Check if project has a .gitignore file
   if (!existsSync(gitignorePath)) {
-    // Create .gitignore if it doesn't exist
     try {
       const gitignoreContent = [
         '# AI Agentic Framework files',
@@ -444,7 +418,6 @@ export async function runPreflightChecks(
       );
     }
   } else {
-    // .gitignore exists, check if it contains required entries
     try {
       const gitignoreContent = readFileSync(gitignorePath, 'utf-8');
       const missingDirEntries: string[] = [];
@@ -497,14 +470,6 @@ export async function runPreflightChecks(
     }
   }
 
-  // ============================================================================
-  // CHECK 8: Existing Claude configuration detection (non-blocking)
-  // ============================================================================
-  // If the project already has ./CLAUDE.md or ./.claude/CLAUDE.md, warn about
-  // the load-order conflict. initialize-project generates a new ./.claude/CLAUDE.md
-  // in Phase 4 and Claude Code loads both files, producing potentially
-  // conflicting instructions. Resolution is a manual merge — see
-  // docs/getting-started/QUICKSTART.md ("Projects with existing Claude configuration").
   const rootClaudeMdPath = join(projectPath, 'CLAUDE.md');
   const dotClaudeClaudeMdPath = join(projectPath, '.claude', 'CLAUDE.md');
 
@@ -560,14 +525,12 @@ export async function runPreflightChecks(
  */
 async function checkClaudeAuthentication(claudePath: string): Promise<boolean> {
   try {
-    // Use 'auth status' which returns JSON without opening the interactive TUI
     const testResult = execSync(`"${claudePath}" auth status`, {
       encoding: 'utf-8',
-      timeout: 10000, // 10 second timeout
+      timeout: 10000,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    // Parse the JSON output to check login status
     const authStatus = JSON.parse(testResult.trim());
     return authStatus.loggedIn === true;
   } catch {
