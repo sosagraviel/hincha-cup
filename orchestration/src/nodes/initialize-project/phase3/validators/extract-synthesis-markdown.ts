@@ -92,9 +92,6 @@ function locateHeaders(output: string): FoundHeader[] | null {
     });
   }
 
-  // Each section's header must appear AFTER the previous section's body
-  // start. If they're out of order, the extractor cannot reliably bound
-  // any section's body and the synthesizer needs to re-emit.
   for (let i = 1; i < found.length; i += 1) {
     if (found[i].headerStart <= found[i - 1].bodyStart) {
       return null;
@@ -119,7 +116,6 @@ function locateHeaders(output: string): FoundHeader[] | null {
  */
 function trimSectionBody(body: string): string {
   let result = body.trim();
-  // Strip a trailing separator line if present.
   result = result.replace(/\n---\s*$/, '').trim();
   return result;
 }

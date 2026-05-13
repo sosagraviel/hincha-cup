@@ -25,9 +25,8 @@ describe('buildClaudeDenyRules', () => {
   it('emits BOTH top-level and any-depth Read rules per excluded directory', () => {
     const rules = buildClaudeDenyRules(projectPath, frameworkPath);
 
-    // node_modules is the headline case from the gira leak. Both forms must
-    // be present so workspace tools that hoist (pnpm) and tools that don't
-    // (yarn classic) are both covered.
+    // node_modules: both forms must be present so workspace tools that
+    // hoist (pnpm) and tools that don't (yarn classic) are both covered.
     expect(rules).toContain('Read(./node_modules/**)');
     expect(rules).toContain('Read(**/node_modules/**)');
   });
@@ -194,5 +193,84 @@ describe('end-to-end placeholder substitution shape', () => {
       rmSync(tmpProject, { recursive: true, force: true });
       rmSync(tmpFw, { recursive: true, force: true });
     }
+  });
+});
+
+describe('buildClaudeDenyRules — excludedDirsOverride', () => {
+  let projectPath: string;
+  let frameworkPath: string;
+
+  beforeEach(() => {
+    projectPath = mkdtempSync(join(tmpdir(), 'excluded-paths-override-proj-'));
+    frameworkPath = mkdtempSync(join(tmpdir(), 'excluded-paths-override-fw-'));
+  });
+
+  afterEach(() => {
+    rmSync(projectPath, { recursive: true, force: true });
+    rmSync(frameworkPath, { recursive: true, force: true });
+  });
+
+  it('omits `.claude-temp` and `.codex-temp` from deny rules when the override drops them', () => {
+    // The Phase 3 synthesizer drops the two provider temp dirs from its
+    // exclusion list so it can read composer views + the consolidation
+    // file. Without the override threading through to deny rules, the
+    // settings.json deny would still block every `.claude-temp` read.
+    const baseline = buildClaudeDenyRules(projectPath, frameworkPath);
+    expect(baseline).toContain('Read(./.claude-temp/**)');
+    expect(baseline).toContain('Read(**/.claude-temp/**)');
+    expect(baseline).toContain('Read(./.codex-temp/**)');
+    expect(baseline).toContain('Read(**/.codex-temp/**)');
+
+    const override = ['node_modules', '.git', 'dist', 'qubika-agentic-framework'];
+    const restricted = buildClaudeDenyRules(projectPath, frameworkPath, override);
+
+    // The override-driven set carries ONLY the four supplied dirs (× 2
+    // forms each = 8 rules).
+    expect(restricted).toEqual([
+      'Read(./node_modules/**)',
+      'Read(**/node_modules/**)',
+      'Read(./.git/**)',
+      'Read(**/.git/**)',
+      'Read(./dist/**)',
+      'Read(**/dist/**)',
+      'Read(./qubika-agentic-framework/**)',
+      'Read(**/qubika-agentic-framework/**)',
+    ]);
+
+    // And critically: NO `.claude-temp` rules. The synthesizer's reads
+    // must not be silently denied by an over-broad deny list.
+    expect(restricted.some((r) => r.includes('.claude-temp'))).toBe(false);
+    expect(restricted.some((r) => r.includes('.codex-temp'))).toBe(false);
+    expect(restricted.length).toBeLessThan(baseline.length);
+  });
+
+  it('treats an empty override as "deny nothing" (every dir is exempt)', () => {
+    // Edge case: an empty array is a meaningful override — "the caller
+    // wants no deny rules at all" — distinct from `undefined` which
+    // means "fall back to the project default".
+    const empty = buildClaudeDenyRules(projectPath, frameworkPath, []);
+    expect(empty).toEqual([]);
+  });
+
+  it('falls back to the project default when override is undefined', () => {
+    const explicitUndefined = buildClaudeDenyRules(projectPath, frameworkPath, undefined);
+    const noArg = buildClaudeDenyRules(projectPath, frameworkPath);
+    expect(explicitUndefined).toEqual(noArg);
+    expect(explicitUndefined).toContain('Read(./node_modules/**)');
+  });
+
+  it('emits BOTH top-level and any-depth forms for every override entry', () => {
+    const restricted = buildClaudeDenyRules(projectPath, frameworkPath, ['target']);
+    expect(restricted).toContain('Read(./target/**)');
+    expect(restricted).toContain('Read(**/target/**)');
+    expect(restricted).toHaveLength(2);
+  });
+
+  it('cleans whitespace / leading slashes in override entries (defensive)', () => {
+    const restricted = buildClaudeDenyRules(projectPath, frameworkPath, ['  /weird/  ', 'normal']);
+    expect(restricted).toContain('Read(./weird/**)');
+    expect(restricted).toContain('Read(**/weird/**)');
+    expect(restricted).toContain('Read(./normal/**)');
+    expect(restricted).toContain('Read(**/normal/**)');
   });
 });

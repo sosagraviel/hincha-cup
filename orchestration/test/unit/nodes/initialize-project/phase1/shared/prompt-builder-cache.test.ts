@@ -1,17 +1,15 @@
 /**
- * Plan §F.4 (2026-05-05) — load-bearing byte-determinism tests for
- * the cache-eligible Phase 1 prompt prefix.
+ * Load-bearing byte-determinism tests for the cache-eligible Phase 1
+ * prompt prefix.
  *
  * Anthropic's automatic prompt cache hits when the cumulative prefix
  * up to a marker is **byte-identical** across requests. If the prefix
  * varies even by one whitespace character between analyzers (or
- * between successive runs in the same TTL window), the cache can't
- * hit and we silently lose ~12.7 K tokens per init run.
+ * between successive runs in the same TTL window), the cache can't hit.
  *
- * This file is the regression net. Any future change that
- * accidentally interpolates an analyzer-specific token, a timestamp,
- * or a fresh nonce into the prefix will fail one of these tests
- * before it ships.
+ * This file is the regression net. Any future change that accidentally
+ * interpolates an analyzer-specific token, a timestamp, or a fresh nonce
+ * into the prefix will fail one of these tests before it ships.
  */
 import { createHash } from 'crypto';
 import { describe, expect, it, vi } from 'vitest';
@@ -369,21 +367,16 @@ describe('buildPhase1AnalyzerPrompt — prefix is byte-identical across all 4 an
 });
 
 /**
- * Plan §D, commit B (2026-05-05) — Codex CLI parity.
- *
- * `codex-cli-agent-impl.ts` builds the user prompt fed to GPT-5 as
+ * Codex CLI parity: `codex-cli-agent-impl.ts` builds the user prompt as
  * `${run.inputPrompt}\n\n---\n\n${agentBody}`. The byte-identical Phase 1
  * prefix lives at byte 0 of `inputPrompt`, so the resulting full prompt
- * also starts with that prefix — letting OpenAI's automatic prefix
- * cache hit on the same shared bytes that the Anthropic API caches for
- * Claude.
+ * also starts with that prefix — letting OpenAI's automatic prefix cache
+ * hit on the same shared bytes that the Anthropic API caches for Claude.
  *
- * This describe block locks the contract: simulate the Codex concat
- * (per-analyzer agent body + per-analyzer inputPrompt) and assert the
- * byte-identical prefix is at byte 0 of the resulting full prompt
- * across all four analyzers. If a future refactor flips the order
- * back (or interpolates analyzer-specific bytes into the prefix), this
- * test fails immediately.
+ * This describe block locks the contract: simulate the Codex concat and
+ * assert the byte-identical prefix is at byte 0 of the resulting full
+ * prompt across all four analyzers. If a future refactor flips the order
+ * back, this test fails immediately.
  */
 describe('Codex full-prompt order — byte-identical prefix at byte 0', () => {
   // The four analyzer prompt files have different bodies in production.

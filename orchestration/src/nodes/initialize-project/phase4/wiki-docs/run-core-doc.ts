@@ -38,8 +38,6 @@ export async function runCoreDocNode(
       stackProfile: context.stackProfile,
       digestedUpstream: context.digestedUpstream,
       codeGraphToolCatalog: state.code_graph_tool_catalog,
-      // Phase coordinate so debug attempts go under phase-4-wiki/ instead of
-      // phase-unknown/ — see plans/2026-04-29-gira-init-run-audit-refactor.md F2.
       phase: getInitializeProjectPhase('phase4Wiki'),
       graph: {
         available: state.code_graph_available,

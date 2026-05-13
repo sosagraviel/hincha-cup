@@ -1,28 +1,19 @@
 /**
- * Plan 15 §D.4 — assemble the deterministic `CommandCatalog` from
- * the Phase 2 consolidation blob, in the small window between
- * Phase 2 and Phase 3.
+ * Assemble the deterministic `CommandCatalog` from the Phase 2 consolidation
+ * blob.
  *
- * The catalog is built BEFORE the closed-book synthesizer sees the
- * data. The synthesizer renders the catalog verbatim — it never
- * decides tier ordering itself. That responsibility lives here, in
- * deterministic TypeScript.
+ * The catalog is built before the closed-book synthesizer sees the data.
+ * The synthesizer renders the catalog verbatim — tier ordering is decided
+ * here in deterministic TypeScript.
  *
- * Inputs the helper extracts from `consolidated_findings`:
- *   - `automation` — populated by the structure-architecture
- *     analyzer (Tier 1 wrapper entry points).
- *   - `readme_run_sections` — populated by the same analyzer
- *     (Tier 2 verbatim README extracts).
- *   - `build_tools.<service_id>` — populated by the tech-stack
- *     analyzer (per-service lint/format/test/build commands; the
- *     Tier 3 package-manager surface).
- *   - `documented_commands.by_task` — cross-service top-level
- *     commands documented anywhere; treated as Tier 3 candidates
- *     without `per_service`.
- *   - `databases[].migration_commands` — Tier 3 migration
- *     candidates.
+ * Inputs extracted from `consolidated_findings`:
+ *   - `automation` — Tier 1 wrapper entry points.
+ *   - `readme_run_sections` — Tier 2 verbatim README extracts.
+ *   - `build_tools.<service_id>` — Tier 3 package-manager surface.
+ *   - `documented_commands.by_task` — Tier 3 candidates without `per_service`.
+ *   - `databases[].migration_commands` — Tier 3 migration candidates.
  *
- * Stack-agnostic. The shapes consumed are the analyzer schemas; no
+ * Stack-agnostic: the shapes consumed are the analyzer schemas; no
  * language-specific tokens are filtered or rewritten.
  */
 
@@ -43,28 +34,14 @@ export interface BuiltCatalogBundle {
 }
 
 /**
- * Assemble the Plan-15 catalog bundle from a Phase 2 consolidation
- * blob. Defensive against schema variation: every input is read
- * with `isObject` / `Array.isArray` guards.
+ * Assemble the catalog bundle from a Phase 2 consolidation blob.
+ * Defensive against schema variation: every input is read with
+ * `isObject` / `Array.isArray` guards.
  *
- * Plan 16 §C.1 — the Phase 2 consolidation's
- * `consolidated_findings` is **keyed by analyzer slug**
- * (`01-structure-architecture`, `02-tech-stack-dependencies`, …)
- * NOT a flat-merged map. The pre-fix builder treated it as flat
- * and silently produced an empty catalog for every project. We
- * now collect a list of `findings` source-slices to walk:
- *
- *   1. Each `consolidated_findings.<slug>.findings` (the real
- *      analyzer-keyed shape).
- *   2. `consolidated_findings` itself, when it looks flat (carries
- *      `automation` / `build_tools` / etc. at the top level —
- *      used by hand-built test fixtures and by some legacy
- *      callers that pre-trim the consolidation).
- *   3. `root.findings` and `root` itself, as final fallbacks.
- *
- * Each picker walks the source list in order; the first source
- * that has a usable value wins. Order matters: analyzer-keyed
- * slices come first because they're the primary contract.
+ * Walks findings sources in priority order:
+ *   1. Each `consolidated_findings.<slug>.findings` (analyzer-keyed shape).
+ *   2. `consolidated_findings` itself (flat-shape fixtures / legacy callers).
+ *   3. `root.findings` and `root` as final fallbacks.
  */
 export function buildCatalogFromConsolidation(consolidation: unknown): BuiltCatalogBundle {
   const root = isObject(consolidation) ? consolidation : {};
@@ -96,39 +73,22 @@ export function buildCatalogFromConsolidation(consolidation: unknown): BuiltCata
 function collectFindingsSources(root: Record<string, unknown>): Record<string, unknown>[] {
   const sources: Record<string, unknown>[] = [];
 
-  // Primary: analyzer-keyed shape.
-  // `consolidated_findings: { '01-structure-architecture': { findings: {...} }, ... }`
   if (isObject(root.consolidated_findings)) {
     for (const value of Object.values(root.consolidated_findings)) {
       if (!isObject(value)) continue;
-      // Standard shape: per-analyzer entry has a `findings` sub-object.
       if (isObject(value.findings)) {
         sources.push(value.findings);
       }
-      // Some legacy / partial fixtures inline per-analyzer fields
-      // directly under the analyzer key (no `findings` wrapper). Add
-      // the analyzer entry itself as a source so we can still find
-      // `automation` / `build_tools` / etc.
       sources.push(value);
     }
-    // Some persisted shapes inline the per-analyzer fields directly
-    // under `consolidated_findings` (the Phase 2 trimmer's previous
-    // layout, plus all hand-built test fixtures from Plan 15).
     sources.push(root.consolidated_findings);
   }
 
-  // Fallback: top-level `findings` slice (legacy callers).
   if (isObject(root.findings)) sources.push(root.findings);
-
-  // Last resort: the root itself.
   sources.push(root);
 
   return sources;
 }
-
-// ---------------------------------------------------------------------------
-// Automation
-// ---------------------------------------------------------------------------
 
 function pickAutomation(...sources: Record<string, unknown>[]): Automation | undefined {
   for (const src of sources) {
@@ -212,10 +172,6 @@ function cleanCiHints(v: unknown): Automation['ci_hints'] {
   return out;
 }
 
-// ---------------------------------------------------------------------------
-// README run sections
-// ---------------------------------------------------------------------------
-
 function pickReadmeRunSections(
   ...sources: Record<string, unknown>[]
 ): ReadmeRunSectionEntry[] | undefined {
@@ -237,10 +193,6 @@ function pickReadmeRunSections(
   return undefined;
 }
 
-// ---------------------------------------------------------------------------
-// Package-manager candidates
-// ---------------------------------------------------------------------------
-
 const BUILD_TOOL_COMMAND_KEYS: Array<{ key: string; script_name: string }> = [
   { key: 'lint_command', script_name: 'lint' },
   { key: 'format_command', script_name: 'format' },
@@ -256,7 +208,6 @@ function collectPackageManagerCandidates(
   const out: PackageManagerCandidate[] = [];
 
   for (const src of sources) {
-    // build_tools.<service>.lint_command / format_command / test_command / build_command
     if (isObject(src.build_tools)) {
       for (const [serviceId, bt] of Object.entries(src.build_tools)) {
         if (!isObject(bt)) continue;
@@ -274,7 +225,6 @@ function collectPackageManagerCandidates(
       }
     }
 
-    // documented_commands.by_task — root-level commands
     if (isObject(src.documented_commands) && isObject(src.documented_commands.by_task)) {
       for (const [task, cmd] of Object.entries(src.documented_commands.by_task)) {
         if (typeof cmd !== 'string' || cmd.trim().length === 0) continue;
@@ -290,7 +240,6 @@ function collectPackageManagerCandidates(
       }
     }
 
-    // databases[].migration_commands — `run_migrations`-class candidates
     if (Array.isArray(src.databases)) {
       for (const db of src.databases) {
         if (!isObject(db)) continue;
@@ -309,7 +258,6 @@ function collectPackageManagerCandidates(
       }
     }
 
-    // monorepo.build_all_command / test_all_command — cross-service
     if (isObject(src.monorepo)) {
       const configHint =
         typeof src.monorepo.workspace_config === 'string'
@@ -334,19 +282,10 @@ function collectPackageManagerCandidates(
         });
       }
     }
-
-    // ci_cd.test_commands / build_commands / deploy_commands — Tier 4 (CI)
-    // NOTE: these are handled as Tier-1 ci_hints would be, but the analyzer
-    // emits them on a different shape. We don't add them as Tier-3 here —
-    // doing so would inflate the package_manager rows with CI-only commands.
   }
 
   return out;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);

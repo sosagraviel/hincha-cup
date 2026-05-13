@@ -223,7 +223,7 @@ What the script does (handled automatically; you do not need to do any of this m
 **Part B — defensive double-check.** With the preflight marker present, the following assertions are belt-and-suspenders. They cannot fail because Part A just made them true; if any do, the marker file is corrupt and Part A must be rerun.
 
 - Check git status (no uncommitted changes). In a multi-repo workspace run the status check in each child git repo rather than at the workspace root.
-- **Resolve test / build commands from `framework-config.json::stack_profile.command_catalog` (Plan 15)** — the catalog's `run_tests` and `run_build` operations name the canonical command for this project. Prefer the first entry (wrapper-tier: Makefile / Justfile / Taskfile / scripts) over package-manager fallbacks; wrappers orchestrate dependent services that raw package-manager invocations may skip.
+- **Resolve test / build commands from `framework-config.json::stack_profile.command_catalog`** — the catalog's `run_tests` and `run_build` operations name the canonical command for this project. Prefer the first entry (wrapper-tier: Makefile / Justfile / Taskfile / scripts) over package-manager fallbacks; wrappers orchestrate dependent services that raw package-manager invocations may skip.
 - Verify tests pass in current state
 - Validate build succeeds
 - Detect primary language and stack
@@ -377,7 +377,7 @@ CONTINUE WITH Phase 6.
 If `--skip-tests` flag: mark completed as "Skipped via flag" and continue.
 
 Otherwise:
-- **Resolve the test command from the project's command catalog (Plan 15 §C.2 + §D.7).**
+- **Resolve the test command from the project's command catalog.**
   Read `framework-config.json::stack_profile.command_catalog` and look up the
   preferred command for each test op: `run_tests`, `run_unit_tests`,
   `run_integration_tests`, `run_e2e`. The first entry of each operation array

@@ -5,18 +5,13 @@ import type { BudgetKey } from '../../../services/framework/budgets.js';
 
 export interface AgentConfig {
   agentName: string;
-  agentFilePath: string; // Absolute path to agent .md file
+  agentFilePath: string;
   projectPath: string;
   frameworkPath: string;
   timeout?: number;
-  resumeSessionId?: string; // Session ID to resume (for context-preserving retry)
-  settingsPath?: string; // Optional path to settings.json file passed via --settings flag
-  // Optional unique identifier for the concurrent-agent tracker. Defaults to
-  // `agentName` when omitted. Set this when running the SAME agent (same model
-  // config, same settings) in parallel — e.g. the wiki-generator fan-out — so
-  // the spinner tracker does not collide on a single shared id.
+  resumeSessionId?: string;
+  settingsPath?: string;
   trackerId?: string;
-  // Optional display label for the tracker UI. Defaults to `agentName`.
   trackerDisplayName?: string;
   /**
    * Phase context used by the debug store to place per-attempt artifacts under
@@ -41,18 +36,30 @@ export interface AgentConfig {
   validator?: (output: string) => ValidationResult;
   /** Max in-session self-correction attempts for Codex when validator is set. Defaults to 5. */
   maxInternalIterations?: number;
+  /**
+   * Optional override of the framework's standard excluded-directories list.
+   * When provided, drives the PreToolUse hook's deny list and the resolved
+   * `permissions.deny` rules. Use sparingly — Phase 3's synthesizer is the
+   * only current caller.
+   */
+  excludedDirsOverride?: ReadonlyArray<string>;
+  /**
+   * Optional per-spawn environment variables forwarded into the spawned CLI process.
+   * Framework-controlled vars (FRAMEWORK_PATH, etc.) always win on a key collision.
+   */
+  extraEnv?: Record<string, string>;
 }
 
 export interface AgentInvokeInput {
-  inputPrompt: string; // Full input prompt (built by caller/node)
-  attemptNumber?: number; // 1-based attempt number for per-attempt diagnostics
+  inputPrompt: string;
+  attemptNumber?: number;
 }
 
 export interface AgentInvokeResult {
   output: string;
   mode: AuthMode;
   executionTimeMs: number;
-  sessionId: string; // Session ID for context-preserving retry with --resume
+  sessionId: string;
 }
 
 export interface Agent {

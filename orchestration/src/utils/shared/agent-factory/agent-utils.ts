@@ -26,6 +26,5 @@ export function getAgentAction(agentName: string): string {
     return 'Verifying output';
   }
 
-  // Default fallback
   return 'Processing';
 }

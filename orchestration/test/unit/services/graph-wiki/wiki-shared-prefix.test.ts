@@ -8,7 +8,7 @@ import {
 import { Provider } from '../../../../src/providers/types.js';
 
 /**
- * Wave 3 §I.5 — every wiki-gen prompt in a run starts with the
+ * Every wiki-gen prompt in a run starts with the
  * SAME byte-identical prefix so Anthropic/OpenAI prefix cache hits
  * on calls 2..N.
  *
@@ -52,7 +52,7 @@ function buildOptions() {
   };
 }
 
-describe('Wiki-gen shared prefix (Wave 3 §I.5)', () => {
+describe('Wiki-gen shared prefix', () => {
   it('every wiki-gen prompt starts with the byte-identical shared prefix', () => {
     const options = buildOptions() as never;
     const prefix = buildWikiSharedPrefix('/test/project-X');

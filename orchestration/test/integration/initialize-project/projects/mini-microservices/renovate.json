@@ -1,0 +1,15 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:base", ":dependencyDashboard"],
+  "schedule": ["before 4am on monday"],
+  "packageRules": [
+    {
+      "matchManagers": ["nuget"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "rangeStrategy": "bump"
+    }
+  ]
+}

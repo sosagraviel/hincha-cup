@@ -7,7 +7,7 @@ import {
 } from '../../../../../src/nodes/initialize-project/phase4/helpers/normalise-service-ids.js';
 
 /**
- * Plan 16 §C.5 — service-id normalisation.
+ * Service-id normalisation.
  *
  * The structure analyzer occasionally emits graph-community names
  * (`src-app`, `chat-handle`) instead of folder basenames as
@@ -59,7 +59,7 @@ describe('computeServiceIdRewrites', () => {
     expect(computeServiceIdRewrites([findings])).toEqual({});
   });
 
-  it('detects the gira regression: graph-community ids → folder basenames', () => {
+  it('detects graph-community ids and rewrites to folder basenames', () => {
     const findings = {
       services: [
         { id: 'src-app', path: 'services/backend' },
@@ -190,7 +190,7 @@ describe('applyServiceIdRewritesToFindings', () => {
 });
 
 describe('normaliseServiceIds (full pipeline)', () => {
-  it('rewrites the gira-shape consolidation end-to-end', () => {
+  it('rewrites an analyzer-keyed consolidation end-to-end', () => {
     const consolidation = {
       consolidated_findings: {
         '01-structure-architecture': {

@@ -1,23 +1,16 @@
 /**
- * Plan §E.5 (2026-05-05) — soft signal that the synthesis omitted a
- * "Validation Rules" section even though the dependency manifest tells
- * us the project ships at least one validation library.
- *
- * The 2026-05-04 gira run shipped a `code-conventions/SKILL.md` that
- * documented controllers, repositories, error handling, and gotchas —
- * but said nothing about Zod (frontend forms) vs class-validator
- * (backend DTOs), even though both packages were in the dependency tree.
- * Validation rules are load-bearing project knowledge: a developer who
- * learns the wrong layer's rule from the agent ships unsafe code.
+ * Soft signal that the synthesis omitted a "Validation Rules" section
+ * even though the dependency manifest tells us the project ships at least
+ * one validation library.
  *
  * This is a SOFT warning by design, not a hard validation gate:
  *   - Synthesis is an LLM. It may legitimately omit this section on a
  *     project that has a validation lib in `package.json` but no actual
  *     validation pipeline.
- *   - We don't want to retry the entire 15-minute synthesis over a soft
- *     signal — the cost outweighs the benefit on a per-run basis.
- *   - The warning surfaces in the run log so the operator can re-run if
- *     they care, and bubbles into observability for fleet-level signal.
+ *   - Retrying the entire synthesis over a soft signal costs more than it
+ *     saves on a per-run basis.
+ *   - The warning surfaces in the run log and bubbles into observability
+ *     for fleet-level signal.
  */
 
 /**

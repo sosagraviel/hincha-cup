@@ -100,7 +100,6 @@ export function beginAttemptRecorder(opts: BeginRecorderOptions): AttemptRecorde
       outcome: 'pending',
     });
   };
-  // Fire and forget — we want meta.json created as soon as the recorder exists.
   ensureMetaBase().catch(() => undefined);
 
   return {
@@ -200,7 +199,6 @@ export function beginAttemptRecorder(opts: BeginRecorderOptions): AttemptRecorde
             outcome: options.outcome ?? 'success',
             systemPrompt: options.systemPrompt,
           });
-          // Serialize synthetic native transcript so there is still a .jsonl on disk.
           nativeContent = events.map((e) => JSON.stringify(e)).join('\n');
           source = 'deepagent-synth';
         }
@@ -224,9 +222,19 @@ export function beginAttemptRecorder(opts: BeginRecorderOptions): AttemptRecorde
           await writer.mergeMeta({ transcriptSource: source, transcriptCaptured: false });
         }
       } catch (err) {
-        logger.warn(
-          `[attempt-recorder] captureTranscript failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        const message = err instanceof Error ? err.message : String(err);
+        const name = err instanceof Error ? err.name : 'Error';
+        const stackTail =
+          err instanceof Error && err.stack
+            ? '\n' + err.stack.split('\n').slice(0, 4).join('\n')
+            : '';
+        logger.warn(`[attempt-recorder] captureTranscript failed: ${name}: ${message}${stackTail}`);
+        try {
+          await writer.mergeMeta({
+            transcriptCaptured: false,
+            transcriptCaptureError: `${name}: ${message}`,
+          });
+        } catch {}
       }
     },
   };

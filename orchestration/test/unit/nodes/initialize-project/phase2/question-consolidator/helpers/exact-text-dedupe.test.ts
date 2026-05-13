@@ -6,8 +6,7 @@ import {
 import type { Gap } from '../../../../../../../src/nodes/initialize-project/phase2/question-consolidator/types.js';
 
 /**
- * Plan 14 §C.9.3 — deterministic exact-text dedupe pre-pass for
- * the Phase 2 consolidator.
+ * Deterministic exact-text dedupe pre-pass for the Phase 2 consolidator.
  *
  * The pre-pass collapses normalised-text duplicates into a single
  * canonical entry whose `consolidated_from` is the union of source

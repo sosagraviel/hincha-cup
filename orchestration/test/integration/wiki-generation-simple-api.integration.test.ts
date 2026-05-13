@@ -141,7 +141,7 @@ describe('wiki generation smoke on simple-api fixture', () => {
       phase1_retry_tracking: {},
     };
 
-    // Plan §I.1 (Wave 3, 2026-05-05): the Phase 4 wiki subgraph is
+    // The Phase 4 wiki subgraph is
     // `wiki_preparation → [wiki_architecture_doc, wiki_service_docs]
     // (parallel) → wiki_generation`. The integration test runs each
     // node in sequence and merges the resulting partial-state slices,
@@ -185,10 +185,9 @@ describe('wiki generation smoke on simple-api fixture', () => {
     expect(result.current_phase).toBe('phase4_wiki_generation');
     expect(existsSync(join(projectPath, '.code-review-graph/graph.db'))).toBe(true);
 
-    // Post-H4 contract: only ARCHITECTURE.md is rendered as a
-    // cross-cutting LLM-generated wiki page. DATA-FLOWS.md / PATTERNS.md
-    // were retired (per-service narratives + prescriptive convention
-    // skills replace them).
+    // Only ARCHITECTURE.md is rendered as a cross-cutting LLM-generated
+    // wiki page. DATA-FLOWS.md / PATTERNS.md were retired (per-service
+    // narratives + prescriptive convention skills replace them).
     for (const fileName of ['wiki/index.md', 'wiki/ARCHITECTURE.md', 'wiki/SERVICES.md']) {
       expect(existsSync(join(projectPath, 'docs', 'llm-wiki', fileName))).toBe(true);
     }

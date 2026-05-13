@@ -1,16 +1,10 @@
 /**
- * Soft warnings for wiki-generator output. Plan §C 3.1 of the
- * gira-exhaustive followup (2026-05-05).
+ * Soft warnings for wiki-generator output.
  *
- * Unlike `validateWikiOutput` (which hard-fails the agent's Stop), these
- * checks return non-blocking warnings. They surface in the run's debug
- * report but do not cause the agent to retry. The intent is observability
- * for trends across many runs without breaking outputs that would be
- * acceptable in isolation.
+ * Unlike `validateWikiOutput` (which hard-fails the agent's Stop), these checks return
+ * non-blocking warnings. They surface in the run's debug report but do not cause retries.
  *
- * Stack-agnostic: every check operates on the agent's text + a list of
- * service IDs. No language, framework, or repo-shape assumption — the
- * service IDs are agent-discovered community names, independent of stack.
+ * Stack-agnostic: every check operates on the agent's text + a list of service IDs.
  */
 
 export interface WikiSoftWarning {
@@ -20,15 +14,8 @@ export interface WikiSoftWarning {
 }
 
 /**
- * `low_wikilink_density` fires when a page references a known service ID
- * (plain text, case-sensitive on the id) MORE THAN 2 TIMES yet has ZERO
- * wikilinks (`[[id]]`) for that id anywhere in the body. Mentioning a
- * service three times without ever linking it to its per-service doc is a
- * sign the agent ignored the wikilink instruction in the architecture
- * spec's prompt focus.
- *
- * Configurable threshold so tests can drive it deterministically; default
- * matches the plan (>2 plain-text mentions, 0 wikilinks).
+ * Fires when a page references a service ID more than `threshold` times in plain text
+ * yet has zero wikilinks (`[[id]]`) for that ID. Configurable threshold; default is 2.
  */
 export function computeWikiSoftWarnings(
   text: string,
@@ -42,15 +29,9 @@ export function computeWikiSoftWarnings(
   for (const id of serviceIds) {
     if (typeof id !== 'string' || id.length === 0) continue;
 
-    // Count `[[id]]` (case-sensitive). Anchor on the brackets so we
-    // don't false-positive on prose mentioning "[[" elsewhere.
     const wikilinkCount = countMatches(text, new RegExp(`\\[\\[${escapeRegex(id)}\\]\\]`, 'g'));
     if (wikilinkCount > 0) continue;
 
-    // Plain text mentions exclude hits inside `[[...]]` and inside
-    // backtick code spans / fenced blocks (those are legitimate code,
-    // not prose). Word-boundary on each side so `web` doesn't match
-    // `webhook`.
     const plain = countPlainTextMentions(text, id);
     if (plain > threshold) {
       offenders.push({ id, plain });
@@ -94,11 +75,8 @@ function countPlainTextMentions(text: string, id: string): number {
 }
 
 function stripCodeAndWikilinks(text: string): string {
-  // Drop fenced code blocks first (multiline).
   let out = text.replace(/```[\s\S]*?```/g, '');
-  // Then inline backtick spans.
   out = out.replace(/`[^`]*`/g, '');
-  // Then `[[...]]` wikilinks (we counted them separately).
   out = out.replace(/\[\[[^\]]+\]\]/g, '');
   return out;
 }

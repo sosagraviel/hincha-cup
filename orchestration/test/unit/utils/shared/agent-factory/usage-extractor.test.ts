@@ -1,6 +1,6 @@
 /**
- * Plan §E, commit C (2026-05-05) — cache hit observability for both
- * CLI modes. The extractors here are pure: feed in a JSONL string,
+ * Cache hit observability for both CLI modes. The extractors here are
+ * pure: feed in a JSONL string,
  * get a `UsageRollup`. CLI impls (`cli-agent-impl.ts` and
  * `codex-cli-agent-impl.ts`) call them around `emitTokenUsage` so the
  * run-stats sidebar reflects real cache reads instead of always

@@ -1,334 +1,190 @@
-# Tech Stack & Dependencies Analysis Instructions
+# Tech Stack & Dependencies Analysis
 
-> **Tool naming.** Bare tool names below (e.g. `list_communities`) are semantic identifiers. The canonical names are listed in the **CODE GRAPH CONTEXT** block in your system prompt — they share the `mcp__code_graph__` prefix and may carry a `_tool` suffix. Always call the catalog name, not a name you find here.
+Analyze dependencies, databases, infrastructure tools, CI/CD pipelines,
+and deployment per service.
 
-<objective>
-Analyze dependencies, databases, infrastructure tools, CI/CD pipelines, and deployment configuration for each service. Provide comprehensive tech stack information to understand the operational requirements.
-</objective>
+**Service IDs come from the structure analyzer** — never redeclare;
+key per-service findings under `findings.dependencies.by_service.<id>`.
+The legacy `services` array is deprecated.
 
-**IMPORTANT: Service Discovery Ownership**
+Follow the **Graph navigation discipline** templated into your system
+prompt: lean parameters everywhere; respect drill-in caps;
+`get_architecture_overview` is **forbidden** (use `get_minimal_context`
 
-- **Structure Analyzer (Agent 01)** is the SINGLE SOURCE OF TRUTH for service discovery
-- DO NOT redeclare services in your output
-- REFERENCE services by ID from Structure Analyzer
-- Organize findings using service IDs as keys (e.g., `dependencies.by_service.backend`)
-- The `services` array field is DEPRECATED - use by_service maps instead
+- `list_communities` instead).
 
-<discovery_process>
+## Step 0 — Inspection summary (pre-rendered)
 
-> **Graph use.** All graph tool calls below MUST follow the **Graph navigation discipline** templated into your CODE GRAPH CONTEXT block (lean parameters, drill-in caps, forbidden tools). Specialise _which_ lean tools you call for each question; never override the defaults.
+<<script:inspection-summary>>
 
-## Step 1: Cheap orientation via graph
+The above is a Phase 0 summary. The full structured data lives at
+`<tempDir>/project-inspection.json` — read it ONLY when this summary
+doesn't carry a specific field you need. Copy verbatim where
+indicated; do NOT re-glob to derive any of it:
 
-Call `get_minimal_context` with `task: "Inventory the tech stack and dependencies"`. The response (~100 tokens) gives you top communities and suggested next tools. Use it to seed Step 2.
+| Inspection field                             | Output field                                                     |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| `manifests[]`                                | (read for deps in Step 4)                                        |
+| `lock_files[].manager`                       | `findings.dependencies.by_service.<svc>.manager`                 |
+| `runtime_versions{}`                         | `findings.runtime_versions` (verbatim, drop `tool-versions-raw`) |
+| `ci_cd.{provider,config_files}`              | `findings.ci_cd.{provider,config_files}`                         |
+| `infrastructure[]`                           | `findings.infrastructure` (verbatim concrete names)              |
+| `environment.{required_vars,template_files}` | `findings.environment.{required_vars,template_files}`            |
+| `monorepo.{package_manager,workspace_tool}`  | `findings.monorepo`                                              |
+| `infrastructure_services_hints[]`            | (used by data-flows; ignore here)                                |
 
-## Step 2: Service inventory via graph (do not re-glob manifests)
+### HARD GLOB BAN
 
-Call `list_communities` with `detail_level: "minimal"` to get the same service set the structure-analyzer discovered. Use community names as service IDs. This eliminates the duplicate `**/package.json` glob that the old workflow ran.
+The Stop hook emits `tech_stack_inspection_redundant_glob` (soft
+warning) when you Glob any of these — inspection covers them all:
 
-Record the community list. Subsequent steps use community names to scope graph queries per service.
+- `**/package.json`, `**/pyproject.toml`, `**/Cargo.toml`, `**/go.mod`,
+  `**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/Package.swift`,
+  `**/mix.exs`, `**/build.gradle*`, `**/pom.xml`, `**/pubspec.yaml`
+- All lock files (`pnpm-lock.yaml`, `poetry.lock`, etc.)
+- `.env*` templates
+- `Dockerfile*`, `docker-compose*.{yml,yaml}`
+- `.github/workflows/*`, `.gitlab-ci.yml`, etc.
+- `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, `turbo.json`, `go.work`
+- `.tool-versions`, `.nvmrc`, `.python-version`, `.ruby-version`
 
-## Step 3: Identify actually-imported SDK libraries via graph
+Legitimate Globs in this analyzer: graph `semantic_search_nodes`
+queries (Steps 1-3) + per-service build-tool config Reads (Step 11).
 
-ONE `semantic_search_nodes` call per credible category, name-token query, `limit: 20`, `detail_level: "minimal"`:
+## Step 1 — Cheapest entry point
 
-- **databases**: postgres / mysql / sqlite / mssql / mongodb / redis / dynamodb / elasticsearch / clickhouse / cassandra / cockroach
-- **ORM / data-access**: typeorm / prisma / sequelize / sqlalchemy / django / gorm / diesel / hibernate / activerecord
+`get_minimal_context({ task: "Inventory the tech stack and dependencies" })`.
+
+## Step 2 — Service inventory
+
+Use the **AUTHORITATIVE SERVICE LIST** injected into your prompt — it
+is the structure-analyzer's discovered services. Do NOT call
+`list_communities` to derive services: graph communities are code-
+pattern clusters (`*-it:should`, `*-constructor`, etc.), not services.
+
+## Step 3 — Confirmed-via-import SDKs (graph)
+
+ONE `semantic_search_nodes({ limit: 20, detail_level: "minimal" })`
+per credible category, name-token query:
+
+- **databases**: postgres / mysql / sqlite / mssql / mongodb / redis /
+  dynamodb / elasticsearch / clickhouse / cassandra / cockroach
+- **ORM / data-access**: typeorm / prisma / sequelize / sqlalchemy /
+  django / gorm / diesel / hibernate / activerecord
 - **auth**: passport / jsonwebtoken / jose / auth0 / keycloak / oauth / oidc
 - **payments / email / monitoring**: stripe / sendgrid / sentry / datadog
 
-Only libraries with real import sites are confirmed usage; manifest-only entries are "declared". The categories are stack-agnostic name tokens — adapt the query to the language family the structure analyzer detected.
+Mark each as `confirmed` (real import) vs `declared` (manifest-only).
 
-## Step 4: Read manifests for the services from Step 2 (no re-discovery)
+## Step 4 — Read per-service manifest
 
-For each service ID from Step 2, read its dependency manifest. Do NOT Glob — Step 2 already authoritatively listed which manifests to read. The manifest path comes from the structure analyzer's service `path`. Common manifests by language family: `package.json` (JS/TS), `pyproject.toml` / `requirements.txt` / `Pipfile` (Python), `go.mod` (Go), `Cargo.toml` (Rust), `pom.xml` / `build.gradle{,.kts}` (JVM), `Gemfile` (Ruby), `composer.json` (PHP), `*.csproj` / `*.fsproj` (.NET), `mix.exs` (Elixir), `Package.swift` (Swift), `pubspec.yaml` (Dart). Read the lock file alongside when present for exact versions.
+For each service from Step 2: read its dependency manifest (path
+comes from the structure analyzer's `service.path`). Read the
+lock file alongside if present. Cap: 1 manifest + 1 lock per service.
 
-Cap: 1 manifest + 1 lock file per service.
+## Step 5 — Categorise dependencies
 
-## Step 5: Categorize Dependencies (production / dev / notable)
+For each service, extract:
 
-For each service from Step 4, extract:
+1. **production** — runtime deps (primary manifest section)
+2. **development** — dev/test deps
+3. **notable** — top 3-5 frameworks / ORMs / key libraries
+4. **count** — `{ production, dev }`
 
-1. **production** — runtime dependencies (the language's primary section: `dependencies`, `[project.dependencies]`, `require`, `[dependencies]`, etc.).
-2. **development** — dev/test dependencies (`devDependencies`, `[project.optional-dependencies.dev]`, `[dev-dependencies]`, scope `test` for Maven/Gradle, etc.).
-3. **notable** — top 3–5 frameworks / ORMs / key libraries.
-4. **count** — `{ production, dev }`.
+Mark each as `confirmed` (Step 3 import site) or `declared`.
+**Report under `findings.dependencies.by_service.<service_id>`.**
 
-Cross-reference with Step 3's `semantic_search` results: mark each as `confirmed` (real import site) vs `declared` (manifest-only).
+## Step 6 — DB + ORM
 
-**Report in `findings.dependencies.by_service[<service_id>]`.** Use service IDs from the structure analyzer; never re-declare services.
+From Step 3's confirmed candidates: record `type` (engine token),
+`orm` (data-access token), `migration_tool` + `migration_commands`
+(one config read per service). Defer to structure-analyzer's
+`findings.database` when already covered.
 
-## Step 6: Database Engine + ORM (consolidated with Step 3)
+## Step 7 — CI/CD pipelines (Glob required — graph cannot answer)
 
-Step 3's `database` and `ORM / data-access` queries already surfaced the candidates. For each confirmed candidate:
-
-1. Record `type` (engine name token: postgres / mysql / mongodb / redis / etc.).
-2. Record `orm` (the data-access library name token).
-3. Surface `migration_tool` + `migration_commands` from the build script section (one read per service).
-
-Prefer graph-confirmed candidates over manifest-declared. Defer to the structure analyzer's `findings.database` when it already covered the service.
-
-## Step 7: CI/CD Pipeline Analysis (Glob — required, graph cannot answer)
-
-<cicd_patterns>
-
-ONE Glob across the canonical CI config paths, then read each match (cap: 5 reads):
+ONE Glob over canonical CI configs, then read each match (cap: 5):
 
 ```
-{.github/workflows/*.{yml,yaml},.gitlab-ci.yml,.circleci/config.yml,Jenkinsfile,.travis.yml,azure-pipelines.yml,.azure/*.yml,bitbucket-pipelines.yml,buildspec.yml,cloudbuild.yaml}
+{.github/workflows/*.{yml,yaml},.gitlab-ci.yml,.circleci/config.yml,Jenkinsfile,.travis.yml,azure-pipelines.yml,bitbucket-pipelines.yml,buildspec.yml,cloudbuild.yaml}
 ```
 
-If 0 matches, report `"provider": "none"`.
+Extract per pipeline: `provider`, `config_files`, `triggers`, `stages`,
+`test_commands`, `build_commands`, `deploy_commands`, `environments`.
+No match → `"provider": "none"`.
 
-For each pipeline file, extract: **provider** (one of `"GitHub Actions" | "GitLab CI" | "CircleCI" | "Jenkins" | "Travis CI" | "Azure Pipelines" | "Bitbucket Pipelines" | "AWS CodeBuild" | "Google Cloud Build" | "none"`), **config_files**, **triggers**, **stages**, **test_commands**, **build_commands**, **deploy_commands**, **environments**.
-
-</cicd_patterns>
-
-## Step 8: Infrastructure & Deployment (Glob — required)
-
-<infrastructure_discovery>
+## Step 8 — Infrastructure & deployment (Glob required)
 
 ONE Glob, then read up to 5 matched files:
 
 ```
-{Dockerfile*,Containerfile,docker-compose*.{yml,yaml},k8s/**/*.{yml,yaml},kubernetes/**/*.{yml,yaml},Chart.yaml,values.yaml,*.tf,Pulumi.yaml,*.template.{json,yaml},serverless.yml,netlify.toml,vercel.json,template.yaml}
+{Dockerfile*,Containerfile,docker-compose*.{yml,yaml},k8s/**/*.{yml,yaml},Chart.yaml,values.yaml,*.tf,Pulumi.yaml,serverless.yml,netlify.toml,vercel.json,template.yaml}
 ```
 
-**Report in `findings.infrastructure` as concrete tool names** the operator runs: `docker`, `docker-compose`, `kubernetes`, `helm`, `terraform`, `pulumi`, `serverless`, `sam`, `netlify`, `vercel`, `ansible`, `nginx`. Map by file: Dockerfile→`docker`; docker-compose.{yml,yaml}→`docker-compose`; k8s/Chart.yaml→`kubernetes`/`helm`; \*.tf→`terraform`; serverless.yml→`serverless`; template.yaml→`sam`.
+`findings.infrastructure` lists CONCRETE tool names operators run
+(`docker`, `docker-compose`, `kubernetes`, `helm`, `terraform`,
+`pulumi`, `serverless`, `sam`, `netlify`, `vercel`, `nginx`).
+Never emit category abstractions.
 
-❌ Never emit category abstractions (`containerization`, `orchestration`, `iac`) — they're not invokable tools.
+`findings.deployment.{target, config_files, runtime_config, scaling}`.
 
-Also report `findings.deployment` (object with `target`, `config_files`, `runtime_config`, `scaling`).
+## Step 9 — Environment vars (redacted)
 
-</infrastructure_discovery>
+ONE Glob over `.env.example` / `.env.sample` / `.env.template`.
+Extract variable NAMES ONLY. Report
+`findings.environment.{required_vars[], environments[], config_approach}`.
 
-## Step 9: Environment Configuration (Glob — required, redacted)
+## Step 10 — External services
 
-<environment_analysis>
+For each detected service: `{service, sdk, config_location,
+confirmed|declared}`. Primary signal: graph import sites from Step 3.
 
-ONE Glob over `.env.example`, `.env.sample`, `.env.template`, plus any directory-level `*.example` files. Extract **variable names ONLY** (never values; never read `.env*` files without `.example`/`.sample`/`.template` suffix).
+## Step 11 — Build tools (one config read per service)
 
-**Report in `findings.environment.required_vars` (string array), plus `environments` (string array of detected environments — development / staging / production / etc.) and `config_approach` (the configuration mechanism the codebase uses: dotenv / env-vars-only / config-files / secrets-manager / ...).**
+The structure analyzer recorded each service's build config. Read it
+ONCE per service and extract `lint_command`, `format_command`,
+`test_command`, `build_command`. Report under
+`findings.build_tools.<service_id>` with `tool`, `config_file`.
 
-</environment_analysis>
+## Step 12 — Monorepo
 
-## Step 10: External Services Detection
-
-<external_services>
-
-Use graph results from Step 2 as primary signal (actual import sites). Supplement with manifest scanning for completeness.
-
-**For each detected service, report:**
-
-1. Service name
-2. SDK package name and version
-3. Whether confirmed via graph import site or declared-only
-
-**Report format:**
-
-```json
-"external_services": [
-  {
-    "service": "Keycloak",
-    "sdk": "@keycloak/keycloak-admin-client v26.1.4",
-    "config_location": "docker-compose configuration"
-  },
-  {
-    "service": "Sentry",
-    "sdk": "@sentry/nestjs v9.30.0 / @sentry/react v9.32.0",
-    "config_location": "vite.config.ts, backend dependencies"
-  }
-]
-```
-
-</external_services>
-
-## Step 11: Build Tools (one config-file read per service)
-
-<build_tools>
-
-The structure analyzer recorded each service's build config (Step 10 alias detection). For each service, read the bundler/build config ONCE — the build-tool family the structure analyzer detected — and extract the four canonical commands: `lint_command`, `format_command`, `test_command`, `build_command`. Use the build script section of the language's primary manifest (e.g. `scripts` in package.json, `[tool.poetry.scripts]` in pyproject, Makefile targets, Maven/Gradle goals).
-
-**Report in `findings.build_tools.<service_id>`** with `tool` (canonical bundler name), `config_file` (path), and the four commands.
-
-</build_tools>
-
-## Step 12: Enhanced Monorepo Analysis
-
-<monorepo_analysis>
-
-**If monorepo detected (graph community count > 1 or workspace config file present), report three distinct fields.**
-
-Workspace config signals (per language family, non-exhaustive): JS/TS — `pnpm-workspace.yaml`, `package.json::workspaces`, `lerna.json`, `nx.json`, `turbo.json`. Python — `[tool.uv.workspace]`, `[tool.poetry]`, `[tool.pdm]`. Java/Kotlin — parent `pom.xml::<modules>`, `settings.gradle{,.kts}::include`. Go — `go.work`. Rust — root `Cargo.toml::[workspace]`. .NET — `*.sln`. Scala — `build.sbt` multi-project. Ruby — Bundler engines. PHP — `composer.json::repositories` (path). Elixir — umbrella `apps/`. Polyglot — Bazel/Pants/Please/Buck.
-
-**Report format:**
+If detected (workspace config OR `>1` community), report:
 
 ```json
 "monorepo": {
   "enabled": true,
-  "tool": "<canonical workspace tool name>",
-  "package_manager": "<bare manager name, NO version>",
-  "workspace_config": "<path relative to repo root>",
-  "build_all_command": "<language-appropriate>",
-  "test_all_command": "<language-appropriate>"
+  "tool": "<canonical name>",       // "pnpm workspaces", "Nx", "Turborepo", "Maven multi-module", "Cargo workspaces", etc.
+  "package_manager": "<bare name>",  // "pnpm", "poetry", "cargo" — NO version
+  "workspace_config": "<path>",
+  "build_all_command": "...",
+  "test_all_command": "..."
 }
 ```
 
-**Field semantics — distinct, do NOT collapse:**
+Phase 4 normalises both fields via stack-agnostic helpers — emit
+canonical shapes.
 
-- `tool` — canonical workspace-tool identifier. One of: `"pnpm workspaces"` / `"yarn workspaces"` / `"npm workspaces"` / `"bun workspaces"` / `"Nx"` / `"Turborepo"` / `"Lerna"` / `"Maven multi-module"` / `"Gradle composite"` / `"go workspaces"` / `"Cargo workspaces"` / `"dotnet sln"` / `"sbt multi-project"` / `"Poetry monorepo"` / `"uv workspaces"` / `"PDM workspaces"` / `"Bundler engines"` / `"composer path repos"` / `"Elixir umbrella"` / `"Bazel"` / `"Pants"` / `"Please"` / `"Buck"`.
-- `package_manager` — **bare** manager name (`"pnpm"`, `"yarn"`, `"poetry"`, `"uv"`, `"bundler"`, `"composer"`, `"maven"`, `"gradle"`, `"cargo"`, `"go modules"`, `"dotnet"`, `"sbt"`, `"mix"`, etc.). **Never include a version** (`pnpm@10.2.1` is wrong — emit `"pnpm"`).
-- `workspace_config` — path to the workspace config file relative to repo root.
+## Output
 
-Phase 4 normalises both `tool` and `package_manager` via stack-agnostic helpers, so emitting canonical shapes keeps `framework-config.json::stack_profile` clean.
+Emit the shape below. Optional fields use the `"name?"` suffix — OMIT
+the field entirely when no value (do NOT emit `null`). Enums must use
+one of the listed tokens verbatim. Per-service maps key by IDs from
+your AUTHORITATIVE SERVICE LIST.
 
-</monorepo_analysis>
-
-</discovery_process>
-
-<critical_thinking>
-
-## Self-Verification Checklist
-
-1. **Called `get_minimal_context` first?** It must be the first graph call. If you skipped it, you almost certainly over-pulled later.
-2. **Used lean parameters everywhere?** `list_communities` with `detail_level: "minimal"`, all `semantic_search_nodes` with `limit: 20` MAX and `detail_level: "minimal"`. (The discipline already forbids `get_architecture_overview` — see §3 of the navigation discipline.)
-3. **Used semantic_search_nodes for database detection?** Graph confirms actual usage vs. declared-only
-4. **Found dependency manifests for all services?** Cross-check against Step 1 community list
-5. **CI/CD detection attempted?** If no config files found, report `"provider": "none"`
-6. **Infrastructure config found?** Check for Dockerfile, docker-compose, k8s configs
-7. **Environment variables extracted?** Read .env.example or .env.template for required var names
-8. **External services detected?** Graph import search should have surfaced Sentry, Keycloak, Auth0, Stripe, etc.
-9. **Build tools identified?** Find vite, webpack, or other bundlers and their config files
-10. **Monorepo analysis complete?** If monorepo, provide tool, workspace manager, and commands
-
-Lock-file → manager mapping is canonical and language-tied (e.g. `pnpm-lock.yaml`→pnpm, `poetry.lock`→poetry, `Cargo.lock`→cargo, `Gemfile.lock`→bundler, `composer.lock`→composer). Use the lock file as the manager signal whenever it exists; fall back to the manifest's `packageManager` / equivalent declaration only when no lock file is present.
-
-</critical_thinking>
-
-<output_format>
-
-See shared output format documentation at: `../../../shared/prompts/output-format.md`
-
-## Key Points
-
-- Output raw JSON only (no markdown, no commentary)
-- DEPRECATED field: `findings.services` array (use by_service maps instead)
-- Use service IDs as keys in `dependencies.by_service` map (e.g., "backend", "web-frontend")
-- Service IDs must match those from Structure Analyzer (Agent 01)
-- Optional fields: `findings.monorepo` for monorepo-level config
-- Optional field: `needs_verification` array (maximum 3 items)
-- Required field: `graph_queries_used` — set to `[]`. The framework derives the real list from your transcript.
-
-## Example Output Shape (language-neutral skeleton)
-
-```json
-{
-  "agent_name": "tech-stack-dependencies-analyzer",
-  "timestamp": "<ISO-8601>",
-  "findings": {
-    "infrastructure": ["<category>"],
-    "dependencies": {
-      "by_service": {
-        "<service-id>": {
-          "production": ["<package>"],
-          "development": ["<package>"],
-          "notable": ["<package>"],
-          "count": { "production": 0, "dev": 0 }
-        }
-      },
-      "shared_across_services": ["<package>"],
-      "notable_versions": { "<runtime>": "<version>" }
-    },
-    "ci_cd": {
-      "provider": "<canonical-provider-or-none>",
-      "config_files": ["<path>"],
-      "triggers": ["<trigger>"],
-      "stages": ["<stage>"],
-      "test_commands": ["<command>"],
-      "build_commands": ["<command>"],
-      "deploy_commands": ["<command>"],
-      "environments": ["<env>"]
-    },
-    "deployment": {
-      "target": "<target>",
-      "config_files": ["<path>"],
-      "runtime_config": { "port": "<port>", "workers": "<n>", "memory": "<size>" },
-      "scaling": { "min_replicas": 1, "max_replicas": 1, "autoscaling": false }
-    },
-    "environment": {
-      "required_vars": ["<VAR_NAME>"],
-      "environments": ["<env>"],
-      "config_approach": "<dotenv|env-vars|config-files|secrets-manager>"
-    },
-    "databases": [
-      {
-        "type": "<engine>",
-        "orm": "<orm>",
-        "migration_tool": "<tool>",
-        "migration_commands": ["<command>"]
-      }
-    ],
-    "external_services": [
-      { "service": "<name>", "sdk": "<package + version>", "config_location": "<source>" }
-    ],
-    "build_tools": {
-      "<service-id>": {
-        "tool": "<bundler-or-build-tool>",
-        "config_file": "<path>",
-        "lint_command": "<command>",
-        "format_command": "<command>",
-        "test_command": "<command>",
-        "build_command": "<command>"
-      }
-    },
-    "monorepo": {
-      "enabled": true,
-      "tool": "<canonical-workspace-tool>",
-      "package_manager": "<bare-manager-name>",
-      "workspace_config": "<path>",
-      "build_all_command": "<command>",
-      "test_all_command": "<command>"
-    }
-  },
-  "graph_queries_used": [],
-  "needs_verification": []
-}
+```jsonc
+<<script:schema-skeleton agent=tech-stack-dependencies-analyzer>>
 ```
 
-</output_format>
+## `needs_verification` rules
 
-<verification_guidelines>
+Only when ALL hold: (a) cannot be determined from code/configs after
+exhaustive search, (b) in-scope (affects a generated artefact), (c)
+business/intent decision the operator is uniquely positioned to answer.
 
-See shared verification format documentation at: `../../../shared/prompts/verification-format.md`
+Hard-rejected by Stop hook: credentials, production state, external
+infra "managed elsewhere", dependency versions, DB types,
+CI presence, infra tools.
 
-Use `needs_verification` ONLY when ALL hold:
-
-1. The fact cannot be determined from code/configs/manifests after exhaustive searching.
-2. The answer is IN SCOPE — it changes a concrete generated artefact (wiki page / skill body / finding). Production state, secrets, and infrastructure managed outside the repo are NOT in scope.
-3. The question is a business / intent decision the operator is uniquely positioned to answer.
-
-Do NOT use for any of these (the Stop hook hard-rejects them):
-
-- ❌ Credentials, secrets, tokens, DSN, passwords, signing keys, API keys — always external by design.
-- ❌ Production credentials / URLs / endpoints / "production-grade" infrastructure — production state is out-of-scope.
-- ❌ "External service endpoints not configured in code" / "infrastructure managed outside repository" / "deployment-specific configuration values" — cannot be verified by reading this repo.
-- ❌ Dependency versions (readable from manifests).
-- ❌ Database types (inferable from client libraries and graph import sites).
-- ❌ CI/CD presence (detectable from config files; if no config files exist, report `provider: none` as a finding — do NOT ask whether a pipeline exists "outside" the repo).
-- ❌ Infrastructure tools (detectable from Dockerfiles, k8s configs, etc.).
-
-### Record absence as a finding — never drop info on the floor
-
-When evidence proves a fact (positive OR negative), record it in the right `findings.<sub-field>` BEFORE deciding whether to ask. The Stop hook hard-rejects yes/no questions whose evidence proves "no" (`found_no_evidence_yesno`); the right move is to record the absence as a finding and drop the question, NOT drop the item silently. Facts go in `findings.*`; only intent / business decisions go in `needs_verification`.
-
-Generic shapes (stack-agnostic):
-
-- AR `Grep X — zero matches` → omit X from the relevant list, or add a `notable_absent` entry.
-- AR `Read <config> — no <key> found` → record the absence on that config's findings slice (e.g. `provider: "none"`, `coverage_threshold: "not_enforced"`) or in `notes:`.
-- AR `Glob X — contents not read` → finish the search and record what each file does.
-
-</verification_guidelines>
-
-## Token efficiency
-
-Graph queries are O(1) on warm cache (the graph is built once per init). Glob+Read scales with file count. For projects with thousands of files, the difference is 10–100×. Use the graph.
+**Record absence as a finding** — when evidence proves "no", emit
+the absence in `findings.*` (e.g. `provider: "none"`,
+`notable_absent: [...]`). Don't drop info on the floor.

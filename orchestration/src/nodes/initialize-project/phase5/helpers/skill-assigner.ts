@@ -44,25 +44,20 @@ export function assignSkillsToAgents(
     assignments[`implementer-${lang}`] = [];
   }
 
-  // Process resolved skills (from resolveSkills - does NOT include "generated" skills)
   for (const skill of resolvedSkills) {
-    // "always" skills are copied but NOT linked to any agents
     if (skill.trigger_mode === 'always') {
-      continue; // Skill is copied by resolveSkills but not linked to agents
+      continue;
     }
 
-    // Skip non-linkable skills (external resources like Confluence, Notion)
     if (skill.is_linkable_to_agents === false) {
-      continue; // Skill is copied but not added to any agent
+      continue;
     }
 
-    // Only process "triggered" skills for linking
     if (skill.trigger_mode === 'triggered') {
       const attachesToPlanner = attachesToRole(skill, 'planner');
       const attachesToImplementer = attachesToRole(skill, 'implementer');
 
       if (skill.compatible_languages && skill.compatible_languages.length > 0) {
-        // Language or framework skill
         if (attachesToPlanner) {
           assignments.planner.push(skill);
         }
@@ -76,8 +71,6 @@ export function assignSkillsToAgents(
           }
         }
       } else {
-        // Infrastructure skill (docker, aws-cli) with empty compatible_languages
-        // At this point, is_linkable_to_agents is NOT false (already filtered above)
         if (attachesToPlanner) {
           assignments.planner.push(skill);
         }
@@ -88,17 +81,6 @@ export function assignSkillsToAgents(
     }
   }
 
-  // IMPORTANT: Manually attach the three prescriptive convention skills that
-  // Phase 3 synthesis emits per project. Each is `trigger_mode="generated"`,
-  // so they are written to disk by Phase 4a but NOT loaded by skill-resolver
-  // (resolveSkills explicitly skips generated skills). They are stack-agnostic
-  // by construction — every project gets all three regardless of language —
-  // and replace the old monolithic project-context skill.
-  //
-  // The bodies live at <project>/.claude/skills/<name>/SKILL.md (or .codex/
-  // on Codex). The `path` field below is informational only; the on-disk
-  // bodies are read by Claude's subagent skill-preload mechanic via the
-  // `skills:` frontmatter line on each generated agent.
   const generatedConventionSkills: ResolvedSkill[] = [
     {
       name: 'code-conventions',

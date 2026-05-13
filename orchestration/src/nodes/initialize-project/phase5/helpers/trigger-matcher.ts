@@ -24,34 +24,21 @@ export function matchesTriggers(
     const triggerNormalized = trigger.toLowerCase().replace(/[^a-z0-9]/g, '');
     const triggerLower = trigger.toLowerCase();
 
-    // Try exact match first (fast path using normalized strings)
     if (detectedStack.normalized.has(triggerNormalized)) {
       matchedTriggers.push(trigger);
       continue;
     }
 
-    // Fallback to prefix matching with delimiter check (using original strings)
-    // This prevents false positives like "go" matching "googleapis" or "java" matching "javascript"
-    // while allowing "google-cloud" to match "@google-cloud/firestore"
     for (const original of detectedStack.original) {
-      // Handle scoped packages: strip leading @ if present
       const packageName = original.startsWith('@') ? original.slice(1) : original;
 
       if (packageName.startsWith(triggerLower)) {
         const nextCharIndex = triggerLower.length;
         const nextChar = packageName[nextCharIndex];
 
-        // Match if:
-        // 1. Trigger matches entire package name (nextChar is undefined), OR
-        // 2. Next character is a delimiter: /, -, _, @, space, period, or digit (for versions)
-        // This allows matching:
-        //   - "react" against "react 16.14.0" (space)
-        //   - "next" against "next.js 15.5.10" (period)
-        //   - "firebase" against "firebase-admin" (dash)
-        //   - "google-cloud" against "@google-cloud/firestore" (slash)
         if (!nextChar || /[\/\-_@.\s\d]/.test(nextChar)) {
           matchedTriggers.push(trigger);
-          break; // Found a match, move to next trigger
+          break;
         }
       }
     }

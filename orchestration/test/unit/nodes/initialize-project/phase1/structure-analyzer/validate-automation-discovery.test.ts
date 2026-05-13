@@ -8,10 +8,10 @@ import {
 } from '../../../../../../src/nodes/initialize-project/phase1/structure-analyzer/hooks/validate-automation-discovery.js';
 
 /**
- * Plan 16 §C.4 — hard Stop-hook validator: when canonical wrapper
- * files exist at the project root, the structure analyzer MUST
- * represent them in `findings.automation`. The validator checks
- * the filesystem and rejects mismatches.
+ * Hard Stop-hook validator: when canonical wrapper files exist at the
+ * project root, the structure analyzer MUST represent them in
+ * `findings.automation`. The validator checks the filesystem and
+ * rejects mismatches.
  *
  * Stack-agnostic — pure file-presence + heading-shape checks.
  */
@@ -20,7 +20,7 @@ describe('detectAutomationDiscoveryViolations', () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'plan16-automation-'));
+    tmpDir = mkdtempSync(join(tmpdir(), 'automation-discovery-'));
   });
 
   afterEach(() => {
@@ -185,7 +185,7 @@ describe('formatAutomationDiscoveryViolations', () => {
     expect(formatAutomationDiscoveryViolations([])).toEqual([]);
   });
 
-  it('emits actionable retry feedback naming the bucket and file', () => {
+  it('emits compressed VALIDATION_E010_* feedback naming the bucket and file', () => {
     const lines = formatAutomationDiscoveryViolations([
       {
         bucket: 'makefiles',
@@ -194,10 +194,11 @@ describe('formatAutomationDiscoveryViolations', () => {
           'Makefile(s) exist at the project root (Makefile) but `findings.automation.makefiles` is empty.',
       },
     ]);
-    const joined = lines.join('\n');
-    expect(joined).toMatch(/AUTOMATION DISCOVERY GAP/);
-    expect(joined).toContain('makefiles');
-    expect(joined).toContain('Makefile');
-    expect(joined).toMatch(/HOW TO FIX/);
+    expect(lines).toHaveLength(1);
+    const line = lines[0];
+    expect(line).toMatch(/^VALIDATION_E010_automation_discovery_gap: /);
+    expect(line).toContain('makefiles');
+    expect(line).toContain('Makefile');
+    expect(line.length).toBeLessThanOrEqual(180);
   });
 });

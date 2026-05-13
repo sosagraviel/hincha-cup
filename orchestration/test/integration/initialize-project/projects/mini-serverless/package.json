@@ -1,0 +1,33 @@
+{
+  "name": "mini-serverless",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Firebase + GCP Cloud Functions serverless demo (JS/TS/Python).",
+  "engines": { "node": ">=22", "pnpm": ">=10" },
+  "packageManager": "pnpm@10.2.1",
+  "scripts": {
+    "lint": "pnpm --recursive lint && ./linter.sh",
+    "test": "pnpm --recursive test",
+    "test:e2e": "playwright test --config web/playwright.config.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "emulators": "cd firebase && firebase emulators:start",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "@playwright/test": "^1.45.0",
+    "cypress": "^13.0.0",
+    "eslint": "^9.0.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs}": ["eslint --fix", "prettier --write"],
+    "*.py": ["./py_linter.sh"]
+  }
+}

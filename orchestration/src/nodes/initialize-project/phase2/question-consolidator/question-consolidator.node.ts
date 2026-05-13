@@ -9,15 +9,13 @@ import { consolidateQuestions } from './helpers/consolidate-questions.js';
 import { askGapQuestions } from './helpers/ask-gap-questions.js';
 import { exactTextDedupe } from './helpers/exact-text-dedupe.js';
 import { resolveTempPath } from '../../../../utils/provider-paths.js';
+import { buildComposerViewsFromDisk } from '../composer-views/build-composer-views.js';
+import { mkdirSync } from 'fs';
 
 /**
- * Plan 14 §C.9.2 — gap-count threshold below which the LLM
- * consolidator is NOT spawned. Below this threshold there's almost
- * never a duplicate to merge; spawning the agent costs ~10-15s for
- * zero expected gain. Calibrated against the typical post-Plan-14
- * distribution: 0–2 gaps per analyzer × 4 analyzers = 0–8 gaps;
- * after the deterministic exact-text dedupe pre-pass collapses
- * literal duplicates, most projects fall under 4.
+ * Gap-count threshold below which the LLM consolidator is NOT spawned. After
+ * the deterministic exact-text dedupe pre-pass, most projects fall under 4
+ * gaps; below this threshold the LLM's semantic-merge value is negligible.
  */
 const LLM_CONSOLIDATOR_THRESHOLD = 3;
 
@@ -32,7 +30,6 @@ export async function consolidationNode(
   const phaseLogger = logger.child('Phase 2: Consolidation');
   phaseLogger.info(' Starting...');
 
-  // Read Phase 1 outputs from disk (not from state)
   const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   const phase1Dir = join(tempDir, 'phase1-outputs');
 
@@ -63,11 +60,6 @@ export async function consolidationNode(
 
   phaseLogger.info(' ✓ All Phase 1 outputs loaded from disk');
 
-  // Surface graph-tool-result overflows from Phase 1 — every overflow means an
-  // analyzer's tool call exceeded the per-call token cap and the framework
-  // dumped 200+ KB to a sidecar the agent could not usefully consume. Today
-  // these are silent; making them visible is the only way to catch prompt
-  // regressions before they degrade analysis quality across many runs.
   for (const a of analyzers) {
     const count = typeof a.graph_overflow_count === 'number' ? a.graph_overflow_count : 0;
     if (count > 0) {
@@ -81,9 +73,6 @@ export async function consolidationNode(
   }
 
   try {
-    // ========================================================================
-    // STEP 1: MERGE ANALYSES
-    // ========================================================================
     phaseLogger.info(' Step 1: Merging analyzer outputs...');
 
     const consolidated = analysisConsolidator(analyzers);
@@ -94,18 +83,12 @@ export async function consolidationNode(
     phaseLogger.info(' ✓ Consolidation complete');
     logger.blank();
 
-    // ========================================================================
-    // STEP 2: GAP ANALYSIS
-    // ========================================================================
     phaseLogger.info(' Step 2: Analyzing gaps...');
 
     const consolidationData = JSON.parse(readFileSync(consolidatedPath, 'utf-8'));
     let gaps: Gap[] = [];
 
-    // Extract gaps from identified_gaps array (which are strings)
-    // We need to reconstruct Gap objects from the consolidated analysis
     if (consolidationData.identified_gaps && consolidationData.identified_gaps.length > 0) {
-      // Re-run gap extraction to get structured data
       gaps = extractStructuredGaps(analyzers);
     }
 
@@ -115,18 +98,9 @@ export async function consolidationNode(
     phaseLogger.info(`  Conflicts detected: ${conflictsCount}`);
     logger.blank();
 
-    // ========================================================================
-    // STEP 3: QUESTION CONSOLIDATION (if > 1 gap)
-    // ========================================================================
     if (gaps.length > 1) {
       phaseLogger.info(' Step 3: Consolidating similar questions...');
 
-      // Plan 14 §C.9.3: deterministic exact-text dedupe BEFORE the
-      // LLM. This collapses literal-duplicate questions (multiple
-      // analyzers asking the same question with byte-identical
-      // wording) at near-zero cost — a single Map walk over the
-      // gaps array. The LLM only sees genuinely paraphrased
-      // duplicates that need semantic merge.
       const dedupePass = exactTextDedupe(gaps);
       if (dedupePass.eliminatedDuplicates > 0) {
         phaseLogger.info(
@@ -135,12 +109,6 @@ export async function consolidationNode(
         );
       }
 
-      // Plan 14 §C.9.2: ≤3-gap fast path. If the deterministic
-      // pass already brought the gap count to ≤3, skip the LLM
-      // entirely. The LLM's value is semantic paraphrase merging;
-      // below 3 gaps the chance of two paraphrases being mergeable
-      // is vanishingly small (and even if missed, the operator
-      // sees both items and the cost is just one extra question).
       if (dedupePass.dedupedGaps.length <= LLM_CONSOLIDATOR_THRESHOLD) {
         phaseLogger.info(
           `  Fast path: ≤${LLM_CONSOLIDATOR_THRESHOLD} gap(s) after dedupe — skipping LLM consolidator (saves ~10-15s).`,
@@ -163,9 +131,6 @@ export async function consolidationNode(
         phaseLogger.info('  Running AI-powered question consolidation agent...');
         logger.blank();
 
-        // Pass the DEDUPED set to the LLM, not the raw set —
-        // shorter input, faster response, no semantic work for
-        // duplicates the deterministic pass already merged.
         const consolidationResult = await consolidateQuestions(
           dedupePass.dedupedGaps,
           state.project_path,
@@ -175,19 +140,14 @@ export async function consolidationNode(
         );
 
         if (consolidationResult.success && consolidationResult.consolidated) {
-          // Update consolidation.json with consolidated gaps
           const consolidatedGaps = consolidationResult.consolidated.consolidated_gaps;
 
-          // Ensure every gap has an agent field (fallback to first consolidated_from if missing)
           consolidatedGaps.forEach((gap) => {
             if (!gap.agent && gap.consolidated_from && gap.consolidated_from.length > 0) {
               gap.agent = gap.consolidated_from[0];
             }
           });
 
-          // Merge the deterministic groups (from the pre-pass) with the
-          // LLM's groups so the run report shows both layers of
-          // consolidation.
           const llmGroups =
             consolidationResult.consolidated.consolidation_metadata.consolidation_groups ?? [];
           const mergedGroups = [
@@ -235,7 +195,6 @@ export async function consolidationNode(
     } else if (gaps.length === 1) {
       phaseLogger.info(' Step 3: Only 1 gap found - skipping consolidation');
 
-      // Convert single gap to ConsolidatedGap format
       const consolidatedGap: ConsolidatedGap = {
         ...gaps[0],
         consolidated_from: [gaps[0].agent],
@@ -250,9 +209,6 @@ export async function consolidationNode(
       logger.blank();
     }
 
-    // ========================================================================
-    // STEP 4: INTERACTIVE QUESTIONS (if needed)
-    // ========================================================================
     const needsUserInput = gaps.length > 5 || conflictsCount > 0;
 
     if (needsUserInput) {
@@ -268,7 +224,6 @@ export async function consolidationNode(
         phaseLogger.info('  (Synthesis will proceed with available data)');
         logger.blank();
       } else {
-        // Stop all ora spinners to prevent interference with user input
         logger.stopAllSpinners();
         phaseLogger.info('Launching interactive questionnaire...');
         logger.blank();
@@ -299,12 +254,67 @@ export async function consolidationNode(
       logger.blank();
     }
 
-    // ========================================================================
-    // STEP 5: FINALIZE CONSOLIDATION
-    // ========================================================================
     phaseLogger.info(' Step 4: Finalizing consolidation...');
 
     const finalConsolidation = JSON.parse(readFileSync(consolidatedPath, 'utf-8'));
+
+    phaseLogger.info(' Step 5: Building composer views...');
+    const composerViewWarnings: string[] = [];
+    try {
+      const composerViewsDir = join(tempDir, 'composer-views');
+      mkdirSync(composerViewsDir, { recursive: true });
+      const bundle = buildComposerViewsFromDisk(tempDir, new Date().toISOString());
+      writeFileSync(
+        join(composerViewsDir, 'code-conventions.input.json'),
+        JSON.stringify(bundle.code_conventions, null, 2),
+      );
+      writeFileSync(
+        join(composerViewsDir, 'multi-file-workflows.input.json'),
+        JSON.stringify(bundle.multi_file_workflows, null, 2),
+      );
+      writeFileSync(
+        join(composerViewsDir, 'testing-conventions.input.json'),
+        JSON.stringify(bundle.testing_conventions, null, 2),
+      );
+      writeFileSync(
+        join(composerViewsDir, 'architecture-narrative.input.json'),
+        JSON.stringify(bundle.architecture_narrative, null, 2),
+      );
+      writeFileSync(join(composerViewsDir, '_bundle.json'), JSON.stringify(bundle, null, 2));
+      const presentSummary = [
+        `code-conventions=${bundle.code_conventions.present.any_service_patterns ? '✓' : '∅'}`,
+        `multi-file-workflows=${bundle.multi_file_workflows.present.any_request_lifecycle ? '✓' : '∅'}`,
+        `testing-conventions=${bundle.testing_conventions.present.any_service_tests ? '✓' : '∅'}`,
+        `architecture-narrative=${bundle.architecture_narrative.present.repository_shape_summary ? '✓' : '∅'}`,
+      ].join(' ');
+      phaseLogger.success(`  ✓ composer views written (${presentSummary})`);
+
+      let emptyCount = 0;
+      for (const flagsObj of [
+        bundle.code_conventions.present,
+        bundle.multi_file_workflows.present,
+        bundle.testing_conventions.present,
+        bundle.architecture_narrative.present,
+      ]) {
+        for (const [key, v] of Object.entries(flagsObj as Record<string, unknown>)) {
+          if (key.endsWith('_source')) continue;
+          if (v === false) emptyCount += 1;
+        }
+      }
+      if (emptyCount >= 4) {
+        composerViewWarnings.push(
+          `[phase2] composer_view_empty_section_count=${emptyCount} — the synthesizer will skip several sections; review Phase 1 / Phase 1.5 outputs to see why analyzers found little to populate them with.`,
+        );
+        phaseLogger.warn(
+          `  ⚠ ${emptyCount} composer-view section(s) empty (present.*: false). Synthesizer will skip them.`,
+        );
+      }
+    } catch (err) {
+      phaseLogger.warn(
+        `  ⚠ composer-views build failed: ${(err as Error).message}. Phase 3 will fall back to legacy consolidation.`,
+      );
+    }
+    logger.blank();
 
     phaseLogger.success('Consolidation ready for synthesis');
     phaseLogger.info(`  File: ${consolidatedPath}`);
@@ -314,7 +324,6 @@ export async function consolidationNode(
     phaseLogger.info(`  - Gaps identified: ${gaps.length}`);
 
     return {
-      // Mark Phase 1 as completed (Phase 6 validation checks this)
       phase1_analysis: {
         all_completed: true,
         completion_timestamp: new Date().toISOString(),
@@ -325,6 +334,9 @@ export async function consolidationNode(
         timestamp: new Date().toISOString(),
       },
       current_phase: 'phase2_consolidation',
+      ...(composerViewWarnings.length > 0
+        ? { warnings: [...state.warnings, ...composerViewWarnings] }
+        : {}),
     };
   } catch (error) {
     const errorMessage = `Consolidation failed: ${(error as Error).message}`;

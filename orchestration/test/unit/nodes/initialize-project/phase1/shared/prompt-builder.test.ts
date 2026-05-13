@@ -71,7 +71,7 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
       // Wording tightened 2026-05-05: HARD FAILURE semantics; do not read the file.
       expect(prompt).toMatch(/HARD FAILURE/);
       expect(prompt).toMatch(/Do not read the (?:file|spillover)/i);
-      // Section 0 conventions (added 2026-04-29 per gira-init-run audit F1/F5/F25).
+      // Section 0 tool-call conventions.
       expect(prompt).toContain('### 0. Tool-call conventions');
       expect(prompt).toMatch(/Do not pass `repo_root`/);
       expect(prompt).toMatch(/First-call startup race/);
@@ -125,7 +125,7 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
     });
   });
 
-  describe('AUTHORITATIVE SERVICE LIST block (Phase B — single source of truth)', () => {
+  describe('AUTHORITATIVE SERVICE LIST block', () => {
     it('renders the block when authoritativeServices is supplied (downstream analyzers)', () => {
       const prompt = buildPhase1AnalyzerPrompt(
         '/test/project',
@@ -140,9 +140,7 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
       );
 
       expect(prompt).toContain('=== AUTHORITATIVE SERVICE LIST ===');
-      // Plan §I.7.c (gira-exhaustive followup, 2026-05-05): the
-      // multi-sentence preamble compacted to a single sentence. The
-      // surviving load-bearing assertions are the table rows and the
+      // The load-bearing assertions are the table rows and the
       // headline rule (use ids verbatim, never invent).
       expect(prompt).toMatch(/use these `id` values verbatim/i);
       expect(prompt).toContain('| api | services/api | backend | typescript |');
@@ -192,8 +190,7 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
     });
 
     it('renders the table for a 1-service project (single row)', () => {
-      // Plan §I.7.c retired the "Total: N services" footer — the table
-      // itself is the load-bearing content; the count is implicit.
+      // The table itself is the load-bearing content; the count is implicit.
       const prompt = buildPhase1AnalyzerPrompt(
         '/test/project',
         frameworkPath,
@@ -206,7 +203,7 @@ describe('buildPhase1AnalyzerPrompt graph context', () => {
     });
   });
 
-  describe('graph prefetch injection (Wave 3 §I.2)', () => {
+  describe('graph prefetch injection', () => {
     let projectPath: string;
 
     afterEach(() => {

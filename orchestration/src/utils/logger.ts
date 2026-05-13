@@ -1,6 +1,10 @@
 import ora, { Ora } from 'ora';
 import chalk from 'chalk';
-import { getGlobalTracker, stopGlobalTracker } from './concurrent-agent-tracker.js';
+import {
+  getGlobalTracker,
+  hasActiveTracker,
+  stopGlobalTracker,
+} from './concurrent-agent-tracker.js';
 
 export enum LogLevel {
   DEBUG = 0,
@@ -59,10 +63,8 @@ export class Logger {
     let contextStr = '';
     if (this.context) {
       if (bracketColor === 'dim') {
-        // Use dimmed gray (original behavior)
         contextStr = chalk.dim(`[${this.context}]`) + ' ';
       } else {
-        // Use custom hex color for brackets and context name
         const customColor = chalk.hex(bracketColor);
         contextStr = customColor(`[${this.context}]`) + ' ';
       }
@@ -98,7 +100,8 @@ export class Logger {
     if (this.currentLevel > LogLevel.WARN) return;
 
     const formatted = this.format(message, chalk.yellow('⚠'));
-    console.log(chalk.yellow(formatted), ...args);
+    const prefix = hasActiveTracker() ? '\n' : '';
+    console.error(prefix + chalk.yellow(formatted), ...args);
   }
 
   error(message: string, error?: Error, ...args: any[]): void {
@@ -159,10 +162,8 @@ export class Logger {
     let contextStr = '';
     if (this.context) {
       if (bracketColor === 'dim') {
-        // Use dimmed gray (original behavior)
         contextStr = chalk.dim(`[${this.context}]`) + ' ';
       } else {
-        // Use custom hex color for brackets and context name
         const customColor = chalk.hex(bracketColor);
         contextStr = customColor(`[${this.context}]`) + ' ';
       }
@@ -289,7 +290,6 @@ export class Logger {
     this.spinners.forEach((spinner) => spinner.stop());
     this.spinners.clear();
 
-    // Also stop concurrent agent tracker if active
     stopGlobalTracker();
   }
 

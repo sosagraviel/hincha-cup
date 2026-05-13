@@ -36,21 +36,32 @@ let cachedProjectPath: string | undefined;
 export function getFrameworkPath(): string {
   if (cachedFrameworkPath) return cachedFrameworkPath;
   const here = dirname(fileURLToPath(import.meta.url));
-  // <framework>/orchestration/{src,dist}/services/framework/paths.service.{ts,js}
-  // → up 4 levels for the framework root.
   cachedFrameworkPath = resolve(here, '..', '..', '..', '..');
   return cachedFrameworkPath;
 }
 
 /**
  * Returns the absolute path to the target project root.
- * Detects dogfooding by checking that (a) the framework root has the
- * `qubika-agentic-framework -> .` self-symlink AND (b) the user actually invoked
- * the framework through it. In that case the framework IS the project; otherwise
- * the project is the framework's parent directory.
+ *
+ * Resolution order:
+ *   1. `PROJECT_PATH` env var (when set + existing) — fixture override.
+ *      The matching bash-side override lives in `scripts/lib/resolve-paths.sh`.
+ *   2. Dogfooding detection: framework root has `qubika-agentic-framework -> .`
+ *      self-symlink AND the user invoked the framework through it.
+ *   3. Fallback: framework's parent directory.
  */
 export function getProjectPath(): string {
   if (cachedProjectPath) return cachedProjectPath;
+  const envOverride = process.env.PROJECT_PATH;
+  if (envOverride && envOverride.length > 0) {
+    try {
+      const stat = lstatSync(envOverride);
+      if (stat.isDirectory() || stat.isSymbolicLink()) {
+        cachedProjectPath = envOverride;
+        return cachedProjectPath;
+      }
+    } catch {}
+  }
   const fw = getFrameworkPath();
   cachedProjectPath = isDogfoodingFramework(fw) ? fw : dirname(fw);
   return cachedProjectPath;
@@ -76,17 +87,11 @@ function isDogfoodingFramework(framework: string): boolean {
     const stat = lstatSync(candidate);
     if (!stat.isSymbolicLink()) return false;
     const target = readlinkSync(candidate);
-    // Accept both `.` and `./` (some shells / `ln` invocations write the trailing slash).
     if (target !== '.' && target !== './') return false;
   } catch {
     return false;
   }
 
-  // The framework physical path is `<fw>`; the self-symlink at
-  // `<fw>/qubika-agentic-framework` resolves back to `<fw>`. A caller path that
-  // traversed the symlink will literally contain `<fw>/qubika-agentic-framework/`
-  // as a prefix — something that never happens in a normal install, where the
-  // framework lives at `<project>/qubika-agentic-framework` (only one level).
   const symlinkPrefix = candidate + sep;
   const callerPaths = [process.argv[1], process.env.PWD, process.cwd()];
   return callerPaths.some((p): p is string => typeof p === 'string' && p.startsWith(symlinkPrefix));

@@ -43,7 +43,6 @@ export function rewriteAgentFrontmatter(content: string, provider: Provider): st
 
   const match = content.match(FRONTMATTER_BOUNDARY);
   if (!match || match.index !== 0) {
-    // No leading frontmatter — nothing to rewrite.
     return content;
   }
 
@@ -63,10 +62,8 @@ function rewriteFrontmatterForCodex(frontmatter: string): string {
   const out: string[] = [];
 
   for (const line of lines) {
-    // Drop `tools:` line entirely (Codex has no equivalent concept).
     if (/^\s*tools\s*:/.test(line)) continue;
 
-    // Rewrite `model:` to Codex-compatible value.
     const modelMatch = line.match(/^(\s*)model\s*:\s*(.+?)\s*$/);
     if (modelMatch) {
       const claudeAlias = modelMatch[2].trim();

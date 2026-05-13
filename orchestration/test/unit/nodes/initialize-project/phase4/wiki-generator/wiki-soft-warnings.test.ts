@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { computeWikiSoftWarnings } from '../../../../../../src/nodes/initialize-project/phase4/wiki-generator/hooks/wiki-soft-warnings.js';
 
 /**
- * Wave 2 Fix 3.1 — `low_wikilink_density` soft warning.
+ * `low_wikilink_density` soft warning.
  *
  * The architecture spec's promptFocus tells the wiki-gen agent to wrap
  * discovered service ids in `[[id]]`. When the agent ignores that

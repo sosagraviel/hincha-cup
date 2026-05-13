@@ -2,16 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { validateConsolidationOutput } from '../../../../../../../src/nodes/initialize-project/phase2/question-consolidator/helpers/validate-consolidation-output.js';
 
 /**
- * Wave 1.5 — Phase 2 consolidator schema enforcement.
+ * Phase 2 consolidator schema enforcement.
  *
- * The 2026-05-04 gira run had the consolidator emit a 5-key shape
+ * A previous run had the consolidator emit a 5-key shape
  * (`consolidated_findings`, `identified_gaps`, `timestamp`, `gaps`,
  * `question_consolidation`) while the prompt promised a 2-key shape.
- * The previous validator papered the divergence over with auto-shims
- * (unwrap `findings`, wrap bare arrays, remap unknown array keys, fill
- * in missing metadata). The strict validator below is the new contract:
- * any divergence from `{ consolidated_gaps, consolidation_metadata }`
- * is rejected with feedback the agent can act on.
+ * The strict validator is the new contract: any divergence from
+ * `{ consolidated_gaps, consolidation_metadata }` is rejected with
+ * feedback the agent can act on.
  *
  * Stack-agnostic: every assertion is shape-only — no language, no
  * project, no framework names appear in either the validator or these
@@ -88,8 +86,8 @@ describe('validateConsolidationOutput — strict 2-key contract', () => {
     });
   });
 
-  describe('rejects the gira divergent shape (anti-regression)', () => {
-    it('rejects the 5-key shape observed in the 2026-05-04 audit', () => {
+  describe('rejects the divergent shape (anti-regression)', () => {
+    it('rejects the 5-key shape (anti-regression)', () => {
       const result = validateConsolidationOutput(
         asJson({
           consolidated_findings: { x: 1 },

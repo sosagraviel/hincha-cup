@@ -2,12 +2,9 @@
 /**
  * Claude Code Stop Hook entry-point for wiki-generator output validation.
  *
- * Thin wrapper: reads the agent's transcript from the hook input, extracts
- * the last assistant message, and runs `validateWikiOutput()`. On any
- * violation, exits 2 with stderr feedback so Claude CLI blocks the agent's
- * Stop and the agent has to re-emit a corrected response.
- *
- * Stack-agnostic: every check operates on the agent's text output only.
+ * Reads the agent's transcript, extracts the last assistant message, and runs
+ * `validateWikiOutput()`. On any violation, exits 2 so Claude CLI blocks the agent's
+ * Stop and the agent must re-emit a corrected response.
  */
 
 import fs from 'fs';
@@ -73,7 +70,6 @@ async function main(): Promise<void> {
     })
     .filter(Boolean);
 
-  // Find the last assistant message — the wiki-generator's final output.
   const assistantMessages = records
     .filter((m: any) => m.type === 'assistant' || (m.message && m.message.role === 'assistant'))
     .reverse();

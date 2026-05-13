@@ -67,12 +67,8 @@ export const AnalysisResultsSchema = z.object({
 export type AnalysisResults = z.infer<typeof AnalysisResultsSchema>;
 
 /**
- * Project Metadata Schema.
- *
- * The retired `project_path` field used to embed an absolute path to the
- * developer's worktree. Verified via full-codebase grep (destructured access,
- * bracket access, JSON-path queries) to have ZERO readers. Drop it; the file's
- * own location IS the project anchor for any consumer.
+ * Project Metadata Schema. The file's own location is the project
+ * anchor — no path is embedded.
  */
 export const ProjectMetadataSchema = z
   .object({
@@ -113,11 +109,11 @@ export const WikiConfigSchema = z
 export type WikiConfig = z.infer<typeof WikiConfigSchema>;
 
 export const FrameworkConfigSchema = z.object({
-  version: z.string(), // For backward compatibility
+  version: z.string(),
   schema_version: z.string(),
   framework_version: z.string(),
   project_metadata: ProjectMetadataSchema,
-  analysis_results: AnalysisResultsSchema.optional(), // Made optional to avoid config bloat
+  analysis_results: AnalysisResultsSchema.optional(),
   stack_profile: StackProfileSchema,
   resource_state: ResourceStateSchema,
   wiki: WikiConfigSchema.optional(),

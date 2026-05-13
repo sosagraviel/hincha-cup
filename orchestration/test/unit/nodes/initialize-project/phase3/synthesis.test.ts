@@ -110,8 +110,7 @@ function generateValidSynthesis() {
     '2. Add service method',
     '3. Create DTO',
     '',
-    // Plan §C 4.2 (gira-exhaustive followup, 2026-05-05): the
-    // multi-file-workflows skill body now requires ≥1 fenced code block.
+    // The multi-file-workflows skill body requires ≥1 fenced code block.
     '```typescript',
     '// apps/api/src/modules/{domain}/{domain}.controller.ts',
     '@Controller()',
@@ -318,7 +317,7 @@ describe('synthesisNode', () => {
     await synthesisNode(mockState);
 
     expect(mockAgent.invoke).toHaveBeenCalledWith({
-      inputPrompt: expect.stringContaining('Synthesize comprehensive results for: /test/project'),
+      inputPrompt: expect.stringContaining('CONSOLIDATED ANALYSIS'),
     });
   });
 
@@ -556,10 +555,9 @@ describe('synthesisNode', () => {
     expect(result.errors).toBeDefined();
   });
 
-  // Plan §E.5 (2026-05-05): the synthesizer can omit a "Validation
-  // Rules" section even when Phase 1 saw a validation lib in
-  // dependencies. The node now surfaces a SOFT warning (no retry) so
-  // operators can choose to re-run synthesis if they care.
+  // The synthesizer can omit a "Validation Rules" section even when
+  // Phase 1 saw a validation lib in dependencies. The node surfaces a
+  // SOFT warning (no retry) so operators can choose to re-run synthesis.
   describe('soft warning — missing validation-rules section', () => {
     function mockReadFiles(consolidation: any, techStack: any | null) {
       vi.mocked(fs.readFileSync).mockImplementation((path: any) => {

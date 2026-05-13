@@ -98,8 +98,6 @@ export function validateWikiOutput(text: string): string[] {
     return violations;
   }
 
-  // Rule 1: starts with `# ` (no frontmatter — the wiki-generation node
-  // adds frontmatter deterministically).
   const firstNonBlank = text.split('\n').find((l) => l.trim().length > 0) ?? '';
   if (firstNonBlank.trim().startsWith('---')) {
     violations.push(
@@ -111,7 +109,6 @@ export function validateWikiOutput(text: string): string[] {
     );
   }
 
-  // Rule 2: NO inline `^[...]` markers anywhere outside fenced code blocks.
   const tags = extractProvenanceTags(text);
   if (tags.length > 0) {
     const examples = tags
@@ -127,10 +124,6 @@ export function validateWikiOutput(text: string): string[] {
     );
   }
 
-  // Rule 4: no forbidden trailing meta-sections (Verification, Caveats,
-  // Assumptions, Limitations, Known Issues, Notes, Disclaimer, TODO).
-  // The wiki is ground truth — verification status lives in `.state.json`
-  // per-claim gaps go inline as `(not determined by analysis)`.
   const metaHits: Array<{ token: string; line: number; snippet: string }> = [];
   const linesForMeta = text.split('\n');
   for (let i = 0; i < linesForMeta.length; i += 1) {
@@ -158,7 +151,6 @@ export function validateWikiOutput(text: string): string[] {
     );
   }
 
-  // Rule 3: framework-internal jargon must not leak.
   const jargonHits: Array<{ label: string; line: number; snippet: string }> = [];
   const textLines = text.split('\n');
   for (let i = 0; i < textLines.length; i += 1) {

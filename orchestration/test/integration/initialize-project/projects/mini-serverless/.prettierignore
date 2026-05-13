@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+coverage
+pnpm-lock.yaml
+poetry.lock
+*.lock
+.claude-temp
+.codex-temp
+docs/llm-wiki
+.venv
+__pycache__

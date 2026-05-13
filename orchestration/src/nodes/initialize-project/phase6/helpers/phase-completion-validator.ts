@@ -26,7 +26,6 @@ export function validatePhaseCompletion(state: InitializeProjectState): PhaseCom
   const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   const projectConfigDir = resolveConfigPath(state.project_path);
 
-  // Phase 1: Check analyzer output files exist
   const phase1Dir = join(tempDir, 'phase1-outputs');
   const requiredPhase1Files = [
     '01-structure-architecture.json',
@@ -36,15 +35,12 @@ export function validatePhaseCompletion(state: InitializeProjectState): PhaseCom
   ];
   const phase1Complete = requiredPhase1Files.every((file) => existsSync(join(phase1Dir, file)));
 
-  // Phase 2: Check consolidation file exists
   const phase2Path = join(tempDir, 'phase2-consolidation.json');
   const phase2Complete = existsSync(phase2Path);
 
-  // Phase 3: Check synthesis file exists
   const phase3Path = join(tempDir, 'synthesis-raw.md');
   const phase3Complete = existsSync(phase3Path);
 
-  // Phase 4: Check framework-config.json and instruction file exist
   const frameworkConfigPath = join(projectConfigDir, 'framework-config.json');
   const claudeMdPath = join(projectConfigDir, getInstructionFileName());
   const phase4Complete = existsSync(frameworkConfigPath) && existsSync(claudeMdPath);

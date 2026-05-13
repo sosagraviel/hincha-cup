@@ -1,6 +1,5 @@
 /**
- * Plan §I.6 (gira-exhaustive followup, 2026-05-05) — incremental
- * Phase 1 opt-in fast path.
+ * Incremental Phase 1 opt-in fast path.
  *
  * The Phase 1 analyzers are idempotent for a given graph state: if
  * the graph SHA hasn't changed since a prior run, the analyzers
@@ -125,9 +124,6 @@ export function checkIncrementalEligibility(
     };
   }
 
-  // Every prior output file must still be on disk. A missing file
-  // means somebody (CI / a developer / a cleanup script) wiped the
-  // outputs; we can't honour the cache.
   for (const filename of PHASE1_OUTPUT_FILES) {
     const candidate = join(phase1OutputsDir, filename);
     if (!existsSync(candidate)) {

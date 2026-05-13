@@ -5,10 +5,10 @@ import { join } from 'path';
 import { extractInfrastructure } from '../../../../../src/nodes/initialize-project/phase4/helpers/infrastructure-extractor.js';
 
 /**
- * Plan 16 §C.6 — infrastructure extractor must drop category
- * abstractions (`containerization`, `orchestration`,
- * `infrastructure-as-code`) and substitute concrete technology
- * names from project filesystem evidence.
+ * Infrastructure extractor must drop category abstractions
+ * (`containerization`, `orchestration`, `infrastructure-as-code`)
+ * and substitute concrete technology names from project filesystem
+ * evidence.
  *
  * Stack-agnostic — pure file-presence checks, no language
  * assumptions.
@@ -52,7 +52,7 @@ describe('extractInfrastructure', () => {
     expect(out).toEqual(['docker', 'docker-compose']);
   });
 
-  it('augments analyzer output with filesystem evidence (gira-shape)', () => {
+  it('augments analyzer output with filesystem evidence', () => {
     writeFileSync(join(tmpDir, 'docker-compose.yml'), 'services: {}\n');
     writeFileSync(join(tmpDir, 'Dockerfile'), 'FROM node:22\n');
 

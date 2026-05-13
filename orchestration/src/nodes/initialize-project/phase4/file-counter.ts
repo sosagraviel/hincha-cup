@@ -53,11 +53,6 @@ export async function countFilesByLanguage(
   maxDepth: number = 10,
   frameworkPath?: string,
 ): Promise<FileCountResult> {
-  // Single source of truth for what to ignore. This picks up:
-  //   - NON_PROVIDER_IGNORE_DIRS (hardcoded list like node_modules)
-  //   - getAllProviderManagedDirs() (`.claude*`, `.codex*`)
-  //   - .gitignore entries at the project root (dir patterns only)
-  //   - the framework checkout's basename
   const excludedDirSet = new Set(getExcludedDirectories(projectPath, frameworkPath));
 
   const languageFiles = new Map<string, Set<string>>();
@@ -140,8 +135,6 @@ export async function countFilesByLanguage(
           if (!extensions.includes(ext)) continue;
 
           if (isToolingConfigFile(entry.name)) {
-            // Track tooling-config files separately for diagnostics but
-            // don't let them influence language detection.
             toolingConfigCounts.set(language, (toolingConfigCounts.get(language) ?? 0) + 1);
             break;
           }
@@ -183,10 +176,5 @@ export function detectLanguageFromExtension(filename: string): string | undefine
   return undefined;
 }
 
-// Re-export so tests and diagnostics can introspect the tooling filter
-// through the same API surface as the counter.
 export { isToolingConfigFile, TOOLING_CONFIG_PATTERNS } from './constants.js';
-
-// Kept for completeness — basename is a common helper used by call sites
-// that previously reached into this module's internals.
 export { basename };

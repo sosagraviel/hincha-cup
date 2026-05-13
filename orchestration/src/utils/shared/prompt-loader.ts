@@ -4,7 +4,7 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { join, basename } from 'path';
+import { join, basename, resolve } from 'path';
 import matter from 'gray-matter';
 import { getAllProviderManagedDirs } from '../provider-paths.js';
 
@@ -65,13 +65,11 @@ export function parseGitignore(projectPath: string): string[] {
       if (!trimmed || trimmed.startsWith('#')) continue;
 
       const dirName = trimmed
-        .replace(/^\//, '') // Remove leading slash
-        .replace(/\/$/, '') // Remove trailing slash
-        .replace(/^\*\*\//, ''); // Remove **/ prefix
+        .replace(/^\//, '')
+        .replace(/\/$/, '')
+        .replace(/^\*\*\//, '');
 
-      // Skip patterns with wildcards or subdirectories
       if (dirName.includes('*') || dirName.includes('?') || dirName.includes('/')) continue;
-      // Skip file patterns (contain dots but not starting with dot)
       if (dirName.includes('.') && !dirName.startsWith('.')) continue;
 
       if (dirName) directories.push(dirName);
@@ -87,14 +85,28 @@ export function parseGitignore(projectPath: string): string[] {
  * Get all directories to exclude from analysis
  */
 export function getExcludedDirectories(projectPath: string, frameworkPath?: string): string[] {
-  // Determine framework directory name to exclude
-  // CRITICAL: This must match the logic in file-counter.ts and preflight-checks.ts
-  // Framework is ALWAYS at project root: <project>/<framework-name>/
-  const frameworkDirName = frameworkPath ? basename(frameworkPath) : 'qubika-agentic-framework'; // Fallback if not provided
+  const frameworkDirName = frameworkPath ? basename(frameworkPath) : 'qubika-agentic-framework';
 
   const gitignoreDirs = parseGitignore(projectPath);
+  const projectInsideFramework = frameworkPath ? isPathInside(projectPath, frameworkPath) : false;
 
-  return Array.from(new Set([frameworkDirName, ...STANDARD_IGNORE_DIRS, ...gitignoreDirs]));
+  const segments = projectInsideFramework
+    ? [...STANDARD_IGNORE_DIRS, ...gitignoreDirs]
+    : [frameworkDirName, ...STANDARD_IGNORE_DIRS, ...gitignoreDirs];
+
+  return Array.from(new Set(segments));
+}
+
+/**
+ * Returns true when `inner` is strictly inside `outer` (either equal or a
+ * subdirectory). Both paths are resolved before comparison so symlinks /
+ * trailing slashes don't trip the check.
+ */
+function isPathInside(inner: string, outer: string): boolean {
+  const innerResolved = resolve(inner);
+  const outerResolved = resolve(outer);
+  if (innerResolved === outerResolved) return true;
+  return innerResolved.startsWith(outerResolved + '/');
 }
 
 /**
@@ -122,7 +134,6 @@ export function loadMarkdownFile(filePath: string): {
  * Maps agent names to new phase-specific locations
  */
 export function loadExecutionInstructions(agentName: string, frameworkPath: string): string | null {
-  // Map agent names to new execution-instructions locations
   const executionInstructionsMap: Record<string, string> = {
     'structure-architecture-analyzer':
       'orchestration/src/nodes/initialize-project/phase1/structure-analyzer/prompts/execution-instructions.md',
@@ -136,7 +147,6 @@ export function loadExecutionInstructions(agentName: string, frameworkPath: stri
 
   const newPath = executionInstructionsMap[agentName];
   if (!newPath) {
-    // Agent not in map - return null (execution instructions are optional)
     return null;
   }
 
@@ -145,7 +155,6 @@ export function loadExecutionInstructions(agentName: string, frameworkPath: stri
   try {
     return readFileSync(path, 'utf-8').trim();
   } catch {
-    // File doesn't exist - execution instructions are optional
     return null;
   }
 }

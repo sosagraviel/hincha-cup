@@ -167,9 +167,9 @@ describe('Phase 1 Agent Output Schemas', () => {
       expect(result.findings.monorepo_layout).toBeDefined();
     });
 
-    describe('architecture.coupling (Wave 2 Fix 2.4 — gira-exhaustive followup)', () => {
+    describe('architecture.coupling', () => {
       // The structure analyzer's Step 3 surfaces hub + bridge nodes from
-      // the graph. Plan §C 2.4 mandates the canonical home is
+      // the graph. The canonical home is
       // findings.architecture.coupling = { hubs[], bridges[] }. The
       // fields are graph-native (qualified_name / kind / score) — no
       // language assumption.
@@ -274,8 +274,8 @@ describe('Phase 1 Agent Output Schemas', () => {
       });
     });
 
-    describe('needs_verification entry shape (Plan 14 §C.1 + §C.7)', () => {
-      // Plan 14 hardens needs_verification with two required fields:
+    describe('needs_verification entry shape', () => {
+      // needs_verification has two required fields:
       //   - attempted_resolution: string[] (≥2 entries)
       //   - impact: string (≥40 chars)
       // The text-shape rules (graph internals ban / fabricated numbers /
@@ -409,8 +409,7 @@ describe('Phase 1 Agent Output Schemas', () => {
     });
 
     it('rejects output WITH findings.services[] (forbidden — analyzer 01 is the single source of truth)', () => {
-      // Per plans/2026-04-29-gira-init-run-audit-refactor.md F8/F22, the
-      // tech-stack analyzer is downstream of structure-architecture-analyzer
+      // The tech-stack analyzer is downstream of structure-architecture-analyzer
       // and consumes its services[] verbatim. Emitting findings.services[]
       // here is a regression and the schema must reject it.
       const outputWithServices = {
@@ -500,8 +499,7 @@ describe('Phase 1 Agent Output Schemas', () => {
     });
 
     it('rejects output WITH findings.services[] (forbidden — single source of truth)', () => {
-      // Per plans/2026-04-29-gira-init-run-audit-refactor.md F9/F22, the
-      // code-patterns analyzer is downstream of structure-architecture-analyzer
+      // The code-patterns analyzer is downstream of structure-architecture-analyzer
       // and consumes its services[] verbatim via the AUTHORITATIVE SERVICE LIST
       // in its prompt. Emitting findings.services[] here is a regression and
       // the schema must reject it.

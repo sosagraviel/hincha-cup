@@ -16,9 +16,11 @@ import {
   GRAPH_NAVIGATION_DISCIPLINE_HEADING,
   GRAPH_NAVIGATION_DISCIPLINE_TEXT,
 } from './canonical-texts.js';
+import { renderPromptScripts } from '../../../../services/framework/prompt-scripts/index.js';
 import type { CodeGraphStats } from '../../../../state/schemas/initialize-project.schema.js';
 import type { AuthoritativeService } from './authoritative-services.js';
 import { PER_ANALYZER_TOOL_CALL_CAPS, renderPerToolCapsTable } from './graph-tool-usage.js';
+import { resolveTempPath } from '../../../../utils/provider-paths.js';
 import {
   hashGraphDb,
   readGraphPrefetch,
@@ -65,12 +67,10 @@ export interface SharedPrefixContext {
  * Build the cache-eligible prefix shared by every Phase 1 analyzer
  * prompt within a single init run.
  *
- * Plan §F.3 (2026-05-05) — the prefix is **byte-identical across all
- * four analyzer prompts** so that Anthropic's automatic prompt cache
- * (Claude API + Claude Code + Codex/GPT-5) can hit on the second
- * through fourth analyzer spawns within the 5-minute TTL. The cached
- * read costs ~10% of normal input rate; the prefix is currently
- * ~19 KB (~4.7 K tokens), so each cached read saves ~4.2 K tokens.
+ * The prefix is **byte-identical across all four analyzer prompts**
+ * so that the automatic prompt cache (Claude API + Claude Code +
+ * Codex/GPT-5) can hit on the second through fourth analyzer spawns
+ * within the 5-minute TTL.
  *
  * **Byte-determinism contract** — the order and content here MUST be:
  *
@@ -108,13 +108,6 @@ export function buildPhase1SharedPrefix(ctx: SharedPrefixContext): string {
     parts.push('', buildContentSection('Code Graph Context', buildGraphContext(ctx.graphContext)));
   }
 
-  // Plan §I.2 (Wave 3, 2026-05-05): inject the Phase 0 graph-prefetch
-  // snapshot into the cache-eligible prefix when one is available. The
-  // snapshot is byte-identical across all four analyzers in the same
-  // run (same file, same SHA), preserving cache-key stability.
-  // Absence is silent — no prefetch on this run / mismatched SHA /
-  // missing file all collapse to "no hint, fall back to calling the
-  // tools yourself". Stack-agnostic — graph-derived names only.
   const prefetchHint = renderPrefetchHintForRun(ctx);
   if (prefetchHint.length > 0) {
     parts.push('', buildContentSection('Graph Prefetch', prefetchHint));
@@ -170,7 +163,17 @@ export function buildPhase1AnalyzerPrompt(
   graphContext?: GraphPromptContext,
   authoritativeServices?: AuthoritativeService[],
 ): string {
-  const executionInstructions = loadExecutionInstructions(agentName, frameworkPath);
+  const rawExecutionInstructions = loadExecutionInstructions(agentName, frameworkPath);
+  const tempDir = resolveTempPath(projectPath, 'initialize-project');
+  let executionInstructions: string | null = null;
+  if (rawExecutionInstructions) {
+    const substituted = rawExecutionInstructions.replace(/<tempDir>/g, tempDir);
+    executionInstructions = renderPromptScripts(substituted, {
+      projectPath,
+      frameworkPath,
+      tempDir,
+    });
+  }
 
   const sharedPrefix = buildPhase1SharedPrefix({
     projectPath,
@@ -189,19 +192,6 @@ export function buildPhase1AnalyzerPrompt(
     );
   }
 
-  // Per-analyzer soft tool-call cap. Non-blocking — exceeding the cap
-  // surfaces a `tool_call_budget_exceeded` soft warning in the persisted
-  // output and nudges the agent on the next attempt. See gira-init-run
-  // audit findings F10 / F11 / F27 (data-flows-analyzer alone made 52
-  // tool calls in 57 turns; no cap = no nudge).
-  //
-  // Per-tool caps (added 2026-05-05 after the second gira run showed
-  // structure-architecture making 38 get_community_tool calls + 4
-  // overflows): each tool has its own budget, and an overflow on a tool
-  // counts double against that tool's remaining budget. Together with
-  // the spill-protocol HARD FAILURE wording in graph-navigation-
-  // discipline.ts, this is the structural fix for the overflow
-  // regression.
   const cap = PER_ANALYZER_TOOL_CALL_CAPS[agentName];
   const perToolCapsTable = renderPerToolCapsTable(agentName);
   if (typeof cap === 'number' || perToolCapsTable) {
@@ -238,12 +228,6 @@ export function buildPhase1AnalyzerPrompt(
  * and never to invent new ones.
  */
 function buildAuthoritativeServicesBlock(services: AuthoritativeService[]): string {
-  // Plan §I.7.c (gira-exhaustive followup, 2026-05-05): the
-  // authoritative-services preamble was 3 sentences in 1 paragraph
-  // (~1.5 KB). Compacted to a single sentence — the rule is simple
-  // (use these ids verbatim, never invent new ones), the table itself
-  // is the load-bearing content. Saves ~1.5 KB per cached prefix
-  // across all 4 analyzers.
   const lines: string[] = [
     'Authoritative service list (from structure-architecture-analyzer). Use these `id` values verbatim; never invent or rename. Key per-service findings under these IDs.',
     '',
@@ -271,17 +255,14 @@ function buildGraphContext(graphContext: GraphPromptContext): string {
       'Use Read/Grep/Glob only for details the graph does not provide or for manifest/config verification.',
     );
 
-    // Render the live MCP tool catalog. The set below IS the canonical list
-    // of tool names the agent may call — never invent or shorten them. Drift-
-    // proof by construction: this list comes straight from `tools/list` on
-    // the running `code-review-graph` MCP server (see tool-catalog.service.ts).
     const tools = graphContext.toolCatalog ?? [];
     if (tools.length > 0) {
-      lines.push('', 'Available MCP tools (call by exact name; do NOT invent variants):');
-      for (const t of tools) {
-        const desc = t.description ? ` — ${t.description.replace(/\s+/g, ' ').trim()}` : '';
-        lines.push(`- ${t.name}${desc}`);
-      }
+      const names = tools.map((t) => t.name).join(', ');
+      lines.push(
+        '',
+        `Available MCP tools (call by exact name; do NOT invent variants): ${names}.`,
+        'See the discipline table below for required parameters. The tool-use schema injected at call time carries the full arg list — you do not need a written description.',
+      );
     } else {
       lines.push(
         '',
@@ -289,11 +270,6 @@ function buildGraphContext(graphContext: GraphPromptContext): string {
       );
     }
 
-    // The discipline block: top-down navigation, lean defaults, forbid list,
-    // drill-in budgets, spill protocol. Single source of truth in
-    // `services/graph-wiki/graph-navigation-discipline.ts` — also rendered
-    // into the generated CLAUDE.md/AGENTS.md and into the wiki router doc, so
-    // every consumer sees the same rules.
     lines.push('', GRAPH_NAVIGATION_DISCIPLINE_HEADING, '', GRAPH_NAVIGATION_DISCIPLINE_TEXT);
 
     if (isLargeGraph(graphContext.stats)) {

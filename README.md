@@ -63,6 +63,12 @@ $wiki-refresh --since <sha>
 
 `/implement-ticket` refreshes the wiki automatically (Phase 8.5) — manual `/wiki-refresh` is only needed after out-of-band changes.
 
+### Architecture highlights
+
+**Deterministic-first composer.** `/initialize-project` is engineered so the LLM is a *composer*, not an investigator. Phase 0 walks the project deterministically (manifests, lock files, runtime pins); Phase 1 analyzers enrich it with citation-required judgment; Phase 2 builds four pre-flattened "composer views" with provenance tags (`slice → analyzer → deterministic → absent`); Phase 3's synthesizer reads those views verbatim. Empty sections only appear when the project genuinely lacks the evidence — never because the LLM forgot.
+
+**Service-completeness contract.** The structure analyzer is the single source of truth for service discovery. A Stop-hook validator globs the project tree against every manifest pattern in the language registry (`package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `AndroidManifest.xml`, `Package.swift`, `*.xcodeproj`, etc.) and rejects analyzer outputs that miss a manifest-bearing directory — unless the agent explicitly explains the omission via `needs_verification`. Mobile apps and other "exotic" services in a monorepo can never be silently dropped.
+
 For full setup instructions, provider details, workflows, and guides see the [documentation site](https://thisisqubika.github.io/qubika-agentic-framework/).
 
 ---

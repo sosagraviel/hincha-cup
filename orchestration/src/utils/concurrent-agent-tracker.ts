@@ -122,13 +122,24 @@ export class ConcurrentAgentTracker {
         agent.message = message;
       }
       const formattedText = `${this.formatAgentLabel(agent.name)} ${agent.message}`;
-      // Spinnies doesn't have a warn method, use fail with yellow color
       this.spinnies.update(id, {
         text: `${chalk.yellow('⚠')} ${formattedText}`,
         status: 'stopped',
       });
     }
     this.checkIfAllComplete();
+  }
+
+  /**
+   * Returns true when at least one tracked agent is in the `running`
+   * state — i.e. Spinnies is actively re-rendering its display.
+   */
+  isAnyAgentRunning(): boolean {
+    if (!this.isActive) return false;
+    for (const agent of this.agents.values()) {
+      if (agent.status === 'running') return true;
+    }
+    return false;
   }
 
   /**
@@ -162,7 +173,6 @@ export class ConcurrentAgentTracker {
     );
 
     if (allComplete && this.isActive) {
-      // Stop all spinners - they're all in their final state (success/fail/warn)
       if (this.spinnies) {
         this.spinnies.stopAll();
       }
@@ -171,7 +181,6 @@ export class ConcurrentAgentTracker {
   }
 }
 
-// Singleton instance for global agent tracking
 let globalTracker: ConcurrentAgentTracker | null = null;
 
 /**
@@ -182,6 +191,17 @@ export function getGlobalTracker(): ConcurrentAgentTracker {
     globalTracker = new ConcurrentAgentTracker();
   }
   return globalTracker;
+}
+
+/**
+ * Returns true if a global tracker is rendering spinners RIGHT NOW.
+ * Used by `Logger.warn` / `Logger.error` to decide whether they need
+ * to print a leading newline so they don't get spliced into the
+ * spinner's current line on the shared terminal display (both stdout
+ * and stderr write to the same TTY cell range).
+ */
+export function hasActiveTracker(): boolean {
+  return globalTracker?.isAnyAgentRunning() ?? false;
 }
 
 /**

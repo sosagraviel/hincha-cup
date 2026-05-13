@@ -25,11 +25,8 @@ export function extractFrameworks(structureFindings: any): {
   const frontendFrameworks: string[] = [];
   const backendFrameworks: string[] = [];
 
-  // Extract from frameworks.main field
-  // (it has main, orm, testing, ui fields)
   if (frameworksObj.main) {
-    // Determine if it's frontend or backend based on name
-    const mainFramework = frameworksObj.main.split(' ')[0].toLowerCase(); // "Next.js 15.5.10" -> "next.js"
+    const mainFramework = frameworksObj.main.split(' ')[0].toLowerCase();
     if (
       mainFramework.includes('next') ||
       mainFramework.includes('react') ||
@@ -42,16 +39,12 @@ export function extractFrameworks(structureFindings: any): {
     }
   }
 
-  // Extract from frameworks.ui field
   if (frameworksObj.ui) {
     const uiFrameworks = frameworksObj.ui
       .split('+')
       .map((f: string) => f.trim().split(' ')[0].toLowerCase());
     frontendFrameworks.push(...uiFrameworks);
   }
-
-  // NOTE: Framework extraction from services array now handled by extractServicesFromPhase1Analyzers()
-  // This legacy code that extracted from multi_stack.workspaces has been removed
 
   return { frontendFrameworks, backendFrameworks };
 }

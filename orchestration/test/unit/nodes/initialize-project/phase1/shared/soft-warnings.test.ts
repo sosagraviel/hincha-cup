@@ -7,10 +7,10 @@ import {
 } from '../../../../../../src/nodes/initialize-project/phase1/shared/graph-tool-usage.js';
 
 describe('computeSoftWarnings — stack-agnostic budget signals', () => {
-  describe('low_graph_ratio (per-analyzer thresholds, plan §C 2.2)', () => {
-    // Recalibrated 2026-05-05: per-analyzer thresholds because legitimate
-    // non-graph reads (manifests, runtime versions, build configs) scale
-    // with manifest count regardless of language family. Stack-agnostic.
+  describe('low_graph_ratio (per-analyzer thresholds)', () => {
+    // Per-analyzer thresholds because legitimate non-graph reads (manifests,
+    // runtime versions, build configs) scale with manifest count regardless
+    // of language family. Stack-agnostic.
     //
     // Thresholds:
     //   structure-architecture: 0.25 (legitimately reads runtime versions)
@@ -72,11 +72,8 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
       expect(computeSoftWarnings('unknown-analyzer', 5, 15, {})).toContain('low_graph_ratio');
     });
 
-    it('the gira regression: 23% ratio NO LONGER fires for structure-arch', () => {
+    it('23% ratio fires for structure-arch (below 0.25 threshold)', () => {
       // 7 graph + 23 non-graph = 30 total → ratio 0.23 → BELOW 0.25.
-      // The 2026-05-05 audit observed structure-arch at 23% ratio firing
-      // false-positive `low_graph_ratio`. With the recalibrated threshold
-      // of 0.25, 23% still fires (correctly — it's below threshold).
       // Re-check at 25%: 5/15 = 0.25 = threshold = no fire.
       expect(computeSoftWarnings('structure-architecture-analyzer', 7, 23, {})).toContain(
         'low_graph_ratio',
@@ -84,10 +81,9 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
     });
   });
 
-  // graph_search_overuse retired 2026-05-05 in favour of
-  // per_tool_budget_exceeded (the per-tool cap is the single source of
-  // truth). The standalone threshold conflicted with the per-tool cap
-  // for data-flows (8 vs 6).
+  // graph_search_overuse retired in favour of per_tool_budget_exceeded
+  // (the per-tool cap is the single source of truth). The standalone
+  // threshold conflicted with the per-tool cap for data-flows (8 vs 6).
   describe('graph_search_overuse — RETIRED', () => {
     it('no longer fires (subsumed by per_tool_budget_exceeded)', () => {
       const out = computeSoftWarnings('data-flows-integrations-analyzer', 16, 5, {
@@ -100,10 +96,9 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
     });
   });
 
-  describe('tool_call_budget_exceeded (caps recalibrated 2026-05-05)', () => {
-    // Caps after recalibration: structure=35, tech-stack=30,
-    // code-patterns=30, data-flows=40 (was 25/20/25/30). Calibrated to
-    // give legitimate-work distributions ~10% headroom.
+  describe('tool_call_budget_exceeded', () => {
+    // Caps: structure=35, tech-stack=30, code-patterns=30, data-flows=40.
+    // Calibrated to give legitimate-work distributions ~10% headroom.
     it('fires when total tool calls exceed the per-analyzer cap', () => {
       // structure cap = 35; here total = 36 → fires.
       const out = computeSoftWarnings('structure-architecture-analyzer', 12, 24, {});
@@ -120,15 +115,15 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
       );
     });
 
-    it('respects the new structure-arch cap of 35 (was 25)', () => {
-      // 30 total — below new cap (35), would have fired under the old cap (25).
+    it('respects the structure-arch cap of 35', () => {
+      // 30 total — below cap (35).
       expect(computeSoftWarnings('structure-architecture-analyzer', 15, 15, {})).not.toContain(
         'tool_call_budget_exceeded',
       );
     });
 
-    it('respects the new tech-stack cap of 30 (was 20)', () => {
-      // 25 total — below new cap (30), would have fired under the old cap (20).
+    it('respects the tech-stack cap of 30', () => {
+      // 25 total — below cap (30).
       expect(computeSoftWarnings('tech-stack-dependencies-analyzer', 10, 15, {})).not.toContain(
         'tool_call_budget_exceeded',
       );
@@ -138,6 +133,14 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
       expect(computeSoftWarnings('unknown-analyzer', 100, 100, {})).not.toContain(
         'tool_call_budget_exceeded',
       );
+    });
+
+    it('fires `per_tool_budget_exceeded` when a cap=0 tool is called even once', () => {
+      // data-flows-integrations-analyzer has cap=0 for get_community_tool.
+      const out = computeSoftWarnings('data-flows-integrations-analyzer', 5, 0, {
+        mcp__code_graph__get_community_tool: 1,
+      });
+      expect(out).toContain('per_tool_budget_exceeded');
     });
   });
 
@@ -152,7 +155,7 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
       });
       expect(out).toContain('tool_call_budget_exceeded');
       expect(out).toContain('per_tool_budget_exceeded');
-      expect(out).not.toContain('graph_search_overuse'); // retired 2026-05-05
+      expect(out).not.toContain('graph_search_overuse'); // retired
       expect(out).not.toContain('low_graph_ratio');
     });
 
@@ -195,9 +198,8 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
   });
 
   describe('per_tool_budget_exceeded', () => {
-    // Added 2026-05-05 after the gira run showed structure-architecture
-    // making 38 get_community_tool calls + 4 overflows. The per-tool cap
-    // is the structural fix; this warning surfaces the breach.
+    // The per-tool cap is the structural fix for runaway tool usage;
+    // this warning surfaces the breach.
     it('fires when a tool exceeds its per-analyzer cap', () => {
       // structure-architecture cap on get_community_tool = 4.
       const out = computeSoftWarnings(
@@ -262,6 +264,51 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
     });
   });
 
+  describe('mcp_completely_unavailable', () => {
+    // Heuristic: agent ran tools (nonGraphCount > 0) but produced ZERO
+    // graph hits despite having a per-tool cap entry (i.e. the framework
+    // expected at least some graph use). Either MCP failed completely or
+    // the agent ignored the catalog — both are operator-actionable.
+
+    it('fires when graphCount=0 and nonGraphCount>0 for an analyzer with per-tool caps', () => {
+      const out = computeSoftWarnings('structure-architecture-analyzer', 0, 12, {});
+      expect(out).toContain('mcp_completely_unavailable');
+    });
+
+    it('does NOT fire when the agent legitimately ran nothing (both counts zero)', () => {
+      const out = computeSoftWarnings('structure-architecture-analyzer', 0, 0, {});
+      expect(out).not.toContain('mcp_completely_unavailable');
+    });
+
+    it('does NOT fire when ANY graph call succeeded (graphCount > 0)', () => {
+      const out = computeSoftWarnings('structure-architecture-analyzer', 1, 12, {});
+      expect(out).not.toContain('mcp_completely_unavailable');
+    });
+
+    it('does NOT fire for analyzer names with no per-tool caps (forward-compat)', () => {
+      // An unknown analyzer name has no entry in PER_ANALYZER_PER_TOOL_CAPS,
+      // so the heuristic would be guessing about expected graph use. We
+      // err on the silent side until an explicit cap is registered.
+      const out = computeSoftWarnings('experimental-future-analyzer', 0, 12, {});
+      expect(out).not.toContain('mcp_completely_unavailable');
+    });
+
+    it('fires for every Phase 1 analyzer (smoke check)', () => {
+      // Stack-agnostic: the heuristic is the same shape for every
+      // analyzer. Run it across all four to confirm the per-tool-caps
+      // gate is wired for each.
+      for (const name of [
+        'structure-architecture-analyzer',
+        'tech-stack-dependencies-analyzer',
+        'code-patterns-testing-analyzer',
+        'data-flows-integrations-analyzer',
+      ]) {
+        const out = computeSoftWarnings(name, 0, 8, {});
+        expect(out).toContain('mcp_completely_unavailable');
+      }
+    });
+  });
+
   describe('PER_ANALYZER_PER_TOOL_CAPS — sanity', () => {
     it('covers all four Phase 1 analyzers', () => {
       expect(PER_ANALYZER_PER_TOOL_CAPS).toHaveProperty('structure-architecture-analyzer');
@@ -270,15 +317,18 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
       expect(PER_ANALYZER_PER_TOOL_CAPS).toHaveProperty('data-flows-integrations-analyzer');
     });
 
-    it('every per-tool cap is a positive integer ≤ 8', () => {
+    it('every per-tool cap is a non-negative integer ≤ 8', () => {
+      // 0 marks a tool that's forbidden for this analyzer (any call
+      // triggers `per_tool_budget_exceeded` and surfaces a soft warning).
       // Above 8 the overflow risk dwarfs any incremental value — if an
       // analyzer wants more than 8 calls of one tool, it's brute-forcing
       // and should rethink. The per-analyzer total cap (15-30) is the
       // outer envelope; per-tool caps must fit comfortably under it.
       for (const caps of Object.values(PER_ANALYZER_PER_TOOL_CAPS)) {
         for (const cap of Object.values(caps)) {
-          expect(cap).toBeGreaterThanOrEqual(1);
+          expect(cap).toBeGreaterThanOrEqual(0);
           expect(cap).toBeLessThanOrEqual(8);
+          expect(Number.isInteger(cap)).toBe(true);
         }
       }
     });
@@ -321,6 +371,14 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
       const out = renderPerToolCapsTable('data-flows-integrations-analyzer');
       expect(out).toMatch(/counts? DOUBLE/i);
       expect(out).toContain('per_tool_budget_exceeded');
+    });
+
+    it('renders cap=0 tools under a "Forbidden" heading', () => {
+      const out = renderPerToolCapsTable('data-flows-integrations-analyzer');
+      expect(out).toMatch(/Forbidden/);
+      expect(out).toContain('`mcp__code_graph__get_community_tool`');
+      expect(out).toContain('`mcp__code_graph__list_communities_tool`');
+      expect(out).not.toMatch(/\|\s*`mcp__code_graph__get_community_tool`\s*\|\s*0\s*\|/);
     });
 
     it('rows are sorted alphabetically (deterministic output)', () => {

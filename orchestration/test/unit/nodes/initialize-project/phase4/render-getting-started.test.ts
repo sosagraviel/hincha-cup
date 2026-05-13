@@ -3,7 +3,7 @@ import { renderGettingStarted } from '../../../../../src/nodes/initialize-projec
 import type { CommandCatalog } from '../../../../../src/schemas/stack-profile.schema.js';
 
 /**
- * Plan 15 §D.6 — deterministic getting-started.md renderer.
+ * Deterministic getting-started.md renderer.
  *
  * Pure function. The output is the canonical "how to run this
  * project" wiki page. These tests pin the rendering contract so a
@@ -69,7 +69,7 @@ describe('renderGettingStarted', () => {
     expect(md.split('\n')[0]).toBe('# Getting started — gira');
   });
 
-  it('lists `make setup` BEFORE `pnpm install` (the gira regression contract)', () => {
+  it('lists `make setup` BEFORE `pnpm install`', () => {
     const md = renderGettingStarted({
       projectName: 'gira',
       commandCatalog: giraShapeCatalog,

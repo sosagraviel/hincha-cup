@@ -223,7 +223,7 @@ describe('buildGraphDisciplineSection', () => {
   });
 
   it('renders the heading + a short pointer to the wiki router', () => {
-    // Plan §E.1: as of 2026-05-05 this is a pointer, not the full body.
+    // This is a pointer to the wiki router, not the full body.
     // The full discipline lives in the wiki router; bringing it into
     // CLAUDE.md too duplicated content and bloated the schema doc past
     // the soft 150-line cap.

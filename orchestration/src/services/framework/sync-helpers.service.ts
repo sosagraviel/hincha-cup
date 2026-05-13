@@ -31,17 +31,14 @@ export async function updateSingleSkill(
 ): Promise<{ updated: boolean; filesChanged: number }> {
   const skillsDir = join(frameworkPath, 'skills');
 
-  // Find the skill in framework
   const skillPath = findSkillPath(skillsDir, skillName);
 
   if (!skillPath) {
     throw new Error(`Skill ${skillName} not found in framework`);
   }
 
-  // Use flat structure (skill name only, not nested path)
   const targetPath = resolveConfigPath(projectPath, 'skills', skillName);
 
-  // Copy the skill (provider-aware: selects matching SKILL.<provider>.md and applies placeholder substitution)
   const filesChanged = copySkillForProvider(skillPath, targetPath, getActiveProvider());
 
   return {
@@ -77,7 +74,6 @@ export async function regenerateSingleAgent(
   frameworkPath: string,
 ): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
   try {
-    // Read framework-config.json to get stack profile
     const configPath = resolveFrameworkConfigPath(projectPath);
     if (!existsSync(configPath)) {
       return {
@@ -89,10 +85,8 @@ export async function regenerateSingleAgent(
     const frameworkConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
     const stackProfile: StackProfile = frameworkConfig.stack_profile;
 
-    // Resolve skills to get current skill list
     const resolvedSkills = resolveSkills(stackProfile, frameworkPath);
 
-    // Generate ALL agents (using existing logic)
     const templatesPath = join(frameworkPath, 'agents', 'templates');
     const allAgents = generateAgents(
       stackProfile,
@@ -102,7 +96,6 @@ export async function regenerateSingleAgent(
       frameworkPath,
     );
 
-    // Find the specific agent to regenerate
     const agentToWrite = allAgents.find((a) => a.name === agentName);
 
     if (!agentToWrite) {
@@ -112,7 +105,6 @@ export async function regenerateSingleAgent(
       };
     }
 
-    // Write only this agent
     writeAgents([agentToWrite], projectPath);
 
     return {
@@ -130,9 +122,6 @@ export async function regenerateSingleAgent(
  * Helper: Find skill path by name in skills directory
  */
 function findSkillPath(skillsDir: string, skillName: string): string | null {
-  // Skills are organized in subdirectories like "010-foundation/start-task"
-  // We need to search recursively for the skill
-
   const searchDir = (dir: string): string | null => {
     const entries = readdirSync(dir);
 
@@ -141,12 +130,10 @@ function findSkillPath(skillsDir: string, skillName: string): string | null {
       const stat = statSync(fullPath);
 
       if (stat.isDirectory()) {
-        // Check if this directory name matches the skill name
         if (entry === skillName) {
           return fullPath;
         }
 
-        // Recursively search subdirectories
         const found = searchDir(fullPath);
         if (found) {
           return found;

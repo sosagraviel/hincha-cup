@@ -8,7 +8,7 @@ import {
 } from '../../../../src/services/graph-wiki/wiki-input-sanitizer.js';
 
 describe('stripFrameworkInternalJargon', () => {
-  it('strips the gira-run leakage phrase about community-tool overflow', () => {
+  it('strips the leakage phrase about community-tool overflow', () => {
     const before =
       'The code-graph analysis identified the following functional communities. ' +
       'Exact community membership is (not determined by analysis) — the community tool overflowed during the automated run.';
@@ -28,8 +28,8 @@ describe('stripFrameworkInternalJargon', () => {
 
   it('strips ANY upstream tool-overflow phrase regardless of tool name (stack-agnostic)', () => {
     // The pattern matches "the <tool_name> tool overflowed" for any
-    // identifier-shaped tool name — works whether the upstream is gira's
-    // get_community_tool or some other tool we haven't seen yet.
+    // identifier-shaped tool name — works for any tool we haven't
+    // seen yet.
     expect(
       stripFrameworkInternalJargon('… the get_flow_tool tool overflowed during the automated run'),
     ).not.toMatch(/get_flow_tool tool overflowed/i);

@@ -1,0 +1,6 @@
+# Illustrative ownership for the demo monorepo, not real teams.
+*                            @platform-team
+/services/backend/           @backend-team
+/services/web-frontend/      @frontend-team
+/services/keycloak/          @platform-team @security-team
+/.github/                    @platform-team

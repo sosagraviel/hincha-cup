@@ -45,7 +45,7 @@ export function initRetryState(maxAttempts: number = DEFAULT_RETRY_CONFIG.maxAtt
     attempt: 0,
     max_attempts: maxAttempts,
     error_history: [],
-    output_history: [], // Initialize output history for context preservation
+    output_history: [],
     started_at: new Date().toISOString(),
     session_id: randomUUID(),
   };
@@ -61,11 +61,10 @@ export function updateRetryState(
   failedOutput?: string,
 ): RetryState {
   const nextAttempt = state.attempt + 1;
-  const errorHistory = [...state.error_history, error].slice(-3); // Keep last 3 errors
+  const errorHistory = [...state.error_history, error].slice(-3);
 
-  // Store failed output for context preservation in next attempt
   const outputHistory = failedOutput
-    ? [...(state.output_history || []), failedOutput].slice(-2) // Keep last 2 outputs
+    ? [...(state.output_history || []), failedOutput].slice(-2)
     : state.output_history || [];
 
   return {

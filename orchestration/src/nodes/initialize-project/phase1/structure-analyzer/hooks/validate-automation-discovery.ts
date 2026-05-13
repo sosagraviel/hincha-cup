@@ -1,27 +1,20 @@
 /**
- * Plan 16 §C.4 — hard Stop-hook validator for the structure
- * analyzer's automation-discovery responsibility.
+ * Stop-hook validator for the structure analyzer's automation-discovery
+ * responsibility. The analyzer must discover the project's automation surface
+ * (Make / Just / Task / setup scripts / devcontainer hooks) and emit it under
+ * `findings.automation`. Skipping it leaves every downstream consumer
+ * (catalog builder, synthesizer, wiki, skills) without the wrapper signal.
  *
- * The structure analyzer is supposed to discover the project's
- * automation surface (Make / Just / Task / setup scripts /
- * devcontainer hooks) and emit it under `findings.automation`.
- * If it skips this — and the gira 2026-05-06 run showed it
- * frequently does — every downstream consumer (catalog builder,
- * synthesizer, wiki, skills) loses the wrapper signal and the
- * generated CLAUDE.md falls back to package-manager commands
- * that may not boot dependent services.
+ * Checks the project filesystem (via the Stop hook's `cwd` field) for
+ * canonical wrapper files and rejects the analyzer output when those files
+ * exist but the matching bucket is empty / missing.
  *
- * This validator checks the project filesystem (via the Stop
- * hook's `cwd` field) for canonical wrapper files and rejects
- * the analyzer output when those files exist but
- * `findings.automation` is empty / missing for that bucket.
- *
- * Stack-agnostic: only generic file-presence checks at the repo
- * root. No language assumptions.
+ * Stack-agnostic: generic file-presence checks at the repo root only.
  */
 
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
+import { formatValidationError } from '../../../shared/validation-codes/index.js';
 
 export interface AutomationDiscoveryViolation {
   bucket:
@@ -37,7 +30,8 @@ export interface AutomationDiscoveryViolation {
 
 interface ProbeSpec {
   bucket: AutomationDiscoveryViolation['bucket'];
-  candidates: string[]; // paths relative to project root
+  /** Paths relative to the project root. */
+  candidates: string[];
   /** Friendly label used in the violation message. */
   label: string;
 }
@@ -82,10 +76,8 @@ const PROBES: ProbeSpec[] = [
  * Run the automation-discovery hard validator.
  *
  * @param data - The structure analyzer's parsed JSON output.
- * @param cwd  - The project root path. When undefined (single-
- *               analyzer replay), the validator skips the
- *               filesystem check and returns no violations —
- *               better than failing open with a misleading error.
+ * @param cwd  - The project root path. When undefined, the validator skips
+ *               the filesystem check and returns no violations.
  * @returns Array of violations. Empty array = valid.
  */
 export function detectAutomationDiscoveryViolations(
@@ -117,10 +109,6 @@ export function detectAutomationDiscoveryViolations(
     }
   }
 
-  // README run-sections — the heading-match check happens content-side,
-  // not by file presence alone. Only flag when README.md exists AND
-  // contains at least one canonical run-heading AND `readme_run_sections`
-  // is empty.
   const readmePath = findReadmePath(cwd);
   if (readmePath) {
     const headingsPresent = readmeHasRunHeadings(readmePath);
@@ -145,47 +133,22 @@ export function detectAutomationDiscoveryViolations(
 }
 
 /**
- * Format violations as agent-facing retry feedback. Returns a
- * `string[]` of lines so the caller can append to its existing
- * error array.
+ * Format violations as agent-facing retry feedback — one compressed
+ * `VALIDATION_E010_*` line per violation. The long-form repair guidance
+ * lives in the codes table (`formatValidationErrorLong`) for debug
+ * rendering.
  */
 export function formatAutomationDiscoveryViolations(
   violations: AutomationDiscoveryViolation[],
 ): string[] {
   if (violations.length === 0) return [];
-  const out: string[] = [
-    'AUTOMATION DISCOVERY GAP',
-    '',
-    '🔴 WHAT WENT WRONG:',
-    "   The structure analyzer is required to discover the project's",
-    '   automation surface (Make / Just / Task / setup scripts / devcontainer)',
-    '   under `findings.automation`. The Stop hook checked the filesystem',
-    '   and found wrapper files that your output does NOT represent.',
-    '',
-    '🟡 SPECIFIC VIOLATIONS:',
-  ];
-  for (const v of violations) {
-    out.push(`   • [${v.bucket}] ${v.files.join(', ')}`, `       ${v.message}`);
-  }
-  out.push(
-    '',
-    '🟢 HOW TO FIX:',
-    '   Re-Read each file listed above and re-emit your JSON with the',
-    '   `findings.automation.<bucket>` populated. For Make / Just / Task',
-    '   targets, capture { name, group?, description? } per target with',
-    '   the description copied verbatim from the source comment. For',
-    '   shell scripts, set `purpose` to one of setup / bootstrap / dev /',
-    '   test / reset / unknown. For devcontainer hooks, copy',
-    '   `postCreateCommand` and `postStartCommand` exactly. For README',
-    '   run-sections, capture `path`, `heading` verbatim, `body` raw',
-    '   markdown, and `fenced_blocks` (each fenced code block content).',
+  return violations.map((v) =>
+    formatValidationError('E010_automation_discovery_gap', {
+      bucket: v.bucket,
+      violations: `${v.files.join(', ')} → ${v.message}`,
+    }),
   );
-  return out;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -208,7 +171,6 @@ function isBucketPopulated(
     if (!isObject(dc)) return false;
     return typeof dc.postCreateCommand === 'string' || typeof dc.postStartCommand === 'string';
   }
-  // makefiles / justfiles / taskfiles / shell_scripts → arrays
   const v = automation[bucket];
   return Array.isArray(v) && v.length > 0;
 }
@@ -252,8 +214,6 @@ function readmeHasRunHeadings(path: string): string[] {
 }
 
 function readFileSafe(p: string): string {
-  // Inline import to keep this module side-effect-light; readFileSync
-  // is fine here since the hook is a short-lived process.
   const fs = require('fs') as typeof import('fs');
   return fs.readFileSync(p, 'utf-8');
 }

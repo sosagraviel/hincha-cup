@@ -110,7 +110,6 @@ export function extractAndWriteSynthesis(
 
   const portableWriter = new PortableWriter(new PortablePathResolver(asAbsolutePath(projectPath)));
 
-  // Write CLAUDE.md / AGENTS.md (provider-aware path).
   const claudeMdPath = resolveInstructionFilePath(projectPath);
   try {
     portableWriter.writeMarkdown(asAbsolutePath(claudeMdPath), extracted.claudemd);
@@ -126,7 +125,6 @@ export function extractAndWriteSynthesis(
   }
   logger.success(`✓ Written: ${claudeMdPath}`);
 
-  // Write each prescriptive skill body.
   const skillContents: Record<(typeof PRESCRIPTIVE_SKILLS)[number]['skillName'], string> = {
     'code-conventions': '',
     'multi-file-workflows': '',

@@ -1,7 +1,6 @@
 /**
- * Plan §C 1.2 (gira-exhaustive followup, 2026-05-05) — normaliser
- * tests for the stack-agnostic `workspace_tool` and `package_manager`
- * fields. Every supported language family is covered.
+ * Normaliser tests for the stack-agnostic `workspace_tool` and
+ * `package_manager` fields. Every supported language family is covered.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -178,7 +177,7 @@ describe('normaliseWorkspaceTool — robustness', () => {
     expect(normaliseWorkspaceTool('CARGO')).toBe('Cargo workspaces');
   });
 
-  it('the gira regression: pnpm@10.2.1 produces canonical "pnpm workspaces"', () => {
+  it('pnpm@10.2.1 produces canonical "pnpm workspaces"', () => {
     expect(normaliseWorkspaceTool('pnpm@10.2.1')).toBe('pnpm workspaces');
   });
 });
@@ -237,7 +236,7 @@ describe('normalisePackageManager — strip Corepack-style version', () => {
     expect(normalisePackageManager('mystery-tool')).toBeUndefined();
   });
 
-  it('the gira regression: pnpm@10.2.1 → "pnpm" (no @ in output)', () => {
+  it('pnpm@10.2.1 → "pnpm" (no @ in output)', () => {
     const result = normalisePackageManager('pnpm@10.2.1');
     expect(result).toBe('pnpm');
     expect(result).not.toContain('@');

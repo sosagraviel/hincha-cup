@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    ports: []
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports: []
+
+  backend:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile.production
+    restart: always
+    environment:
+      NODE_ENV: production
+    ports:
+      - "3050:3050"
+
+  web-frontend:
+    build:
+      context: ./services/web-frontend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "8080:80"

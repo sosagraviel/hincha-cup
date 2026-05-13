@@ -11,10 +11,6 @@
 
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// Sub-schemas
-// ---------------------------------------------------------------------------
-
 export const ViewportSchema = z.object({
   width: z.number().min(320).max(3840),
   height: z.number().min(240).max(2160),
@@ -50,10 +46,6 @@ export const FigmaConfigSchema = z.object({
   accessMethod: z.enum(['mcp', 'token', 'manual']).optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Main schema
-// ---------------------------------------------------------------------------
-
 export const UIVisualTestingConfigSchema = z.object({
   $schema: z.string().optional(),
   figma: FigmaConfigSchema.optional(),
@@ -61,10 +53,6 @@ export const UIVisualTestingConfigSchema = z.object({
   maxIterations: z.number().min(1).max(10).default(3),
   screens: z.array(ScreenEntrySchema).min(1),
 });
-
-// ---------------------------------------------------------------------------
-// Type exports
-// ---------------------------------------------------------------------------
 
 export type Viewport = z.infer<typeof ViewportSchema>;
 export type IgnoreRegion = z.infer<typeof IgnoreRegionSchema>;

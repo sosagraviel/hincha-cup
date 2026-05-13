@@ -17,9 +17,9 @@ import { join } from 'path';
 import { logger } from '../../../utils/logger.js';
 import { buildSynthesisPrompt } from './prompt-builder.js';
 import { getFrameworkAgentPath } from '../shared/index.js';
-import { reasoningPrefix } from '../../../utils/shared/context-tags.js';
 import { resolveTempPath } from '../../../utils/provider-paths.js';
 import { getInitializeProjectPhase } from '../../../services/framework/debug-store/index.js';
+import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
 
 /**
  * Phase 3: Opus Synthesis Node
@@ -53,7 +53,6 @@ export async function synthesisNode(
 
   phaseLogger.info(' Starting Opus synthesis...');
 
-  // Read Phase 2 consolidation from disk (not from state)
   const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   const consolidationPath = join(tempDir, 'phase2-consolidation.json');
 
@@ -65,25 +64,13 @@ export async function synthesisNode(
   const phase2Consolidation = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
   phaseLogger.success(' ✓ Phase 2 consolidation loaded from disk');
 
-  // Plan 15 §D.4 + §D.8.2: build the deterministic command catalog
-  // from the Phase 2 consolidation ONCE, here, so the validator can
-  // assert ordering against it on every retry. The same catalog is
-  // also embedded in the synthesizer's input prompt by `buildSynthesisPrompt`
-  // → `trimSynthesisInput`.
   const expectedCatalog = buildCatalogFromConsolidation(phase2Consolidation).command_catalog;
 
   try {
     const validator = (output: string): ValidationResult => {
-      // CRITICAL: The base validator MUST be IDENTICAL to the stop hook
-      // validation. Uses the shared comprehensive validator.
       const result = validateSynthesisOutput(output);
       const errors = [...result.errors];
 
-      // Plan 15 §D.8.2 hard validator: Essential Commands ordering. Only
-      // run when the base validator already extracted a CLAUDE.md body
-      // (otherwise there's nothing to inspect). The Stop hook does not
-      // run this check (it has no catalog), so this external validator
-      // is the single enforcement point.
       if (result.extracted?.claudemd) {
         const violations = detectEssentialCommandsOrderingViolations(
           result.extracted.claudemd,
@@ -102,39 +89,32 @@ export async function synthesisNode(
       };
     };
 
-    // Define agent invocation function with feedback support
     const agentInvoke = async (
       feedbackPrompt: string,
       resumeSessionId?: string,
       attemptNumber?: number,
     ): Promise<{ output: string; sessionId: string }> => {
-      // Build input prompt using shared utility
-      const contextPrompt = buildSynthesisPrompt(phase2Consolidation, feedbackPrompt);
+      const inputPrompt = buildSynthesisPrompt(phase2Consolidation, feedbackPrompt);
 
-      // Create agent using new interface
       const factory = await AgentFactory.create();
 
-      // Provider-aware reasoning prefix (ultrathink for Claude, empty for Codex).
-      // Synthesis reads actual code to fill gaps in Phase 2 consolidation, so deep
-      // reasoning matters — for Codex that's delivered via --config model_reasoning_effort.
-      const inputPrompt = `${reasoningPrefix(factory.getAuthConfig())}${contextPrompt}\n\nSynthesize comprehensive results for: ${state.project_path}`;
+      const baseExcluded = getExcludedDirectories(state.project_path, state.framework_path);
+      const synthesizerExcluded = baseExcluded.filter(
+        (d) => d !== '.claude-temp' && d !== '.codex-temp',
+      );
 
       const agent = await factory.createAgent({
         agentName,
         agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
-        timeout: 900000, // 15 minutes (agent should use max 10 tool calls, mostly synthesis)
-        resumeSessionId, // Pass session ID for context-preserving retry
+        timeout: 900000,
+        resumeSessionId,
         phase: getInitializeProjectPhase('phase3'),
         settingsPath: join(
           state.framework_path,
           'orchestration/src/nodes/initialize-project/phase3/settings.json',
         ),
-        // Internal validation layer for Codex. Claude enforces this via the
-        // stop hook in settings.json; Codex has no blocking-hook equivalent, so
-        // the impl runs this validator after each exec and resumes the session
-        // with feedback on failure. Same function as the external validator.
         validator,
       });
 
@@ -163,12 +143,6 @@ export async function synthesisNode(
     phaseLogger.success(' ✓ Synthesis complete');
     phaseLogger.info(`  - Output length: ${synthesisContent.length} characters`);
 
-    // Plan §E.5 (2026-05-05) — soft signal that the synthesis omitted a
-    // "Validation Rules" section even though the project ships at least
-    // one validation library (Zod / class-validator / pydantic / etc.).
-    // Surfaces as a phaseLogger.warn line; does NOT trigger retry. Reads
-    // tech-stack-dependencies.json directly because Phase 2 consolidation
-    // discards the raw dependency arrays once gaps are identified.
     const synthesisWarnings = collectSynthesisWarnings(synthesisContent, tempDir, phaseLogger);
 
     return {

@@ -1,0 +1,13 @@
+mini-microservices fixture
+Copyright 2026 Qubika
+
+This fixture is a derivative work of:
+
+  Online Boutique (microservices-demo)
+  Copyright Google LLC.
+  https://github.com/GoogleCloudPlatform/microservices-demo
+  Licensed under the Apache License, Version 2.0.
+
+Heavy pruning — only a representative subset of
+services + minimal source per service is preserved. See
+docs/upstream-attribution.md for the exact pruning record.

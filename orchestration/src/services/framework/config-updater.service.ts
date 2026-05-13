@@ -23,7 +23,6 @@ import {
   getAllProviderManagedDirs,
 } from '../../utils/provider-paths.js';
 
-// Re-export types for backward compatibility
 export type { FrameworkConfig, ResourceInfo };
 
 export interface UserModification {
@@ -80,7 +79,6 @@ export class ConfigUpdaterService {
 
   async validateConfig(config: FrameworkConfig): Promise<ValidationResult> {
     try {
-      // Validate using zod schema
       FrameworkConfigSchema.parse(config);
       return { valid: true };
     } catch (error) {
@@ -113,8 +111,6 @@ export class ConfigUpdaterService {
     console.warn('updateStackProfile() is deprecated. Use updateService() instead.');
     return { updated: false };
   }
-
-  // ========== SERVICE MANAGEMENT METHODS ==========
 
   /**
    * Add or update a service in stack profile

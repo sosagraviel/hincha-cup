@@ -20,8 +20,6 @@ function generateProjectHash(): string {
  * This function is idempotent - it reads from disk files, not state
  */
 export function generateFrameworkConfig(
-  // _projectPath: kept for API stability; was used to populate the now-removed
-  // project_metadata.project_path field (verified zero readers).
   _projectPath: string,
   tempDir: string,
   phase1Data: Phase1AnalysisData,
@@ -36,23 +34,13 @@ export function generateFrameworkConfig(
     frameworkVersion = packageJson.version || '2.0.0';
   }
 
-  // Service-centric stack profile (pass through directly)
   const stackProfileData: any = {
-    // CORE: Services array (source of truth)
     services: stackProfile.services,
-
-    // METADATA
     is_monorepo: stackProfile.is_monorepo,
     workspace_tool: stackProfile.workspace_tool,
     package_manager: stackProfile.package_manager,
     infrastructure: stackProfile.infrastructure,
     file_counts: stackProfile.file_counts,
-
-    // Plan 15 §D.6 — automation surface, README extracts, and command
-    // catalog. Skills / agent templates / external consumers read these
-    // from `framework-config.json::stack_profile.command_catalog` to
-    // produce stack-agnostic command suggestions ("prefer the wrapper,
-    // fall back to package-manager scripts only when none exists").
     automation: stackProfile.automation,
     readme_run_sections: stackProfile.readme_run_sections,
     command_catalog: stackProfile.command_catalog,
@@ -63,10 +51,6 @@ export function generateFrameworkConfig(
     schema_version: '1.0.0',
     framework_version: frameworkVersion,
     project_metadata: {
-      // The legacy `project_path` field carried an absolute path to the first
-      // developer's worktree, breaking portability. It has zero readers across
-      // the codebase (verified by full-codebase grep) and has been removed —
-      // the file's own location is the project anchor.
       last_analysis: new Date().toISOString(),
       initialization_hash: generateProjectHash(),
     },

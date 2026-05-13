@@ -1,14 +1,12 @@
 /**
- * Plan §G.3 (2026-05-05) — anti-regression net for canonical-texts.
+ * Anti-regression net for canonical-texts.
  *
  * The cache-eligible Phase 1 prompt prefix is byte-identical across
- * all four analyzers, which is what makes Anthropic's automatic
- * prompt cache hit on requests 2..N. The moment any analyzer's own
- * prompt file (`agent.md` / `execution-instructions.md`) re-states a
- * canonical fragment that already lives in the cache-eligible prefix
- * (or in the centralized graph navigation discipline body), the
- * shared content is paid for twice — once in the prefix, once in the
- * tail. The savings vanish silently.
+ * all four analyzers. The moment any analyzer's own prompt file
+ * (`agent.md` / `execution-instructions.md`) re-states a canonical
+ * fragment that already lives in the cache-eligible prefix (or in the
+ * centralized graph navigation discipline body), the shared content is
+ * paid for twice. The savings vanish silently.
  *
  * This test scans every Phase 1 analyzer prompt file for the
  * FORBIDDEN_FRAGMENTS list maintained in `canonical-texts.ts`. When

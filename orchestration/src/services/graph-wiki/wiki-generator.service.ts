@@ -83,9 +83,8 @@ export class WikiGeneratorService {
   }
 
   /**
-   * Generate every per-service doc with bounded concurrency. Order matches
-   * the service inventory order — downstream consumers rely on positional
-   * stability.
+   * Generate every per-service doc with bounded concurrency.
+   * Order of the returned array matches the service inventory order.
    */
   async generateServiceDocsConcurrent(generatedAt: string): Promise<GeneratedWikiFile[]> {
     const services = getServices(this.options.stackProfile);
@@ -548,8 +547,8 @@ function extractServiceDescription(
 }
 
 /**
- * Stack-agnostic role one-liner derived from `service.type` and the main
- * framework name. Returns undefined when there is not enough signal.
+ * Derives a stack-agnostic role one-liner from `service.type` and `service.frameworks.main`.
+ * Returns undefined when signal is insufficient; caller falls back to the next layer.
  */
 export function deriveStackAgnosticRole(service: Record<string, unknown>): string | undefined {
   const type =

@@ -41,19 +41,16 @@ export function routeToPhase(state: InitializeProjectState): string | string[] {
   }
 }
 
+/**
+ * Phase 1 is sequential at the head + parallel at the tail:
+ *   structure_architecture_analyzer (single source of truth for
+ *   `services[]`) → [tech_stack, code_patterns, data_flows] (parallel;
+ *   consume structure's `services[]` as authoritative input).
+ */
 export function routeAfterGraphFoundation(state: InitializeProjectState): string | string[] {
   if (state.current_phase === 'failed') {
     return END;
   }
-
-  // Phase 1 is sequential at the head + parallel at the tail:
-  //   structure_architecture_analyzer (single source of truth for services[])
-  //   → [ tech_stack, code_patterns, data_flows ] (parallel; consume structure's
-  //      services[] as authoritative input).
-  // The earlier topology fanned out all four analyzers in parallel and let
-  // each re-derive its own service list, which produced inconsistent IDs and
-  // dropped services across runs (see plans/2026-04-29-gira-init-run-audit-refactor
-  // findings F7/F8/F9/F22).
   return 'structure_architecture_analyzer';
 }
 
@@ -69,21 +66,16 @@ export function routeAfterStructureAnalyzer(state: InitializeProjectState): stri
   ];
 }
 
+/**
+ * Architecture doc and per-service docs run in parallel: architecture
+ * references service IDs via wikilinks written from the structure
+ * analyzer's services array, NOT from the per-service doc output, so
+ * the two LLM calls have no data dependency.
+ */
 export function routeAfterWikiPreparation(state: InitializeProjectState): string | string[] {
   if (state.current_phase === 'failed') {
     return END;
   }
-
-  // Only ARCHITECTURE.md is rendered as a cross-cutting LLM-generated wiki
-  // page. DATA-FLOWS.md and PATTERNS.md were retired in the H4 split.
-  //
-  // Plan §I.1 (gira-exhaustive followup, 2026-05-05): architecture doc
-  // and per-service docs run in PARALLEL. Pre-fix they were sequential
-  // (architecture → service_docs → wiki_generation), wasting ~60-90 s
-  // per run. Architecture references service IDs via wikilinks
-  // (Fix 3.1) — those are written by the agent based on the structure
-  // analyzer's services array, NOT on the per-service doc output.
-  // So the two LLM calls have no data dependency and can fan out.
   return ['wiki_architecture_doc', 'wiki_service_docs'];
 }
 
@@ -91,24 +83,25 @@ export function routeAfterWikiPreparation(state: InitializeProjectState): string
  * Initialize Project Graph - 6-Phase Workflow
  *
  * PHASE 1 (sequential head + parallel tail):
- *   structure_architecture_analyzer first (single source of truth for services[]),
- *   then [tech-stack, code-patterns, data-flows] in parallel with structure's
- *   services[] injected as authoritative input.
- * PHASE 2: Consolidate findings and identify gaps
- * PHASE 3: Run Opus synthesis agent for comprehensive analysis
- * PHASE 4: Generate CLAUDE.md plus three prescriptive convention skills
- *   (code-conventions, multi-file-workflows, testing-conventions) and
- *   persist the architectural narrative for the wiki-generator
- * PHASE 4b: Generate docs/llm-wiki wiki via subgraph:
- *   wiki_preparation → wiki_architecture_doc → wiki_service_docs (N
- *   concurrent per-service LLM calls) → wiki_generation (deterministic
- *   SERVICES.md catalog + index + disk writes). Cross-cutting DATA-FLOWS.md
- *   and PATTERNS.md were retired — flows are now per-service, patterns are
- *   prescriptive and live in the convention skills.
- * PHASE 5: Copy skills and resources
- * PHASE 6: Final validation
+ *   `structure_architecture_analyzer` first (single source of truth for
+ *   `services[]`), then `[tech-stack, code-patterns, data-flows]` in
+ *   parallel with structure's `services[]` injected as authoritative
+ *   input.
+ * PHASE 2: Consolidate findings and identify gaps.
+ * PHASE 3: Run the synthesis agent for comprehensive analysis.
+ * PHASE 4: Generate CLAUDE.md plus three prescriptive convention
+ *   skills (`code-conventions`, `multi-file-workflows`,
+ *   `testing-conventions`) and persist the architectural narrative for
+ *   the wiki-generator.
+ * PHASE 4b: Generate `docs/llm-wiki` via subgraph: wiki_preparation →
+ *   `[wiki_architecture_doc, wiki_service_docs]` in parallel →
+ *   `wiki_generation` (deterministic SERVICES.md catalog + index + disk
+ *   writes).
+ * PHASE 5: Copy skills and resources.
+ * PHASE 6: Final validation.
  *
- * Supports starting from any phase using the start_phase parameter in state.
+ * Supports starting from any phase using the `start_phase` parameter
+ * in state.
  */
 export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation)
   .addNode('graph_foundation', graphFoundationNode)
@@ -125,27 +118,16 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addNode('wiki_generation', wikiGenerationNode)
   .addNode('resources', resourcesNode)
   .addNode('validation', validationNode)
-  // Conditional routing from START based on start_phase
   .addConditionalEdges(START, routeToPhase)
-  // Phase 0 → structure_architecture_analyzer (sequential head — sole source
-  // of truth for services[]).
   .addConditionalEdges('graph_foundation', routeAfterGraphFoundation)
-  // structure_architecture_analyzer → [02, 03, 04] in parallel. The downstream
-  // analyzers read structure-analyzer's persisted output for the authoritative
-  // services[] list before building their own prompts.
   .addConditionalEdges('structure_architecture_analyzer', routeAfterStructureAnalyzer)
-  // [02, 03, 04] → consolidation
   .addEdge('tech_stack_dependencies_analyzer', 'consolidation')
   .addEdge('code_patterns_testing_analyzer', 'consolidation')
   .addEdge('data_flows_integrations_analyzer', 'consolidation')
-  // Linear flow from Phase 2 through Phase 4 context generation
   .addEdge('consolidation', 'synthesis')
   .addEdge('synthesis', 'context_generation')
-  // Phase 4b: wiki preparation fans out to 3 parallel core-doc nodes
   .addEdge('context_generation', 'wiki_preparation')
   .addConditionalEdges('wiki_preparation', routeAfterWikiPreparation)
-  // Both fan-out branches converge on wiki_generation (finalization).
-  // Plan §I.1: architecture and per-service docs run in parallel.
   .addEdge('wiki_architecture_doc', 'wiki_generation')
   .addEdge('wiki_service_docs', 'wiki_generation')
   .addEdge('wiki_generation', 'resources')

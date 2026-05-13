@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 /**
  * Anti-regression: `ui-testing/SKILL.md` claims to be stack-agnostic but
  * historically embedded FSD (Feature-Sliced Design) path patterns + a
- * hardcoded `src/test-setup.ts` literal. The 2026-05-05 cleanup
- * (plan §C) removed those and made the skill defer to the per-project
+ * hardcoded `src/test-setup.ts` literal. Those were removed and the
+ * skill was updated to defer to the per-project
  * `testing-conventions` skill (synthesised by Phase 3 of
  * `/initialize-project`) for layout discovery.
  *
@@ -36,9 +36,8 @@ describe('ui-testing skill — stack-agnostic by construction', () => {
     const body = readFileSync(UI_TESTING_SKILL_PATH, 'utf-8');
 
     it('does NOT carry hardcoded FSD path patterns', () => {
-      // Three FSD-specific tokens flagged by the gira audit (2026-05-04).
-      // Each one biases the task classifier toward the FSD methodology;
-      // projects that don't use FSD got misclassified.
+      // FSD-specific tokens that bias the task classifier toward the
+      // FSD methodology; projects that don't use FSD got misclassified.
       expect(body).not.toMatch(/\bshared\/ui\//);
       expect(body).not.toMatch(/\bentities\/\*\/ui\b/);
       // `widgets/` is so common (it's also a real Next.js / generic dir

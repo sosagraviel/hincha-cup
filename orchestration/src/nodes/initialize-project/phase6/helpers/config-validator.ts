@@ -27,7 +27,6 @@ export function validateFrameworkConfig(configPath: string | undefined): Validat
     const configContent = readFileSync(configPath, 'utf-8');
     const config = JSON.parse(configContent);
 
-    // Validate required sections exist
     if (!config.version) {
       errors.push('framework-config.json missing version');
     }

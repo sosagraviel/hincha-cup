@@ -1,28 +1,17 @@
 /**
- * Plan §F.6 + commit 9 (2026-05-05) — run-level stats for the
- * debug-store HTML index.
+ * Run-level stats for the debug-store HTML index.
  *
  * Two stats are surfaced as new rows in the index sidebar:
  *
  *   1. **Cache hit rate** — the fraction of agent calls in this run
- *      that read from the Anthropic prompt cache. Computed from
- *      `metrics/token-usage.jsonl` records; `cache_hit: true` is set
- *      when `cache_read_input_tokens > 0` in the response. Phase 1
- *      analyzers within a 5-minute TTL window should produce ≥ 50%
- *      cache hit rate after commits 7 + 8 land.
+ *      that read from the Anthropic prompt cache.
  *
  *   2. **Graph overflows** — the total count of graph MCP tool
- *      results that exceeded the per-call token cap. Aggregated by
- *      reading each attempt's `output.json`, summing the
- *      `graph_overflow_count` field that the Phase 1 analyzer Stop
- *      hook writes (see `applyGraphToolUsageFromSidecar`). After
- *      commits 1 + 2, the gira run target is 0–2 overflows total
- *      (was 10 before the spill-protocol HARD FAILURE wording).
+ *      results that exceeded the per-call token cap.
  *
  * Both stats are best-effort: missing files, malformed JSON, or
  * absent fields silently degrade to "unknown" rather than fail the
- * render. Observability that crashes the renderer is worse than no
- * observability.
+ * render.
  */
 import { readFile, readdir } from 'fs/promises';
 import path from 'path';
@@ -60,18 +49,11 @@ export interface RunStats {
    */
   graphOverflowTools: string[];
   /**
-   * Plan §C 5.3 (gira-exhaustive followup, 2026-05-05). Aggregate
-   * counts of soft warnings emitted by the analyzers' output.json
-   * `soft_warning` arrays. Empty when no analyzer surfaced any
-   * warning. The bucket names come from a fixed vocabulary defined
-   * by `computeSoftWarnings` + `applyGraphToolUsageFromSidecar`
-   * (e.g. `low_graph_ratio`, `tool_call_budget_exceeded`,
-   * `per_tool_budget_exceeded`, `graph_overflow_detected`,
-   * `speculative_needs_verification`).
+   * Aggregate counts of soft warnings emitted by the analyzers' output.json
+   * `soft_warning` arrays. Empty when no analyzer surfaced any warning.
    *
-   * Optional for back-compat with older RunStats fixtures that
-   * predate the §C 5.3 enrichment. Renderer treats `undefined` as
-   * an empty object.
+   * Optional for back-compat with older RunStats fixtures. Renderer treats
+   * `undefined` as an empty object.
    */
   softWarningCounts?: Record<string, number>;
 }
@@ -102,7 +84,6 @@ export async function computeRunStats(
 ): Promise<RunStats> {
   const stats: RunStats = { ...EMPTY_STATS, graphOverflowTools: [] };
 
-  // -------------------------- token-usage rollup --------------------------
   const tokenJsonlPath = options.tokenUsageJsonlPath ?? deriveDefaultTokenJsonlPath(runDir);
   let cacheReadObserved = false;
   let cacheCreationObserved = false;
@@ -116,17 +97,9 @@ export async function computeRunStats(
         if (!trimmed) continue;
         try {
           const record = JSON.parse(trimmed);
-          // Defensive: only count records whose phase belongs to THIS run.
-          // Without runId on the record we use the simple proxy: count
-          // every record in the JSONL (the emitter is per-project, but
-          // the debug-store uses one run per init invocation).
           if (typeof record === 'object' && record !== null) {
             stats.totalAgentCalls++;
             if (record.cache_hit === true) stats.cacheHits++;
-            // Sum cache token volumes when present. Records emitted
-            // before the field-split (commit pre-codex-parity)
-            // omit these keys; we treat omission as "unknown" rather
-            // than "zero" so the run-stats sidebar can distinguish.
             if (
               typeof record.cache_read_input_tokens === 'number' &&
               record.cache_read_input_tokens >= 0
@@ -142,13 +115,9 @@ export async function computeRunStats(
               cacheCreationSum += record.cache_creation_input_tokens;
             }
           }
-        } catch {
-          // skip malformed lines
-        }
+        } catch {}
       }
-    } catch {
-      // file missing — leave totals at 0
-    }
+    } catch {}
   }
   stats.cacheReadInputTokens = cacheReadObserved ? cacheReadSum : -1;
   stats.cacheCreationInputTokens = cacheCreationObserved ? cacheCreationSum : -1;
@@ -156,7 +125,6 @@ export async function computeRunStats(
     stats.cacheHitRate = stats.cacheHits / stats.totalAgentCalls;
   }
 
-  // -------------------------- graph overflow + soft-warning rollup -------
   const overflowToolsSet = new Set<string>();
   const softWarningCounts: Record<string, number> = {};
   await walkOutputJsons(runDir, (outputJson) => {
@@ -167,9 +135,6 @@ export async function computeRunStats(
     const tools = pickOverflowTools(outputJson);
     for (const t of tools) overflowToolsSet.add(t);
 
-    // Plan §C 5.3: aggregate soft warnings across every analyzer's
-    // output.json. Each output.json carries a `soft_warning` string
-    // array (may be empty / absent on older runs).
     const warnings = pickSoftWarnings(outputJson);
     for (const w of warnings) {
       softWarningCounts[w] = (softWarningCounts[w] ?? 0) + 1;
@@ -182,16 +147,9 @@ export async function computeRunStats(
 }
 
 /**
- * Best-effort default for the token-usage JSONL path. The emitter
- * writes to `<projectPath>/.claude-temp/metrics/token-usage.jsonl`;
- * the run dir lives at
- * `<projectPath>/.claude-temp/<workflow>/debug/runs/<runId>`.
- * Walk up four segments to land at `<projectPath>/.claude-temp` and
- * then `metrics/token-usage.jsonl`.
+ * Best-effort default for the token-usage JSONL path.
  */
 function deriveDefaultTokenJsonlPath(runDir: string): string | null {
-  // .../<projectPath>/.claude-temp/<workflow>/debug/runs/<runId>
-  // up 4 = `.claude-temp`
   const ancestor = path.resolve(runDir, '..', '..', '..', '..');
   if (!ancestor) return null;
   return path.join(ancestor, 'metrics', 'token-usage.jsonl');
@@ -214,7 +172,7 @@ async function walkOutputJsons(rootDir: string, visit: (parsed: unknown) => void
         const parsed = JSON.parse(body);
         visit(parsed);
       } catch {
-        // skip unreadable / malformed
+        continue;
       }
     }
   }

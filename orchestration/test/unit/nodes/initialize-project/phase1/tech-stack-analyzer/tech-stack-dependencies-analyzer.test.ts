@@ -141,9 +141,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     await techStackDependenciesAnalyzerNode(mockState);
 
     expect(mockAgent.invoke).toHaveBeenCalledWith({
-      inputPrompt: expect.stringContaining(
-        'Analyze the tech stack and dependencies at: /test/project',
-      ),
+      inputPrompt: expect.stringContaining('/test/project'),
     });
   });
 

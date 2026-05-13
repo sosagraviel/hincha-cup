@@ -1,9 +1,9 @@
 /**
- * Plan §C, commit A (2026-05-05) — Codex parity for graph-tool-uses
- * telemetry. The extractor walks a Codex rollout JSONL and produces
- * the same `GraphToolUsesSidecar` shape Claude's Stop hook writes,
- * so downstream `applyGraphToolUsageFromSidecar` and
- * `computeSoftWarnings` see identical inputs regardless of provider.
+ * Codex parity for graph-tool-uses telemetry. The extractor walks a
+ * Codex rollout JSONL and produces the same `GraphToolUsesSidecar`
+ * shape Claude's Stop hook writes, so downstream
+ * `applyGraphToolUsageFromSidecar` and `computeSoftWarnings` see
+ * identical inputs regardless of provider.
  */
 import { describe, expect, it } from 'vitest';
 import { extractGraphToolUsesFromCodexJsonl } from '../../../../../../src/nodes/initialize-project/phase1/shared/graph-tool-uses-extractor.js';
@@ -181,7 +181,7 @@ describe('extractGraphToolUsesFromCodexJsonl — overflow detection', () => {
     expect(result.count).toBe(1);
   });
 
-  it('the gira-style regression: 38 tool calls + 4 overflows on a single tool', () => {
+  it('regression: 38 tool calls + 4 overflows on a single tool', () => {
     // Reproduces the exact distribution that motivated the per-tool
     // budget caps in commit 1: structure-architecture-analyzer hit
     // get_community_tool 38 times and 4 of them overflowed.

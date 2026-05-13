@@ -1,0 +1,14 @@
+{
+  "name": "@mini-serverless/devops",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint scripts",
+    "test": "echo 'no tests'",
+    "typecheck": "echo 'JS — no typecheck'"
+  },
+  "dependencies": {
+    "execa": "^9.0.0"
+  }
+}

@@ -22,10 +22,6 @@ export async function invokeWikiAgent(
   prompt: string,
 ): Promise<string> {
   const factory = await AgentFactory.create();
-  // Per-invocation tracker id — the wiki-generator agent is invoked in parallel
-  // (3 core docs + N service docs), so we need a unique key per call to avoid
-  // Spinnies collisions. `agentName` stays `wiki-generator` so model/settings
-  // lookup is unchanged.
   const trackerId = `${WIKI_AGENT_NAME}:${filename}`;
   const agent = await factory.createAgent({
     agentName: WIKI_AGENT_NAME,
@@ -36,15 +32,9 @@ export async function invokeWikiAgent(
     settingsPath: join(options.frameworkPath, SETTINGS_SUBPATH),
     trackerId,
     trackerDisplayName: trackerId,
-    // Phase coordinate threaded so the debug bucket lands under a real
-    // phase slot (phase-4-wiki) instead of the legacy `phase-unknown/`
-    // fallback. See plans/2026-04-29-gira-init-run-audit-refactor.md F2.
     phase: options.phase,
   });
 
-  // No `ultrathink` prefix: this agent runs closed-book over digested upstream.
-  // Narrative synthesis from a structured prompt does not benefit from extended
-  // thinking; the gira run had the Patterns doc spend 5 minutes on it.
   const result = await agent.invoke({
     inputPrompt: `${prompt}\n\nGenerate ${filename} (${documentType}).`,
   });

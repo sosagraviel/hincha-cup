@@ -1,0 +1,9 @@
+*                              @platform-team
+/frontend/                     @go-team
+/productcatalogservice/        @go-team
+/cartservice/                  @dotnet-team
+/recommendationservice/        @python-team @ml-team
+/paymentservice/               @node-team
+/loadgenerator/                @qa-team
+/kubernetes/                   @platform-team @sre-team
+/pb/                           @platform-team

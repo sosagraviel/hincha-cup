@@ -126,9 +126,7 @@ describe('structureArchitectureAnalyzerNode', () => {
   it('should invoke agent with correct input', async () => {
     await structureArchitectureAnalyzerNode(mockState);
     expect(mockAgent.invoke).toHaveBeenCalledWith({
-      inputPrompt: expect.stringContaining(
-        'Analyze the project structure and architecture at: /test/project',
-      ),
+      inputPrompt: expect.stringContaining('/test/project'),
     });
   });
 

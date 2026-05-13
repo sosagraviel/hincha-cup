@@ -1,6 +1,5 @@
 /**
- * Plan §C 1.1 (gira-exhaustive followup, 2026-05-05) — stack-agnostic
- * build-tool / package-manager detection.
+ * Stack-agnostic build-tool / package-manager detection.
  *
  * The framework supports 600+ projects spanning TypeScript, JavaScript,
  * Python, Ruby, PHP, Java, Kotlin, Go, Rust, .NET, Scala, Elixir. Each
@@ -417,7 +416,7 @@ describe('extractCommandsFromManifest — JS/TS scripts', () => {
     );
   });
 
-  it('the gira regression: pnpm@10.2.1 produces pnpm commands', async () => {
+  it('pnpm@10.2.1 produces pnpm commands', async () => {
     await touch(
       'package.json',
       JSON.stringify({

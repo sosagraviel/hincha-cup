@@ -445,6 +445,24 @@ MODEL_TIER=advanced ./qubika-agentic-framework/scripts/initialize-project.sh
   --provider claude
 ```
 
+### Example 6: Fast Tier on a Real Project
+
+Use `MODEL_TIER=fast` (Haiku) for the quickest, cheapest run when you want to validate the framework on a real project — large monorepos finish in 5–10 minutes for a few cents per run.
+
+```bash
+cd ~/projects/my-real-app
+MODEL_TIER=fast ./qubika-agentic-framework/scripts/initialize-project.sh \
+  --provider claude \
+  --skip-gap-questions
+
+# Inspect the run
+open .claude-temp/initialize-project/debug/runs/$(ls -t .claude-temp/initialize-project/debug/runs/ | head -1)/index.html
+cat .claude/CLAUDE.md
+ls docs/llm-wiki/wiki/services/
+```
+
+This is the same configuration the integration-fixture runner uses, so a successful fast-tier run on your project should produce an artefact tree comparable to the fixtures under `orchestration/test/integration/initialize-project/projects/mini-*`.
+
 ## Stack Support
 
 **Automatically Detected**:

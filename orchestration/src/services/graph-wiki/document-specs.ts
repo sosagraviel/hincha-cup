@@ -36,6 +36,10 @@ export function buildServiceSpec(
       `Document only the "${serviceId}" service.`,
       'Use the service-scoped analyzer slice as the inventory of facts about this service.',
       '',
+      'Doc length target: **aim 120–200 lines total**, hard cap 400. Sections',
+      'with sparse evidence get 1–3 lines and a `(not determined by analysis)`',
+      'marker instead of padding. Sharper service docs are more useful.',
+      '',
       'Required sections (omit a section ONLY when the analyzer slice has nothing to say about it):',
       '',
       '  ## Purpose',
@@ -131,8 +135,8 @@ function cleanFrameworkTokens(raw: string): string[] {
 }
 
 /**
- * Byte-identical cache-eligible prefix shared by every wiki-gen prompt so the
- * Anthropic / OpenAI prefix cache hits on calls 2..N.
+ * Byte-identical cache-eligible prefix shared by every wiki-gen prompt in this run.
+ * Constant framing placed at the start so the provider prefix cache hits on calls 2..N.
  */
 export function buildWikiSharedPrefix(projectPath: string): string {
   return [
@@ -207,7 +211,10 @@ function architectureSpec(
     'Describe monorepo / multi-repo shape, service boundaries, communities, and high-level relationships.',
     'Use `structure_architecture` analyzer findings as the structural ground truth.',
     'Architecture docs live under docs/llm-wiki/wiki/. Output filename: ARCHITECTURE.md',
-    'When you mention a discovered service ID (any `id` from `structure_architecture.findings.services`), wrap the FIRST mention of each ID in `[[<id>]]` so it links to the per-service doc at `services/<id>.md`. Subsequent mentions may be plain text or `[[<id>]]`. Do NOT wikilink ids that were not discovered by the structure analyzer.',
+    'Doc length target: **aim 150–250 lines**, hard cap 500. Each major',
+    'section should be 2–4 paragraphs; lists of services / communities can',
+    'be longer but should be tabular, not prose.',
+    'When you mention a discovered service ID (any `id` from `structure_architecture.findings.services`), wrap the FIRST mention of each ID in `[[<id>]]` so it links to the per-service doc at `services/<id>.md`. Subsequent mentions of the same id may be plain text or `[[<id>]]`. Do NOT wikilink ids that were not discovered by the structure analyzer.',
   ];
 
   if (hasCouplingHotspots(analyzers.structure_architecture)) {
@@ -223,7 +230,7 @@ function architectureSpec(
     promptFocus,
     sourceContext: {
       stack_profile: stackProfile,
-      structure_architecture: analyzers.structure_architecture,
+      structure_architecture: pruneWikiUnusedFields(analyzers.structure_architecture),
     },
     digestedUpstream: scopeDigestedUpstream(
       digestedUpstream,
@@ -315,6 +322,10 @@ function scopeDigestedUpstream(
   };
 }
 
+/**
+ * Walk a markdown document by `## ` headings; drop any section whose
+ * heading line contains any of the provided drop tokens (case-insensitive).
+ */
 function dropMarkdownSections(markdown: string, dropTokens: string[]): string {
   const lower = dropTokens.map((t) => t.toLowerCase());
   const lines = markdown.split('\n');
@@ -382,11 +393,45 @@ function sliceAnalyzersForService(
   analyzers: WikiAnalyzerOutputs,
 ): WikiAnalyzerOutputs {
   return {
-    structure_architecture: sliceAnalyzerForService(analyzers.structure_architecture, serviceId),
-    tech_stack_dependencies: sliceAnalyzerForService(analyzers.tech_stack_dependencies, serviceId),
-    code_patterns_testing: sliceAnalyzerForService(analyzers.code_patterns_testing, serviceId),
-    data_flows_integrations: sliceAnalyzerForService(analyzers.data_flows_integrations, serviceId),
+    structure_architecture: pruneWikiUnusedFields(
+      sliceAnalyzerForService(analyzers.structure_architecture, serviceId),
+    ),
+    tech_stack_dependencies: pruneWikiUnusedFields(
+      sliceAnalyzerForService(analyzers.tech_stack_dependencies, serviceId),
+    ),
+    code_patterns_testing: pruneWikiUnusedFields(
+      sliceAnalyzerForService(analyzers.code_patterns_testing, serviceId),
+    ),
+    data_flows_integrations: pruneWikiUnusedFields(
+      sliceAnalyzerForService(analyzers.data_flows_integrations, serviceId),
+    ),
   };
+}
+
+/**
+ * Drop debug-only or verbose fields the wiki-generator prompt does not need.
+ * Removes top-level telemetry (`graph_queries_used`, `agent_name`, `timestamp`),
+ * full dep lists (`production`, `development`, `shared_across_services`), and
+ * verbose test-file regexes (`file_pattern`, `file_patterns`).
+ */
+function pruneWikiUnusedFields<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((entry) => pruneWikiUnusedFields(entry)) as unknown as T;
+  }
+  if (!isRecord(value)) return value;
+  const TOP_LEVEL_DROP = new Set(['graph_queries_used', 'agent_name', 'timestamp']);
+  const next: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (TOP_LEVEL_DROP.has(key)) continue;
+    if (key === 'production' || key === 'development' || key === 'shared_across_services') {
+      continue;
+    }
+    if (key === 'file_pattern' || key === 'file_patterns') {
+      continue;
+    }
+    next[key] = pruneWikiUnusedFields(raw);
+  }
+  return next as T;
 }
 
 function sliceAnalyzerForService<T>(value: T, serviceId: string): T {

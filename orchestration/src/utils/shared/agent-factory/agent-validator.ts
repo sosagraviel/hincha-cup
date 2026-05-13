@@ -25,7 +25,6 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Layer 1: Path validation
   if (!agentPath || agentPath.trim() === '') {
     return { valid: false, errors: ['Agent path is required'], warnings: [] };
   }
@@ -42,7 +41,6 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     };
   }
 
-  // Layer 2: Read and parse
   let content: string;
   try {
     content = fs.readFileSync(agentPath, 'utf-8');
@@ -62,7 +60,6 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     };
   }
 
-  // Parse frontmatter
   let frontmatter: Record<string, any>;
   try {
     const parsed = matter(content);
@@ -75,7 +72,6 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     };
   }
 
-  // Layer 3: Required fields
   if (!frontmatter.name) {
     errors.push('Missing required field: name');
   }
@@ -84,9 +80,6 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     errors.push('Missing required field: description');
   }
 
-  // Layer 4: Validate field names
-  // Valid Claude CLI frontmatter fields per official documentation
-  // Source: https://code.claude.com/docs/en/sub-agents.md#supported-frontmatter-fields
   const VALID_CLI_FIELDS = [
     'name',
     'description',
@@ -103,8 +96,6 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     'effort',
     'isolation',
     'initialPrompt',
-    // Individual hook fields (alternative to hooks object)
-    // Source: https://code.claude.com/docs/en/hooks-guide
     'user-prompt-submit-hook',
     'assistant-message-hook',
     'pre-tool-use-hook',
@@ -112,7 +103,6 @@ export function validateAgentFile(agentPath: string): AgentValidationResult {
     'stop-hook',
   ];
 
-  // Framework-specific fields (not provider-specific, used internally)
   const FRAMEWORK_FIELDS = ['subagent_type', 'output_format', 'run_in_background', 'provider'];
 
   const allFields = [...VALID_CLI_FIELDS, ...FRAMEWORK_FIELDS];

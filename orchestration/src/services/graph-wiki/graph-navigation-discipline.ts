@@ -33,68 +33,58 @@ export const GRAPH_NAVIGATION_DISCIPLINE_HEADING = '## Graph navigation discipli
  * heading, no fence markers; consumers wrap with their own heading and
  * (optionally) sentinel comments.
  */
-export const GRAPH_NAVIGATION_DISCIPLINE_TEXT = `Top-down, never breadth-first. When you call a code-graph MCP tool, start with the cheapest entry point and only drill into the small priority set you need to answer your specific question. The MCP server has a strict tool-result token cap; unbounded calls overflow silently and dump 200+ KB to a sidecar file you cannot usefully consume.
+export const GRAPH_NAVIGATION_DISCIPLINE_TEXT = `Top-down, never breadth-first. Start cheap, drill into a small priority set. MCP tool results have a strict token cap; unbounded calls overflow into a sidecar.
 
 ### 0. Tool-call conventions
 
-**Server identity is preconfigured. Do not pass \`repo_root\`** (or any equivalent path/path-like argument) in any \`mcp__code_graph__*\` tool call. The MCP launcher already pins the server to this project via its launch flags. Passing \`repo_root\` is **always redundant**. Pass only the documented arguments to each tool (\`top_n\`, \`limit\`, \`detail_level\`, etc.) — the tool resolves the project root internally.
+**Do not pass \`repo_root\`.** The MCP launcher already pins the server to this project via launch flags — \`repo_root\` is always redundant.
 
-**If a tool returns \`AttributeError: 'str' object has no attribute 'resolve'\` or \`AttributeError: 'NoneType' object has no attribute 'resolve'\`** on \`get_hub_nodes_tool\` / \`get_bridge_nodes_tool\` / \`get_knowledge_gaps_tool\` / \`get_surprising_connections_tool\` / \`get_suggested_questions_tool\`, that is an upstream code-review-graph bug. The framework's setup script (\`scripts/setup-code-graph.sh\`) patches the bug at install time — if you still see this error, the patch failed to apply on this machine. Retry once; if it still fails, fall back to \`get_minimal_context_tool\` + \`list_communities_tool\` + \`get_community_tool({ include_members: false })\` for the same architectural-overview information. Surface the error in your \`needs_verification\` output so the operator can re-run the framework's preflight to re-apply the patch.
+**Upstream bug.** \`get_hub_nodes_tool\`, \`get_bridge_nodes_tool\`, \`get_knowledge_gaps_tool\`, \`get_surprising_connections_tool\`, \`get_suggested_questions_tool\` may return \`'str' object has no attribute 'resolve'\` or \`'NoneType' object has no attribute 'resolve'\`. The framework's \`setup-code-graph.sh\` patches this at install time; if you still see it, retry once and fall back to \`get_minimal_context_tool\` + \`list_communities_tool\` + \`get_community_tool({ include_members: false })\`. Surface a \`needs_verification\` entry so the operator re-runs preflight.
 
-**First-call startup race.** Your very first \`mcp__code_graph__*\` tool call may transiently fail with \`tool_use_error: No such tool available: <exact-tool-name>\` even though \`<exact-tool-name>\` appears in the catalog above and matches the spelling exactly. This is a known race between MCP server tool registration and the first agent turn — it self-resolves within a few hundred milliseconds. **If you see this error on a tool whose name is in the catalog, retry the SAME call once.** After the retry, every subsequent MCP call in this session will work. Do not switch to a different tool name, do not abandon the graph, do not invent a fallback — just retry. If the retry also fails, only then treat the tool as genuinely unavailable.
+**First-call startup race.** Your first \`mcp__code_graph__*\` call may return \`tool_use_error: No such tool available: <name>\` for a name that's in the catalog. This is a known registration race — retry the SAME call once. Do not switch tools, do not abandon the graph, do not invent a fallback.
 
-**Fat communities.** Some communities — auto-named aggregations whose names suggest shared prefix groupings — return enormous descriptions even with \`include_members: false\`, overflowing the per-call token cap. The naming pattern is language-independent; the same shape forms in every codebase the parser indexes. Recognize a fat community BEFORE drilling into it:
+**Fat communities — HARD RULE.** Communities can overflow on the bare metadata + description alone, even with \`include_members: false\`, when \`size > 50\` OR the community name matches one of these patterns:
 
-- **Verb-like prefix names**: \`it:\`, \`should\`, \`test:\`, \`assert:\`, \`describe:\` (test-suite aggregations).
-- **Cross-cutting noun roots**: \`exceptions\`, \`errors\`, \`helpers\`, \`utils\`, \`shared\`, \`base\`, \`core\`, \`common\`, \`misc\`.
-- **Generated-code markers**: \`__generated\`, \`pb_\`, \`grpc_\`, \`protobuf\`, \`schema_\`, \`migrations\`.
-- **Module-barrel signals**: names ending in \`-index\`, \`-exports\`, \`-public\`.
+- test-descriptor leaks: \`it:|should|describe:|assert:|test:|spec:|expect:\`
+- cross-cutting noun roots: \`exceptions\`, \`helpers\`, \`utils\`, \`shared\`, \`base\`, \`core\`
+- generated-code markers: \`__generated\`, \`pb_\`, \`schema_\`, \`autogen\`
+- module-barrel signals: \`*-index\`, \`*-exports\`, \`*-barrel\`
+- mixed-prefix services with i18n keys (e.g. \`service-it:should\`, \`feature-en:must\`)
 
-When a community matches any of those patterns, prefer \`query_graph_tool({ pattern: "file_summary", target: <name>, detail_level: "minimal" })\` over \`get_community_tool\` — the file-summary path is bounded by \`detail_level\` and never overflows on shape.
+**Required pre-check.** Before EVERY \`get_community_tool\` call, you MUST have observed the community's \`size\` field in a recent \`list_communities_tool\` response. Only call \`get_community_tool\` when \`size ≤ 50\` AND the name does NOT match the patterns above. Otherwise drill in via \`query_graph_tool({ pattern: "file_summary", target: <name>, detail_level: "minimal" })\` instead — it returns the same architectural signal (file/symbol roster) with a bounded payload.
 
 ### 1. Always start with the cheapest entry point
 
-Call \`mcp__code_graph__get_minimal_context_tool({ task: "<your goal>" })\` first. ~100 tokens. Returns top communities, top flows, risk score, suggested next tools. This is the map; everything else is a drill-in from here.
+\`mcp__code_graph__get_minimal_context_tool({ task: "<your goal>" })\` first. ~100 tokens; returns the map.
 
-### 2. Default to LEAN parameters on every tool that exposes them
+### 2. Default to LEAN parameters
 
-| Tool | Default this way |
+| Tool | Defaults |
 |---|---|
-| \`mcp__code_graph__list_communities_tool\` | \`{ detail_level: "minimal", min_size: 10, sort_by: "size" }\`. **NEVER** \`detail_level: "standard"\` — that returns full member lists per community and overflows on graphs with > 10 communities. |
-| \`mcp__code_graph__get_community_tool\` | \`{ include_members: false }\` by default. Even with \`include_members: false\`, the response can still overflow on **wide** communities (≳40 members) because the tool returns description + per-language tags. **An overflow sentinel from this tool is a HARD FAILURE.** Do NOT read the spillover file (it costs the same tokens as if the call had succeeded). On the very next turn, call \`query_graph_tool({ pattern: "file_summary", target: <community>, detail_level: "minimal" })\` instead. Do NOT retry \`get_community_tool\` on the same community — it cannot succeed. Only set \`include_members: true\` for ≤3 specific communities ≤30 members each. |
-| \`mcp__code_graph__list_flows_tool\` | \`{ detail_level: "minimal", limit: 30, sort_by: "criticality" }\`. |
-| \`mcp__code_graph__get_flow_tool\` | \`{ include_source: false }\` by default. \`include_source: true\` only for the single flow whose source you genuinely need (cap: 1). |
-| \`mcp__code_graph__semantic_search_nodes_tool\` | \`{ limit: 20 }\` MAX. Use \`kind\` to filter (\`Class\` / \`Function\` / \`File\` / \`Type\` / \`Test\`). \`detail_level: "minimal"\` when surveying. |
-| \`mcp__code_graph__find_large_functions_tool\` | \`{ min_lines: 50, limit: 30 }\`. **NEVER** \`min_lines: 1\` — that returns every function. |
-| \`mcp__code_graph__query_graph_tool\` | \`{ detail_level: "minimal" }\`. |
-| \`mcp__code_graph__traverse_graph_tool\` | \`{ token_budget: 2000, depth: 3 }\` (depth 1-6 max). |
-| \`mcp__code_graph__get_hub_nodes_tool\` / \`get_bridge_nodes_tool\` | \`{ top_n: 10 }\`. |
+| \`list_communities_tool\` | \`detail_level: "minimal"\`, \`min_size: 10\`, \`sort_by: "size"\`. Never \`detail_level: "standard"\`. |
+| \`get_community_tool\` | Requires a prior \`list_communities_tool\` with \`size ≤ 50\` AND name does NOT match fat-community patterns (§0). \`include_members: false\` always; \`true\` only for ≤3 communities ≤30 members. Otherwise use \`query_graph_tool({ pattern: "file_summary" })\`. |
+| \`list_flows_tool\` | \`detail_level: "minimal"\`, \`limit: 30\`, \`sort_by: "criticality"\`. |
+| \`get_flow_tool\` | \`include_source: false\`; \`true\` for at most 1 flow. |
+| \`semantic_search_nodes_tool\` | \`limit: 20\` MAX. Filter by \`kind\`. \`detail_level: "minimal"\` when surveying. \`query\` is a SINGLE token (e.g. \`"stripe"\`, \`"typeorm"\`) — multi-token prose queries return zero results. |
+| \`find_large_functions_tool\` | \`min_lines: 50\`, \`limit: 30\`. Never \`min_lines: 1\`. |
+| \`query_graph_tool\` / \`traverse_graph_tool\` | \`detail_level: "minimal"\`; traverse \`token_budget: 2000\`, \`depth: 3\`. |
+| \`get_hub_nodes_tool\` / \`get_bridge_nodes_tool\` | \`top_n: 10\`. |
 
 ### 3. Forbidden tool
 
-- \`mcp__code_graph__get_architecture_overview_tool\` — **DO NOT CALL**. The response has no bounding knob and always returns full member lists for ALL communities; it overflows on any non-trivial codebase. Equivalent information is reachable via \`get_minimal_context_tool\` + \`list_communities_tool({ detail_level: "minimal" })\` + selective \`get_community_tool({ include_members: false })\` + \`get_hub_nodes_tool\` + \`get_bridge_nodes_tool\`. The combination is information-equivalent and bounded.
+\`mcp__code_graph__get_architecture_overview_tool\` — DO NOT CALL. No bounding knob; overflows on any non-trivial codebase. Use \`get_minimal_context_tool\` + \`list_communities_tool\` + selective \`get_community_tool({ include_members: false })\` + hubs/bridges instead.
 
-### 4. Drill-in budget per call session (soft caps)
+### 4. Drill-in budget per session (soft)
 
-- ≤5 community drill-ins via \`get_community_tool({ include_members: false })\`
-- ≤3 community drill-ins with \`include_members: true\`
-- ≤5 flow drill-ins via \`get_flow_tool\`
-- ≤8 semantic searches with \`limit: 20\`
+≤5 community drill-ins, ≤3 with \`include_members: true\`, ≤5 flow drill-ins, ≤8 semantic searches.
 
-### 5. Result-spill protocol
+### 5. Result-spill protocol — RECOVER, do not abandon
 
-If any tool result starts with a sentinel like \`Error: result (NNN characters) exceeds maximum allowed tokens. Output has been saved to /Users/.../tool-results/...txt\` — **that is a HARD FAILURE, not a "the data was saved for you" success.** Reading the spillover file costs the same tokens as if the call had succeeded; the call's parameters were wrong, period.
+Overflow sentinels (\`Error: result (NNN characters) exceeds maximum allowed tokens. Output has been saved to .../tool-results/...\`) are a **HARD FAILURE**. Do not read the spillover file — the tokens cost the same as if the call succeeded.
 
-**Mandatory remediation on the next turn — RECOVER, do not abandon:**
+**On the next turn:**
+1. Switch to a tighter shape per §2. Specifically: \`get_community_tool\` overflow → \`query_graph_tool({ pattern: "file_summary", target: <name>, detail_level: "minimal" })\`. \`semantic_search_nodes_tool\` overflow → drop \`limit\` to ≤10 + add a \`kind\` filter. \`find_large_functions_tool\` overflow → raise \`min_lines\` to 100.
+2. Overflows count DOUBLE against that tool's remaining budget for the session.
+3. **Continue the planned graph workflow.** Do NOT fall back to filesystem enumeration (Glob, Read, find, ls, grep, Get-ChildItem, fd, ripgrep) — those cannot replicate community membership, hub/bridge centrality, or flow topology. The overflow is a parameter problem, not a data problem; one of the alternative call shapes will return the answer within budget.
 
-1. **Discard** the spillover. Do not read the file. Do not re-call the same tool against the same target with the same parameters.
-2. **Switch to a tighter tool or pattern** from the table in §2:
-   - \`get_community_tool\` overflow → \`query_graph_tool({ pattern: "file_summary", target: <community>, detail_level: "minimal" })\`.
-   - \`list_flows_tool\` overflow → tighten \`limit\` and add \`sort_by: "criticality"\`.
-   - \`semantic_search_nodes_tool\` overflow → drop \`limit\` to ≤10 and add a \`kind\` filter.
-   - \`find_large_functions_tool\` overflow → raise \`min_lines\` (default 50 is the floor; 100+ for large codebases).
-3. **Update the per-tool budget**: an overflow on a tool counts DOUBLE against that tool's remaining budget for the rest of this session.
-
-**Recovery, NOT abandonment.** After remediating per the table above, **continue the planned graph workflow**. Do NOT switch to filesystem-level enumeration as a substitute — Glob, Read, find, ls, grep, Get-ChildItem, fd, ripgrep, or any equivalent in your shell cannot replicate community membership, hub/bridge centrality, or flow topology. That data lives in the graph, not in the filesystem. The overflow is a parameter problem, not a data problem; one of the alternative call shapes above will return the answer within budget. The 2026-05-05 audit observed agents responding to a single \`get_community_tool\` overflow with ~20 file-system calls — wasting the analyzer's budget AND producing brittle, language-tied output the synthesizer could not reconcile with the graph topology.
-
-The framework's Stop hook detects the overflow sentinel automatically and emits a \`graph_overflow_event\` to the run's debug store. The count is rendered in the run's \`index.html\` and is treated as a regression in CI smoke tests.`;
+The Stop hook detects overflow sentinels automatically; the count is rendered into the run's \`index.html\` and treated as a regression in CI smoke tests.`;

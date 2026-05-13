@@ -21,6 +21,7 @@ import { extractFrameworks } from './helpers/framework-extractor.js';
 import { extractInfrastructure } from './helpers/infrastructure-extractor.js';
 import { extractServicesFromPhase1Analyzers } from './helpers/service-extractor.js';
 import { validateStackProfile } from './helpers/stack-profile-validator.js';
+import { UTILITY_LANGUAGES } from './constants.js';
 import {
   normalisePackageManager,
   normaliseWorkspaceTool,
@@ -66,7 +67,6 @@ export async function contextGenerationNode(
   const phaseLogger = logger.child('Phase 4: Context Generation');
   phaseLogger.info(' Starting file extraction...');
 
-  // Read Phase 3 synthesis from disk (not from state)
   const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   const synthesisPath = join(tempDir, 'synthesis-raw.md');
 
@@ -96,16 +96,10 @@ export async function contextGenerationNode(
       architecturalNarrative,
     } = synthesisResult;
 
-    // Persist the architectural narrative to <tempDir>/architectural-narrative.md
-    // so the wiki-preparation node (Phase 4b) can read it from disk like every
-    // other upstream artifact. The narrative is descriptive prose only — no
-    // YAML frontmatter, no skill semantics — so it lives in the run's temp
-    // directory rather than under .claude/skills/.
     const architecturalNarrativePath = join(tempDir, 'architectural-narrative.md');
     writeFileSync(architecturalNarrativePath, architecturalNarrative, 'utf-8');
     phaseLogger.success(`✓ Written: ${architecturalNarrativePath}`);
 
-    // Read Phase 1 analysis files from disk (not from state)
     phaseLogger.info(' Loading Phase 1 analysis from disk...');
 
     const phase1Dir = join(tempDir, 'phase1-outputs');
@@ -125,7 +119,6 @@ export async function contextGenerationNode(
     const structureArchData = JSON.parse(readFileSync(structureArchPath, 'utf-8'));
     const techStackData = JSON.parse(readFileSync(techStackPath, 'utf-8'));
 
-    // Also read code-patterns-testing for testing_framework field
     const codePatternsData = existsSync(codePatternsPath)
       ? JSON.parse(readFileSync(codePatternsPath, 'utf-8'))
       : {
@@ -134,7 +127,6 @@ export async function contextGenerationNode(
           findings: {},
         };
 
-    // Read data-flows-integrations if it exists
     const dataFlowsData = existsSync(dataFlowsPath)
       ? JSON.parse(readFileSync(dataFlowsPath, 'utf-8'))
       : null;
@@ -147,14 +139,6 @@ export async function contextGenerationNode(
     const codePatternsFindings = codePatternsData?.findings;
     const dataFlowsFindings = dataFlowsData?.findings;
 
-    // Plan 16 §C.5 — deterministic service-id normalisation.
-    // The structure analyzer sometimes emits graph-community names
-    // as service ids (`src-app`, `chat-handle`, …) instead of the
-    // folder basename. Rewrite to `slugify(basename(path))` and
-    // propagate the mapping through every id-keyed map in all four
-    // analyzer slices (build_tools.<id>, testing.<id>,
-    // dependencies.by_service.<id>, etc.). Stack-agnostic — pure
-    // path manipulation.
     const idRewrites = computeServiceIdRewrites([
       structureFindings,
       techStackFindings,
@@ -176,7 +160,6 @@ export async function contextGenerationNode(
 
     phaseLogger.info(`  Languages from Phase 1: ${languagesFromPhase1.join(', ') || 'none'}`);
 
-    // STEP 1: Count files by language (independent validation)
     phaseLogger.info(' Counting files by language for validation...');
     let fileCountResult: FileCountResult | undefined;
     try {
@@ -185,7 +168,6 @@ export async function contextGenerationNode(
         ` ✓ Found ${fileCountResult.total_files} files across ${fileCountResult.by_language.length} languages`,
       );
 
-      // Log breakdown
       for (const langCount of fileCountResult.by_language) {
         phaseLogger.info(`   ${langCount.language}: ${langCount.count} files`);
       }
@@ -196,11 +178,9 @@ export async function contextGenerationNode(
       phaseLogger.warn(' Continuing with agent-detected languages only');
     }
 
-    // STEP 2: Cross-validate agent findings with file counts
     let detectedLanguages = new Set<string>(languagesFromPhase1);
     detectedLanguages = crossValidateWithFileCount(detectedLanguages, fileCountResult, phaseLogger);
 
-    // STEP 3: Detect workspaces for monorepo projects
     phaseLogger.info(' Detecting workspaces...');
     let workspaceResult: WorkspaceDetectionResult | undefined;
     try {
@@ -222,8 +202,12 @@ export async function contextGenerationNode(
       );
     }
 
-    // STEP 4: Merge workspace detection results with agent findings
-    detectedLanguages = mergeWorkspaceLanguages(detectedLanguages, workspaceResult, phaseLogger);
+    detectedLanguages = mergeWorkspaceLanguages(
+      detectedLanguages,
+      workspaceResult,
+      phaseLogger,
+      fileCountResult,
+    );
 
     const finalLanguages = Array.from(detectedLanguages);
 
@@ -232,28 +216,19 @@ export async function contextGenerationNode(
     phaseLogger.info(`  Frontend frameworks: ${frontendFrameworks.join(', ') || 'none'}`);
     phaseLogger.info(`  Backend frameworks: ${backendFrameworks.join(', ') || 'none'}`);
 
-    // Plan 16 §C.6 — infrastructure as concrete technology names.
-    // Drops category abstractions (`containerization`, `orchestration`)
-    // emitted by the analyzer and augments with concrete names from
-    // project filesystem evidence (`docker-compose.yml` → `docker-compose`,
-    // `Dockerfile` → `docker`, etc.).
     const infrastructureFromPhase1 = extractInfrastructure(techStackFindings, state.project_path);
 
     phaseLogger.info(
       `  Infrastructure from Phase 1: ${infrastructureFromPhase1.join(', ') || 'none'}`,
     );
 
-    // NOTE: Testing framework extraction now handled by extractServicesFromPhase1Analyzers()
-    // Testing data comes from codePatternsFindings.services[].testing field
-    // This legacy code that extracted from multi_stack.workspaces has been removed
-
-    // STEP 5: Validate stack profile completeness
     phaseLogger.info(' Validating stack profile completeness...');
-    validateStackProfile(finalLanguages, fileCountResult, phaseLogger);
+    const cleanedLanguages = validateStackProfile(finalLanguages, fileCountResult, phaseLogger);
     phaseLogger.success(' ✓ Stack profile validation passed');
-    phaseLogger.info(`  Final languages: ${finalLanguages.join(', ')}`);
+    phaseLogger.info(`  Final languages: ${cleanedLanguages.join(', ')}`);
+    finalLanguages.length = 0;
+    finalLanguages.push(...cleanedLanguages);
 
-    // ========== EXTRACT SERVICES FROM PHASE 1 ANALYZERS ==========
     phaseLogger.info('📦 Extracting service configurations...');
 
     let services: Service[];
@@ -272,31 +247,28 @@ export async function contextGenerationNode(
         );
       }
 
-      // ADD FALLBACK SERVICES: For languages with significant files but no manifest-based service
-      // This ensures we generate implementers for utility scripts, test code, etc.
       if (fileCountResult) {
-        const FALLBACK_THRESHOLD = 10; // Create fallback service if >= 10 files
+        const FALLBACK_THRESHOLD = 10;
         const existingLanguages = new Set(services.map((s) => s.language.toLowerCase()));
         let fallbackCount = 0;
 
         for (const langCount of fileCountResult.by_language) {
           const lang = langCount.language.toLowerCase();
 
-          // Skip if we already have a service for this language
           if (existingLanguages.has(lang)) continue;
 
-          // Skip if below threshold
           if (langCount.count < FALLBACK_THRESHOLD) continue;
 
-          // Create generic fallback service for this language
+          if (UTILITY_LANGUAGES.has(lang)) continue;
+
           const fallbackService: Service = {
             id: `${lang}-scripts`,
             name: `${lang.charAt(0).toUpperCase() + lang.slice(1)} Scripts`,
-            path: '.', // Root level (files scattered across project)
-            type: 'library' as any, // Generic type for utility code
+            path: '.',
+            type: 'library' as any,
             language: lang,
-            language_version: undefined, // Unknown without manifest
-            frameworks: {}, // No framework detection for fallback services
+            language_version: undefined,
+            frameworks: {},
             file_count: langCount.count,
           };
 
@@ -314,26 +286,6 @@ export async function contextGenerationNode(
         }
       }
 
-      // ========================================================================
-      // FINAL FILTER: drop low-signal services regardless of how they were
-      // discovered. The fallback path above already enforces a 10-file
-      // floor, but the structure-architecture analyzer can surface
-      // workspace-yaml-derived services like `seeds/` (gira run, 2026-05-04)
-      // with `file_count: 2` and no `manifest_file`. Those entries cause
-      // downstream noise: every Phase 5 implementer gets a placeholder
-      // service it can't actually build for.
-      //
-      // Filter rule: drop a service when ALL of the following are true:
-      //   1. It has no `manifest_file` (nothing tells us this is a real
-      //      package/workspace).
-      //   2. Its `file_count` is explicitly set AND below 5.
-      //
-      // Services with `file_count: undefined` are kept — that means the
-      // analyzer didn't measure (e.g. older fixtures, partial output) and
-      // we don't have evidence to drop. Manifest-backed services are kept
-      // at any size — a freshly scaffolded package may legitimately have
-      // only one file. Threshold is documented at `Service` in
-      // `stack-profile.schema.ts`.
       const MIN_FILES_NO_MANIFEST = 5;
       const beforeFilter = services.length;
       services = services.filter((service) => {
@@ -362,39 +314,14 @@ export async function contextGenerationNode(
       throw error;
     }
 
-    // ========== BUILD SERVICE-CENTRIC STACK PROFILE ==========
     const stackProfile: StackProfile = {
-      // CORE: Service-centric data (source of truth)
       services,
-
-      // METADATA: Repository-level information.
-      //
-      // Plan §C 1.2 (gira-exhaustive followup, 2026-05-05) — normalise
-      // the workspace-tool / package-manager identifiers so the stack
-      // profile carries canonical names (`"pnpm workspaces"`, `"Maven
-      // multi-module"`, `"go workspaces"`, etc.) and the bare manager
-      // name (`"pnpm"`, `"poetry"`, `"maven"`, `"cargo"`, …) regardless
-      // of how the upstream tech-stack analyzer surfaced them. The
-      // 2026-05-04 gira run produced `workspace_tool: "pnpm@10.2.1"`
-      // (a Corepack version pin) and `package_manager: null` because
-      // the analyzer's `monorepo.workspace_manager` was the raw
-      // packageManager field; both helpers now decompose into the
-      // canonical pair.
-      //
-      // Stack-agnostic: the normalisers cover JS/TS, Python, Ruby,
-      // PHP, Java, Kotlin, Go, Rust, .NET, Scala, Elixir, plus
-      // polyglot tools (Bazel, Pants, Please, Buck). When the
-      // analyzer surfaces nothing, both fields are `undefined` —
-      // never carry malformed strings into the schema.
       is_monorepo: workspaceResult?.is_monorepo || false,
       workspace_tool:
         normaliseWorkspaceTool(techStackFindings?.monorepo?.tool) ??
         normaliseWorkspaceTool(techStackFindings?.monorepo?.workspace_manager),
       package_manager:
         normalisePackageManager(techStackFindings?.monorepo?.package_manager) ??
-        // Fallback: when the analyzer only emitted `workspace_manager`
-        // (Corepack version-pin shape), strip the version and use the
-        // bare manager name as a best-effort recovery.
         normalisePackageManager(techStackFindings?.monorepo?.workspace_manager),
       infrastructure: infrastructureFromPhase1.length > 0 ? infrastructureFromPhase1 : undefined,
       file_counts: fileCountResult
@@ -411,19 +338,10 @@ export async function contextGenerationNode(
         : undefined,
     };
 
-    // Plan 15 §D.4 + §D.6: build the deterministic command catalog
-    // from the Phase 2 consolidation and attach it to the stack profile
-    // so framework-config.json carries the contract every downstream
-    // skill / wiki / agent template depends on.
     const consolidationPath = join(tempDir, 'phase2-consolidation.json');
     if (existsSync(consolidationPath)) {
       try {
         const consolidationBlob = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
-        // Plan 16 §C.5 — propagate the same id-rewrites we applied to
-        // the four analyzer slices above into the consolidation blob
-        // the catalog builder consumes. Without this, the catalog's
-        // `per_service` fields keep the legacy graph-community ids
-        // even after the persisted stack profile uses canonical ones.
         if (
           Object.keys(idRewrites).length > 0 &&
           consolidationBlob &&
@@ -449,11 +367,6 @@ export async function contextGenerationNode(
         }
         stackProfile.command_catalog = catalogBundle.command_catalog;
 
-        // Plan 16 §C.9 — catalog visibility. Without this, an empty
-        // catalog (the original Plan-15 bug) was a silent failure;
-        // operators only noticed when CLAUDE.md showed the
-        // "(no commands discovered)" placeholder. One log line per
-        // run makes the contract auditable.
         const tierCounts: Record<string, number> = {
           wrapper: 0,
           readme: 0,
@@ -482,10 +395,6 @@ export async function contextGenerationNode(
           );
         }
 
-        // Plan 15 §D.6: deterministically render
-        // `docs/llm-wiki/wiki/getting-started.md` from the catalog +
-        // README extracts. Pure rendering — no LLM, no editorial
-        // decisions.
         const projectName = basename(state.project_path);
         const gettingStartedMd = renderGettingStarted({
           projectName,
@@ -513,7 +422,6 @@ export async function contextGenerationNode(
 
     phaseLogger.info(' Generating framework-config.json...');
 
-    // Prepare Phase 1 analysis data for config generator
     const phase1Data = {
       structure_architecture: structureArchData,
       tech_stack_dependencies: techStackData,
@@ -531,9 +439,6 @@ export async function contextGenerationNode(
     );
 
     const configPath = resolveConfigPath(state.project_path, 'framework-config.json');
-    // Single chokepoint for all writes into <project>/.claude/ or .codex/.
-    // PortableWriter asserts no /Users/<name>/... or /home/<name>/... strings
-    // land in the persisted JSON, and validates the shape against the schema.
     const portableWriter = new PortableWriter(
       new PortablePathResolver(asAbsolutePath(state.project_path)),
     );

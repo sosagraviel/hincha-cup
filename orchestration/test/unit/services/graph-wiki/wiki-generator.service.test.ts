@@ -290,8 +290,8 @@ describe('wiki-generator.service', () => {
     expect(invocations).not.toContain('SERVICES.md');
   });
 
-  it('SERVICES.md uses the stack-agnostic role one-liner derived from type + framework (Wave 2 Fix 3.4)', async () => {
-    // Pre-Wave 2 Fix 3.4 the catalog inlined the per-service doc's
+  it('SERVICES.md uses the stack-agnostic role one-liner derived from type + framework', async () => {
+    // Previously the catalog inlined the per-service doc's
     // first paragraph (often 30+ lines for 5 services). The new
     // contract: derive `<role>` from `service.type` +
     // `service.frameworks.main` so the catalog stays a thin pointer

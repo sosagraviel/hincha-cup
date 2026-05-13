@@ -44,7 +44,7 @@ describe('initializeProjectGraph routing', () => {
       expect(Object.keys(graph.nodes)).toContain(name);
     }
 
-    // The wiki_dataflows_doc and wiki_patterns_doc nodes were retired in H4
+    // The wiki_dataflows_doc and wiki_patterns_doc nodes were retired
     // along with the cross-cutting DATA-FLOWS.md and PATTERNS.md pages.
     expect(Object.keys(graph.nodes)).not.toContain('wiki_dataflows_doc');
     expect(Object.keys(graph.nodes)).not.toContain('wiki_patterns_doc');
@@ -53,11 +53,8 @@ describe('initializeProjectGraph routing', () => {
     // [wiki_architecture_doc, wiki_service_docs] (parallel) →
     // wiki_generation → resources.
     //
-    // Plan §I.1 (gira-exhaustive followup, 2026-05-05): the
-    // architecture and service-docs branches now fan out from
-    // wiki_preparation and converge on wiki_generation; pre-fix the
-    // architecture node ran first then service_docs, wasting ~60-90s
-    // per run.
+    // The architecture and service-docs branches fan out from
+    // wiki_preparation and converge on wiki_generation in parallel.
     expect(edges).toContain('context_generation->wiki_preparation');
     expect(edges).toContain('wiki_architecture_doc->wiki_generation');
     expect(edges).toContain('wiki_service_docs->wiki_generation');
@@ -67,7 +64,7 @@ describe('initializeProjectGraph routing', () => {
     expect(edges).not.toContain('context_generation->wiki_generation');
   });
 
-  it('routes wiki_preparation in parallel to the architecture + service-docs branches (Wave 3 §I.1)', () => {
+  it('routes wiki_preparation in parallel to the architecture + service-docs branches', () => {
     const route = routeAfterWikiPreparation({
       ...baseState,
       current_phase: 'phase4_context',
@@ -83,8 +80,7 @@ describe('initializeProjectGraph routing', () => {
     // The Phase 1 topology is sequential at the head: structure-analyzer
     // runs first, alone, and persists the authoritative services[]. The
     // three downstream analyzers (02/03/04) consume that file before
-    // building their own prompts. See plans/2026-04-29-gira-init-run-audit-refactor
-    // findings F7/F22.
+    // building their own prompts.
     expect(routeAfterGraphFoundation({ ...baseState, current_phase: 'phase0_graph' })).toBe(
       'structure_architecture_analyzer',
     );

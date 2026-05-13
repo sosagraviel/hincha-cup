@@ -32,6 +32,8 @@ import { validateSkillContent } from './validate-skill-content.js';
 import { validateLineCount } from './validate-line-count.js';
 import { extractSynthesisMarkdown } from './extract-synthesis-markdown.js';
 import { formatErrorsForAgent } from './format-errors-for-agent.js';
+import { detectInputUnavailableStub } from './detect-input-unavailable-stub.js';
+import { detectNonPortableAbsolutePath } from './detect-non-portable-absolute-path.js';
 
 const REQUIRED_FORMAT_HINT = [
   '📋 REQUIRED FORMAT (in this exact order, separated by --- on its own line):',
@@ -65,9 +67,6 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // ========================================================================
-  // CHECK 1: Reject empty or near-empty output immediately
-  // ========================================================================
   if (!output || output.trim().length === 0) {
     return {
       valid: false,
@@ -85,34 +84,22 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
     };
   }
 
-  // ========================================================================
-  // CHECK 2: Detect JSON format (most common error)
-  // ========================================================================
   const trimmedOutput = output.trim();
   const jsonError = detectJSONFormat(trimmedOutput);
   if (jsonError) {
     errors.push(jsonError);
   }
 
-  // ========================================================================
-  // CHECK 3: Detect preamble text (agent describing what it will do)
-  // ========================================================================
   const preambleError = detectPreambleText(trimmedOutput);
   if (preambleError) {
     errors.push(preambleError);
   }
 
-  // ========================================================================
-  // CHECK 4: Detect Write tool usage
-  // ========================================================================
   const writeToolError = detectWriteToolUsage(trimmedOutput);
   if (writeToolError) {
     errors.push(writeToolError);
   }
 
-  // ========================================================================
-  // CHECK 5: Minimum total length
-  // ========================================================================
   if (output.length < LIMITS.TOTAL_MIN_CHARS) {
     errors.push(
       `OUTPUT TOO SHORT (${output.length} characters, minimum ${LIMITS.TOTAL_MIN_CHARS})`,
@@ -130,10 +117,6 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
     );
   }
 
-  // ========================================================================
-  // CHECK 6: Extract and validate sections (all five must be present, in
-  // order, well-bounded by their headers + the `---` separators)
-  // ========================================================================
   const extracted = extractSynthesisMarkdown(output);
 
   if (!extracted) {
@@ -157,15 +140,9 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
     return { valid: false, errors: formatErrorsForAgent(errors) };
   }
 
-  // ========================================================================
-  // CHECK 7: Validate CLAUDE.md content
-  // ========================================================================
   const claudeErrors = validateClaudeMdContent(extracted.claudemd);
   errors.push(...claudeErrors);
 
-  // ========================================================================
-  // CHECK 8: Validate each prescriptive skill body
-  // ========================================================================
   errors.push(
     ...validateSkillContent(extracted.codeConventions, {
       skillLabel: 'code-conventions',
@@ -174,13 +151,6 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
     }),
   );
   errors.push(
-    // Plan §C 4.2 (gira-exhaustive followup, 2026-05-05): the
-    // multi-file-workflows skill needs language-appropriate code
-    // scaffolds for the operator to grok the wiring at a glance.
-    // Pre-fix the gira run shipped a multi-file-workflows skill body
-    // with zero fenced code blocks — pure checklists. Now matches the
-    // rule for code-conventions and testing-conventions: ≥1 fenced
-    // block required.
     ...validateSkillContent(extracted.multiFileWorkflows, {
       skillLabel: 'multi-file-workflows',
       expectedName: 'multi-file-workflows',
@@ -195,9 +165,19 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
     }),
   );
 
-  // ========================================================================
-  // CHECK 9: Architectural narrative is text only, no schema; just non-empty
-  // ========================================================================
+  for (const [label, body] of [
+    ['CLAUDE.md', extracted.claudemd],
+    ['code-conventions', extracted.codeConventions],
+    ['multi-file-workflows', extracted.multiFileWorkflows],
+    ['testing-conventions', extracted.testingConventions],
+    ['architectural-narrative', extracted.architecturalNarrative],
+  ] as const) {
+    const stubError = detectInputUnavailableStub(body);
+    if (stubError) errors.push(`[${label}] ${stubError}`);
+    const pathError = detectNonPortableAbsolutePath(body);
+    if (pathError) errors.push(`[${label}] ${pathError}`);
+  }
+
   if (!extracted.architecturalNarrative || !extracted.architecturalNarrative.trim()) {
     errors.push(
       'ARCHITECTURAL NARRATIVE IS EMPTY',
@@ -216,9 +196,6 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
     );
   }
 
-  // ========================================================================
-  // CHECK 10: Validate per-section line counts
-  // ========================================================================
   const lineCountChecks: Array<{
     label: string;
     body: string;
@@ -295,9 +272,6 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
     }
   }
 
-  // ========================================================================
-  // FINAL RESULT
-  // ========================================================================
   if (errors.length > 0) {
     return {
       valid: false,
@@ -315,7 +289,6 @@ export function validateSynthesisOutput(output: string): SynthesisValidationResu
   };
 }
 
-// Re-export types for convenience
 export type {
   SynthesisValidationResult,
   LineCountResult,

@@ -4,10 +4,6 @@
  * Centralized type definitions for Phase 6 validation components
  */
 
-// ============================================================================
-// VALIDATION RESULT TYPES
-// ============================================================================
-
 /**
  * Result of a validation check
  */

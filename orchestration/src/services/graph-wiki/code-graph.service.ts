@@ -90,9 +90,7 @@ export function codeReviewGraphDir(projectPath: string): string {
 
 /**
  * Returns the canonical path to the code-graph SQLite database for a project.
- * Single source of truth for every reader/writer of the graph DB. The legacy
- * `<project>/.code-graph.db` snapshot has been retired (Phase 2 of the
- * init-refactor); only this path is produced or consumed.
+ * Single source of truth for every reader/writer of the graph DB.
  */
 export function graphDbPath(projectPath: string): string {
   return join(codeReviewGraphDir(projectPath), 'graph.db');
@@ -268,18 +266,14 @@ export function resolveCodeGraphCommand(
       ) {
         return { command: parsed.command, args: parsed.args as string[], via: 'launcher.json' };
       }
-    } catch {
-      // malformed — fall through
-    }
+    } catch {}
   }
 
   const localLauncher = join(codeReviewGraphDir(projectPath), 'code-review-graph');
   try {
     accessSync(localLauncher, constants.X_OK);
     return { command: localLauncher, args: [], via: 'local-launcher' };
-  } catch {
-    // not executable or missing — fall through
-  }
+  } catch {}
 
   const wrapperScript = join(frameworkPath, 'scripts', 'code-review-graph-mcp.sh');
   if (existsSync(wrapperScript)) {
@@ -289,9 +283,7 @@ export function resolveCodeGraphCommand(
   try {
     execSync('command -v code-review-graph', { stdio: 'ignore' });
     return { command: 'code-review-graph', args: [], via: 'system-binary' };
-  } catch {
-    // not on PATH — fall through
-  }
+  } catch {}
 
   return { command: 'uvx', args: ['code-review-graph'], via: 'uvx-direct' };
 }
@@ -389,11 +381,6 @@ export function writeExtractionManifest(
   const dir = codeReviewGraphDir(projectPath);
   mkdirSync(dir, { recursive: true });
 
-  // Prefer launcher.json (written by setup-code-graph.sh) — silent, no subprocess.
-  // Fall back to launcher-aware execSync only if launcher.json is missing or
-  // omitted tool_version. Always suppress child stderr so a missing binary
-  // doesn't leak `/bin/sh: code-review-graph: command not found` to the
-  // parent terminal.
   let toolVersion = readToolVersionFromLauncher(projectPath);
   if (!toolVersion) {
     try {
@@ -404,17 +391,12 @@ export function writeExtractionManifest(
         })
           .trim()
           .split('\n')[0] ?? 'unknown';
-    } catch {
-      // tool unavailable on PATH — caller falls back to 'unknown'
-    }
+    } catch {}
   }
   if (!toolVersion) {
     toolVersion = 'unknown';
   }
 
-  // Preserve created_at + build_time_ms when the load-bearing content is
-  // identical to the existing manifest. Without this, every bootstrap run
-  // (including pure-cache Tier 1 hot paths) would churn the committed file.
   const existing = loadExtractionManifest(projectPath);
   let createdAt = new Date().toISOString();
   let buildTimeMs = stats.build_time_ms;
@@ -441,14 +423,11 @@ export function writeExtractionManifest(
 
   const path = join(dir, 'extraction-manifest.json');
   const next = JSON.stringify(manifest, null, 2);
-  // Compare-then-write: skip the syscall when nothing changed.
   if (existsSync(path)) {
     try {
       const current = readFileSync(path, 'utf-8');
       if (current === next || current === `${next}\n`) return;
-    } catch {
-      // unreadable — fall through to write
-    }
+    } catch {}
   }
   writeFileSync(path, next, 'utf-8');
 }
@@ -540,13 +519,11 @@ export async function buildCodeGraph(
 
   let buildTimeMs = 0;
 
-  // ===== Tier 3: graph missing or invalid → full build via setup script =====
-  // Setup script also auto-installs the tool when needed (uv → uvx → pipx → pip).
   if (tier === 'tier3') {
     const start = Date.now();
     await runCommand('bash', [setupScriptPath], {
       cwd: options.projectPath,
-      env: { ...getCodeGraphEnv() },
+      env: { ...getCodeGraphEnv(), PROJECT_PATH: options.projectPath },
       timeoutMs: COMMAND_TIMEOUT_MS,
     });
     process.env.PATH = getCodeGraphEnv().PATH;
@@ -563,29 +540,18 @@ export async function buildCodeGraph(
     }
   }
 
-  // ===== Tier 2: graph stale → incremental update (no full rebuild) =====
   if (tier === 'tier2') {
     const start = Date.now();
     const updated = await tryIncrementalUpdate(options.projectPath, options.frameworkPath);
     if (!updated) {
-      // tryIncrementalUpdate already logged the reason; fall back to full build.
       await runFullBuild(options.projectPath, dbPath, options.frameworkPath);
     }
     buildTimeMs = Date.now() - start;
   }
 
-  // ===== Tier 1: graph fresh; do NOTHING =====
-  // No build, no smoke, no manifest churn. The DB already validated, the
-  // .state.json's last_indexed_commit equals HEAD — there is nothing to do.
-
-  // ===== Smoke once, only when we actually did rebuild work =====
-  // On Tier 1 the existing artefacts already validated; running --version
-  // again is pure waste and slows the hot path that 6000+ devs hit on
-  // every skill invocation.
   if (tier !== 'tier1') {
     let smoke = await smokeTestCodeGraph(options.projectPath, options.frameworkPath);
     if (!smoke.ok) {
-      // Auto-fix: re-run setup with FORCE_REINSTALL to repair corrupt installs.
       await runCommand('bash', [setupScriptPath], {
         cwd: options.projectPath,
         env: {
@@ -608,20 +574,16 @@ export async function buildCodeGraph(
     }
   }
 
-  // ===== Persist state — Tier 1 already has correct state; only rewrite on work =====
   if (tier !== 'tier1') {
     await writeGraphState(options.projectPath, options.frameworkPath);
   }
 
-  // ===== Stats — Tier 1 reads cached manifest; Tier 2/3 re-collect =====
   let stats: CodeGraphStats;
   if (tier === 'tier1') {
     const cached = loadCachedStats(options.projectPath);
     if (cached) {
       stats = cached;
     } else {
-      // Manifest missing on a Tier 1 graph (rare: someone deleted it without
-      // touching graph.db). Re-collect now and rewrite.
       stats = await collectGraphStats(dbPath, 0, options.projectPath, options.frameworkPath);
     }
   } else {
@@ -635,13 +597,7 @@ export async function buildCodeGraph(
 
   const sha = createHash('sha256').update(readFileSync(dbPath)).digest('hex');
 
-  // writeExtractionManifest is idempotent — when content matches existing,
-  // created_at + build_time_ms are preserved and the file is not rewritten.
   writeExtractionManifest(options.projectPath, stats, sha);
-
-  // Note: `verifyCodeGraphCli` was previously called here as a redundant
-  // third smoke — `smokeTestCodeGraph` above already verifies the CLI is
-  // callable. Dropped to keep the hot path under 100 ms.
 
   return {
     code_graph_available: true,
@@ -725,14 +681,12 @@ async function runFullBuild(
   _graphDbPath: string,
   frameworkPath: string,
 ): Promise<void> {
-  // The bash script derives the project path locally via lib/resolve-paths.sh
-  // and writes to <project>/.code-review-graph/graph.db. No PROJECT_PATH or
-  // CODE_GRAPH_DB_PATH env injection is required or honored anymore.
   const setupScriptPath = join(frameworkPath, 'scripts', 'setup-code-graph.sh');
   await runCommand('bash', [setupScriptPath], {
     cwd: projectPath,
     env: {
       ...getCodeGraphEnv(),
+      PROJECT_PATH: projectPath,
     },
     timeoutMs: COMMAND_TIMEOUT_MS,
   });
@@ -745,7 +699,6 @@ export async function collectGraphStats(
   frameworkPath?: string,
 ): Promise<CodeGraphStats> {
   try {
-    // <project>/.code-review-graph/graph.db → <project>
     const suffix = '/.code-review-graph/graph.db';
     const repoPath = graphDbPath.endsWith(suffix)
       ? graphDbPath.slice(0, -suffix.length)

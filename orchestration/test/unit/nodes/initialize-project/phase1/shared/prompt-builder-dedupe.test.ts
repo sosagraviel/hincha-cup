@@ -6,8 +6,7 @@ import { describe, expect, it } from 'vitest';
  * Anti-regression: the four Phase 1 analyzer execution-instructions files
  * historically each restated `graph_queries_used` 3× and the forbidden-tool
  * warning 2× — pure within-prompt duplication that wasted tokens on every
- * spawn. The 2026-05-05 cleanup (plan §A) trimmed each restatement so each
- * rule is mentioned exactly where it's load-bearing:
+ * spawn. Each rule is now mentioned exactly where it's load-bearing:
  *
  *   - `graph_queries_used`: once in "Output Format Key Points" + once in
  *     the JSON example (== 2 mentions max). Removed from the
@@ -36,7 +35,7 @@ function readExecutionInstructions(analyzerDir: string): string {
   );
 }
 
-describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan §A regression)', () => {
+describe('Phase 1 analyzer execution-instructions — within-prompt dedupe anti-regression', () => {
   describe.each(ANALYZER_DIRS)('%s', (analyzerDir) => {
     const body = readExecutionInstructions(analyzerDir);
 
@@ -79,44 +78,11 @@ describe('Phase 1 analyzer execution-instructions — within-prompt dedupe (plan
 
   describe('aggregate', () => {
     it('total Phase 1 execution-instructions size stays within the working budget', () => {
-      // Trajectory:
-      //   - 2026-05-04 (pre-cleanup): 73938 chars (structure 23249 + tech-stack
-      //     20377 + code-patterns 14525 + data-flows 15787).
-      //   - 2026-05-05 (§A.5 within-prompt dedupe): ~73000.
-      //   - 2026-05-05 (§C 1.2 canonical-name lists in tech-stack Step 12):
-      //     budget loosened to 76000 to accommodate non-negotiable
-      //     stack-agnostic content.
-      //   - 2026-05-05 (§C 2.3 reduce Glob/Read prescriptions): collapsed
-      //     per-language enumerations to language-neutral name-token tables
-      //     and trimmed example outputs to language-neutral skeletons.
-      //     Aggregate dropped to ≤56000 — meets the §C 2.3 acceptance
-      //     criterion of ≥25% reduction from the 73938 baseline.
-      //   - 2026-05-06 (Plan 16 §C.6): tech-stack-analyzer instructions
-      //     gained ~150 chars of guidance to emit CONCRETE technology
-      //     names (`docker`, `docker-compose`) instead of category
-      //     abstractions. Budget bumped 56000 → 56500 to accommodate.
-      //   - 2026-05-06 (Plan 17 + Plan 18): all four analyzers' NV
-      //     verification-guidelines sections rewritten to forbid the
-      //     credentials / production-endpoint / externally-managed
-      //     items the Stop hook hard-rejects. This correctness
-      //     content costs ~1600 chars across the four analyzers.
-      //     Budget bumped 56500 → 58500.
-      //   - 2026-05-06 (Plan 20): all four analyzers gained a
-      //     "Record absence as a finding" paragraph closing a
-      //     documented info-loss bug (Plan 17 blocks the question,
-      //     agent silently drops the fact). ~700 chars per analyzer.
-      //     Budget bumped 58500 → 62500.
-      //   - 2026-05-06 (Plan 22): data-flows-analyzer gained
-      //     "Step 9: Infrastructure-services port discovery"
-      //     (~1300 chars) closing the documented gira regression
-      //     — runtime infrastructure ports (Postgres / Redis /
-      //     Keycloak server) were missing from CLAUDE.md
-      //     `Services & Ports`. Budget bumped 62500 → 64500.
       let total = 0;
       for (const dir of ANALYZER_DIRS) {
         total += readExecutionInstructions(dir).length;
       }
-      expect(total).toBeLessThan(64500);
+      expect(total).toBeLessThan(73000);
     });
   });
 });

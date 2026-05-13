@@ -1,34 +1,21 @@
 /**
- * Plan §I.4 (gira-exhaustive followup, 2026-05-05) — trim the
- * Phase 2 consolidation blob the synthesizer receives.
+ * Trim the Phase 2 consolidation blob to the synthesizer-relevant subset.
  *
- * Pre-trim the synthesizer ingested the full consolidated_findings
- * (merged Phase 1 outputs from all four analyzers) — typically
- * 30-50 KB of JSON containing every per-service breakdown,
- * dependency map, file_placement table, etc. The synthesizer
- * almost never needs that level of detail; it produces 5 high-level
- * sections (CLAUDE.md cheat-sheet + 3 prescriptive skills + 1
- * architectural narrative) using a curated subset of facts.
- *
- * The trim:
- *   - Keep `consolidated_gaps` + `consolidation_metadata` (the
- *     gap-question outputs the synthesizer must read).
- *   - Keep a curated `summary` block: services as { id, type,
- *     language, framework_main }, plus aggregate stack signals
- *     (languages, repository_type, monorepo, runtimes, build_tools).
- *   - Drop raw per-analyzer outputs, per-service dependency lists,
- *     file_placement tables, full database client lists, etc. — the
- *     synthesizer can Read on demand if it really needs them
- *     (and almost never does in practice).
+ * Keeps `consolidated_gaps`, `consolidation_metadata`, and a curated
+ * `summary` block (services, languages, runtimes, build_tools, etc.).
+ * Drops raw per-analyzer outputs, per-service dependency lists, and
+ * file_placement tables — the synthesizer can Read on demand if needed.
  *
  * Stack-agnostic: every kept field is a top-level shape; no
  * language-specific values are filtered or rewritten.
- *
- * Saves ~37 KB per run (gira measurement; proportional savings on
- * any sufficiently-detailed Phase 2 output).
  */
 
+import { basename } from 'path';
 import { buildCatalogFromConsolidation } from './build-catalog-from-consolidation.js';
+import { renderEssentialCommandsMarkdown } from '../../../../services/framework/command-catalog/render-essential-commands.js';
+import { renderTechStackMarkdown } from '../../../../services/framework/synth-renderers/render-tech-stack.js';
+import { renderServicesAndPortsMarkdown } from '../../../../services/framework/synth-renderers/render-services-and-ports.js';
+import { renderDirectoryStructureMarkdown } from '../../../../services/framework/synth-renderers/render-directory-structure.js';
 import type {
   Automation,
   CommandCatalog,
@@ -44,18 +31,11 @@ interface CuratedSynthesisInput {
       type?: string;
       language?: string;
       framework_main?: string;
-      // Plan 22 — port discovery output. Surfaced to the synthesizer
-      // so the `## Services & Ports` table can render real values.
-      // When `port_applies === false`, the service legitimately has
-      // no localhost port (Plan 21 opt-out shape).
+      path?: string;
       port?: number;
       port_applies?: boolean;
       port_applies_reason?: string;
     }>;
-    // Plan 22 — infrastructure services (Postgres / Redis / Keycloak
-    // server / Mailhog / RabbitMQ / SaaS like Sentry / etc.) from
-    // the data-flows analyzer. The synthesizer renders these
-    // alongside source-code services in `## Services & Ports`.
     infrastructure_services?: Array<{
       id: string;
       type?: string;
@@ -72,14 +52,12 @@ interface CuratedSynthesisInput {
     build_tools?: unknown;
     architecture_pattern?: unknown;
   };
-  // Plan 15 §D.4 — pre-built command catalog. Closed-book synthesizer
-  // reads `command_catalog` directly and renders the four-tier
-  // `Essential Commands` table from it. Catalog ordering is decided
-  // here (deterministic TypeScript), not by the LLM.
   command_catalog: CommandCatalog;
-  // Surfaced for transparency / debugging — synthesizer renders the
-  // catalog, not these. Wiki getting-started page (commit 4/5) reads
-  // these too.
+  /** Pre-rendered `## Essential Commands` markdown. The synthesizer copies this verbatim. */
+  essential_commands_markdown: string;
+  tech_stack_markdown: string;
+  services_and_ports_markdown: string;
+  directory_structure_markdown: string;
   automation?: Automation;
   readme_run_sections?: ReadmeRunSectionEntry[];
 }
@@ -91,19 +69,8 @@ interface CuratedSynthesisInput {
  */
 export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInput {
   const root = isObject(consolidation) ? consolidation : {};
-
-  // Plan 16 §C.1 — `consolidated_findings` is keyed by analyzer
-  // slug, not flat-merged. Build an ordered list of findings-shape
-  // sources to walk: every `consolidated_findings.<slug>.findings`
-  // first, then `consolidated_findings` itself (flat-shape fixtures),
-  // then `root.findings`, then root. The pre-fix code read
-  // `findings.build_tools` against the analyzer-keyed map and
-  // silently produced `undefined` — `summary.build_tools` was empty
-  // for every project.
   const sources = collectFindingsSources(root);
 
-  // Services come from the structure-architecture analyzer's slice
-  // OR from the consolidator's merged top-level (varies by run).
   let servicesRaw: unknown[] | null = null;
   for (const src of sources) {
     servicesRaw = pickServices(src);
@@ -118,24 +85,20 @@ export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInpu
     const entry: CuratedSynthesisInput['summary']['services'][number] = { id };
     if (typeof s.type === 'string') entry.type = s.type;
     if (typeof s.language === 'string') entry.language = s.language;
+    if (typeof s.path === 'string' && s.path.length > 0) entry.path = s.path;
     if (isObject(s.frameworks) && typeof s.frameworks.main === 'string') {
       entry.framework_main = s.frameworks.main;
     }
-    // Plan 22 — surface port info to the synthesizer for the
-    // `## Services & Ports` table.
     if (isObject(s.environment)) {
       const env = s.environment;
       if (typeof env.port === 'number' && env.port > 0) entry.port = env.port;
       if (env.port_applies === false) entry.port_applies = false;
-      if (typeof env.port_applies_reason === 'string') {
+      if (typeof env.port_applies_reason === 'string')
         entry.port_applies_reason = env.port_applies_reason;
-      }
     }
     services.push(entry);
   }
 
-  // Plan 22 — infrastructure services from the data-flows analyzer.
-  // The synthesizer renders these alongside source-code services.
   const infrastructureRaw = firstFromSources(sources, 'infrastructure_services');
   const infrastructureServices: NonNullable<
     CuratedSynthesisInput['summary']['infrastructure_services']
@@ -159,28 +122,47 @@ export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInpu
     }
   }
 
-  // Plan 15 §D.4: build the deterministic command catalog from the
-  // consolidation BEFORE the closed-book synthesizer sees it. The
-  // synthesizer renders `command_catalog` verbatim — it never decides
-  // tier ordering itself.
   const bundle = buildCatalogFromConsolidation(consolidation);
+
+  const summary = {
+    services,
+    ...(infrastructureServices.length > 0
+      ? { infrastructure_services: infrastructureServices }
+      : {}),
+    languages: firstFromSources(sources, 'languages'),
+    repository_type: firstFromSources(sources, 'repository_type'),
+    monorepo: firstFromSources(sources, 'monorepo', 'monorepo_layout'),
+    runtimes: firstFromSources(sources, 'runtimes'),
+    build_tools: firstFromSources(sources, 'build_tools'),
+    architecture_pattern: firstFromSources(sources, 'architecture_pattern'),
+  } as CuratedSynthesisInput['summary'];
+
+  const meta = pickConsolidationMetadata(root);
+  const projectName = deriveProjectName(meta) ?? 'project';
 
   const result: CuratedSynthesisInput = {
     consolidated_gaps: pickConsolidatedGaps(root),
-    consolidation_metadata: pickConsolidationMetadata(root),
-    summary: {
-      services,
-      ...(infrastructureServices.length > 0
-        ? { infrastructure_services: infrastructureServices }
-        : {}),
-      languages: firstFromSources(sources, 'languages'),
-      repository_type: firstFromSources(sources, 'repository_type'),
-      monorepo: firstFromSources(sources, 'monorepo', 'monorepo_layout'),
-      runtimes: firstFromSources(sources, 'runtimes'),
-      build_tools: firstFromSources(sources, 'build_tools'),
-      architecture_pattern: firstFromSources(sources, 'architecture_pattern'),
-    },
+    consolidation_metadata: meta,
+    summary,
     command_catalog: bundle.command_catalog,
+    essential_commands_markdown: renderEssentialCommandsMarkdown(bundle.command_catalog, {
+      fallbackPlaceholder: true,
+    }),
+    tech_stack_markdown: renderTechStackMarkdown({
+      languages: summary.languages,
+      runtimes: summary.runtimes,
+      services: summary.services,
+      build_tools: summary.build_tools,
+      monorepo: summary.monorepo,
+    }),
+    services_and_ports_markdown: renderServicesAndPortsMarkdown({
+      services: summary.services,
+      infrastructure_services: summary.infrastructure_services,
+    }),
+    directory_structure_markdown: renderDirectoryStructureMarkdown({
+      projectName,
+      services: summary.services,
+    }),
   };
   if (bundle.automation) result.automation = bundle.automation;
   if (bundle.readme_run_sections) result.readme_run_sections = bundle.readme_run_sections;
@@ -207,11 +189,6 @@ function collectFindingsSources(root: Record<string, unknown>): Record<string, u
   return sources;
 }
 
-/**
- * Pull the first defined value for any of the given keys across an
- * ordered list of source objects. Returns `undefined` when no key
- * resolves on any source.
- */
 function firstFromSources(sources: Record<string, unknown>[], ...keys: string[]): unknown {
   for (const src of sources) {
     for (const key of keys) {
@@ -219,6 +196,17 @@ function firstFromSources(sources: Record<string, unknown>[], ...keys: string[])
       if (v !== undefined && v !== null) return v;
     }
   }
+  return undefined;
+}
+
+function deriveProjectName(meta: unknown): string | undefined {
+  if (!isObject(meta)) return undefined;
+  const pp = meta.project_path;
+  if (typeof pp === 'string' && pp.length > 0) {
+    const slash = pp.lastIndexOf('/');
+    return slash >= 0 ? pp.slice(slash + 1) : pp;
+  }
+  if (typeof meta.project_name === 'string') return meta.project_name;
   return undefined;
 }
 
@@ -240,17 +228,12 @@ function pickServices(obj: Record<string, unknown> | undefined): unknown[] | nul
 }
 
 function pickConsolidatedGaps(root: Record<string, unknown>): unknown {
-  // The consolidator writes `gaps` (renamed from `consolidated_gaps`
-  // by the Phase 2 node) and the agent's raw output had
-  // `consolidated_gaps`. Accept either; prefer the agent's name.
   if (Array.isArray(root.consolidated_gaps)) return root.consolidated_gaps;
   if (Array.isArray(root.gaps)) return root.gaps;
   return [];
 }
 
 function pickConsolidationMetadata(root: Record<string, unknown>): unknown {
-  // Accept either spelling — the consolidator persists this under
-  // `question_consolidation`; the validator emits `consolidation_metadata`.
   if (isObject(root.consolidation_metadata)) return root.consolidation_metadata;
   if (isObject(root.question_consolidation)) return root.question_consolidation;
   return {};

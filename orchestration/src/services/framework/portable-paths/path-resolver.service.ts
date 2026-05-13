@@ -57,7 +57,6 @@ export class PortablePathResolver {
    */
   isNonPortable(s: string): boolean {
     if (!s) return false;
-    // Strip allowlisted example fences before scanning.
     const stripped = stripExampleFences(s);
     return scanNonPortableAbsolute(stripped, ALLOWLIST_PREFIXES);
   }
@@ -77,10 +76,6 @@ function scanNonPortableAbsolute(content: string, allowlistPrefixes: string[]): 
     if (!match || match.index === undefined) return false;
     const absoluteStart = cursor + match.index;
     const matchedPrefix = match[0];
-    // Reject when the matched prefix is preceded by something making it part
-    // of an allowlisted form (e.g. a URL host that happens to contain "/Users/"
-    // is not a filesystem path). For our domain we don't expect this to hit;
-    // keep the check minimal.
     const preceding = content.slice(Math.max(0, absoluteStart - 8), absoluteStart);
     const isLikelyUrl =
       preceding.endsWith('://') ||

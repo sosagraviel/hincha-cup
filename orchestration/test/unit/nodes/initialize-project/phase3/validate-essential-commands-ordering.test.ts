@@ -6,9 +6,8 @@ import {
 import type { CommandCatalog } from '../../../../../src/schemas/stack-profile.schema.js';
 
 /**
- * Plan 15 §D.8.2 — hard validator: package-manager rows must NOT
- * appear before wrapper rows for the same operation in the
- * synthesized Essential Commands table.
+ * Hard validator: package-manager rows must NOT appear before wrapper
+ * rows for the same operation in the synthesized Essential Commands table.
  *
  * These tests pin the violation-detection contract. The validator
  * is stack-agnostic — it operates on the catalog entries' command
@@ -67,10 +66,10 @@ describe('detectEssentialCommandsOrderingViolations', () => {
     expect(violations).toEqual([]);
   });
 
-  it('fires when a package-manager row appears before its wrapper row (the gira regression)', () => {
-    // Mimics the broken gira CLAUDE.md: pnpm commands listed first,
-    // make commands omitted entirely. We assert that even when both
-    // the wrapper AND fallback are mentioned, ordering is enforced.
+  it('fires when a package-manager row appears before its wrapper row', () => {
+    // pnpm commands listed first, make commands omitted entirely.
+    // We assert that even when both the wrapper AND fallback are
+    // mentioned, ordering is enforced.
     const claudeMd = [
       '## Essential Commands',
       '',

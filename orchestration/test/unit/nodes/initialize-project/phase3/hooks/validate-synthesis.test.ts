@@ -97,10 +97,9 @@ describe('validate-synthesis hook', () => {
         '2. Add service',
         '3. Wire DTO',
         '',
-        // Plan §C 4.2 (gira-exhaustive followup, 2026-05-05): the
-        // multi-file-workflows skill body now requires ≥1 fenced
-        // code block. The synthesis prompt asks for language-
-        // appropriate scaffolds; the validator enforces it.
+        // The multi-file-workflows skill body requires ≥1 fenced code block.
+        // The synthesis prompt asks for language-appropriate scaffolds;
+        // the validator enforces it.
         '```typescript',
         '// apps/api/src/modules/{domain}/{domain}.controller.ts',
         '@Controller()',
@@ -327,11 +326,8 @@ describe('validate-synthesis hook', () => {
       expect(result.feedback?.toUpperCase()).toMatch(/MULTI-FILE-WORKFLOWS|SECTION|MISSING/);
     });
 
-    it('blocks multi-file-workflows body that has zero fenced code blocks (Wave 2 Fix 4.2)', () => {
-      // Pre-Wave 2 Fix 4.2 the multi-file-workflows skill body could
-      // ship pure checklists with no scaffolds — the validator
-      // accepted them. Now ≥1 fenced code block is required (matching
-      // the rule for code-conventions and testing-conventions).
+    it('blocks multi-file-workflows body that has zero fenced code blocks', () => {
+      // The multi-file-workflows skill body requires ≥1 fenced code block.
       // Build the canonical synthesis, then strip every fenced block
       // out of the multi-file-workflows section only.
       const synthesis = buildValidSynthesis();

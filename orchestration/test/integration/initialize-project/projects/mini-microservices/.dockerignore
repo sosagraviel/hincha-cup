@@ -1,0 +1,11 @@
+node_modules
+__pycache__
+.venv
+bin
+obj
+.env*
+.claude-temp
+.codex-temp
+.git
+docs/llm-wiki
+*.log

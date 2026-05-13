@@ -7,11 +7,10 @@ import {
 } from '../../../src/schemas/stack-profile.schema.js';
 
 /**
- * Plan 15 §D.1 — schema contract for the automation surface,
- * README run-section extracts, and the deterministic command
- * catalog. These tests pin the field shapes so that downstream
- * consumers (catalog builder, synthesizer, wiki generator,
- * skills) can rely on them.
+ * Schema contract for the automation surface, README run-section
+ * extracts, and the deterministic command catalog. These tests pin
+ * the field shapes so that downstream consumers (catalog builder,
+ * synthesizer, wiki generator, skills) can rely on them.
  */
 
 describe('AutomationSchema', () => {
@@ -139,7 +138,7 @@ describe('CommandCatalogSchema', () => {
   });
 });
 
-describe('StackProfileSchema (Plan 15 fields are optional)', () => {
+describe('StackProfileSchema (command catalog fields are optional)', () => {
   const baseProfile = {
     services: [
       {
@@ -153,7 +152,7 @@ describe('StackProfileSchema (Plan 15 fields are optional)', () => {
     is_monorepo: true,
   };
 
-  it('parses a minimal profile (no Plan 15 fields)', () => {
+  it('parses a minimal profile (no optional fields)', () => {
     expect(() => StackProfileSchema.parse(baseProfile)).not.toThrow();
   });
 

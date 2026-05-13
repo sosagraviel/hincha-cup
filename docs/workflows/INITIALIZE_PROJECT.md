@@ -142,17 +142,24 @@ pnpm initialize -- -p <project-path> -f <framework-path>
 ### Examples
 
 ```bash
-# Current directory
-pnpm initialize -- -p $(pwd) -f $(pwd)
+# Standard run from the target project root
+cd /path/to/project
+./qubika-agentic-framework/scripts/initialize-project.sh
 
-# Specific project
-pnpm initialize -- -p /path/to/project -f /path/to/framework
+# Fast tier (Haiku) — recommended for first-pass analysis of new projects
+MODEL_TIER=fast ./qubika-agentic-framework/scripts/initialize-project.sh
 
-# Resume from checkpoint
-pnpm initialize -- -p /path/to/project -f /path/to/framework --resume
+# Codex provider
+./qubika-agentic-framework/scripts/initialize-project.sh --provider codex
 
-# Debug mode
-DEBUG=true pnpm initialize -- -p /path/to/project -f /path/to/framework
+# Fully automated (CI / CD — skip interactive gap questions)
+./qubika-agentic-framework/scripts/initialize-project.sh --skip-gap-questions
+
+# Resume after interruption (start at phase 4)
+./qubika-agentic-framework/scripts/initialize-project.sh --start-phase 4
+
+# Integration-fixture runs (token-burning, requires --confirm)
+./orchestration/test/integration/initialize-project/scripts/run-fixture.sh mini-monorepo --confirm
 ```
 
 ---
@@ -219,8 +226,11 @@ cat .claude-temp/initialize/artifacts/phase1-analysis.json | jq .stack_analyzer
 
 ### "Phase timeout"
 ```bash
-# Increase timeout or use opus
-MODEL_TIER=opus pnpm initialize ...
+# Increase the wall-clock timeout
+./qubika-agentic-framework/scripts/initialize-project.sh --timeout 5400
+
+# Or fall back to the fast (Haiku) tier
+MODEL_TIER=fast ./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
 ### "Validation failed"

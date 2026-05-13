@@ -4,8 +4,6 @@ import type { PhaseSlot } from '../framework/debug-store/index.js';
 
 export const LLM_WIKI_FILE_NAMES = ['index.md', 'ARCHITECTURE.md', 'SERVICES.md'] as const;
 
-// Core docs that are LLM-generated. SERVICES.md is excluded — it's a
-// deterministic catalog assembled in the finalization step.
 export const LLM_WIKI_CORE_GENERATION_ORDER = ['ARCHITECTURE.md'] as const;
 
 export const LLM_WIKI_CONTEXT_START = '<!-- LLM_WIKI_START -->';
@@ -134,8 +132,7 @@ export interface WikiGeneratorServiceOptions {
   digestedUpstream?: WikiDigestedUpstream;
   /**
    * Maximum number of per-service docs the generator may render concurrently.
-   * Service docs are LLM-backed; unbounded fan-out left half the sessions in
-   * `pending` state. Default 3.
+   * Default 3.
    */
   serviceDocConcurrency?: number;
   /**
@@ -145,6 +142,10 @@ export interface WikiGeneratorServiceOptions {
    */
   codeGraphToolCatalog?: Array<{ name: string; description: string }>;
   agentInvoker?: WikiAgentInvoker;
+  /**
+   * Phase coordinate threaded through to the per-attempt debug bucket.
+   * When absent, debug attempts are bucketed under `phase-unknown/`.
+   */
   phase?: PhaseSlot;
 }
 

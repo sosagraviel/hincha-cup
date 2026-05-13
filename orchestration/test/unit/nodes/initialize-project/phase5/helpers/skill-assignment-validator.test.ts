@@ -10,7 +10,7 @@ import type {
 } from '../../../../../../src/nodes/initialize-project/phase5/types.js';
 
 /**
- * Wave 2 Fix 6.1 — skill assignment validation.
+ * Skill assignment validation.
  *
  * Two non-blocking warnings:
  *   - `skill_cap_exceeded` when an agent has > 8 skills attached.

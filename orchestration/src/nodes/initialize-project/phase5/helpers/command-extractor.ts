@@ -1,33 +1,10 @@
 /**
- * Command Extractor — stack-agnostic build-tool / package-manager detection
- * and command rendering.
+ * Stack-agnostic build-tool / package-manager detection and command rendering.
  *
- * Plan §C 1.1 (gira-exhaustive followup, 2026-05-05). The 2026-05-04 gira
- * run shipped an `implementer-typescript.md` agent file with `npm run lint`
- * / `npm test` / `npm run build` commands — but gira is a pnpm monorepo.
- * The hardcoded `npm` prefix produced wrong commands for any project not
- * using npm. The fix generalises beyond JS/TS:
- *
- *   - **TypeScript / JavaScript**: detect npm, pnpm, yarn, bun
- *   - **Python**: detect pip, poetry, uv, pipenv, hatch
- *   - **Ruby**: bundle (predominantly)
- *   - **PHP**: composer (predominantly)
- *   - **Java**: maven vs gradle
- *   - **Go**: go modules (single tool)
- *   - **Rust**: cargo (single tool)
- *   - **.NET**: dotnet (single tool)
- *   - **Scala**: sbt vs gradle vs mill
- *   - **Kotlin**: gradle (predominantly)
- *   - **Elixir**: mix (single tool)
- *
- * The framework supports 600+ projects across these languages — every fix
- * must hold across the full matrix. The `BuildToolId` discriminated union
- * below is the single source of truth for "what tool does this project
- * use?".
- *
- * Stack-agnostic by construction: the detection signals are language-
- * specific but the rendering layer uses a per-tool lookup table, not
- * hardcoded prefixes.
+ * Detects the project's build tool per language (npm/pnpm/yarn/bun for JS/TS,
+ * pip/poetry/uv/pipenv/hatch for Python, bundler, composer, go, cargo, dotnet,
+ * maven, gradle, sbt, mill, mix) and renders canonical commands through a
+ * per-tool lookup table rather than hardcoded prefixes.
  */
 
 import { readFileSync, existsSync } from 'fs';
@@ -41,30 +18,25 @@ import type { CommandSet } from '../types.js';
  * defaults.
  */
 export type BuildToolId =
-  // JS/TS package managers
   | 'npm'
   | 'pnpm'
   | 'yarn'
   | 'bun'
-  // Python package managers
   | 'pip'
   | 'poetry'
   | 'uv'
   | 'pipenv'
   | 'hatch'
-  // Single-tool languages
-  | 'bundler' // Ruby
-  | 'composer' // PHP
-  | 'go' // Go
-  | 'cargo' // Rust
-  | 'dotnet' // .NET
-  | 'mix' // Elixir
-  // Java/Scala/Kotlin (multi-tool)
+  | 'bundler'
+  | 'composer'
+  | 'go'
+  | 'cargo'
+  | 'dotnet'
+  | 'mix'
   | 'maven'
   | 'gradle'
   | 'sbt'
   | 'mill'
-  // Sentinel
   | 'unknown';
 
 /**
@@ -143,9 +115,7 @@ function detectJsBuildTool(projectPath: string): BuildToolId {
           return prefix;
         }
       }
-    } catch {
-      // fall through
-    }
+    } catch {}
   }
   if (existsSync(join(projectPath, 'bun.lockb'))) return 'bun';
   if (existsSync(join(projectPath, 'pnpm-lock.yaml'))) return 'pnpm';
@@ -160,9 +130,7 @@ function detectJsBuildTool(projectPath: string): BuildToolId {
       if (engines.pnpm) return 'pnpm';
       if (engines.yarn) return 'yarn';
       if (engines.bun) return 'bun';
-    } catch {
-      // fall through
-    }
+    } catch {}
   }
   return 'npm';
 }
@@ -172,16 +140,12 @@ function detectPythonBuildTool(projectPath: string): BuildToolId {
   if (existsSync(pyprojectPath)) {
     try {
       const body = readFileSync(pyprojectPath, 'utf-8');
-      // Order: poetry > uv > hatch — Poetry is the most opinionated and
-      // takes precedence when its table is present.
       if (/^\s*\[tool\.poetry\]/m.test(body)) return 'poetry';
       if (/^\s*\[tool\.uv\]/m.test(body) || existsSync(join(projectPath, 'uv.lock'))) {
         return 'uv';
       }
       if (/^\s*\[tool\.hatch\]/m.test(body)) return 'hatch';
-    } catch {
-      // fall through
-    }
+    } catch {}
   }
   if (existsSync(join(projectPath, 'Pipfile')) || existsSync(join(projectPath, 'Pipfile.lock'))) {
     return 'pipenv';
@@ -224,9 +188,6 @@ function detectScalaBuildTool(projectPath: string): BuildToolId {
 }
 
 function hasExtensionAnywhere(projectPath: string, exts: string[]): boolean {
-  // Cheap shallow check — any file in the project root with the
-  // extension counts. Recursive walk would be over-engineering for
-  // this signal.
   try {
     const fs = require('fs') as typeof import('fs');
     const entries = fs.readdirSync(projectPath);
@@ -247,7 +208,6 @@ function hasExtensionAnywhere(projectPath: string, exts: string[]): boolean {
 export type CommandAction = 'lint' | 'format' | 'typecheck' | 'test' | 'build';
 
 const COMMAND_TABLE: Record<BuildToolId, Partial<Record<CommandAction, string>>> = {
-  // JS/TS: `<pm> run X` for scripts; `<pm> test` for the test alias
   npm: {
     lint: 'npm run lint',
     format: 'npm run format',
@@ -276,7 +236,6 @@ const COMMAND_TABLE: Record<BuildToolId, Partial<Record<CommandAction, string>>>
     test: 'bun test',
     build: 'bun run build',
   },
-  // Python — each manager wraps the underlying CLI differently
   pip: {
     lint: 'ruff check .',
     format: 'black .',
@@ -312,14 +271,12 @@ const COMMAND_TABLE: Record<BuildToolId, Partial<Record<CommandAction, string>>>
     test: 'hatch run pytest',
     build: 'hatch build',
   },
-  // Ruby
   bundler: {
     lint: 'bundle exec rubocop',
     format: 'bundle exec rubocop -a',
     test: 'bundle exec rspec',
     build: 'bundle install',
   },
-  // PHP
   composer: {
     lint: 'composer run-script phpcs',
     format: 'composer run-script phpcbf',
@@ -327,7 +284,6 @@ const COMMAND_TABLE: Record<BuildToolId, Partial<Record<CommandAction, string>>>
     test: 'composer run-script test',
     build: 'composer install',
   },
-  // Go (single-tool)
   go: {
     lint: 'golangci-lint run',
     format: 'go fmt ./...',
@@ -335,7 +291,6 @@ const COMMAND_TABLE: Record<BuildToolId, Partial<Record<CommandAction, string>>>
     test: 'go test ./...',
     build: 'go build ./...',
   },
-  // Rust (single-tool)
   cargo: {
     lint: 'cargo clippy',
     format: 'cargo fmt',
@@ -343,7 +298,6 @@ const COMMAND_TABLE: Record<BuildToolId, Partial<Record<CommandAction, string>>>
     test: 'cargo test',
     build: 'cargo build',
   },
-  // .NET (single-tool)
   dotnet: {
     lint: 'dotnet format --verify-no-changes',
     format: 'dotnet format',
@@ -351,7 +305,6 @@ const COMMAND_TABLE: Record<BuildToolId, Partial<Record<CommandAction, string>>>
     test: 'dotnet test',
     build: 'dotnet build',
   },
-  // Java
   maven: {
     lint: 'mvn checkstyle:check',
     format: 'mvn spotless:apply',
@@ -366,7 +319,6 @@ const COMMAND_TABLE: Record<BuildToolId, Partial<Record<CommandAction, string>>>
     test: 'gradle test',
     build: 'gradle build',
   },
-  // Scala
   sbt: {
     lint: 'sbt scalafmtCheckAll',
     format: 'sbt scalafmtAll',
@@ -381,7 +333,6 @@ const COMMAND_TABLE: Record<BuildToolId, Partial<Record<CommandAction, string>>>
     test: 'mill __.test',
     build: 'mill __.assembly',
   },
-  // Elixir
   mix: {
     lint: 'mix credo',
     format: 'mix format --check-formatted',
@@ -389,7 +340,6 @@ const COMMAND_TABLE: Record<BuildToolId, Partial<Record<CommandAction, string>>>
     test: 'mix test',
     build: 'mix compile',
   },
-  // Sentinel
   unknown: {},
 };
 
@@ -428,7 +378,6 @@ export function extractCommandsFromManifest(
   if (lang === 'python') {
     return extractPythonCommands(projectPath, detectedTool);
   }
-  // Other languages: declared scripts vary by tool; leave to defaults.
   return {};
 }
 
@@ -471,9 +420,6 @@ function extractJsCommands(projectPath: string, tool: BuildToolId): Partial<Comm
 }
 
 function renderHyphenatedTypecheck(tool: BuildToolId): string {
-  // Some JS projects use `type-check` (hyphenated) instead of `typecheck`.
-  // The COMMAND_TABLE only knows `typecheck` — we render the canonical
-  // form with the hyphenated script name.
   if (tool === 'npm') return 'npm run type-check';
   if (tool === 'pnpm') return 'pnpm run type-check';
   if (tool === 'yarn') return 'yarn run type-check';
@@ -486,19 +432,7 @@ function extractPythonCommands(projectPath: string, tool: BuildToolId): Partial<
   if (!existsSync(pyprojectPath)) return {};
   try {
     const body = readFileSync(pyprojectPath, 'utf-8');
-    // Detect declared task scripts in the most common Python task runners:
-    //   - [tool.poetry.scripts]
-    //   - [project.scripts]
-    //   - [tool.hatch.envs.default.scripts]
-    // We don't parse TOML fully — just check whether the section exists
-    // AND whether the canonical task names appear inside.
     const hasTask = (taskName: string): boolean => {
-      // Match each TOML section's body up to the next bracketed header
-      // OR end of file. JavaScript regex doesn't support `\Z`; use
-      // `(?=\n\[|$)` with the `m` flag, where `$` anchors to end of
-      // input (post `m` flag, end-of-line). To get end-of-input we
-      // match to either the next `[header]` or to the actual end via
-      // `[\s\S]*` lookahead.
       const sectionMatchers = [
         /\[tool\.poetry\.scripts\]\s*\n([\s\S]*?)(?=\n\[|$(?![\s\S]))/m,
         /\[project\.scripts\]\s*\n([\s\S]*?)(?=\n\[|$(?![\s\S]))/m,
@@ -545,10 +479,6 @@ export function getDefaultCommands(
 
   const resolvedTool = tool ?? (projectPath ? detectBuildTool(projectPath, langLower) : 'unknown');
 
-  // For multi-tool languages, render each command via the COMMAND_TABLE.
-  // For single-tool languages whose tool we recognised, do the same so
-  // every rendering path goes through the canonical table. For
-  // unrecognised tools, fall back to the COMMAND_DEFAULTS verbatim.
   if (resolvedTool === 'unknown') return baseCmd;
 
   const table = COMMAND_TABLE[resolvedTool];

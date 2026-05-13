@@ -14,9 +14,8 @@ export interface RenderRunIndexOptions {
   manifest: RunManifest;
   attempts: RunIndexAttempt[];
   /**
-   * Optional run-level aggregate stats (cache hit rate + graph
-   * overflow count). When provided, two extra rows render in the
-   * sidebar meta-card. Plan §F.6 + commit 9.
+   * Optional run-level aggregate stats (cache hit rate + graph overflow
+   * count). When provided, extra rows render in the sidebar meta-card.
    */
   stats?: RunStats;
 }
@@ -137,9 +136,8 @@ function metaRow(label: string, value: string | undefined): string {
  * zero — because the absence of a row is itself misleading (the
  * operator cannot tell whether caching is broken or simply untested).
  *
- * The `Cached tokens` row is omitted only when the value is -1
- * (older runs predate the field-split and have no measurement). Plan
- * §F.6 + commit 9 + codex-parity follow-up (2026-05-05).
+ * The `Cached tokens` row is omitted only when the value is -1 (older
+ * runs predate the field-split and have no measurement).
  */
 function renderStatsRows(stats: RunStats): string {
   const hitText =
@@ -165,13 +163,6 @@ function renderStatsRows(stats: RunStats): string {
 
   rows.push(metaRow('Graph overflows', overflowText));
 
-  // Plan §C 5.3 (gira-exhaustive followup): soft warnings count +
-  // categorisation. Aggregated from every analyzer's output.json
-  // soft_warning array (a non-blocking signal vocabulary defined by
-  // computeSoftWarnings + applyGraphToolUsageFromSidecar). The row
-  // renders only when the optional `softWarningCounts` field is
-  // populated — older RunStats fixtures predate §C 5.3 and have no
-  // observation to report.
   if (stats.softWarningCounts) {
     const softWarningEntries = Object.entries(stats.softWarningCounts).sort(([a], [b]) =>
       a < b ? -1 : a > b ? 1 : 0,
@@ -189,10 +180,9 @@ function renderStatsRows(stats: RunStats): string {
 }
 
 /**
- * Plan §C 5.3 (gira-exhaustive followup): per-phase attempt
- * statistics. Renders as a small table beneath the main attempt list.
- * Stack-agnostic — reads only `phaseLabel` / `phaseId` and `durationMs`
- * which are framework-defined regardless of project shape.
+ * Render per-phase attempt statistics as a small table beneath the main
+ * attempt list. Stack-agnostic — reads only `phaseLabel` / `phaseId` and
+ * `durationMs`, which are framework-defined regardless of project shape.
  */
 export function renderPhaseStatsRows(attempts: RunIndexAttempt[]): string {
   const byPhase = new Map<

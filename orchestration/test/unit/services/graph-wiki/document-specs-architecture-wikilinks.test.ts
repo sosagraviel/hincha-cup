@@ -3,10 +3,10 @@ import { buildCoreSpecs } from '../../../../src/services/graph-wiki/document-spe
 import { Provider } from '../../../../src/providers/types.js';
 
 /**
- * Wave 2 Fix 3.1 — ARCHITECTURE.md spec must instruct the wiki-gen
- * agent to wrap discovered service ids in `[[id]]`. The instruction is
- * load-bearing for the `low_wikilink_density` soft check downstream:
- * an agent that follows the instruction never trips the warning.
+ * ARCHITECTURE.md spec must instruct the wiki-gen agent to wrap
+ * discovered service ids in `[[id]]`. The instruction is load-bearing
+ * for the `low_wikilink_density` soft check downstream: an agent that
+ * follows the instruction never trips the warning.
  *
  * Stack-agnostic: the spec is built from the structure analyzer's
  * services array — the test fixture uses ids from any language family.
@@ -45,7 +45,7 @@ function buildOptions() {
   };
 }
 
-describe('architecture document spec — wikilink instruction (Wave 2 Fix 3.1)', () => {
+describe('architecture document spec — wikilink instruction', () => {
   it('promptFocus instructs the agent to wrap discovered service ids in [[id]]', () => {
     const specs = buildCoreSpecs(buildOptions() as never);
     const arch = specs.find((s) => s.documentType === 'architecture');

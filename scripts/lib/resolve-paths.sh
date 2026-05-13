@@ -35,6 +35,18 @@ framework_path() {
 
 project_path() {
   local fw fw_real fw_parent
+
+  # Fixture override. When PROJECT_PATH is exported by the caller
+  # (test-integration fixtures live INSIDE the framework directory at
+  # `framework/orchestration/test/integration/initialize-project/projects/
+  # <fixture>`, so the framework-parent heuristic below resolves to the
+  # WRONG directory — the user's `~/itIsHere/projects/` containing 60K+
+  # unrelated files), trust the explicit value.
+  if [ -n "${PROJECT_PATH:-}" ] && [ -d "$PROJECT_PATH" ]; then
+    ( cd "$PROJECT_PATH" && pwd )
+    return
+  fi
+
   fw="$(framework_path)"
   fw_real="$(cd "$fw" && pwd -P)"
   fw_parent="$(cd "$fw/.." && pwd)"

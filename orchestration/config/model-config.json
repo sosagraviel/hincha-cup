@@ -87,32 +87,34 @@
         "tech-stack-dependencies-analyzer": "sonnet-latest",
         "code-patterns-testing-analyzer": "sonnet-latest",
         "data-flows-integrations-analyzer": "sonnet-latest",
+        "service-detail-extractor": "sonnet-latest",
         "architect-synthesizer": "sonnet-latest",
         "wiki-generator": "sonnet-latest",
         "question-consolidator": "sonnet-latest"
       }
     },
     "fast": {
-      "description": "Fast tier - optimized for speed and cost",
+      "description": "Fast tier — Haiku for every agent. Optimised for speed, cost, and v5 fixture iteration. Was hybrid pre-v5 (Phase 1 analyzers on Haiku, synthesis/wiki on Sonnet); v5 pushes the whole pipeline to Haiku.",
       "provider": "anthropic",
       "agents": {
-        "planner": "sonnet-latest",
-        "implementer": "sonnet-latest",
-        "implementer-generic": "sonnet-latest",
-        "implementer-typescript": "sonnet-latest",
-        "implementer-python": "sonnet-latest",
-        "implementer-go": "sonnet-latest",
-        "implementer-java": "sonnet-latest",
-        "implementer-rust": "sonnet-latest",
-        "reviewer": "sonnet-latest",
-        "visual-verifier": "sonnet-latest",
+        "planner": "haiku-latest",
+        "implementer": "haiku-latest",
+        "implementer-generic": "haiku-latest",
+        "implementer-typescript": "haiku-latest",
+        "implementer-python": "haiku-latest",
+        "implementer-go": "haiku-latest",
+        "implementer-java": "haiku-latest",
+        "implementer-rust": "haiku-latest",
+        "reviewer": "haiku-latest",
+        "visual-verifier": "haiku-latest",
         "structure-architecture-analyzer": "haiku-latest",
         "tech-stack-dependencies-analyzer": "haiku-latest",
         "code-patterns-testing-analyzer": "haiku-latest",
         "data-flows-integrations-analyzer": "haiku-latest",
-        "architect-synthesizer": "sonnet-latest",
-        "wiki-generator": "sonnet-latest",
-        "question-consolidator": "sonnet-latest"
+        "service-detail-extractor": "haiku-latest",
+        "architect-synthesizer": "haiku-latest",
+        "wiki-generator": "haiku-latest",
+        "question-consolidator": "haiku-latest"
       }
     },
     "advanced": {
@@ -133,6 +135,7 @@
         "tech-stack-dependencies-analyzer": "opus-latest",
         "code-patterns-testing-analyzer": "opus-latest",
         "data-flows-integrations-analyzer": "opus-latest",
+        "service-detail-extractor": "opus-latest",
         "architect-synthesizer": "opus-latest",
         "wiki-generator": "opus-latest",
         "question-consolidator": "opus-latest"
@@ -168,6 +171,10 @@
           "alias": "gpt5-latest",
           "reasoningEffort": "high"
         },
+        "service-detail-extractor": {
+          "alias": "gpt5-latest",
+          "reasoningEffort": "high"
+        },
         "architect-synthesizer": {
           "alias": "gpt5-latest",
           "reasoningEffort": "high"
@@ -200,6 +207,7 @@
         "tech-stack-dependencies-analyzer": "gemini-flash",
         "code-patterns-testing-analyzer": "gemini-flash",
         "data-flows-integrations-analyzer": "gemini-flash",
+        "service-detail-extractor": "gemini-flash",
         "architect-synthesizer": "gemini-latest",
         "wiki-generator": "gemini-latest",
         "question-consolidator": "gemini-latest"

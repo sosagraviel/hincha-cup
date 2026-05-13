@@ -11,7 +11,7 @@ import type {
 } from '../../../../../src/schemas/stack-profile.schema.js';
 
 /**
- * Plan 15 §D.2 + §E.1 — deterministic command-catalog builder tests.
+ * Deterministic command-catalog builder tests.
  *
  * The builder is pure: same inputs ⇒ byte-identical outputs. These
  * tests pin the four-tier preference contract (wrapper > readme >
@@ -475,10 +475,10 @@ describe('preferredCommand', () => {
 });
 
 // ---------------------------------------------------------------------------
-// buildCommandCatalog — full-fixture sanity (gira-shape)
+// buildCommandCatalog — full-fixture sanity
 // ---------------------------------------------------------------------------
 
-describe('buildCommandCatalog: gira-shape fixture', () => {
+describe('buildCommandCatalog: full-fixture sanity', () => {
   it('lists make setup before pnpm install, and make tests before pnpm test', () => {
     const catalog = buildCommandCatalog({
       automation: {

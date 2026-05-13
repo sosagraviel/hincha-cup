@@ -21,14 +21,14 @@ describe('graph navigation discipline — single source of truth', () => {
     });
 
     it('cites the upstream AttributeError symptom + the framework-side patch path', () => {
-      // The 2026-05-05 gira run proved the bug fires regardless of whether
-      // the agent passes repo_root — the upstream code-review-graph
-      // installs `--repo <path>` from the framework's launch flags into
-      // `_default_repo_root`, and `_resolve_repo_root(None)` returns that
-      // string, which `_validate_repo_root(str)` then crashes on. The
-      // framework's setup-code-graph.sh applies a post-install patch
-      // that fixes this; the discipline tells the agent what to do if
-      // the patch fails to apply on a given machine.
+      // The bug fires regardless of whether the agent passes repo_root —
+      // the upstream code-review-graph installs `--repo <path>` from the
+      // framework's launch flags into `_default_repo_root`, and
+      // `_resolve_repo_root(None)` returns that string, which
+      // `_validate_repo_root(str)` then crashes on. The framework's
+      // setup-code-graph.sh applies a post-install patch that fixes
+      // this; the discipline tells the agent what to do if the patch
+      // fails to apply on a given machine.
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toContain("'str' object has no attribute 'resolve'");
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toContain('get_hub_nodes_tool');
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toContain('get_bridge_nodes_tool');
@@ -61,10 +61,9 @@ describe('graph navigation discipline — single source of truth', () => {
     });
 
     it('does NOT tell the agent the str/resolve error only fires if it passes repo_root', () => {
-      // Anti-regression for the wrong claim that landed in the
-      // 2026-05-05 first wave. The bug fires regardless of agent input
-      // because `--repo` populates _default_repo_root. Don't promise
-      // the agent a guarantee the framework cannot keep.
+      // Anti-regression: the bug fires regardless of agent input because
+      // `--repo` populates _default_repo_root. Don't promise the agent a
+      // guarantee the framework cannot keep.
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).not.toMatch(
         /not an actual error you should expect to see/,
       );
@@ -89,8 +88,8 @@ describe('graph navigation discipline — single source of truth', () => {
     });
 
     it('tells the agent NOT to invent a fallback on the first-call race', () => {
-      // The gira run showed agents silently switching tools when the first
-      // MCP call raced, wasting the prescribed cheapest entry point. The
+      // Agents have been seen silently switching tools when the first MCP
+      // call raced, wasting the prescribed cheapest entry point. The
       // mitigation must explicitly forbid that behaviour.
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/do not abandon the graph/);
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/do not invent a fallback/);
@@ -107,11 +106,10 @@ describe('graph navigation discipline — single source of truth', () => {
   });
 
   describe('Section 5 — result-spill protocol (HARD FAILURE semantics)', () => {
-    // The 2026-05-04 gira run had 10 get_community_tool overflows in Phase 1.
-    // Root cause: the prior wording "switch to query_graph_tool ..." read as
-    // a soft suggestion. Agents kept the partial spillover data and limped
-    // along instead of switching tools. The new wording must say HARD
-    // FAILURE plainly.
+    // The prior wording "switch to query_graph_tool ..." read as a soft
+    // suggestion. Agents kept the partial spillover data and limped along
+    // instead of switching tools. The new wording must say HARD FAILURE
+    // plainly.
     it('labels the overflow sentinel as a HARD FAILURE', () => {
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/HARD FAILURE/);
     });
@@ -139,10 +137,8 @@ describe('graph navigation discipline — single source of truth', () => {
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/index\.html/);
     });
 
-    // Plan §C 2.1 (gira-exhaustive followup, 2026-05-05). The 2026-05-05
-    // audit saw the agent hit a single overflow then walk away from the
-    // graph for 23 file-system calls. The recovery protocol must
-    // explicitly forbid that pattern.
+    // The recovery protocol must explicitly forbid walking away from the
+    // graph for file-system calls after an overflow.
     it('mandates RECOVER, not abandon', () => {
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/RECOVER, do not abandon/);
     });
@@ -166,11 +162,9 @@ describe('graph navigation discipline — single source of truth', () => {
     });
   });
 
-  // Plan §C 2.1 (gira-exhaustive followup, 2026-05-05). The 2026-05-05
-  // gira audit found get_community_tool overflowing on
-  // "service-it:should" — a community whose name aggregates many test
-  // cases. The discipline now warns about fat communities BEFORE the
-  // drill-in attempt.
+  // get_community_tool can overflow on community names that aggregate
+  // many test cases. The discipline warns about fat communities BEFORE
+  // the drill-in attempt.
   describe('Section 0 — fat-community pre-drill guidance', () => {
     it('introduces the "Fat communities" subsection', () => {
       expect(GRAPH_NAVIGATION_DISCIPLINE_TEXT).toMatch(/Fat communities/);

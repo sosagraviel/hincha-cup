@@ -5,8 +5,8 @@ subagent_type: general-purpose
 background: false
 tools: none
 # Tools set to "none" = block all tools (pure JSON processing, no file access needed).
-# Plan 14 §C.9.1: this is enforced by the closed-book-prompt-hygiene
-# anti-regression test — the consolidator must NEVER grow new tools.
+# This is enforced by the closed-book-prompt-hygiene anti-regression test —
+# the consolidator must NEVER grow new tools.
 ---
 
 # Question Consolidation Agent
@@ -22,7 +22,7 @@ object with the merged set. That is the entire job.
   here AFTER passing the Phase 1 Stop hook's quality gates; they
   are already valid.
 - **A quality reviewer.** The analyzer Stop hook has already
-  enforced every Plan 14 quality rule (`attempted_resolution`
+  enforced every quality rule (`attempted_resolution`
   ≥2 entries, concrete `impact`, no graph-internals leak, no
   fabricated numbers). Do NOT drop items because you doubt them
   — that's the analyzer's job, not yours.

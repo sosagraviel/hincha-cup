@@ -53,11 +53,9 @@ async function readStdinAsync(): Promise<string> {
 
 async function main() {
   try {
-    // Read stdin to get hook input metadata (production-ready async method)
     const stdinBuffer = await readStdinAsync();
     const input: HookInput = JSON.parse(stdinBuffer);
 
-    // Require transcript for validation
     if (!input.transcript_path) {
       return blockWithFeedback(
         '❌ HOOK ERROR: No transcript path provided\n\n' +
@@ -89,7 +87,6 @@ async function main() {
 
     const assistantMessages = transcript
       .filter((msg: any) => {
-        // Support both formats: direct (msg.type === "assistant") and wrapped (msg.message.role === "assistant")
         return msg.type === 'assistant' || (msg.message && msg.message.role === 'assistant');
       })
       .reverse();
@@ -104,7 +101,6 @@ async function main() {
 
     const lastMessage = assistantMessages[0];
 
-    // Get content from either direct format or wrapped format
     const messageContent = lastMessage.message ? lastMessage.message.content : lastMessage.content;
 
     if (!messageContent || !Array.isArray(messageContent)) {
@@ -128,7 +124,6 @@ async function main() {
 
     const text = textBlocks.map((t: any) => t.text).join('\n');
 
-    // Use comprehensive validator (same as external validator in synthesis.node.ts)
     const validation = validateSynthesisOutput(text);
 
     if (!validation.valid) {
@@ -137,7 +132,6 @@ async function main() {
 
     return allow();
   } catch (error) {
-    // CRITICAL: On hook error, BLOCK (fail-safe) - don't allow potentially bad output
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     return blockWithFeedback(
       `❌ HOOK CRASHED: ${errorMsg}\n\n` +

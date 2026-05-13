@@ -7,7 +7,7 @@ import {
 import { Provider } from '../../../../src/providers/types.js';
 
 /**
- * Wave 2 Fix 3.3 — wiki-generator prompts ≤ 30 KB per doc on every
+ * Wiki-generator prompts ≤ 30 KB per doc on every
  * fixture (closed-book hygiene + per-doc digest scoping). Two
  * regression categories the budget catches:
  *
@@ -103,7 +103,7 @@ function buildOptions(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-describe('wiki-generator prompt budgets (Wave 2 Fix 3.3)', () => {
+describe('wiki-generator prompt budgets', () => {
   it('architecture prompt is under 30 KB even when synthesis carries oversized convention-skill sections', () => {
     const specs = buildCoreSpecs(buildOptions() as never);
     const arch = specs.find((s) => s.documentType === 'architecture');
