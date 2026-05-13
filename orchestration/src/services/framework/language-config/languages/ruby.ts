@@ -51,4 +51,12 @@ export const ruby: LanguageConfig = {
       { pkg: 'solid_queue', pattern: 'task-queue', displayName: 'SolidQueue' },
     ],
   },
+  commandDefaults: {
+    lint: 'rubocop',
+    format: 'rubocop -a',
+    typecheck: 'bundle exec steep check',
+    test: 'bundle exec rspec',
+    build: 'bundle install',
+  },
+  hasImplementerAgent: true,
 };

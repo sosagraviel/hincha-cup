@@ -5,7 +5,7 @@ export const javascript: LanguageConfig = {
   key: 'javascript',
   displayName: 'JavaScript',
   extensions: ['js', 'mjs', 'cjs', 'jsx'],
-  manifests: [{ kind: 'package.json', format: 'json' }],
+  manifests: [{ kind: 'package.json', format: 'json', manager: 'npm' }],
   lockFiles: [
     { filename: 'package-lock.json', manager: 'npm' },
     { filename: 'pnpm-lock.yaml', manager: 'pnpm' },
@@ -127,5 +127,11 @@ export const javascript: LanguageConfig = {
       { pkg: 'socket.io', pattern: 'websocket', displayName: 'Socket.IO' },
       { pkg: 'ws', pattern: 'websocket', displayName: 'ws' },
     ],
+  },
+  commandDefaults: {
+    lint: 'npm run lint',
+    format: 'npm run format',
+    test: 'npm test',
+    build: 'npm run build',
   },
 };

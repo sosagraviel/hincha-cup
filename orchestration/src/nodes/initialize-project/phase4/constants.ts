@@ -1,104 +1,47 @@
 /**
  * Phase 4: Context Generation Constants
  *
- * Centralized constants for Phase 4 components
+ * All language-specific tables are derived from the centralized
+ * language-config registry (`services/framework/language-config`). Adding a
+ * new language is a one-file change in `languages/<key>.ts`; this file's
+ * constants pick it up automatically.
  */
 
 import type { ManifestInfo } from './types.js';
 import { STANDARD_IGNORE_DIRS } from '../../../utils/shared/prompt-loader.js';
+import {
+  allLockFiles,
+  languageExtensionsMap,
+  manifestInfoMap,
+  primaryManifestFilenames,
+  utilityLanguageKeys,
+} from '../../../services/framework/language-config/index.js';
 
 /**
- * Map of language names to their file extensions.
- *
- * Stack-agnostic by enumeration. Adding a stack is a one-row append; the
- * file-counter, language-validator, and stack-profile all consult this
- * single table. Keys mirror `schemas/language-normalization.ts::CANONICAL_LANGUAGES`.
+ * Map of language keys to their file extensions (with leading dots).
+ * Derived from the language-config registry.
  */
-export const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
-  typescript: ['.ts', '.tsx'],
-  javascript: ['.js', '.jsx', '.mjs', '.cjs'],
-  python: ['.py', '.pyw', '.pyx'],
-  java: ['.java'],
-  go: ['.go'],
-  rust: ['.rs'],
-  ruby: ['.rb', '.rake'],
-  php: ['.php'],
-  csharp: ['.cs'],
-  fsharp: ['.fs', '.fsx'],
-  vbnet: ['.vb'],
-  cpp: ['.cpp', '.cc', '.cxx', '.hpp', '.h', '.hxx'],
-  c: ['.c', '.h'],
-  swift: ['.swift'],
-  kotlin: ['.kt', '.kts'],
-  scala: ['.scala', '.sc'],
-  elixir: ['.ex', '.exs'],
-  clojure: ['.clj', '.cljs', '.cljc'],
-  haskell: ['.hs', '.lhs'],
-  erlang: ['.erl', '.hrl'],
-  shell: ['.sh', '.bash', '.zsh', '.fish'],
-  powershell: ['.ps1', '.psm1', '.psd1'],
-  sql: ['.sql'],
-  html: ['.html', '.htm'],
-  css: ['.css', '.scss', '.sass', '.less', '.styl'],
-  dart: ['.dart'],
-  lua: ['.lua'],
-  r: ['.r', '.rmd'],
-  julia: ['.jl'],
-  perl: ['.pl', '.pm', '.t'],
-  objectivec: ['.m', '.mm'],
-} as const;
+export const LANGUAGE_EXTENSIONS: Record<string, string[]> = languageExtensionsMap();
 
 /**
- * Map of manifest files to their language and package manager type
+ * Map of manifest filenames to their language and package manager type.
+ * Includes lock files whose manager is unambiguous so workspace detection
+ * still keys off the lock file when the manifest is absent.
  */
-export const MANIFEST_FILES: Record<string, ManifestInfo> = {
-  'package.json': { language: 'javascript', type: 'npm' },
-  'yarn.lock': { language: 'javascript', type: 'yarn' },
-  'pnpm-lock.yaml': { language: 'javascript', type: 'pnpm' },
-  'requirements.txt': { language: 'python', type: 'pip' },
-  Pipfile: { language: 'python', type: 'pipenv' },
-  'pyproject.toml': { language: 'python', type: 'poetry' },
-  'setup.py': { language: 'python', type: 'setuptools' },
-  'go.mod': { language: 'go', type: 'gomod' },
-  'Cargo.toml': { language: 'rust', type: 'cargo' },
-  'pom.xml': { language: 'java', type: 'maven' },
-  'build.gradle': { language: 'java', type: 'gradle' },
-  'build.gradle.kts': { language: 'kotlin', type: 'gradle' },
-  'build.sbt': { language: 'scala', type: 'sbt' },
-  Gemfile: { language: 'ruby', type: 'bundler' },
-  'composer.json': { language: 'php', type: 'composer' },
-  'Package.swift': { language: 'swift', type: 'spm' },
-  'Cargo.lock': { language: 'rust', type: 'cargo' },
-  'mix.exs': { language: 'elixir', type: 'mix' },
-  'rebar.config': { language: 'erlang', type: 'rebar' },
-  'project.clj': { language: 'clojure', type: 'leiningen' },
-  'deps.edn': { language: 'clojure', type: 'tools.deps' },
-} as const;
+export const MANIFEST_FILES: Record<string, ManifestInfo> = (() => {
+  const out: Record<string, ManifestInfo> = { ...manifestInfoMap() };
+  for (const lock of allLockFiles()) {
+    if (lock.filename in out) continue;
+    out[lock.filename] = { language: lock.languageKey, type: lock.manager };
+  }
+  return out;
+})();
 
 /**
- * Primary manifest files that indicate a workspace root
- * (vs. lock files which are secondary)
+ * Primary manifest filenames that mark a workspace root (lock files are
+ * secondary). Derived from the language-config registry.
  */
-export const PRIMARY_MANIFESTS = new Set([
-  'package.json',
-  'requirements.txt',
-  'Pipfile',
-  'pyproject.toml',
-  'setup.py',
-  'go.mod',
-  'Cargo.toml',
-  'pom.xml',
-  'build.gradle',
-  'build.gradle.kts',
-  'build.sbt',
-  'Gemfile',
-  'composer.json',
-  'Package.swift',
-  'mix.exs',
-  'rebar.config',
-  'project.clj',
-  'deps.edn',
-]);
+export const PRIMARY_MANIFESTS: ReadonlySet<string> = primaryManifestFilenames();
 
 /**
  * Directories to ignore during workspace detection and file counting.
@@ -167,18 +110,21 @@ export const BACKEND_FRAMEWORK_KEYWORDS = [
 ] as const;
 
 /**
- * Languages that legitimately appear in file counts (shell scripts, JSON configs, YAML CI, CSS,
- * SQL migrations, etc.) but are correctly omitted from the stack profile by design. Validators
- * must not raise warnings when a utility language has files but is absent from the profile.
+ * Languages that legitimately appear in file counts but are intentionally
+ * omitted from the stack profile (shell scripts, CSS, SQL migrations,
+ * JSON/YAML/TOML config files, dockerfile, markdown, …). Validators use
+ * this set to suppress "language present but missing from stack profile"
+ * warnings.
+ *
+ * Registered languages flagged `isUtility: true` are pulled from the
+ * registry; the trailing list covers file-format tokens that don't have
+ * full LanguageConfig entries (Dockerfile, JSON, YAML, …).
  */
 export const UTILITY_LANGUAGES: ReadonlySet<string> = new Set<string>([
-  'css',
+  ...utilityLanguageKeys(),
   'scss',
   'sass',
   'less',
-  'html',
-  'sql',
-  'shell',
   'bash',
   'dockerfile',
   'markdown',

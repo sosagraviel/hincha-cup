@@ -54,6 +54,59 @@ Stack agnosticism is enforced by `orchestration/src/services/framework/language-
 
 Adding a new vendor / library / manifest kind is one line in one file. Every downstream phase picks it up at the next run — composer views populate, the synthesizer composes, the wiki generator references, the service-completeness validator widens its discovery surface.
 
+## Phase 5 — implementer-agent generation
+
+Phase 5 is deterministic. It walks the stack profile and, for every distinct service language, decides whether to emit a dedicated `implementer-<lang>.md` agent or to let the work fall through to `implementer-generic.md`.
+
+### Decision rule
+
+A language gets its own implementer agent if and only if its registry entry sets `hasImplementerAgent: true`. Today that flag is set on **7 languages** — the ones with a corresponding mastering skill under `skills/050-language-frameworks/`:
+
+| Language | Mastering skill |
+|---|---|
+| `typescript` | `mastering-typescript/SKILL.md` |
+| `python` | `mastering-python-skill/SKILL.md` |
+| `go` | `mastering-go-skill/SKILL.md` |
+| `rust` | `mastering-rust-skill/SKILL.md` |
+| `java` | `mastering-java-skill/SKILL.md` |
+| `scala` | `mastering-scala-skill/SKILL.md` |
+| `ruby` | `mastering-ruby-skill/SKILL.md` |
+
+Every other language (JavaScript, C#, PHP, Kotlin, Swift, Dart, Elixir, Haskell, Shell, SQL, HTML, CSS, …) falls through to `implementer-generic.md`. A unit test (`language-config.test.ts`) refuses to merge any new `hasImplementerAgent: true` entry that doesn't have a matching mastering skill on disk — the flag and the skill must move together.
+
+### Generation flow
+
+```text
+phase5/agent-generator.ts
+        │
+        ├─ getLanguagesFromStackProfile(stackProfile)        → ['typescript', 'shell']
+        │
+        ├─ for each language:
+        │     ├─ isLanguageSupported(lang)?                  → consults languagesWithImplementerAgent()
+        │     │     ├─ true  → generateImplementerAgent()    → implementer-<lang>.md
+        │     │     └─ false → skip (work routes to implementer-generic)
+        │
+        ├─ generateGenericImplementerAgent()                 → implementer-generic.md  (always)
+        ├─ generatePlannerAgent()                            → planner.md              (always)
+        └─ generateVisualVerifierAgent()                     → visual-verifier.md      (only if a frontend service exists)
+```
+
+### Template lookup
+
+`generateImplementerAgent()` looks for `agents/templates/implementer-<lang>.template.md` first and falls back to `agents/templates/implementer.template.md` when no per-language template exists. The fallback is the current state for every supported language — the framework reuses one body for all dedicated implementers; only the rendered commands and assigned skills differ. The per-language hook stays open: dropping `implementer-typescript.template.md` into `agents/templates/` would make Phase 5 pick it up automatically.
+
+### What actually differs across implementers
+
+The shared body is rendered with these per-language inputs:
+
+1. **Commands** — `{{lint_command}}`, `{{format_command}}`, `{{type_check_command}}`, `{{unit_test_command}}`, `{{build_command}}` come from the project's manifest scripts when present, otherwise from the registry's `commandDefaults` for that language.
+2. **Skills** — `skill-assigner.ts` decides which skill bodies bind to each implementer (e.g. `implementer-typescript` gets `mastering-typescript`, `react-frontend`, `mastering-vitest`; `implementer-generic` gets cross-stack skills like `mastering-git-cli`, `developing-with-docker`).
+3. **Frontmatter description** — `"Implement <language> code following team conventions"` for dedicated implementers vs `"Expert full-stack and DevOps specialist implementing any file type"` for the generic one. This is what the planner and Claude Code's sub-agent dispatcher match on.
+
+### Phase 6 cross-check
+
+`agent-coverage-validator.ts` walks the generated agents and the stack profile. For every service whose language has `hasImplementerAgent: true`, it asserts a matching `implementer-<lang>.md` file exists. Utility / non-eligible languages are never checked — they're expected to flow through the generic implementer, so a missing `implementer-shell.md` is not an error.
+
 ## Stop-hook validators (Phase 1)
 
 Every Phase 1 analyzer runs through a Stop hook (`validate-analyzer-json.hook.ts`) that emits a stable `VALIDATION_E<NNN>` code on failure. The agent's retry handler dispatches on the code prefix without parsing prose.

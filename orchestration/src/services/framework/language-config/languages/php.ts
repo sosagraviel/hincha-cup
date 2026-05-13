@@ -51,4 +51,11 @@ export const php: LanguageConfig = {
       { pkg: 'enqueue/enqueue', pattern: 'event-bus', displayName: 'Enqueue' },
     ],
   },
+  commandDefaults: {
+    lint: 'composer run-script phpcs',
+    format: 'composer run-script phpcbf',
+    typecheck: 'composer run-script phpstan',
+    test: 'composer run-script test',
+    build: 'composer install',
+  },
 };

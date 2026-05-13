@@ -6,10 +6,10 @@ export const python: LanguageConfig = {
   displayName: 'Python',
   extensions: ['py', 'pyi', 'pyx', 'pyw'],
   manifests: [
-    { kind: 'pyproject.toml', format: 'toml' },
-    { kind: 'setup.py', format: 'text' },
-    { kind: 'requirements.txt', format: 'text' },
-    { kind: 'Pipfile', format: 'toml' },
+    { kind: 'pyproject.toml', format: 'toml', manager: 'poetry' },
+    { kind: 'setup.py', format: 'text', manager: 'setuptools' },
+    { kind: 'requirements.txt', format: 'text', manager: 'pip' },
+    { kind: 'Pipfile', format: 'toml', manager: 'pipenv' },
   ],
   lockFiles: [
     { filename: 'poetry.lock', manager: 'poetry' },
@@ -95,4 +95,12 @@ export const python: LanguageConfig = {
       { pkg: 'channels', pattern: 'websocket', displayName: 'Django Channels' },
     ],
   },
+  commandDefaults: {
+    lint: 'ruff check .',
+    format: 'black .',
+    typecheck: 'mypy .',
+    test: 'pytest',
+    build: 'python -m build',
+  },
+  hasImplementerAgent: true,
 };

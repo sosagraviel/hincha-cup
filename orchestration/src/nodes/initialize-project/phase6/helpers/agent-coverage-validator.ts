@@ -8,7 +8,7 @@ import { existsSync, readFileSync } from 'fs';
 import type { StackProfile } from '../../../../schemas/index.js';
 import { MIN_AGENT_COUNT } from '../constants.js';
 import type { AgentCoverageResult } from '../types.js';
-import { getAllLanguages } from '../../../../services/framework/language-config/index.js';
+import { languagesWithImplementerAgent } from '../../../../services/framework/language-config/index.js';
 
 /**
  * Validate agent count and coverage
@@ -47,10 +47,12 @@ export function validateAgentCoverage(
         );
         significantLanguages = Array.from(serviceLanguages);
 
-        const codeLanguages = new Set(getAllLanguages().map((l) => l.key.toLowerCase()));
+        const implementerEligible = new Set(
+          languagesWithImplementerAgent().map((k) => k.toLowerCase()),
+        );
 
         for (const lang of significantLanguages) {
-          if (!codeLanguages.has(lang)) continue;
+          if (!implementerEligible.has(lang)) continue;
           const hasImplementer = agentFiles.some(
             (f) => f.includes('implementer') && f.toLowerCase().includes(lang),
           );

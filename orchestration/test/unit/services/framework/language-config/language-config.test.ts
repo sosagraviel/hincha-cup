@@ -17,6 +17,12 @@ import {
   manifestKindToManagerMap,
   parseToolVersions,
   allManifestPatternsForDiscovery,
+  languageExtensionsMap,
+  manifestInfoMap,
+  primaryManifestFilenames,
+  commandDefaultsByLanguage,
+  languagesWithImplementerAgent,
+  utilityLanguageKeys,
 } from '../../../../../src/services/framework/language-config/index.js';
 
 describe('language-config registry', () => {
@@ -36,7 +42,7 @@ describe('language-config registry', () => {
         'kotlin',
         'ruby',
         'php',
-        'dotnet',
+        'csharp',
         'swift',
         'dart',
         'elixir',
@@ -279,9 +285,94 @@ describe('language-config registry', () => {
       expect(map['Package.swift']).toBe('swift-pm');
     });
 
-    it('does NOT map ambiguous manifests (pyproject.toml — poetry/pdm/uv/pip)', () => {
+    it('maps ambiguous manifests via the per-manifest `manager` hint (pyproject.toml → poetry default)', () => {
       const map = manifestKindToManagerMap();
-      expect(map['pyproject.toml']).toBeUndefined();
+      expect(map['pyproject.toml']).toBe('poetry');
+      expect(map['requirements.txt']).toBe('pip');
+      expect(map['Pipfile']).toBe('pipenv');
+      expect(map['setup.py']).toBe('setuptools');
+    });
+  });
+
+  describe('registry-derived consumer maps', () => {
+    it('languageExtensionsMap covers every registered language', () => {
+      const map = languageExtensionsMap();
+      for (const lang of getAllLanguages()) {
+        expect(map[lang.key], `missing extensions for ${lang.key}`).toBeDefined();
+        expect(map[lang.key].length).toBeGreaterThan(0);
+      }
+    });
+
+    it('languageExtensionsMap prefixes every extension with a leading dot', () => {
+      for (const exts of Object.values(languageExtensionsMap())) {
+        for (const ext of exts) expect(ext.startsWith('.')).toBe(true);
+      }
+    });
+
+    it('manifestInfoMap is first-wins across inheritance chains (java/kotlin)', () => {
+      const map = manifestInfoMap();
+      expect(map['pom.xml']).toEqual({ language: 'java', type: 'maven' });
+      expect(map['build.gradle']).toEqual({ language: 'java', type: 'gradle' });
+      expect(map['build.gradle.kts']).toEqual({ language: 'java', type: 'gradle' });
+    });
+
+    it('primaryManifestFilenames covers every classic workspace root', () => {
+      const set = primaryManifestFilenames();
+      for (const m of [
+        'package.json',
+        'go.mod',
+        'Cargo.toml',
+        'pom.xml',
+        'build.gradle',
+        'build.gradle.kts',
+        'pyproject.toml',
+        'requirements.txt',
+        'Pipfile',
+        'setup.py',
+        'Gemfile',
+        'composer.json',
+        'Package.swift',
+        'mix.exs',
+        'rebar.config',
+        'project.clj',
+        'deps.edn',
+      ]) {
+        expect(set.has(m), `missing ${m}`).toBe(true);
+      }
+    });
+
+    it('commandDefaultsByLanguage covers every `hasImplementerAgent: true` language', () => {
+      const defaults = commandDefaultsByLanguage();
+      for (const key of languagesWithImplementerAgent()) {
+        expect(defaults[key], `missing commandDefaults for ${key}`).toBeDefined();
+      }
+    });
+
+    it('utilityLanguageKeys never overlaps with hasImplementerAgent languages', () => {
+      const utility = utilityLanguageKeys();
+      for (const key of languagesWithImplementerAgent()) {
+        expect(utility.has(key), `${key} is both utility and implementer`).toBe(false);
+      }
+    });
+
+    it('every hasImplementerAgent language has a matching mastering-* skill', () => {
+      const fs = require('fs') as typeof import('fs');
+      const path = require('path') as typeof import('path');
+      const frameworkRoot = path.resolve(__dirname, '..', '..', '..', '..', '..', '..');
+      const skillsDir = path.join(frameworkRoot, 'skills', '050-language-frameworks');
+      for (const key of languagesWithImplementerAgent()) {
+        const candidates = [
+          path.join(skillsDir, `mastering-${key}-skill`, 'SKILL.md'),
+          path.join(skillsDir, `mastering-${key}`, 'SKILL.md'),
+        ];
+        const ok = candidates.some((p) => fs.existsSync(p));
+        expect(
+          ok,
+          `'${key}' has hasImplementerAgent: true but no mastering-${key}(-skill)/SKILL.md exists. ` +
+            `Either add the skill at one of [${candidates.map((p) => path.relative(frameworkRoot, p)).join(', ')}], ` +
+            `or remove hasImplementerAgent from languages/${key}.ts so the language falls through to implementer-generic.`,
+        ).toBe(true);
+      }
     });
   });
 

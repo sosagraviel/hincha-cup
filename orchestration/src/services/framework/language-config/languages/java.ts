@@ -69,4 +69,12 @@ export const java: LanguageConfig = {
       { pkg: 'spring-boot-starter-quartz', pattern: 'task-queue', displayName: 'Quartz Scheduler' },
     ],
   },
+  commandDefaults: {
+    lint: 'mvn checkstyle:check',
+    format: 'mvn spotless:apply',
+    typecheck: 'mvn compile',
+    test: 'mvn test',
+    build: 'mvn package',
+  },
+  hasImplementerAgent: true,
 };

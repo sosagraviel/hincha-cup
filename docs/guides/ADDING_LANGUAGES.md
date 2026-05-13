@@ -1,8 +1,8 @@
 # Adding a New Language
 
-Teach the framework to recognise a new language by dropping one TypeScript file into the language registry. Every analyzer, post-fill, and renderer reads from the registry — no other files need touching.
+Teach the framework to recognise a new language by dropping one TypeScript file into the language registry. Every analyzer, post-fill, renderer, file-counter, command-defaults table, and implementer-agent gate reads from the registry — no other files need touching.
 
-The registry currently covers 21 language families. Adding the 22nd is a one-file change.
+The registry currently covers **36 languages** (21 first-class language families plus 15 auxiliary file-types like Shell, SQL, HTML, CSS that participate in file counting but don't have full toolchains). Adding the 37th is a one-file change.
 
 ---
 
@@ -27,7 +27,19 @@ orchestration/src/services/framework/language-config/
     └── zig.ts
 ```
 
-The runtime consumers (`apply-inspection-postfill.ts`, `language-config-summary` prompt script, manifest/lock-file/runtime-version tables, etc.) are auto-derived from the registry. There is no other "language list" anywhere in the codebase.
+The runtime consumers are auto-derived from the registry. **There is no other "language list" anywhere in the codebase** — a CI test (`test/unit/services/framework/language-config/language-config.test.ts`) enforces that the registry covers every consumer-side helper. The derived consumers include:
+
+| Consumer | What it derives from |
+|---|---|
+| `phase4/constants.ts::LANGUAGE_EXTENSIONS` | `languageExtensionsMap()` |
+| `phase4/constants.ts::MANIFEST_FILES` | `manifestInfoMap()` (+ lock-file entries) |
+| `phase4/constants.ts::PRIMARY_MANIFESTS` | `primaryManifestFilenames()` |
+| `phase4/constants.ts::UTILITY_LANGUAGES` | `utilityLanguageKeys()` |
+| `phase5/constants.ts::COMMAND_DEFAULTS` | `commandDefaultsByLanguage()` |
+| `phase5/constants.ts::SUPPORTED_IMPLEMENTER_LANGUAGES` | `languagesWithImplementerAgent()` |
+| `apply-inspection-postfill.ts` (tech-stack + code-patterns) | `manifestKindToManagerMap()` + `allToolTokens()` |
+| Phase 0 `project-inspection` | `knownExactManifestBasenames()`, `knownLockFileBasenames()`, `knownRuntimeVersionFilenames()` |
+| Composer-view derivation | `allToolTokens('externalServiceSdks' / 'authLibraries' / 'eventQueueLibraries')` |
 
 ---
 
@@ -60,8 +72,11 @@ export const myLang: LanguageConfig = {
 | `lockFiles` | ✓ | `{ filename, manager }[]`. Drives the manifest → manager mapping when unambiguous. |
 | `defaultManager` | optional | Canonical manager identifier when the language has exactly ONE manager but no lock-file entry (e.g. Swift PM, Maven, Gradle, Bundler when multiple lock files exist). |
 | `runtimeVersionFiles` | optional | `{ key, filename, extract }[]`. `extract` is a pure function `(contents: string) => string \| null` — pick from `extractors.ts` or write inline. |
-| `toolTokens` | optional | `{ linters?, formatters?, typeCheckers?, testRunners?, commonFrameworks?, databases? }`. Free-form lowercase token arrays drawn from manifest package names. |
-| `extends` | optional | `string[]` of other language keys whose manifests / lockFiles / etc. this language inherits (e.g. TypeScript extends JavaScript). |
+| `toolTokens` | optional | `{ linters?, formatters?, typeCheckers?, testRunners?, commonFrameworks?, databases?, externalServiceSdks?, authLibraries?, eventQueueLibraries? }`. Free-form lowercase token arrays drawn from manifest package names. The last three drive composer-view derivation. |
+| `commandDefaults` | optional | `{ lint?, format?, typecheck?, test?, build? }` — fallback commands the Phase 5 implementer agent uses when the project's manifest has no scripts. Required when `hasImplementerAgent: true`. |
+| `hasImplementerAgent` | optional | `true` when Phase 5 should generate a dedicated `implementer-<key>` agent (vs falling through to `implementer-generic`). Set this on every first-class language with a serious build/test toolchain. |
+| `isUtility` | optional | `true` for auxiliary file-types (Shell, SQL, HTML, CSS, …) that participate in file counting but should be suppressed from stack-profile "missing language" warnings and never get an implementer agent. |
+| `extends` | optional | `string[]` of other language keys whose manifests / lockFiles / etc. this language inherits (e.g. TypeScript extends JavaScript, Kotlin extends Java). |
 
 ### Pick `defaultManager` carefully
 
@@ -140,6 +155,51 @@ export const typescript: LanguageConfig = {
 
 The inheritance walker (`inheritanceChain()` in `language-config/index.ts`) merges manifests / lock files / runtime-version files / tool tokens from every ancestor at load time. The child's tokens are additive.
 
+### Implementer-agent setup
+
+`hasImplementerAgent: true` gates whether Phase 5 emits a dedicated `implementer-<key>.md` agent (vs falling through to `implementer-generic`).
+
+**Hard rule:** never set `hasImplementerAgent: true` without first adding a matching mastering skill under `skills/050-language-frameworks/mastering-<key>(-skill)/SKILL.md`. A unit test (`test/unit/services/framework/language-config/language-config.test.ts`) refuses to merge any language with the flag set but no mastering skill on disk — the two must move together.
+
+The currently-eligible set is: `typescript`, `python`, `go`, `rust`, `java`, `scala`, `ruby`. Every other registered language (including JavaScript, C#, PHP) intentionally falls through to `implementer-generic` until a mastering skill ships.
+
+When the language IS a first-class development target with an existing mastering skill, set both fields:
+
+```ts
+export const mylang: LanguageConfig = {
+  // … manifest / lockFiles / extensions / toolTokens as above
+  commandDefaults: {
+    lint: 'mylang-lint .',
+    format: 'mylang-fmt .',
+    typecheck: 'mylang-check',
+    test: 'mylang-test',
+    build: 'mylang-build',
+  },
+  hasImplementerAgent: true,
+};
+```
+
+Phase 5's `agent-generator.ts` will then emit `implementer-mylang.md` for any service whose stack profile lists `mylang`. Without `hasImplementerAgent`, Phase 5 still renders skills and conventions for the language but routes implementation tasks to `implementer-generic`.
+
+`commandDefaults` on its own — without `hasImplementerAgent` — is still useful: a few downstream consumers (the Phase 4 catalog renderer, debug-store stats) may surface those defaults even when no dedicated agent is generated. Drop them if the language genuinely has no canonical lint/test/build pipeline (utility languages like Shell, SQL, HTML, CSS).
+
+### Auxiliary file-types (utility languages)
+
+For file extensions that aren't full toolchains but should still be counted (Shell, SQL, HTML, CSS, Lua, Perl, …), set `isUtility: true` and leave `manifests` / `lockFiles` empty:
+
+```ts
+export const sql: LanguageConfig = {
+  key: 'sql',
+  displayName: 'SQL',
+  extensions: ['sql'],
+  manifests: [],
+  lockFiles: [],
+  isUtility: true,
+};
+```
+
+Validators use `isUtility` to suppress "language present but missing from stack profile" warnings for legitimate auxiliary content.
+
 ### Stack-agnostic checklist
 
 Before committing, confirm:
@@ -148,6 +208,8 @@ Before committing, confirm:
 - [ ] No assumption about monorepo / multi-repo / serverless structure.
 - [ ] Tokens are literal package names projects declare in manifests.
 - [ ] `extensions` are unique across the registry (no collisions with existing languages). Run `pnpm --filter orchestration test:unit -- test/unit/services/framework/language-config/`.
+- [ ] If `hasImplementerAgent: true`, `commandDefaults` is set with at least `lint`, `test`, and `build`.
+- [ ] If `isUtility: true`, `manifests` and `lockFiles` are both empty (utility languages don't carry a toolchain).
 
 ---
 
@@ -180,6 +242,9 @@ The registry-consistency test (`test/unit/services/framework/language-config/lan
 - Every lock-file `manager` is non-empty.
 - `inheritanceChain()` produces no cycles.
 - `manifestKindToManagerMap()` covers every manifest with an unambiguous manager.
+- `languageExtensionsMap()` returns one entry per registered language with at least one extension.
+- `commandDefaultsByLanguage()` is populated for every language that sets `hasImplementerAgent: true`.
+- `utilityLanguageKeys()` and `languagesWithImplementerAgent()` are disjoint sets.
 
 If those pass, the registry change is complete — every analyzer / post-fill / renderer / prompt script picks it up automatically.
 

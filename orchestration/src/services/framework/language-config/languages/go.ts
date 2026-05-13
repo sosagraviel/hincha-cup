@@ -55,4 +55,12 @@ export const go: LanguageConfig = {
       { pkg: 'rabbitmq/amqp091-go', pattern: 'event-bus', displayName: 'amqp091-go' },
     ],
   },
+  commandDefaults: {
+    lint: 'golangci-lint run',
+    format: 'go fmt ./...',
+    typecheck: 'go vet ./...',
+    test: 'go test ./...',
+    build: 'go build ./...',
+  },
+  hasImplementerAgent: true,
 };

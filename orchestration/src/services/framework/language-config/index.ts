@@ -8,6 +8,7 @@
  */
 
 import type {
+  CommandDefaults,
   LanguageConfig,
   LockFileEntry,
   ManifestEntry,
@@ -17,6 +18,7 @@ import type {
 import { ALL_LANGUAGE_CONFIGS } from './languages/index.js';
 
 export type {
+  CommandDefaults,
   LanguageConfig,
   LockFileEntry,
   ManifestEntry,
@@ -257,6 +259,82 @@ export function parseToolVersions(body: string): Record<string, string> {
     if (name && version) out[name] = version;
   }
   return out;
+}
+
+/**
+ * Returns `{ <canonical-language-key>: ['.ext', …] }` for every language in
+ * the registry. The file-counter and stack-profile validator consume this
+ * to attribute on-disk files to languages without a per-language `if` chain.
+ */
+export function languageExtensionsMap(): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const lang of ALL_LANGUAGE_CONFIGS) {
+    if (lang.extensions.length === 0) continue;
+    out[lang.key] = lang.extensions.map((e) => (e.startsWith('.') ? e : `.${e}`));
+  }
+  return out;
+}
+
+/**
+ * Returns `{ <manifest-filename>: { language, type } }` for every manifest
+ * with an unambiguous package manager. `type` is the lower-cased manager
+ * identifier so external consumers can switch on it. Suffix-matched
+ * manifests (`*.csproj`, `*.gemspec`) are NOT included — callers that need
+ * suffix support resolve via `resolveManifestEntry()` directly.
+ */
+export function manifestInfoMap(): Record<string, { language: string; type: string }> {
+  const out: Record<string, { language: string; type: string }> = {};
+  const managerMap = manifestKindToManagerMap();
+  for (const entry of allManifests()) {
+    if (entry.kind.startsWith('*.')) continue;
+    if (entry.kind in out) continue;
+    const manager = managerMap[entry.kind];
+    if (!manager) continue;
+    out[entry.kind] = { language: entry.languageKey, type: manager };
+  }
+  return out;
+}
+
+/**
+ * Manifest filenames the framework treats as workspace roots. Excludes lock
+ * files and ambiguous-manager manifests.
+ */
+export function primaryManifestFilenames(): ReadonlySet<string> {
+  return new Set(Object.keys(manifestInfoMap()));
+}
+
+/**
+ * Per-language default lint/format/typecheck/test/build commands the Phase 5
+ * implementer-agent generator falls back to when the project's manifest has
+ * no scripts.
+ */
+export function commandDefaultsByLanguage(): Record<string, CommandDefaults> {
+  const out: Record<string, CommandDefaults> = {};
+  for (const lang of ALL_LANGUAGE_CONFIGS) {
+    if (!lang.commandDefaults) continue;
+    out[lang.key] = lang.commandDefaults;
+  }
+  return out;
+}
+
+/**
+ * Language keys for which Phase 5 generates a dedicated implementer agent.
+ * Languages without `hasImplementerAgent: true` fall through to
+ * `implementer-generic`.
+ */
+export function languagesWithImplementerAgent(): ReadonlyArray<string> {
+  return ALL_LANGUAGE_CONFIGS.filter((l) => l.hasImplementerAgent === true)
+    .map((l) => l.key)
+    .sort();
+}
+
+/**
+ * Auxiliary file-type languages (shell, sql, html, css, …) that legitimately
+ * appear in file counts but are intentionally absent from the stack profile.
+ * Validators use this set to suppress false-positive warnings.
+ */
+export function utilityLanguageKeys(): ReadonlySet<string> {
+  return new Set(ALL_LANGUAGE_CONFIGS.filter((l) => l.isUtility === true).map((l) => l.key));
 }
 
 function inheritanceChain(lang: LanguageConfig): ReadonlyArray<LanguageConfig> {

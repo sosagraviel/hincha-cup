@@ -111,8 +111,8 @@ export const PER_ANALYZER_PER_TOOL_CAPS: Record<string, Record<string, number>> 
   },
   'data-flows-integrations-analyzer': {
     mcp__code_graph__get_minimal_context_tool: 1,
-    mcp__code_graph__list_communities_tool: 1,
-    mcp__code_graph__get_community_tool: 3,
+    mcp__code_graph__list_communities_tool: 0,
+    mcp__code_graph__get_community_tool: 0,
     mcp__code_graph__list_flows_tool: 2,
     mcp__code_graph__get_flow_tool: 4,
     mcp__code_graph__semantic_search_nodes_tool: 6,
@@ -131,20 +131,35 @@ export function renderPerToolCapsTable(agentName: string): string {
   const caps = PER_ANALYZER_PER_TOOL_CAPS[agentName];
   if (!caps) return '';
 
-  const rows = Object.entries(caps)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([tool, cap]) => `| \`${tool}\` | ${cap} |`)
-    .join('\n');
+  const entries = Object.entries(caps).sort(([a], [b]) => a.localeCompare(b));
+  const forbidden = entries.filter(([, cap]) => cap === 0).map(([tool]) => tool);
+  const allowed = entries.filter(([, cap]) => cap > 0);
 
-  return [
-    '### Per-tool soft caps (this analyzer)',
-    '',
-    '| Tool | Max calls |',
-    '|---|---:|',
-    rows,
-    '',
+  const sections: string[] = ['### Per-tool soft caps (this analyzer)', ''];
+
+  if (forbidden.length > 0) {
+    sections.push(
+      '**Forbidden for this analyzer** (any call triggers `per_tool_budget_exceeded`):',
+      '',
+      ...forbidden.map((t) => `- \`${t}\``),
+      '',
+    );
+  }
+
+  if (allowed.length > 0) {
+    sections.push(
+      '| Tool | Max calls |',
+      '|---|---:|',
+      ...allowed.map(([tool, cap]) => `| \`${tool}\` | ${cap} |`),
+      '',
+    );
+  }
+
+  sections.push(
     "An overflow sentinel from any tool counts DOUBLE against that tool's remaining budget. Exceeding any cap surfaces `per_tool_budget_exceeded` in this analyzer's soft-warning list — non-blocking, but visible in the run report.",
-  ].join('\n');
+  );
+
+  return sections.join('\n');
 }
 
 /**

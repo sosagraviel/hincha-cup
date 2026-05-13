@@ -133,6 +133,19 @@ export interface ToolTokens {
   readonly eventQueueLibraries?: ReadonlyArray<EventQueueLibraryEntry>;
 }
 
+/**
+ * Default commands a language uses when the project has no manifest-derived
+ * script overrides. Drives the implementer-agent generation in Phase 5 and
+ * the `getDefaultCommands()` fallback in `command-extractor.ts`.
+ */
+export interface CommandDefaults {
+  readonly lint?: string;
+  readonly format?: string;
+  readonly typecheck?: string;
+  readonly test?: string;
+  readonly build?: string;
+}
+
 export interface LanguageConfig {
   /** Stable lowercase key used as the registry id (e.g. `javascript`, `python`, `go`). */
   readonly key: string;
@@ -165,6 +178,30 @@ export interface LanguageConfig {
 
   /** Tool tokens used by post-fill detectors. */
   readonly toolTokens?: ToolTokens;
+
+  /**
+   * Default lint / format / typecheck / test / build commands used by the
+   * Phase 5 implementer-agent generator when the project's manifest has no
+   * scripts. Omit for auxiliary languages (shell, css, sql, …).
+   */
+  readonly commandDefaults?: CommandDefaults;
+
+  /**
+   * When true, Phase 5 generates a dedicated implementer agent for this
+   * language (using `agents/templates/implementer.template.md`). Omit
+   * (or set false) for languages that should fall through to
+   * `implementer-generic`.
+   */
+  readonly hasImplementerAgent?: boolean;
+
+  /**
+   * Marks an auxiliary file-type language (shell, sql, html, css, …) — one
+   * that is counted toward the file census but not surfaced as a primary
+   * project language and not eligible for an implementer agent. Validators
+   * use this flag to suppress "language present but not in stack profile"
+   * warnings.
+   */
+  readonly isUtility?: boolean;
 
   /**
    * Cross-language behaviours when relevant — e.g. TypeScript extends

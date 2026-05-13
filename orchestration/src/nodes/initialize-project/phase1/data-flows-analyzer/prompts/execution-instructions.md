@@ -12,6 +12,15 @@ Follow the **Graph navigation discipline** templated into your system
 prompt: lean parameters everywhere; respect drill-in caps;
 `get_architecture_overview` is **forbidden**.
 
+**Skip community drill-ins.** This analyzer's prescribed flow is
+flows + lifecycles + integrations — not module clustering. Do NOT
+call `get_community_tool` (even with `include_members: false`). The
+community-detection output frequently includes test-descriptor
+clusters (`it:should`, `describe:returns`, …) whose bare metadata
+alone overflows the per-call token cap. Stay inside `get_flow`,
+`list_flows`, `semantic_search_nodes`, and `query_graph` for every
+drill-in you need.
+
 ## Step 0 — Read inspection FIRST (MANDATORY)
 
 `Read <tempDir>/project-inspection.json`. Three inspection slots are

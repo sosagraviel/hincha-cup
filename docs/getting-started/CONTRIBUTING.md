@@ -351,18 +351,59 @@ $implement-ticket TEST-123    # Codex CLI
 
 ### Unit + Integration Tests
 
-All tests live under `orchestration/test/`:
+All tests live under `orchestration/test/`. The integration fixtures simulate three realistic project shapes so the framework can be exercised end-to-end without paying for a tokenless dry-run.
 
 ```bash
-# Unit tests
+# Unit tests (offline, no LLM calls, ~10s)
 pnpm --filter orchestration test:unit
 
-# Integration tests (require live Claude CLI; burns tokens — see fixture-runner scripts)
+# Integration tests (live Claude CLI required)
 pnpm --filter orchestration test:integration
-
-# Run a specific integration fixture end-to-end (heaviest path)
-./orchestration/test/integration/initialize-project/scripts/run-fixture.sh mini-monorepo --confirm
 ```
+
+#### End-to-end integration fixtures
+
+Three fixture projects live under `orchestration/test/integration/initialize-project/projects/`:
+
+| Fixture | Shape | Stack |
+|---|---|---|
+| `mini-monorepo` | Single-repo monorepo | NestJS + React + Postgres + Keycloak |
+| `mini-microservices` | Multi-language services | Go + .NET + Python + Node + protobuf |
+| `mini-serverless` | Cloud-functions monorepo | Firebase + GCP Cloud Functions + TS/JS/Python |
+
+Each fixture ships with:
+- A `qubika-agentic-framework` symlink pointing back to the framework repo so the standard `./qubika-agentic-framework/scripts/initialize-project.sh` entry point works.
+- A `.fixture-meta.json` declaring expected services, languages, and required artefact paths.
+
+Run a fixture end-to-end:
+
+```bash
+# Dry-run — prints cost projection (~30K Haiku tokens, ~5-10 min) and exits
+./orchestration/test/integration/initialize-project/scripts/run-fixture.sh mini-monorepo
+
+# Actually execute — pass --confirm to spend tokens
+./orchestration/test/integration/initialize-project/scripts/run-fixture.sh mini-monorepo --confirm
+
+# Clean a fixture's run artefacts before re-running
+./orchestration/test/integration/initialize-project/scripts/clean-fixture.sh mini-monorepo
+```
+
+The runner sets `MODEL_TIER=fast` (Haiku family) and `PROJECT_PATH` so the framework treats the fixture as the target. Generated artefacts land in `.claude/`, `docs/llm-wiki/`, and per-run debug bundles under `.claude-temp/initialize-project/debug/runs/<runId>/`.
+
+When inspecting a finished run:
+
+```bash
+# Open the HTML debug index for the latest run
+open .claude-temp/initialize-project/debug/runs/$(ls -t .claude-temp/initialize-project/debug/runs/ | head -1)/index.html
+
+# Inspect the generated CLAUDE.md
+cat .claude/CLAUDE.md
+
+# Inspect the wiki services
+ls docs/llm-wiki/wiki/services/
+```
+
+A repo-wide sanity test (`test/unit/integration-fixtures/sanity.test.ts`) refuses to pass if a fixture contains committed run artefacts. Always run `clean-fixture.sh` before committing.
 
 ### Manual Testing
 

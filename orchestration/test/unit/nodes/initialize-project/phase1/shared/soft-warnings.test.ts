@@ -134,6 +134,14 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
         'tool_call_budget_exceeded',
       );
     });
+
+    it('fires `per_tool_budget_exceeded` when a cap=0 tool is called even once', () => {
+      // data-flows-integrations-analyzer has cap=0 for get_community_tool.
+      const out = computeSoftWarnings('data-flows-integrations-analyzer', 5, 0, {
+        mcp__code_graph__get_community_tool: 1,
+      });
+      expect(out).toContain('per_tool_budget_exceeded');
+    });
   });
 
   describe('combinations', () => {
@@ -309,15 +317,18 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
       expect(PER_ANALYZER_PER_TOOL_CAPS).toHaveProperty('data-flows-integrations-analyzer');
     });
 
-    it('every per-tool cap is a positive integer ≤ 8', () => {
+    it('every per-tool cap is a non-negative integer ≤ 8', () => {
+      // 0 marks a tool that's forbidden for this analyzer (any call
+      // triggers `per_tool_budget_exceeded` and surfaces a soft warning).
       // Above 8 the overflow risk dwarfs any incremental value — if an
       // analyzer wants more than 8 calls of one tool, it's brute-forcing
       // and should rethink. The per-analyzer total cap (15-30) is the
       // outer envelope; per-tool caps must fit comfortably under it.
       for (const caps of Object.values(PER_ANALYZER_PER_TOOL_CAPS)) {
         for (const cap of Object.values(caps)) {
-          expect(cap).toBeGreaterThanOrEqual(1);
+          expect(cap).toBeGreaterThanOrEqual(0);
           expect(cap).toBeLessThanOrEqual(8);
+          expect(Number.isInteger(cap)).toBe(true);
         }
       }
     });
@@ -360,6 +371,14 @@ describe('computeSoftWarnings — stack-agnostic budget signals', () => {
       const out = renderPerToolCapsTable('data-flows-integrations-analyzer');
       expect(out).toMatch(/counts? DOUBLE/i);
       expect(out).toContain('per_tool_budget_exceeded');
+    });
+
+    it('renders cap=0 tools under a "Forbidden" heading', () => {
+      const out = renderPerToolCapsTable('data-flows-integrations-analyzer');
+      expect(out).toMatch(/Forbidden/);
+      expect(out).toContain('`mcp__code_graph__get_community_tool`');
+      expect(out).toContain('`mcp__code_graph__list_communities_tool`');
+      expect(out).not.toMatch(/\|\s*`mcp__code_graph__get_community_tool`\s*\|\s*0\s*\|/);
     });
 
     it('rows are sorted alphabetically (deterministic output)', () => {

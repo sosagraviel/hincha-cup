@@ -43,7 +43,15 @@ export const GRAPH_NAVIGATION_DISCIPLINE_TEXT = `Top-down, never breadth-first. 
 
 **First-call startup race.** Your first \`mcp__code_graph__*\` call may return \`tool_use_error: No such tool available: <name>\` for a name that's in the catalog. This is a known registration race — retry the SAME call once. Do not switch tools, do not abandon the graph, do not invent a fallback.
 
-**Fat communities.** Communities whose names match \`it:|should|test:|describe:|assert:\`, cross-cutting noun roots (\`exceptions\`, \`helpers\`, \`utils\`, \`shared\`, \`base\`, \`core\`), generated-code markers (\`__generated\`, \`pb_\`, \`schema_\`), or module-barrel signals (\`*-index\`, \`*-exports\`) often overflow even with \`include_members: false\`. Use \`query_graph_tool({ pattern: "file_summary", target: <name>, detail_level: "minimal" })\` instead.
+**Fat communities — HARD RULE.** Communities can overflow on the bare metadata + description alone, even with \`include_members: false\`, when \`size > 50\` OR the community name matches one of these patterns:
+
+- test-descriptor leaks: \`it:|should|describe:|assert:|test:|spec:|expect:\`
+- cross-cutting noun roots: \`exceptions\`, \`helpers\`, \`utils\`, \`shared\`, \`base\`, \`core\`
+- generated-code markers: \`__generated\`, \`pb_\`, \`schema_\`, \`autogen\`
+- module-barrel signals: \`*-index\`, \`*-exports\`, \`*-barrel\`
+- mixed-prefix services with i18n keys (e.g. \`service-it:should\`, \`feature-en:must\`)
+
+**Required pre-check.** Before EVERY \`get_community_tool\` call, you MUST have observed the community's \`size\` field in a recent \`list_communities_tool\` response. Only call \`get_community_tool\` when \`size ≤ 50\` AND the name does NOT match the patterns above. Otherwise drill in via \`query_graph_tool({ pattern: "file_summary", target: <name>, detail_level: "minimal" })\` instead — it returns the same architectural signal (file/symbol roster) with a bounded payload.
 
 ### 1. Always start with the cheapest entry point
 
@@ -54,7 +62,7 @@ export const GRAPH_NAVIGATION_DISCIPLINE_TEXT = `Top-down, never breadth-first. 
 | Tool | Defaults |
 |---|---|
 | \`list_communities_tool\` | \`detail_level: "minimal"\`, \`min_size: 10\`, \`sort_by: "size"\`. Never \`detail_level: "standard"\`. |
-| \`get_community_tool\` | \`include_members: false\` (only \`true\` for ≤3 communities ≤30 members). On overflow → see §5. |
+| \`get_community_tool\` | Requires a prior \`list_communities_tool\` with \`size ≤ 50\` AND name does NOT match fat-community patterns (§0). \`include_members: false\` always; \`true\` only for ≤3 communities ≤30 members. Otherwise use \`query_graph_tool({ pattern: "file_summary" })\`. |
 | \`list_flows_tool\` | \`detail_level: "minimal"\`, \`limit: 30\`, \`sort_by: "criticality"\`. |
 | \`get_flow_tool\` | \`include_source: false\`; \`true\` for at most 1 flow. |
 | \`semantic_search_nodes_tool\` | \`limit: 20\` MAX. Filter by \`kind\`. \`detail_level: "minimal"\` when surveying. \`query\` is a SINGLE token (e.g. \`"stripe"\`, \`"typeorm"\`) — multi-token prose queries return zero results. |

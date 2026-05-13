@@ -2,19 +2,16 @@ import type { LanguageConfig } from '../types.js';
 import { regexFirstGroup } from '../extractors.js';
 
 /**
- * .NET (C# / F# / VB) — one config because they share manifests +
- * tooling. Extensions are split across languages so the file-counter
- * fallback can still categorise files by language.
+ * C# / ASP.NET Core. F# (`fsharp.ts`) and VB.NET (`vbnet.ts`) live in their
+ * own files but share the same `.NET` toolchain (NuGet / dotnet CLI /
+ * `packages.lock.json`). The shared `commandDefaults` mirror those F# / VB
+ * entries so callers can keep using a single command set per service.
  */
-export const dotnet: LanguageConfig = {
-  key: 'dotnet',
-  displayName: '.NET',
-  extensions: ['cs', 'csx', 'fs', 'fsx', 'fsi', 'vb'],
-  manifests: [
-    { kind: '*.csproj', format: 'xml' },
-    { kind: '*.fsproj', format: 'xml' },
-    { kind: '*.vbproj', format: 'xml' },
-  ],
+export const csharp: LanguageConfig = {
+  key: 'csharp',
+  displayName: 'C#',
+  extensions: ['cs', 'csx'],
+  manifests: [{ kind: '*.csproj', format: 'xml' }],
   lockFiles: [{ filename: 'packages.lock.json', manager: 'nuget' }],
   runtimeVersionFiles: [
     {
@@ -89,5 +86,12 @@ export const dotnet: LanguageConfig = {
       { pkg: 'Microsoft.AspNetCore.SignalR', pattern: 'websocket', displayName: 'SignalR' },
       { pkg: 'Quartz', pattern: 'task-queue', displayName: 'Quartz.NET' },
     ],
+  },
+  commandDefaults: {
+    lint: 'dotnet format --verify-no-changes',
+    format: 'dotnet format',
+    typecheck: 'dotnet build --no-incremental',
+    test: 'dotnet test',
+    build: 'dotnet build',
   },
 };

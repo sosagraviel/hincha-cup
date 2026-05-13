@@ -47,4 +47,12 @@ export const rust: LanguageConfig = {
       { pkg: 'apalis', pattern: 'task-queue', displayName: 'Apalis' },
     ],
   },
+  commandDefaults: {
+    lint: 'cargo clippy',
+    format: 'cargo fmt',
+    typecheck: 'cargo check',
+    test: 'cargo test',
+    build: 'cargo build',
+  },
+  hasImplementerAgent: true,
 };

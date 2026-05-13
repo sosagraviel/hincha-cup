@@ -15,4 +15,12 @@ export const typescript: LanguageConfig = {
   toolTokens: {
     typeCheckers: ['typescript', 'tsc'],
   },
+  commandDefaults: {
+    lint: 'npm run lint',
+    format: 'npm run format',
+    typecheck: 'npm run typecheck',
+    test: 'npm test',
+    build: 'npm run build',
+  },
+  hasImplementerAgent: true,
 };
