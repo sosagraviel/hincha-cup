@@ -123,7 +123,7 @@ Phase 0.1 and Phase 0.2 are **complementary, not redundant**. They divide along 
 |---|---|---|
 | Shape | prescriptive rules / checklists / WRONG-CORRECT examples | descriptive structured docs + summary index |
 | Authority | **highest** for "how do we DO this here" — conventions, gotchas, multi-file checklists, test rules | **highest** for "what IS this system" — architecture, service boundaries, data flows, any structural fact derivable from the AST |
-| Freshness | regenerated on `/initialize-project` re-runs | refreshed every PR via `/implement-ticket` Phase 8.5; `graph_commit` frontmatter shows currency |
+| Freshness | regenerated on `/initialize-project` re-runs | refreshed every PR via `/implement-ticket` Phase 8.5; `last_updated` frontmatter shows currency |
 | Cost | three skill body reads (already in agent context if `skills:` frontmatter is wired) | router (≤150 lines) + 1–3 page bodies + at most one optional graph call |
 
 **No conflict by construction** — the descriptive/prescriptive split means each fact lives in exactly one place. If a fact appears in both (rare regression), the wiki wins for descriptive claims and the convention skills win for prescriptive rules.
@@ -132,7 +132,7 @@ If `docs/llm-wiki/` exists, defer retrieval to the wiki's own router. The router
 
 1. **Read the router.** Read `docs/llm-wiki/CLAUDE.md` (Claude provider) or `docs/llm-wiki/AGENTS.md` (Codex provider). Whichever exists for the active provider is the wiki's runtime entry point — capped at ~150 lines, with a decision table that names which page to consult for which question.
 
-2. **Pick 1–3 pages from `index.md`.** Read `docs/llm-wiki/wiki/index.md` (it is the summary catalog: one line per page with summary / document_type / confidence / tags / related inline). Match the user's idea against the summaries; identify the 1–3 most relevant pages. Read **only** those page bodies. **Confidence-aware:** prefer `confidence: high` pages; if only `confidence: low` pages match, expand them but tag extracted facts as `confidence: low` so the planner verifies with a graph query.
+2. **Pick 1–3 pages from `index.md`.** Read `docs/llm-wiki/wiki/index.md` (it is the summary catalog: one line per page with summary / document_type / tags / related inline). Match the user's idea against the summaries; identify the 1–3 most relevant pages. Read **only** those page bodies.
 
 3. **Optional graph call.** If the matched page bodies do not fully answer the gap-detection questions, call `mcp__code_graph__get_minimal_context_tool({ task: "<user idea or ticket summary>", changed_files: [], base: "HEAD~1" })` **at most once**. Preserve the full response — downstream `/implement-ticket` Phase 3 may reuse it.
 

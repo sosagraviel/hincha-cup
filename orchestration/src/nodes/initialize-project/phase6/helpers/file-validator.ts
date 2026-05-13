@@ -63,26 +63,12 @@ export function validateWikiMarkdownFile(
   try {
     const content = readFileSync(filePath, 'utf-8');
     const parsed = matter(content);
-    const requiredFields = [
-      'document_type',
-      'generated_at',
-      'generated_by',
-      'graph_version',
-      'graph_queries_used',
-    ];
+    const requiredFields = ['document_type', 'summary', 'last_updated'];
 
     for (const field of requiredFields) {
       if (parsed.data[field] === undefined || parsed.data[field] === null) {
         errors.push(`${fileName} frontmatter missing ${field}`);
       }
-    }
-
-    if (parsed.data.generated_by && parsed.data.generated_by !== 'ai-agentic-framework') {
-      errors.push(`${fileName} frontmatter generated_by must be ai-agentic-framework`);
-    }
-
-    if (parsed.data.graph_queries_used && !Array.isArray(parsed.data.graph_queries_used)) {
-      errors.push(`${fileName} frontmatter graph_queries_used must be an array`);
     }
 
     if (options.serviceDoc && !parsed.data.service_id) {

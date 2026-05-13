@@ -1,8 +1,8 @@
 ---
 name: implement-ticket
-version: 3.6.0
-last-updated: 2026-05-05
-description: Implements a ticket end-to-end through a wiki-aware and graph-aware 13-phase workflow from planning to PR. Supports both single-repo projects and multi-repo workspaces (a parent folder containing N independent child git repos). Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
+version: 3.7.0
+last-updated: 2026-05-13
+description: Implements a ticket end-to-end through a wiki-aware and graph-aware 14-phase workflow from planning to PR. Supports both single-repo projects and multi-repo workspaces (a parent folder containing N independent child git repos). Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 disable-model-invocation: true
 ---
@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 Input: $ARGUMENTS
 
-Implement the ticket described above through the full wiki-aware and graph-aware 13-phase SDLC workflow.
+Implement the ticket described above through the full wiki-aware and graph-aware 14-phase SDLC workflow.
 
 ## Execution Model — Codex-specific
 
@@ -40,7 +40,7 @@ Both the graph path AND the LLM wiki must be active.
 - `code-review-graph` MUST be built and MCP-accessible before planning starts.
 - This framework uses `.code-review-graph/graph.db` as the compatibility graph DB. Upstream `code-review-graph` defaults to `.code-review-graph/graph.db`.
 - The active Codex session MUST expose `mcp__code_graph__*` tools (register the `code_graph` MCP server in your Codex MCP settings and reload the session).
-- The LLM wiki at `docs/llm-wiki/` MUST exist. Specifically `docs/llm-wiki/AGENTS.md` MUST be present (enforces that initialization ran for this provider). The five core wiki documents MUST be present under `docs/llm-wiki/wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`. Each MUST contain YAML frontmatter with at least `document_type` and `graph_version` keys. Phase 8.5 (Wiki Refresh) automatically updates this wiki at the end of every ticket — if the preflight warns about staleness, the refresh will fix it.
+- The LLM wiki at `docs/llm-wiki/` MUST exist. Specifically `docs/llm-wiki/AGENTS.md` MUST be present (enforces that initialization ran for this provider). The three core wiki documents MUST be present under `docs/llm-wiki/wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`. Each MUST contain YAML frontmatter with at least `document_type`, `summary`, and `last_updated` keys. Phase 8.5 (Wiki Refresh) is invoked at the end of every ticket — if the wiki has drifted, the skill will catch and fix it.
 
 If the graph DB, graph MCP tools, or the LLM wiki are missing, STOP immediately. Tell the user to rerun `/initialize-project` or resource sync so `.code-review-graph/graph.db`, `{{CONFIG_DIR}}/agents/*`, and `docs/llm-wiki/*` are regenerated, then restart Codex so the `code_graph` MCP server reconnects and `mcp__code_graph__*` tools become visible before retrying `/implement-ticket`.
 
@@ -70,7 +70,7 @@ This keeps artifacts out of PRs (already covered by `.gitignore`), keeps paths c
 
 ## Multi-Repository Awareness
 
-The workspace may be a single git repo OR a parent folder containing multiple independent child git repos (each with its own GitHub remote). When operating on the working tree (status, branch, commit, push, tests), target each affected repo individually with `git -C <repo>` rather than assuming a single workspace root. The LLM wiki and code graph remain workspace-scoped (one shared `docs/llm-wiki/` and `.code-review-graph/` at the workspace root). Phase 9 delegates per-repo commit + push + PR creation + cross-link fanout to the focused `/repo-fanout-pr` sub-skill — see that skill for inputs and outputs; the orchestrator does not duplicate its logic.
+The workspace may be a single git repo OR a parent folder containing multiple independent child git repos (each with its own GitHub remote). When operating on the working tree (status, branch, commit, push, tests), target each affected repo individually with `git -C <repo>` rather than assuming a single workspace root. The LLM wiki and code graph remain workspace-scoped (one shared `docs/llm-wiki/` and `.code-review-graph/` at the workspace root).
 
 ## Progress Tracking (file-based)
 
@@ -88,7 +88,7 @@ Append one JSON record per phase transition, on its own line:
 ```
 
 Rules:
-- Emit an `in_progress` record BEFORE starting each phase (phases 0 through 8.5 through 11).
+- Emit an `in_progress` record BEFORE starting each phase (phases 0, 1, 2, 3, 4, 5, 6, 7, 8, 8.4, 8.5, 9, 10, 11).
 - Emit a `completed` record ONLY after verifying the Expected outputs for that phase.
 - For a phase skipped via flag, emit `{"phase": N, "status": "completed", "note": "Skipped via flag", "ts": "..."}`.
 - Emit `{"phase": N, "status": "failed", "reason": "<why>", "ts": "..."}` and STOP if a Constraint is violated.
@@ -116,13 +116,11 @@ What the script does (handled automatically; you do not need to do any of this m
 - Auto-installs `uv` / `uvx` / `code-review-graph` via the framework's existing fallback chain (`uv tool install` → `bootstrap_uv` → `pipx` → `pip`).
 - Builds the code graph if missing, incrementally updates it if the local commit moved, or no-ops if it is already at HEAD (<3 s on the hot path).
 - Re-emits `.codex/config.toml`'s `[mcp_servers.code_graph]` block with this machine's local framework path. Compare-then-write — no-op when content already matches.
-- Refreshes the LLM wiki if `graph_sha` or `last_indexed_commit` drift is detected.
-- Writes a JSON success marker at `$ARTIFACTS_DIR/.preflight-ok` carrying `{git_head, graph_sha, wiki_*, provider, preflight_ran_at}`.
+- Writes a JSON success marker at `$ARTIFACTS_DIR/.preflight-ok` carrying `{git_head, graph_sha, provider, preflight_ran_at}`. Wiki staleness is no longer handled here — `/wiki-refresh` (Phase 8.5) owns it.
 
 **If the script exits non-zero, emit `failed` and STOP.** Surface its output verbatim to the user. Do NOT continue to Part B or any later phase. Failure modes (with structured marker `$ARTIFACTS_DIR/.preflight-failed`):
 
 - `graph_build_failed` — surface the script's tail; the user will rerun.
-- `wiki_not_initialized` — `docs/llm-wiki/wiki/index.md` is missing; tell the user to run `/initialize-project` once.
 
 **Part B — defensive double-check.** With the preflight marker present, the following assertions are belt-and-suspenders. They cannot fail because Part A just made them true; if any do, the marker file is corrupt and Part A must be rerun.
 
@@ -135,13 +133,13 @@ Steps:
 - Assert `.code-review-graph/graph.db` exists at the project root.
 - Verify the active Codex session exposes `mcp__code_graph__*` tools.
 - Assert `docs/llm-wiki/AGENTS.md` exists (confirms initialization ran for the Codex provider).
-- Assert `docs/llm-wiki/wiki/` exists and contains all five core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`, `DATA-FLOWS.md`, `PATTERNS.md`.
-- Verify each of those five wiki files starts with YAML frontmatter containing `document_type`, `graph_version`, and `graph_commit` keys. Compute `sha256(.code-review-graph/graph.db)`; if any page's `graph_version` does not match, WARN the user (Phase 8.5 will refresh it). Compute `git rev-parse HEAD`; if any page's `graph_commit` is behind HEAD, WARN. Do not block the workflow on stale wiki — Phase 8.5 refreshes it.
+- Assert `docs/llm-wiki/wiki/` exists and contains the three core files: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`.
+- Verify each of those wiki files starts with YAML frontmatter containing `document_type`, `summary`, and `last_updated` keys.
 - If `framework-config.json > wiki.services` is non-empty, verify at least one matching file exists under `docs/llm-wiki/wiki/services/`.
 
-Expected outputs: `$ARTIFACTS_DIR/.preflight-ok` exists and carries the current `git_head`; git clean, tests pass, build succeeds, graph DB exists, graph MCP tools are visible, LLM wiki is present and well-formed; staleness warnings surfaced if applicable.
+Expected outputs: `$ARTIFACTS_DIR/.preflight-ok` exists and carries the current `git_head`; git clean, tests pass, build succeeds, graph DB exists, graph MCP tools are visible, LLM wiki is present and well-formed.
 
-Constraint: If `ensure-context.sh` exits non-zero, emit `failed` and STOP. If any defensive assertion fails despite a fresh marker, delete the marker and rerun Part A once; if the assertion still fails, emit `failed` and STOP. Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures — Phase 8.5 will resolve them automatically.
+Constraint: If `ensure-context.sh` exits non-zero, emit `failed` and STOP. If any defensive assertion fails despite a fresh marker, delete the marker and rerun Part A once; if the assertion still fails, emit `failed` and STOP. Wiki staleness is no longer a preflight concern — Phase 8.5 handles it.
 
 ### Phase 1: Context Gathering
 
@@ -234,14 +232,14 @@ Constraint: Do not proceed if the plan is missing, Wiki Evidence or Graph Eviden
 ### Phase 4: Environment Setup
 
 Steps:
-- Create feature branch (e.g., `feature/PROJ-123-description`). In a multi-repo workspace, create the same branch in each affected child repo (`git -C <repo> checkout -b <branch>`).
+- Create feature branch (e.g., `feature/PROJ-123-description`). **MUST branch from the currently active branch in each affected repo.** MUST NOT `git checkout`/`switch` to another branch first, and MUST NOT pass a base argument to `git checkout -b`. Branching from any base other than the active branch REQUIRES explicit user consent — never assume `main`/`master`/`development`. Then run `git -C <repo> checkout -b <new-branch>` per affected repo.
 - Allocate service ports (if needed).
 - Create docker-compose override (if needed).
 - Capture BEFORE screenshots into `$ARTIFACTS_DIR/screenshots/before/` (if frontend).
 
-Expected outputs: feature branch created and checked out in every affected repo.
+Expected outputs: feature branch created in each affected repo, rooted at the branch that was active when Phase 4 started.
 
-Constraint: None.
+Constraint: STOP if branching from anything other than the active branch without explicit user consent.
 
 ### Phase 5: Implementation
 
@@ -324,48 +322,56 @@ Expected outputs: doc-updater ran and produced an analysis.
 
 Constraint: Do not proceed if doc-updater was not invoked.
 
+### Phase 8.4: Implementation Commit
+
+For each affected repo (single workspace root, or each child repo from the planner's `Affected Repositories`):
+
+1. List changed files with `git -C <repo> status --porcelain`; exclude `docs/llm-wiki/**` (Phase 8.5 owns it). Empty list → emit `failed` and STOP (single-repo) or skip with a note (multi-repo).
+2. `git -C <repo> add -- <files>` then `git -C <repo> commit -m "<message>"`. Never `git add .` / `-A` / `commit -a`. Do not skip hooks.
+3. Write the new SHA to `$ARTIFACTS_DIR/commits/<repo-basename>.sha`.
+
+Expected outputs: each affected repo has one new implementation commit; SHAs written under `$ARTIFACTS_DIR/commits/<repo-basename>.sha`.
+
+Constraint: emit `failed` and STOP if any pre-commit hook fails — surface output verbatim. Earlier sibling commits remain for inspection.
+
 ### Phase 8.5: Wiki Refresh
 
-CRITICAL: invoke `/wiki-refresh --since <branch-base>` (plus `--hints` if available) where `<branch-base>` is the merge-base with the target branch (`development` by default). This updates only the pages implicated by the diff (and by implementer hints) and runs `/wiki-lint` at the end.
+CRITICAL: invoke `/wiki-refresh --commit --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR`. The skill is multi-repo aware — one invocation handles the whole workspace.
 
-- Extract the Wiki Delta Hints JSONL from the implementer's completion summary. The summary is expected at `$ARTIFACTS_DIR/implementation/<ticket-id>-completion.md`. If the file does not exist or the `## Wiki Delta Hints` section is absent, fall back to diff-only refresh.
-- If hints exist, write them to `$ARTIFACTS_DIR/wiki/hints.jsonl` (create the `wiki/` subdirectory under `$ARTIFACTS_DIR` if needed).
-- Compute `<branch-base>` via `git merge-base HEAD origin/development` (fall back to `git merge-base HEAD origin/main` if `development` does not exist). In a multi-repo workspace, run that against any one of the affected child repos — the wiki only needs one consistent baseline.
-- Invoke the `/wiki-refresh` skill:
-  - With hints: `/wiki-refresh --since <branch-base> --hints $ARTIFACTS_DIR/wiki/hints.jsonl`
-  - Without hints: `/wiki-refresh --since <branch-base>`
-- If `/wiki-refresh` reports structural lint violations, STOP and report. Do NOT create the PR until the user resolves them.
-- If `/wiki-refresh` reports only warnings, continue and surface them in the PR body.
-- If the refresh produced no changes (no pages in the refresh set), do nothing and continue to Phase 9.
-- If the refresh produced changes:
-  - If `docs/llm-wiki/` is inside a git repo, commit them with Conventional Commit message `docs(wiki): refresh for <TICKET-ID>` using the same author as the implementation commit. Stage only `docs/llm-wiki/**` paths.
-  - If `docs/llm-wiki/` is NOT inside a git repo (e.g. a multi-repo workspace where the parent is untracked), skip the commit. Write a diff manifest to `$ARTIFACTS_DIR/wiki/wiki-diff.md` and record a one-line warning at `$ARTIFACTS_DIR/wiki/wiki-warning.txt` for Phase 9 to embed in PR bodies.
+Orchestrator responsibilities in this phase:
 
-Expected outputs: wiki-refresh invocation completed, lint report collected, `docs/llm-wiki/**` changes either committed, confirmed empty, or (when the workspace is not git-tracked) recorded as a diff manifest plus warning for Phase 9.
+- Invoke the skill with the flags above.
+- If `/wiki-refresh` reports a hard error (`.state.json` missing, AI parse failure, page update failed, or commit pre-commit hook failed), emit `failed` and STOP. Do NOT create the PR.
+- If `/wiki-refresh` surfaces a "potential new service detected" suggestion, record it in the PR body. Do NOT auto-invoke `/wiki-add-service` — the user decides.
+- If the refresh produced no changes ("wiki is fresh" or "no high-level facts drifted"), do nothing and continue to Phase 9.
 
-Constraint: Do not proceed if structural lint failures are unresolved.
+Expected outputs: /wiki-refresh invocation completed; wiki commit produced when the wiki repo is tracked OR a diff manifest + warning file exist when the workspace parent is untracked OR the skill reported "wiki is fresh" with no changes.
+
+Constraint: Do not proceed if /wiki-refresh reported a hard error. New-service suggestions are advisory and do not block.
 
 ### Phase 9: PR Creation
 
-- BEFORE Phase 9 starts: confirm Phase 8.5 marked completed (wiki refreshed or confirmed unchanged). If structural lint failures from 8.5 are unresolved, emit `failed` and STOP.
+If `--skip-pr` flag: skip push and PR creation, emit `completed` with `note: "Skipped via flag"` and continue. 
 
-If `--skip-pr` flag: commit all changes locally with a structured commit message, skip push and PR creation, emit `completed` with `note: "Skipped via flag"` and continue.
+- BEFORE Phase 9 starts: confirm Phase 8.5 marked completed (wiki refreshed or confirmed unchanged). The implementation commit from Phase 8.4 and the optional wiki commit from Phase 8.5 are already on the branch — Phase 9 only pushes and opens PRs.
 
-Otherwise:
-- Commit all changes with a structured commit message.
-- Push feature branch to remote.
-- Create pull request with:
+Local commits from Phase 8.4 + Phase 8.5 remain on the branch.
+
+Otherwise, **single-repo path**:
+
+- `git -C <workspace-root> push -u origin <branch>`
+- `gh pr create` with:
   - Auto-generated title from ticket.
   - Summary of changes.
   - Test plan checklist.
   - Link to original ticket.
 - Return the PR URL.
 
-**Multi-repo workspace**: if the change touches more than one git repo, delegate the fanout to the `/repo-fanout-pr` skill instead of doing the steps above inline. That skill commits + pushes + creates a PR per affected repo and cross-links the PR bodies; the orchestrator just consumes its returned result.
+**Multi-repo workspace**: if the change touches more than one git repo, delegate the fanout to `/repo-fanout-pr --no-commit --repos <abs1>,<abs2>,... --branch <branch> --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR` instead. The skill asserts every repo's working tree is clean and the branch is ahead of base, pushes each branch, opens one PR per repo, and cross-links the PR bodies. The orchestrator just consumes its returned `result.json`.
 
 If Phase 8.5 wrote `$ARTIFACTS_DIR/wiki/wiki-warning.txt`, append its contents to every PR body created in this phase.
 
-Expected outputs: commit exists, branch pushed, PR created with URL; OR commit exists locally and PR was skipped via `--skip-pr`. Multi-repo: every affected repo has its own PR (or local commit under `--skip-pr`), and the PR bodies are cross-linked.
+Expected outputs: branch pushed and PR created with URL in every affected repo; OR PR was skipped via `--skip-pr` (commits stay local in every affected repo). Multi-repo: every affected repo has its own PR (or local commits under `--skip-pr`), and the PR bodies are cross-linked.
 
 Constraint: Do not proceed if any expected PR was not created, unless `--skip-pr` was set (in which case local commits in every affected repo are sufficient).
 
@@ -419,8 +425,8 @@ If a phase fails:
 - `implementer-<stack>` role prompt — Phase 5, Phase 6 (fixes), Phase 10 (fixes); consumes the plan's Wiki + Graph evidence before any fresh discovery.
 - `visual-verifier` role prompt — Phase 7.
 - `/doc-updater` — Phase 8.
-- `/wiki-refresh` — Phase 8.5 (auto-invoked with `--since <branch-base>`; commits wiki diff if any pages changed and the wiki is git-tracked).
-- `/repo-fanout-pr` — Phase 9 (multi-repo workspaces only — per-repo commit/push/PR creation and cross-linking).
+- `/wiki-refresh` — Phase 8.5 (auto-invoked with `--commit --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR`; reads per-repo commits from `.state.json`, surgically edits affected pages under a high-level-only conservatism rule, commits `docs/llm-wiki/**` itself when the wiki is git-tracked or emits a diff manifest + warning for Phase 9 otherwise).
+- `/repo-fanout-pr` — Phase 9 (multi-repo workspaces only — invoked with `--no-commit`; per-repo push + PR creation and cross-linking. The implementation commit is produced in Phase 8.4 before this skill runs.).
 - `/pr-reviewer` — Phase 10 (run once per PR URL).
 - `/security-review` — Phase 10 (run once per PR URL).
 - `aggregate-metrics` CLI — Phase 11 (final metrics summary).
@@ -433,7 +439,7 @@ If a phase fails:
 - Codex session has the `code_graph` MCP server registered and `mcp__code_graph__*` tools visible.
 - LLM wiki exists at `docs/llm-wiki/` (workspace-scoped; lives at the workspace root in both single and multi mode) with `docs/llm-wiki/AGENTS.md` present.
 - Git: at least one git repository reachable. Two supported shapes:
-  - **single-repo**: workspace root is itself a git repo; `origin/development` or `origin/main` reachable (required for Phase 8.5 merge-base computation).
+  - **single-repo**: workspace root is itself a git repo; `origin/development` or `origin/main` reachable (required for Phase 9 base-branch resolution).
   - **multi-repo**: workspace root is NOT a git repo but contains one or more child directories that ARE git repos (each with its own GitHub remote). Every child repo must have `origin/development` or `origin/main` reachable.
 - Tests passing in current state — at the workspace root in single mode, in every child repo in multi mode.
 - For `--from-jira`: Jira MCP configured.

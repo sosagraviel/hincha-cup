@@ -36,7 +36,7 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
     { provider: Provider.CODEX, expectedFilename: 'AGENTS.md' },
   ])('emits $expectedFilename for provider $provider', ({ provider, expectedFilename }) => {
     const service = new WikiGeneratorService(buildOptions(provider));
-    const result = service.buildSchemaDoc('my-project', '2026-04-24T00:00:00.000Z');
+    const result = service.buildSchemaDoc('my-project');
 
     expect(result.filename).toBe(expectedFilename);
     expect(SCHEMA_FILENAME_BY_PROVIDER[provider]).toBe(expectedFilename);
@@ -46,8 +46,8 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
     const claudeService = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
     const codexService = new WikiGeneratorService(buildOptions(Provider.CODEX));
 
-    const claudeResult = claudeService.buildSchemaDoc('my-project', '2026-04-24T00:00:00.000Z');
-    const codexResult = codexService.buildSchemaDoc('my-project', '2026-04-24T00:00:00.000Z');
+    const claudeResult = claudeService.buildSchemaDoc('my-project');
+    const codexResult = codexService.buildSchemaDoc('my-project');
 
     const normalise = (content: string) =>
       content
@@ -64,7 +64,7 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
 
   it('substitutes project_name into the document heading', () => {
     const service = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
-    const result = service.buildSchemaDoc('my-awesome-project', '2026-04-24T00:00:00.000Z');
+    const result = service.buildSchemaDoc('my-awesome-project');
 
     expect(result.content).toContain('my-awesome-project');
     expect(result.content).toContain('# my-awesome-project');
@@ -74,8 +74,8 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
     const claudeService = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
     const codexService = new WikiGeneratorService(buildOptions(Provider.CODEX));
 
-    const claudeResult = claudeService.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
-    const codexResult = codexService.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
+    const claudeResult = claudeService.buildSchemaDoc('proj');
+    const codexResult = codexService.buildSchemaDoc('proj');
 
     expect(claudeResult.content).toContain('`CLAUDE.md`');
     expect(codexResult.content).toContain('`AGENTS.md`');
@@ -83,7 +83,7 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
 
   it('body is a runtime router with a decision table and tier discipline', () => {
     const service = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
-    const result = service.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
+    const result = service.buildSchemaDoc('proj');
 
     expect(result.content).toContain('## How to query (decision table)');
     expect(result.content).toContain('| Question is about… | Read first | Drill into… |');
@@ -91,7 +91,7 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
     expect(result.content).toContain('Tier 1');
     expect(result.content).toContain('Tier 2');
     expect(result.content).toContain('Tier 3');
-    expect(result.content).toContain('## Ingest workflow');
+    expect(result.content).toContain('## Keeping the wiki fresh');
     expect(result.content).toContain('## Off-limits');
   });
 
@@ -101,7 +101,7 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
         services: Array.from({ length: 12 }, (_, i) => ({ id: `svc-${i}` })),
       }),
     );
-    const result = service.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
+    const result = service.buildSchemaDoc('proj');
     const lineCount = result.content.split('\n').length;
     expect(lineCount).toBeLessThanOrEqual(150);
   });
@@ -112,7 +112,7 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
         services: [{ id: 'backend' }, { id: 'frontend' }, { id: 'worker' }],
       }),
     );
-    const result = service.buildSchemaDoc('my-project', '2026-04-24T00:00:00.000Z');
+    const result = service.buildSchemaDoc('my-project');
     expect(result.content).toContain('## Wiki at a glance');
     expect(result.content).toContain('my-project');
     expect(result.content).toContain('3 services');
@@ -133,26 +133,26 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
         ],
       }),
     );
-    const withCatalogResult = withCatalog.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
+    const withCatalogResult = withCatalog.buildSchemaDoc('proj');
     expect(withCatalogResult.content).toContain('## Available graph tools');
     expect(withCatalogResult.content).toContain('`mcp__code_graph__get_minimal_context_tool`');
     expect(withCatalogResult.content).toContain('Fetch minimal context');
 
     const withoutCatalog = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
-    const withoutCatalogResult = withoutCatalog.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
+    const withoutCatalogResult = withoutCatalog.buildSchemaDoc('proj');
     expect(withoutCatalogResult.content).not.toContain('## Available graph tools');
   });
 
   it('does not embed the frontmatter contract (that lives in framework docs)', () => {
     const service = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
-    const result = service.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
+    const result = service.buildSchemaDoc('proj');
     expect(result.content).not.toContain('Frontmatter contract');
     expect(result.content).not.toContain('document_type: <architecture');
   });
 
   it('embeds a Graph navigation discipline subsection forbidding architecture-overview', () => {
     const service = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
-    const result = service.buildSchemaDoc('proj', '2026-04-24T00:00:00.000Z');
+    const result = service.buildSchemaDoc('proj');
     expect(result.content).toContain('## Graph navigation discipline');
     expect(result.content).toContain('mcp__code_graph__get_architecture_overview_tool');
     expect(result.content).toMatch(/forbidden/i);
@@ -164,13 +164,11 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
   it('points at the provider-specific instruction file for the canonical discipline body', () => {
     const claudeResult = new WikiGeneratorService(buildOptions(Provider.CLAUDE)).buildSchemaDoc(
       'proj',
-      '2026-04-24T00:00:00.000Z',
     );
     expect(claudeResult.content).toContain('<project>/.claude/CLAUDE.md');
 
     const codexResult = new WikiGeneratorService(buildOptions(Provider.CODEX)).buildSchemaDoc(
       'proj',
-      '2026-04-24T00:00:00.000Z',
     );
     expect(codexResult.content).toContain('<project>/.codex/AGENTS.md');
   });

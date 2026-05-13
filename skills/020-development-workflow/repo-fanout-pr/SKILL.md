@@ -1,9 +1,9 @@
 ---
 name: repo-fanout-pr
-version: 1.0.0
-last-updated: 2026-05-05
-description: Fans out a multi-repo change into one commit + push + PR per affected child repo, then cross-links the PR bodies. Invoked by /implement-ticket Phase 9 when the workspace contains more than one git repo. Not for direct user use.
-argument-hint: '--repos <abs-path>,<abs-path>,... --branch <name> --ticket <ID> --artifacts-dir <path> [--base <branch>] [--skip-pr]'
+version: 1.2.0
+last-updated: 2026-05-13
+description: Fans out a multi-repo change into one commit + push + PR per affected child repo, then cross-links the PR bodies. Invoked by /implement-ticket Phase 9 when the workspace contains more than one git repo. Pass --no-commit when the caller has already committed (e.g., /implement-ticket Phase 8.4). Not for direct user use.
+argument-hint: '--repos <abs-path>,<abs-path>,... --branch <name> --ticket <ID> --artifacts-dir <path> [--base <branch>] [--skip-pr] [--no-commit]'
 disable-model-invocation: true
 ---
 
@@ -25,6 +25,7 @@ Parse `$ARGUMENTS` for these flags:
 - `--artifacts-dir <path>` — `$ARTIFACTS_DIR` from the orchestrator. Outputs land under `<artifacts-dir>/fanout/`.
 - `--base <branch>` (optional, default `development` with `main` fallback per repo) — base branch for the PR.
 - `--skip-pr` (optional) — commit locally in each repo and STOP. No push, no PR.
+- `--no-commit` (optional) — skip Phase B (stage and commit). The caller has already produced the implementation commit in each repo (e.g., `/implement-ticket` Phase 8.4). Phase B becomes: use `git rev-parse HEAD` as `commit_sha`, derive `files_count` from `git diff --name-only <base>..<branch>`, and assert that the working tree is clean and the branch has at least one commit ahead of base. STOP otherwise.
 
 The skill reads the canonical ticket context from `<artifacts-dir>/context/ticket-context.md` to build PR titles and bodies. The implementer's completion summary at `<artifacts-dir>/implementation/<ticket>-completion.md` (when present) is appended to each PR body under a collapsed `<details>`.
 
@@ -65,7 +66,16 @@ Under `--skip-pr`, every entry has `pr_url: null` and `skipped: true` at the top
 
 ### Phase B — Stage and commit per repo
 
-For each `<repo>` in `--repos`, in input order:
+When `--no-commit` is set, Phase B does NOT stage or commit. Instead, for each `<repo>` in `--repos`:
+
+1. Resolve the base branch (same logic as Phase C step 2 — `--base` flag, else `origin/development`, else `origin/main`).
+2. Assert the working tree is clean: `git -C <repo> status --porcelain` MUST be empty. If not, surface the porcelain output and STOP (the caller violated the contract by not committing all changes).
+3. Assert the branch has at least one commit ahead of base: `git -C <repo> rev-list --count <base>..<branch>` MUST be ≥ 1. If 0, surface a clear error and STOP (nothing to push for this repo).
+4. Capture `commit_sha = git -C <repo> rev-parse HEAD`.
+5. Capture the file list `git -C <repo> diff --name-only <base>..<branch>` and write it to `<artifacts-dir>/fanout/<repo-basename>/files.txt`. `files_count` = line count.
+6. Continue to Phase C with the captured `commit_sha` and `files_count`.
+
+Otherwise (the default — `--no-commit` not set), for each `<repo>` in `--repos`, in input order:
 
 1. Compute the file list from `git -C <repo> status --porcelain` — both modified and untracked. Strip status prefixes; keep paths relative to `<repo>`.
 2. If the list is empty, RECORD `files_count: 0`, `commit_sha: null` and continue (this repo has no changes; the caller likely shouldn't have included it, but we tolerate it).
@@ -177,5 +187,5 @@ Write the structured result to `<artifacts-dir>/fanout/result.json`. Print the J
 
 - `gh` CLI installed and authenticated with access to every affected repo's GitHub remote.
 - Each repo in `--repos` already has the feature branch `<branch>` checked out (created in Phase 4).
-- Each repo has changes staged-or-unstaged in the working tree (the implementer's edits from Phase 5).
+- Default mode: each repo has changes staged-or-unstaged in the working tree (the implementer's edits from Phase 5). `--no-commit` mode: each repo's working tree is clean and the branch already carries the implementation commit (e.g., produced by `/implement-ticket` Phase 8.4) plus optionally the wiki-refresh commit from Phase 8.5.
 - `<artifacts-dir>` exists and is writable.

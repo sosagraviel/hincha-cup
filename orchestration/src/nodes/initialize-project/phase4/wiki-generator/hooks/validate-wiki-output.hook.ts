@@ -3,19 +3,11 @@
  * Claude Code Stop Hook entry-point for wiki-generator output validation.
  *
  * Thin wrapper: reads the agent's transcript from the hook input, extracts
- * the last assistant message, and runs `validateWikiOutput()` (the pure
- * validator in `wiki-output-validator.ts`). On any violation, exits 2 with
- * stderr feedback so Claude CLI blocks the agent's Stop and the agent has
- * to re-emit a corrected response.
+ * the last assistant message, and runs `validateWikiOutput()`. On any
+ * violation, exits 2 with stderr feedback so Claude CLI blocks the agent's
+ * Stop and the agent has to re-emit a corrected response.
  *
- * Stack-agnostic: every check operates on the agent's text output only;
- * no language, framework, or repo-shape assumptions.
- *
- * See plans/2026-04-29-gira-init-run-audit-refactor.md findings F13/F14/F15
- * (original Stop hook), and the conversation thread that revisited the
- * provenance contract — `^[id]` inline markers were dropped in favour of
- * frontmatter `sources:` + `confidence:` and `[[wikilinks]]` for in-wiki
- * cross-refs.
+ * Stack-agnostic: every check operates on the agent's text output only.
  */
 
 import fs from 'fs';

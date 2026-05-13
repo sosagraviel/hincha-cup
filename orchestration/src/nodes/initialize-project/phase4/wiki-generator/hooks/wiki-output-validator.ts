@@ -1,42 +1,24 @@
 /**
- * Pure validator for wiki-generator agent output. Extracted from the Stop
- * hook entry-point so it can be unit-tested without spawning the CLI.
+ * Pure validator for wiki-generator agent output.
  *
  * Contract enforced (rejects on any violation):
  *
  *   1. Output starts with a level-1 markdown heading `# Title`. No YAML
  *      frontmatter delimiter `---` — the wiki-generation node prepends
  *      frontmatter deterministically.
- *   2. No inline `^[...]` citation markers. Provenance lives in YAML
- *      frontmatter (`sources:` + `confidence:`); inline `^[id]` is
- *      non-standard markdown (GitHub strips it; Obsidian's `^[content]`
- *      extension treats the brackets as the footnote BODY, not an id, so
- *      `^[architectural-narrative]` would render as a footnote whose
- *      entire text is literally "architectural-narrative" — a citation
- *      that says nothing). Pages must also be self-contained —
- *      references like `^[claude-md]` would point OUTSIDE the wiki tree
- *      to a file like `.claude/CLAUDE.md`, breaking the wiki's "follow
- *      [[wikilinks]] only" navigation contract.
+ *   2. No inline `^[...]` citation markers. Non-standard markdown that
+ *      breaks Obsidian / GitHub rendering. For in-wiki cross-references
+ *      use `[[wikilinks]]`; for gaps write `(not determined by analysis)`.
  *   3. No framework-internal jargon ("automated run", "exceeded token
- *      limit", "tool result overflow", "the X tool overflowed", etc.)
- *      leaking into user-facing prose. Wiki readers are developers
- *      consulting the wiki months later — they don't know what an
- *      "automated run" is.
+ *      limit", "tool result overflow", etc.) leaking into user-facing
+ *      prose.
  *   4. No trailing meta-sections like `## Verification`, `## Caveats`,
  *      `## Assumptions`, `## Limitations`, `## Known Issues`, `## Notes`.
- *      The wiki is ground truth — verification status / unverified
- *      claims belong in the per-page `.state.json` audit log, not in
- *      the user-facing prose. Per-claim gaps must be inlined as
- *      `(not determined by analysis)` at the point of the claim. Added
- *      2026-05-05 after the gira run shipped a 10-line `## Verification
- *      Notes` trailing section in ARCHITECTURE.md (plan §E.2).
+ *      The wiki is ground truth — per-claim gaps must be inlined as
+ *      `(not determined by analysis)` at the point of the claim.
  *
- * Stack-agnostic: every check operates on the agent's text output only;
- * no language, framework, or repo-shape assumptions.
- *
- * Returns a list of violation messages (empty array = pass). Caller
- * (the hook entry-point) decides what to do — typically: print to stderr
- * and exit 2 to block the agent's Stop.
+ * Stack-agnostic: every check operates on the agent's text output only.
+ * Returns a list of violation messages (empty array = pass).
  */
 
 /**
@@ -140,7 +122,7 @@ export function validateWikiOutput(text: string): string[] {
       '  • Found inline `^[...]` citation markers in the page body:\n' +
         examples +
         (tags.length > 8 ? `\n      … and ${tags.length - 8} more` : '') +
-        '\n    Inline citations are FORBIDDEN. Provenance lives in YAML frontmatter (sources: and confidence:), auto-injected by the framework — you do NOT need to mark sources per claim. ' +
+        '\n    Inline `^[id]` markers are FORBIDDEN — non-standard markdown that breaks Obsidian and GitHub rendering.' +
         '\n    Replacements: for in-wiki cross-references use `[[wikilinks]]` (e.g. `[[ARCHITECTURE]]`); for gaps write `(not determined by analysis)`; otherwise drop the marker and keep the prose plain.',
     );
   }
@@ -171,9 +153,8 @@ export function validateWikiOutput(text: string): string[] {
       '  • Found forbidden trailing meta-section heading(s):\n' +
         examples +
         (metaHits.length > 6 ? `\n      … and ${metaHits.length - 6} more` : '') +
-        '\n    The wiki is GROUND TRUTH. Verification status / unverified claims belong in `.state.json` (the per-run audit log), not in user-facing prose. ' +
-        '\n    For per-claim gaps inline `(not determined by analysis)` at the point of the claim. ' +
-        'For "this fact came from analyzer X" notes, leave them out — provenance lives in YAML `sources:` frontmatter.',
+        '\n    The wiki is GROUND TRUTH. Per-claim gaps must be inlined as `(not determined by analysis)` at the point of the claim — not collected into a trailing meta-section. ' +
+        'For "this fact came from analyzer X" notes, just leave them out.',
     );
   }
 

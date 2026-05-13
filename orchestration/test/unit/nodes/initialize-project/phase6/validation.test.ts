@@ -75,11 +75,8 @@ describe('validationNode', () => {
         return [
           '---',
           'document_type: service',
-          'generated_at: 2026-04-21T00:00:00.000Z',
-          'generated_by: ai-agentic-framework',
-          'graph_version: abc123',
-          'graph_queries_used:',
-          '  - mcp__code_graph__semantic_search_nodes',
+          'summary: Main backend service',
+          'last_updated: 2026-05-12T00:00:00.000Z',
           'service_id: main',
           '---',
           '# Main Service',
@@ -89,11 +86,8 @@ describe('validationNode', () => {
         return [
           '---',
           'document_type: architecture',
-          'generated_at: 2026-04-21T00:00:00.000Z',
-          'generated_by: ai-agentic-framework',
-          'graph_version: abc123',
-          'graph_queries_used:',
-          '  - mcp__code_graph__list_communities',
+          'summary: Project architecture',
+          'last_updated: 2026-05-12T00:00:00.000Z',
           '---',
           '# Wiki Document',
         ].join('\n');
