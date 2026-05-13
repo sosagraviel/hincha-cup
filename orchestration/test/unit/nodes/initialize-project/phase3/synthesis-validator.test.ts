@@ -109,10 +109,9 @@ function fixtureMultiFileWorkflows(target = 50): string {
       '4. Wire DTO export',
       '5. Add unit test',
       '',
-      // Plan §C 4.2 (gira-exhaustive followup, 2026-05-05): the
-      // multi-file-workflows skill body now requires ≥1 fenced code
-      // block. Scaffolds belong in the language the structure analyzer
-      // detected; the canonical fixture uses TypeScript.
+      // The multi-file-workflows skill body requires ≥1 fenced code block.
+      // Scaffolds belong in the language the structure analyzer detected;
+      // the canonical fixture uses TypeScript.
       '```typescript',
       '// apps/api/src/modules/{domain}/{domain}.controller.ts',
       '@Controller()',
@@ -385,12 +384,10 @@ describe('validateSynthesisOutput — skill body validation', () => {
     ).toBe(true);
   });
 
-  it('rejects multi-file-workflows without any code block (Wave 2 Fix 4.2)', () => {
-    // Pre-Wave 2 Fix 4.2 the multi-file-workflows skill body did NOT
-    // require a fenced code block — pure checklists were accepted. The
-    // gira run shipped exactly that and the operator could not see what
-    // a NEW file scaffold looked like. The validator now requires ≥1
-    // fenced code block (matching code-conventions / testing-conventions).
+  it('rejects multi-file-workflows without any code block', () => {
+    // The multi-file-workflows skill body requires ≥1 fenced code block.
+    // Pure checklists are not accepted — the operator needs to see what
+    // a new file scaffold looks like.
     const noCode = fixtureMultiFileWorkflows(50).replace(/```[\s\S]*?```/g, 'no code here');
     const output = fixtureSynthesis().replace(fixtureMultiFileWorkflows(50), noCode);
     const result = validateSynthesisOutput(output);

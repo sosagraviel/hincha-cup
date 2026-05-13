@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { buildCatalogFromConsolidation } from '../../../../../src/nodes/initialize-project/phase3/helpers/build-catalog-from-consolidation.js';
 
 /**
- * Plan 15 §D.4 — assemble a deterministic CommandCatalog from the
- * Phase 2 consolidation blob. These tests pin the input-shape
- * tolerance + per-tier extraction guarantees.
+ * Assemble a deterministic CommandCatalog from the Phase 2
+ * consolidation blob. These tests pin the input-shape tolerance
+ * + per-tier extraction guarantees.
  */
 
 describe('buildCatalogFromConsolidation', () => {
@@ -78,7 +78,7 @@ describe('buildCatalogFromConsolidation', () => {
     expect(catalog.run_lint?.[0].source).toBe('services/backend/package.json');
   });
 
-  it('lists wrapper-tier entries before package_manager-tier for the same op (gira-shape)', () => {
+  it('lists wrapper-tier entries before package_manager-tier for the same op', () => {
     const consolidation = {
       consolidated_findings: {
         automation: {
@@ -222,12 +222,12 @@ describe('buildCatalogFromConsolidation', () => {
 });
 
 /**
- * Plan 16 §C.2 — analyzer-keyed consolidation shape (the REAL one).
+ * Analyzer-keyed consolidation shape.
  *
  * The Phase 2 consolidator emits `consolidated_findings` keyed by
  * analyzer slug (`01-structure-architecture`,
  * `02-tech-stack-dependencies`, etc.), with each value carrying
- * its own `findings` sub-object. The Plan-15 builder treated
+ * its own `findings` sub-object. A previous builder treated
  * `consolidated_findings` as flat-merged and silently produced an
  * empty catalog for every project. These tests pin the
  * analyzer-keyed contract end-to-end so the bug cannot return.
@@ -237,10 +237,10 @@ describe('buildCatalogFromConsolidation', () => {
  */
 describe('buildCatalogFromConsolidation: analyzer-keyed consolidation shape', () => {
   /**
-   * A faithful sketch of the gira-shape `phase2-consolidation.json`
-   * the consolidator actually writes to disk. `automation` lives
-   * under the structure analyzer's `findings`; `build_tools` and
-   * `monorepo` live under the tech-stack analyzer's `findings`.
+   * Fixture representing the analyzer-keyed `phase2-consolidation.json`
+   * the consolidator writes to disk. `automation` lives under the
+   * structure analyzer's `findings`; `build_tools` and `monorepo`
+   * live under the tech-stack analyzer's `findings`.
    */
   const giraShapeAnalyzerKeyed = {
     consolidated_findings: {
@@ -351,16 +351,16 @@ describe('buildCatalogFromConsolidation: analyzer-keyed consolidation shape', ()
     expect(catalog.run_migrations?.[0].command).toBe('pnpm --filter backend migration:run');
   });
 
-  it('lists wrapper-tier `make tests` BEFORE per-service pnpm test commands (gira regression contract)', () => {
+  it('lists wrapper-tier `make tests` BEFORE per-service pnpm test commands', () => {
     const catalog = buildCatalogFromConsolidation(giraShapeAnalyzerKeyed).command_catalog;
     const tests = catalog.run_tests!;
     expect(tests[0]).toMatchObject({ tier: 'wrapper', command: 'make tests' });
   });
 
-  it('produces a non-empty catalog for the realistic analyzer-keyed shape (the original Plan 16 bug)', () => {
-    // The minimum bar: catalog must NOT be `{}`. The pre-fix builder
+  it('produces a non-empty catalog for the realistic analyzer-keyed shape', () => {
+    // The minimum bar: catalog must NOT be `{}`. A pre-fix builder
     // returned an empty object for every project, which manifested
-    // as the gira "(no commands discovered)" placeholder.
+    // as a "(no commands discovered)" placeholder.
     const catalog = buildCatalogFromConsolidation(giraShapeAnalyzerKeyed).command_catalog;
     const opCount = Object.keys(catalog).length;
     expect(opCount).toBeGreaterThan(0);
@@ -384,9 +384,9 @@ describe('buildCatalogFromConsolidation: analyzer-keyed consolidation shape', ()
     };
     const catalog = buildCatalogFromConsolidation(consolidation).command_catalog;
     // The flat-shape fallback in collectFindingsSources catches this.
-    // (Note: the bug we fixed in Plan 16 §C.1 is specifically about
-    // the analyzer-keyed `.findings` slice — the flat-on-analyzer
-    // shape still resolves via the `consolidated_findings` fallback.)
+    // The analyzer-keyed `.findings` slice is the primary shape; the
+    // flat-on-analyzer shape still resolves via the
+    // `consolidated_findings` fallback.
     expect(Object.keys(catalog).length).toBeGreaterThan(0);
   });
 

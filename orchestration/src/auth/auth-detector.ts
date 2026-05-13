@@ -214,16 +214,41 @@ export async function detectAuthMode(): Promise<AuthConfig> {
 }
 
 /**
- * Get the resolved path to a CLI binary, checking local bundled first, then global.
- * Returns the path if found, null if not.
+ * Per-process cache for `resolveLocalCLIPath` probes. A `null` entry means
+ * the local binary was probed and found broken (e.g. postinstall did not
+ * fetch the native binary); callers must fall back to the global binary.
+ */
+const localCLIPathCache: Map<string, string | null> = new Map();
+
+/**
+ * Get the resolved path to a CLI binary bundled at
+ * `<framework>/orchestration/node_modules/.bin/<name>`.
+ *
+ * Returns the path only when the binary actually runs (`--version` exits 0).
+ * A present-but-broken wrapper (postinstall skipped, native binary missing)
+ * resolves to `null` so callers fall back to the global CLI.
  */
 function resolveLocalCLIPath(binaryName: string): string | null {
+  if (localCLIPathCache.has(binaryName)) {
+    return localCLIPathCache.get(binaryName) ?? null;
+  }
   const frameworkPath = getFrameworkPath();
   const localPath = join(frameworkPath, 'orchestration/node_modules/.bin', binaryName);
-  if (existsSync(localPath)) {
-    return localPath;
+  if (!existsSync(localPath)) {
+    localCLIPathCache.set(binaryName, null);
+    return null;
   }
-  return null;
+  try {
+    execSync(`"${localPath}" --version`, {
+      stdio: ['ignore', 'ignore', 'ignore'],
+      timeout: 5000,
+    });
+    localCLIPathCache.set(binaryName, localPath);
+    return localPath;
+  } catch {
+    localCLIPathCache.set(binaryName, null);
+    return null;
+  }
 }
 
 /**

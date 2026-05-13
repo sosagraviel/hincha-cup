@@ -476,13 +476,13 @@ Frontend: {{frameworks.frontend}}`;
       );
     });
 
-    // Plan §E.3 (2026-05-05): write-time guard. The 2026-05-04 gira run
-    // shipped an implementer-typescript with empty Typecheck/Test/Build
-    // cells because the renderer was passed `typecheck_command` while the
-    // template asks for `{{type_check_command}}`. Handlebars silently
-    // rendered empty strings. This guard catches both the placeholder
-    // leak (template variable miss) and the empty-cell leak (extractor +
-    // default both empty) BEFORE the file lands on disk.
+    // Write-time guard. An implementer agent was once shipped with
+    // empty Typecheck/Test/Build cells because the renderer was passed
+    // `typecheck_command` while the template asks for
+    // `{{type_check_command}}`. Handlebars silently rendered empty
+    // strings. This guard catches both the placeholder leak (template
+    // variable miss) and the empty-cell leak (extractor + default both
+    // empty) BEFORE the file lands on disk.
     describe('writeAgents — pre-flight render validation', () => {
       it('throws when an unrendered Handlebars placeholder leaks through', () => {
         const agents: GeneratedAgent[] = [

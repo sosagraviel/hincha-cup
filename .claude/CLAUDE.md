@@ -101,6 +101,10 @@ Per-attempt debug artifacts (prompts, outputs, stdout/stderr, native transcripts
 
 **Hard rule — test location.** All test files live under `orchestration/test/`. Do not create test trees anywhere else (no `<repo-root>/test/`, no `<repo-root>/tests/`, no per-package `test/` folders, no scratch `*.test.ts` files at any other path). The deprecated `<repo-root>/tests/` directory has been deleted; no PR may re-introduce it.
 
+**Hard rule — no inline comments.** Comments inside function bodies are forbidden. Document via JSDoc on functions, classes, types, and exported constants only. Acceptable exceptions: ESLint/TypeScript pragmas (`// eslint-disable-next-line`, `// @ts-expect-error`), URL-only references, and `#!/usr/bin/env node` shebangs. If a piece of code seems to require an explanatory comment, refactor or rename — well-named identifiers should carry the explanation.
+
+**Hard rule — no historical references in source.** Do not reference plans, phase numbers, dated audits, fix waves, or past incidents in source code, prompts, skills, or generated artifacts. History lives in commit messages and PR descriptions, never in the deployed code that ships to 6000+ machines.
+
 ## CRITICAL: Framework Development
 
 - ✅ ALWAYS modify in root: `skills/`, `agents/templates/`, `commands/`

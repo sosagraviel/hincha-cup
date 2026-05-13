@@ -1,6 +1,5 @@
-// Plan v5 fixture — pre-deploy hook invoked by firebase.json. Real
-// deploys validate config and emit a manifest the post-deploy step
-// reads.
+// Pre-deploy hook invoked by firebase.json. Real deploys validate config
+// and emit a manifest the post-deploy step reads.
 import { writeFileSync } from 'fs';
 
 const manifest = {

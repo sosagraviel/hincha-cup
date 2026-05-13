@@ -2,7 +2,7 @@
   "name": "mini-microservices",
   "version": "0.1.0",
   "private": true,
-  "description": "Plan v5 fixture — polyglot microservices (Go + .NET + Python + Node + protobuf).",
+  "description": "Polyglot microservices demo (Go + .NET + Python + Node + protobuf).",
   "scripts": {
     "lint": "make lint",
     "test": "make test",

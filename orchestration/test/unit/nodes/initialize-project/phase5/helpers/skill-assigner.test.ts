@@ -15,7 +15,7 @@ import type { StackProfile } from '../../../../../../src/schemas/index.js';
  * preloaded context with tooling skill bodies wastes ~50–80 KB per
  * planner spawn × every ticket × 600 projects × 6000 developers.
  *
- * The user's exact spec for a TS+React project (plan.md §B):
+ * Example spec for a TS+React project:
  *
  *   YES on planner:
  *     figma-design-fetcher, mastering-typescript, react-frontend,
@@ -72,7 +72,7 @@ const TS_REACT_STACK: StackProfile = {
 };
 
 describe('assignSkillsToAgents — agent_roles filtering', () => {
-  it('keeps tooling-only skills off the planner for a TS+React project (plan §B regression)', () => {
+  it('keeps tooling-only skills off the planner for a TS+React project', () => {
     const resolved: ResolvedSkill[] = [
       // Should land on BOTH (no agent_roles → default both)
       skill('mastering-typescript', { compatible_languages: ['typescript'] }),

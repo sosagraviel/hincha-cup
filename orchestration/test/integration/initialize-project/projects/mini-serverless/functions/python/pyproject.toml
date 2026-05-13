@@ -1,14 +1,14 @@
 [project]
 name = "mini-serverless-functions-python"
 version = "0.1.0"
-description = "Plan v5 fixture — GCP Cloud Functions (Python)."
+description = "GCP Cloud Functions (Python)."
 requires-python = ">=3.12"
 
 [tool.poetry]
 name = "mini-serverless-functions-python"
 version = "0.1.0"
 authors = ["Qubika <noreply@qubika.com>"]
-description = "Plan v5 fixture — GCP Cloud Functions (Python)."
+description = "GCP Cloud Functions (Python)."
 
 [tool.poetry.dependencies]
 python = "^3.12"

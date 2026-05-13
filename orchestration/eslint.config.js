@@ -51,8 +51,8 @@ export default tseslint.config(
     },
   },
   {
-    // Plan v5 §1.7 — fixtures are test data with their own per-language
-    // toolchains. The framework's ESLint must not descend into them.
+    // Fixtures are test data with their own per-language toolchains.
+    // The framework's ESLint must not descend into them.
     ignores: [
       'dist/**/*',
       'node_modules/**/*',

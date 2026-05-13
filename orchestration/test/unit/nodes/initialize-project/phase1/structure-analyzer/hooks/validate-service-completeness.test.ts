@@ -1,5 +1,5 @@
 /**
- * Plan v9 Phase 6 — service-completeness validator unit tests.
+ * Service-completeness validator unit tests.
  *
  * Pure-function tests against `detectServiceCompletenessViolations()`.
  * Each test builds a temporary directory shape on the filesystem and

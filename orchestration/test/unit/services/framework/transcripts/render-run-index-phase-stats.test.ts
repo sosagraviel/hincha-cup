@@ -6,7 +6,7 @@ import type {
 import { renderRunIndexHtml } from '../../../../../src/services/framework/transcripts/renderer/render-run-index.js';
 
 /**
- * Wave 2 Fix 5.3 — phase-statistics table in the run index.
+ * Phase-statistics table in the run index.
  *
  * Each phase gets a row showing attempts / avg duration / max
  * duration / outcome breakdown. Stack-agnostic: all values come from
@@ -50,7 +50,7 @@ function attempt(
   };
 }
 
-describe('renderRunIndexHtml — phase-statistics table (Wave 2 Fix 5.3)', () => {
+describe('renderRunIndexHtml — phase-statistics table', () => {
   it('omits the table when no attempts are passed', async () => {
     const html = await renderRunIndexHtml({ manifest: MANIFEST, attempts: [] });
     expect(html).not.toContain('Phase statistics');

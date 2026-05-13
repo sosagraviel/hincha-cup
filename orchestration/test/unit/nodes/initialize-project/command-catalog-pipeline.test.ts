@@ -4,8 +4,8 @@ import { renderGettingStarted } from '../../../../src/nodes/initialize-project/p
 import { detectEssentialCommandsOrderingViolations } from '../../../../src/nodes/initialize-project/phase3/validators/validate-essential-commands-ordering.js';
 
 /**
- * Plan 15 §E.3 — fixture-driven pipeline tests for the
- * stack-agnostic command-discovery chain.
+ * Fixture-driven pipeline tests for the stack-agnostic
+ * command-discovery chain.
  *
  * These tests exercise the deterministic part of the pipeline
  * end-to-end: a sanitised Phase 2 consolidation blob → catalog
@@ -15,12 +15,10 @@ import { detectEssentialCommandsOrderingViolations } from '../../../../src/nodes
  * `wiki/getting-started.md` page.
  *
  * Coverage matrix (each scenario is a separate `describe`):
- *   1. gira-shape (Makefile + pnpm workspace + README "Getting
- *      Started"). The original regression — `make setup` MUST
- *      surface first.
+ *   1. Makefile + pnpm workspace + README "Getting Started".
+ *      `make setup` MUST surface first.
  *   2. bare-pnpm (no Makefile, just `package.json` scripts).
- *      Regression check: Plan 15 must not over-fire on simple
- *      stacks.
+ *      Must not over-fire on simple stacks.
  *   3. python-poetry (`pyproject.toml` poetry scripts only).
  *      Routes language-agnostically via the operation classifier.
  *   4. multi-repo (two sibling-clone repos, each with its own
@@ -38,10 +36,10 @@ import { detectEssentialCommandsOrderingViolations } from '../../../../src/nodes
  */
 
 // ---------------------------------------------------------------------------
-// 1. gira-shape
+// 1. Makefile + pnpm workspace + README
 // ---------------------------------------------------------------------------
 
-describe('Plan 15 pipeline: gira-shape (Makefile + pnpm workspace + README)', () => {
+describe('pipeline: Makefile + pnpm workspace + README', () => {
   const consolidation = {
     consolidated_findings: {
       automation: {
@@ -105,7 +103,7 @@ describe('Plan 15 pipeline: gira-shape (Makefile + pnpm workspace + README)', ()
     expect(tests.slice(1).every((e) => e.tier === 'package_manager')).toBe(true);
   });
 
-  it('renderer emits the gira-shape fixture in the correct tier order', () => {
+  it('renderer emits the fixture in the correct tier order', () => {
     const md = renderGettingStarted({
       projectName: 'gira',
       commandCatalog: bundle.command_catalog,
@@ -147,7 +145,7 @@ describe('Plan 15 pipeline: gira-shape (Makefile + pnpm workspace + README)', ()
     expect(violations).toEqual([]);
   });
 
-  it('a CLAUDE.md drafted in the broken (gira-regression) order is rejected', () => {
+  it('a CLAUDE.md drafted in the broken order is rejected', () => {
     const claudeMd = [
       '## Essential Commands',
       '',
@@ -169,7 +167,7 @@ describe('Plan 15 pipeline: gira-shape (Makefile + pnpm workspace + README)', ()
 // 2. bare-pnpm — regression check
 // ---------------------------------------------------------------------------
 
-describe('Plan 15 pipeline: bare-pnpm (no wrapper, no regression)', () => {
+describe('pipeline: bare-pnpm (no wrapper)', () => {
   const consolidation = {
     consolidated_findings: {
       build_tools: {
@@ -221,7 +219,7 @@ describe('Plan 15 pipeline: bare-pnpm (no wrapper, no regression)', () => {
 // 3. python-poetry (no wrapper, language-agnostic routing)
 // ---------------------------------------------------------------------------
 
-describe('Plan 15 pipeline: python-poetry (no wrapper)', () => {
+describe('pipeline: python-poetry (no wrapper)', () => {
   const consolidation = {
     consolidated_findings: {
       build_tools: {
@@ -262,12 +260,12 @@ describe('Plan 15 pipeline: python-poetry (no wrapper)', () => {
 // 4. multi-repo sibling clones — each repo independent
 // ---------------------------------------------------------------------------
 
-describe('Plan 15 pipeline: multi-repo sibling clones', () => {
+describe('pipeline: multi-repo sibling clones', () => {
   // The framework is run per-repo. A "parent folder containing N
-  // sibling clones" use case is out of scope (Plan 15 §H.2). What
-  // we DO guarantee is that running on each repo individually
-  // produces an independent, correct catalog with no false
-  // cross-repo wrapper assumed.
+  // sibling clones" use case is out of scope. What we DO guarantee
+  // is that running on each repo individually produces an
+  // independent, correct catalog with no false cross-repo wrapper
+  // assumed.
 
   const repoA = {
     consolidated_findings: {
@@ -310,7 +308,7 @@ describe('Plan 15 pipeline: multi-repo sibling clones', () => {
 // 5. devcontainer-only
 // ---------------------------------------------------------------------------
 
-describe('Plan 15 pipeline: devcontainer-only', () => {
+describe('pipeline: devcontainer-only', () => {
   const consolidation = {
     consolidated_findings: {
       automation: {

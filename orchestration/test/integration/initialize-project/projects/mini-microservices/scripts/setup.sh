@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Plan v5 fixture — sets up the polyglot toolchain.
+# Sets up the polyglot toolchain.
 set -euo pipefail
 
 echo "==> verifying tools"

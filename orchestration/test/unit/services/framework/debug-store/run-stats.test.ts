@@ -1,14 +1,14 @@
 /**
- * Plan §F.6 + commit 9 (2026-05-05) — run-level stats observability.
+ * Run-level stats observability.
  *
  * The two stats surfaced in the run index sidebar:
- *   - **Cache hit rate**: post-§F caching, Phase 1 analyzers within
- *     a 5-minute TTL should produce ≥ 50% hit rate. The renderer
- *     turns the rate into a sidebar row so operators can verify
- *     caching is engaged without diving into the raw JSONL.
- *   - **Graph overflows**: post-§B spill protocol, this should
- *     stay near zero. A spike means an analyzer is overflowing
- *     repeatedly and bypassing the HARD FAILURE wording.
+ *   - **Cache hit rate**: Phase 1 analyzers within a 5-minute TTL
+ *     should produce ≥ 50% hit rate. The renderer turns the rate into
+ *     a sidebar row so operators can verify caching is engaged without
+ *     diving into the raw JSONL.
+ *   - **Graph overflows**: this should stay near zero. A spike means
+ *     an analyzer is overflowing repeatedly and bypassing the HARD
+ *     FAILURE wording.
  *
  * Both stats are best-effort by design — IO/parse failures must
  * never crash the renderer (worse than no observability is a broken
@@ -235,10 +235,8 @@ describe('computeRunStats — graph overflow rollup', () => {
   });
 });
 
-// Plan §C 5.3 (gira-exhaustive followup, 2026-05-05): aggregate
-// soft_warning arrays from every analyzer's output.json into a
-// per-bucket count so the run index sidebar can render the
-// breakdown.
+// Aggregate soft_warning arrays from every analyzer's output.json into
+// a per-bucket count so the run index sidebar can render the breakdown.
 describe('computeRunStats — soft_warning rollup', () => {
   it('returns an empty object when no output.json files carry soft_warning', async () => {
     const stats = await computeRunStats(tempDir, {
@@ -287,10 +285,9 @@ describe('computeRunStats — soft_warning rollup', () => {
   });
 });
 
-// Plan §F.6 codex-parity follow-up (2026-05-05) — the run-stats
-// rollup now sums cache_read_input_tokens and cache_creation_input_tokens
-// from each token-usage record so the sidebar can show real cache
-// volumes (not just a hit/miss boolean).
+// The run-stats rollup sums cache_read_input_tokens and
+// cache_creation_input_tokens from each token-usage record so the
+// sidebar can show real cache volumes (not just a hit/miss boolean).
 describe('computeRunStats — cache token volume rollup', () => {
   it('sums cache_read_input_tokens across records and reports it', async () => {
     const jsonlPath = join(tempDir, 'token-usage.jsonl');

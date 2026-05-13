@@ -8,19 +8,18 @@ import {
 } from '../../../../../../src/nodes/initialize-project/phase1/shared/needs-verification-quality.js';
 
 /**
- * Wave 2 Fix 4.3 — needs_verification quality gate.
+ * Needs_verification quality gate.
  *
- * The 2026-05-04 gira run shipped speculative items the framework
- * rule explicitly excludes (credentials, outside-the-repo concerns,
- * manifest-derivable questions). The detector here surfaces a soft
- * warning when an analyzer emits any of those — non-blocking, but
- * trends visible in the run report.
+ * The detector surfaces a soft warning when an analyzer emits
+ * speculative items the framework rule explicitly excludes (credentials,
+ * outside-the-repo concerns, manifest-derivable questions) — non-blocking,
+ * but trends are visible in the run report.
  *
  * Stack-agnostic: each fixture uses generic ids and a question
  * shape that could come from any language family.
  */
 
-describe('hasSpeculativeNeedsVerification — anti-regression on the gira-2026-05-04 items', () => {
+describe('hasSpeculativeNeedsVerification — anti-regression on speculative items', () => {
   it('detects credential / DSN / secrets questions', () => {
     expect(
       hasSpeculativeNeedsVerification([
@@ -184,12 +183,8 @@ describe('findSpeculativeNeedsVerification — diagnostic mode', () => {
   });
 });
 
-// ============================================================================
-// PLAN 14 — STRUCTURAL VALIDATORS
-// ============================================================================
-
 /**
- * Reusable fixture: a "good" item that passes every Plan 14 rule.
+ * Reusable fixture: a "good" item that passes every structural validator rule.
  * Tests start from this baseline and mutate one field at a time so
  * the rule under test is the only failing thing.
  */
@@ -206,7 +201,7 @@ const GOOD_ITEM = {
     "Determines whether the architectural narrative describes Redis topology as 'shared' or 'per-service' and changes the deployment-target paragraph in ARCHITECTURE.md.",
 };
 
-describe('validateNeedsVerificationProse — Plan 14 §C.1 attempted_resolution', () => {
+describe('validateNeedsVerificationProse — attempted_resolution', () => {
   it('passes a good item with 2 tool entries', () => {
     expect(validateNeedsVerificationProse([GOOD_ITEM])).toHaveLength(0);
   });
@@ -294,7 +289,7 @@ describe('validateNeedsVerificationProse — Plan 14 §C.1 attempted_resolution'
   });
 });
 
-describe('validateNeedsVerificationProse — Plan 14 §C.2 graph internals ban', () => {
+describe('validateNeedsVerificationProse — graph internals ban', () => {
   it.each([
     ['question', 'graph traversal'],
     ['question', 'during graph parsing'],
@@ -322,7 +317,7 @@ describe('validateNeedsVerificationProse — Plan 14 §C.2 graph internals ban',
   });
 });
 
-describe('validateNeedsVerificationProse — Plan 14 §C.3 fabricated numbers', () => {
+describe('validateNeedsVerificationProse — fabricated numbers', () => {
   it.each([
     'Are there approximately 180 files in services/backend?',
     'Is the function count roughly 3000?',
@@ -346,7 +341,7 @@ describe('validateNeedsVerificationProse — Plan 14 §C.3 fabricated numbers', 
   });
 });
 
-describe('validateNeedsVerificationProse — Plan 14 §C.7 impact field', () => {
+describe('validateNeedsVerificationProse — impact field', () => {
   it('hard-fails when impact is missing', () => {
     const { impact: _imp, ...rest } = GOOD_ITEM;
     const violations = validateNeedsVerificationProse([rest]);
@@ -412,24 +407,17 @@ describe('validateNeedsVerificationProse — defensive shapes', () => {
   });
 });
 
-describe('validateNeedsVerificationProse — Plan 17 §C.1 found_no_evidence_yesno', () => {
-  // The gira 2026-05-06 run produced these self-contradicting questions:
-  //  - "Is an AWS S3 client library installed?" + attempted_resolution
-  //    showing `Grep aws-sdk — zero matches`
-  //  - "Is there a CI/CD pipeline configured?" + attempted_resolution
-  //    showing `Glob {.github/workflows/*.yml,...} — returned zero matches`
-  //  - "Is a minimum Jest code-coverage threshold enforced?" +
-  //    attempted_resolution showing `no coverageThreshold key found`
-  //
-  // Each one has well-formed evidence that already proves the answer
-  // is "no". The rule rejects them so the operator gets a clean list.
+describe('validateNeedsVerificationProse — found_no_evidence_yesno', () => {
+  // Self-contradicting question shape: yes/no question with attempted_resolution
+  // that already proves the answer is "no". The rule rejects them so
+  // the operator gets a clean list.
 
   const GIRA_AR_AWS_SDK = [
     'Grep "aws-sdk" services/backend/package.json — zero matches; no AWS SDK declared in backend dependencies',
     'Grep "aws-sdk" services/web-frontend/package.json — zero matches across all remaining packages',
   ];
 
-  it('fires on the gira "AWS SDK" shape (Q1)', () => {
+  it('fires on the "AWS SDK" shape (Q1)', () => {
     const violations = validateNeedsVerificationProse([
       {
         ...GOOD_ITEM,
@@ -440,7 +428,7 @@ describe('validateNeedsVerificationProse — Plan 17 §C.1 found_no_evidence_yes
     expect(violations.some((v) => v.code === 'found_no_evidence_yesno')).toBe(true);
   });
 
-  it('fires on the gira "CI/CD pipeline" shape (Q2)', () => {
+  it('fires on the "CI/CD pipeline" shape (Q2)', () => {
     const violations = validateNeedsVerificationProse([
       {
         ...GOOD_ITEM,
@@ -454,7 +442,7 @@ describe('validateNeedsVerificationProse — Plan 17 §C.1 found_no_evidence_yes
     expect(violations.some((v) => v.code === 'found_no_evidence_yesno')).toBe(true);
   });
 
-  it('fires on the gira "Jest coverage threshold" shape (Q4)', () => {
+  it('fires on the "Jest coverage threshold" shape (Q4)', () => {
     const violations = validateNeedsVerificationProse([
       {
         ...GOOD_ITEM,
@@ -468,7 +456,7 @@ describe('validateNeedsVerificationProse — Plan 17 §C.1 found_no_evidence_yes
     expect(violations.some((v) => v.code === 'found_no_evidence_yesno')).toBe(true);
   });
 
-  it('does NOT fire on legitimate operator questions (gira Q5 — Keycloak prod env vars)', () => {
+  it('does NOT fire on legitimate operator questions (Keycloak prod env vars)', () => {
     // The agent established the code's behavior. The question asks
     // whether production VALUES are correct — production-only,
     // operator-only. The attempted_resolution contains negative
@@ -490,7 +478,7 @@ describe('validateNeedsVerificationProse — Plan 17 §C.1 found_no_evidence_yes
     expect(violations.filter((v) => v.code === 'found_no_evidence_yesno')).toHaveLength(0);
   });
 
-  it('does NOT fire on production-runtime questions (gira Q6 — Redis production deployment)', () => {
+  it('does NOT fire on production-runtime questions (Redis production deployment)', () => {
     const violations = validateNeedsVerificationProse([
       {
         ...GOOD_ITEM,
@@ -554,14 +542,11 @@ describe('validateNeedsVerificationProse — Plan 17 §C.1 found_no_evidence_yes
   });
 });
 
-describe('validateNeedsVerificationProse — Plan 17 §C.2 confessed_incomplete_search', () => {
-  // The gira 2026-05-06 run produced this confessed-incomplete question:
-  //  - "What commands do the husky git hooks actually execute?" +
-  //    attempted_resolution explicitly stating "file contents were not read"
-  // The .husky/* files are short shell scripts; the agent had Read
-  // available; the fix is to read them.
+describe('validateNeedsVerificationProse — confessed_incomplete_search', () => {
+  // Fires when attempted_resolution admits that a file was found but not
+  // read, or a path was not searched. The fix is to actually read the files.
 
-  it('fires on the gira "husky hooks" shape (Q3)', () => {
+  it('fires on the "husky hooks" shape (Q3)', () => {
     const violations = validateNeedsVerificationProse([
       {
         ...GOOD_ITEM,
@@ -608,9 +593,9 @@ describe('validateNeedsVerificationProse — Plan 17 §C.2 confessed_incomplete_
   });
 
   it('does NOT fire on negative results that simply report "not found" (different from confessed)', () => {
-    // "no X found" is a completed search with a negative result —
-    // that's the §C.1 territory (and only fires for yes/no questions).
-    // The confessed-incomplete rule must not trip on negative results.
+    // "no X found" is a completed search with a negative result, not
+    // a confessed-incomplete search. The confessed-incomplete rule
+    // must not trip on negative results.
     const violations = validateNeedsVerificationProse([
       {
         ...GOOD_ITEM,
@@ -625,12 +610,10 @@ describe('validateNeedsVerificationProse — Plan 17 §C.2 confessed_incomplete_
   });
 });
 
-describe('Plan 17 acceptance — all 4 self-contradicting gira questions are blocked', () => {
+describe('acceptance — all 4 self-contradicting questions are blocked', () => {
   it('blocks Q1, Q2, Q3, Q4 in a single batch; passes Q5, Q6 unchanged', () => {
-    // The complete gira 2026-05-06 set, as shipped to the operator
-    // in the interactive prompt. The expectation: 4 reject, 2 pass
-    // through (subject to the existing Plan-14 gates which we already
-    // know they pass).
+    // Complete set of test questions. The expectation: 4 reject, 2 pass
+    // through (subject to the existing gates which we already know they pass).
     const giraSet = [
       // Q1 — found-no-evidence
       {
@@ -705,8 +688,8 @@ describe('Plan 17 acceptance — all 4 self-contradicting gira questions are blo
     expect(blockedIndexes.has(1)).toBe(true);
     expect(blockedIndexes.has(2)).toBe(true);
     expect(blockedIndexes.has(3)).toBe(true);
-    // Q5, Q6 (indexes 4, 5) MUST NOT be flagged by the Plan 17 rules.
-    // (Plan 18 promotes those to `speculative_out_of_scope` instead.)
+    // Q5, Q6 (indexes 4, 5) MUST NOT be flagged by the found_no_evidence_yesno
+    // or confessed_incomplete_search rules.
     const q5q6New = violations.filter(
       (v) =>
         (v.index === 4 || v.index === 5) &&
@@ -716,11 +699,10 @@ describe('Plan 17 acceptance — all 4 self-contradicting gira questions are blo
   });
 });
 
-describe('validateNeedsVerificationProse — Plan 18 speculative_out_of_scope', () => {
-  // Plan 14's `hasSpeculativeNeedsVerification` was a soft warning;
-  // Plan 18 promotes it to a hard rejection. The wiki/CLAUDE.md is
-  // generated from CODE — production state, secrets, and externally-
-  // managed infrastructure are out-of-scope by design.
+describe('validateNeedsVerificationProse — speculative_out_of_scope', () => {
+  // The wiki/CLAUDE.md is generated from CODE — production state, secrets,
+  // and externally-managed infrastructure are out-of-scope by design.
+  // This rule is a hard rejection (not a soft warning).
 
   it('blocks credentials / secrets / passwords questions', () => {
     const violations = validateNeedsVerificationProse([
@@ -733,10 +715,8 @@ describe('validateNeedsVerificationProse — Plan 18 speculative_out_of_scope', 
   });
 
   it('blocks env-var-style credential identifiers (SENTRY_DSN, *_SECRET, *_PASSWORD)', () => {
-    // The 2026-05-06 gira data-flows run produced "What is the production
-    // SENTRY_DSN value...?". The plain-word `\bdsn\b` regex does not
-    // match inside `SENTRY_DSN` because `_` is a word character; an
-    // env-var-suffix pattern catches it.
+    // The plain-word `\bdsn\b` regex does not match inside `SENTRY_DSN`
+    // because `_` is a word character; an env-var-suffix pattern catches it.
     expect(
       validateNeedsVerificationProse([
         { ...GOOD_ITEM, question: 'What is the production SENTRY_DSN value for error monitoring?' },
@@ -754,7 +734,7 @@ describe('validateNeedsVerificationProse — Plan 18 speculative_out_of_scope', 
     ).toBe(true);
   });
 
-  it('blocks "set correctly in production" questions (gira Q5)', () => {
+  it('blocks "set correctly in production" questions (Q5)', () => {
     const violations = validateNeedsVerificationProse([
       {
         ...GOOD_ITEM,
@@ -771,7 +751,7 @@ describe('validateNeedsVerificationProse — Plan 18 speculative_out_of_scope', 
     expect(violations.some((v) => v.code === 'speculative_out_of_scope')).toBe(true);
   });
 
-  it('blocks "production-grade deployment" questions (gira Q6)', () => {
+  it('blocks "production-grade deployment" questions (Q6)', () => {
     const violations = validateNeedsVerificationProse([
       {
         ...GOOD_ITEM,
@@ -827,14 +807,10 @@ describe('validateNeedsVerificationProse — Plan 18 speculative_out_of_scope', 
   });
 });
 
-describe('Plan 18 acceptance — all 6 gira questions are blocked (Plan 17 + Plan 18 combined)', () => {
+describe('acceptance — all 6 questions are blocked', () => {
   it('blocks every wrong question; legitimate intent questions still pass', () => {
-    // The same gira-shape set from the Plan 17 acceptance test, but
-    // now we expect ALL six to be blocked because Plan 18 catches Q5
-    // and Q6 via `speculative_out_of_scope`. The remaining clean
-    // questions (the absence-intentional one + the runtime-platform
-    // one from earlier analyzer outputs) are NOT in this fixture
-    // and would pass — those are the only items reaching the operator.
+    // Complete set. ALL six should be blocked: Q1–Q4 via found_no_evidence_yesno
+    // or confessed_incomplete_search; Q5–Q6 via speculative_out_of_scope.
     const giraSet = [
       // Q1 — found-no-evidence
       {
@@ -902,11 +878,10 @@ describe('Plan 18 acceptance — all 6 gira questions are blocked (Plan 17 + Pla
   });
 });
 
-describe('Plan 14 acceptance — the 7 gira questions are blocked', () => {
-  // Each fixture is the gira question rephrased as a needs_verification
-  // item with the worst-case shape (empty / generic resolution + impact).
-  // Q5 (testing-coverage policy) is the only one that should pass when
-  // it carries a proper resolution + impact.
+describe('acceptance — structural validator questions are blocked', () => {
+  // Each fixture is a needs_verification item with the worst-case shape
+  // (empty / generic resolution + impact). Q5 (testing-coverage policy)
+  // is the only one that should pass when it carries a proper resolution + impact.
 
   it('Q1 (does main.tsx exist?) — blocked on missing_attempted_resolution', () => {
     const violations = validateNeedsVerificationProse([
@@ -956,7 +931,7 @@ describe('Plan 14 acceptance — the 7 gira questions are blocked', () => {
 
   it('Q4 (synonym for outside-the-repo) — surfaces speculative_needs_verification', () => {
     // Q4 evades the original "outside this repository" rule but
-    // matches the §C.5 synonym list ("infrastructure repository",
+    // matches the synonym list ("infrastructure repository",
     // "external system", "build environments reachable").
     expect(
       hasSpeculativeNeedsVerification([
@@ -994,7 +969,7 @@ describe('Plan 14 acceptance — the 7 gira questions are blocked', () => {
   });
 });
 
-describe('hasSpeculativeNeedsVerification — Plan 14 §C.5 synonym expansion', () => {
+describe('hasSpeculativeNeedsVerification — synonym expansion', () => {
   it.each([
     'managed in a separate infrastructure repository',
     'lives in a sibling repository',
@@ -1031,7 +1006,7 @@ describe('hasSpeculativeNeedsVerification — Plan 14 §C.5 synonym expansion', 
   });
 });
 
-describe('hasManifestVsImportMismatch — Plan 14 §C.4', () => {
+describe('hasManifestVsImportMismatch', () => {
   it('fires when the item references "declared as dependencies" without an import-site search', () => {
     expect(
       hasManifestVsImportMismatch({

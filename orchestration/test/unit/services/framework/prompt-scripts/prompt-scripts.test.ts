@@ -8,7 +8,7 @@ import {
   renderPromptScripts,
 } from '../../../../../src/services/framework/prompt-scripts/index.js';
 
-describe('prompt-scripts subsystem — Plan v7 Phase 4', () => {
+describe('prompt-scripts subsystem', () => {
   describe('registry', () => {
     it('exposes at least inspection-summary + language-config-summary', () => {
       const names = PROMPT_SCRIPT_REGISTRY.map((s) => s.name);

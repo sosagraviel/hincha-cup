@@ -5,8 +5,8 @@ import {
 } from '../../../../../../src/nodes/initialize-project/phase1/data-flows-analyzer/hooks/validate-infrastructure-port-discovery.js';
 
 /**
- * Plan 22 — output-shape validator for infrastructure_services
- * port discovery. Stack-agnostic: never opens any project file.
+ * Output-shape validator for infrastructure_services port discovery.
+ * Stack-agnostic: never opens any project file.
  *
  * Every entry in `findings.infrastructure_services[]` must carry
  * either `port: <integer>` or the explicit opt-out (port_applies +
@@ -49,7 +49,7 @@ describe('detectInfrastructurePortViolations — pass paths', () => {
     ).toEqual([]);
   });
 
-  it('passes a mixed-shape gira-like payload', () => {
+  it('passes a mixed-shape payload', () => {
     expect(
       detectInfrastructurePortViolations(
         withInfra([
@@ -187,7 +187,7 @@ describe('formatInfrastructurePortViolations', () => {
     expect(formatInfrastructurePortViolations([])).toEqual([]);
   });
 
-  it('emits compressed VALIDATION_E012_* feedback citing the service ID + SaaS opt-out (Plan v7 Phase 7)', () => {
+  it('emits compressed VALIDATION_E012_* feedback citing the service ID + SaaS opt-out', () => {
     const lines = formatInfrastructurePortViolations([
       {
         service_id: 'postgres',

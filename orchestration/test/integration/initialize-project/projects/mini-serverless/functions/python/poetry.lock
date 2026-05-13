@@ -1,6 +1,5 @@
-# Plan v5 fixture — trimmed lockfile. Real projects ship the full
-# poetry-generated content. The framework reads this file only for
-# package-manager detection.
+# Trimmed lockfile. Real projects ship the full poetry-generated content.
+# The framework reads this file only for package-manager detection.
 [[package]]
 name = "functions-framework"
 version = "3.5.0"

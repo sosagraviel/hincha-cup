@@ -109,8 +109,8 @@ describe('updateStateNode', () => {
     expect(parsed.last_indexed_commit).toBe('unknown');
   });
 
-  describe('Wave 1.6 — preserves Phase 4 fields across refreshes', () => {
-    // Pre-Wave 1.6 the refresh path silently dropped every field except
+  describe('preserves Phase 4 fields across refreshes', () => {
+    // The refresh path once silently dropped every field except
     // last_indexed_commit + last_ingest_at, so the durable preflight
     // metadata (graph_commit, graph_sha, pipeline_version, graph_stats)
     // disappeared on the first refresh after init. The merge below keeps

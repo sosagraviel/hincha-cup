@@ -238,7 +238,7 @@ describe('inlineSkillBodiesForCodex', () => {
     expect(out).toContain('body text');
   });
 
-  describe('paragraph dedup (Wave 3 §I.3)', () => {
+  describe('paragraph dedup', () => {
     // Two skills sharing a 200+-byte paragraph should ship that
     // paragraph once and emit a `<see-skill name="..."/>` cross-ref
     // in subsequent skills. Stack-agnostic: paragraph comparison only.

@@ -6,7 +6,7 @@ import {
   formatValidationErrorLong,
 } from '../../../../../src/nodes/initialize-project/shared/validation-codes/index.js';
 
-describe('validation-codes subsystem — Plan v7 Phase 7', () => {
+describe('validation-codes subsystem', () => {
   describe('VALIDATION_CODES table', () => {
     it('has at least the 8 needs_verification sub-codes plus framework + agent codes', () => {
       const keys = Object.keys(VALIDATION_CODES);

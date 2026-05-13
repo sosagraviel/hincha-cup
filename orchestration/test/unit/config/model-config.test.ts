@@ -1,16 +1,10 @@
 /**
- * Plan v5 §1.2 — regression test: every tier covers every known agent.
- *
- * Closes the v3/v4 bug class where a new agent name was added to the
- * codebase (e.g. `service-detail-extractor` in v4 Phase D) but never
- * registered in any `tiers.<tier>.agents` map, causing the agent to
- * silently fall back to a default model regardless of `MODEL_TIER`.
+ * Regression test: every tier covers every known agent.
  *
  * This test fails CI when:
  *   - A new agent name is added without entries in EVERY tier.
  *   - A tier is missing one of the canonical agent names.
- *   - The `fast` tier (which v5 dedicates to fixture iteration) maps
- *     anything to a non-Haiku model.
+ *   - The `fast` tier maps anything to a non-Haiku model.
  *
  * No LLM, no spawn, no I/O beyond a single config file read.
  */
@@ -74,7 +68,7 @@ const CANONICAL_AGENT_NAMES: ReadonlyArray<string> = [
 
 const ALL_TIER_NAMES = Object.keys(config.tiers);
 
-describe('model-config.json — tier coverage (v5 §1.2 regression)', () => {
+describe('model-config.json — tier coverage regression', () => {
   it('exposes at least the expected tiers', () => {
     for (const tier of ['standard', 'fast', 'advanced', 'openai', 'gemini']) {
       expect(ALL_TIER_NAMES).toContain(tier);
@@ -108,13 +102,10 @@ describe('model-config.json — tier coverage (v5 §1.2 regression)', () => {
 });
 
 describe('model-config.json — `fast` tier is fixture-grade Haiku-only', () => {
-  // v5 §1.2 dedicates the `fast` tier to test-fixture iteration. Every
-  // agent — analyzers, synthesis, wiki, implement-ticket / planner /
-  // reviewer / visual-verifier — runs on haiku-latest so a single
-  // MODEL_TIER=fast invocation gives an end-to-end Haiku pipeline.
-  // This test catches any drive-by edit that puts a non-Haiku model
-  // back into the `fast` tier (the v4 hybrid Phase-1-Haiku/synthesis-
-  // Sonnet shape this plan retires).
+  // The `fast` tier is dedicated to test-fixture iteration. Every agent
+  // runs on haiku-latest so a single MODEL_TIER=fast invocation gives
+  // an end-to-end Haiku pipeline. This test catches any drive-by edit
+  // that puts a non-Haiku model into the `fast` tier.
 
   const fastAgents = config.tiers.fast.agents;
 
@@ -132,10 +123,10 @@ describe('model-config.json — `fast` tier is fixture-grade Haiku-only', () => 
   });
 });
 
-describe('model-config.json — `service-detail-extractor` registered everywhere (v4 Phase D + v5 §1.2)', () => {
-  // Specific anti-regression: Phase D added the service-detail-extractor
-  // sub-agent but the v4 commit missed registering it in any tier, so
-  // it silently fell back to a default. This test pins down the fix.
+describe('model-config.json — `service-detail-extractor` registered everywhere', () => {
+  // Anti-regression: the service-detail-extractor sub-agent was added but
+  // initially missed in all tier registrations, causing silent fallback to
+  // a default model. This test pins down the fix.
 
   it.each(ALL_TIER_NAMES)(`tier '%s' maps service-detail-extractor`, (tierName) => {
     expect(config.tiers[tierName].agents).toHaveProperty('service-detail-extractor');

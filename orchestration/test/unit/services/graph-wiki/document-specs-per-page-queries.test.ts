@@ -6,7 +6,7 @@ import {
 import { Provider } from '../../../../src/providers/types.js';
 
 /**
- * Wave 2 Fix 3.2 — per-page graph_queries_used.
+ * Per-page graph_queries_used.
  *
  * Pre-fix every per-service doc unioned graph_queries_used across all
  * four Phase 1 analyzers, leaking the structure-arch overview tools
@@ -22,7 +22,7 @@ import { Provider } from '../../../../src/providers/types.js';
  * from any language family — no language token leaks into assertions.
  */
 
-describe('per-page graph_queries_used scoping (Wave 2 Fix 3.2)', () => {
+describe('per-page graph_queries_used scoping', () => {
   describe('architecture spec', () => {
     it('only carries structure-arch queries (anti-regression)', () => {
       const specs = buildCoreSpecs({

@@ -3,7 +3,7 @@ info:
   title: mini-monorepo backend API
   version: 0.1.0
   description: |
-    Plan v5 fixture — minimal OpenAPI spec so the framework's
+    Minimal OpenAPI spec for the demo backend so the framework's
     API-definition discovery has something to find. One representative
     path; production projects would document the full surface here.
 

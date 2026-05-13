@@ -1,9 +1,9 @@
 /**
- * Plan §C, commit A (2026-05-05) — provider-aware sidecar loaders.
+ * Provider-aware sidecar loaders.
  *
- * `applyGraphToolUsageFromSidecar` now accepts a `SidecarLoader`
- * callback so the same downstream code path serves both Claude
- * (sidecar in `~/.claude/projects/...`) and Codex (sidecar in
+ * `applyGraphToolUsageFromSidecar` accepts a `SidecarLoader` callback
+ * so the same downstream code path serves both Claude (sidecar in
+ * `~/.claude/projects/...`) and Codex (sidecar in
  * `<projectPath>/.codex-temp/initialize-project/graph-tool-uses/`).
  *
  * These tests verify the loader plumbing without requiring a live

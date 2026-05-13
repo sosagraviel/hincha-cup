@@ -8,10 +8,10 @@ import {
 } from '../../../../../../src/nodes/initialize-project/phase1/structure-analyzer/hooks/validate-automation-discovery.js';
 
 /**
- * Plan 16 §C.4 — hard Stop-hook validator: when canonical wrapper
- * files exist at the project root, the structure analyzer MUST
- * represent them in `findings.automation`. The validator checks
- * the filesystem and rejects mismatches.
+ * Hard Stop-hook validator: when canonical wrapper files exist at the
+ * project root, the structure analyzer MUST represent them in
+ * `findings.automation`. The validator checks the filesystem and
+ * rejects mismatches.
  *
  * Stack-agnostic — pure file-presence + heading-shape checks.
  */
@@ -20,7 +20,7 @@ describe('detectAutomationDiscoveryViolations', () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'plan16-automation-'));
+    tmpDir = mkdtempSync(join(tmpdir(), 'automation-discovery-'));
   });
 
   afterEach(() => {
@@ -185,7 +185,7 @@ describe('formatAutomationDiscoveryViolations', () => {
     expect(formatAutomationDiscoveryViolations([])).toEqual([]);
   });
 
-  it('emits compressed VALIDATION_E010_* feedback naming the bucket and file (Plan v7 Phase 7)', () => {
+  it('emits compressed VALIDATION_E010_* feedback naming the bucket and file', () => {
     const lines = formatAutomationDiscoveryViolations([
       {
         bucket: 'makefiles',

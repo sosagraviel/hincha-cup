@@ -1,5 +1,5 @@
 /**
- * Plan v9 Phase 7 — `renderMarkdown` bounded-execution tests.
+ * `renderMarkdown` bounded-execution tests.
  *
  * The transcript renderer is debug-only. It must never hang and must
  * always return SOME string OR throw a typed `RenderMarkdownLimitError`
@@ -41,8 +41,8 @@ function buildRandomAscii(): string {
 }
 
 function buildFencePathology(): string {
-  // Alternating fences with no language and no closing fence — exactly
-  // the shape the gira 2026-05-12 run blew up on.
+  // Alternating fences with no language and no closing fence —
+  // the shape that triggers infinite loop in the renderer.
   return '```\n'.repeat(Math.ceil(SIZE / 4)).slice(0, SIZE);
 }
 
@@ -74,7 +74,7 @@ function timedRender(source: string): { ms: number; threw: boolean } {
   return { ms: Date.now() - start, threw };
 }
 
-describe('renderMarkdown bounded execution (Plan v9 Phase 7)', () => {
+describe('renderMarkdown bounded execution', () => {
   it('returns within time budget for 1 MB random ASCII', () => {
     const result = timedRender(buildRandomAscii());
     expect(result.ms).toBeLessThan(TIME_BUDGET_MS);
@@ -97,14 +97,14 @@ describe('renderMarkdown bounded execution (Plan v9 Phase 7)', () => {
     expect(err.message).toBe('test');
   });
 
-  // Regression — gira 2026-05-12 run. A thinking block contained a
-  // line starting with ` ``` ` followed by inline content (not a clean
-  // fence opener). The fence regex refused to open, AND the paragraph
-  // inner-loop guard `!/^```/` refused to consume the line. Result:
-  // `i` never advanced and the renderer infinite-looped until the
-  // iteration cap fired. The fix forces the paragraph branch to
-  // consume the offending line as raw text so `i` always advances.
-  it('does not infinite-loop on stray backtick prose (gira regression)', () => {
+  // Regression: a thinking block contained a line starting with
+  // ` ``` ` followed by inline content (not a clean fence opener).
+  // The fence regex refused to open, AND the paragraph inner-loop
+  // guard `!/^```/` refused to consume the line. Result: `i` never
+  // advanced and the renderer infinite-looped until the iteration cap
+  // fired. The fix forces the paragraph branch to consume the
+  // offending line as raw text so `i` always advances.
+  it('does not infinite-loop on stray backtick prose', () => {
     const source = [
       "There's a JSON syntax error in my output.",
       '',

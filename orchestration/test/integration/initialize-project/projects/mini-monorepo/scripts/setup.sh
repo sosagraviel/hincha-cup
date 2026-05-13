@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Plan v5 fixture — bootstrap script. Real targets run inside the
-# devcontainer's `postCreateCommand` and as the `make setup` recipe's
-# dependency. Production-shaped (not a stub).
+# Bootstrap script. Real targets run inside the devcontainer's
+# `postCreateCommand` and as the `make setup` recipe's dependency.
+# Production-shaped (not a stub).
 set -euo pipefail
 
 echo "==> checking required tools"

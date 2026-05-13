@@ -190,8 +190,8 @@ make test
       expect(existsSync(structureOutputPath)).toBe(true);
       expect(existsSync(techStackOutputPath)).toBe(true);
 
-      // Read and verify structure analyzer found automation. Plan 15 §D.3 —
-      // targets are structured `{name, group?, description?}` objects.
+      // Read and verify structure analyzer found automation. Targets are
+      // structured `{name, group?, description?}` objects.
       const structureOutput = JSON.parse(require('fs').readFileSync(structureOutputPath, 'utf8'));
       expect(structureOutput.findings.automation).toBeDefined();
       expect(structureOutput.findings.automation.makefiles).toHaveLength(1);
@@ -313,7 +313,7 @@ export default function Page() {
 
       // Structure analyzer should find no automation files
       const structureOutput = JSON.parse(require('fs').readFileSync(structureOutputPath, 'utf8'));
-      // Plan 15: AutomationSchema defaults missing arrays to []
+      // AutomationSchema defaults missing arrays to []
       expect(structureOutput.findings.automation?.makefiles ?? []).toHaveLength(0);
       expect(structureOutput.findings.automation?.shell_scripts ?? []).toHaveLength(0);
 
@@ -460,8 +460,8 @@ make build  # Build for production
       expect(existsSync(structureOutputPath)).toBe(true);
       expect(existsSync(techStackOutputPath)).toBe(true);
 
-      // Verify all automation types detected. Plan 15 §D.3 — targets are
-      // now structured `{name, group?, description?}` objects; shell_scripts
+      // Verify all automation types detected. Targets are structured
+      // `{name, group?, description?}` objects; shell_scripts
       // entries have `path` + enum `purpose` (the legacy `name` field was
       // dropped because it's derivable from `path`).
       const structureOutput = JSON.parse(require('fs').readFileSync(structureOutputPath, 'utf8'));

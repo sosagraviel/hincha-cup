@@ -1,6 +1,6 @@
 /**
- * Plan §F.6 + commit 9 (2026-05-05) — render-time tests for the
- * cache-hit-rate + graph-overflow rows in the run index sidebar.
+ * Render-time tests for the cache-hit-rate + graph-overflow rows in
+ * the run index sidebar.
  *
  * The renderer must:
  *   - Show the rows ONLY when stats are passed (callers that don't
@@ -101,7 +101,7 @@ describe('renderRunIndexHtml — sidebar stats rows', () => {
     expect(html).toContain('mcp__code_graph__list_communities_tool');
   });
 
-  describe('Soft warnings row (Wave 2 Fix 5.3)', () => {
+  describe('Soft warnings row', () => {
     it('omits the row entirely when softWarningCounts is undefined (older runs)', async () => {
       const stats: RunStats = {
         totalAgentCalls: 1,
@@ -175,10 +175,9 @@ describe('renderRunIndexHtml — sidebar stats rows', () => {
     expect(html).toMatch(/<dd>2<\/dd>/);
   });
 
-  // Plan §F.6 codex-parity follow-up (2026-05-05): the previous
-  // sidebar showed only `Cache hit rate: 60%` — operators couldn't
-  // see whether the cached prefixes were 100 tokens or 100K. The new
-  // `Cached tokens` row surfaces the actual savings volume.
+  // The previous sidebar showed only `Cache hit rate: 60%` — operators
+  // couldn't see whether the cached prefixes were 100 tokens or 100K.
+  // The `Cached tokens` row surfaces the actual savings volume.
   describe('Cached tokens row', () => {
     it('omits the row entirely when token volumes are unknown (older runs)', async () => {
       const stats: RunStats = {

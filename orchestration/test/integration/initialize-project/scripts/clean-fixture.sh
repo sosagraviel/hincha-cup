@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Plan v5 §1.4.a — wipe a fixture's run artefacts in place.
+# Wipe a fixture's run artefacts in place.
 #
 # Removes:
 #   - <fixture>/.claude-temp/

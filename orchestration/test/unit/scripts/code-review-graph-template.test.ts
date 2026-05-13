@@ -10,12 +10,12 @@ import { describe, expect, it } from 'vitest';
  * `launcher.json` IS team-shared (deterministic, idempotent compare-then-
  * write, lets every dev's MCP launcher use the same tool resolution).
  *
- * `extraction-manifest.json` was PREVIOUSLY allowlisted (commit b3328fe
- * shipped it that way), but the upstream `code-review-graph` tool stamps a
- * `created_at` timestamp on every build — the file churns on every
- * preflight regardless of whether the graph content changed. The 2026-05-05
- * cleanup (plan §D) removed it from the allowlist and added an idempotent
- * untrack-on-preflight migration in `scripts/setup-code-graph.sh`.
+ * `extraction-manifest.json` was PREVIOUSLY allowlisted, but the upstream
+ * `code-review-graph` tool stamps a `created_at` timestamp on every build
+ * — the file churns on every preflight regardless of whether the graph
+ * content changed. It was removed from the allowlist and an idempotent
+ * untrack-on-preflight migration was added in
+ * `scripts/setup-code-graph.sh`.
  *
  * This test fails if any future edit reintroduces the allowlist.
  */
@@ -36,9 +36,8 @@ describe('templates/code-review-graph-gitignore', () => {
   });
 
   it('does NOT allowlist `extraction-manifest.json` (per-build only)', () => {
-    // The structural rule for plan §D: extraction-manifest.json must NEVER
-    // be tracked because the upstream tool's `created_at` field churns on
-    // every build.
+    // extraction-manifest.json must NEVER be tracked because the upstream
+    // tool's `created_at` field churns on every build.
     expect(body).not.toMatch(/^!extraction-manifest\.json\s*$/m);
   });
 
@@ -63,9 +62,9 @@ describe('scripts/setup-code-graph.sh — migration block', () => {
   const body = readFileSync(SETUP_SCRIPT_PATH, 'utf-8');
 
   it('defines `migrate_untrack_extraction_manifest`', () => {
-    // Stack-agnostic, idempotent migration: required for projects
-    // bootstrapped before 2026-05-05 to drop `extraction-manifest.json`
-    // from the git index automatically on the next preflight.
+    // Stack-agnostic, idempotent migration: drops
+    // `extraction-manifest.json` from the git index automatically on
+    // the next preflight.
     expect(body).toMatch(/migrate_untrack_extraction_manifest\s*\(\)\s*\{/);
   });
 

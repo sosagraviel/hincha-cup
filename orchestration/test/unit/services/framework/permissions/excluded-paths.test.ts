@@ -25,9 +25,8 @@ describe('buildClaudeDenyRules', () => {
   it('emits BOTH top-level and any-depth Read rules per excluded directory', () => {
     const rules = buildClaudeDenyRules(projectPath, frameworkPath);
 
-    // node_modules is the headline case from the gira leak. Both forms must
-    // be present so workspace tools that hoist (pnpm) and tools that don't
-    // (yarn classic) are both covered.
+    // node_modules: both forms must be present so workspace tools that
+    // hoist (pnpm) and tools that don't (yarn classic) are both covered.
     expect(rules).toContain('Read(./node_modules/**)');
     expect(rules).toContain('Read(**/node_modules/**)');
   });
@@ -197,7 +196,7 @@ describe('end-to-end placeholder substitution shape', () => {
   });
 });
 
-describe('buildClaudeDenyRules — excludedDirsOverride (Plan v4 Phase A.1)', () => {
+describe('buildClaudeDenyRules — excludedDirsOverride', () => {
   let projectPath: string;
   let frameworkPath: string;
 
@@ -238,10 +237,8 @@ describe('buildClaudeDenyRules — excludedDirsOverride (Plan v4 Phase A.1)', ()
       'Read(**/qubika-agentic-framework/**)',
     ]);
 
-    // And critically: NO `.claude-temp` rules. This is the bug the v3
-    // run audit (archive/v3-iteration-100, run 2026-05-08T23-30-20)
-    // surfaced — the synthesizer's reads were silently denied for
-    // ~ 5 minutes before it gave up.
+    // And critically: NO `.claude-temp` rules. The synthesizer's reads
+    // must not be silently denied by an over-broad deny list.
     expect(restricted.some((r) => r.includes('.claude-temp'))).toBe(false);
     expect(restricted.some((r) => r.includes('.codex-temp'))).toBe(false);
     expect(restricted.length).toBeLessThan(baseline.length);

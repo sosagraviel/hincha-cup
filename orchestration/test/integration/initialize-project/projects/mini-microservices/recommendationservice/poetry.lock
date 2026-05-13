@@ -1,4 +1,4 @@
-# Plan v5 fixture — trimmed lockfile.
+# Trimmed lockfile. Real projects ship the full poetry-generated content.
 [[package]]
 name = "grpcio"
 version = "1.65.0"

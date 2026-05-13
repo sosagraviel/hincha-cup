@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Plan v5 §1.4.c — spawn a single agent in isolation against a fixture.
+# Spawn a single agent in isolation against a fixture.
 #
 # This is the iteration-loop entry point. Single invocation runs:
 #   1. clean-fixture.sh <fixture>                  (unless --keep-dirty)
@@ -8,8 +8,7 @@
 #   4. Print debug-bucket location + 5-line outcome summary.
 #
 # MODEL_TIER=fast is set unconditionally so every agent (including
-# service-detail-extractor) resolves to haiku-latest, per the v5 §1.2
-# edits to model-config.json.
+# service-detail-extractor) resolves to haiku-latest.
 #
 # Usage:
 #   scripts/run-agent.sh <fixture-name> <agent-name> \

@@ -107,7 +107,7 @@ describe('Phase 1 Agent Output Schemas - Automation Features', () => {
 
       const result = StructureAnalyzerOutputSchema.parse(outputWithMakefileOnly);
       expect(result.findings.automation?.makefiles).toHaveLength(1);
-      // Plan 15: AutomationSchema defaults missing arrays to []
+      // AutomationSchema defaults missing arrays to []
       expect(result.findings.automation?.shell_scripts).toEqual([]);
       expect(result.findings.automation?.justfiles).toEqual([]);
     });
@@ -193,7 +193,7 @@ describe('Phase 1 Agent Output Schemas - Automation Features', () => {
       expect(() => StructureAnalyzerOutputSchema.parse(invalidOutput)).toThrow();
     });
 
-    it('should reject legacy string-array targets (Plan 15 requires structured shape)', () => {
+    it('should reject legacy string-array targets (requires structured shape)', () => {
       const invalidOutput = {
         agent_name: 'structure-architecture-analyzer',
         timestamp: '2026-04-13T10:00:00.000Z',
@@ -420,7 +420,7 @@ describe('Phase 1 Agent Output Schemas - Automation Features', () => {
     });
   });
 
-  describe('Structure Analyzer - Plan 15 readme_run_sections', () => {
+  describe('Structure Analyzer - readme_run_sections', () => {
     it('accepts a readme_run_sections array with verbatim heading + body + fenced blocks', () => {
       const output = {
         agent_name: 'structure-architecture-analyzer',

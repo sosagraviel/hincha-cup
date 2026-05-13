@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { deriveStackAgnosticRole } from '../../../../src/services/graph-wiki/wiki-generator.service.js';
 
 /**
- * Wave 2 Fix 3.4 — `<role>` derives from `service.type` +
- * `service.frameworks.main` via a stack-agnostic mapping. Plan §B.21
- * lists canonical examples across language families. The fixtures
- * here exercise every category so a regression on any one stack
+ * `<role>` derives from `service.type` + `service.frameworks.main`
+ * via a stack-agnostic mapping. Canonical examples are exercised
+ * across language families so a regression on any one stack
  * (e.g. losing the Rails branch when reordering JS frameworks)
  * surfaces immediately.
  *
@@ -14,7 +13,7 @@ import { deriveStackAgnosticRole } from '../../../../src/services/graph-wiki/wik
  * service ids or paths.
  */
 
-describe('deriveStackAgnosticRole — Wave 2 Fix 3.4', () => {
+describe('deriveStackAgnosticRole', () => {
   describe.each([
     // JS/TS backends
     { framework: 'NestJS ^11.0.11', type: 'backend', expected: 'NestJS REST/WebSocket API' },

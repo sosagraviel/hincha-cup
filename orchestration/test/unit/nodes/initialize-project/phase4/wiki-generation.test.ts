@@ -160,13 +160,13 @@ describe('wikiGenerationNode (finalization)', () => {
     }
   });
 
-  it('threads code_graph_stats from preflight into .state.json (Wave 1.6)', async () => {
-    // Anti-regression: prior to Wave 1.6 the wiki-generation node called
-    // buildStateJson without graph_stats, so .state.json on every run
-    // recorded `graph_stats: null` even though state.code_graph_stats was
-    // available in scope. Consumers (wiki refresh, lint, dashboard) had
-    // to re-run `code-review-graph stats` to get the same numbers. The
-    // fix threads the preflight stats through.
+  it('threads code_graph_stats from preflight into .state.json', async () => {
+    // Anti-regression: the wiki-generation node once called buildStateJson
+    // without graph_stats, so .state.json on every run recorded
+    // `graph_stats: null` even though state.code_graph_stats was available
+    // in scope. Consumers (wiki refresh, lint, dashboard) had to re-run
+    // `code-review-graph stats` to get the same numbers. The fix threads
+    // the preflight stats through.
     await wikiGenerationNode(state);
 
     const stateWrite = vi
@@ -223,9 +223,9 @@ describe('wikiGenerationNode (finalization)', () => {
     expect(body).toContain('<!-- GRAPH_DISCIPLINE_START -->');
     expect(body).toContain('<!-- GRAPH_DISCIPLINE_END -->');
     expect(body).toContain('## Graph navigation discipline');
-    // Plan §E.1 (2026-05-05): the body upserted here is a SHORT POINTER
-    // to the wiki router, not the full discipline body. The full body
-    // lives in `docs/llm-wiki/CLAUDE.md`. Anti-regression on size bloat.
+    // The body upserted here is a SHORT POINTER to the wiki router, not
+    // the full discipline body. The full body lives in
+    // `docs/llm-wiki/CLAUDE.md`. Anti-regression on size bloat.
     expect(body).toMatch(/wiki router/i);
     expect(body).toContain('docs/llm-wiki/CLAUDE.md');
     // Canonical lean-defaults / forbidden-tool tokens are NOT inlined

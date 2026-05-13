@@ -8,7 +8,7 @@ import {
 } from '../../../../../../src/nodes/initialize-project/phase1/shared/incremental.service.js';
 
 /**
- * Wave 3 §I.6 — incremental Phase 1 opt-in fast path.
+ * Incremental Phase 1 opt-in fast path.
  *
  * The fast path skips Phase 1 entirely when the graph SHA hasn't
  * changed since the prior run AND every prior output file is still

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { renderSchemaSkeleton } from '../../../../src/services/framework/schema-skeleton/render-skeleton.js';
 import { AGENT_OUTPUT_SCHEMAS } from '../../../../src/schemas/phase1-agent-outputs.schema.js';
 
-describe('renderSchemaSkeleton — Plan v8', () => {
+describe('renderSchemaSkeleton', () => {
   describe('primitive types', () => {
     it('renders string as "<string>"', () => {
       expect(renderSchemaSkeleton(z.string())).toBe('"<string>"');

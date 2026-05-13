@@ -3,7 +3,7 @@ import { buildCoreSpecs } from '../../../../src/services/graph-wiki/document-spe
 import { Provider } from '../../../../src/providers/types.js';
 
 /**
- * Wave 2 Fix 2.4 — when the structure-architecture analyzer surfaces
+ * When the structure-architecture analyzer surfaces
  * `findings.architecture.coupling` (hubs/bridges from the graph's top
  * topology results), the Phase 4 ARCHITECTURE.md spec must include a
  * "Coupling hotspots" instruction in its promptFocus so the wiki-gen
@@ -38,7 +38,7 @@ function buildOptions(structureFindings: unknown) {
   };
 }
 
-describe('architecture document spec — Coupling hotspots prompt focus (Wave 2 Fix 2.4)', () => {
+describe('architecture document spec — Coupling hotspots prompt focus', () => {
   it('includes a Coupling hotspots focus when hubs are present', () => {
     const specs = buildCoreSpecs(
       buildOptions({

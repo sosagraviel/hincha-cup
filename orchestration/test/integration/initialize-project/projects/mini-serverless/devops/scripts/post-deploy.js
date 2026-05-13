@@ -1,5 +1,5 @@
-// Plan v5 fixture — post-deploy hook. Tags the released version,
-// purges CDN caches, posts to slack. The fixture just logs.
+// Post-deploy hook that tags the released version, purges CDN caches,
+// and posts to slack. This demo implementation just logs.
 import { existsSync, readFileSync } from 'fs';
 
 if (existsSync('.deploy-manifest.json')) {

@@ -2,7 +2,7 @@
   "name": "mini-serverless",
   "version": "0.1.0",
   "private": true,
-  "description": "Plan v5 fixture — clasp-shape: Firebase + GCP Cloud Functions + JS/TS/Python.",
+  "description": "Firebase + GCP Cloud Functions serverless demo (JS/TS/Python).",
   "engines": { "node": ">=22", "pnpm": ">=10" },
   "packageManager": "pnpm@10.2.1",
   "scripts": {

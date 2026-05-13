@@ -1,5 +1,5 @@
 /**
- * Plan v5 §1.7 — integration-fixtures sanity test.
+ * Integration-fixtures sanity test.
  *
  * Asserts (no LLM, no spawn):
  *   - Each fixture's file count + source-file count stays under its

@@ -6,7 +6,7 @@ import {
 } from '../../../../../../src/nodes/initialize-project/phase1/shared/banned-globs.js';
 import { computeSoftWarnings } from '../../../../../../src/nodes/initialize-project/phase1/shared/graph-tool-usage.js';
 
-describe('banned-globs detector — Plan v6 Phase 2', () => {
+describe('banned-globs detector', () => {
   describe('detectBannedGlobs', () => {
     it('returns empty when the agent called no globs', () => {
       expect(detectBannedGlobs([])).toEqual([]);

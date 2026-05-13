@@ -1,14 +1,12 @@
 /**
- * Plan v4 Phase A.2 — analyzer-emitted dialect tokens
- * (`tsx` / `jsx` / `mts` / `cts` / `bash` / `zsh` / `kt` / `cs` /
- * `cpp` / `py` / `rs`) must collapse to canonical names BEFORE
- * landing in the rendered Tech Stack section, the Phase 4
- * `finalLanguages` set, and the architecture-narrative composer
- * view's `primary_languages`.
+ * Analyzer-emitted dialect tokens (`tsx` / `jsx` / `mts` / `cts` /
+ * `bash` / `zsh` / `kt` / `cs` / `cpp` / `py` / `rs`) must collapse
+ * to canonical names BEFORE landing in the rendered Tech Stack section,
+ * the Phase 4 `finalLanguages` set, and the architecture-narrative
+ * composer view's `primary_languages`.
  *
  * Without this the user sees `Languages: typescript, tsx, …` in
- * the rendered CLAUDE.md (regression observed on
- * archive/v3-iteration-100, run 2026-05-08T18-26-08).
+ * the rendered CLAUDE.md.
  *
  * The fix passes every entry through `normalizeLanguage` at four
  * spots that previously emitted raw analyzer values:
@@ -52,7 +50,7 @@ function makeLogger(): SinkLogger {
   return sink;
 }
 
-describe('extractLanguagesFromPhase1 — Plan v4 Phase A.2 dialect normalisation', () => {
+describe('extractLanguagesFromPhase1 — dialect normalisation', () => {
   it('collapses tsx → typescript, bash → shell, kt → kotlin, mts → typescript', () => {
     const out = extractLanguagesFromPhase1(
       {
@@ -121,12 +119,12 @@ describe('extractLanguagesFromPhase1 — Plan v4 Phase A.2 dialect normalisation
   });
 });
 
-describe('Phase 4 validators — Plan v4 Phase A.2 dialect normalisation', () => {
+describe('Phase 4 validators — dialect normalisation', () => {
   it('crossValidateWithFileCount normalises before adding to the set', () => {
     const detected = new Set<string>();
-    // Plan v9 Phase 8 — utility languages (shell, bash, etc.) are
-    // skipped, not added to the stack profile. `bash` normalises to
-    // `shell` which is in UTILITY_LANGUAGES.
+    // Utility languages (shell, bash, etc.) are skipped, not added to
+    // the stack profile. `bash` normalises to `shell` which is in
+    // UTILITY_LANGUAGES.
     crossValidateWithFileCount(
       detected,
       {
@@ -144,7 +142,7 @@ describe('Phase 4 validators — Plan v4 Phase A.2 dialect normalisation', () =>
     expect(Array.from(detected).sort()).toEqual(['kotlin', 'typescript']);
   });
 
-  it('crossValidateWithFileCount skips utility languages (Plan v9 Phase 8)', () => {
+  it('crossValidateWithFileCount skips utility languages', () => {
     const detected = new Set<string>();
     const sink = makeLogger();
     crossValidateWithFileCount(
@@ -189,7 +187,7 @@ describe('Phase 4 validators — Plan v4 Phase A.2 dialect normalisation', () =>
   });
 });
 
-describe('validateStackProfile — Plan v4 Phase A.2 warning hygiene', () => {
+describe('validateStackProfile — warning hygiene', () => {
   const baseFileCount = (overrides: Partial<FileCountResult> = {}): FileCountResult => ({
     total_files: 0,
     by_language: [],
@@ -230,7 +228,7 @@ describe('validateStackProfile — Plan v4 Phase A.2 warning hygiene', () => {
     expect(sink.warns).toEqual([]);
   });
 
-  it('drops a config-only language and emits info (Plan v8 Phase D)', () => {
+  it('drops a config-only language and emits info', () => {
     const sink = makeLogger();
     const cleaned = validateStackProfile(
       ['typescript', 'javascript'],
@@ -251,7 +249,7 @@ describe('validateStackProfile — Plan v4 Phase A.2 warning hygiene', () => {
     expect(cleaned).toEqual(['typescript']);
   });
 
-  it('drops a no-files language and emits a warn (Plan v8 Phase D)', () => {
+  it('drops a no-files language and emits a warn', () => {
     const sink = makeLogger();
     const cleaned = validateStackProfile(
       ['typescript', 'erlang'],
@@ -284,10 +282,10 @@ describe('validateStackProfile — Plan v4 Phase A.2 warning hygiene', () => {
     ).toThrow(/Stack profile missing python/);
   });
 
-  // Plan v9 Phase 8 — utility languages (CSS / YAML / JSON / shell /
-  // SQL / …) must never trigger the advisory warn or the hard error.
-  // Analyzers correctly omit them from the stack profile by design.
-  it('does NOT warn or throw on utility languages not in profile (Plan v9 Phase 8)', () => {
+  // Utility languages (CSS / YAML / JSON / shell / SQL / …) must never
+  // trigger the advisory warn or the hard error. Analyzers correctly
+  // omit them from the stack profile by design.
+  it('does NOT warn or throw on utility languages not in profile', () => {
     const sink = makeLogger();
     expect(() =>
       validateStackProfile(

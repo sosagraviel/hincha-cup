@@ -1,5 +1,5 @@
 /**
- * Plan v4 Phase E — buildComposerViews unit tests.
+ * buildComposerViews unit tests.
  *
  * Asserts:
  *   - Empty inputs → all `present.*` flags false; views still validate.
@@ -274,9 +274,9 @@ describe('buildComposerViews', () => {
     );
   });
 
-  // Plan v8 Phase C — analyzer-direct fallback. When no Phase 1.5 slice
-  // exists, the composer view reads per-service rollups directly from
-  // the Phase 1 analyzer outputs (code-patterns + data-flows).
+  // Analyzer-direct fallback: when no Phase 1.5 slice exists, the composer
+  // view reads per-service rollups directly from the Phase 1 analyzer
+  // outputs (code-patterns + data-flows).
   it('falls back to analyzer-direct by-service rollups when no slices exist', () => {
     const structure = makeStructure([
       { id: 'api', path: 'services/api', type: 'backend', language: 'typescript' },
@@ -372,8 +372,8 @@ describe('buildComposerViews', () => {
     expect(bundle.multi_file_workflows.present.any_request_lifecycle).toBe(true);
   });
 
-  // Plan v9 — deterministic-derivation fallback. Even when neither slices
-  // nor analyzer-direct rollups are present, the composer-view builder
+  // Deterministic-derivation fallback: even when neither slices nor
+  // analyzer-direct rollups are present, the composer-view builder
   // populates `present.*` from the language-config registry × the
   // project-inspection JSON.
   it('falls back to deterministic derivation when slices + analyzer outputs are empty', () => {

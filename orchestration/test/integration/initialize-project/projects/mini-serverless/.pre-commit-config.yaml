@@ -1,4 +1,4 @@
-# Plan v5 fixture — Python-side hook framework (alternate to husky).
+# Python-side pre-commit hook configuration (alternate to husky).
 # Both run side-by-side: husky guards JS/TS-shaped commits, pre-commit
 # guards Python.
 repos:

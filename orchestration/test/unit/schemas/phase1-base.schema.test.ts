@@ -1,5 +1,5 @@
 /**
- * Plan v4 Phase C — phase1-base.schema unit tests.
+ * phase1-base.schema unit tests.
  *
  * Asserts:
  *  - `buildPhase1AnalyzerSchema()` narrows `agent_name` to the supplied literal.
@@ -166,10 +166,10 @@ describe('CodeSnippetSchema', () => {
 });
 
 describe('CodeSnippetWithCitationSchema', () => {
-  // Plan v9 Phase 5 — every per-service judgment snippet must carry
-  // `source_file` + `source_line`. Loose `CodeSnippetSchema` remains
-  // available for project-level shape examples that legitimately have
-  // no single canonical line.
+  // Every per-service judgment snippet must carry `source_file` +
+  // `source_line`. Loose `CodeSnippetSchema` remains available for
+  // project-level shape examples that legitimately have no single
+  // canonical line.
   it('accepts a snippet with both citation fields', () => {
     const ok = CodeSnippetWithCitationSchema.safeParse({
       kind: 'controller-shape',

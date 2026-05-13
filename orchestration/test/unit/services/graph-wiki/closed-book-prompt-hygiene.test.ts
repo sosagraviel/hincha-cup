@@ -14,7 +14,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Wave 2 Fix 6.2 — closed-book prompt hygiene.
+ * Closed-book prompt hygiene.
  *
  * Closed-book agents (consolidator, synthesizer, wiki-generator)
  * have `tools: none` in their frontmatter — they cannot call MCP
@@ -23,9 +23,8 @@ const __dirname = dirname(__filename);
  * therefore dead text in their prompts: ~8 KB of noise per spawn,
  * across 8+ closed-book attempts in a typical run.
  *
- * The 2026-05-04 gira run shipped the catalog in every wiki-generator
- * prompt. This test is the defensive scan: any future code path that
- * leaks the catalog into a closed-book prompt will fail this test
+ * This test is the defensive scan: any future code path that leaks
+ * the catalog into a closed-book prompt will fail this test
  * immediately.
  *
  * Stack-agnostic: every fixture uses generic ids and the test
@@ -47,7 +46,7 @@ function containsCatalog(prompt: string): boolean {
   return CATALOG_SIGNATURES.some((pattern) => pattern.test(prompt));
 }
 
-describe('closed-book prompt hygiene — Wave 2 Fix 6.2', () => {
+describe('closed-book prompt hygiene', () => {
   // Phase 2 consolidator block removed: `buildConsolidationPrompt`
   // was deleted in the Phase 2 refactor; the consolidator no longer
   // builds its prompt through that entry point.
@@ -87,13 +86,13 @@ describe('closed-book prompt hygiene — Wave 2 Fix 6.2', () => {
       expect(containsCatalog(prompt)).toBe(false);
     });
 
-    it('mentions command_catalog (Plan 15 anti-regression — rendering rule MUST be present)', () => {
-      // Plan 15 §D.5 + §D.8.2: the synthesis-instructions prompt MUST
-      // tell the closed-book agent how to render the deterministic
-      // `command_catalog` (wrapper > readme > package_manager > ci).
-      // If a future prompt edit drops this guidance, the synthesizer
-      // falls back to ad-hoc `Essential Commands` rendering and the
-      // gira regression returns. This assertion locks the contract.
+    it('mentions command_catalog (anti-regression — rendering rule MUST be present)', () => {
+      // The synthesis-instructions prompt MUST tell the closed-book
+      // agent how to render the deterministic `command_catalog`
+      // (wrapper > readme > package_manager > ci). If a future prompt
+      // edit drops this guidance, the synthesizer falls back to ad-hoc
+      // `Essential Commands` rendering. This assertion locks the
+      // contract.
       const prompt = buildSynthesisPrompt({});
       expect(prompt).toMatch(/command_catalog/);
       // The rendering rule must explicitly forbid re-ordering.
@@ -158,8 +157,8 @@ describe('closed-book prompt hygiene — Wave 2 Fix 6.2', () => {
     });
   });
 
-  describe('Phase 2 consolidator agent file (Plan 14 §C.9.1 anti-regression)', () => {
-    // Plan 14 §0 architectural split: the consolidator is a dumb
+  describe('Phase 2 consolidator agent file (anti-regression)', () => {
+    // Architectural contract: the consolidator is a dumb
     // set-deduplicator with no code-analysis responsibility. This
     // suite locks the agent file's tool surface to `none` and
     // forbids the prompt from describing code-analysis behaviour.
@@ -200,9 +199,9 @@ describe('closed-book prompt hygiene — Wave 2 Fix 6.2', () => {
     });
 
     it('explicitly forbids code analysis (You are NOT section)', () => {
-      // Plan 14 §C.9.4 mandates a "You are NOT" section that calls
-      // out the three categories the consolidator must NOT do:
-      // code analyzer, quality reviewer, editor.
+      // A "You are NOT" section must call out the three categories the
+      // consolidator must NOT do: code analyzer, quality reviewer,
+      // editor.
       expect(agentBody).toMatch(/You are NOT/);
       expect(agentBody.toLowerCase()).toMatch(/code analyzer/);
       expect(agentBody.toLowerCase()).toMatch(/quality reviewer/);

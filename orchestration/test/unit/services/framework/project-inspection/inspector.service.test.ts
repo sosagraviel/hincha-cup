@@ -1,5 +1,5 @@
 /**
- * Plan v3 §A — project-inspection unit tests.
+ * Project-inspection unit tests.
  *
  * Exercises the inspector against a set of synthetic projects that
  * cover the major language families and project shapes:
@@ -204,7 +204,7 @@ describe('inspectProject — infrastructure detection', () => {
   });
 });
 
-describe('inspectProject — infrastructure_services_hints (Plan v5 Phase 4)', () => {
+describe('inspectProject — infrastructure_services_hints', () => {
   it('extracts named service → port pairs from docker-compose', async () => {
     write(
       'docker-compose.yml',

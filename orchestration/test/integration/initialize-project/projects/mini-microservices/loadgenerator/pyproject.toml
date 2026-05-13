@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 name = "loadgenerator"
 version = "0.1.0"
 authors = ["Qubika"]
-description = "Plan v5 fixture — Online Boutique loadgenerator."
+description = "Synthetic load generator service."
 
 [tool.poetry.dependencies]
 python = "^3.12"

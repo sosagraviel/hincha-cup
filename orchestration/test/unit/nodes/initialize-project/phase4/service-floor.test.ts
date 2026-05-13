@@ -1,13 +1,10 @@
 /**
- * Plan §E.4 (2026-05-05) — service-floor filter regression tests.
+ * Service-floor filter regression tests.
  *
- * The 2026-05-04 gira `/initialize-project` run shipped a `seeds` service in
- * `framework-config.json` with `file_count: 2` and no `manifest_file`. It
- * was surfaced by the structure-architecture analyzer because
- * `pnpm-workspace.yaml` listed `seeds/`, but the directory only held two
- * SQL migration helpers — far below the threshold for an implementer agent
- * to be useful. Phase 4 now drops services where the file count is
- * explicitly low AND no manifest is present.
+ * Phase 4 drops services where the file count is explicitly low AND no
+ * manifest is present — e.g. a workspace-yaml-derived directory with only
+ * a few SQL migration helpers is far below the threshold for an implementer
+ * agent to be useful.
  *
  * The filter logic lives at the bottom of the service-extraction block in
  * `phase4/context-generation.node.ts`. The constants are documented in
@@ -117,7 +114,7 @@ body
 body
 `;
 
-describe('Phase 4 — service-floor filter (§E.4)', () => {
+describe('Phase 4 — service-floor filter', () => {
   let state: InitializeProjectState;
 
   beforeEach(() => {
@@ -180,13 +177,12 @@ describe('Phase 4 — service-floor filter (§E.4)', () => {
 
   it('exports the documented threshold constants', () => {
     // Anti-regression: the filter logic in context-generation.node.ts and
-    // the constants here must agree. The plan (§E.4) calls these out
-    // explicitly so future readers can find the floor.
+    // the constants here must agree so future readers can find the floor.
     expect(MIN_FILES_FOR_FALLBACK_SERVICE).toBe(10);
     expect(MIN_FILES_FOR_NO_MANIFEST_SERVICE).toBe(5);
   });
 
-  it('drops a no-manifest service with explicit file_count below the floor (the gira `seeds` case)', async () => {
+  it('drops a no-manifest service with explicit file_count below the floor', async () => {
     mockPhase1WithServices([
       {
         id: 'backend',
@@ -198,7 +194,7 @@ describe('Phase 4 — service-floor filter (§E.4)', () => {
         file_count: 50,
       },
       {
-        // The exact gira shape: workspace-yaml-derived, no manifest, low count.
+        // Workspace-yaml-derived, no manifest, low count — should be dropped.
         id: 'seeds',
         path: 'seeds',
         type: 'library',
@@ -218,10 +214,8 @@ describe('Phase 4 — service-floor filter (§E.4)', () => {
   it('keeps a manifest-backed service even when file_count is well below the floor', async () => {
     // A freshly scaffolded package may legitimately have only one file —
     // the presence of a manifest is enough signal to keep it.
-    // Plan 16 §C.5: service ids are normalised to slugify(basename(path)).
-    // Path is `packages/fresh-pkg` so the id matches the basename. The
-    // contract being tested (manifest-backed service kept regardless of
-    // file_count) is preserved.
+    // Service ids are normalised to slugify(basename(path)).
+    // Path is `packages/fresh-pkg` so the id matches the basename.
     mockPhase1WithServices([
       {
         id: 'fresh-pkg',
@@ -264,7 +258,7 @@ describe('Phase 4 — service-floor filter (§E.4)', () => {
   });
 
   it('keeps a no-manifest service when file_count is at the floor exactly', async () => {
-    // Plan 16 §C.5: id matches basename of path.
+    // id matches basename of path.
     mockPhase1WithServices([
       {
         id: 'right-at-floor',

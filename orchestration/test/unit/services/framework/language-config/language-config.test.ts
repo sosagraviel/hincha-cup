@@ -19,7 +19,7 @@ import {
   allManifestPatternsForDiscovery,
 } from '../../../../../src/services/framework/language-config/index.js';
 
-describe('language-config registry — Plan v7 Phase 1', () => {
+describe('language-config registry', () => {
   describe('registry consistency', () => {
     it('exposes at least the v6 set of languages (regression guard)', () => {
       const keys = getAllLanguages().map((l) => l.key);
@@ -96,7 +96,6 @@ describe('language-config registry — Plan v7 Phase 1', () => {
       }
     });
 
-    // Plan v9 Phase 2.10 — consistency of the three new toolToken categories.
     it('externalServiceSdks entries have non-empty pkg + vendor + purpose', () => {
       for (const l of getAllLanguages()) {
         for (const entry of l.toolTokens?.externalServiceSdks ?? []) {
@@ -234,14 +233,14 @@ describe('language-config registry — Plan v7 Phase 1', () => {
       expect(runtimeFiles).toEqual([...runtimeFiles].sort());
     });
 
-    // Plan v9 Phase 6 — drives the service-completeness validator's
-    // discovery surface. Includes wildcard kinds (Xcode / C#) alongside
-    // exact filenames; iOS / Android signals must appear.
+    // Drives the service-completeness validator's discovery surface.
+    // Includes wildcard kinds (Xcode / C#) alongside exact filenames;
+    // iOS / Android signals must appear.
     it('allManifestPatternsForDiscovery exposes every manifest kind (including mobile)', () => {
       const patterns = allManifestPatternsForDiscovery();
       expect(patterns).toEqual([...patterns].sort());
       expect(new Set(patterns).size).toBe(patterns.length);
-      // Mobile signals — load-bearing for the gira mobile-app failure mode.
+      // Mobile signals — load-bearing for mobile-app detection.
       expect(patterns).toContain('AndroidManifest.xml');
       expect(patterns).toContain('Package.swift');
       expect(patterns).toContain('Info.plist');

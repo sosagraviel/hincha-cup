@@ -1,5 +1,5 @@
 /**
- * Plan v4 Phase F — `detectNonPortableAbsolutePath` unit tests.
+ * `detectNonPortableAbsolutePath` unit tests.
  *
  * Asserts:
  *   - `/Users/<name>/...` and `/home/<name>/...` paths are rejected.

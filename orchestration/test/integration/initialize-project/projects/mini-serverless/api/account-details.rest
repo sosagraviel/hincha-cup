@@ -1,4 +1,4 @@
-# Plan v5 fixture — REST Client manual probes.
+# REST Client manual probes.
 # Run with the "REST Client" VS Code extension.
 
 @host = http://localhost:5001/mini-serverless-dev/us-central1

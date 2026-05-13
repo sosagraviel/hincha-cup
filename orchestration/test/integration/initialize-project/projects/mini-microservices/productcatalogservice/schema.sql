@@ -1,4 +1,4 @@
--- Plan v5 fixture — illustrative SQL schema. The fixture's runtime
+-- Illustrative SQL schema for the product catalog. The demo runtime
 -- uses products.json; production would migrate to this shape.
 CREATE TABLE IF NOT EXISTS products (
   id              VARCHAR(64)  PRIMARY KEY,

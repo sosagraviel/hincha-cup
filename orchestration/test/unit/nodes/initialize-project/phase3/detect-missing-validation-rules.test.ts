@@ -1,13 +1,10 @@
 /**
- * Plan §E.5 (2026-05-05) — soft-warning detector for missing
- * "Validation Rules" sub-section in code-conventions/SKILL.md.
+ * Soft-warning detector for missing "Validation Rules" sub-section in
+ * code-conventions/SKILL.md.
  *
- * The 2026-05-04 gira run shipped a code-conventions skill with no
- * Zod / class-validator coverage even though both packages were in the
- * dependency tree. This is a soft signal — synthesis is an LLM, may
- * legitimately omit on a project that imports a validation lib but
- * doesn't actually use it — so the warning surfaces in the run log
- * rather than failing the build.
+ * This is a soft signal — synthesis is an LLM and may legitimately omit
+ * on a project that imports a validation lib but doesn't actually use it
+ * — so the warning surfaces in the run log rather than failing the build.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -150,9 +147,8 @@ Throw typed errors.
     expect(detectMissingValidationRules(body, ['zod'])).toBeNull();
   });
 
-  it('the gira regression: zod + class-validator detected, no validation rules section', () => {
-    // Reproduces the exact 2026-05-04 gira scenario: a body covering
-    // controllers/repos/error handling but no validation guidance.
+  it('regression: zod + class-validator detected, no validation rules section', () => {
+    // A body covering controllers/repos/error handling but no validation guidance.
     const giraLikeBody = `# Code Conventions
 
 ## Repository Pattern

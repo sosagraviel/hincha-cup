@@ -410,11 +410,7 @@ describe('file-counter', () => {
     });
   });
 
-  // ==========================================================================
-  // Plan v4 Phase A.2 — newly-covered canonical languages
-  // ==========================================================================
-
-  describe('Plan v4 Phase A.2 — newly-covered canonical languages', () => {
+  describe('newly-covered canonical languages', () => {
     it('counts a single .sh file as `shell`', async () => {
       await writeFile(join(testDir, 'deploy.sh'), '#!/bin/bash\necho ok\n');
       const result = await countFilesByLanguage(testDir);

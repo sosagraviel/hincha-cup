@@ -1,5 +1,5 @@
 /**
- * Plan v4 Phase F — `detectInputUnavailableStub` unit tests.
+ * `detectInputUnavailableStub` unit tests.
  *
  * Asserts:
  *   - Five framework-emitted apology phrases are caught.

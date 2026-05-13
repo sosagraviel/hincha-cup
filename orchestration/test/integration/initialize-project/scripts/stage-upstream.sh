@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Plan v5 §1.4.b — copy pre-recorded upstream outputs into a fixture so
-# a downstream agent can run in isolation without spending tokens on its
-# upstream dependencies.
+# Copy pre-recorded upstream outputs into a fixture so a downstream agent
+# can run in isolation without spending tokens on its upstream dependencies.
 #
 # Phases recognised (cumulative — phase1 implies phase0):
 #   phase0    project-inspection.json + graph-foundation artefacts

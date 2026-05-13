@@ -1,22 +1,12 @@
 /**
- * Plan v4 Phase H — synthesizer prompt-size budget.
+ * Synthesizer prompt-size budget.
  *
  * The synthesizer's static instruction body (`synthesis-instructions.md`)
- * lands inside every Phase 3 prompt. With composer views (Phase E +
- * Phase F) the synthesizer no longer needs the open-book "Read code,
- * walk the tree, decide" guidance that bloated the file historically.
+ * lands inside every Phase 3 prompt. The synthesizer only operates on
+ * composer-view inputs, not the raw source tree.
  *
- * Plan v4 §H acceptance: synthesizer first-attempt prompt ≤ 7 KB. Today
- * the static instruction body is ~26 KB (with consolidation JSON +
- * provider override appended at runtime). The eventual ≤ 7 KB target
- * is achieved by Phase H's *content* slim — moving the per-output
- * recipe to a Read-on-demand resource (analogue of v3 §F.1 cookbook
- * move) and trimming the open-book branches Phase F's path-restriction
- * hook now blocks anyway.
- *
- * For now this test ratchets the upper bound at the current measured
- * size (~26.4 KB) so any silent regrowth fails. Subsequent ratchets
- * lower this number as Phase H's content cuts land.
+ * This test ratchets the upper bound at the current measured size so any
+ * silent regrowth fails CI.
  */
 
 import { readFileSync, statSync } from 'fs';
@@ -33,7 +23,7 @@ const SYNTHESIS_AGENT_FRONTMATTER = join(
   '../../../../../src/nodes/initialize-project/phase3/prompts/agent.md',
 );
 
-describe('synthesizer prompt-size budget — Plan v4 Phase H ratchet', () => {
+describe('synthesizer prompt-size budget — ratchet', () => {
   it('synthesis-instructions.md stays under the current ratchet (≤ 27 KB)', () => {
     const size = statSync(SYNTHESIS_INSTRUCTIONS).size;
     // Current measured size: 26369. Ratchet at 27 KB so future small
@@ -50,12 +40,11 @@ describe('synthesizer prompt-size budget — Plan v4 Phase H ratchet', () => {
     expect(size).toBeLessThanOrEqual(4000);
   });
 
-  it("synthesis-instructions.md does NOT mention open-book Read patterns Phase F's hook now blocks", () => {
-    // Plan v4 Phase F's restrict-synthesizer-reads hook rejects Read
-    // outside <tempDir>/ + every Glob/Bash/Write/Edit/MultiEdit/LS/
-    // NotebookEdit. Any "you may walk the source tree" / "Glob the
-    // services directory" guidance in the instructions is now
-    // contradictory and confusing for the agent.
+  it('synthesis-instructions.md does NOT mention open-book Read patterns the hook blocks', () => {
+    // The restrict-synthesizer-reads hook rejects Read outside <tempDir>/
+    // and every Glob/Bash/Write/Edit/MultiEdit/LS/NotebookEdit. Any
+    // "you may walk the source tree" / "Glob the services directory"
+    // guidance is contradictory and confusing for the agent.
     const body = readFileSync(SYNTHESIS_INSTRUCTIONS, 'utf-8');
 
     // Anti-regression — these phrases historically encouraged the

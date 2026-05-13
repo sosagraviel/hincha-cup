@@ -1,5 +1,5 @@
-# Plan v5 fixture — exclude the framework symlink target FIRST so the
-# graph builder doesn't follow it into the full framework checkout.
+# Exclude the framework symlink target FIRST so the graph builder doesn't
+# follow it into the full framework checkout.
 qubika-agentic-framework/
 qubika-agentic-framework
 # Standard ignore set (matches gira's shape)

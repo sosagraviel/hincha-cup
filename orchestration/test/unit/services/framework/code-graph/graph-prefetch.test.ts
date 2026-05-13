@@ -13,8 +13,8 @@ import {
 } from '../../../../../src/services/framework/code-graph/graph-prefetch.service.js';
 
 /**
- * Wave 3 §I.2 — graph prefetch read path + snapshot shape + write
- * path. End-to-end coverage of the prefetch helper module.
+ * Graph prefetch read path + snapshot shape + write path. End-to-end
+ * coverage of the prefetch helper module.
  *
  * Stack-agnostic: every snapshot field is graph-derived (community
  * names, qualified_names) — no language assumption.
@@ -121,10 +121,10 @@ describe('renderPrefetchHint', () => {
     expect(hint).toContain('svc-a, svc-b');
   });
 
-  // Plan v9 Phase 9 — fat-cluster names must never reach the agent's
-  // prefetch hint. Each name below is a real-world community label that
-  // would overflow the agent's context if the agent drilled into it.
-  it('filters every fat-cluster community-name pattern (Plan v9 Phase 9)', () => {
+  // Fat-cluster names must never reach the agent's prefetch hint. Each
+  // name below is a real-world community label that would overflow the
+  // agent's context if the agent drilled into it.
+  it('filters every fat-cluster community-name pattern', () => {
     const offenders = [
       'users-it:should-create-user',
       'auth-test:reject-invalid-token',

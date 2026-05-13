@@ -127,11 +127,10 @@ describe('validateWikiOutput — Rule 3: framework jargon (preserved from earlie
 });
 
 describe('validateWikiOutput — Rule 4: no trailing meta-sections', () => {
-  // Plan §E.2 (2026-05-05): the gira run shipped a `## Verification Notes`
-  // trailing section in ARCHITECTURE.md. The wiki is GROUND TRUTH; meta
-  // sections that describe the wiki's own confidence belong in
-  // `.state.json`, not in user-facing prose. This rule blocks all known
-  // shapes of the leak.
+  // A `## Verification Notes` trailing section was once found in
+  // ARCHITECTURE.md. The wiki is GROUND TRUTH; meta sections that
+  // describe the wiki's own confidence belong in `.state.json`, not in
+  // user-facing prose. This rule blocks all known shapes of the leak.
   const FORBIDDEN_HEADINGS = [
     '## Verification',
     '## Verification Notes',

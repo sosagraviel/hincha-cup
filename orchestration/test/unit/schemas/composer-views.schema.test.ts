@@ -1,5 +1,5 @@
 /**
- * Plan v4 Phase E — composer-views schema unit tests.
+ * Composer-views schema unit tests.
  *
  * Asserts:
  *   - Each view requires `schema_version === 1`, `generated_at`,

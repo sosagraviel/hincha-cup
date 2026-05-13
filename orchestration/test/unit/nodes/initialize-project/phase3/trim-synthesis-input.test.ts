@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { trimSynthesisInput } from '../../../../../src/nodes/initialize-project/phase3/helpers/trim-synthesis-input.js';
 
 /**
- * Wave 3 §I.4 — trim Phase 3 synthesis input.
+ * Trim Phase 3 synthesis input.
  *
  * The synthesizer ingests the consolidated Phase 2 blob. Pre-trim
  * that blob carried full per-analyzer outputs (often 30-50 KB).
@@ -17,7 +17,7 @@ import { trimSynthesisInput } from '../../../../../src/nodes/initialize-project/
  * outputs are dropped.
  */
 
-describe('trimSynthesisInput — Wave 3 §I.4', () => {
+describe('trimSynthesisInput', () => {
   it('preserves consolidated_gaps and consolidation_metadata', () => {
     const trimmed = trimSynthesisInput({
       consolidated_gaps: [{ id: 'g1', question: 'Why?', priority: 'high' }],
@@ -99,9 +99,8 @@ describe('trimSynthesisInput — Wave 3 §I.4', () => {
       },
     });
     const keys = Object.keys(trimmed);
-    // Plan 15 §D.4 — `command_catalog` is added unconditionally.
-    // Plan v6 Phase 8 — `essential_commands_markdown` is added
-    // unconditionally too (it's the pre-rendered markdown the
+    // `command_catalog` and `essential_commands_markdown` are added
+    // unconditionally (the latter is pre-rendered markdown the
     // synthesizer copies verbatim). `automation` and
     // `readme_run_sections` only when discovered.
     expect(keys.sort()).toEqual([
@@ -156,8 +155,7 @@ describe('trimSynthesisInput — Wave 3 §I.4', () => {
   });
 
   it('Jaccard-like size comparison: trimmed JSON is much smaller than raw', () => {
-    // Synthetic fixture mirroring the gira-2026-05-04 measurement:
-    // ~30 KB raw consolidation, ~3 KB trimmed.
+    // Synthetic fixture: ~30 KB raw consolidation, ~3 KB trimmed.
     const raw: Record<string, unknown> = {
       consolidated_gaps: [{ id: 'g1', question: 'Why?', priority: 'high' }],
       consolidation_metadata: { original_gap_count: 1 },

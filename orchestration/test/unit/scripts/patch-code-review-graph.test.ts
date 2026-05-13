@@ -1,8 +1,7 @@
 /**
  * Regression net for `scripts/lib/patch-code-review-graph.py`.
  *
- * The patcher fixes three upstream bugs in `code-review-graph 2.3.2`
- * that the 2026-05-05 gira run surfaced or would surface:
+ * The patcher fixes three upstream bugs in `code-review-graph 2.3.2`:
  *
  *   1. analysis_tools.py — five tools call `_validate_repo_root(str)`
  *      directly, raising ``'str' object has no attribute 'resolve'``

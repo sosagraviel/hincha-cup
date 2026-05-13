@@ -1,5 +1,5 @@
 /**
- * Plan v9 Phase 5 — judgment-field validator unit tests.
+ * Judgment-field validator unit tests.
  *
  * Pure-function tests against `detectMissingJudgmentFields()`. The
  * loader (`loadServiceTypeMap`) is filesystem-bound and covered by

@@ -5,9 +5,9 @@ import {
 } from '../../../../../../src/nodes/initialize-project/phase1/structure-analyzer/hooks/validate-port-discovery.js';
 
 /**
- * Plan 21 §C.2 — output-shape validator. Stack-agnostic: never
- * opens any project file. The agent decides which sources to
- * search; the validator only checks the analyzer's output JSON.
+ * Output-shape validator. Stack-agnostic: never opens any project file.
+ * The agent decides which sources to search; the validator only checks
+ * the analyzer's output JSON.
  *
  * Service types `library`, `cli`, `infrastructure`, `mobile`,
  * `desktop` are exempt. Types `backend`, `frontend`, `serverless`,
@@ -251,7 +251,7 @@ describe('formatPortDiscoveryViolations', () => {
     expect(formatPortDiscoveryViolations([])).toEqual([]);
   });
 
-  it('emits compressed VALIDATION_E011_* feedback citing the service ID (Plan v7 Phase 7)', () => {
+  it('emits compressed VALIDATION_E011_* feedback citing the service ID', () => {
     const lines = formatPortDiscoveryViolations([
       {
         service_id: 'backend',

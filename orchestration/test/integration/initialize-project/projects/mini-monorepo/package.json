@@ -2,7 +2,7 @@
   "name": "mini-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "Plan v5 fixture — gira-shape: NestJS + Vite + Keycloak + shared workspace + seeds CLI.",
+  "description": "NestJS + Vite + Keycloak monorepo with a shared workspace and seeds CLI.",
   "engines": {
     "node": ">=22",
     "pnpm": ">=10"
