@@ -4,11 +4,11 @@ End-to-end fixtures that exercise the `initialize-project` workflow against thre
 
 ## Fixtures
 
-| Fixture | Shape | Stack | Purpose |
-|---|---|---|---|
-| `mini-monorepo` | Single-repo monorepo | NestJS + React + Postgres + Keycloak | Validates the canonical gira-style monorepo flow. |
-| `mini-microservices` | Polyglot services | Go + .NET + Python + Node + protobuf | Validates the structure analyzer's service-by-language discovery. |
-| `mini-serverless` | Cloud-functions monorepo | Firebase + GCP Cloud Functions + TS/JS/Python | Validates the serverless shape (no long-running services, runtime-specific manifests). |
+| Fixture              | Shape                    | Stack                                         | Purpose                                                                                |
+| -------------------- | ------------------------ | --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `mini-monorepo`      | Single-repo monorepo     | NestJS + React + Postgres + Keycloak          | Validates the canonical gira-style monorepo flow.                                      |
+| `mini-microservices` | Polyglot services        | Go + .NET + Python + Node + protobuf          | Validates the structure analyzer's service-by-language discovery.                      |
+| `mini-serverless`    | Cloud-functions monorepo | Firebase + GCP Cloud Functions + TS/JS/Python | Validates the serverless shape (no long-running services, runtime-specific manifests). |
 
 Each fixture ships with:
 
