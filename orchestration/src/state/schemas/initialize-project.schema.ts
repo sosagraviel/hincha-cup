@@ -166,14 +166,6 @@ export const InitializeProjectStateSchema = z.object({
   code_graph_path: z.string().optional(),
   code_graph_stats: CodeGraphStatsSchema.optional(),
   code_graph_error: z.string().optional(),
-  code_graph_tool_catalog: z
-    .array(
-      z.object({
-        name: z.string(),
-        description: z.string(),
-      }),
-    )
-    .optional(),
 
   current_phase: z
     .enum([
@@ -273,7 +265,6 @@ export const InitializeProjectAnnotation = Annotation.Root({
   code_graph_path: Annotation<string | undefined>,
   code_graph_stats: Annotation<CodeGraphStats | undefined>,
   code_graph_error: Annotation<string | undefined>,
-  code_graph_tool_catalog: Annotation<Array<{ name: string; description: string }> | undefined>,
 
   current_phase: Annotation<
     | 'init'

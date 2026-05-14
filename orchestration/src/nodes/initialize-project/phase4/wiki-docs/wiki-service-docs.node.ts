@@ -22,7 +22,6 @@ export async function wikiServiceDocsNode(
       analyzers: context.analyzers,
       stackProfile: context.stackProfile,
       digestedUpstream: context.digestedUpstream,
-      codeGraphToolCatalog: state.code_graph_tool_catalog,
       phase: getInitializeProjectPhase('phase4Wiki'),
       graph: {
         available: state.code_graph_available,

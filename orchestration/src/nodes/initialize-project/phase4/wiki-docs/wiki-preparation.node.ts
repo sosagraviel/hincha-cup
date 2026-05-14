@@ -48,7 +48,6 @@ export async function wikiPreparationNode(
       analyzers,
       stackProfile,
       digestedUpstream,
-      codeGraphToolCatalog: state.code_graph_tool_catalog,
       phase: getInitializeProjectPhase('phase4Wiki'),
       graph: {
         available: state.code_graph_available,

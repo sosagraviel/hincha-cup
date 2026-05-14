@@ -41,12 +41,6 @@ export interface GraphPromptContext {
   available: boolean;
   dbPath?: string;
   stats?: CodeGraphStats;
-  /**
-   * Live MCP tool catalog (`tools/list` from `code-review-graph serve`).
-   * Templated into the prompt so analyzer agents call the real tool names
-   * — never hand-written strings that drift on each server release.
-   */
-  toolCatalog?: Array<{ name: string; description: string }>;
 }
 
 /**
@@ -80,9 +74,8 @@ export interface SharedPrefixContext {
  *   3. `<output_format>` — constant body; agentName is intentionally
  *      NOT interpolated (the body is the same for every Phase 1
  *      analyzer regardless).
- *   4. `=== CODE GRAPH CONTEXT ===` — the live MCP tool catalog +
- *      navigation discipline. Snapshotted at preflight; same for
- *      every analyzer in a single run.
+ *   4. `=== CODE GRAPH CONTEXT ===` — graph availability, stats, and
+ *      navigation discipline. Same for every analyzer in a single run.
  *
  * Anything analyzer-specific (authoritative service list, tool-cap
  * table, execution instructions, validation feedback) goes AFTER the
@@ -253,22 +246,9 @@ function buildGraphContext(graphContext: GraphPromptContext): string {
       '',
       'Use the code graph as the first source of structural truth before Read/Grep/Glob.',
       'Use Read/Grep/Glob only for details the graph does not provide or for manifest/config verification.',
+      '',
+      'Call MCP graph tools by their exact server-registered names. The tool-use schema injected at call time carries the full argument list — you do not need a written description.',
     );
-
-    const tools = graphContext.toolCatalog ?? [];
-    if (tools.length > 0) {
-      const names = tools.map((t) => t.name).join(', ');
-      lines.push(
-        '',
-        `Available MCP tools (call by exact name; do NOT invent variants): ${names}.`,
-        'See the discipline table below for required parameters. The tool-use schema injected at call time carries the full arg list — you do not need a written description.',
-      );
-    } else {
-      lines.push(
-        '',
-        'NOTE: the MCP tool catalog is empty in this run. The Stop hook will reject any analyzer output that claims graph usage without producing tool_use events. If you cannot call any tool, fall back to Read/Grep/Glob and explain why in your output.',
-      );
-    }
 
     lines.push('', GRAPH_NAVIGATION_DISCIPLINE_HEADING, '', GRAPH_NAVIGATION_DISCIPLINE_TEXT);
 

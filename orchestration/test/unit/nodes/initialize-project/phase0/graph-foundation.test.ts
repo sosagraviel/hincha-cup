@@ -1,15 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { graphFoundationNode } from '../../../../../src/nodes/initialize-project/phase0/graph-foundation.node.js';
 import { buildCodeGraph } from '../../../../../src/services/graph-wiki/code-graph.service.js';
-import { fetchCodeGraphToolCatalog } from '../../../../../src/services/framework/code-graph/tool-catalog.service.js';
 import type { InitializeProjectState } from '../../../../../src/state/schemas/initialize-project.schema.js';
 
 vi.mock('../../../../../src/services/graph-wiki/code-graph.service.js', () => ({
   buildCodeGraph: vi.fn(),
-}));
-
-vi.mock('../../../../../src/services/framework/code-graph/tool-catalog.service.js', () => ({
-  fetchCodeGraphToolCatalog: vi.fn(),
 }));
 
 vi.mock('../../../../../src/services/framework/mcp-config.service.js', () => ({
@@ -54,11 +49,6 @@ describe('graphFoundationNode', () => {
     infoMessages.length = 0;
     successMessages.length = 0;
     errorMessages.length = 0;
-    // Default success: catalog returns one tool. Tests that need failure
-    // override with mockRejectedValueOnce.
-    vi.mocked(fetchCodeGraphToolCatalog).mockResolvedValue([
-      { name: 'mcp__code_graph__list_communities_tool', description: 'list communities' },
-    ]);
   });
 
   it('returns graph metadata when graph build succeeds', async () => {

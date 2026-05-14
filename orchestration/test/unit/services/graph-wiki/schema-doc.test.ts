@@ -10,7 +10,6 @@ function buildOptions(
   provider: Provider,
   overrides: Partial<{
     services: Array<Record<string, unknown>>;
-    catalog: Array<{ name: string; description: string }>;
   }> = {},
 ) {
   const projectPath = mkdtempSync(join(tmpdir(), 'schema-doc-test-'));
@@ -26,7 +25,6 @@ function buildOptions(
     graph: { available: true, path: graphPath },
     analyzers: {},
     stackProfile: { services: overrides.services ?? [] },
-    codeGraphToolCatalog: overrides.catalog,
   };
 }
 
@@ -121,26 +119,11 @@ describe('WikiGeneratorService.buildSchemaDoc', () => {
     expect(result.content).toContain('`worker`');
   });
 
-  it('renders the live graph-tool catalog when present, omits the section otherwise', () => {
-    const withCatalog = new WikiGeneratorService(
-      buildOptions(Provider.CLAUDE, {
-        catalog: [
-          {
-            name: 'mcp__code_graph__get_minimal_context_tool',
-            description: 'Fetch minimal context\nMore detail.',
-          },
-          { name: 'mcp__code_graph__list_communities_tool', description: 'List communities.' },
-        ],
-      }),
-    );
-    const withCatalogResult = withCatalog.buildSchemaDoc('proj');
-    expect(withCatalogResult.content).toContain('## Available graph tools');
-    expect(withCatalogResult.content).toContain('`mcp__code_graph__get_minimal_context_tool`');
-    expect(withCatalogResult.content).toContain('Fetch minimal context');
-
-    const withoutCatalog = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
-    const withoutCatalogResult = withoutCatalog.buildSchemaDoc('proj');
-    expect(withoutCatalogResult.content).not.toContain('## Available graph tools');
+  it('never emits an "Available graph tools" section — MCP tools are discovered at call time', () => {
+    const service = new WikiGeneratorService(buildOptions(Provider.CLAUDE));
+    const result = service.buildSchemaDoc('proj');
+    expect(result.content).not.toContain('## Available graph tools');
+    expect(result.content).not.toContain('Live MCP tool catalog');
   });
 
   it('does not embed the frontmatter contract (that lives in framework docs)', () => {

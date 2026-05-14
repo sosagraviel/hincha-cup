@@ -18,14 +18,15 @@ const __dirname = dirname(__filename);
  *
  * Closed-book agents (consolidator, synthesizer, wiki-generator)
  * have `tools: none` in their frontmatter — they cannot call MCP
- * graph tools. The Phase 0 graph-tool catalog (a multi-line block
- * listing every `mcp__code_graph__*` tool with its description) is
- * therefore dead text in their prompts: ~8 KB of noise per spawn,
- * across 8+ closed-book attempts in a typical run.
+ * graph tools. Listing every `mcp__code_graph__*` tool inside their
+ * prompts would be dead text: many KB of noise per spawn, across
+ * 8+ closed-book attempts in a typical run.
  *
  * This test is the defensive scan: any future code path that leaks
- * the catalog into a closed-book prompt will fail this test
- * immediately.
+ * an MCP tool catalog into a closed-book prompt will fail this test
+ * immediately. The wiki router itself no longer emits this section,
+ * but the signatures stay here so a regression that re-introduces
+ * the block anywhere fails at CI.
  *
  * Stack-agnostic: every fixture uses generic ids and the test
  * matches on heading-shape patterns (`## Available graph tools`),
@@ -33,12 +34,8 @@ const __dirname = dirname(__filename);
  */
 
 const CATALOG_SIGNATURES = [
-  // The signature emitted by `buildSchemaDocBody` in
-  // wiki-generator.service.ts when a graph-tool catalog is rendered.
   /##\s+Available graph tools/i,
   /Live MCP tool catalog/i,
-  // The "call by exact name; the server will reject" sentence is
-  // unique to the catalog block.
   /Call by exact name; the server will reject names that are not in this list/i,
 ];
 

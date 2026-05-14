@@ -193,7 +193,6 @@ async function runSingleAgent(options: CliOptions): Promise<void> {
           JSON.stringify(
             {
               stats: phase0Result.code_graph_stats ?? null,
-              toolCatalog: phase0Result.code_graph_tool_catalog ?? null,
               codeGraphPath: phase0Result.code_graph_path,
               codeGraphAvailable: phase0Result.code_graph_available,
             },
@@ -305,12 +304,10 @@ function buildStateFromDisk(
   const codeGraphPath = join(projectPath, '.code-review-graph', 'graph.db');
 
   let codeGraphStats: InitializeProjectState['code_graph_stats'];
-  let codeGraphToolCatalog: InitializeProjectState['code_graph_tool_catalog'];
   if (existsSync(graphPrefetchPath)) {
     try {
       const parsed = JSON.parse(readFileSync(graphPrefetchPath, 'utf-8'));
       if (parsed.stats) codeGraphStats = parsed.stats;
-      if (parsed.toolCatalog) codeGraphToolCatalog = parsed.toolCatalog;
     } catch {}
   }
 
@@ -322,7 +319,6 @@ function buildStateFromDisk(
     code_graph_available: existsSync(codeGraphPath),
     code_graph_path: existsSync(codeGraphPath) ? codeGraphPath : undefined,
     code_graph_stats: codeGraphStats,
-    code_graph_tool_catalog: codeGraphToolCatalog,
     phase1_analysis: { all_completed: false },
     phase1_retry_tracking: {},
     errors: [],

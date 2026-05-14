@@ -135,12 +135,6 @@ export interface WikiGeneratorServiceOptions {
    * Default 3.
    */
   serviceDocConcurrency?: number;
-  /**
-   * Live MCP tool catalog from the running code-review-graph server. Templated
-   * into the schema doc (router) so its "available graph tools" section can
-   * never drift from server reality. Empty array when graph is unavailable.
-   */
-  codeGraphToolCatalog?: Array<{ name: string; description: string }>;
   agentInvoker?: WikiAgentInvoker;
   /**
    * Phase coordinate threaded through to the per-attempt debug bucket.

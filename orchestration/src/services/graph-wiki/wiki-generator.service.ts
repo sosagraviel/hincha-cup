@@ -160,10 +160,10 @@ export class WikiGeneratorService {
    * COPILOT.md). Exactly one such file is emitted per run.
    */
   buildSchemaDoc(projectName: string): GeneratedWikiFile {
-    const { provider, codeGraphToolCatalog, stackProfile } = this.options;
+    const { provider, stackProfile } = this.options;
     const schemaFilename = SCHEMA_FILENAME_BY_PROVIDER[provider];
     const services = getServices(stackProfile);
-    const body = buildSchemaDocBody(projectName, schemaFilename, services, codeGraphToolCatalog);
+    const body = buildSchemaDocBody(projectName, schemaFilename, services);
 
     return {
       filename: schemaFilename,
@@ -407,15 +407,14 @@ export function getExpectedLlmWikiFiles(stackProfile: unknown): GeneratedWikiFil
 
 /**
  * The wiki schema doc is the runtime router for any agent that wants to
- * consult this project's LLM wiki. Project-specific (services / graph tools
- * templated in), routing rules universal. Capped at ~150 lines so loading it
- * never costs more than a wiki page body.
+ * consult this project's LLM wiki. Project-specific (services templated in),
+ * routing rules universal. Capped at ~150 lines so loading it never costs
+ * more than a wiki page body.
  */
 function buildSchemaDocBody(
   projectName: string,
   schemaFilename: string,
   services: Record<string, unknown>[],
-  graphToolCatalog?: Array<{ name: string; description: string }>,
 ): string {
   const serviceList =
     services.length > 0
@@ -456,20 +455,6 @@ function buildSchemaDocBody(
     'Use `/wiki-refresh` after changes have landed to update pages whose facts drifted. The skill diffs against the per-repo commits in `.state.json`, asks an LLM to identify affected pages using `index.md` as the routing table, and surgically edits each. Use `/wiki-add-service <name>` to create a new service-doc page for a service that exists in the project but has no wiki page yet.',
     '',
   ];
-
-  if (graphToolCatalog && graphToolCatalog.length > 0) {
-    lines.push('## Available graph tools');
-    lines.push('');
-    lines.push(
-      'Live MCP tool catalog from `code-review-graph` (auto-discovered at init time). Call by exact name; the server will reject names that are not in this list.',
-    );
-    lines.push('');
-    for (const tool of graphToolCatalog) {
-      const desc = tool.description.split('\n')[0].trim();
-      lines.push(`- \`${tool.name}\` — ${desc}`);
-    }
-    lines.push('');
-  }
 
   lines.push('## Graph navigation discipline');
   lines.push('');

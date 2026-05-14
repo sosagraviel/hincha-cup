@@ -49,17 +49,6 @@ const SHARED_GRAPH_CONTEXT: GraphPromptContext = {
   available: true,
   dbPath: '/test/project/.code-review-graph/graph.db',
   stats: { files: 320, functions: 1500, edges: 4200, languages: ['typescript'], build_time_ms: 0 },
-  toolCatalog: [
-    {
-      name: 'mcp__code_graph__semantic_search_nodes_tool',
-      description: 'Search nodes by semantic query',
-    },
-    { name: 'mcp__code_graph__list_communities_tool', description: 'List graph communities' },
-    {
-      name: 'mcp__code_graph__get_community_tool',
-      description: 'Get community details',
-    },
-  ],
 };
 
 describe('buildPhase1SharedPrefix — byte-determinism contract', () => {
@@ -102,26 +91,6 @@ describe('buildPhase1SharedPrefix — byte-determinism contract', () => {
       projectPath: '/test/project-b',
       frameworkPath: '/test/framework',
       graphContext: SHARED_GRAPH_CONTEXT,
-    });
-    expect(sha256(a)).not.toBe(sha256(b));
-  });
-
-  it('changes when graphContext.toolCatalog changes (server release shipped a new tool)', () => {
-    const a = buildPhase1SharedPrefix({
-      projectPath: '/test/project',
-      frameworkPath: '/test/framework',
-      graphContext: SHARED_GRAPH_CONTEXT,
-    });
-    const b = buildPhase1SharedPrefix({
-      projectPath: '/test/project',
-      frameworkPath: '/test/framework',
-      graphContext: {
-        ...SHARED_GRAPH_CONTEXT,
-        toolCatalog: [
-          ...(SHARED_GRAPH_CONTEXT.toolCatalog ?? []),
-          { name: 'new-tool', description: 'd' },
-        ],
-      },
     });
     expect(sha256(a)).not.toBe(sha256(b));
   });
@@ -175,7 +144,7 @@ describe('buildPhase1SharedPrefix — byte-determinism contract', () => {
       graphContext: SHARED_GRAPH_CONTEXT,
     });
     expect(prefix).toContain('CODE GRAPH CONTEXT');
-    expect(prefix).toContain('mcp__code_graph__semantic_search_nodes_tool');
+    expect(prefix).toContain('Use the code graph as the first source of structural truth');
   });
 
   it('omits the graph-context block when graphContext is not provided', () => {
@@ -338,7 +307,7 @@ describe('buildPhase1AnalyzerPrompt — prefix is byte-identical across all 4 an
     // optimization from accidentally caching one analyzer's prefix
     // while leaving another's stale.
     const ctxA = SHARED_GRAPH_CONTEXT;
-    const ctxB: GraphPromptContext = { ...ctxA, available: false, toolCatalog: undefined };
+    const ctxB: GraphPromptContext = { ...ctxA, available: false };
 
     const prefixA = buildPhase1SharedPrefix({
       projectPath: '/p',
