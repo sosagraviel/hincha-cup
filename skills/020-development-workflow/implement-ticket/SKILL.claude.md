@@ -159,7 +159,7 @@ Create each task using TaskCreate with these exact values:
 13. Phase 10: Review Loop
     subject: "Phase 10: Review Loop"
     activeForm: "Running review loop"
-    Steps: Run PR review via /pr-reviewer skill, run security review via /security-review skill, if blocking issues spawn implementer for fixes and re-run tests, max 3 iterations. Run reviews once per PR URL produced by Phase 9 (multi-repo workspaces have more than one); the 3-iteration retry budget is global across all PRs.
+    Steps: For each PR URL produced by Phase 9, invoke /pr-reviewer (`--pr-url <URL> --jira-key <ID> --mode automated [--repos <abs>]`) and /security-review (`--pr-url <URL> --jira-key <ID> [--repos <abs>] [--baseline <prior>]`). If blocking issues, spawn implementer for fixes and re-run tests; max 3 iterations global across all PRs. After the loop, in multi-repo mode only, run /pr-reviewer --aggregate --jira-key <ID> and /security-review --aggregate --jira-key <ID> to emit cross-repo summaries.
     Expected outputs: PR review ran, security review ran, either no blocking issues or fixes applied
     Constraint: If max iterations reached with unresolved issues, report and proceed to cleanup.
 
@@ -472,15 +472,24 @@ CONTINUE WITH Phase 10.
 
 ### Phase 10: Review Loop
 
-- Run PR review via `/pr-reviewer` skill
-- Run security review via `/security-review` skill
+For each PR URL produced by Phase 9 (single-repo: one URL; multi-repo: one per affected repo):
+
+- Run PR review: `/pr-reviewer --pr-url <URL> --jira-key <TICKET-ID> --mode automated [--repos <abs-repo-path>]`
+- Run security review: `/security-review --pr-url <URL> --jira-key <TICKET-ID> [--repos <abs-repo-path>] [--baseline <prior-findings.json>]`
 - If blocking issues found:
   - Spawn implementer agent with fixes
   - Re-run tests
   - Re-review (max 3 iterations)
 - Exit when approved or max iterations reached
 
-In a multi-repo workspace, run the reviews once per PR URL produced by Phase 9. Fix commits land in the corresponding repo (`git -C <repo>`). The 3-iteration retry budget is global across all PRs.
+In a multi-repo workspace, run the reviews once per PR URL produced by Phase 9 — each invocation passes the corresponding repo path via `--repos <abs>`. Fix commits land in the corresponding repo (`git -C <repo>`). The 3-iteration retry budget is global across all PRs.
+
+**Multi-repo aggregation (after the loop):** when more than one PR URL was reviewed for the same ticket, run a final aggregation pass:
+
+- `/pr-reviewer --aggregate --jira-key <TICKET-ID>` — emits `.claude/artifacts/<TICKET-ID>/pr/cross-repo-summary.{json,md}` describing cross-repo concerns (API contract mismatches, schema skew, shared-dep conflicts) and a recommended merge order.
+- `/security-review --aggregate --jira-key <TICKET-ID>` — emits `.claude/artifacts/<TICKET-ID>/security/cross-repo-summary.{json,md}` describing cross-cutting security concerns (shared-dep CVEs, identical findings across repos) and a dependency-ordered remediation plan.
+
+Skip the aggregation pass in single-repo mode.
 
 CONTINUE WITH Phase 11.
 

@@ -1,345 +1,72 @@
-# Code Review Criteria
+# Review Criteria Rubric
 
-This document outlines the comprehensive criteria for conducting pull request code reviews. Use this as a checklist when reviewing PRs to ensure thorough, consistent, and constructive feedback.
+This document is the binary decision rubric for all specialist agents and the coordinator/judge. Every finding must pass through the three sections below before being emitted. The "Never flag" list is enforced by the coordinator as a hard filter.
 
-## Review Process Overview
+## Severity Definitions
 
-When reviewing a PR, the goal is to ensure changes are:
-- **Correct**: Solves the intended problem without bugs
-- **Maintainable**: Easy to understand and modify
-- **Aligned**: Follows project standards and conventions
-- **Secure**: Free from vulnerabilities
-- **Tested**: Covered by appropriate tests
+- **blocking** — must be fixed before this PR can merge. Examples: real bug, security vulnerability, broken contract, data loss risk, failing test.
+- **major** — should be fixed before merge. Examples: missing test for a new public API, uncaught error path on an external boundary, performance regression with concrete evidence, unguarded external input.
+- **minor** — optional improvement, no blocking issue. At most 5 minor findings per review. If more exist, the coordinator summarises the excess as "plus N similar items".
 
-## 1. Functionality and Correctness
+## Always Flag
 
-### Problem Resolution
-- [ ] **Does the code solve the intended problem?**
-  - Verify changes address the issue or feature described in the PR
-  - Cross-reference with linked tickets (JIRA, GitHub issues)
-  - Test manually or run the code if possible
+Flag these regardless of context. They are automatic at the stated severity.
 
-### Bugs and Logic
-- [ ] **Are there bugs or logical errors?**
-  - Check for off-by-one errors
-  - Verify null/undefined/None handling
-  - Review assumptions about inputs and outputs
-  - Look for race conditions or concurrency issues
-  - Check loop termination conditions
+| Issue | Minimum severity | Notes |
+|---|---|---|
+| SQL injection (string concatenation in a query) | blocking | |
+| Command injection (unescaped user input in shell exec) | blocking | |
+| Path traversal (user-controlled file path without sanitisation) | blocking | |
+| Hardcoded credential, API key, or secret | blocking | |
+| Authentication bypass (new endpoint without auth check) | blocking | |
+| Crash in a normal execution path (unhandled exception, null dereference) | blocking | |
+| Test suite invocation that fails on the diff as-is | blocking | |
+| Broken exported contract (changed function signature with no caller update) | blocking | |
+| Missing test for a new exported public API | major | |
+| Missing error handler on a network or database call in a public function | major | |
+| N+1 database query with concrete evidence in the diff | major | |
+| New dependency pinned to a version with a known CVE (cite the CVE) | major | |
+| Module or file placed in a directory that breaks the build or test runner's discovery | major | |
 
-### Edge Cases and Error Handling
-- [ ] **Edge cases handled?**
-  - Empty collections (arrays, lists, maps)
-  - Null/None/undefined values
-  - Boundary values (min/max integers, empty strings)
-  - Invalid or malformed inputs
+## Conditionally Flag
 
-- [ ] **Error handling implemented?**
-  - Network failures
-  - File system errors
-  - Database connection issues
-  - API errors and timeouts
-  - Graceful degradation
+Flag these only when the diff contains concrete evidence of the problem. Do not speculate.
 
-### Compatibility
-- [ ] **Works across supported environments?**
-  - Browser compatibility (if web app)
-  - OS versions (if desktop/mobile)
-  - Database versions
-  - Language/runtime versions
-  - Doesn't break existing features (regression check)
+| Issue | Severity | Required evidence |
+|---|---|---|
+| Off-by-one error | major or blocking | Quote the specific lines; explain the incorrect boundary condition |
+| Missing null guard | major | Show that the value can be null at the call site in the diff |
+| Performance regression | major | Quote the loop + I/O call; estimate the request-time impact |
+| Readability that affects correctness | minor | Explain how the unclear name could cause a caller to misuse the API |
+| Convention violation | minor or major | Cite where the convention is established (skill doc or adjacent file) |
+| Missing edge-case test | minor | Name the missing case; explain why it is reachable |
+| Logging of sensitive data | minor | Quote the log statement; identify what field is sensitive |
 
-## 2. Readability and Maintainability
+## Never Flag
 
-### Code Clarity
-- [ ] **Easy to read and understand?**
-  - Meaningful variable names (avoid `x`, `temp`, `data`)
-  - Meaningful function names (verb-first, descriptive)
-  - Short methods/functions (ideally < 50 lines)
-  - Logical structure and flow
-  - Minimal nested complexity
+The coordinator MUST drop any finding that falls into this list before emitting `review-results.json`.
 
-### Modularity
-- [ ] **Single Responsibility Principle?**
-  - Functions/methods do one thing well
-  - Classes have a clear, focused purpose
-  - No "god objects" or overly complex logic
+- Style issues already enforced by the project linter (ESLint, Pylint, RuboCop, golangci-lint, etc.)
+- Formatting differences (indentation, trailing whitespace, import ordering)
+- Naming preferences that are not established project conventions
+- Pre-existing issues in code that this PR did not touch
+- Speculative performance concerns with no evidence in the diff ("this might be slow")
+- "Could be cleaner" observations with no correctness impact
+- Suggestions to use a different language feature when the current one is correct
+- Missing comments or documentation on internal helpers (only flag missing docs on exported public API)
+- Commit message style or PR description quality (out of scope for code review)
+- Test coverage for unchanged code paths
 
-- [ ] **Suggest refactoring if needed:**
-  - Extract complex logic into helper functions
-  - Break large functions into smaller ones
-  - Separate concerns (UI, business logic, data access)
+## Nit Cap
 
-### Code Duplication
-- [ ] **DRY (Don't Repeat Yourself)?**
-  - Repeated code abstracted into helpers
-  - Shared logic moved to libraries/utilities
-  - Avoid copy-paste programming
+The `minor` findings array in `review-results.json` MUST contain at most **5 entries**. The coordinator selects the 5 most impactful minor findings by affected surface area (public API > service boundary > internal helper). Excess minor findings are captured as a single `recommendations` string: "plus N additional minor observations not listed individually".
 
-### Future-Proofing
-- [ ] **Allows for easy extensions?**
-  - Avoid hard-coded values (use constants/configs)
-  - Use dependency injection where appropriate
-  - Follow SOLID principles
-  - Consider extensibility without modification
+## Do-Not-Flag Reference Check
 
-## 3. Style and Conventions
+Before the coordinator emits any finding, it MUST verify:
 
-### Style Guide Adherence
-- [ ] **Follows project linter rules?**
-  - ESLint (JavaScript/TypeScript)
-  - Pylint/Flake8/Black (Python)
-  - RuboCop (Ruby)
-  - Checkstyle/PMD (Java)
-  - golangci-lint (Go)
+1. The issue exists in a file changed by this PR (not in unchanged code).
+2. The issue is not in the "Never flag" list above.
+3. The evidence (`file:line` and `codeSnippet`) can be confirmed by a `grep` on the current file. If it cannot, the finding is dropped by the verifier.
 
-- [ ] **Formatting consistent?**
-  - Proper indentation (spaces vs. tabs)
-  - Consistent spacing
-  - Line length limits
-  - Import/require organization
-
-### Codebase Consistency
-- [ ] **Matches existing patterns?**
-  - Follows established architectural patterns
-  - Uses existing utilities and helpers
-  - Consistent naming conventions
-  - Matches idioms of the language/framework
-
-### Comments and Documentation
-- [ ] **Sufficient comments?**
-  - Complex algorithms explained
-  - Non-obvious decisions documented
-  - API contracts clarified
-  - TODOs tracked with ticket numbers
-
-- [ ] **Not excessive?**
-  - Code should be self-documenting where possible
-  - Avoid obvious comments ("increment i")
-
-- [ ] **Documentation updated?**
-  - README reflects new features
-  - API docs updated
-  - Inline docs (JSDoc, docstrings, etc.)
-  - Architecture diagrams current
-
-## 4. Performance and Efficiency
-
-### Resource Usage
-- [ ] **Algorithm efficiency?**
-  - Avoid O(n²) or worse in loops
-  - Use appropriate data structures
-  - Minimize database queries (N+1 problem)
-  - Avoid unnecessary computations
-
-### Scalability
-- [ ] **Performs well under load?**
-  - No blocking operations in critical paths
-  - Async/await for I/O operations
-  - Pagination for large datasets
-  - Caching where appropriate
-
-### Optimization Balance
-- [ ] **Optimizations necessary?**
-  - Premature optimization avoided
-  - Readability not sacrificed for micro-optimizations
-  - Benchmark before complex optimizations
-  - Profile to identify actual bottlenecks
-
-## 5. Security and Best Practices
-
-### Vulnerabilities
-- [ ] **Common security issues addressed?**
-  - SQL injection (use parameterized queries)
-  - XSS (Cross-Site Scripting) - proper escaping
-  - CSRF (Cross-Site Request Forgery) - tokens
-  - Command injection
-  - Path traversal
-  - Authentication/authorization checks
-
-### Data Handling
-- [ ] **Sensitive data protected?**
-  - Encrypted in transit (HTTPS/TLS)
-  - Encrypted at rest
-  - Input validation and sanitization
-  - Output encoding
-  - PII handling compliance (GDPR, etc.)
-
-- [ ] **Secrets management?**
-  - No hardcoded passwords/API keys
-  - Use environment variables
-  - Use secret management systems
-  - No secrets in logs
-
-### Dependencies
-- [ ] **New packages justified?**
-  - Actually necessary
-  - From trusted sources
-  - Up-to-date and maintained
-  - No known vulnerabilities
-  - License compatible
-
-- [ ] **Dependency management?**
-  - Lock files committed
-  - Minimal dependency footprint
-  - Consider alternatives if bloated
-
-## 6. Testing and Quality Assurance
-
-### Test Coverage
-- [ ] **Tests exist for new code?**
-  - Unit tests for individual functions/methods
-  - Integration tests for workflows
-  - End-to-end tests for critical paths
-
-- [ ] **Tests cover scenarios?**
-  - Happy paths
-  - Error conditions
-  - Edge cases
-  - Boundary conditions
-
-### Test Quality
-- [ ] **Tests are meaningful?**
-  - Not just for coverage metrics
-  - Assert actual behavior
-  - Test intent, not implementation
-  - Avoid brittle tests
-
-- [ ] **Test maintainability?**
-  - Clear test names
-  - Arrange-Act-Assert pattern
-  - Minimal test duplication
-  - Fast execution
-
-### CI/CD Integration
-- [ ] **Automated checks pass?**
-  - Linting
-  - Tests (unit, integration, e2e)
-  - Build process
-  - Security scans
-  - Code coverage thresholds
-
-## 7. Overall PR Quality
-
-### Scope
-- [ ] **PR is focused?**
-  - Single feature/fix per PR
-  - Not too large (< 400 lines ideal)
-  - Suggest splitting if combines unrelated changes
-
-### Commit History
-- [ ] **Clean, atomic commits?**
-  - Each commit is logical unit
-  - Descriptive commit messages
-  - Follow conventional commits if applicable
-  - Avoid "fix", "update", "wip" vagueness
-
-### PR Description
-- [ ] **Clear description?**
-  - Explains **why** changes were made
-  - Links to tickets/issues
-  - Steps to reproduce/test
-  - Screenshots for UI changes
-  - Breaking changes called out
-  - Migration steps if needed
-
-### Impact Assessment
-- [ ] **Considered downstream effects?**
-  - API changes (breaking vs. backward-compatible)
-  - Database schema changes
-  - Impact on other teams/services
-  - Performance implications
-  - Monitoring and alerting needs
-
-## Review Feedback Guidelines
-
-### Communication Style
-- **Be constructive and kind**
-  - Frame as suggestions: "Consider X because Y"
-  - Not criticism: "This is wrong"
-  - Acknowledge good work
-  - Explain the "why" behind feedback
-
-### Prioritization
-- **Focus on critical issues first:**
-  1. Bugs and correctness
-  2. Security vulnerabilities
-  3. Performance problems
-  4. Design/architecture issues
-  5. Style and conventions
-
-### Feedback Markers
-Use clear markers to indicate severity:
-- **🔴 Blocker**: Must be fixed before merge
-- **🟡 Important**: Should be addressed
-- **🟢 Nit**: Nice to have, optional
-- **💡 Suggestion**: Consider for future
-- **❓ Question**: Clarification needed
-- **✅ Praise**: Good work!
-
-### Time Efficiency
-- Review promptly (within 24 hours)
-- For large PRs, review in chunks
-- Request smaller PRs if too large
-- Use automated tools to catch style issues
-
-### Decision Making
-- **Approve**: Solid overall, minor nits acceptable
-- **Request Changes**: Blockers must be addressed
-- **Comment**: Provide feedback without blocking
-
-## Language/Framework-Specific Considerations
-
-### JavaScript/TypeScript
-- Type safety (TypeScript)
-- Promise handling (avoid callback hell)
-- Memory leaks (event listeners)
-- Bundle size impact
-
-### Python
-- PEP 8 compliance
-- Type hints (Python 3.5+)
-- Virtual environment dependencies
-- Generator usage for memory efficiency
-
-### Java
-- Memory management
-- Exception handling (checked vs. unchecked)
-- Thread safety
-- Immutability where appropriate
-
-### Go
-- Error handling (no exceptions)
-- Goroutine management
-- Channel usage
-- Interface design
-
-### SQL/Database
-- Index usage
-- Query performance
-- Transaction boundaries
-- Migration reversibility
-
-### Frontend (React, Vue, Angular)
-- Component reusability
-- State management
-- Accessibility (a11y)
-- Performance (re-renders, bundle size)
-
-## Tools and Automation
-
-Leverage tools to automate checks:
-- **Linters**: ESLint, Pylint, RuboCop
-- **Formatters**: Prettier, Black, gofmt
-- **Security**: Snyk, CodeQL, Dependabot
-- **Coverage**: Codecov, Coveralls
-- **Performance**: Lighthouse, WebPageTest
-- **Accessibility**: axe, WAVE
-
-## Resources
-
-- Google Engineering Practices: https://google.github.io/eng-practices/review/
-- GitHub Code Review Guide: https://github.com/features/code-review
-- OWASP Top 10: https://owasp.org/www-project-top-ten/
-- Clean Code (Robert C. Martin)
-- Code Complete (Steve McConnell)
+Specialists are expected to self-apply this check. The coordinator enforces it as a hard gate.

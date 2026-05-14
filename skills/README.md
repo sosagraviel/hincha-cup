@@ -41,7 +41,9 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 | create-sdd-ticket | Generate specification-driven development (SDD) tickets with gap detection |
 | implement-ticket | End-to-end ticket orchestrator: plan → implement → test → review → PR |
 | mastering-git-cli | Git expertise — branches, commits, merges, rebases, worktrees, conflict resolution |
+| repo-fanout-pr | Fan out a multi-repo change into one commit + push + PR per affected child repo and cross-link the PR bodies; invoked by `/implement-ticket` Phase 9 |
 | skill-creator | Create, modify, improve, and eval skills |
+| wiki-add-service | Create a new service-doc page under `docs/llm-wiki/wiki/services/` when `/wiki-refresh` flags a missing service |
 | wiki-refresh | Incrementally refresh `docs/llm-wiki/` after code changes; runs as Phase 8.5 of `/implement-ticket` |
 
 **When to use**: Implementing features, fixing bugs, daily coding tasks

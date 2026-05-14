@@ -59,3 +59,24 @@ export {
   type FigmaConfig,
   type UIVisualTestingConfig,
 } from './ui-visual-testing.schema.js';
+
+export {
+  FixInstructionSchema,
+  SeveritySchema,
+  FindingSchema,
+  RepositoryRefSchema,
+  TokenUsageSchema,
+  ReviewResultsSchema,
+  SecurityResultsSchema,
+  PrCrossRepoSummarySchema,
+  SecurityCrossRepoSummarySchema,
+  type FixInstruction,
+  type Severity,
+  type Finding,
+  type RepositoryRef,
+  type TokenUsage,
+  type ReviewResults,
+  type SecurityResults,
+  type PrCrossRepoSummary,
+  type SecurityCrossRepoSummary,
+} from './quality-review.schema.js';

@@ -102,6 +102,37 @@ For all three modes, run `/initialize-project` and inspect the run-index sidebar
 
 ---
 
+## Caching contract for quality-assurance skills
+
+The `pr-reviewer` and `security-review` skills run multi-stage agent pipelines (detect-stack → specialists/triage → coordinator/judge → critic → verifier → aggregator). When invoked from `/implement-ticket` Phase 10 they fan out across several sub-agent calls within the same session, often hitting the 3-iteration retry loop. To stay cache-eligible across those calls, every sub-agent in these skills MUST share the same byte-identical prefix:
+
+1. **System prompt** — provider-default system message (Claude Code's or Codex CLI's stock prompt; do not customize per sub-agent).
+2. **Project conventions** — `{{INSTRUCTION_FILE}}` body (`CLAUDE.md` / `AGENTS.md`) injected verbatim. Same for every sub-agent in a run.
+3. **Skill rubric** — `references/review_criteria.md` (pr-reviewer) or `references/owasp-top-10-2025.md` (security-review). Loaded once at the start of the skill invocation; reused by every specialist agent.
+4. **Repo context** — `docs/llm-wiki/index.md` plus a focused excerpt the skill has decided is relevant. Same shape across all agents within a single PR review.
+
+Per-call deltas (the diff under review, SARIF blob, individual finding being triaged, role-specific instruction) live in the **tail** after the prefix. Putting any per-call value above the rubric breaks the prefix and zeros out savings without any visible error — same failure mode documented for Phase 1 above.
+
+### Practical wiring
+
+- The skills' SKILL files document the four prefix blocks in that order. Sub-agent role prompts (the markdown files under `skills/030-quality-assurance/{pr-reviewer,security-review}/agents/`) place their per-role instructions inside the role body, never in any preamble.
+- Both skills cap the prefix at one `cache_control: {type: "ephemeral", ttl: "1h"}` breakpoint placed at the boundary between block 4 (repo context) and the per-call payload. 1h TTL is justified: a single `/implement-ticket` run takes 5–30 minutes; review-loop retries reuse the same prefix for up to 3 iterations.
+- The Codex variants of these skills follow the same concat order documented for Phase 1 above (`inputPrompt + agentBody`), so OpenAI's automatic prefix cache also matches.
+
+### Verifying cache hits in the review loop
+
+After a `/implement-ticket` run, inspect:
+- `<project>/.{claude,codex}-temp/initialize-project/debug/runs/<runId>/index.html` for the per-phase cache-hit rate row.
+- `.claude/artifacts/<JIRA_KEY>/{pr,security}/.../review-results.json`'s `tokenUsage.cached_input` field (added in v4.0.0 of pr-reviewer and v2.0.0 of security-review). On the second-and-subsequent iterations of the review loop, `cached_input` should account for at least ~75% of `input` once the prefix exceeds the cacheable-length floor.
+
+### What invalidates the prefix
+
+The same hard rule as Phase 1: **anything that changes per sub-agent must live in the tail.** Specifically:
+- Per-specialist role names, per-CWE micro-prompts, per-PR diff bytes, per-finding evidence excerpts — all go in the tail.
+- Adding a timestamp, attempt counter, or session ID to block 1–4 silently kills caching. The two skills' SKILL files call this out explicitly; review changes to those skills against the four-block contract above.
+
+---
+
 ## Related code
 
 | Concern | File |

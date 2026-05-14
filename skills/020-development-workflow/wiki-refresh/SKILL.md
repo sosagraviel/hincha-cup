@@ -1,7 +1,7 @@
 ---
 name: wiki-refresh
-version: 2.2.0
-last-updated: 2026-05-13
+version: 2.3.0
+last-updated: 2026-05-14
 description: AI-driven incremental refresh of docs/llm-wiki/. Use when the user says "/wiki-refresh", "refresh wiki", or "update wiki". Diffs against last-indexed commits (per-repo in multi-repo) in docs/llm-wiki/.state.json, asks an LLM to identify affected pages using index.md as the routing table, and surgically edits each. Conservative by design — high-level facts only. Multi-repo aware. Idempotent.
 argument-hint: '[--dry-run] [--commit] [--ticket <ID>] [--artifacts-dir <path>]'
 user-invokable: true
@@ -82,6 +82,37 @@ For the top 3–5 largest-diff files (by `+/-` line count from `--stat`), also c
 
 If **every** repo's recorded commit equals current HEAD, report `wiki is fresh — no changes since last refresh` and finish successfully. Do NOT write `.state.json` (no-op). Do NOT commit.
 
+### 3.5 Include external-doc evidence
+
+After building the per-repo git evidence pack in Phase 3, load any external documents staged by `/wiki-ingest-external-docs` that have not yet been reflected in the wiki.
+
+For each repo being processed in this run:
+
+1. Check if `docs/llm-wiki/raw/external/manifest.json` exists inside that repo's wiki tree. If it does not exist, skip this step for that repo.
+2. Read the manifest. Load all entries whose `ingested_at` timestamp is after `last_refresh_at` from `.state.json`. These are documents staged since the last refresh.
+3. Append them to the evidence pack under the key `external_docs`:
+
+   ```json
+   {
+     "external_docs": [
+       {
+         "path": "docs/llm-wiki/raw/external/<hash>-<slug>.md",
+         "source_uri": "...",
+         "subject_keywords": ["auth", "sessions"],
+         "describes_service": "payments",
+         "describes_files": [],
+         "authoritativeness": "vendor-doc",
+         "source_of_truth": false,
+         "content_sha256": "..."
+       }
+     ]
+   }
+   ```
+
+4. Additionally, check `docs/llm-wiki/global/raw/external/manifest.json` once per refresh run (not per-repo). Apply the same `ingested_at > last_refresh_at` filter using the minimum `last_refresh_at` across all repos in `.state.json`. Append matching global entries to the shared `external_docs` array.
+
+If no manifest files exist, or no entries pass the timestamp filter, set `external_docs: []` and continue normally.
+
 ### 4. Read the routing table
 
 Read `docs/llm-wiki/wiki/index.md` verbatim. It is the LLM's routing table — one line per page with summary / document_type / tags / related inline.
@@ -92,11 +123,12 @@ Assemble a single prompt containing, in order:
 
 1. The wiki index (`index.md` content).
 2. For each repo with changes: a section like `=== Commits (<repo-name>) ===` (commit subjects from step 3), `=== git diff --stat ===` (stat output), `=== Changed files ===` (file list), `=== Sampled hunks ===` (the truncated hunks).
-3. The **conservatism rule** (verbatim):
+3. If `external_docs` from Phase 3.5 is non-empty: a section `=== External Documents ===` listing each entry with its `path`, `subject_keywords`, `describes_service`, and `authoritativeness`. For each entry with `authoritativeness: rfc` or `source_of_truth: true`, read the first 200 lines of the file at `path` and include as a subsection. For other authoritativeness levels, include only the manifest metadata (not file content) to bound token cost.
+4. The **conservatism rule** (verbatim):
 
    > The wiki documents **high-level architecture only**. Mark a page `update` ONLY when the diff changes a fact at that abstraction level: the existence or role of a service, its tech stack or version pin, its ports, its public API surface, its cross-cutting infrastructure (db / auth / queue / storage / LLM clients), its top-level directory layout, its authentication or authorization model, its deployment target, or another fact the page already records at that altitude. Mark `skip` for: implementation refactors, internal renames, new private helpers, new tests, bug fixes that don't change the public contract, formatting / style changes, dependency bumps that don't move a documented version pin, and any change confined to function bodies. When in doubt, prefer `skip` — a wiki page that already reads correctly should not be rewritten. "No change" is a successful outcome.
 
-4. The instruction: "Using `index.md` as the routing table and the conservatism rule above, identify which wiki pages need updating based on the diffs. Return strict JSON:
+5. The instruction: "Using `index.md` as the routing table and the conservatism rule above, identify which wiki pages need updating based on the diffs and any external documents listed above. For each external document in `external_docs`, use its `subject_keywords` and `describes_service` fields to route it to the most relevant wiki page — consult `index.md` to match. Weight external evidence by its `authoritativeness`: `rfc` and `source_of_truth: true` entries should trigger updates when they contradict or extend a page's current content; `meeting-note` entries are advisory only and should not trigger an update unless the page has no other information on the subject. Return strict JSON:
 
    ```json
    {
@@ -119,9 +151,10 @@ For each entry with `action: "update"`:
 1. Read the current page at `docs/llm-wiki/<page>`.
 2. **Downgrade guard.** Re-confirm: does the page actually discuss the area the diff touched, at the page's own altitude? If the page is silent on that area (e.g., the diff introduced a new internal helper for an existing service whose page only documents the service's role/ports/API surface), downgrade the action to `skip` and record `"downgraded_to_skip": "<reason>"` in the summary for this entry. Do not invent new sections. Do not edit the page.
 3. Otherwise, optionally query `mcp__code_graph__*` tools (`get_minimal_context_tool`, `semantic_search_nodes_tool`, `get_community_tool`) for new-symbol context when the diff introduced symbols you don't already see in the page. Follow the lean defaults (`detail_level: "minimal"`, `limit: 20` max, `include_members: false`, `include_source: false`). Never call `get_architecture_overview_tool` — its response cannot be bounded.
-4. Use your file-edit primitive to surgically patch sections that drifted. **Preserve every sentence whose factual content is still accurate.** Goal: minimal diff against the previous version.
-5. Update frontmatter `last_updated` to the current ISO timestamp. Frontmatter `summary` / `tags` / `related` only change when the page's overall identity actually shifted (a new framework adopted, a service's role inverted) — not on every routine update.
-6. If `summary` / `tags` / `related` legitimately changed in step 5, surgically patch the corresponding line in `docs/llm-wiki/wiki/index.md` so the index stays in sync. Body-only edits skip the index touch.
+4. If the page update is triggered by an `external_docs` entry (from Phase 3.5): read the full content of the staged file at the entry's `path`. Absorb only its descriptive, high-level claims — same conservatism rule applies. When citing the external source in the page, use a markdown link pointing to the staged file (e.g., `[vendor-auth-spec](../raw/external/<hash>-<slug>.md)`). Do not cite the original `source_uri` (it may be ephemeral). Weight the external evidence by its `authoritativeness` field.
+5. Use your file-edit primitive to surgically patch sections that drifted. **Preserve every sentence whose factual content is still accurate.** Goal: minimal diff against the previous version.
+6. Update frontmatter `last_updated` to the current ISO timestamp. Frontmatter `summary` / `tags` / `related` only change when the page's overall identity actually shifted (a new framework adopted, a service's role inverted) — not on every routine update.
+7. If `summary` / `tags` / `related` legitimately changed in step 6, surgically patch the corresponding line in `docs/llm-wiki/wiki/index.md` so the index stays in sync. Body-only edits skip the index touch.
 
 For each entry with `action: "skip"`, do nothing — but remember the reason for the summary print.
 
@@ -158,6 +191,7 @@ Report:
 
 - **Updated:** list of pages updated.
 - **Skipped:** list of pages whose summaries matched but the LLM judged no update needed (with reasons). Include any step-6 downgrades with the `downgraded_to_skip` reason.
+- **External docs:** count of `external_docs` entries included in this run's evidence pack (e.g., `external_docs: 3 staged documents included`). List the filenames. If zero, omit this line.
 - **Suggestions:** one-line items from step 5's `suggestions` array. For each, append `Run /wiki-add-service <name> to create a new service-doc page.` only when the suggestion clearly names a service-shaped area.
 - **Commit:** when `--commit` produced a commit, report the resulting SHA and message. When it produced an artifact-only fallback, point at the manifest path.
 - **Dry-run note** if `--dry-run` was passed.

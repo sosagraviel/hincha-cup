@@ -378,18 +378,23 @@ Constraint: Do not proceed if any expected PR was not created, unless `--skip-pr
 ### Phase 10: Review Loop
 
 Steps:
-- Run `/pr-reviewer` skill on the created PR.
-- Run `/security-review` skill on the diff.
+For each PR URL produced by Phase 9 (single-repo: one URL; multi-repo: one per affected repo):
+- Run `/pr-reviewer --pr-url <URL> --jira-key <TICKET_ID> --mode automated [--repos <abs-repo-path>]`.
+- Run `/security-review --pr-url <URL> --jira-key <TICKET_ID> [--repos <abs-repo-path>] [--baseline <prior-findings.json>]`.
 - If blocking issues are found:
   - Re-apply the implementer role prompt (`{{CONFIG_DIR}}/agents/<recommended-implementer>.md`) with the review findings.
   - Re-run tests (Phase 6 logic).
   - Re-run the reviews.
-  - Max 3 iterations.
-- Exit when approved or max iterations reached.
+  - Max 3 iterations (global across all PRs in a multi-repo workspace).
+- Exit when approved or the global iteration cap is reached.
 
-In a multi-repo workspace, run the reviews once per PR URL produced by Phase 9. Fix commits land in the corresponding repo (`git -C <repo>`). The 3-iteration retry budget is global across all PRs.
+After the loop, in multi-repo mode only:
+- `/pr-reviewer --aggregate --jira-key <TICKET_ID>` → writes `.claude/artifacts/<TICKET_ID>/pr/cross-repo-summary.{json,md}` (cross-repo concerns + merge order).
+- `/security-review --aggregate --jira-key <TICKET_ID>` → writes `.claude/artifacts/<TICKET_ID>/security/cross-repo-summary.{json,md}` (cross-cutting security concerns + dependency-ordered remediation).
 
-Expected outputs: pr-reviewer and security-review ran; no blocking issues remain, or fixes were attempted up to the limit.
+Fix commits land in the corresponding repo (`git -C <repo>`). Skip the aggregation pass in single-repo mode.
+
+Expected outputs: pr-reviewer and security-review ran; per-PR results JSONs exist; cross-repo summary JSON exists when multi-repo. No blocking issues remain, or fixes were attempted up to the limit.
 
 Constraint: If max iterations reached with unresolved issues, record them in the PR body and proceed to cleanup.
 
