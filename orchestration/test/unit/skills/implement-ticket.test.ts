@@ -53,6 +53,13 @@ function extractPhase0Section(content: string): string {
   return content.slice(start, end);
 }
 
+function extractPhase84Section(content: string): string {
+  const start = content.indexOf('### Phase 8.4: Implementation Commit');
+  if (start === -1) return '';
+  const end = content.indexOf('### Phase 8.5:', start);
+  return end === -1 ? '' : content.slice(start, end);
+}
+
 function extractPhase85Section(content: string): string {
   const start = content.indexOf('### Phase 8.5: Wiki Refresh');
   if (start === -1) return '';
@@ -74,82 +81,133 @@ describe('SKILL.claude.md — Phase F regression', () => {
     content = readFileSync(SKILL_CLAUDE_PATH, 'utf-8');
   });
 
+  describe('Phase 8.4 existence', () => {
+    it('contains ### Phase 8.4: Implementation Commit section', () => {
+      expect(content).toContain('### Phase 8.4: Implementation Commit');
+    });
+
+    it('Phase 8.4 appears between Phase 8 and Phase 8.5', () => {
+      const phase8Idx = content.indexOf('### Phase 8: Documentation Update');
+      const phase84Idx = content.indexOf('### Phase 8.4: Implementation Commit');
+      const phase85Idx = content.indexOf('### Phase 8.5: Wiki Refresh');
+
+      expect(phase8Idx).toBeGreaterThanOrEqual(0);
+      expect(phase84Idx).toBeGreaterThan(phase8Idx);
+      expect(phase85Idx).toBeGreaterThan(phase84Idx);
+    });
+
+    it('Phase 8.4 produces the implementation commit before wiki-refresh', () => {
+      const section = extractPhase84Section(content);
+      expect(section).toMatch(/before .* \/wiki-refresh|BEFORE .* Phase 8\.5/i);
+    });
+
+    it('Phase 8.4 excludes docs/llm-wiki/** from the staged list', () => {
+      const section = extractPhase84Section(content);
+      expect(section).toContain('docs/llm-wiki/**');
+      expect(section).toMatch(/Exclude `docs\/llm-wiki\/\*\*`/);
+    });
+
+    it('Phase 8.4 forbids git add . / -A / commit -a', () => {
+      const section = extractPhase84Section(content);
+      expect(section).toMatch(/Never `git add \.`/);
+      expect(section).toMatch(/`-A`/);
+    });
+
+    it('Phase 8.4 STOPs on pre-commit hook failure', () => {
+      const section = extractPhase84Section(content);
+      expect(section).toContain('STOP');
+      expect(section).toMatch(/pre-commit hook|hook output/i);
+    });
+
+    it('Phase 8.4 captures commit SHAs to $ARTIFACTS_DIR/commits/', () => {
+      const section = extractPhase84Section(content);
+      expect(section).toContain('$ARTIFACTS_DIR/commits/');
+    });
+  });
+
   describe('Phase 8.5 existence', () => {
     it('contains ### Phase 8.5: Wiki Refresh section', () => {
       expect(content).toContain('### Phase 8.5: Wiki Refresh');
     });
 
-    it('Phase 8.5 appears between Phase 8 and Phase 9', () => {
-      const phase8Idx = content.indexOf('### Phase 8: Documentation Update');
+    it('Phase 8.5 appears between Phase 8.4 and Phase 9', () => {
+      const phase84Idx = content.indexOf('### Phase 8.4: Implementation Commit');
       const phase85Idx = content.indexOf('### Phase 8.5: Wiki Refresh');
       const phase9Idx = content.indexOf('### Phase 9: PR Creation');
 
-      expect(phase8Idx).toBeGreaterThanOrEqual(0);
-      expect(phase85Idx).toBeGreaterThan(phase8Idx);
+      expect(phase84Idx).toBeGreaterThanOrEqual(0);
+      expect(phase85Idx).toBeGreaterThan(phase84Idx);
       expect(phase9Idx).toBeGreaterThan(phase85Idx);
     });
 
-    it('Phase 8.5 instructs computing branch-base via git merge-base', () => {
-      const section = extractPhase85Section(content);
-      expect(section).toContain('git merge-base HEAD origin/development');
-    });
-
-    it('Phase 8.5 instructs invoking /wiki-refresh with --since flag', () => {
+    it('Phase 8.5 invokes /wiki-refresh with --commit --ticket --artifacts-dir', () => {
       const section = extractPhase85Section(content);
       expect(section).toContain('/wiki-refresh');
-      expect(section).toContain('--since <branch-base>');
+      expect(section).toContain('--commit');
+      expect(section).toContain('--ticket <TICKET-ID>');
+      expect(section).toContain('--artifacts-dir $ARTIFACTS_DIR');
+      // Legacy --since / --hints flags must not appear.
+      expect(section).not.toContain('--since <branch-base>');
+      expect(section).not.toContain('--hints');
     });
 
-    it('Phase 8.5 STOPs on structural lint violations', () => {
+    it('Phase 8.5 STOPs on hard error from /wiki-refresh', () => {
       const section = extractPhase85Section(content);
-      expect(section).toContain('structural lint violations');
+      expect(section).toMatch(/hard error/i);
       expect(section).toContain('STOP');
     });
 
-    it('Phase 8.5 stages only docs/llm-wiki/** paths in the commit', () => {
+    it('Phase 8.5 delegates wiki commit to /wiki-refresh — orchestrator no longer stages docs/llm-wiki/**', () => {
       const section = extractPhase85Section(content);
-      expect(section).toContain('docs/llm-wiki/**');
-    });
-
-    it('Phase 8.5 uses Conventional Commit message format', () => {
-      const section = extractPhase85Section(content);
-      expect(section).toContain('docs(wiki): refresh for <TICKET-ID>');
+      // The skill owns the commit now; the orchestrator references it but
+      // does not duplicate the `git add docs/llm-wiki/**` logic.
+      expect(section).not.toMatch(/Stage only `docs\/llm-wiki\/\*\*` paths\./);
     });
 
     it('Phase 8.5 is optional when no pages changed', () => {
       const section = extractPhase85Section(content);
-      expect(section).toContain('no pages in the refresh set');
+      expect(section).toMatch(/no changes|no pages|wiki is fresh/i);
+    });
+
+    it('Phase 8.5 surfaces new-service suggestions but does not auto-create', () => {
+      const section = extractPhase85Section(content);
+      expect(section).toMatch(/\/wiki-add-service|new service/i);
     });
   });
 
-  describe('task list has 13 tasks', () => {
-    it('task tracking setup mentions 13 tasks', () => {
-      expect(content).toContain('Create all 13 tasks first');
+  describe('task list has 14 tasks', () => {
+    it('task tracking setup mentions 14 tasks', () => {
+      expect(content).toContain('Create all 14 tasks first');
     });
 
-    it('task list contains task numbered 10 as Phase 8.5', () => {
+    it('task list contains task numbered 10 as Phase 8.4', () => {
       const taskList = extractTaskListSection(content);
-      expect(taskList).toContain('10. Phase 8.5: Wiki Refresh');
+      expect(taskList).toContain('10. Phase 8.4: Implementation Commit');
     });
 
-    it('task list contains task numbered 11 as Phase 9', () => {
+    it('task list contains task numbered 11 as Phase 8.5', () => {
       const taskList = extractTaskListSection(content);
-      expect(taskList).toContain('11. Phase 9: PR Creation');
+      expect(taskList).toContain('11. Phase 8.5: Wiki Refresh');
     });
 
-    it('task list contains task numbered 12 as Phase 10', () => {
+    it('task list contains task numbered 12 as Phase 9', () => {
       const taskList = extractTaskListSection(content);
-      expect(taskList).toContain('12. Phase 10: Review Loop');
+      expect(taskList).toContain('12. Phase 9: PR Creation');
     });
 
-    it('task list contains task numbered 13 as Phase 11', () => {
+    it('task list contains task numbered 13 as Phase 10', () => {
       const taskList = extractTaskListSection(content);
-      expect(taskList).toContain('13. Phase 11: Cleanup');
+      expect(taskList).toContain('13. Phase 10: Review Loop');
     });
 
-    it('dependency chain references After creating all 13 tasks', () => {
+    it('task list contains task numbered 14 as Phase 11', () => {
+      const taskList = extractTaskListSection(content);
+      expect(taskList).toContain('14. Phase 11: Cleanup');
+    });
+
+    it('dependency chain references After creating all 14 tasks', () => {
       const block = extractDependencyChainBlock(content);
-      expect(block).toContain('After creating all 13 tasks');
+      expect(block).toContain('After creating all 14 tasks');
     });
   });
 
@@ -173,33 +231,32 @@ describe('SKILL.claude.md — Phase F regression', () => {
       const block = extractDependencyChainBlock(content);
       expect(block).toContain('Task 13 addBlockedBy [Task 12]');
     });
+
+    it('Task 14 addBlockedBy [Task 13]', () => {
+      const block = extractDependencyChainBlock(content);
+      expect(block).toContain('Task 14 addBlockedBy [Task 13]');
+    });
   });
 
-  describe('Phase 0 preflight — staleness WARN not FAIL', () => {
-    it('Phase 0 checks graph_commit key', () => {
-      const section = extractPhase0Section(content);
-      expect(section).toContain('graph_commit');
-    });
-
-    it('Phase 0 WARNs on graph_version mismatch', () => {
-      const section = extractPhase0Section(content);
-      expect(section).toContain('WARN');
-    });
-
-    it('Phase 0 does not STOP on staleness alone', () => {
-      const section = extractPhase0Section(content);
-      expect(section).toContain('Do not block the workflow on stale wiki');
-    });
-
-    it('Phase 0 CRITICAL block explicitly excludes staleness from failures', () => {
-      expect(content).toContain(
-        'Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures',
-      );
-    });
-
-    it('Phase 0 references Phase 8.5 as the self-healing mechanism', () => {
+  describe('Phase 0 preflight — wiki staleness handled by Phase 8.5', () => {
+    it('Phase 0 references Phase 8.5 as the wiki-refresh mechanism', () => {
       const section = extractPhase0Section(content);
       expect(section).toContain('Phase 8.5');
+    });
+
+    it('Phase 0 no longer checks graph_version / graph_commit on wiki pages', () => {
+      const section = extractPhase0Section(content);
+      // The simplified frontmatter shape (2026-05) drops both fields, so
+      // their names must not appear in any wiki-related preflight check.
+      expect(section).not.toMatch(/wiki[^.]{0,40}graph_version/);
+      expect(section).not.toMatch(/wiki[^.]{0,40}graph_commit/);
+    });
+
+    it('Phase 0 asserts the new minimal frontmatter keys (document_type, summary, last_updated)', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toContain('document_type');
+      expect(section).toContain('summary');
+      expect(section).toContain('last_updated');
     });
   });
 
@@ -233,20 +290,31 @@ describe('SKILL.claude.md — Phase F regression', () => {
     });
   });
 
-  describe('Phase 9 has Phase 8.5 prerequisite', () => {
+  describe('Phase 9 — push + PR only (commit lives in Phase 8.4)', () => {
     it('Phase 9 section confirms Phase 8.5 completion before proceeding', () => {
       const section = extractPhase9Section(content);
       expect(section).toContain('Phase 8.5 marked completed');
     });
 
-    it('Phase 9 STOPs if structural lint failures from 8.5 are unresolved', () => {
+    it('Phase 9 references Phase 8.4 as the source of the implementation commit', () => {
       const section = extractPhase9Section(content);
-      expect(section).toContain('structural lint failures from 8.5');
-      expect(section).toContain('STOP');
+      expect(section).toMatch(/Phase 8\.4/);
+    });
+
+    it('Phase 9 multi-repo path uses /repo-fanout-pr --no-commit', () => {
+      const section = extractPhase9Section(content);
+      expect(section).toContain('/repo-fanout-pr');
+      expect(section).toContain('--no-commit');
+    });
+
+    it('Phase 9 STOPs if PR creation fails (and --skip-pr was not set)', () => {
+      const section = extractPhase9Section(content);
+      expect(section).toContain('CRITICAL');
+      expect(section).toMatch(/not proceed|STOP/i);
     });
   });
 
-  describe('CRITICAL block mentions Phase 8.5 self-healing', () => {
+  describe('CRITICAL block mentions Phase 8.5', () => {
     it('Graph-Aware CRITICAL block mentions Phase 8.5 Wiki Refresh', () => {
       const criticalBlock = content.slice(
         content.indexOf('## CRITICAL: Graph-Aware and Wiki-Aware Requirements'),
@@ -254,26 +322,26 @@ describe('SKILL.claude.md — Phase F regression', () => {
       );
       expect(criticalBlock).toContain('Phase 8.5 (Wiki Refresh)');
     });
-
-    it('CRITICAL block states refresh fixes staleness', () => {
-      const criticalBlock = content.slice(
-        content.indexOf('## CRITICAL: Graph-Aware and Wiki-Aware Requirements'),
-        content.indexOf('## CRITICAL: Artifact Path Enforcement'),
-      );
-      expect(criticalBlock).toContain(
-        'if the preflight warns about staleness, the refresh will fix it',
-      );
-    });
   });
 
-  describe('Skills and Agents Used lists /wiki-refresh', () => {
-    it('Skills section includes /wiki-refresh at Phase 8.5', () => {
+  describe('Skills and Agents Used lists /wiki-refresh and /repo-fanout-pr', () => {
+    it('Skills section includes /wiki-refresh at Phase 8.5 with --commit', () => {
       const skillsSection = content.slice(
         content.indexOf('## Skills and Agents Used'),
         content.indexOf('## Prerequisites'),
       );
       expect(skillsSection).toContain('/wiki-refresh');
       expect(skillsSection).toContain('Phase 8.5');
+      expect(skillsSection).toContain('--commit');
+    });
+
+    it('Skills section notes /repo-fanout-pr is invoked with --no-commit at Phase 9', () => {
+      const skillsSection = content.slice(
+        content.indexOf('## Skills and Agents Used'),
+        content.indexOf('## Prerequisites'),
+      );
+      expect(skillsSection).toContain('/repo-fanout-pr');
+      expect(skillsSection).toContain('--no-commit');
     });
   });
 
@@ -298,74 +366,92 @@ describe('SKILL.codex.md — Phase F regression (symmetric)', () => {
     content = readFileSync(SKILL_CODEX_PATH, 'utf-8');
   });
 
+  describe('Phase 8.4 existence', () => {
+    it('contains ### Phase 8.4: Implementation Commit section', () => {
+      expect(content).toContain('### Phase 8.4: Implementation Commit');
+    });
+
+    it('Phase 8.4 appears between Phase 8 and Phase 8.5', () => {
+      const phase8Idx = content.indexOf('### Phase 8: Documentation Update');
+      const phase84Idx = content.indexOf('### Phase 8.4: Implementation Commit');
+      const phase85Idx = content.indexOf('### Phase 8.5: Wiki Refresh');
+
+      expect(phase8Idx).toBeGreaterThanOrEqual(0);
+      expect(phase84Idx).toBeGreaterThan(phase8Idx);
+      expect(phase85Idx).toBeGreaterThan(phase84Idx);
+    });
+
+    it('Phase 8.4 produces the implementation commit before wiki-refresh', () => {
+      const section = extractPhase84Section(content);
+      expect(section).toMatch(/before .* \/wiki-refresh|BEFORE .* Phase 8\.5/i);
+    });
+
+    it('Phase 8.4 excludes docs/llm-wiki/** from the staged list', () => {
+      const section = extractPhase84Section(content);
+      expect(section).toContain('docs/llm-wiki/**');
+    });
+
+    it('Phase 8.4 emits failed and STOPs on pre-commit hook failure', () => {
+      const section = extractPhase84Section(content);
+      expect(section).toMatch(/failed/);
+      expect(section).toContain('STOP');
+    });
+  });
+
   describe('Phase 8.5 existence', () => {
     it('contains ### Phase 8.5: Wiki Refresh section', () => {
       expect(content).toContain('### Phase 8.5: Wiki Refresh');
     });
 
-    it('Phase 8.5 appears between Phase 8 and Phase 9', () => {
-      const phase8Idx = content.indexOf('### Phase 8: Documentation Update');
+    it('Phase 8.5 appears between Phase 8.4 and Phase 9', () => {
+      const phase84Idx = content.indexOf('### Phase 8.4: Implementation Commit');
       const phase85Idx = content.indexOf('### Phase 8.5: Wiki Refresh');
       const phase9Idx = content.indexOf('### Phase 9: PR Creation');
 
-      expect(phase8Idx).toBeGreaterThanOrEqual(0);
-      expect(phase85Idx).toBeGreaterThan(phase8Idx);
+      expect(phase84Idx).toBeGreaterThanOrEqual(0);
+      expect(phase85Idx).toBeGreaterThan(phase84Idx);
       expect(phase9Idx).toBeGreaterThan(phase85Idx);
     });
 
-    it('Phase 8.5 instructs computing branch-base via git merge-base', () => {
-      const section = extractPhase85Section(content);
-      expect(section).toContain('git merge-base HEAD origin/development');
-    });
-
-    it('Phase 8.5 instructs invoking /wiki-refresh with --since flag', () => {
+    it('Phase 8.5 invokes /wiki-refresh with --commit --ticket --artifacts-dir', () => {
       const section = extractPhase85Section(content);
       expect(section).toContain('/wiki-refresh');
-      expect(section).toContain('--since <branch-base>');
+      expect(section).toContain('--commit');
+      expect(section).toContain('--ticket <TICKET-ID>');
+      expect(section).toContain('--artifacts-dir $ARTIFACTS_DIR');
+      expect(section).not.toContain('--since <branch-base>');
+      expect(section).not.toContain('--hints');
     });
 
-    it('Phase 8.5 STOPs on structural lint violations', () => {
+    it('Phase 8.5 STOPs on hard error from /wiki-refresh', () => {
       const section = extractPhase85Section(content);
-      expect(section).toContain('structural lint violations');
+      expect(section).toMatch(/hard error/i);
       expect(section).toContain('STOP');
     });
 
-    it('Phase 8.5 stages only docs/llm-wiki/** paths in the commit', () => {
+    it('Phase 8.5 delegates wiki commit to /wiki-refresh — orchestrator no longer stages docs/llm-wiki/**', () => {
       const section = extractPhase85Section(content);
-      expect(section).toContain('docs/llm-wiki/**');
-    });
-
-    it('Phase 8.5 uses Conventional Commit message format', () => {
-      const section = extractPhase85Section(content);
-      expect(section).toContain('docs(wiki): refresh for <TICKET-ID>');
+      expect(section).not.toMatch(/Stage only `docs\/llm-wiki\/\*\*` paths\./);
     });
   });
 
-  describe('Phase 0 preflight — staleness WARN not FAIL', () => {
-    it('Phase 0 checks graph_commit key', () => {
-      const section = extractPhase0Section(content);
-      expect(section).toContain('graph_commit');
-    });
-
-    it('Phase 0 WARNs on graph_version mismatch', () => {
-      const section = extractPhase0Section(content);
-      expect(section).toContain('WARN');
-    });
-
-    it('Phase 0 does not STOP on staleness alone', () => {
-      const section = extractPhase0Section(content);
-      expect(section).toContain('Do not block the workflow on stale wiki');
-    });
-
-    it('Phase 0 CRITICAL/Constraint explicitly excludes staleness from failures', () => {
-      expect(content).toContain(
-        'Staleness warnings (graph_version or graph_commit mismatch) do NOT count as failures',
-      );
-    });
-
-    it('Phase 0 references Phase 8.5 as the self-healing mechanism', () => {
+  describe('Phase 0 preflight — wiki staleness handled by Phase 8.5', () => {
+    it('Phase 0 references Phase 8.5 as the wiki-refresh mechanism', () => {
       const section = extractPhase0Section(content);
       expect(section).toContain('Phase 8.5');
+    });
+
+    it('Phase 0 no longer checks graph_version / graph_commit on wiki pages', () => {
+      const section = extractPhase0Section(content);
+      expect(section).not.toMatch(/wiki[^.]{0,40}graph_version/);
+      expect(section).not.toMatch(/wiki[^.]{0,40}graph_commit/);
+    });
+
+    it('Phase 0 asserts the new minimal frontmatter keys (document_type, summary, last_updated)', () => {
+      const section = extractPhase0Section(content);
+      expect(section).toContain('document_type');
+      expect(section).toContain('summary');
+      expect(section).toContain('last_updated');
     });
   });
 
@@ -399,15 +485,21 @@ describe('SKILL.codex.md — Phase F regression (symmetric)', () => {
     });
   });
 
-  describe('Phase 9 has Phase 8.5 prerequisite', () => {
+  describe('Phase 9 — push + PR only (commit lives in Phase 8.4)', () => {
     it('Phase 9 section confirms Phase 8.5 completion before proceeding', () => {
       const section = extractPhase9Section(content);
       expect(section).toContain('Phase 8.5 marked completed');
     });
 
-    it('Phase 9 emits failed and STOPs if structural lint failures from 8.5 are unresolved', () => {
+    it('Phase 9 references Phase 8.4 as the source of the implementation commit', () => {
       const section = extractPhase9Section(content);
-      expect(section).toContain('structural lint failures from 8.5');
+      expect(section).toMatch(/Phase 8\.4/);
+    });
+
+    it('Phase 9 multi-repo path uses /repo-fanout-pr --no-commit', () => {
+      const section = extractPhase9Section(content);
+      expect(section).toContain('/repo-fanout-pr');
+      expect(section).toContain('--no-commit');
     });
   });
 
@@ -431,14 +523,24 @@ describe('SKILL.codex.md — Phase F regression (symmetric)', () => {
     });
   });
 
-  describe('Skills and Role Prompts Used lists /wiki-refresh', () => {
-    it('Skills section includes /wiki-refresh at Phase 8.5', () => {
+  describe('Skills and Role Prompts Used lists /wiki-refresh and /repo-fanout-pr', () => {
+    it('Skills section includes /wiki-refresh at Phase 8.5 with --commit', () => {
       const skillsSection = content.slice(
         content.indexOf('## Skills and Role Prompts Used'),
         content.indexOf('## Prerequisites'),
       );
       expect(skillsSection).toContain('/wiki-refresh');
       expect(skillsSection).toContain('Phase 8.5');
+      expect(skillsSection).toContain('--commit');
+    });
+
+    it('Skills section notes /repo-fanout-pr is invoked with --no-commit at Phase 9', () => {
+      const skillsSection = content.slice(
+        content.indexOf('## Skills and Role Prompts Used'),
+        content.indexOf('## Prerequisites'),
+      );
+      expect(skillsSection).toContain('/repo-fanout-pr');
+      expect(skillsSection).toContain('--no-commit');
     });
   });
 

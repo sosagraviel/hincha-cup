@@ -32,6 +32,20 @@
       "trigger_mode": "always"
     },
     {
+      "name": "wiki-add-service",
+      "path": "020-development-workflow/wiki-add-service",
+      "description": "Create a new service-doc page under docs/llm-wiki/wiki/services/ for a service that exists in the project but has no wiki page yet. Use when /wiki-refresh surfaces a missing-service suggestion.",
+      "trigger_mode": "always",
+      "is_linkable_to_agents": false
+    },
+    {
+      "name": "repo-fanout-pr",
+      "path": "020-development-workflow/repo-fanout-pr",
+      "description": "Fans out a multi-repo change into one commit + push + PR per affected child repo and cross-links the PR bodies. Invoked by /implement-ticket Phase 9 when the workspace contains more than one git repo. Not for direct user use.",
+      "trigger_mode": "always",
+      "is_linkable_to_agents": false
+    },
+    {
       "name": "mastering-git-cli",
       "path": "020-development-workflow/mastering-git-cli",
       "description": "Git version control operations: git status, git log, git diff, commits, branches, merge conflicts, rebase, stash, cherry-pick, git history, worktrees, submodules, and repository troubleshooting. Use for git commands, branch management, merge strategies, conflict resolution, commit history, viewing changes, checking repository state, and git workflows.",
@@ -48,13 +62,7 @@
     {
       "name": "doc-updater",
       "path": "030-quality-assurance/doc-updater",
-      "description": "Documentation update patterns",
-      "trigger_mode": "always"
-    },
-    {
-      "name": "wiki-lint",
-      "path": "030-quality-assurance/wiki-lint",
-      "description": "Structural and semantic lint checks over docs/llm-wiki/wiki/. Structural failures exit non-zero; semantic warnings are advisory.",
+      "description": "Maintain {{INSTRUCTION_FILE}} (CLAUDE.md/AGENTS.md) and the three generated convention skills (code-conventions, multi-file-workflows, testing-conventions) accuracy after code changes. Surgical updates only; defers descriptive content to /wiki-refresh and graph maintenance to ensure-context.sh.",
       "trigger_mode": "always"
     },
     {
@@ -306,9 +314,9 @@
       "trigger_mode": "always"
     },
     {
-      "name": "ingest-external-docs",
-      "path": "060-documentation/ingest-external-docs",
-      "description": "Stage external descriptive docs (PDFs, Confluence/Notion exports, ADRs) under docs/llm-wiki/raw/external/ for the wiki-generator to absorb on the next /wiki-refresh. Export-first; opt-in via wiki.cache_external in framework-config.json.",
+      "name": "wiki-ingest-external-docs",
+      "path": "020-development-workflow/wiki-ingest-external-docs",
+      "description": "Stage external descriptive docs (PDFs, DOCX, HTML, Notion/Confluence exports, GitHub issues, images) into docs/llm-wiki/raw/external/ following Karpathy's LLM-Wiki pattern. Content-addressed, manifest-indexed, export-first. Opt-in via wiki.cache_external in framework-config.json. wiki-refresh consumes the manifest on the next run.",
       "trigger_mode": "always",
       "is_linkable_to_agents": false
     },

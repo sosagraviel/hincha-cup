@@ -47,12 +47,7 @@ export async function runCoreDocNode(
       },
     });
 
-    const file = await wiki.generateCoreDoc(
-      documentType,
-      context.generatedAt,
-      context.graphVersion,
-      context.graphCommit ?? 'unknown',
-    );
+    const file = await wiki.generateCoreDoc(documentType, context.generatedAt);
 
     phaseLogger.success(`✓ Generated ${SLOT_LABEL[slot]}`);
 

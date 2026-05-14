@@ -59,7 +59,7 @@ export async function wikiPreparationNode(
     });
 
     wiki.validate();
-    const { generatedAt, graphVersion, graphCommit } = wiki.computeMetadata();
+    const generatedAt = wiki.computeGeneratedAt();
 
     phaseLogger.success('✓ Wiki inputs validated');
 
@@ -69,8 +69,6 @@ export async function wikiPreparationNode(
           analyzers,
           stackProfile,
           generatedAt,
-          graphVersion,
-          graphCommit,
           digestedUpstream,
         },
       },

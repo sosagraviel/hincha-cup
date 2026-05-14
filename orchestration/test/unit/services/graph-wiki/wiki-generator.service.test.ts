@@ -94,63 +94,25 @@ describe('wiki-generator.service', () => {
     };
   }
 
-  it('index.md emits empty graph_queries_used (deterministic catalog)', async () => {
-    // Previously the index unioned graph_queries_used across
-    // all four analyzers — making it look like the index "ran" graph
-    // queries it never touched. The index is a deterministic catalog;
-    // it should report no graph queries.
+  it('frontmatter is the minimal 6-field shape (no graph_queries_used / sources / confidence)', async () => {
     const service = new WikiGeneratorService({
       ...buildInput(),
       agentInvoker: async ({ filename }: WikiAgentInvocation) => `# ${filename}\n\nbody`,
     });
     const result = await service.generateAll();
-    const indexFile = result.files.find((f) => f.filename === 'wiki/index.md');
-    expect(indexFile).toBeDefined();
-    const data = matter(indexFile!.content).data as Record<string, unknown>;
-    expect(data.graph_queries_used).toEqual([]);
-  });
-
-  it('SERVICES.md emits empty graph_queries_used (deterministic catalog)', async () => {
-    const service = new WikiGeneratorService({
-      ...buildInput(),
-      agentInvoker: async ({ filename }: WikiAgentInvocation) => `# ${filename}\n\nbody`,
-    });
-    const result = await service.generateAll();
-    const servicesFile = result.files.find((f) => f.filename === 'wiki/SERVICES.md');
-    expect(servicesFile).toBeDefined();
-    const data = matter(servicesFile!.content).data as Record<string, unknown>;
-    expect(data.graph_queries_used).toEqual([]);
-  });
-
-  it('drops non-canonical graph_queries_used strings from wiki frontmatter (defence in depth)', async () => {
-    const input = buildInput();
-    // Simulate a Phase 1 regression: free-form prose in graph_queries_used.
-    input.analyzers = {
-      ...input.analyzers,
-      structure_architecture: {
-        ...input.analyzers.structure_architecture!,
-        graph_queries_used: [
-          "list_communities({ detail_level: 'standard' }) — exceeded token limit",
-          'mcp__code_graph__list_communities_tool',
-        ],
-      },
-    };
-
-    const service = new WikiGeneratorService({
-      ...input,
-      agentInvoker: async ({ filename }: WikiAgentInvocation) => `# ${filename}\n\nbody`,
-    });
-
-    const result = await service.generateAll();
-
     for (const file of result.files) {
       if (!file.filename.startsWith('wiki/')) continue;
       const data = matter(file.content).data as Record<string, unknown>;
-      const queries = (data.graph_queries_used ?? []) as string[];
-      expect(queries.every((q) => /^mcp__code_graph__[A-Za-z0-9_]+$/.test(q))).toBe(true);
-      expect(queries).not.toContain(
-        "list_communities({ detail_level: 'standard' }) — exceeded token limit",
-      );
+      expect(data).not.toHaveProperty('graph_queries_used');
+      expect(data).not.toHaveProperty('sources');
+      expect(data).not.toHaveProperty('confidence');
+      expect(data).not.toHaveProperty('graph_version');
+      expect(data).not.toHaveProperty('graph_commit');
+      expect(data).not.toHaveProperty('generated_by');
+      expect(data).not.toHaveProperty('last_verified');
+      expect(data).toHaveProperty('document_type');
+      expect(data).toHaveProperty('summary');
+      expect(data).toHaveProperty('last_updated');
     }
   });
 
@@ -296,14 +258,13 @@ describe('wiki-generator.service', () => {
     const service = new WikiGeneratorService({
       ...buildInput(),
       agentInvoker: async () =>
-        ['---', 'generated_by: malicious', 'document_type: wrong', '---', '# Body'].join('\n'),
+        ['---', 'document_type: wrong', 'summary: malicious', '---', '# Body'].join('\n'),
     });
 
     const result = await service.generateAll();
     const architecture = result.files.find((file) => file.filename === 'wiki/ARCHITECTURE.md')!;
     const parsed = matter(architecture.content);
 
-    expect(parsed.data.generated_by).toBe('ai-agentic-framework');
     expect(parsed.data.document_type).toBe('architecture');
     expect(parsed.content).toContain('# Body');
     expect(parsed.content).not.toContain('malicious');
@@ -324,7 +285,7 @@ describe('wiki-generator.service', () => {
     const parsed = matter(servicesDoc.content);
 
     expect(parsed.data.document_type).toBe('services');
-    expect(parsed.data.graph_queries_used).toEqual([]);
+    expect(parsed.data).not.toHaveProperty('graph_queries_used');
     expect(parsed.content).toContain('[**api**](services/api.md)');
     expect(invocations).not.toContain('SERVICES.md');
   });
@@ -405,8 +366,8 @@ describe('wiki-generator.service', () => {
     expect(index).not.toContain('[DATA-FLOWS](DATA-FLOWS.md)');
     expect(index).not.toContain('[PATTERNS](PATTERNS.md)');
 
-    // Inline metadata: document_type + confidence + tags
-    expect(index).toMatch(/architecture, confidence:/);
+    // Inline metadata: document_type + tags (confidence dropped in 2026-05 simplification)
+    expect(index).toMatch(/\*architecture\*/);
     expect(index).toMatch(/\*\*Tags:\*\* /);
   });
 

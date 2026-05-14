@@ -143,35 +143,43 @@ Same regex spirit as the validator (the validator's pattern is more conservative
 
 ## LLM-wiki frontmatter contract
 
-Every file under `<project>/docs/llm-wiki/wiki/` carries the same provenance frontmatter so the wiki linter, the index summary catalog, and downstream agents can rely on a stable contract. This block lives here (developer documentation) rather than inside the wiki's own router doc, which is capped at ~150 lines for runtime use.
+Every file under `<project>/docs/llm-wiki/wiki/` carries a minimal frontmatter so `index.md` and downstream agents can rely on a stable contract. Deliberately small — the larger contract (`sources`, `confidence`, `graph_version`, etc.) was retired in the 2026-05 simplification.
 
 ```yaml
-document_type: <architecture|data-flow|pattern|service|services|index|schema>
+document_type: <architecture|service|services|index>
 summary: <single line, <=160 chars, load-bearing for retrieval>
-confidence: <high|medium|low>
-generated_at: <iso>
-generated_by: ai-agentic-framework
-graph_version: <sha256 of .code-review-graph/graph.db>
-graph_commit: <git sha at build time>
-graph_queries_used: [<mcp__code_graph__... names — Phase 1 analyzer queries, not wiki-gen>]
-sources:
-  - { path: <relative-to-project-root>, sha256: <hash>, ingested_at: <iso>, commit: <git sha> }
-related: [<wiki-relative-paths>]
-last_verified: <iso>
-tags: [<curated, ~5 max — bound vocabulary from analyzer findings>]
-# service docs only:
-service_id: <id from stack profile>
-entry_points: [<paths>]
-dependencies: { production: [...], development: [...] }
-community_id: <graph community id, when known>
+last_updated: <iso 8601 timestamp>
+tags: [<curated, ~5 max>]                 # optional, but feeds index.md filters
+related: [<wiki-relative-paths>]          # optional
+service_id: <slug>                        # service docs only
 ```
 
-Lint policy:
+That's the full surface. There is no per-page `sources` array, no `confidence` level, no `graph_version` or `graph_commit`, no `graph_queries_used`, no `generated_at` (use `last_updated`), no `generated_by`, no `last_verified`, no `entry_points` / `dependencies` / `community_id`.
 
-- **Structural (fail PR):** broken wikilinks; `sources[]` pointing to non-existent paths; missing required frontmatter keys; `graph_version` mismatch with current `.code-review-graph/graph.db`.
-- **Semantic (warn):** orphan pages; stale claims; LLM-detected contradictions across changed-set + 1-hop.
+`wiki/index.md` reads `summary`, `tags`, `related` from every page to emit its catalog. `last_updated` is the only timestamp.
 
-The `tags:` field is consumed by `wiki/index.md`'s summary catalog so Tier 1 retrieval is a single read; keep the vocabulary curated.
+### Wiki state file
+
+`docs/llm-wiki/.state.json` tracks the per-repo commits the wiki was last refreshed against. `/wiki-refresh` reads it to compute diffs and writes it on success.
+
+```json
+{
+  "repos": { ".": "<sha>" },          // single-repo
+  "last_refresh_at": "<iso>"
+}
+```
+
+```json
+{
+  "repos": {                          // multi-repo
+    "cm-ai-api": "<sha>",
+    "cm-delivery-tool": "<sha>"
+  },
+  "last_refresh_at": "<iso>"
+}
+```
+
+Graph state (`graph_sha`, `graph_commit`, `pipeline_version`, `graph_stats`) is **not** stored here — it lives in `.code-review-graph/.state.json`.
 
 ---
 

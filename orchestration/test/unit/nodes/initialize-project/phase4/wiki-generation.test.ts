@@ -108,7 +108,6 @@ describe('wikiGenerationNode (finalization)', () => {
             ],
           },
           generatedAt: '2026-04-21T00:00:00.000Z',
-          graphVersion: 'deadbeef',
         },
         architecture: buildCoreDoc('ARCHITECTURE.md', 'architecture'),
         service_docs: [buildCoreDoc('services/api.md', 'service')],
@@ -149,37 +148,39 @@ describe('wikiGenerationNode (finalization)', () => {
     expect(result.phase4_wiki_generation?.llm_wiki_written).toBe(true);
   });
 
-  it('also writes CHANGELOG.md, log.md, .state.json, and schema doc at wiki root', async () => {
+  it('writes .state.json and the schema doc at wiki root (no CHANGELOG.md / log.md)', async () => {
     await wikiGenerationNode(state);
 
-    for (const fileName of ['CHANGELOG.md', 'log.md', '.state.json', 'CLAUDE.md']) {
+    for (const fileName of ['.state.json', 'CLAUDE.md']) {
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         `/test/project/docs/llm-wiki/${fileName}`,
         expect.any(String),
       );
     }
+
+    const writtenPaths = vi.mocked(fs.writeFileSync).mock.calls.map(([p]) => String(p));
+    expect(writtenPaths.some((p) => p.endsWith('docs/llm-wiki/CHANGELOG.md'))).toBe(false);
+    expect(writtenPaths.some((p) => p.endsWith('docs/llm-wiki/log.md'))).toBe(false);
   });
 
-  it('threads code_graph_stats from preflight into .state.json', async () => {
-    // Anti-regression: the wiki-generation node once called buildStateJson
-    // without graph_stats, so .state.json on every run recorded
-    // `graph_stats: null` even though state.code_graph_stats was available
-    // in scope. Consumers (wiki refresh, lint, dashboard) had to re-run
-    // `code-review-graph stats` to get the same numbers. The fix threads
-    // the preflight stats through.
+  it('writes the new .state.json shape — repos map + last_refresh_at, no graph_* fields', async () => {
     await wikiGenerationNode(state);
 
     const stateWrite = vi
       .mocked(fs.writeFileSync)
       .mock.calls.find(([path]) => String(path).endsWith('docs/llm-wiki/.state.json'));
+    expect(stateWrite).toBeDefined();
     const parsed = JSON.parse(String(stateWrite?.[1]));
-    expect(parsed.graph_stats).toEqual({
-      files: 12,
-      functions: 20,
-      edges: 30,
-      languages: ['typescript'],
-      build_time_ms: 1000,
-    });
+
+    expect(parsed).toHaveProperty('repos');
+    expect(parsed).toHaveProperty('last_refresh_at');
+    expect(typeof parsed.repos).toBe('object');
+    expect(parsed).not.toHaveProperty('graph_commit');
+    expect(parsed).not.toHaveProperty('graph_sha');
+    expect(parsed).not.toHaveProperty('graph_stats');
+    expect(parsed).not.toHaveProperty('pipeline_version');
+    expect(parsed).not.toHaveProperty('last_indexed_commit');
+    expect(parsed).not.toHaveProperty('last_ingest_at');
   });
 
   it('SERVICES.md written by finalization is a deterministic catalog', async () => {

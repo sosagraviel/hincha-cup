@@ -104,11 +104,9 @@ describe('validateWikiOutput — Rule 2: NO inline ^[id] markers (any prefix, an
     const text = '# Page\n\nClaim ^[synthesis].';
     const violations = validateWikiOutput(text);
     const ruleMessage = violations.find((v) => v.includes('inline `^[...]`'))!;
-    // The fix message must mention both replacements so the agent knows
-    // what to do next.
     expect(ruleMessage).toContain('[[wikilinks]]');
     expect(ruleMessage).toContain('(not determined by analysis)');
-    expect(ruleMessage).toContain('YAML frontmatter');
+    expect(ruleMessage).toMatch(/forbidden/i);
   });
 });
 
@@ -174,12 +172,11 @@ describe('validateWikiOutput — Rule 4: no trailing meta-sections', () => {
     expect(validateWikiOutput(text)).toEqual([]);
   });
 
-  it('points the agent at .state.json + (not determined by analysis) replacement', () => {
+  it('points the agent at the (not determined by analysis) replacement', () => {
     const text = ['# H', '', 'body', '', '## Verification Notes', '', '- Unverified.'].join('\n');
     const violations = validateWikiOutput(text);
     const meta = violations.find((v) => /forbidden trailing meta-section/i.test(v));
     expect(meta).toBeDefined();
-    expect(meta).toContain('.state.json');
     expect(meta).toContain('(not determined by analysis)');
   });
 

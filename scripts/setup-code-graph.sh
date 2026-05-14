@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/bootstrap-uv.sh"
 # shellcheck source=lib/resolve-paths.sh
 source "$SCRIPT_DIR/lib/resolve-paths.sh"
+# shellcheck source=lib/register-submodules.sh
+source "$SCRIPT_DIR/lib/register-submodules.sh"
 
 # PROJECT_PATH is locally scoped — never exported. Single source of truth is the
 # helper, which detects dogfooding via the qubika-agentic-framework -> . self-symlink.
@@ -146,12 +148,16 @@ build_graph() {
   log_info "Building graph for $PROJECT_PATH"
   log_info "Output: $CODE_GRAPH_DB_PATH"
 
-  if "${CODE_GRAPH_CMD[@]}" build --repo "$PROJECT_PATH"; then
+  # CRG_RECURSE_SUBMODULES=1 makes code-review-graph use
+  # `git ls-files --recurse-submodules` so the children we registered as
+  # submodules above actually get walked. No-op when there are no
+  # submodules in the parent.
+  if CRG_RECURSE_SUBMODULES=1 "${CODE_GRAPH_CMD[@]}" build --repo "$PROJECT_PATH"; then
     return 0
   fi
 
   log_info "Retrying graph build from project directory"
-  if (cd "$PROJECT_PATH" && "${CODE_GRAPH_CMD[@]}" build); then
+  if (cd "$PROJECT_PATH" && CRG_RECURSE_SUBMODULES=1 "${CODE_GRAPH_CMD[@]}" build); then
     return 0
   fi
 
@@ -162,12 +168,12 @@ update_graph() {
   log_info "Incrementally updating graph for $PROJECT_PATH"
   log_info "Output: $CODE_GRAPH_DB_PATH"
 
-  if "${CODE_GRAPH_CMD[@]}" update --repo "$PROJECT_PATH"; then
+  if CRG_RECURSE_SUBMODULES=1 "${CODE_GRAPH_CMD[@]}" update --repo "$PROJECT_PATH"; then
     return 0
   fi
 
   log_info "Retrying graph update from project directory"
-  if (cd "$PROJECT_PATH" && "${CODE_GRAPH_CMD[@]}" update); then
+  if (cd "$PROJECT_PATH" && CRG_RECURSE_SUBMODULES=1 "${CODE_GRAPH_CMD[@]}" update); then
     return 0
   fi
 
@@ -203,6 +209,14 @@ git_head_commit() {
 #   tier3   graph missing or invalid                                      → full build
 decide_graph_tier() {
   if [ "${FORCE_REBUILD:-0}" = "1" ]; then
+    echo "tier3"
+    return
+  fi
+  # Multi-repo: parent HEAD doesn't track child commits, so neither the
+  # `Built at commit:` sqlite metadata nor `code-review-graph update`'s
+  # `git diff HEAD~1` can see child changes. Force tier3 every run.
+  # See is_multi_repo in scripts/lib/register-submodules.sh.
+  if is_multi_repo "$PROJECT_PATH" "$FRAMEWORK_PATH"; then
     echo "tier3"
     return
   fi
@@ -474,6 +488,17 @@ main() {
   #   tier3 → full rebuild (~4s on gira) or first-time build.
   local tier
   tier="$(decide_graph_tier)"
+
+  # Transient submodule registration so `code-review-graph` (which uses
+  # `git ls-files`) can index nested child repos when the project root is
+  # itself a git repo. No-op when the parent is not a git repo, when
+  # `.gitmodules` is already user-managed, or when no children are found.
+  # Skipped on tier1 — no rebuild work means no need to touch the index.
+  # See scripts/lib/register-submodules.sh for the full rationale.
+  if [ "$tier" != "tier1" ]; then
+    register_child_repos_for_indexing "$PROJECT_PATH" "$FRAMEWORK_PATH"
+    trap 'unregister_child_repos "$PROJECT_PATH" "$FRAMEWORK_PATH"' EXIT
+  fi
 
   case "$tier" in
     tier1)

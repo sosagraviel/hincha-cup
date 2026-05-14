@@ -24,14 +24,12 @@ export const SCHEMA_FILENAME_BY_PROVIDER: Record<Provider, 'CLAUDE.md' | 'AGENTS
 /**
  * All schema filenames that may ever exist in docs/llm-wiki/.
  * Used by the cleanup sweep to remove stale variants on provider switch.
- * Includes COPILOT.md so a stale file from any future provider gets swept.
  */
 export const ALL_SCHEMA_FILENAMES = ['CLAUDE.md', 'AGENTS.md', 'COPILOT.md'] as const;
 
-export const LLM_WIKI_ROOT_FILE_NAMES_BASE = ['CHANGELOG.md', 'log.md', '.state.json'] as const;
+export const LLM_WIKI_ROOT_FILE_NAMES_BASE = ['.state.json'] as const;
 export const LLM_WIKI_RAW_SUBDIRS = ['external', 'snapshots'] as const;
 
-export const GENERATED_BY = 'ai-agentic-framework';
 export const WIKI_AGENT_NAME = 'wiki-generator';
 export const WIKI_AGENT_FILE = '07-wiki-generator.md';
 
@@ -51,41 +49,34 @@ export type GeneratedWikiFilename =
   | SchemaFileName
   | `wiki/${string}`
   | `services/${string}.md`
-  | 'CHANGELOG.md'
-  | 'log.md'
   | '.state.json'
   | `raw/${string}`;
 
-export interface WikiSource {
-  path: string;
-  sha256: string;
-  ingested_at: string;
-  commit: string;
+/**
+ * Frontmatter contract for every wiki page. Kept deliberately small — the
+ * larger contract (sources, confidence, graph_version, etc.) was retired in
+ * the 2026-05 wiki simplification pass. `index.md` reads `summary`/`tags`/
+ * `related` to build the Tier-1 catalog; `last_updated` is the only timestamp.
+ */
+export interface WikiPageFrontmatter {
+  document_type: 'architecture' | 'service' | 'services' | 'index';
+  summary: string;
+  last_updated: string;
+  tags?: string[];
+  related?: string[];
+  service_id?: string;
 }
 
-export interface WikiPageFrontmatter {
-  document_type: 'architecture' | 'service' | 'services' | 'index' | 'schema';
-  generated_at: string;
-  generated_by: string;
-  graph_version: string;
-  graph_commit: string;
-  graph_queries_used: string[];
-  summary: string;
-  sources: WikiSource[];
-  confidence: 'high' | 'medium' | 'low';
-  related: string[];
-  last_verified: string;
-  /**
-   * Optional curated tags. Source: analyzer findings (service language /
-   * framework / type for service docs; analyzer-derived top tags for core
-   * docs). Used by `index.md` to render summary catalog entries inline so
-   * Tier 1 retrieval is one read instead of N frontmatter scans.
-   */
-  tags?: string[];
-  service_id?: string;
-  entry_points?: string[];
-  dependencies?: Record<string, unknown>;
-  community_id?: string;
+/**
+ * Wiki state file shape (`docs/llm-wiki/.state.json`). `repos` is a map keyed
+ * by repo identifier — `"."` for single-repo, child directory name for
+ * multi-repo — to the commit sha the wiki was last refreshed against. All
+ * graph state (graph_sha / graph_commit / pipeline_version / graph_stats)
+ * lives in `.code-review-graph/.state.json`, not here.
+ */
+export interface WikiStateJson {
+  repos: Record<string, string>;
+  last_refresh_at: string;
 }
 
 export interface AnalyzerDocument {
@@ -120,8 +111,9 @@ export type WikiAgentInvoker = (invocation: WikiAgentInvocation) => Promise<stri
 
 /**
  * Digested upstream artifacts piped into the closed-book wiki-generator.
- * The wiki-generator agent has no filesystem access — these strings are the
- * sole source of truth for every page it renders.
+ * All four are produced by earlier phases and live on disk before Phase 4b
+ * runs. The wiki-generator agent has no filesystem access — these strings
+ * are the sole source of truth for every page it renders.
  */
 export interface WikiDigestedUpstream {
   synthesis?: string;
@@ -169,14 +161,8 @@ export interface GeneratedLlmWiki {
 
 export interface WikiDocumentSpec {
   filename: GeneratedWikiFilename;
-  documentType: string;
+  documentType: 'architecture' | 'service' | 'services' | 'index';
   title: string;
-  /**
-   * Graph queries the upstream Phase 1 analyzers ran while producing the JSON
-   * that grounds this page. Surfaced verbatim into frontmatter for traceability.
-   * The wiki-generator itself does NOT call graph tools — that work is upstream.
-   */
-  graphQueriesUsed: string[];
   promptFocus: string[];
   /**
    * Structured upstream context the agent synthesizes from. Includes the
@@ -199,5 +185,8 @@ export interface WikiDocumentSpec {
    * `index.md` to enrich its summary catalog without re-deriving structure.
    */
   tags?: string[];
-  frontmatterExtras?: Record<string, unknown>;
+  /**
+   * Service docs only — passed through to frontmatter as `service_id`.
+   */
+  serviceId?: string;
 }

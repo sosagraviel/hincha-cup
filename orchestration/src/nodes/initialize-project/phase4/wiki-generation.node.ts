@@ -18,6 +18,7 @@ import {
   buildGraphDisciplineSection,
   upsertFencedSection,
 } from '../../../services/graph-wiki/frontmatter.js';
+import { buildWikiStateAtHead } from '../../../services/graph-wiki/wiki-state.js';
 import { getActiveProvider } from '../../../utils/provider-paths.js';
 import { getInitializeProjectPhase } from '../../../services/framework/debug-store/index.js';
 
@@ -61,20 +62,13 @@ export async function wikiGenerationNode(
       },
     });
 
-    const servicesCatalog = wiki.buildServicesCatalog(
-      serviceDocs,
-      context.generatedAt,
-      context.graphVersion,
-      context.graphCommit ?? 'unknown',
-    );
+    const servicesCatalog = wiki.buildServicesCatalog(serviceDocs, context.generatedAt);
 
+    // Build the index AFTER every other page so its summary catalog can read
+    // each page's frontmatter (summary / tags / related). Tier 1 retrieval at
+    // consumer time becomes one read instead of N.
     const indexInputPages: GeneratedWikiFile[] = [architecture, servicesCatalog, ...serviceDocs];
-    const index = wiki.buildIndex(
-      indexInputPages,
-      context.generatedAt,
-      context.graphVersion,
-      context.graphCommit ?? 'unknown',
-    );
+    const index = wiki.buildIndex(indexInputPages, context.generatedAt);
 
     const wikiFiles: GeneratedWikiFile[] = [architecture, servicesCatalog, ...serviceDocs, index];
 
@@ -91,29 +85,16 @@ export async function wikiGenerationNode(
       }
     }
 
-    const schemaDoc = wiki.buildSchemaDoc(
-      state.project_path.split('/').pop() ?? 'project',
-      context.generatedAt,
-    );
+    const schemaDoc = wiki.buildSchemaDoc(state.project_path.split('/').pop() ?? 'project');
 
-    const changelog = wiki.buildChangelog(context.generatedAt, {
-      added: wikiFiles.map((f) => String(f.filename)),
-    });
-    const log = wiki.buildLog(context.generatedAt, {
-      type: 'ingest',
-      summary: 'Initial wiki generation',
-      touched_pages: wikiFiles.map((f) => String(f.filename)),
-    });
-    const stateJson = wiki.buildStateJson({
-      graph_commit: context.graphCommit ?? 'unknown',
-      graph_sha: context.graphVersion,
-      pipeline_version: 'ai-agentic-framework',
-      last_indexed_commit: context.graphCommit ?? 'unknown',
-      last_ingest_at: context.generatedAt,
-      graph_stats: state.code_graph_stats,
-    });
+    // Build .state.json with the new shape: `{ repos: { ".": HEAD } }` for
+    // single-repo or `{ repos: { <child>: HEAD, ... } }` for multi-repo. The
+    // /wiki-refresh skill diffs against these per-repo commits on subsequent
+    // runs. Graph state lives in `.code-review-graph/.state.json` — not here.
+    const wikiState = buildWikiStateAtHead(state.project_path, state.framework_path);
+    const stateJson = wiki.buildStateJson(wikiState);
 
-    const allFiles: GeneratedWikiFile[] = [...wikiFiles, schemaDoc, changelog, log, stateJson];
+    const allFiles: GeneratedWikiFile[] = [...wikiFiles, schemaDoc, stateJson];
 
     const writtenFiles = allFiles.map((file) => {
       const filePath = join(llmWikiPath, String(file.filename));
@@ -133,6 +114,8 @@ export async function wikiGenerationNode(
     );
     const disciplineSection = buildGraphDisciplineSection();
 
+    // Upsert both fenced sections into the project's main schema doc
+    // (CLAUDE.md / AGENTS.md). Idempotent across re-runs.
     const claudeMdContent = readFileSync(claudeMdPath, 'utf-8');
     writeFileSync(
       claudeMdPath,

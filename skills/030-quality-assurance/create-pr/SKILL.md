@@ -1,41 +1,20 @@
 ---
 name: create-pr
-description: Create production-ready GitHub Pull Request with comprehensive artifacts (screenshots, videos, coverage). Integrates with implement-ticket 10-phase workflow. Use when implementation and testing complete.
+description: Create a production-ready GitHub Pull Request with comprehensive artifacts (screenshots, videos, coverage). Single-repo PR creator complementary to /repo-fanout-pr (multi-repo). Use when implementation and testing complete.
 argument-hint: '[JIRA-KEY]'
 allowed-tools: Read, Write, Bash, Glob, Grep, Skill
 ---
 
-# Create Production PR Skill V2
+# Create Production PR Skill
 
-## ⚠️ Migration Notice
-
-> **Artifact collection has been migrated to the TypeScript orchestration module.**
->
-> ### New Approach
->
-> ```bash
-> cd orchestration
-> npm run collect-artifacts -- --ticket PROJ-123
-> ```
->
-> ### Orchestration Implementation
->
-> - **Artifact Collector**: `orchestration/src/services/implement-ticket/artifact-collector.service.ts`
-> - **Screenshot Service**: `orchestration/src/services/implement-ticket/screenshot.service.ts`
-> - **Test Orchestrator**: `orchestration/src/services/implement-ticket/test-orchestrator.service.ts`
->
-> **References to `utils/artifact-collector.js` below are deprecated.**
-
----
-
-Creates production-ready GitHub Pull Requests with comprehensive artifacts, visual verification results, and automated documentation.
+Creates production-ready GitHub Pull Requests with comprehensive artifacts, visual verification results, and automated documentation. Single-repo only; for multi-repo workspaces, `/implement-ticket` Phase 9 delegates to `/repo-fanout-pr` instead.
 
 ## Contents
 
 - [Purpose](#purpose)
 - [When to Use](#when-to-use)
 - [Workflow](#workflow)
-- [Integration with implement-ticket V2](#integration-with-implement-ticket-v2)
+- [Integration with implement-ticket](#integration-with-implement-ticket)
 - [PR Description Format](#pr-description-format)
 - [Artifact Collection](#artifact-collection)
 - [Error Handling](#error-handling)
@@ -60,14 +39,14 @@ This skill creates PRs by:
 
 Activate this skill when:
 
-- After implement-ticket V2 workflow completes (Phase 8)
+- After implement-ticket workflow completes (Phase 8)
 - All tests passing (unit, integration, E2E)
 - Visual verification complete (if applicable)
 - Ready to submit code for review
 
 **Note**: This skill is automatically invoked by implement-ticket Phase 8, but can also be run standalone.
 
-## Integration with implement-ticket V2
+## Integration with implement-ticket
 
 This skill is designed to work seamlessly with the new 10-phase implement-ticket workflow:
 
@@ -113,7 +92,7 @@ If run independently (outside implement-ticket):
 The skill will:
 
 1. Check for artifacts in `.claude/artifacts/PROJ-123/`
-2. If artifacts exist, use them (prefer implement-ticket V2 structure)
+2. If artifacts exist, use them (prefer implement-ticket structure)
 3. If no artifacts, fall back to legacy artifact locations
 4. Generate PR description based on available artifacts
 
@@ -879,7 +858,7 @@ jobs:
 
 ## References
 
-- implement-ticket V2: `skills/020-development-workflow/implement-ticket/SKILL.claude.md` (Claude) or `SKILL.codex.md` (Codex)
+- implement-ticket: `skills/020-development-workflow/implement-ticket/SKILL.claude.md` (Claude) or `SKILL.codex.md` (Codex)
 - ArtifactCollector utility: `utils/artifact-collector.js`
 - GitHub CLI: https://cli.github.com/
 - Conventional Commits: https://www.conventionalcommits.org/

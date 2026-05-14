@@ -33,11 +33,7 @@ export async function wikiServiceDocsNode(
     });
 
     phaseLogger.info('Generating per-service docs in parallel...');
-    const serviceDocs = await wiki.generateServiceDocsConcurrent(
-      context.generatedAt,
-      context.graphVersion,
-      context.graphCommit ?? 'unknown',
-    );
+    const serviceDocs = await wiki.generateServiceDocsConcurrent(context.generatedAt);
     phaseLogger.success(`✓ Generated ${serviceDocs.length} service doc(s)`);
 
     return {
