@@ -33,7 +33,7 @@ For each sub-agent step below, use `Read` to load the agent prompt from `{{CONFI
 
 **Single-repo:**
 ```
-.claude/artifacts/<JIRA_KEY>/security/
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/
   sarif.json
   security-results.json
   security-report.md
@@ -42,7 +42,7 @@ For each sub-agent step below, use `Read` to load the agent prompt from `{{CONFI
 
 **Multi-repo (one entry per repo):**
 ```
-.claude/artifacts/<JIRA_KEY>/security/<repo-basename>/
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/<repo-basename>/
   sarif.json
   security-results.json
   security-report.md
@@ -51,8 +51,8 @@ For each sub-agent step below, use `Read` to load the agent prompt from `{{CONFI
 
 **Cross-repo summary (only with --aggregate):**
 ```
-.claude/artifacts/<JIRA_KEY>/security/cross-repo-summary.json
-.claude/artifacts/<JIRA_KEY>/security/cross-repo-summary.md
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/cross-repo-summary.json
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/cross-repo-summary.md
 ```
 
 ## Stack Detection Table
@@ -84,12 +84,13 @@ Run this pipeline for each target repo.
 ```bash
 python3 "{{CONFIG_DIR}}/skills/030-quality-assurance/security-review/scripts/detect_stack.py" \
   --repo-path "$REPO_PATH" \
-  --out-dir "$SCANNER_OUT"
+  --out-dir "$SCANNER_OUT" \
+  --config-dir "{{CONFIG_DIR}}"
 ```
 
 Read the output `$SCANNER_OUT/stack.json` to determine which scanners to invoke.
 
-Also check `$REPO_PATH/.claude/framework-config.json` if present; prefer its `by_service` language map as it is authoritative.
+Also check `$REPO_PATH/{{CONFIG_DIR}}/framework-config.json` if present; prefer its `by_service` language map as it is authoritative.
 
 ---
 
@@ -222,7 +223,7 @@ Use `Write` to produce `$ARTIFACTS_DIR/security-report.md` with:
 
 ### Step 9 — Cross-Repo Aggregator (--aggregate only)
 
-When `--aggregate` is set and more than one repo was scanned, read `agents/cross-repo-aggregator.md` and follow it inline. Write outputs to `.claude/artifacts/<JIRA_KEY>/security/cross-repo-summary.{json,md}`.
+When `--aggregate` is set and more than one repo was scanned, read `agents/cross-repo-aggregator.md` and follow it inline. Write outputs to `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/cross-repo-summary.{json,md}`.
 
 ---
 

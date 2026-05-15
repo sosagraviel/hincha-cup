@@ -59,8 +59,8 @@ IAC_EXTENSIONS = {".tf", ".yaml", ".yml"}
 IAC_DIRS = {"k8s", "kubernetes", "infra", "terraform", "helm", "charts"}
 
 
-def _detect_from_framework_config(repo_path: Path) -> list[str] | None:
-    config_path = repo_path / ".claude" / "framework-config.json"
+def _detect_from_framework_config(repo_path: Path, config_dir: str) -> list[str] | None:
+    config_path = repo_path / config_dir / "framework-config.json"
     if not config_path.exists():
         return None
     try:
@@ -109,11 +109,11 @@ def _detect_tsconfig(repo_path: Path) -> bool:
     return (repo_path / "tsconfig.json").exists()
 
 
-def detect_stack(repo_path: Path) -> dict:
+def detect_stack(repo_path: Path, config_dir: str = ".claude") -> dict:
     languages: set[str] = set()
     lockfiles: list[str] = []
 
-    framework_languages = _detect_from_framework_config(repo_path)
+    framework_languages = _detect_from_framework_config(repo_path, config_dir)
     if framework_languages:
         languages.update(framework_languages)
         return {"languages": sorted(languages), "lockfiles": [], "source": "framework-config"}
@@ -156,6 +156,11 @@ def main() -> None:
     )
     parser.add_argument("--repo-path", required=True, help="Absolute path to the repository root")
     parser.add_argument("--out-dir", required=True, help="Absolute path to the output directory")
+    parser.add_argument(
+        "--config-dir",
+        default=".claude",
+        help="Provider config directory under the repo root that contains framework-config.json (default: .claude)",
+    )
     args = parser.parse_args()
 
     repo_path = Path(args.repo_path).resolve()
@@ -167,7 +172,7 @@ def main() -> None:
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    result = detect_stack(repo_path)
+    result = detect_stack(repo_path, args.config_dir)
 
     output_path = out_dir / "stack.json"
     output_path.write_text(json.dumps(result, indent=2))

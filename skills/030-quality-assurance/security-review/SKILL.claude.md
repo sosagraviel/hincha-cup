@@ -27,7 +27,7 @@ When `--jira-key` is absent, derive a slug from the PR URL or use `adhoc-<date>`
 
 **Single-repo:**
 ```
-.claude/artifacts/<JIRA_KEY>/security/
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/
   sarif.json
   security-results.json
   security-report.md
@@ -36,7 +36,7 @@ When `--jira-key` is absent, derive a slug from the PR URL or use `adhoc-<date>`
 
 **Multi-repo (one entry per repo):**
 ```
-.claude/artifacts/<JIRA_KEY>/security/<repo-basename>/
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/<repo-basename>/
   sarif.json
   security-results.json
   security-report.md
@@ -45,8 +45,8 @@ When `--jira-key` is absent, derive a slug from the PR URL or use `adhoc-<date>`
 
 **Cross-repo summary (only with --aggregate):**
 ```
-.claude/artifacts/<JIRA_KEY>/security/cross-repo-summary.json
-.claude/artifacts/<JIRA_KEY>/security/cross-repo-summary.md
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/cross-repo-summary.json
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/cross-repo-summary.md
 ```
 
 ## Stack Detection Table
@@ -78,7 +78,8 @@ Run this pipeline for each target repo. Runs are independent and may proceed in 
 ```bash
 python3 "{{CONFIG_DIR}}/skills/030-quality-assurance/security-review/scripts/detect_stack.py" \
   --repo-path "$REPO_PATH" \
-  --out-dir "$SCANNER_OUT"
+  --out-dir "$SCANNER_OUT" \
+  --config-dir "{{CONFIG_DIR}}"
 ```
 
 The script emits `$SCANNER_OUT/stack.json`:
@@ -86,7 +87,7 @@ The script emits `$SCANNER_OUT/stack.json`:
 { "languages": ["python", "typescript"], "lockfiles": ["pyproject.toml", "package-lock.json"] }
 ```
 
-Read `framework-config.json` from `$REPO_PATH/.claude/framework-config.json` if it exists; prefer its `by_service` language map over the local detection result (Phase 1 analyzer is authoritative).
+Read `framework-config.json` from `$REPO_PATH/{{CONFIG_DIR}}/framework-config.json` if it exists; prefer its `by_service` language map over the local detection result (Phase 1 analyzer is authoritative).
 
 ---
 
@@ -258,7 +259,7 @@ The aggregator reads all per-repo `security-results.json` files and produces:
 - `cross-repo-summary.json` — structured summary (schema below)
 - `cross-repo-summary.md` — human-readable version
 
-Both files are written to `.claude/artifacts/<JIRA_KEY>/security/`.
+Both files are written to `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/`.
 
 ---
 
@@ -362,7 +363,7 @@ interface ScannerSummary {
       "majorCount": 4,
       "minorCount": 1,
       "overallStatus": "FAIL",
-      "sarifPath": ".claude/artifacts/PROJ-123/security/my-service/sarif.json"
+      "sarifPath": "{{TEMP_DIR}}/artifacts/PROJ-123/security/my-service/sarif.json"
     }
   ],
   "crossCuttingConcerns": [

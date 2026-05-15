@@ -22,7 +22,7 @@ You produce a cross-repository security summary from per-repo scan results.
 
 ## Input
 
-The path to `.claude/artifacts/<JIRA_KEY>/security/` containing per-repo
+The path to `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/` containing per-repo
 subdirectories, each with a `security-results.json`.
 
 ## Protocol

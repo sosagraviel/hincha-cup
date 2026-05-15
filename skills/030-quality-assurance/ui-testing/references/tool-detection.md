@@ -95,7 +95,7 @@ pnpm add -D vitest @vitest/ui @testing-library/{framework} @testing-library/jest
 
 Replace `{framework}` with the appropriate Testing Library package name (e.g. `react`, `vue`, `svelte`, `angular`).
 
-**Starter Vitest config** and framework-specific Vite plugins are defined in the specialization reference. The setup-file path and source-glob roots below are illustrative — adapt them to the project's actual layout (auto-detected from any existing `vitest.config.*` / `jest.config.*` `setupFiles` field, then falling back to `<repoRoot>/test-setup.{ts,js}` or the path documented in `.claude/skills/testing-conventions/SKILL.md`):
+**Starter Vitest config** and framework-specific Vite plugins are defined in the specialization reference. The setup-file path and source-glob roots below are illustrative — adapt them to the project's actual layout (auto-detected from any existing `vitest.config.*` / `jest.config.*` `setupFiles` field, then falling back to `<repoRoot>/test-setup.{ts,js}` or the path documented in `{{CONFIG_DIR}}/skills/testing-conventions/SKILL.md`):
 
 ```typescript
 import { defineConfig } from 'vitest/config'

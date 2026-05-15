@@ -43,7 +43,7 @@ If no convention violations are found, return `[]`.
 
 ## boundaries
 
-- Read `.claude/skills/code-conventions/` and `.claude/skills/multi-file-workflows/` and `.claude/skills/testing-conventions/` if they exist.
+- Read `{{CONFIG_DIR}}/skills/code-conventions/` and `{{CONFIG_DIR}}/skills/multi-file-workflows/` and `{{CONFIG_DIR}}/skills/testing-conventions/` if they exist.
 - Review only files present in the diff.
 - Do not flag: style issues that the linter already catches, formatting differences, naming preferences that are not established conventions in this project, speculative conventions not found in the project.
 - Convention violations are at most `major` severity. They are never `blocking`. A convention violation is `major` only when it introduces an inconsistency that would break a workflow (e.g. a module placed in the wrong directory that the build system cannot find, or a test file named incorrectly that the test runner cannot discover).

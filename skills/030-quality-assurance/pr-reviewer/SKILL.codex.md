@@ -32,7 +32,7 @@ Sequence is **strictly linear** (no parallelism). Run all specialists in order: 
 
 **Single-repo:**
 ```
-.claude/artifacts/<JIRA_KEY>/pr/review/
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/review/
   review-results.json
   review.md
   human.md
@@ -42,7 +42,7 @@ Sequence is **strictly linear** (no parallelism). Run all specialists in order: 
 
 **Multi-repo (per PR):**
 ```
-.claude/artifacts/<JIRA_KEY>/pr/<repo-basename>/review/
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/<repo-basename>/review/
   review-results.json
   review.md
   human.md
@@ -52,8 +52,8 @@ Sequence is **strictly linear** (no parallelism). Run all specialists in order: 
 
 **Cross-repo summary (--aggregate only):**
 ```
-.claude/artifacts/<JIRA_KEY>/pr/cross-repo-summary.json
-.claude/artifacts/<JIRA_KEY>/pr/cross-repo-summary.md
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/cross-repo-summary.json
+{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/cross-repo-summary.md
 ```
 
 ## Pipeline Architecture
@@ -75,14 +75,14 @@ Sequence is **strictly linear** (no parallelism). Run all specialists in order: 
  13. add_inline_comment.py              (deterministic: posts to GitHub via gh CLI)
 ```
 
-When `--aggregate` is passed and multiple per-PR JSONs exist under `.claude/artifacts/<JIRA_KEY>/pr/`, load `agents/cross-repo-aggregator.md` as your role and skip steps 1–13.
+When `--aggregate` is passed and multiple per-PR JSONs exist under `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/`, load `agents/cross-repo-aggregator.md` as your role and skip steps 1–13.
 
 ## Execution
 
 ### Step 1: Fetch PR Data
 
 ```bash
-REVIEW_DIR=".claude/artifacts/${JIRA_KEY}/pr/${REPO_BASENAME}/review"
+REVIEW_DIR="{{TEMP_DIR}}/artifacts/${JIRA_KEY}/pr/${REPO_BASENAME}/review"
 mkdir -p "$REVIEW_DIR"
 
 python skills/030-quality-assurance/pr-reviewer/scripts/fetch_pr_data.py \
@@ -200,12 +200,12 @@ gh pr review <PR_NUMBER> --repo <OWNER>/<REPO> --approve
 
 When `--aggregate` is passed:
 
-1. Find all `review-results.json` files under `.claude/artifacts/<JIRA_KEY>/pr/*/review/`
+1. Find all `review-results.json` files under `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/*/review/`
 2. If fewer than 2 exist, emit a warning and exit cleanly
 3. Load `agents/cross-repo-aggregator.md`. Adopt its persona.
 4. Produce:
-   - `.claude/artifacts/<JIRA_KEY>/pr/cross-repo-summary.json`
-   - `.claude/artifacts/<JIRA_KEY>/pr/cross-repo-summary.md`
+   - `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/cross-repo-summary.json`
+   - `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/cross-repo-summary.md`
 
 ## Output Schema
 
@@ -298,7 +298,7 @@ When `--aggregate` is passed:
 
 ## Multi-Repo Behaviour
 
-When invoked by `/implement-ticket` Phase 10 with multiple PR URLs, each invocation of `/pr-reviewer --pr-url <URL>` is independent and writes to its own `.claude/artifacts/<JIRA_KEY>/pr/<repo-basename>/review/` directory.
+When invoked by `/implement-ticket` Phase 10 with multiple PR URLs, each invocation of `/pr-reviewer --pr-url <URL>` is independent and writes to its own `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/<repo-basename>/review/` directory.
 
 After all per-PR invocations complete, `/implement-ticket` calls `/pr-reviewer --aggregate --jira-key <KEY>` once. That call reads all per-PR JSONs and produces the cross-repo summary.
 

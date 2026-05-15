@@ -67,11 +67,11 @@ Common workflows for specific review use cases.
 **Trigger**: `/implement-ticket` Phase 10 has reviewed all per-repo PRs and calls `/pr-reviewer --aggregate --jira-key <KEY>`.
 
 **Workflow**:
-1. The skill finds all `review-results.json` files under `.claude/artifacts/<KEY>/pr/*/review/`.
+1. The skill finds all `review-results.json` files under `{{TEMP_DIR}}/artifacts/<KEY>/pr/*/review/`.
 2. If fewer than 2 exist, the skill emits a warning and exits cleanly.
 3. `agents/cross-repo-aggregator.md` reads all per-PR JSONs and their diff patches.
 4. The aggregator identifies cross-repo concerns: API contract mismatches, schema version skew, dependency conflicts, merge ordering constraints.
-5. Output: `cross-repo-summary.json` and `cross-repo-summary.md` at `.claude/artifacts/<KEY>/pr/`.
+5. Output: `cross-repo-summary.json` and `cross-repo-summary.md` at `{{TEMP_DIR}}/artifacts/<KEY>/pr/`.
 
 **Outcome**: A single cross-repo view for the ticket reviewer.
 

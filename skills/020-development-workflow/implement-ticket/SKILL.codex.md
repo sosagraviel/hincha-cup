@@ -389,8 +389,8 @@ For each PR URL produced by Phase 9 (single-repo: one URL; multi-repo: one per a
 - Exit when approved or the global iteration cap is reached.
 
 After the loop, in multi-repo mode only:
-- `/pr-reviewer --aggregate --jira-key <TICKET_ID>` → writes `.claude/artifacts/<TICKET_ID>/pr/cross-repo-summary.{json,md}` (cross-repo concerns + merge order).
-- `/security-review --aggregate --jira-key <TICKET_ID>` → writes `.claude/artifacts/<TICKET_ID>/security/cross-repo-summary.{json,md}` (cross-cutting security concerns + dependency-ordered remediation).
+- `/pr-reviewer --aggregate --jira-key <TICKET_ID>` → writes `{{TEMP_DIR}}/artifacts/<TICKET_ID>/pr/cross-repo-summary.{json,md}` (cross-repo concerns + merge order).
+- `/security-review --aggregate --jira-key <TICKET_ID>` → writes `{{TEMP_DIR}}/artifacts/<TICKET_ID>/security/cross-repo-summary.{json,md}` (cross-cutting security concerns + dependency-ordered remediation).
 
 Fix commits land in the corresponding repo (`git -C <repo>`). Skip the aggregation pass in single-repo mode.
 

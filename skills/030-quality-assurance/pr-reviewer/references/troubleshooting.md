@@ -90,10 +90,10 @@ Re-running the full pipeline after re-fetching resolves most cases.
 
 ## cross-repo-summary.json Not Written
 
-The aggregator only runs when `--aggregate` is passed AND at least two per-PR `review-results.json` files exist under `.claude/artifacts/<JIRA_KEY>/pr/*/review/`. Verify:
+The aggregator only runs when `--aggregate` is passed AND at least two per-PR `review-results.json` files exist under `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/*/review/`. Verify:
 
 ```bash
-find .claude/artifacts/<JIRA_KEY>/pr -name review-results.json
+find {{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr -name review-results.json
 ```
 
 If fewer than 2 results appear, the per-PR reviews have not completed yet.

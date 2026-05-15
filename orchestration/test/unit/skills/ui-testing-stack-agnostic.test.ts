@@ -56,12 +56,14 @@ describe('ui-testing skill — stack-agnostic by construction', () => {
       expect(body).not.toMatch(/`src\/test-setup\.ts`/);
     });
 
-    it('defers to `.claude/skills/testing-conventions/SKILL.md` for layout discovery', () => {
+    it('defers to `{{CONFIG_DIR}}/skills/testing-conventions/SKILL.md` for layout discovery', () => {
       // The structural fix: the skill now reads the per-project
       // testing-conventions to learn where atoms / molecules / pages live
-      // in THIS codebase. A future edit that drops this reference would
-      // re-open the door to hardcoded methodology.
-      expect(body).toContain('.claude/skills/testing-conventions/SKILL.md');
+      // in THIS codebase. The {{CONFIG_DIR}} placeholder resolves to
+      // `.claude/` for Claude and `.codex/` for Codex at copy time. A
+      // future edit that drops this reference would re-open the door to
+      // hardcoded methodology.
+      expect(body).toContain('{{CONFIG_DIR}}/skills/testing-conventions/SKILL.md');
     });
 
     it('still asserts stack-agnostic in its preamble', () => {

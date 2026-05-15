@@ -51,7 +51,7 @@ export default defineConfig({
     globals: true,
     // Replace with the project's actual setup-file path (auto-detect from
     // any existing vitest/jest config, else fall back to the path documented
-    // in .claude/skills/testing-conventions/SKILL.md).
+    // in {{CONFIG_DIR}}/skills/testing-conventions/SKILL.md).
     setupFiles: ['./src/test-setup.ts'],
     // Replace with the project's actual source root(s).
     include: ['src/**/*.test.{ts,tsx}'],

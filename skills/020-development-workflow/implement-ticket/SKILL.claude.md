@@ -486,8 +486,8 @@ In a multi-repo workspace, run the reviews once per PR URL produced by Phase 9 �
 
 **Multi-repo aggregation (after the loop):** when more than one PR URL was reviewed for the same ticket, run a final aggregation pass:
 
-- `/pr-reviewer --aggregate --jira-key <TICKET-ID>` — emits `.claude/artifacts/<TICKET-ID>/pr/cross-repo-summary.{json,md}` describing cross-repo concerns (API contract mismatches, schema skew, shared-dep conflicts) and a recommended merge order.
-- `/security-review --aggregate --jira-key <TICKET-ID>` — emits `.claude/artifacts/<TICKET-ID>/security/cross-repo-summary.{json,md}` describing cross-cutting security concerns (shared-dep CVEs, identical findings across repos) and a dependency-ordered remediation plan.
+- `/pr-reviewer --aggregate --jira-key <TICKET-ID>` — emits `{{TEMP_DIR}}/artifacts/<TICKET-ID>/pr/cross-repo-summary.{json,md}` describing cross-repo concerns (API contract mismatches, schema skew, shared-dep conflicts) and a recommended merge order.
+- `/security-review --aggregate --jira-key <TICKET-ID>` — emits `{{TEMP_DIR}}/artifacts/<TICKET-ID>/security/cross-repo-summary.{json,md}` describing cross-cutting security concerns (shared-dep CVEs, identical findings across repos) and a dependency-ordered remediation plan.
 
 Skip the aggregation pass in single-repo mode.
 
