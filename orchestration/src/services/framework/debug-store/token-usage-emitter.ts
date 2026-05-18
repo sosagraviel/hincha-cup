@@ -43,26 +43,6 @@ export interface TokenUsageRecord {
   cache_creation_input_tokens?: number;
   duration_ms: number;
   budget_key?: BudgetKey;
-  /**
-   * Per-agent retry telemetry. Populated by Phase 1 analyzer nodes that wrap
-   * `retryWithEnhancedFeedback`. Omitted (`undefined`) when the caller does
-   * not participate in the retry loop (e.g. one-shot synthesis agents).
-   */
-  retry_count?: number;
-  /**
-   * Best-effort estimate of output tokens spent on FULL-OUTPUT regenerations
-   * inside this agent session (e.g. stop-hook rejection → model re-emits
-   * the entire 26 KB JSON from scratch). Above `MAX_AGENT_OUTPUT_TOKENS`
-   * (see `patch-mode.ts`) the framework surfaces a `regeneration_runaway`
-   * warning in Phase 6.
-   */
-  regeneration_token_count?: number;
-  /**
-   * Output tokens spent on PATCH MODE responses (small JSON-merge-patch
-   * envelopes). When `regeneration_token_count` is high but
-   * `patch_token_count` is high too, retries are working as designed.
-   */
-  patch_token_count?: number;
 }
 
 function resolveArtifactsDir(projectPath: string): string {

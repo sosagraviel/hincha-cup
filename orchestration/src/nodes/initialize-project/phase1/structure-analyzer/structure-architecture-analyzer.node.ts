@@ -100,7 +100,7 @@ export async function structureArchitectureAnalyzerNode(
     };
 
     const validator = (output: string): ValidationResult => {
-      return validateAndParseAgentOutput(output, agentName, tempDir);
+      return validateAndParseAgentOutput(output, agentName);
     };
 
     const outputPath = join(tempDir, 'phase1-outputs', '01-structure-architecture.json');

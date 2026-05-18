@@ -94,7 +94,7 @@ export async function techStackDependenciesAnalyzerNode(
     };
 
     const validator = (output: string): ValidationResult => {
-      return validateAndParseAgentOutput(output, agentName, tempDir);
+      return validateAndParseAgentOutput(output, agentName);
     };
 
     const outputPath = join(tempDir, 'phase1-outputs', '02-tech-stack-dependencies.json');

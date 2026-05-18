@@ -1,9 +1,7 @@
 import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
-import { existsSync, readFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../../../utils/logger.js';
-import { resolveTokenUsageJsonlPath } from '../../../services/framework/debug-store/token-usage-emitter.js';
-import { MAX_AGENT_OUTPUT_TOKENS } from '../phase1/shared/patch-mode.js';
 import { validateMarkdownFile, validateWikiMarkdownFile } from './helpers/file-validator.js';
 import {
   resolveInstructionFilePath,
@@ -189,14 +187,6 @@ export async function validationNode(
     validationErrors.push(...phaseCompletionResult.errors);
     validationWarnings.push(...phaseCompletionResult.warnings);
 
-    const regenWarnings = detectRegenerationRunaways(state.project_path);
-    if (regenWarnings.length > 0) {
-      for (const w of regenWarnings) {
-        phaseLogger.warn(` ⚠ ${w}`);
-      }
-      validationWarnings.push(...regenWarnings);
-    }
-
     phaseLogger.info(' Validating portability of generated .claude/ + .codex/ artifacts...');
     const portability = validatePortability(state.project_path);
     if (!portability.ok) {
@@ -318,56 +308,5 @@ function readStackProfileForWiki(
     return config.stack_profile;
   } catch {
     return undefined;
-  }
-}
-
-/**
- * Scan `metrics/token-usage.jsonl` and flag any Phase 1 agent whose
- * cumulative output-token count exceeds `MAX_AGENT_OUTPUT_TOKENS`. A run-away
- * regeneration is the failure mode P2 is designed to prevent — when the model
- * keeps re-emitting the full output instead of patching, output_tokens for
- * that session balloon to 100K+. Surfacing the warning here makes the
- * regression visible without requiring the operator to grep the JSONL.
- *
- * Returns an empty array on any read/parse error — telemetry should never
- * block a workflow.
- */
-function detectRegenerationRunaways(projectPath: string): string[] {
-  try {
-    const jsonlPath = resolveTokenUsageJsonlPath(projectPath);
-    if (!existsSync(jsonlPath)) return [];
-    const lines = readFileSync(jsonlPath, 'utf-8')
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean);
-
-    const cumulative = new Map<string, number>();
-    for (const line of lines) {
-      let rec: { phase?: string; agent?: string; output_tokens?: number };
-      try {
-        rec = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      const phase = rec.phase ?? '';
-      const agent = rec.agent ?? '';
-      const out = typeof rec.output_tokens === 'number' ? rec.output_tokens : 0;
-      if (!phase.startsWith('phase-1') || !agent || out <= 0) continue;
-      const key = `${phase}::${agent}`;
-      cumulative.set(key, (cumulative.get(key) ?? 0) + out);
-    }
-
-    const warnings: string[] = [];
-    for (const [key, total] of cumulative) {
-      if (total > MAX_AGENT_OUTPUT_TOKENS) {
-        const [phase, agent] = key.split('::');
-        warnings.push(
-          `regeneration_runaway: ${agent} (${phase}) emitted ${total.toLocaleString()} output tokens — exceeds cap of ${MAX_AGENT_OUTPUT_TOKENS.toLocaleString()}. The model is regenerating full outputs instead of patching; verify PATCH MODE feedback reached the agent on retries.`,
-        );
-      }
-    }
-    return warnings;
-  } catch {
-    return [];
   }
 }

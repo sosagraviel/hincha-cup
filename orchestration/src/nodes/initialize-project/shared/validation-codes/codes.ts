@@ -227,25 +227,6 @@ export const VALIDATION_CODES = {
       `Groundedness contract: every service of type ${arg(a, 'service_type')} must have a populated ${arg(a, 'field')} field. Service "${arg(a, 'service_id')}" emitted an empty or missing value.\n\nHow to fix:\n  1. Read at least one representative file from the service.\n  2. Emit ≥1 entry under \`findings.${arg(a, 'field_path')}\` with the verbatim code AND citation (\`source_file\` + \`source_line\`).\n  3. If the service genuinely has nothing for this field (e.g. an experimental scaffold with no tests yet), surface a \`needs_verification\` item that names the service and the field — the framework treats that as an explicit absence.`,
   },
 
-  E069_patch_without_baseline: {
-    code: 'E069_patch_without_baseline',
-    what: () =>
-      'received a JSON-merge-patch envelope but no prior baseline exists to patch against',
-    fix: () =>
-      'emit the FULL analyzer output (not a patch envelope) on the first attempt of a session',
-    long: () =>
-      'The framework received a `{"_patch_format":"RFC7396","_patch":{...}}` envelope but no baseline output exists yet for this analyzer. PATCH MODE is only valid after the framework has accepted at least one full output in the same session. On the first attempt of a session, emit the COMPLETE output JSON matching the schema; the framework will save it as the baseline and signal PATCH MODE on subsequent retries.',
-  },
-
-  E070_patch_merged_validation_failed: {
-    code: 'E070_patch_merged_validation_failed',
-    what: (a) =>
-      `patch merged but result still failed validation: ${truncate(arg(a, 'errors'), 360)}`,
-    fix: () => 'fix the patch so the MERGED result validates, or emit a full output to reset',
-    long: (a) =>
-      `Your patch merged into the previous baseline, but the resulting document still failed schema validation:\n\n${arg(a, 'errors')}\n\nFix the patch fields so the merged document matches the schema. To reset the patch baseline, emit the COMPLETE output JSON (no envelope) on your next attempt.`,
-  },
-
   E020_consolidation_input_missing: {
     code: 'E020_consolidation_input_missing',
     what: (a) => `consolidation input missing: ${arg(a, 'detail')}`,

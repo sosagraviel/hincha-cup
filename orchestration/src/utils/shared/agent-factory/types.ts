@@ -55,20 +55,6 @@ export interface AgentConfig {
    */
   allowReadPaths?: ReadonlyArray<string>;
   /**
-   * Optional per-agent thinking-token cap. `0` disables extended thinking
-   * entirely (best for mechanical-extraction agents); a positive integer
-   * caps the budget for reasoning agents (e.g. synthesizer); `undefined`
-   * inherits the provider default.
-   *
-   * Translated by each agent-factory impl into whichever surface the active
-   * CLI supports (CLI flag, env var, settings entry). When no surface is
-   * available, the factory logs once and continues at the provider default.
-   *
-   * Stack-agnostic: keyed by the agent's role, not by the target project's
-   * stack or topology.
-   */
-  thinkingBudgetTokens?: number;
-  /**
    * Optional per-spawn environment variables forwarded into the spawned CLI process.
    * Framework-controlled vars (FRAMEWORK_PATH, etc.) always win on a key collision.
    */

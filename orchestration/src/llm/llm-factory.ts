@@ -63,18 +63,10 @@ const TierConfigSchema = z.object({
   agents: z.record(z.string(), AgentEntrySchema),
 });
 
-const ThinkingBudgetsSchema = z
-  .object({
-    description: z.string().optional(),
-    byAgent: z.record(z.string(), z.number().int().min(0)),
-  })
-  .optional();
-
 const ModelConfigSchema = z.object({
   version: z.string(),
   modelAliases: z.record(z.string(), ModelAliasSchema),
   tiers: z.record(z.string(), TierConfigSchema),
-  thinkingBudgets: ThinkingBudgetsSchema,
   providerConfig: z.record(z.string(), ProviderConfigSchema),
 });
 
@@ -130,30 +122,6 @@ export class LLMFactory {
    */
   getReasoningEffort(agentName: string): ReasoningEffort | undefined {
     return this.resolveAgentEntry(agentName).reasoningEffort;
-  }
-
-  /**
-   * Per-agent thinking-token cap.
-   *
-   * Returns:
-   *   - `0` for mechanical-extraction agents (Phase 1 analyzers, deterministic
-   *     synthesizers) — extended thinking gives no measurable quality lift
-   *     for shape-projection tasks and burns 50–80 k output tokens of hidden
-   *     reasoning.
-   *   - A positive integer for reasoning agents (e.g. the synthesizer).
-   *   - `undefined` when no per-agent cap is configured — the provider's
-   *     default applies.
-   *
-   * Stack-agnostic by construction — keyed by agent role, not by the target
-   * project's language / framework / topology.
-   */
-  getThinkingBudget(agentName: string): number | undefined {
-    const budgets = this.config.thinkingBudgets?.byAgent;
-    if (!budgets) return undefined;
-    if (Object.prototype.hasOwnProperty.call(budgets, agentName)) {
-      return budgets[agentName];
-    }
-    return undefined;
   }
 
   /**

@@ -21,12 +21,8 @@ import {
   buildClaudeDenyRules,
   renderDenyRulesPlaceholderValue,
 } from '../../../services/framework/permissions/excluded-paths.js';
-import {
-  claudeProjectSlug,
-  locateClaudeTranscript,
-} from '../../../services/framework/transcripts/capture.js';
+import { locateClaudeTranscript } from '../../../services/framework/transcripts/capture.js';
 import { extractUsageFromClaudeJsonl, rollupToCacheHit } from './usage-extractor.js';
-import { MAX_AGENT_OUTPUT_TOKENS } from '../../../nodes/initialize-project/phase1/shared/patch-mode.js';
 
 const activeProcesses: Set<ChildProcess> = new Set();
 const activeInvocations: Map<number, (reason: Error) => void> = new Map();
@@ -34,26 +30,33 @@ let invocationCounter = 0;
 let isAborting = false;
 
 /**
- * Map a per-agent thinking-token budget onto the Claude CLI's `--effort` flag.
+ * Translate the unified `reasoningEffort` vocabulary used in
+ * `model-config.json` into the Claude CLI's `--effort` flag values.
  *
- *   0          → 'low'    (minimum reasoning effort — mechanical extraction)
- *   1..3000    → 'low'
- *   3001..8000 → 'medium' (reasoning agents like the synthesizer)
- *   8001..16000→ 'high'
- *   > 16000    → 'xhigh'
- *   undefined  → null     (no flag; provider default applies)
+ * Unified vocabulary (shared with the OpenAI/Codex tier):
+ *   `minimal` | `low` | `medium` | `high` | `xhigh`
  *
- * Stack-agnostic — the mapping is a function of the configured budget, not of
- * the target project's language, framework, or topology.
+ * Claude CLI `--effort` accepts: `low | medium | high | xhigh | max`.
+ *
+ * Mapping:
+ *   - `minimal` → `low` (Claude has no `minimal`; floor to its lowest)
+ *   - everything else passes through unchanged
+ *   - `undefined` / unknown → `null` (no flag emitted; CLI default applies)
+ *
+ * The Codex adapter does the equivalent pass-through in
+ * `codex-cli-utils.ts::getCodexReasoningEffortForAgent`. Keeping both
+ * adapters thin and provider-vocabulary-aware lets `model-config.json` use
+ * one effort vocabulary across every tier and agent.
  */
-function thinkingBudgetToEffort(
-  budgetTokens: number | undefined,
+function effortToClaudeFlag(
+  effort: string | undefined,
 ): 'low' | 'medium' | 'high' | 'xhigh' | null {
-  if (budgetTokens === undefined) return null;
-  if (budgetTokens <= 3000) return 'low';
-  if (budgetTokens <= 8000) return 'medium';
-  if (budgetTokens <= 16000) return 'high';
-  return 'xhigh';
+  if (!effort) return null;
+  if (effort === 'minimal') return 'low';
+  if (effort === 'low' || effort === 'medium' || effort === 'high' || effort === 'xhigh') {
+    return effort;
+  }
+  return null;
 }
 
 /**
@@ -253,17 +256,14 @@ async function invokeCLI(
       const cliArgs = ['--agent', config.agentFilePath, '--model', run.model];
 
       /*
-       * Translate the per-agent `thinkingBudgetTokens` into the Claude CLI's
-       * `--effort` flag (`low|medium|high|xhigh|max`). The framework caps
-       * mechanical-extraction agents (Phase 1 analyzers, deterministic
-       * synthesizers) at the cheapest effort to suppress 50–80 k-token
-       * extended-thinking turns that have no measurable quality lift for
-       * shape-projection tasks.
-       *
-       * Stack-agnostic: the mapping is purely a function of the configured
-       * budget, never of the target project's stack, topology, or maturity.
+       * Per-agent `reasoningEffort` from `model-config.json` (the same
+       * mechanism the Codex adapter uses for `model_reasoning_effort`).
+       * `effortToClaudeFlag` clamps the unified vocabulary onto the values
+       * Claude CLI's `--effort` flag accepts. When the model-config has no
+       * effort entry for this agent, no flag is emitted and the CLI default
+       * applies.
        */
-      const effort = thinkingBudgetToEffort(config.thinkingBudgetTokens);
+      const effort = effortToClaudeFlag(getLLMFactory().getReasoningEffort(config.agentName));
       if (effort) cliArgs.push('--effort', effort);
 
       if (toolsRestriction) {
@@ -362,63 +362,7 @@ async function invokeCLI(
 
       activeProcesses.add(claudeProcess);
 
-      /*
-       * Mid-stream kill switch — abort the session when cumulative output
-       * tokens cross `MAX_AGENT_OUTPUT_TOKENS`. The Claude CLI writes its
-       * JSONL transcript to `~/.claude/projects/<slug>/<sessionId>.jsonl` as
-       * the session progresses; we poll the file and rerun the usage
-       * extractor on the live bytes. Stack-agnostic: the cap is a per-agent
-       * output budget, not a per-project one.
-       *
-       * When the cap is crossed we SIGTERM the child process, write a clear
-       * `regeneration_runaway_aborted` error summary, and reject the
-       * promise. The analyzer node's catch block then surfaces the failure
-       * to Phase 6.
-       */
-      let runawayAborted = false;
-      const transcriptPathForWatch = path.join(
-        os.homedir(),
-        '.claude',
-        'projects',
-        claudeProjectSlug(path.resolve(config.projectPath)),
-        `${run.sessionId}.jsonl`,
-      );
-      const watchIntervalMs = 1500;
-      const watchHandle: NodeJS.Timeout = setInterval(() => {
-        if (runawayAborted) return;
-        try {
-          if (!fs.existsSync(transcriptPathForWatch)) return;
-          const partial = fs.readFileSync(transcriptPathForWatch, 'utf-8');
-          const usage = extractUsageFromClaudeJsonl(partial);
-          if (usage.outputTokens > MAX_AGENT_OUTPUT_TOKENS) {
-            runawayAborted = true;
-            clearInterval(watchHandle);
-            clearTimeout(timeoutId);
-            cleanup();
-            const reason =
-              `regeneration_runaway_aborted: ${config.agentName} exceeded the ` +
-              `per-agent output-token cap (${usage.outputTokens.toLocaleString()} > ` +
-              `${MAX_AGENT_OUTPUT_TOKENS.toLocaleString()}). Session SIGTERMed mid-stream.`;
-            claudeProcess.kill('SIGTERM');
-            void recorder
-              .writeErrorSummary(reason)
-              .then(() => recorder.finalize('failure', { failureReason: 'regeneration_runaway' }))
-              .catch(() => undefined)
-              .finally(() => {
-                void removeScratchDir().finally(() => reject(new Error(reason)));
-              });
-          }
-        } catch {
-          // Best-effort: a malformed partial JSONL line is normal mid-stream.
-        }
-      }, watchIntervalMs);
-
-      const stopWatchHandle = () => {
-        clearInterval(watchHandle);
-      };
-
       timeoutId = setTimeout(async () => {
-        stopWatchHandle();
         cleanup();
         claudeProcess.kill('SIGTERM');
         await recorder
@@ -430,7 +374,6 @@ async function invokeCLI(
       }, timeout);
 
       claudeProcess.on('close', () => {
-        stopWatchHandle();
         activeProcesses.delete(claudeProcess);
       });
 

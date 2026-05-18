@@ -99,7 +99,7 @@ export async function dataFlowsIntegrationsAnalyzerNode(
     };
 
     const validator = (output: string): ValidationResult => {
-      return validateAndParseAgentOutput(output, agentName, tempDir);
+      return validateAndParseAgentOutput(output, agentName);
     };
 
     const outputPath = join(tempDir, 'phase1-outputs', '04-data-flows-integrations.json');

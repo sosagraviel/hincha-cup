@@ -100,7 +100,7 @@ export async function codePatternsTestingAnalyzerNode(
     };
 
     const validator = (output: string): ValidationResult => {
-      return validateAndParseAgentOutput(output, agentName, tempDir);
+      return validateAndParseAgentOutput(output, agentName);
     };
 
     const outputPath = join(tempDir, 'phase1-outputs', '03-code-patterns-testing.json');

@@ -83,14 +83,38 @@
         "implementer-rust": "sonnet-latest",
         "reviewer": "sonnet-latest",
         "visual-verifier": "sonnet-latest",
-        "structure-architecture-analyzer": "sonnet-latest",
-        "tech-stack-dependencies-analyzer": "sonnet-latest",
-        "code-patterns-testing-analyzer": "sonnet-latest",
-        "data-flows-integrations-analyzer": "sonnet-latest",
-        "service-detail-extractor": "sonnet-latest",
-        "architect-synthesizer": "sonnet-latest",
-        "wiki-generator": "sonnet-latest",
-        "question-consolidator": "sonnet-latest"
+        "structure-architecture-analyzer": {
+          "alias": "sonnet-latest",
+          "reasoningEffort": "low"
+        },
+        "tech-stack-dependencies-analyzer": {
+          "alias": "sonnet-latest",
+          "reasoningEffort": "low"
+        },
+        "code-patterns-testing-analyzer": {
+          "alias": "sonnet-latest",
+          "reasoningEffort": "low"
+        },
+        "data-flows-integrations-analyzer": {
+          "alias": "sonnet-latest",
+          "reasoningEffort": "low"
+        },
+        "service-detail-extractor": {
+          "alias": "sonnet-latest",
+          "reasoningEffort": "low"
+        },
+        "architect-synthesizer": {
+          "alias": "sonnet-latest",
+          "reasoningEffort": "xhigh"
+        },
+        "wiki-generator": {
+          "alias": "sonnet-latest",
+          "reasoningEffort": "high"
+        },
+        "question-consolidator": {
+          "alias": "sonnet-latest",
+          "reasoningEffort": "low"
+        }
       }
     },
     "fast": {
@@ -107,14 +131,38 @@
         "implementer-rust": "haiku-latest",
         "reviewer": "haiku-latest",
         "visual-verifier": "haiku-latest",
-        "structure-architecture-analyzer": "haiku-latest",
-        "tech-stack-dependencies-analyzer": "haiku-latest",
-        "code-patterns-testing-analyzer": "haiku-latest",
-        "data-flows-integrations-analyzer": "haiku-latest",
-        "service-detail-extractor": "haiku-latest",
-        "architect-synthesizer": "haiku-latest",
-        "wiki-generator": "haiku-latest",
-        "question-consolidator": "haiku-latest"
+        "structure-architecture-analyzer": {
+          "alias": "haiku-latest",
+          "reasoningEffort": "low"
+        },
+        "tech-stack-dependencies-analyzer": {
+          "alias": "haiku-latest",
+          "reasoningEffort": "low"
+        },
+        "code-patterns-testing-analyzer": {
+          "alias": "haiku-latest",
+          "reasoningEffort": "low"
+        },
+        "data-flows-integrations-analyzer": {
+          "alias": "haiku-latest",
+          "reasoningEffort": "low"
+        },
+        "service-detail-extractor": {
+          "alias": "haiku-latest",
+          "reasoningEffort": "low"
+        },
+        "architect-synthesizer": {
+          "alias": "haiku-latest",
+          "reasoningEffort": "medium"
+        },
+        "wiki-generator": {
+          "alias": "haiku-latest",
+          "reasoningEffort": "low"
+        },
+        "question-consolidator": {
+          "alias": "haiku-latest",
+          "reasoningEffort": "low"
+        }
       }
     },
     "advanced": {
@@ -131,14 +179,38 @@
         "implementer-rust": "opus-latest",
         "reviewer": "opus-latest",
         "visual-verifier": "opus-latest",
-        "structure-architecture-analyzer": "opus-latest",
-        "tech-stack-dependencies-analyzer": "opus-latest",
-        "code-patterns-testing-analyzer": "opus-latest",
-        "data-flows-integrations-analyzer": "opus-latest",
-        "service-detail-extractor": "opus-latest",
-        "architect-synthesizer": "opus-latest",
-        "wiki-generator": "opus-latest",
-        "question-consolidator": "opus-latest"
+        "structure-architecture-analyzer": {
+          "alias": "opus-latest",
+          "reasoningEffort": "low"
+        },
+        "tech-stack-dependencies-analyzer": {
+          "alias": "opus-latest",
+          "reasoningEffort": "low"
+        },
+        "code-patterns-testing-analyzer": {
+          "alias": "opus-latest",
+          "reasoningEffort": "low"
+        },
+        "data-flows-integrations-analyzer": {
+          "alias": "opus-latest",
+          "reasoningEffort": "low"
+        },
+        "service-detail-extractor": {
+          "alias": "opus-latest",
+          "reasoningEffort": "low"
+        },
+        "architect-synthesizer": {
+          "alias": "opus-latest",
+          "reasoningEffort": "xhigh"
+        },
+        "wiki-generator": {
+          "alias": "opus-latest",
+          "reasoningEffort": "high"
+        },
+        "question-consolidator": {
+          "alias": "opus-latest",
+          "reasoningEffort": "low"
+        }
       }
     },
     "openai": {
