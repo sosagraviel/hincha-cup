@@ -70,27 +70,6 @@ export async function graphFoundationNode(
       );
     }
 
-    let toolCatalog: { name: string; description: string }[] = [];
-    try {
-      toolCatalog = await fetchCodeGraphToolCatalog({
-        projectPath: state.project_path,
-        frameworkPath: state.framework_path,
-      });
-      phaseLogger.info(`  MCP tools: ${toolCatalog.length} available`);
-    } catch (catalogErr) {
-      const msg = catalogErr instanceof Error ? catalogErr.message : String(catalogErr);
-      phaseLogger.error(`  MCP tool catalog fetch FAILED: ${msg}`);
-      phaseLogger.error(
-        '  Analyzers cannot use the graph reliably without the catalog. The run will fail.',
-      );
-      return {
-        code_graph_available: false,
-        code_graph_error: `tool catalog: ${msg}`,
-        current_phase: 'failed',
-        errors: [`graph_foundation: tool catalog: ${msg}`],
-      };
-    }
-
     /*
      * Pre-run the four cheapest graph-orientation queries
      * (`get_minimal_context_tool` + `list_communities_tool` +
