@@ -32,7 +32,19 @@ Parse `$ARGUMENTS`:
 
 ## Sequential phases
 
-Execute these in order. Do NOT skip ahead. Provider note: every "abort the skill" / "exit with failure" instruction below should be expressed however your runtime signals failure — exit non-zero in Claude Code, emit `failed` and STOP in Codex CLI. Every "finish successfully" instruction maps to exit 0 / emit `completed`. The semantics are identical.
+Execute these in order, starting at Phase 0. Do NOT skip ahead. Provider note: every "abort the skill" / "exit with failure" instruction below should be expressed however your runtime signals failure — exit non-zero in Claude Code, emit `failed` and STOP in Codex CLI. Every "finish successfully" instruction maps to exit 0 / emit `completed`. The semantics are identical.
+
+### 0. Preflight (auto-bootstrap)
+
+Run the deterministic preflight before any wiki work. It auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds/updates the code graph, re-emits `.mcp.json` (or `.codex/config.toml`), and writes a success marker.
+
+```bash
+bash "$FRAMEWORK_PATH/scripts/ensure-context.sh"
+```
+
+The Phase 6 `mcp__code_graph__*` calls assume this preflight succeeded.
+
+If `ensure-context.sh` exits non-zero, abort the skill and surface its output verbatim — the failure marker `<artifacts-dir>/.preflight-failed` carries `{reason, git_head, ran_at}`.
 
 ### 1. Read wiki state
 
@@ -209,6 +221,7 @@ When `--dry-run` is in `$ARGUMENTS`:
 
 ## Failure modes
 
+- `ensure-context.sh` (Phase 0) exits non-zero → abort, surface its output verbatim. The `<artifacts-dir>/.preflight-failed` marker carries the reason.
 - `.state.json` missing → abort with message `wiki not initialized — run /initialize-project first`.
 - Malformed LLM JSON after one retry → abort, surface the malformed response for debugging.
 - Page update fails (edit error, file missing) → abort, do NOT advance `.state.json`. Next run retries from the same baseline.
