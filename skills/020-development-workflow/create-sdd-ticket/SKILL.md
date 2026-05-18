@@ -153,18 +153,39 @@ Optional flag: pass `--skip-wiki` to bypass Phase 0.2 entirely (useful for fresh
 - validate accessibility and basic structure
 - normalize the raw source into a working internal representation
 
+#### When `--from-jira`: invoke `/fetch-ticket-context` (MANDATORY)
+
+When the input mode is `--from-jira`, invoking `/fetch-ticket-context` is **mandatory**, not optional. The canonical artifact at `$ARTIFACTS_DIR/context/ticket-context.md` — body, comments, linked resources, attachments, related tickets — is the source of truth for the rest of the workflow. Do NOT operate on the raw description-only response of `mcp__atlassian__getJiraIssue`; that bypasses the comment material the SDD synthesis depends on.
+
+```bash
+ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/${JIRA_KEY}/artifacts"
+mkdir -p "$ARTIFACTS_DIR/context"
+/fetch-ticket-context "$JIRA_KEY"
+# Artifact now at: $ARTIFACTS_DIR/context/ticket-context.md
+```
+
+After the artifact exists, parse:
+
+- `## Ticket` — id, title, type, status, priority, labels, sprint, epic
+- `## Description` — base requirement (starting point, NOT the final word)
+- `## Acceptance Criteria` — initial AC, subject to deltas from comments
+- `## Comments` — the conversation; treat as authoritative input alongside the description (see §Comment-Aware Synthesis below)
+- `## Linked Resources` — already-fetched Notion / Confluence / Figma material with `Origin:` annotations
+- `## Related Tickets` — Blocking / Depends on / Blocked by
+
 ### Phase 2: Intelligent Gap Detection
 
 Validate the canonical ticket against the SDD requirements and, for every missing or weak field, exhaust inference before asking the engineer.
 
 Required inference order:
 
-1. Consult `WIKI_CORE` (the 1–3 page bodies loaded by Phase 0.2); every question the wiki already answers is removed from the gap list. If a matched page references a related page via `**Related:** [[...]]` and that related page is on-topic, expand it (depth ≤ 2).
-2. Graph queries — classify each remaining gap by question type and route to the matching tool (e.g. `mcp__code_graph__semantic_search_nodes_tool` for symbol lookups, `mcp__code_graph__query_graph_tool` for relationships). Do NOT default to `semantic_search_nodes_tool` for everything. See the routing table below; cap at 6 graph queries total for this step.
-3. Search the three convention skill bodies (`code-conventions`, `multi-file-workflows`, `testing-conventions`) and `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` for prescriptive context.
-4. Codebase grep + related file inspection (narrowed by graph node paths from step 2 when available; reuse cached graph results instead of re-querying).
-5. Inspect existing tickets or drafts for precedents.
-6. Only if 1–5 fail, add the item to the question batch.
+1. **For Jira input — check `## Comments` first.** Many "gaps" are already answered by the conversation on the ticket: a comment may clarify which OAuth provider to use, which fields to add, which tests to write, or which scope to exclude. Walk the comments chronologically; if a comment resolves an open gap, apply the answer (most recent wins on conflict — see §Comment-Aware Synthesis) and remove the gap from the list.
+2. Consult `WIKI_CORE` (the 1–3 page bodies loaded by Phase 0.2); every question the wiki already answers is removed from the gap list. If a matched page references a related page via `**Related:** [[...]]` and that related page is on-topic, expand it (depth ≤ 2).
+3. Graph queries — classify each remaining gap by question type and route to the matching tool (e.g. `mcp__code_graph__semantic_search_nodes_tool` for symbol lookups, `mcp__code_graph__query_graph_tool` for relationships). Do NOT default to `semantic_search_nodes_tool` for everything. See the routing table below; cap at 6 graph queries total for this step.
+4. Search the three convention skill bodies (`code-conventions`, `multi-file-workflows`, `testing-conventions`) and `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` for prescriptive context.
+5. Codebase grep + related file inspection (narrowed by graph node paths from step 3 when available; reuse cached graph results instead of re-querying).
+6. Inspect existing tickets or drafts for precedents.
+7. Only if 1–6 fail, add the item to the question batch.
 
    | Question class | Example | Tool | Reasoning |
    |---|---|---|---|
@@ -265,6 +286,41 @@ If the ticket fails "Small" (subjectively or via Phase 5a's objective signal), p
 - create parent directories when needed
 - if saving to Jira, preserve priority, issue type, and project key when provided
 - return the saved path or Jira key plus a short quality summary
+
+## Comment-Aware Synthesis
+
+When the input was `--from-jira`, the ticket-context artifact's `## Description` is the **starting point** of the SDD, not the final word. The `## Comments` section carries the conversation that refined the requirement after the description was written — and the SDD must reflect that final state.
+
+Treat every shown comment as a potential delta on the description. A comment that names or renames the ticket subject (e.g. `"I want it called X"`, `"rename to X"`, `"the skill should be Y"`) also rewrites the SDD's `title` field and any inline references to the prior name. Common patterns the synthesizer should handle (these are guidance for interpretation, not deterministic pattern-matching):
+
+- **"Add tests for X"** → extend `definitionOfDone.testing[]` AND add corresponding BDD scenarios in Phase 6.
+- **"Switch to X" / "Replace Y with X" / "Call it X"** → overwrite the corresponding entry in `technicalContext.architectureDecisions[]`, `proposedChanges[]`, or `title`, whichever the comment targets.
+- **"Out of scope" / "Remains for v2"** → add to `outOfScope[]`.
+- **"Decision:" / "Approved by …"** → promote to `technicalContext.architectureDecisions[]` with rationale.
+- **"?" / "It is not clear if…" with no later answer in the comments** → record in `Assumptions And Open Questions` of the SDD (or batch-question to the engineer in Phase 3 if the gap is load-bearing).
+
+### Precedence rule
+
+When two comments contradict each other on the same point, OR a comment contradicts the description, the **most recent comment wins** — the SDD must reflect the final state of the conversation.
+
+Exception: when an older comment carries a strong-decision marker (`approved:`, `decision:`, `confirmed:`, "decisión:", "confirmado:") and no later comment explicitly contradicts it, the older decision stands. The more recent comment adds rather than overrides.
+
+### Output is the SDD only
+
+The SDD ticket body — whether saved to Jira, written to markdown, or printed for review — must contain ONLY the SDD content. It MUST NOT contain:
+
+- inline citations like `_(from comment #10042, 2026-05-10, Jane Doe)_`
+- rename / renumber log lines like `"Renamed from /old-name per comment #NNNN"`
+- meta-narration about the synthesis process such as `"Most-recent-comment-wins rule applied"`
+- any reference to the comment-id, comment-author, or comment-timestamp that drove a delta
+
+Traceability lives in the Jira comment thread itself and in the working artifact at `$ARTIFACTS_DIR/context/ticket-context.md`; never in the ticket body the implementer will read.
+
+### Seeding BDD scenarios from comments
+
+When generating scenarios in Phase 6, sweep the comments again for test-relevant statements ("test for X", "agregar test de Y", "validar Z"). Each such comment seeds at least one Given-When-Then scenario.
+
+---
 
 ## Canonical Expectations
 
@@ -648,7 +704,7 @@ Before finalizing, validate:
 ## Integration Notes
 
 - `code-conventions` / `multi-file-workflows` / `testing-conventions`: required in Phase 0.1 (the three prescriptive skills generated by `/initialize-project`)
-- `fetch-ticket-context`: useful when Jira input needs enrichment
+- `fetch-ticket-context`: **mandatory** in Phase 1 when `--from-jira`. Produces the canonical artifact at `$ARTIFACTS_DIR/context/ticket-context.md` whose `## Description` plus `## Comments` are the source of truth for Comment-Aware Synthesis
 - `implement-ticket`: the resulting markdown or Jira ticket should be directly implementable
 - `ui-testing` and `ui-visual-testing`: used when UI work is detected and testing expectations need to be injected
 - LLM wiki: required in Phase 0.2 when available; soft-optional when missing
