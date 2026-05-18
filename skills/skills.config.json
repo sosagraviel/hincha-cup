@@ -372,6 +372,24 @@
       "compatible_languages": ["typescript", "javascript"]
     },
     {
+      "name": "mastering-react-native-skill",
+      "path": "050-language-frameworks/mastering-react-native-skill",
+      "description": "Orientation skill for React Native and Expo projects. Routes work to upstream marketplace plugins (Callstack, Software Mansion) and applies Qubika conventions",
+      "trigger_mode": "triggered",
+      "triggers": ["react-native", "expo", "expo-router", "react-navigation"],
+      "compatible_languages": ["typescript", "javascript"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "mastering-expo-skill",
+      "path": "050-language-frameworks/mastering-expo-skill",
+      "description": "Orientation skill for Expo projects. Routes work to the upstream expo@expo-plugins marketplace plugin (EAS, Expo Router, expo-module, deployment, upgrade, etc.)",
+      "trigger_mode": "triggered",
+      "triggers": ["expo", "expo-router", "eas"],
+      "compatible_languages": ["typescript", "javascript"],
+      "is_linkable_to_agents": true
+    },
+    {
       "name": "project-context",
       "path": "010-foundation/project-context",
       "description": "Project-specific architecture and patterns (generated during initialization)",
