@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   initializeProjectGraph,
   routeAfterGraphFoundation,
-  routeAfterStructureAnalyzer,
   routeAfterWikiPreparation,
   routeToPhase,
 } from '../../../src/graphs/initialize-project.graph.js';
@@ -76,31 +75,20 @@ describe('initializeProjectGraph routing', () => {
     expect(routeAfterWikiPreparation({ ...baseState, current_phase: 'failed' })).toBe('__end__');
   });
 
-  it('routes successful graph foundation to ONLY the structure-analyzer (sequential head)', () => {
-    // The Phase 1 topology is sequential at the head: structure-analyzer
-    // runs first, alone, and persists the authoritative services[]. The
-    // three downstream analyzers (02/03/04) consume that file before
-    // building their own prompts.
-    expect(routeAfterGraphFoundation({ ...baseState, current_phase: 'phase0_graph' })).toBe(
+  it('fans out from graph foundation to ALL four analyzers in parallel', () => {
+    // Phase 1 runs every analyzer concurrently. Cross-analyzer service-ID
+    // consistency is preserved by injecting an inspection-derived seed at
+    // prompt-build time and reconciling drift in Phase 2 / Phase 4 — not by
+    // serializing the structure analyzer ahead of the other three.
+    expect(routeAfterGraphFoundation({ ...baseState, current_phase: 'phase0_graph' })).toEqual([
       'structure_architecture_analyzer',
-    );
+      'tech_stack_dependencies_analyzer',
+      'code_patterns_testing_analyzer',
+      'data_flows_integrations_analyzer',
+    ]);
   });
 
   it('stops when graph foundation fails', () => {
     expect(routeAfterGraphFoundation({ ...baseState, current_phase: 'failed' })).toBe('__end__');
-  });
-
-  it('fans out from the structure-analyzer to the three downstream analyzers in parallel', () => {
-    expect(routeAfterStructureAnalyzer({ ...baseState, current_phase: 'phase1_analysis' })).toEqual(
-      [
-        'tech_stack_dependencies_analyzer',
-        'code_patterns_testing_analyzer',
-        'data_flows_integrations_analyzer',
-      ],
-    );
-  });
-
-  it('stops when the structure-analyzer fails (Phase 1 cannot proceed without authoritative services)', () => {
-    expect(routeAfterStructureAnalyzer({ ...baseState, current_phase: 'failed' })).toBe('__end__');
   });
 });

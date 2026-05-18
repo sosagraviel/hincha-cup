@@ -237,7 +237,10 @@ describe('resourcesNode', () => {
     expect(result.current_phase).toBe('failed');
   });
 
-  it('should preserve existing errors when adding new error', async () => {
+  it('returns only the new error; the LangGraph reducer merges with existing state.errors', async () => {
+    // Phase E removed the `[...state.errors, new]` spread that duplicated
+    // every error against the concat reducer. Nodes now return only the
+    // delta; the reducer joins the lists.
     mockState.errors = ['Previous error'];
     vi.mocked(fs.readFileSync).mockImplementation(() => {
       throw new Error('New error');
@@ -245,8 +248,7 @@ describe('resourcesNode', () => {
 
     const result = await resourcesNode(mockState);
 
-    expect(result.errors).toHaveLength(2);
-    expect(result.errors).toContain('Previous error');
+    expect(result.errors).toEqual(['Resources copying failed: New error']);
   });
 
   it('should handle missing stack profile in config', async () => {

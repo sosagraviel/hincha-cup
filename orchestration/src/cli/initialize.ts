@@ -496,17 +496,19 @@ program
       }
 
       if (result.warnings && result.warnings.length > 0) {
+        const uniqueWarnings = Array.from(new Set(result.warnings as string[]));
         logger.warn('Warnings encountered:');
         logger.increaseIndent();
-        result.warnings.forEach((warning: string) => logger.warn(warning));
+        uniqueWarnings.forEach((warning) => logger.warn(warning));
         logger.decreaseIndent();
         logger.blank();
       }
 
       if (result.errors && result.errors.length > 0) {
+        const uniqueErrors = Array.from(new Set(result.errors as string[]));
         logger.error('Errors encountered:');
         logger.increaseIndent();
-        result.errors.forEach((error: string) => logger.error(error));
+        uniqueErrors.forEach((error) => logger.error(error));
         logger.decreaseIndent();
         process.exit(1);
       }

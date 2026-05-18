@@ -3,7 +3,11 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  FRAMEWORK_AGENT_READ_ALLOW_PLACEHOLDER,
   FRAMEWORK_EXCLUDED_DENY_RULES_PLACEHOLDER,
+  analyzerExcludedDirsOverride,
+  analyzerReadableTempPaths,
+  buildClaudeAllowReadRules,
   buildClaudeDenyRules,
   renderDenyRulesPlaceholderValue,
 } from '../../../../../src/services/framework/permissions/excluded-paths.js';
@@ -272,5 +276,125 @@ describe('buildClaudeDenyRules — excludedDirsOverride', () => {
     expect(restricted).toContain('Read(**/weird/**)');
     expect(restricted).toContain('Read(./normal/**)');
     expect(restricted).toContain('Read(**/normal/**)');
+  });
+});
+
+describe('analyzerReadableTempPaths', () => {
+  it('returns absolute file paths under both .claude-temp and .codex-temp for inspection + prefetch', () => {
+    const paths = analyzerReadableTempPaths('/abs/project');
+    expect(paths).toEqual([
+      '/abs/project/.claude-temp/initialize-project/project-inspection.json',
+      '/abs/project/.claude-temp/initialize-project/graph-prefetch.json',
+      '/abs/project/.codex-temp/initialize-project/project-inspection.json',
+      '/abs/project/.codex-temp/initialize-project/graph-prefetch.json',
+    ]);
+  });
+
+  it('only exposes the two well-known seed files — no globs, no directories', () => {
+    const paths = analyzerReadableTempPaths('/p');
+    for (const p of paths) {
+      expect(p).not.toContain('*');
+      expect(p.endsWith('.json')).toBe(true);
+    }
+  });
+});
+
+describe('buildClaudeAllowReadRules', () => {
+  it('renders Read() rules with the exact absolute path supplied', () => {
+    const rules = buildClaudeAllowReadRules([
+      '/abs/project/.claude-temp/initialize-project/project-inspection.json',
+      '/abs/project/.claude-temp/initialize-project/graph-prefetch.json',
+    ]);
+    expect(rules).toEqual([
+      'Read(/abs/project/.claude-temp/initialize-project/project-inspection.json)',
+      'Read(/abs/project/.claude-temp/initialize-project/graph-prefetch.json)',
+    ]);
+  });
+
+  it('returns an empty array on empty input (no implicit defaults)', () => {
+    expect(buildClaudeAllowReadRules([])).toEqual([]);
+  });
+
+  it('throws on glob characters — the allow boundary must be surgical', () => {
+    expect(() => buildClaudeAllowReadRules(['/abs/**/inspection.json'])).toThrow(/glob/i);
+    expect(() => buildClaudeAllowReadRules(['/abs/?-inspection.json'])).toThrow(/glob/i);
+  });
+
+  it('survives placeholder substitution end-to-end', () => {
+    const settingsBefore = JSON.stringify(
+      {
+        permissions: {
+          allow: ['${FRAMEWORK_AGENT_READ_ALLOW}'],
+          deny: ['${FRAMEWORK_EXCLUDED_DENY_RULES}'],
+        },
+      },
+      null,
+      2,
+    );
+
+    const allowPaths = analyzerReadableTempPaths('/abs/project');
+    const allowRules = buildClaudeAllowReadRules(allowPaths);
+    const allowValue = renderDenyRulesPlaceholderValue(allowRules);
+    const denyValue = renderDenyRulesPlaceholderValue([
+      'Read(./node_modules/**)',
+      'Read(**/node_modules/**)',
+    ]);
+    const settingsAfter = settingsBefore
+      .replace(/"\$\{FRAMEWORK_EXCLUDED_DENY_RULES\}"/g, denyValue)
+      .replace(/"\$\{FRAMEWORK_AGENT_READ_ALLOW\}"/g, allowValue);
+
+    const parsed = JSON.parse(settingsAfter);
+    expect(parsed.permissions.allow).toEqual(allowRules);
+    expect(parsed.permissions.deny).toEqual([
+      'Read(./node_modules/**)',
+      'Read(**/node_modules/**)',
+    ]);
+    expect(settingsAfter).not.toContain('${FRAMEWORK_AGENT_READ_ALLOW}');
+    expect(settingsAfter).not.toContain('${FRAMEWORK_EXCLUDED_DENY_RULES}');
+  });
+});
+
+describe('FRAMEWORK_AGENT_READ_ALLOW_PLACEHOLDER', () => {
+  it('is the exact token settings.json files use', () => {
+    expect(FRAMEWORK_AGENT_READ_ALLOW_PLACEHOLDER).toBe('"${FRAMEWORK_AGENT_READ_ALLOW}"');
+  });
+});
+
+describe('analyzerExcludedDirsOverride', () => {
+  let projectPath: string;
+  let frameworkPath: string;
+
+  beforeEach(() => {
+    projectPath = mkdtempSync(join(tmpdir(), 'analyzer-override-proj-'));
+    frameworkPath = mkdtempSync(join(tmpdir(), 'analyzer-override-fw-'));
+  });
+
+  afterEach(() => {
+    rmSync(projectPath, { recursive: true, force: true });
+    rmSync(frameworkPath, { recursive: true, force: true });
+  });
+
+  it('removes .claude-temp and .codex-temp from the standard excluded dirs', () => {
+    const override = analyzerExcludedDirsOverride(projectPath, frameworkPath);
+    expect(override).not.toContain('.claude-temp');
+    expect(override).not.toContain('.codex-temp');
+  });
+
+  it('keeps every other standard excluded dir intact (node_modules, .git, etc.)', () => {
+    const override = analyzerExcludedDirsOverride(projectPath, frameworkPath);
+    expect(override).toContain('node_modules');
+    expect(override).toContain('.git');
+    expect(override).toContain('dist');
+    expect(override).toContain('.claude');
+    expect(override).toContain('.codex');
+  });
+
+  it('produces a deny-rule set that no longer mentions the provider temp dirs', () => {
+    const override = analyzerExcludedDirsOverride(projectPath, frameworkPath);
+    const rules = buildClaudeDenyRules(projectPath, frameworkPath, override);
+    expect(rules.some((r) => r.includes('.claude-temp'))).toBe(false);
+    expect(rules.some((r) => r.includes('.codex-temp'))).toBe(false);
+    // Sanity: other dirs are still denied.
+    expect(rules).toContain('Read(./node_modules/**)');
   });
 });

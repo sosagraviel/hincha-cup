@@ -16,6 +16,15 @@ const SLOT_LABEL: Record<CoreDocSlot, string> = {
   architecture: 'ARCHITECTURE.md',
 };
 
+/**
+ * Phase 4b core-doc node. Wraps `WikiGeneratorService.generateCoreDoc` and
+ * captures any failure as a warning **without** marking the workflow as
+ * `failed` — the operator still gets `CLAUDE.md`, `framework-config.json`,
+ * and the rest of the deterministic Phase 4 artefacts. Phase 6 surfaces
+ * `phase4_wiki_status` so the gap is visible on the terminal.
+ *
+ * Logs the full stack trace on failure (the previous catch swallowed it).
+ */
 export async function runCoreDocNode(
   state: InitializeProjectState,
   documentType: CoreLlmDocumentType,
@@ -53,12 +62,20 @@ export async function runCoreDocNode(
     const update: Phase4WikiDocs = { [slot]: file };
     return { phase4_wiki_docs: update };
   } catch (error) {
-    const errorMessage = `${SLOT_LABEL[slot]} generation failed: ${(error as Error).message}`;
+    const err = error instanceof Error ? error : new Error(String(error));
+    const errorMessage = `${SLOT_LABEL[slot]} generation failed: ${err.message}`;
     phaseLogger.error(` ✗ ${errorMessage}`);
+    if (err.stack) phaseLogger.error(err.stack);
+    phaseLogger.warn(
+      `Wiki generation is non-fatal — continuing without ${SLOT_LABEL[slot]}. Phase 6 will surface phase4_wiki_status=degraded so the gap is visible.`,
+    );
 
+    const update: Phase4WikiDocs = {
+      [slot]: { _failed: true, error: err.message } as unknown as Phase4WikiDocs[typeof slot],
+    };
     return {
+      phase4_wiki_docs: update,
       errors: [errorMessage],
-      current_phase: 'failed',
     };
   }
 }

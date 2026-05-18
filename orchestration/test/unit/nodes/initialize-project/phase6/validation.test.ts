@@ -537,12 +537,19 @@ describe('validationNode', () => {
     expect(result.total_duration_ms).toBeUndefined();
   });
 
-  it('should preserve existing warnings', async () => {
+  it('returns only validation-node-derived warnings; the reducer concatenates with prior state', async () => {
+    // Phase E: nodes return only their NEW entries — the LangGraph reducer
+    // (`(left, right) => [...left, ...right]`) handles the merge. The
+    // pre-Phase-E spread duplicated prior warnings every time a node ran.
     mockState.warnings = ['Previous warning'];
 
     const result = await validationNode(mockState);
 
-    expect(result.warnings).toContain('Previous warning');
+    // The returned `warnings` is the validation-node's own contribution
+    // (possibly empty when nothing flagged) — NOT a union with state.warnings.
+    if (Array.isArray(result.warnings)) {
+      expect(result.warnings).not.toContain('Previous warning');
+    }
   });
 
   it('should handle validation errors gracefully', async () => {

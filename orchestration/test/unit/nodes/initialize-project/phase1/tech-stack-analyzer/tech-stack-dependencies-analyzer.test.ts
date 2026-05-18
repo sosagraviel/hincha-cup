@@ -252,7 +252,9 @@ describe('techStackDependenciesAnalyzerNode', () => {
     );
   });
 
-  it('should preserve existing errors when adding new error', async () => {
+  it('returns only the new error; the LangGraph reducer merges with existing state.errors', async () => {
+    // Phase E: nodes return only NEW entries. The LangGraph annotation
+    // reducer (`(left, right) => [...left, ...right]`) concatenates.
     const stateWithErrors = {
       ...mockState,
       errors: ['Previous error 1', 'Previous error 2'],
@@ -262,10 +264,8 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
     const result = await techStackDependenciesAnalyzerNode(stateWithErrors);
 
-    expect(result.errors).toHaveLength(3);
-    expect(result.errors).toContain('Previous error 1');
-    expect(result.errors).toContain('Previous error 2');
-    expect(result.errors?.[2]).toContain('New error');
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors?.[0]).toContain('New error');
   });
 
   it('should handle validation errors', async () => {

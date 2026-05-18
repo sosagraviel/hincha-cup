@@ -111,9 +111,7 @@ Emit the shape below. Optional fields use the `"name?"` suffix — OMIT
 the field entirely when no value (do NOT emit `null`). Per-service
 maps key by IDs from your AUTHORITATIVE SERVICE LIST.
 
-```jsonc
-<<script:schema-skeleton agent=code-patterns-testing-analyzer>>
-```
+<<script:critic-block agent=code-patterns-testing-analyzer>>
 
 ## `needs_verification` rules
 

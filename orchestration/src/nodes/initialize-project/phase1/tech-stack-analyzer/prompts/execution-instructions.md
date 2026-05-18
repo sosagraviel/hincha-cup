@@ -171,9 +171,7 @@ the field entirely when no value (do NOT emit `null`). Enums must use
 one of the listed tokens verbatim. Per-service maps key by IDs from
 your AUTHORITATIVE SERVICE LIST.
 
-```jsonc
-<<script:schema-skeleton agent=tech-stack-dependencies-analyzer>>
-```
+<<script:critic-block agent=tech-stack-dependencies-analyzer>>
 
 ## `needs_verification` rules
 

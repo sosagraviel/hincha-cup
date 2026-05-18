@@ -241,7 +241,7 @@ export async function consolidationNode(
           logger.blank();
 
           return {
-            errors: [...state.errors, 'Gap questionnaire failed'],
+            errors: ['Gap questionnaire failed'],
             current_phase: 'failed',
           };
         }
@@ -334,16 +334,14 @@ export async function consolidationNode(
         timestamp: new Date().toISOString(),
       },
       current_phase: 'phase2_consolidation',
-      ...(composerViewWarnings.length > 0
-        ? { warnings: [...state.warnings, ...composerViewWarnings] }
-        : {}),
+      ...(composerViewWarnings.length > 0 ? { warnings: composerViewWarnings } : {}),
     };
   } catch (error) {
     const errorMessage = `Consolidation failed: ${(error as Error).message}`;
     phaseLogger.error(` ✗ Error: ${errorMessage}`);
 
     return {
-      errors: [...state.errors, errorMessage],
+      errors: [errorMessage],
       current_phase: 'failed',
     };
   }

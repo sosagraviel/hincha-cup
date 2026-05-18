@@ -39,12 +39,17 @@ export async function wikiServiceDocsNode(
       phase4_wiki_docs: { service_docs: serviceDocs },
     };
   } catch (error) {
-    const errorMessage = `Service docs generation failed: ${(error as Error).message}`;
+    const err = error instanceof Error ? error : new Error(String(error));
+    const errorMessage = `Service docs generation failed: ${err.message}`;
     phaseLogger.error(` ✗ ${errorMessage}`);
+    if (err.stack) phaseLogger.error(err.stack);
+    phaseLogger.warn(
+      'Wiki generation is non-fatal — continuing with an empty service_docs list. Phase 6 will surface phase4_wiki_status=degraded so the gap is visible.',
+    );
 
     return {
+      phase4_wiki_docs: { service_docs: [] },
       errors: [errorMessage],
-      current_phase: 'failed',
     };
   }
 }

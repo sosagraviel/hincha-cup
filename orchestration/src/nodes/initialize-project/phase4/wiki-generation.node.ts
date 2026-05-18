@@ -32,15 +32,42 @@ export async function wikiGenerationNode(
   try {
     const docs = state.phase4_wiki_docs;
     if (!docs?.context) {
-      throw new Error('phase4_wiki_docs.context missing');
+      phaseLogger.warn(
+        'phase4_wiki_docs.context missing — wiki finalization skipped (status=failed)',
+      );
+      return {
+        phase4_wiki_generation: {
+          llm_wiki_written: false,
+          files: [],
+          timestamp: new Date().toISOString(),
+          status: 'failed',
+          reason: 'phase4_wiki_docs.context missing — preparation never ran',
+        },
+      };
     }
     const { context } = docs;
-    const architecture = docs.architecture as GeneratedWikiFile | undefined;
+    const architectureCandidate = docs.architecture as
+      | (GeneratedWikiFile & { _failed?: boolean; error?: string })
+      | undefined;
     const serviceDocs = (docs.service_docs ?? []) as GeneratedWikiFile[];
 
-    if (!architecture) {
-      throw new Error('Core wiki doc (architecture) is missing from state');
+    const architectureFailed = architectureCandidate?._failed === true;
+    if (!architectureCandidate || architectureFailed) {
+      const reason = architectureFailed
+        ? `architecture doc generation failed: ${architectureCandidate?.error ?? 'unknown'}`
+        : 'architecture doc missing from state';
+      phaseLogger.warn(`${reason} — finalizing wiki in degraded mode (no ARCHITECTURE.md)`);
+      return {
+        phase4_wiki_generation: {
+          llm_wiki_written: false,
+          files: [],
+          timestamp: new Date().toISOString(),
+          status: 'degraded',
+          reason,
+        },
+      };
     }
+    const architecture = architectureCandidate as GeneratedWikiFile;
 
     const claudeMdPath = state.claude_md_path!;
     const provider = getActiveProvider();
@@ -134,6 +161,7 @@ export async function wikiGenerationNode(
         llm_wiki_written: true,
         files: writtenFiles,
         timestamp: new Date().toISOString(),
+        status: 'ok',
       },
       llm_wiki_path: llmWikiPath,
       llm_wiki_files: writtenFiles,
@@ -141,12 +169,23 @@ export async function wikiGenerationNode(
       current_phase: 'phase4_wiki_generation',
     };
   } catch (error) {
-    const errorMessage = `Wiki generation failed: ${(error as Error).message}`;
+    const err = error instanceof Error ? error : new Error(String(error));
+    const errorMessage = `Wiki generation failed: ${err.message}`;
     phaseLogger.error(` ✗ ${errorMessage}`);
+    if (err.stack) phaseLogger.error(err.stack);
+    phaseLogger.warn(
+      'Wiki finalization is non-fatal — CLAUDE.md, framework-config.json, skills, and Phase 5 resources still ship.',
+    );
 
     return {
+      phase4_wiki_generation: {
+        llm_wiki_written: false,
+        files: [],
+        timestamp: new Date().toISOString(),
+        status: 'failed',
+        reason: err.message,
+      },
       errors: [errorMessage],
-      current_phase: 'failed',
     };
   }
 }

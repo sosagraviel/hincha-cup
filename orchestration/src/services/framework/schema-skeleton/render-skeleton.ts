@@ -39,6 +39,7 @@ interface JsonSchemaNode {
   maxLength?: number;
   minimum?: number;
   maximum?: number;
+  pattern?: string;
   not?: JsonSchemaNode;
   anyOf?: JsonSchemaNode[];
   oneOf?: JsonSchemaNode[];
@@ -68,7 +69,24 @@ function describeStringConstraints(node: JsonSchemaNode): string {
   const parts: string[] = [];
   if (node.minLength != null && node.minLength > 0) parts.push(`≥${node.minLength}`);
   if (node.maxLength != null) parts.push(`≤${node.maxLength}`);
+  if (node.pattern) parts.push(`pattern=${node.pattern}`);
   return parts.length ? ' ' + parts.join(', ') : '';
+}
+
+/**
+ * Truncate a description string for inline comment use. Schema `.describe()`
+ * annotations are sometimes multi-sentence; we keep the first sentence plus
+ * 120 chars max so the rendered skeleton stays scannable.
+ *
+ * Stack-agnostic — the description's text comes from the Zod schema, which
+ * is itself stack-agnostic by construction.
+ */
+function trimDescription(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const collapsed = raw.replace(/\s+/g, ' ').trim();
+  if (!collapsed) return null;
+  if (collapsed.length <= 120) return collapsed;
+  return collapsed.slice(0, 117) + '...';
 }
 
 function renderNode(node: JsonSchemaNode | undefined, depth: number): string {
@@ -145,7 +163,15 @@ function renderObject(node: JsonSchemaNode, depth: number): string {
       if (propSchema.maxItems != null) {
         constraints.push(`≤${propSchema.maxItems}`);
       }
+      const itemsForConstraints = Array.isArray(propSchema.items)
+        ? propSchema.items[0]
+        : propSchema.items;
+      if (itemsForConstraints?.pattern) {
+        constraints.push(`item-pattern=${itemsForConstraints.pattern}`);
+      }
     }
+    const desc = trimDescription(propSchema.description);
+    if (desc) constraints.push(desc);
     lines.push({
       body: `${pad(depth + 1)}${renderedKey}: ${rendered}`,
       tail: renderConstraintComment(constraints),

@@ -1,4 +1,5 @@
 import type { PromptScriptHandler } from './types.js';
+import { criticBlock } from './scripts/critic-block.js';
 import { inspectionSummary } from './scripts/inspection-summary.js';
 import { languageConfigSummary } from './scripts/language-config-summary.js';
 import { schemaSkeleton } from './scripts/schema-skeleton.js';
@@ -9,6 +10,7 @@ import { schemaSkeleton } from './scripts/schema-skeleton.js';
  * entry here. Prompts can then reference it via `<<script:<name>>>`.
  */
 export const PROMPT_SCRIPT_REGISTRY: ReadonlyArray<PromptScriptHandler> = [
+  criticBlock,
   inspectionSummary,
   languageConfigSummary,
   schemaSkeleton,

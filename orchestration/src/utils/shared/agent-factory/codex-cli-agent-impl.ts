@@ -316,6 +316,7 @@ async function invokeCodexCLI(
     timeout,
     iteration: 0,
     extraEnv: config.extraEnv,
+    allowReadPaths: config.allowReadPaths,
   });
 
   if (first.code !== 0) {
@@ -375,6 +376,7 @@ async function invokeCodexCLI(
       timeout,
       iteration,
       extraEnv: config.extraEnv,
+      allowReadPaths: config.allowReadPaths,
     });
     if (resumeRun.code !== 0) {
       await finalizeCodexFailure(recorder, resumeRun, run.sessionId, feedbackPrompt);
@@ -545,6 +547,7 @@ function runCodex(params: {
   timeout: number;
   iteration: number;
   extraEnv?: Record<string, string>;
+  allowReadPaths?: ReadonlyArray<string>;
 }): Promise<{
   code: number | null;
   stdout: string;
@@ -573,7 +576,18 @@ function runCodex(params: {
 
       let timeoutId: NodeJS.Timeout | undefined;
 
+      /*
+       * Codex has no `permissions.deny` analogue, so we always pass the
+       * full project default excluded-dirs list straight to the PreToolUse
+       * hook (Codex configures the hook via
+       * `upsertCodexPathRestrictionHookConfig`). Combined with
+       * `FRAMEWORK_ALLOW_READ_PATHS`, the hook still blocks every file
+       * under those dirs except the explicit allow-list entries — the
+       * surgical exemption mirrors the Claude path even though there's no
+       * deny rule to compete with.
+       */
       const excludedDirs = getExcludedDirectories(params.cwd, params.frameworkPath);
+      const allowReadPathsEnv = JSON.stringify([...(params.allowReadPaths ?? [])]);
 
       const proc = spawn(params.codexPath, cliArgs, {
         cwd: params.cwd,
@@ -583,6 +597,7 @@ function runCodex(params: {
           FRAMEWORK_PATH: params.frameworkPath,
           FRAMEWORK_PROJECT_PATH: params.cwd,
           FRAMEWORK_EXCLUDED_DIRS: JSON.stringify(excludedDirs),
+          FRAMEWORK_ALLOW_READ_PATHS: allowReadPathsEnv,
           FRAMEWORK_ENFORCE: '1',
         },
         stdio: [promptFd, 'pipe', 'pipe'],

@@ -38,10 +38,15 @@ export {
   type LockFileEntry,
 } from '../../../schemas/project-inspection.schema.js';
 
-import { writeFileSync, mkdirSync } from 'fs';
+export { buildServiceSeedFromInspection } from './service-seed.js';
+
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import type { ProjectInspection } from '../../../schemas/project-inspection.schema.js';
-import { PROJECT_INSPECTION_FILENAME } from '../../../schemas/project-inspection.schema.js';
+import {
+  PROJECT_INSPECTION_FILENAME,
+  ProjectInspectionSchema,
+} from '../../../schemas/project-inspection.schema.js';
 
 /**
  * Resolve the on-disk path the inspection JSON lives at, given the
@@ -61,4 +66,23 @@ export function writeProjectInspection(tempDir: string, inspection: ProjectInspe
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify(inspection, null, 2));
   } catch {}
+}
+
+/**
+ * Load a previously-written inspection from `<tempDir>/project-inspection.json`.
+ * Returns `undefined` when the file is missing, unreadable, or fails schema
+ * validation — callers fall back to a no-inspection code path rather than
+ * trying to make sense of malformed data.
+ */
+export function readProjectInspection(tempDir: string): ProjectInspection | undefined {
+  try {
+    const p = projectInspectionPath(tempDir);
+    if (!existsSync(p)) return undefined;
+    const raw = readFileSync(p, 'utf-8');
+    const parsed = JSON.parse(raw);
+    const validated = ProjectInspectionSchema.safeParse(parsed);
+    return validated.success ? validated.data : undefined;
+  } catch {
+    return undefined;
+  }
 }

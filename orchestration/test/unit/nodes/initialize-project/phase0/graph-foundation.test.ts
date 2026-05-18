@@ -120,7 +120,9 @@ describe('graphFoundationNode', () => {
     expect(statsLine).toContain('Build: 1m 12s');
   });
 
-  it('fails the workflow when graph build fails', async () => {
+  it('fails the workflow when graph build fails (returns only the new error; reducer merges)', async () => {
+    // Phase E: nodes return only NEW errors; the annotation reducer
+    // concatenates with prior state.errors.
     vi.mocked(buildCodeGraph).mockRejectedValue(new Error('build failed'));
 
     const result = await graphFoundationNode({
@@ -133,7 +135,7 @@ describe('graphFoundationNode', () => {
       code_graph_error: 'build failed',
       current_phase: 'failed',
     });
-    expect(result.errors).toEqual(['previous error', 'graph_foundation: build failed']);
+    expect(result.errors).toEqual(['graph_foundation: build failed']);
   });
 
   it('logs remediation hint on failure', async () => {

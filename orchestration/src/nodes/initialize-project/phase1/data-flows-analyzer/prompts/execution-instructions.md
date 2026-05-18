@@ -159,9 +159,7 @@ Emit the shape below. Optional fields use the `"name?"` suffix — OMIT
 the field entirely when no value (do NOT emit `null`). Per-service
 maps key by IDs from your AUTHORITATIVE SERVICE LIST.
 
-```jsonc
-<<script:schema-skeleton agent=data-flows-integrations-analyzer>>
-```
+<<script:critic-block agent=data-flows-integrations-analyzer>>
 
 E012: each `infrastructure_services[]` entry needs either `port` (int)
 OR `{ port_applies: false, port_applies_reason: <string>,

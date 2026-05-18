@@ -393,14 +393,18 @@ describe('synthesisNode', () => {
     expect(result.current_phase).toBe('failed');
   });
 
-  it('should preserve existing errors', async () => {
+  it('returns only the new error (the LangGraph reducer concatenates with existing state.errors)', async () => {
+    // Pre-Phase-E nodes used to return `[...state.errors, newError]`, but the
+    // annotation reducer (`reducer: (left, right) => [...left, ...right]`)
+    // already concatenates — the spread caused each error to be duplicated
+    // every phase. After Phase E, nodes return ONLY the new entries and
+    // rely on the reducer to merge.
     mockState.errors = ['Previous error'];
     vi.mocked(AgentFactory.create).mockRejectedValue(new Error('New error'));
 
     const result = await synthesisNode(mockState);
 
-    expect(result.errors).toHaveLength(2);
-    expect(result.errors).toContain('Previous error');
+    expect(result.errors).toEqual(['Synthesis failed: New error']);
   });
 
   it('should handle agent output variations', async () => {

@@ -1,7 +1,9 @@
 import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../../../utils/logger.js';
+import { resolveTokenUsageJsonlPath } from '../../../services/framework/debug-store/token-usage-emitter.js';
+import { MAX_AGENT_OUTPUT_TOKENS } from '../phase1/shared/patch-mode.js';
 import { validateMarkdownFile, validateWikiMarkdownFile } from './helpers/file-validator.js';
 import {
   resolveInstructionFilePath,
@@ -103,7 +105,18 @@ export async function validationNode(
       phaseLogger.success(' ✓ framework-config.json validated');
     }
 
-    if (shouldValidateWiki) {
+    const wikiStatus = state.phase4_wiki_generation?.status;
+    const wikiReason = state.phase4_wiki_generation?.reason;
+    if (wikiStatus && wikiStatus !== 'ok') {
+      const statusMessage = `Phase 4b wiki generation finished with status=${wikiStatus}${wikiReason ? ` (${wikiReason})` : ''}.`;
+      validationWarnings.push(statusMessage);
+      phaseLogger.warn(` ⚠ ${statusMessage}`);
+      phaseLogger.warn(
+        '   docs/llm-wiki/ is incomplete or missing. CLAUDE.md / framework-config.json / skills shipped normally; re-run `pnpm --filter orchestration refresh-wiki` to retry the wiki generation pass.',
+      );
+    }
+
+    if (shouldValidateWiki && wikiStatus !== 'failed') {
       const wikiErrors: string[] = [];
       const wikiStackProfile = readStackProfileForWiki(state, frameworkConfigPath);
       const expectedWikiFiles = getExpectedLlmWikiFiles(wikiStackProfile);
@@ -118,7 +131,11 @@ export async function validationNode(
         validationWarnings.push(...wikiFileResult.warnings);
       }
 
-      validationErrors.push(...wikiErrors);
+      if (wikiStatus === 'degraded') {
+        validationWarnings.push(...wikiErrors);
+      } else {
+        validationErrors.push(...wikiErrors);
+      }
       if (wikiErrors.length === 0) {
         phaseLogger.success(' ✓ LLM wiki validated');
       }
@@ -172,6 +189,14 @@ export async function validationNode(
     validationErrors.push(...phaseCompletionResult.errors);
     validationWarnings.push(...phaseCompletionResult.warnings);
 
+    const regenWarnings = detectRegenerationRunaways(state.project_path);
+    if (regenWarnings.length > 0) {
+      for (const w of regenWarnings) {
+        phaseLogger.warn(` ⚠ ${w}`);
+      }
+      validationWarnings.push(...regenWarnings);
+    }
+
     phaseLogger.info(' Validating portability of generated .claude/ + .codex/ artifacts...');
     const portability = validatePortability(state.project_path);
     if (!portability.ok) {
@@ -199,8 +224,8 @@ export async function validationNode(
       validationErrors.forEach((err) => phaseLogger.error(`  - ${err}`));
 
       return {
-        errors: [...state.errors, ...validationErrors],
-        warnings: [...state.warnings, ...validationWarnings],
+        errors: validationErrors,
+        warnings: validationWarnings,
         current_phase: 'failed',
       };
     }
@@ -232,7 +257,7 @@ export async function validationNode(
       current_phase: 'complete',
       completed_at: completedAt,
       total_duration_ms: totalDuration,
-      warnings: [...state.warnings, ...validationWarnings],
+      warnings: validationWarnings,
       claude_md_path: instructionFilePath,
       code_conventions_path: state.code_conventions_path || conventionSkillPaths[0].path,
       multi_file_workflows_path: state.multi_file_workflows_path || conventionSkillPaths[1].path,
@@ -250,7 +275,7 @@ export async function validationNode(
     phaseLogger.error(` ✗ ${errorMessage}`);
 
     return {
-      errors: [...state.errors, errorMessage],
+      errors: [errorMessage],
       current_phase: 'failed',
     };
   }
@@ -293,5 +318,56 @@ function readStackProfileForWiki(
     return config.stack_profile;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Scan `metrics/token-usage.jsonl` and flag any Phase 1 agent whose
+ * cumulative output-token count exceeds `MAX_AGENT_OUTPUT_TOKENS`. A run-away
+ * regeneration is the failure mode P2 is designed to prevent — when the model
+ * keeps re-emitting the full output instead of patching, output_tokens for
+ * that session balloon to 100K+. Surfacing the warning here makes the
+ * regression visible without requiring the operator to grep the JSONL.
+ *
+ * Returns an empty array on any read/parse error — telemetry should never
+ * block a workflow.
+ */
+function detectRegenerationRunaways(projectPath: string): string[] {
+  try {
+    const jsonlPath = resolveTokenUsageJsonlPath(projectPath);
+    if (!existsSync(jsonlPath)) return [];
+    const lines = readFileSync(jsonlPath, 'utf-8')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    const cumulative = new Map<string, number>();
+    for (const line of lines) {
+      let rec: { phase?: string; agent?: string; output_tokens?: number };
+      try {
+        rec = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const phase = rec.phase ?? '';
+      const agent = rec.agent ?? '';
+      const out = typeof rec.output_tokens === 'number' ? rec.output_tokens : 0;
+      if (!phase.startsWith('phase-1') || !agent || out <= 0) continue;
+      const key = `${phase}::${agent}`;
+      cumulative.set(key, (cumulative.get(key) ?? 0) + out);
+    }
+
+    const warnings: string[] = [];
+    for (const [key, total] of cumulative) {
+      if (total > MAX_AGENT_OUTPUT_TOKENS) {
+        const [phase, agent] = key.split('::');
+        warnings.push(
+          `regeneration_runaway: ${agent} (${phase}) emitted ${total.toLocaleString()} output tokens — exceeds cap of ${MAX_AGENT_OUTPUT_TOKENS.toLocaleString()}. The model is regenerating full outputs instead of patching; verify PATCH MODE feedback reached the agent on retries.`,
+        );
+      }
+    }
+    return warnings;
+  } catch {
+    return [];
   }
 }

@@ -16,6 +16,10 @@ import {
 } from '../shared/graph-tool-usage.js';
 import { applyInspectionPostFill } from './helpers/apply-inspection-postfill.js';
 import { getFrameworkAgentPath } from '../../shared/index.js';
+import {
+  analyzerExcludedDirsOverride,
+  analyzerReadableTempPaths,
+} from '../../../../services/framework/permissions/excluded-paths.js';
 import { resolveTempPath, getActiveProvider } from '../../../../utils/provider-paths.js';
 import { Provider } from '../../../../providers/types.js';
 import {
@@ -80,6 +84,11 @@ export async function codePatternsTestingAnalyzerNode(
           state.framework_path,
           'orchestration/src/nodes/initialize-project/phase1/code-patterns-analyzer/settings.json',
         ),
+        allowReadPaths: analyzerReadableTempPaths(state.project_path),
+        excludedDirsOverride: analyzerExcludedDirsOverride(
+          state.project_path,
+          state.framework_path,
+        ),
       });
 
       const result = await agent.invoke({ inputPrompt, attemptNumber });
@@ -91,7 +100,7 @@ export async function codePatternsTestingAnalyzerNode(
     };
 
     const validator = (output: string): ValidationResult => {
-      return validateAndParseAgentOutput(output, agentName);
+      return validateAndParseAgentOutput(output, agentName, tempDir);
     };
 
     const outputPath = join(tempDir, 'phase1-outputs', '03-code-patterns-testing.json');
@@ -145,7 +154,7 @@ export async function codePatternsTestingAnalyzerNode(
     logger.error('Analysis failed', err);
 
     return {
-      errors: [...state.errors, `${agentName}: ${err.message}`],
+      errors: [`${agentName}: ${err.message}`],
       current_phase: 'failed',
     };
   }

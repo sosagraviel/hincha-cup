@@ -150,7 +150,7 @@ export async function resourcesNode(
     phaseLogger.error((error as Error).stack || '');
 
     return {
-      errors: [...state.errors, errorMessage],
+      errors: [errorMessage],
       current_phase: 'failed',
     };
   }

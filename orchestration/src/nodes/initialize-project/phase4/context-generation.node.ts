@@ -478,7 +478,7 @@ export async function contextGenerationNode(
     phaseLogger.error(` ✗ ${errorMessage}`);
 
     return {
-      errors: [...state.errors, errorMessage],
+      errors: [errorMessage],
       current_phase: 'failed',
     };
   }

@@ -27,6 +27,8 @@ import {
   formatValidationError,
   type ValidationCodeKey,
 } from '../../../shared/validation-codes/index.js';
+import { readProjectInspection } from '../../../../../services/framework/project-inspection/index.js';
+import { buildServiceSeedFromInspection } from '../../../../../services/framework/project-inspection/service-seed.js';
 
 export interface JudgmentFieldViolation {
   service_id: string;
@@ -86,6 +88,29 @@ export function loadServiceTypeMap(cwd: string | undefined): ServiceTypeMap {
     } catch {
       continue;
     }
+  }
+
+  /*
+   * Fallback: when the structure analyzer hasn't persisted its output yet
+   * (Phase 1 fans out in parallel), derive the service-type map from the
+   * Phase 0 project inspection seed. The seed is shape-derived (manifest
+   * paths + dependency-token heuristics from `service-seed.ts`) and is
+   * always written before any Phase 1 analyzer starts.
+   *
+   * Stack-agnostic — the seed never branches on language or framework name;
+   * its heuristics live in the existing token-set registries.
+   */
+  for (const tempDir of candidateTempDirs(cwd)) {
+    const inspection = readProjectInspection(tempDir);
+    if (!inspection) continue;
+    const projectPath = cwd && cwd.length > 0 ? cwd : path.dirname(path.dirname(tempDir));
+    const seed = buildServiceSeedFromInspection(inspection, projectPath);
+    if (seed.length === 0) continue;
+    const map: ServiceTypeMap = {};
+    for (const s of seed) {
+      if (s.id && s.type) map[s.id] = s.type;
+    }
+    if (Object.keys(map).length > 0) return map;
   }
   return {};
 }

@@ -102,6 +102,87 @@ describe('computeServiceIdRewrites', () => {
     expect(computeServiceIdRewrites([{ services: 'not-array' }])).toEqual({});
     expect(computeServiceIdRewrites([{ services: null }])).toEqual({});
   });
+
+  describe('collision safety', () => {
+    /*
+     * The Phase 4 stack-profile validator requires unique service IDs.
+     * Two analyzer-emitted services that share the same path basename
+     * (e.g. `firebase/functions` and `functions/` both canonicalise to
+     * `functions`) MUST NOT both be rewritten to the same canonical id —
+     * the rewrite would create duplicates and break
+     * `StackProfileSchema.refine()`. The structure analyzer already
+     * disambiguates these with multi-segment ids (`firebase-functions`),
+     * so the safe behaviour is to keep the legacy ids when a rewrite
+     * would introduce a collision.
+     */
+    it('skips both rewrites when two services would collapse onto the same canonical', () => {
+      const findings = {
+        services: [
+          { id: 'firebase-functions', path: 'firebase/functions' },
+          { id: 'app-functions', path: 'functions' },
+        ],
+      };
+      expect(computeServiceIdRewrites([findings])).toEqual({});
+    });
+
+    it('still rewrites non-colliding services when one collision exists', () => {
+      const findings = {
+        services: [
+          { id: 'firebase-functions', path: 'firebase/functions' },
+          { id: 'app-functions', path: 'functions' },
+          { id: 'web-frontend', path: 'apps/web-frontend' },
+          { id: 'shared-lib', path: 'packages/shared' },
+        ],
+      };
+      const rewrites = computeServiceIdRewrites([findings]);
+      expect(rewrites).toEqual({ 'shared-lib': 'shared' });
+    });
+
+    it('skips a rewrite when the canonical id is already used by another service as its literal id', () => {
+      // `path: 'a'` is already at id=`a`; `path: 'b/a'` would also normalise to `a`.
+      // Rewriting the second would create a duplicate `a` id.
+      const findings = {
+        services: [
+          { id: 'a', path: 'a' },
+          { id: 'nested-a', path: 'b/a' },
+        ],
+      };
+      expect(computeServiceIdRewrites([findings])).toEqual({});
+    });
+
+    it('handles the stride-origin 11-service shape end-to-end (regression)', () => {
+      const findings = {
+        services: [
+          { id: 'web', path: 'web' },
+          { id: 'firebase-functions', path: 'firebase/functions' },
+          { id: 'python-functions', path: 'functions/python' },
+          { id: 'functions-js', path: 'functions/js' },
+          { id: 'stride-lib', path: 'packages/stride-lib' },
+          { id: 'stride-lib-packed', path: 'packages/stride-lib/packed' },
+          { id: 'firebase', path: 'firebase' },
+          { id: 'functions', path: 'functions' },
+          { id: 'devops', path: 'devops' },
+          { id: 'crx', path: 'crx' },
+          { id: 'firebase-migrations-migrator', path: 'firebase/migrations/migrator' },
+          { id: 'python-logging-lib', path: 'functions/python/lib/logging' },
+          { id: 'python-unit-tests', path: 'functions/python/unit_tests' },
+        ],
+      };
+      const rewrites = computeServiceIdRewrites([findings]);
+      // `firebase-functions` and `functions` collide on canonical=`functions` → both skipped.
+      // `python-functions` and `python-logging-lib` produce distinct canonicals
+      // (`python` vs `logging`) — both safe to rewrite.
+      expect(rewrites['firebase-functions']).toBeUndefined();
+      // Sanity: other unique services still get their basename normalisation.
+      expect(rewrites['python-functions']).toBe('python');
+      expect(rewrites['functions-js']).toBe('js');
+      expect(rewrites['python-logging-lib']).toBe('logging');
+      expect(rewrites['python-unit-tests']).toBe('unit-tests');
+      // After applying these rewrites the final id set is unique.
+      const finalIds = findings.services.map((s) => rewrites[s.id] ?? s.id);
+      expect(new Set(finalIds).size).toBe(finalIds.length);
+    });
+  });
 });
 
 describe('applyServiceIdRewritesToFindings', () => {

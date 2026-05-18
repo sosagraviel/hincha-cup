@@ -10,16 +10,20 @@ import { AuthMode } from '../../auth/auth-detector.js';
  * Build excluded directories XML tag.
  *
  * Framework deny-rules + PreToolUse hooks enforce these at runtime
- * across Glob/Grep/Read/Bash, so the agent only needs the list itself,
- * not a treatise on why. Brief is better — the agent reads the same
- * block on every spawn.
+ * across Glob/Grep/Read/Bash. The prompt restatement is for model
+ * awareness only — the hook does the enforcement. We compress to one
+ * comma-separated line to keep the cache-eligible shared prefix small
+ * (the dirs list is the largest fixed-size block in the prefix).
+ *
+ * Stack-agnostic: the directory names come from the registry-derived
+ * `getExcludedDirectories()` list. The rendered format is purely
+ * cosmetic.
  */
 export function buildExcludedDirsTag(dirs: string[]): string {
   return [
     '<excluded_directories>',
-    'The directories below are off-limits (deny-rules + PreToolUse hooks',
-    'block tool calls that walk them; reason as if they do not exist):',
-    dirs.map((d) => `  - ${d}`).join('\n'),
+    'Off-limits (deny-rules + PreToolUse hooks enforce; reason as if absent):',
+    dirs.join(', '),
     '</excluded_directories>',
   ].join('\n');
 }

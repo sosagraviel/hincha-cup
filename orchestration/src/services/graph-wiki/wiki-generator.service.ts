@@ -28,6 +28,34 @@ export {
   upsertLlmWikiContextSection,
 } from './frontmatter.js';
 
+/**
+ * Default cap for per-service wiki concurrency. Set to 8 — high enough that
+ * a 50-service monorepo finishes wiki generation in 6–8 parallel passes, low
+ * enough that we don't trip subscription-mode rate limits.
+ *
+ * Override via the `FRAMEWORK_WIKI_CONCURRENCY` env var or by passing
+ * `serviceDocConcurrency` to the `WikiGeneratorService` constructor.
+ */
+export const WIKI_CONCURRENCY_DEFAULT = 8;
+
+/**
+ * Resolve the per-service-doc concurrency cap. Stack-agnostic: the resolver
+ * looks at (1) the explicit option, (2) the env var, (3) the default — in
+ * that order. The caller separately bounds the result by the number of
+ * services so a project with N services never spawns more than N workers.
+ */
+export function resolveWikiConcurrencyCap(explicit: number | undefined): number {
+  if (typeof explicit === 'number' && Number.isFinite(explicit) && explicit >= 1) {
+    return Math.floor(explicit);
+  }
+  const fromEnv = process.env.FRAMEWORK_WIKI_CONCURRENCY;
+  if (fromEnv) {
+    const parsed = Number.parseInt(fromEnv, 10);
+    if (Number.isFinite(parsed) && parsed >= 1) return parsed;
+  }
+  return WIKI_CONCURRENCY_DEFAULT;
+}
+
 export class WikiGeneratorService {
   constructor(private readonly options: WikiGeneratorServiceOptions) {}
 
@@ -84,15 +112,24 @@ export class WikiGeneratorService {
 
   /**
    * Generate every per-service doc with bounded concurrency.
+   *
+   * Concurrency = `min(services.length, cap)`. The cap defaults to
+   * `WIKI_CONCURRENCY_DEFAULT` (8) and can be overridden via the
+   * `FRAMEWORK_WIKI_CONCURRENCY` env var or `serviceDocConcurrency` option.
+   * Stack-agnostic: scales with the SSoT service count for the project that
+   * just ran — a 1-service project gets concurrency 1; a 50-service project
+   * gets the cap.
+   *
    * Order of the returned array matches the service inventory order.
    */
   async generateServiceDocsConcurrent(generatedAt: string): Promise<GeneratedWikiFile[]> {
     const services = getServices(this.options.stackProfile);
-    const concurrency = Math.max(1, this.options.serviceDocConcurrency ?? 3);
+    const cap = resolveWikiConcurrencyCap(this.options.serviceDocConcurrency);
+    const concurrency = Math.max(1, Math.min(cap, services.length));
     const results: GeneratedWikiFile[] = new Array(services.length);
 
     let cursor = 0;
-    const workers = Array.from({ length: Math.min(concurrency, services.length) }, async () => {
+    const workers = Array.from({ length: concurrency }, async () => {
       while (true) {
         const index = cursor++;
         if (index >= services.length) return;

@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync, readFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   validateAnalyzerOutput,
   extractJSON,
@@ -7,6 +10,10 @@ import {
   buildValidationErrorFeedback,
   type ValidationResult,
 } from '../../../src/utils/validator.js';
+import {
+  PATCH_BASELINE_SUFFIX,
+  getPatchPaths,
+} from '../../../src/nodes/initialize-project/phase1/shared/patch-mode.js';
 
 // Mock logger to avoid console output during tests
 vi.mock('../../../src/utils/logger.js', () => ({
@@ -1201,6 +1208,157 @@ ${validJSON}
         '',
       );
       expect(extractSynthesisMarkdown(missingTesting)).toBeNull();
+    });
+  });
+
+  describe('validateAndParseAgentOutput — PATCH MODE (RFC 7396)', () => {
+    const agentName = 'structure-architecture-analyzer';
+    let tempDir: string;
+    let baselinePath: string;
+
+    const validBaseline = {
+      agent_name: 'structure-architecture-analyzer',
+      timestamp: '2026-05-14T00:00:00Z',
+      graph_queries_used: [],
+      findings: {
+        services: [
+          {
+            id: 'web',
+            path: 'web',
+            type: 'frontend',
+            language: 'typescript',
+            frameworks: { main: 'Next.js 15' },
+          },
+        ],
+        repository_type: 'monorepo',
+      },
+    };
+
+    beforeEach(() => {
+      tempDir = mkdtempSync(join(tmpdir(), 'validator-patch-mode-'));
+      mkdirSync(join(tempDir, 'phase1-outputs'), { recursive: true });
+      baselinePath = getPatchPaths(tempDir, agentName).baselinePath;
+    });
+
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('accepts a full-output JSON and persists it as the fully-clean baseline', () => {
+      const result = validateAndParseAgentOutput(JSON.stringify(validBaseline), agentName, tempDir);
+      expect(result.valid).toBe(true);
+      expect(existsSync(baselinePath)).toBe(true);
+
+      // The on-disk shape now wraps the data with `_stage` + `_written_at`
+      // metadata so retries can show the model which gate the previous attempt
+      // passed. The payload itself lives under `.data`.
+      const stored = JSON.parse(readFileSync(baselinePath, 'utf-8'));
+      expect(stored._stage).toBe('fully-clean');
+      expect(stored.data.agent_name).toBe(agentName);
+      expect(stored.data.findings.services).toHaveLength(1);
+    });
+
+    it('merges a PATCH envelope against the persisted baseline and validates the merged result', () => {
+      // Seed the baseline first.
+      validateAndParseAgentOutput(JSON.stringify(validBaseline), agentName, tempDir);
+
+      // Now emit a patch that flips one field.
+      const envelope = {
+        _patch_format: 'RFC7396',
+        _patch_target_agent: agentName,
+        _patch: { findings: { repository_type: 'polyrepo' } },
+      };
+      const result = validateAndParseAgentOutput(JSON.stringify(envelope), agentName, tempDir);
+      expect(result.valid).toBe(true);
+      expect(result.data.findings.repository_type).toBe('polyrepo');
+      // The previously-valid fields must still be there.
+      expect(result.data.findings.services).toHaveLength(1);
+      expect(result.data.findings.services[0].id).toBe('web');
+    });
+
+    it('rejects a PATCH envelope when no baseline exists yet', () => {
+      const envelope = {
+        _patch_format: 'RFC7396',
+        _patch_target_agent: agentName,
+        _patch: { findings: { repository_type: 'polyrepo' } },
+      };
+      const result = validateAndParseAgentOutput(JSON.stringify(envelope), agentName, tempDir);
+      expect(result.valid).toBe(false);
+      expect(result.errors.join('\n')).toContain('no baseline');
+    });
+
+    it('updates the baseline after a successful merge so chained patches work', () => {
+      validateAndParseAgentOutput(JSON.stringify(validBaseline), agentName, tempDir);
+
+      const patch1 = {
+        _patch_format: 'RFC7396',
+        _patch_target_agent: agentName,
+        _patch: { findings: { repository_type: 'polyrepo' } },
+      };
+      const r1 = validateAndParseAgentOutput(JSON.stringify(patch1), agentName, tempDir);
+      expect(r1.valid).toBe(true);
+
+      // After r1 the baseline should reflect repository_type: polyrepo.
+      const after1 = JSON.parse(readFileSync(baselinePath, 'utf-8'));
+      expect(after1.data.findings.repository_type).toBe('polyrepo');
+
+      // A second patch that only adds a service should preserve r1's change.
+      const patch2 = {
+        _patch_format: 'RFC7396',
+        _patch_target_agent: agentName,
+        _patch: {
+          findings: {
+            services: [
+              {
+                id: 'web',
+                path: 'web',
+                type: 'frontend',
+                language: 'typescript',
+                frameworks: { main: 'Next.js 15' },
+              },
+              {
+                id: 'api',
+                path: 'api',
+                type: 'backend',
+                language: 'typescript',
+                frameworks: { main: 'NestJS 11' },
+              },
+            ],
+          },
+        },
+      };
+      const r2 = validateAndParseAgentOutput(JSON.stringify(patch2), agentName, tempDir);
+      expect(r2.valid).toBe(true);
+      expect(r2.data.findings.repository_type).toBe('polyrepo');
+      expect(r2.data.findings.services).toHaveLength(2);
+    });
+
+    it('reports a useful error when the merged result fails schema validation', () => {
+      validateAndParseAgentOutput(JSON.stringify(validBaseline), agentName, tempDir);
+
+      // Patch that empties the required services array — the schema requires ≥1.
+      const envelope = {
+        _patch_format: 'RFC7396',
+        _patch_target_agent: agentName,
+        _patch: { findings: { services: [] } },
+      };
+      const result = validateAndParseAgentOutput(JSON.stringify(envelope), agentName, tempDir);
+      expect(result.valid).toBe(false);
+      expect(result.errors.join('\n')).toContain('PATCH MODE merged successfully');
+    });
+
+    it('does not consult patch baselines when tempDir is omitted (back-compat)', () => {
+      // Pre-existing baseline must NOT be applied when caller skips tempDir —
+      // the legacy validator signature stays a no-patch-mode entry point.
+      writeFileSync(baselinePath, JSON.stringify(validBaseline), 'utf-8');
+      const envelope = {
+        _patch_format: 'RFC7396',
+        _patch_target_agent: agentName,
+        _patch: { findings: { repository_type: 'polyrepo' } },
+      };
+      const result = validateAndParseAgentOutput(JSON.stringify(envelope), agentName);
+      // No tempDir → envelope is treated as a regular (invalid) full output.
+      expect(result.valid).toBe(false);
     });
   });
 });

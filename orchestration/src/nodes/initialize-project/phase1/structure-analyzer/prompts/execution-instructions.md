@@ -180,9 +180,7 @@ Emit the shape below. Optional fields use the `"name?"` suffix — OMIT
 the field entirely when no value (do NOT emit `null`). Enums must use
 one of the listed tokens verbatim.
 
-```jsonc
-<<script:schema-skeleton agent=structure-architecture-analyzer>>
-```
+<<script:critic-block agent=structure-architecture-analyzer>>
 
 Stop-hook extras beyond the Zod schema:
 

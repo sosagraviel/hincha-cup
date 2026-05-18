@@ -157,23 +157,23 @@
         "visual-verifier": "gpt5-latest",
         "structure-architecture-analyzer": {
           "alias": "gpt5-latest",
-          "reasoningEffort": "high"
+          "reasoningEffort": "minimal"
         },
         "tech-stack-dependencies-analyzer": {
           "alias": "gpt5-latest",
-          "reasoningEffort": "high"
+          "reasoningEffort": "minimal"
         },
         "code-patterns-testing-analyzer": {
           "alias": "gpt5-latest",
-          "reasoningEffort": "high"
+          "reasoningEffort": "minimal"
         },
         "data-flows-integrations-analyzer": {
           "alias": "gpt5-latest",
-          "reasoningEffort": "high"
+          "reasoningEffort": "minimal"
         },
         "service-detail-extractor": {
           "alias": "gpt5-latest",
-          "reasoningEffort": "high"
+          "reasoningEffort": "minimal"
         },
         "architect-synthesizer": {
           "alias": "gpt5-latest",
@@ -181,11 +181,11 @@
         },
         "wiki-generator": {
           "alias": "gpt5-latest",
-          "reasoningEffort": "high"
+          "reasoningEffort": "medium"
         },
         "question-consolidator": {
           "alias": "gpt5-latest",
-          "reasoningEffort": "high"
+          "reasoningEffort": "minimal"
         }
       }
     },
@@ -212,6 +212,19 @@
         "wiki-generator": "gemini-latest",
         "question-consolidator": "gemini-latest"
       }
+    }
+  },
+  "thinkingBudgets": {
+    "description": "Per-agent thinking-token cap. 0 disables extended thinking. Used by Anthropic models that honor extended thinking and by Codex's model_reasoning_effort heuristic mapping. Mechanical-extraction agents (Phase 1 analyzers) get 0; reasoning agents (synthesis) get a generous budget; everything else inherits the per-model default.",
+    "byAgent": {
+      "structure-architecture-analyzer": 0,
+      "tech-stack-dependencies-analyzer": 0,
+      "code-patterns-testing-analyzer": 0,
+      "data-flows-integrations-analyzer": 0,
+      "service-detail-extractor": 0,
+      "question-consolidator": 0,
+      "architect-synthesizer": 8000,
+      "wiki-generator": 2000
     }
   },
   "providerConfig": {

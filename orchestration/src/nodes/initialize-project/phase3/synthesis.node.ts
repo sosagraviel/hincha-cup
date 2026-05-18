@@ -152,16 +152,14 @@ export async function synthesisNode(
         validation_passed: true,
       },
       current_phase: 'phase3_synthesis',
-      ...(synthesisWarnings.length > 0
-        ? { warnings: [...state.warnings, ...synthesisWarnings] }
-        : {}),
+      ...(synthesisWarnings.length > 0 ? { warnings: synthesisWarnings } : {}),
     };
   } catch (error) {
     const errorMessage = `Synthesis failed: ${(error as Error).message}`;
     phaseLogger.error(` ✗ ${errorMessage}`);
 
     return {
-      errors: [...state.errors, errorMessage],
+      errors: [errorMessage],
       current_phase: 'failed',
     };
   }

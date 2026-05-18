@@ -68,3 +68,26 @@ The schema FORBIDS top-level `findings.services[]` for this analyzer. Any output
 - Note: `findings.services[]` is FORBIDDEN — schema validation will reject it.
 
 The graph is your PRIMARY discovery surface. Glob/Read/Grep are fallback only, restricted to the explicit question classes listed above. If you find yourself reaching for Glob to answer a structural or relational question, stop and use the graph instead.
+
+## Per-service shape contract (HARD RULE — applies to every service type)
+
+For **every service in the AUTHORITATIVE SERVICE LIST** whose `type` is one of
+`backend` / `frontend` / `serverless` / `worker`, your output **MUST** contain
+either (a) at least one entry under `findings.code_patterns.<service-id>.patterns[]`
+**OR** (b) a `needs_verification` item whose `attempted_resolution[]` cites the
+service-id and explains why no convention was discoverable. Pick one — silent
+emptiness is rejected.
+
+"Pattern" is anything the project's own code uses repeatedly — error handling,
+input validation, repository wrappers, transaction boundaries, retry/backoff,
+auth guards, request decorators, dependency-injection conventions, async
+patterns, etc. The framework does NOT enumerate which patterns count — emit
+whatever you observe in this project's source.
+
+For each emitted pattern include the verbatim citation (`source_file` +
+`source_line`) per the schema; the stop hook's groundedness validator rejects
+unsourced entries.
+
+This rule is stack-agnostic — it applies the same way to a PHP monolith, a
+Rust microservice, a legacy Java 8 codebase, and anything else. The contract
+is on the JSON shape, not on the project's language or framework.

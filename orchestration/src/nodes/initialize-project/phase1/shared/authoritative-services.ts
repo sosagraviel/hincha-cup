@@ -1,18 +1,25 @@
 /**
- * Reads the structure-architecture-analyzer's persisted output and
- * returns the canonical, authoritative service list that downstream
- * Phase 1 analyzers (tech-stack, code-patterns, data-flows) must
- * consume verbatim.
+ * Resolves the authoritative service list that downstream Phase 1 analyzers
+ * (tech-stack, code-patterns, data-flows) inject into their prompts.
  *
- * Structure runs first as a single source of truth and persists
- * `01-structure-architecture.json`; the downstream nodes call
- * `loadAuthoritativeServices()` before building their own prompts.
+ * Lookup order:
+ *   1. The structure-architecture-analyzer's persisted output
+ *      (`<tempDir>/phase1-outputs/01-structure-architecture.json`). This is
+ *      the SINGLE SOURCE OF TRUTH once Phase 1 finishes.
+ *   2. The Phase 0 project-inspection seed
+ *      (`<tempDir>/project-inspection.json`). When the four analyzers run in
+ *      parallel, the structure output may not exist yet — the seed provides
+ *      a deterministic, inspection-derived service list so downstream
+ *      analyzers can start immediately. Phase 2 reconciles drift via the
+ *      `applyServiceIdRewritesToFindings` helper.
  *
  * Stack-agnostic: every field surfaced here (`id`, `path`, `type`,
  * `language`) is descriptive, not language- or framework-specific.
  */
 import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { readProjectInspection } from '../../../../services/framework/project-inspection/index.js';
+import { buildServiceSeedFromInspection } from '../../../../services/framework/project-inspection/service-seed.js';
 
 export interface AuthoritativeService {
   id: string;
@@ -29,30 +36,75 @@ export interface AuthoritativeService {
 export interface LoadAuthoritativeServicesResult {
   services: AuthoritativeService[];
   /**
-   * When the structure-analyzer output cannot be loaded, the downstream
-   * analyzer falls back to its prior behaviour (re-deriving its own service
-   * list). This is the legacy path and SHOULD be fixed by the topology change,
-   * but the loader returns a soft `error` instead of throwing so the node can
-   * decide its own failure semantics. Empty when loading succeeds.
+   * When neither the structure-analyzer output nor the Phase 0 inspection
+   * seed can provide a service list, downstream analyzers fall back to
+   * re-deriving their own list. The loader returns a soft `error` instead
+   * of throwing so the node can decide its own failure semantics. Empty
+   * when loading succeeds.
    */
   error?: string;
+  /**
+   * Provenance for the returned `services[]`. `structure` means the
+   * structure-architecture-analyzer's persisted output supplied the list
+   * (the canonical SSoT). `inspection-seed` means the Phase 0 inspection
+   * derived a stack-agnostic seed because the structure output wasn't on
+   * disk yet (parallel Phase 1 fan-out). Phase 2 consolidation reconciles
+   * any seed-vs-structure drift before any artefact is generated.
+   */
+  source: 'structure' | 'inspection-seed' | 'none';
 }
 
 const STRUCTURE_OUTPUT_FILE = '01-structure-architecture.json';
 
 /**
- * Loads the authoritative service list from `<tempDir>/phase1-outputs/01-structure-architecture.json`.
+ * Loads the authoritative service list. Prefers
+ * `<tempDir>/phase1-outputs/01-structure-architecture.json` when present;
+ * otherwise falls back to the Phase 0 inspection-derived seed.
  *
- * Returns `{ services: [], error: string }` when the file is missing,
- * malformed, or contains zero services — the caller decides how to surface
- * that. Returns `{ services: [...] }` (no error) on success.
+ * Returns `{ services: [...], source: 'structure' }` on success, or
+ * `{ services: [...], source: 'inspection-seed' }` when the structure
+ * output isn't on disk yet. `error` is populated only when neither source
+ * yields any usable services.
  */
 export function loadAuthoritativeServices(tempDir: string): LoadAuthoritativeServicesResult {
+  const fromStructure = loadFromStructureOutput(tempDir);
+  if (fromStructure.services.length > 0) {
+    return { services: fromStructure.services, source: 'structure' };
+  }
+
+  const projectPath = dirname(dirname(tempDir));
+  const inspection = readProjectInspection(tempDir);
+  const seed = buildServiceSeedFromInspection(inspection, projectPath);
+  if (seed.length > 0) {
+    return { services: seed, source: 'inspection-seed' };
+  }
+
+  const reasons: string[] = [];
+  if (fromStructure.error) reasons.push(fromStructure.error);
+  if (!inspection) reasons.push(`project-inspection.json missing under ${tempDir}`);
+  else if (seed.length === 0) reasons.push('inspection seed yielded zero services');
+
+  return {
+    services: [],
+    source: 'none',
+    error:
+      reasons.length > 0
+        ? reasons.join(' | ')
+        : 'no authoritative services available from structure output or inspection seed',
+  };
+}
+
+interface StructureLoadResult {
+  services: AuthoritativeService[];
+  error?: string;
+}
+
+function loadFromStructureOutput(tempDir: string): StructureLoadResult {
   const outputPath = join(tempDir, 'phase1-outputs', STRUCTURE_OUTPUT_FILE);
   if (!existsSync(outputPath)) {
     return {
       services: [],
-      error: `structure-analyzer output not found at ${outputPath} — downstream analyzer cannot inject authoritative services`,
+      error: `structure-analyzer output not found at ${outputPath}`,
     };
   }
 
@@ -60,10 +112,7 @@ export function loadAuthoritativeServices(tempDir: string): LoadAuthoritativeSer
   try {
     raw = readFileSync(outputPath, 'utf-8');
   } catch (err) {
-    return {
-      services: [],
-      error: `failed to read ${outputPath}: ${(err as Error).message}`,
-    };
+    return { services: [], error: `failed to read ${outputPath}: ${(err as Error).message}` };
   }
 
   let parsed: unknown;

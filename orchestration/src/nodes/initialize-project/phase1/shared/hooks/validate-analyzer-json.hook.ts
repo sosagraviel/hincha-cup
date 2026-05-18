@@ -40,6 +40,16 @@ import {
   formatValidationError,
   NEEDS_VERIFICATION_SUBCODE_TO_KEY,
 } from '../../../shared/validation-codes/index.js';
+import {
+  applyMergePatch,
+  buildPatchModeFeedback,
+  getPatchPaths,
+  isPatchEnvelope,
+  readPatchBaseline,
+  writePatchBaseline,
+  type PatchEnvelope,
+} from '../patch-mode.js';
+import { recordRejection, shouldAutoDowngrade } from '../rejection-counter.js';
 
 /**
  * Names of the three downstream Phase 1 analyzers — those that consume the
@@ -222,6 +232,19 @@ function candidateTempDirs(cwd: string | undefined): string[] {
 }
 
 /**
+ * Return the first candidate `<tempDir>` that already exists on disk. Falls
+ * back to the first candidate (Claude default) when neither exists so the
+ * caller can still derive a path for fresh runs.
+ */
+function resolveActiveTempDir(cwd: string | undefined): string {
+  const candidates = candidateTempDirs(cwd);
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return candidates[0];
+}
+
+/**
  * Walk every leaf string value in a parsed analyzer output looking
  * for service IDs that don't appear in the authoritative set.
  * Returns an array of `{id, location}` records describing every
@@ -325,10 +348,122 @@ function writeGraphToolUseSidecar(transcriptPath: string, data: GraphToolUseReco
 /**
  * Block Claude from finishing and provide retry feedback on stderr.
  * Exit code 2 is the Claude CLI signal for "block" (exit 1 is just an error).
+ *
+ * When `tempDir` + `agentName` are supplied AND a baseline file already exists
+ * for the agent, the feedback also instructs the model to emit a PATCH MODE
+ * envelope on the next attempt. This is the key savings lever: a 100-byte
+ * patch can replace a 26 KB full regeneration.
  */
-function blockWithFeedback(reason: string): void {
-  console.error(reason);
+function blockWithFeedback(reason: string, tempDir?: string, agentName?: string): void {
+  let message = reason;
+  if (tempDir && agentName) {
+    const { baselinePath } = getPatchPaths(tempDir, agentName);
+    if (fs.existsSync(baselinePath)) {
+      const baselineEntry = readPatchBaseline(baselinePath);
+      const stage = baselineEntry?.stage ?? 'fully-clean';
+      message = `${message}\n${buildPatchModeFeedback(baselinePath, agentName, stage)}`;
+    }
+  }
+  console.error(message);
   process.exit(2);
+}
+
+/**
+ * Walk `data` along `path` and return a truncated preview of the offending
+ * value (≤80 chars). Returns `null` when the path cannot be navigated — the
+ * caller then omits the "current value:" suffix from the error message.
+ *
+ * Used to enrich Zod-derived E008 feedback so the model sees exactly what it
+ * emitted at the rejected path, not just the abstract issue description.
+ */
+function formatOffendingValueAtPath(
+  data: unknown,
+  path: ReadonlyArray<PropertyKey>,
+): string | null {
+  let cur: unknown = data;
+  for (const seg of path) {
+    if (cur === null || cur === undefined) return null;
+    if (Array.isArray(cur)) {
+      const idx = typeof seg === 'number' ? seg : Number.parseInt(String(seg), 10);
+      if (!Number.isFinite(idx) || idx < 0 || idx >= cur.length) return null;
+      cur = cur[idx];
+      continue;
+    }
+    if (typeof cur === 'object') {
+      cur = (cur as Record<string, unknown>)[String(seg)];
+      continue;
+    }
+    return null;
+  }
+  if (cur === undefined) return null;
+  const rendered = typeof cur === 'string' ? cur : JSON.stringify(cur);
+  if (!rendered) return null;
+  const safe = rendered.replace(/\s+/g, ' ');
+  return safe.length > 80 ? `«${safe.slice(0, 77)}...»` : `«${safe}»`;
+}
+
+/**
+ * Codes that are auto-downgraded to a soft warning after two consecutive
+ * rejections of the same code on the same agent session. They cover
+ * content-quality gates (needs_verification prose, judgment-field
+ * groundedness) that are non-blocking from a workflow-correctness
+ * perspective — if the model can't fix them in two tries, additional
+ * regeneration just burns output tokens.
+ *
+ * Schema correctness (E001–E008), the patch-mode merge gate (E069/E070),
+ * graph-fabrication (E007), and hook-system errors (E014/E015) stay HARD
+ * blocks.
+ */
+const SOFT_GATE_CODES = new Set<string>([
+  'E060_missing_attempted_resolution',
+  'E061_invalid_attempted_resolution_entry',
+  'E062_graph_internals_in_user_prose',
+  'E063_fabricated_numbers_in_question',
+  'E064_missing_or_generic_impact',
+  'E065_found_no_evidence_yesno',
+  'E066_confessed_incomplete_search',
+  'E067_speculative_out_of_scope',
+  'E068_missing_judgment_field_for_service',
+]);
+
+/**
+ * Decide whether to block (hard reject) or attach the violation to
+ * `data.soft_warning[]` and allow the session to finish. The decision is
+ * keyed by `(agentName, code)`:
+ *
+ *   - If `code` is not in `SOFT_GATE_CODES` → always block.
+ *   - If consecutive-rejection counter for `(agentName, code)` < threshold
+ *     → increment, block.
+ *   - Otherwise → attach to `data.soft_warning[]`, return `'soft'`.
+ *
+ * Returns `'hard'` when the caller should block, `'soft'` when the caller
+ * should continue down the validation pipeline. When `'soft'`, the function
+ * has already mutated `data` to record the warning.
+ */
+function classifyRejection(
+  code: string,
+  message: string,
+  data: unknown,
+  tempDir: string,
+  agentName: string,
+): 'hard' | 'soft' {
+  if (!SOFT_GATE_CODES.has(code)) {
+    return 'hard';
+  }
+  if (!agentName || !tempDir) {
+    return 'hard';
+  }
+  if (shouldAutoDowngrade(tempDir, agentName, code)) {
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const rec = data as Record<string, unknown>;
+      const existing = Array.isArray(rec.soft_warning) ? [...(rec.soft_warning as unknown[])] : [];
+      existing.push(`${code}: ${message.replace(/\s+/g, ' ').trim().slice(0, 240)}`);
+      rec.soft_warning = existing.filter((w): w is string => typeof w === 'string');
+    }
+    return 'soft';
+  }
+  recordRejection(tempDir, agentName, code);
+  return 'hard';
 }
 
 /**
@@ -429,6 +564,42 @@ async function main() {
       );
     }
 
+    const tempDir = resolveActiveTempDir(input.cwd);
+    let patchedFromBaseline = false;
+
+    if (isPatchEnvelope(data)) {
+      const envelope = data as PatchEnvelope;
+      const targetAgent = envelope._patch_target_agent;
+      const { baselinePath } = getPatchPaths(tempDir, targetAgent);
+      const baselineEntry = readPatchBaseline(baselinePath);
+      if (baselineEntry === undefined) {
+        return blockWithFeedback(formatValidationError('E069_patch_without_baseline'));
+      }
+      data = applyMergePatch(baselineEntry.data, envelope._patch);
+      patchedFromBaseline = true;
+    }
+
+    /*
+     * Stage 1 — `partial` baseline: write IMMEDIATELY now that the model's
+     * response parsed as JSON. If schema validation fails below, the model's
+     * next retry can still emit a PATCH MODE envelope against this baseline
+     * instead of regenerating an 80 k-token full output.
+     *
+     * The earliest place we can derive the target agent name is the parsed
+     * payload's `agent_name` field. When that's absent (very rare — the
+     * shared output_format tag enforces it), we skip the partial write.
+     */
+    {
+      const earlyAgentName =
+        isObject(data) && typeof (data as Record<string, unknown>).agent_name === 'string'
+          ? ((data as Record<string, unknown>).agent_name as string)
+          : '';
+      if (earlyAgentName) {
+        const { baselinePath } = getPatchPaths(tempDir, earlyAgentName);
+        writePatchBaseline(baselinePath, data, 'partial');
+      }
+    }
+
     const graphUses = countGraphToolUses(transcript);
     writeGraphToolUseSidecar(input.transcript_path!, graphUses);
 
@@ -454,23 +625,43 @@ async function main() {
                 const max = (err as any).maximum ?? 3;
                 return `${pathStr}=${actual} (max ${max})`;
               }
-              return `${pathStr}: ${err.message}`;
+              const offending = formatOffendingValueAtPath(data, err.path);
+              return offending
+                ? `${pathStr}: ${err.message} | current value: ${offending}`
+                : `${pathStr}: ${err.message}`;
             })
             .join('; ')
         : 'unknown';
 
-      return blockWithFeedback(
-        formatValidationError('E008_schema_validation_failed', {
-          agent: result.agentName ?? '',
-          errors,
-        }),
-      );
+      const codeKey = patchedFromBaseline
+        ? 'E070_patch_merged_validation_failed'
+        : 'E008_schema_validation_failed';
+      const args: Record<string, string> = patchedFromBaseline
+        ? { errors }
+        : { agent: result.agentName ?? '', errors };
+      const candidateAgent = result.agentName ?? '';
+      return blockWithFeedback(formatValidationError(codeKey, args), tempDir, candidateAgent);
     }
 
     const agentName =
       isObject(data) && typeof (data as Record<string, unknown>).agent_name === 'string'
         ? ((data as Record<string, unknown>).agent_name as string)
         : '';
+
+    /*
+     * Stage 2 — `schema-clean` baseline. Zod has accepted the document; the
+     * post-schema gates (E061 needs_verification prose, E016 missing service
+     * paths, E068 missing judgment field, etc.) may still reject. Writing the
+     * baseline at this stage lets a retry that fails one of those gates emit
+     * a small PATCH MODE envelope instead of regenerating the whole JSON.
+     *
+     * The schema-clean baseline supersedes whatever `partial` baseline the
+     * earlier write produced.
+     */
+    if (agentName) {
+      const { baselinePath } = getPatchPaths(tempDir, agentName);
+      writePatchBaseline(baselinePath, data, 'schema-clean');
+    }
 
     if (isObject(data) && Array.isArray((data as Record<string, unknown>).needs_verification)) {
       const proseViolations = validateNeedsVerificationProse(
@@ -481,7 +672,12 @@ async function main() {
           const key = NEEDS_VERIFICATION_SUBCODE_TO_KEY[v.code];
           return formatValidationError(key, v.args ?? { index: String(v.index) });
         });
-        return blockWithFeedback(lines.join('\n'));
+        const message = lines.join('\n');
+        const firstCode = NEEDS_VERIFICATION_SUBCODE_TO_KEY[proseViolations[0].code];
+        const decision = classifyRejection(firstCode, message, data, tempDir, agentName);
+        if (decision === 'hard') {
+          return blockWithFeedback(message, tempDir, agentName);
+        }
       }
     }
 
@@ -490,12 +686,18 @@ async function main() {
       if (automationViolations.length > 0) {
         return blockWithFeedback(
           formatAutomationDiscoveryViolations(automationViolations).join('\n'),
+          tempDir,
+          agentName,
         );
       }
 
       const portViolations = detectPortDiscoveryViolations(data);
       if (portViolations.length > 0) {
-        return blockWithFeedback(formatPortDiscoveryViolations(portViolations).join('\n'));
+        return blockWithFeedback(
+          formatPortDiscoveryViolations(portViolations).join('\n'),
+          tempDir,
+          agentName,
+        );
       }
 
       const excludedDirs = input.cwd ? getExcludedDirectories(input.cwd) : [];
@@ -507,6 +709,8 @@ async function main() {
       if (completenessViolations.length > 0) {
         return blockWithFeedback(
           formatServiceCompletenessViolations(completenessViolations).join('\n'),
+          tempDir,
+          agentName,
         );
       }
     }
@@ -516,6 +720,8 @@ async function main() {
       if (infraPortViolations.length > 0) {
         return blockWithFeedback(
           formatInfrastructurePortViolations(infraPortViolations).join('\n'),
+          tempDir,
+          agentName,
         );
       }
     }
@@ -525,18 +731,22 @@ async function main() {
       if (authoritative.size > 0) {
         const offenders = findUnknownServiceIds(data, authoritative);
         if (offenders.length > 0) {
-          const offenderList = offenders
-            .map(({ id, location }) => `  - "${id}" at ${location}`)
-            .join('\n');
-          const authoritativeList = Array.from(authoritative).sort().join(', ');
-          const offendersSummary = offenders.map((o) => o.id).join(',');
-          return blockWithFeedback(
-            formatValidationError('E013_unknown_service_id', {
-              offenders: offendersSummary,
-              authoritative: authoritativeList,
-              offenderList,
-            }),
-          );
+          /*
+           * Phase 1 now runs all four analyzers in parallel; the structure
+           * analyzer's authoritative IDs may finish AFTER a downstream
+           * analyzer's stop hook fires. Rather than block the run on a race
+           * the framework intentionally tolerates, we surface the drift as
+           * a soft warning recorded inside the output. Phase 2 consolidation
+           * runs the hard reconciliation via `applyServiceIdRewritesToFindings`
+           * once every Phase 1 output is on disk.
+           */
+          const driftSummary = offenders.map((o) => o.id).join(',');
+          const dataObj = data as Record<string, unknown>;
+          const warnings = Array.isArray(dataObj.soft_warning)
+            ? [...(dataObj.soft_warning as unknown[])]
+            : [];
+          warnings.push(`service_id_drift:${driftSummary}`);
+          dataObj.soft_warning = warnings.filter((w): w is string => typeof w === 'string');
         }
       }
     }
@@ -548,8 +758,29 @@ async function main() {
       const typeMap = loadServiceTypeMap(input.cwd);
       const missing = detectMissingJudgmentFields(data, typeMap);
       if (missing.length > 0) {
-        return blockWithFeedback(formatJudgmentFieldViolations(missing).join('\n'));
+        const message = formatJudgmentFieldViolations(missing).join('\n');
+        const decision = classifyRejection(
+          'E068_missing_judgment_field_for_service',
+          message,
+          data,
+          tempDir,
+          agentName,
+        );
+        if (decision === 'hard') {
+          return blockWithFeedback(message, tempDir, agentName);
+        }
       }
+    }
+
+    /*
+     * Stage 3 — `fully-clean` baseline. Every gate has passed; this baseline
+     * matches what Phase 2 consumes from disk. Overwrites the earlier
+     * `schema-clean` write so subsequent runs / replays patch against the
+     * accepted shape.
+     */
+    if (agentName) {
+      const { baselinePath } = getPatchPaths(tempDir, agentName);
+      writePatchBaseline(baselinePath, data, 'fully-clean');
     }
 
     return allow();

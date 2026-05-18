@@ -37,6 +37,10 @@
  *   FRAMEWORK_PROJECT_PATH    — absolute path to the project being analyzed
  *   FRAMEWORK_PATH            — absolute path to the framework checkout
  *   FRAMEWORK_EXCLUDED_DIRS   — JSON array of dir names to forbid at any depth
+ *   FRAMEWORK_ALLOW_READ_PATHS — JSON array of absolute file paths that are
+ *                                allowed regardless of the excluded-dir check
+ *                                (e.g. `.claude-temp/initialize-project/project-inspection.json`).
+ *                                Empty / absent → no exemptions.
  */
 
 import path from 'path';
@@ -279,6 +283,7 @@ interface Config {
   projectPath: string;
   frameworkPath?: string;
   excluded: string[];
+  allowReadPaths: Set<string>;
 }
 
 function readConfig(): Config | null {
@@ -286,6 +291,7 @@ function readConfig(): Config | null {
   const projectPath = process.env.FRAMEWORK_PROJECT_PATH;
   const frameworkPath = process.env.FRAMEWORK_PATH;
   const excludedRaw = process.env.FRAMEWORK_EXCLUDED_DIRS;
+  const allowReadRaw = process.env.FRAMEWORK_ALLOW_READ_PATHS;
 
   if (!enforce) return null;
   if (!projectPath || !excludedRaw) return null;
@@ -298,7 +304,23 @@ function readConfig(): Config | null {
     excluded = [];
   }
 
-  return { enforce, projectPath, frameworkPath, excluded };
+  const allowReadPaths = new Set<string>();
+  if (allowReadRaw) {
+    try {
+      const parsed = JSON.parse(allowReadRaw);
+      if (Array.isArray(parsed)) {
+        for (const entry of parsed) {
+          if (typeof entry === 'string' && entry.length > 0) {
+            allowReadPaths.add(path.resolve(entry));
+          }
+        }
+      }
+    } catch {
+      // Malformed allow list silently ignored — fail closed to deny.
+    }
+  }
+
+  return { enforce, projectPath, frameworkPath, excluded, allowReadPaths };
 }
 
 async function main(): Promise<void> {
@@ -373,6 +395,10 @@ async function main(): Promise<void> {
     const rawPath = toolInput[argName];
     if (typeof rawPath !== 'string' || rawPath === '') continue;
     const abs = path.resolve(baseCwd, rawPath);
+
+    if (cfg.allowReadPaths.has(abs) && (toolName === 'Read' || toolName === 'NotebookEdit')) {
+      continue;
+    }
 
     if (!isInside(abs, cfg.projectPath)) {
       const frameworkMsg =

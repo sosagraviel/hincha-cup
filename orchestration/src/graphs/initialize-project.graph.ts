@@ -42,24 +42,27 @@ export function routeToPhase(state: InitializeProjectState): string | string[] {
 }
 
 /**
- * Phase 1 is sequential at the head + parallel at the tail:
- *   structure_architecture_analyzer (single source of truth for
- *   `services[]`) → [tech_stack, code_patterns, data_flows] (parallel;
- *   consume structure's `services[]` as authoritative input).
+ * Phase 1 fans out to all four analyzers in parallel.
+ *
+ * Cross-analyzer service-ID consistency is preserved by a two-stage contract:
+ *   (a) downstream analyzers (tech-stack, code-patterns, data-flows) inject
+ *       a deterministic, inspection-derived seed of service IDs at prompt-
+ *       build time (see `buildServiceSeedFromInspection`), so they never
+ *       invent their own IDs from scratch;
+ *   (b) Phase 2 consolidation reconciles any drift between the seed-derived
+ *       IDs and the structure-architecture-analyzer's authoritative IDs via
+ *       `applyServiceIdRewritesToFindings` before any artefact is generated.
+ *
+ * This removes the ~15 min sequential head that the original SSoT design
+ * (commit e7de7d0) imposed on the run; the canonical ID guarantees survive
+ * via the inspection seed + Phase 2 reconciliation.
  */
 export function routeAfterGraphFoundation(state: InitializeProjectState): string | string[] {
   if (state.current_phase === 'failed') {
     return END;
   }
-  return 'structure_architecture_analyzer';
-}
-
-export function routeAfterStructureAnalyzer(state: InitializeProjectState): string | string[] {
-  if (state.current_phase === 'failed') {
-    return END;
-  }
-
   return [
+    'structure_architecture_analyzer',
     'tech_stack_dependencies_analyzer',
     'code_patterns_testing_analyzer',
     'data_flows_integrations_analyzer',
@@ -120,7 +123,7 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addNode('validation', validationNode)
   .addConditionalEdges(START, routeToPhase)
   .addConditionalEdges('graph_foundation', routeAfterGraphFoundation)
-  .addConditionalEdges('structure_architecture_analyzer', routeAfterStructureAnalyzer)
+  .addEdge('structure_architecture_analyzer', 'consolidation')
   .addEdge('tech_stack_dependencies_analyzer', 'consolidation')
   .addEdge('code_patterns_testing_analyzer', 'consolidation')
   .addEdge('data_flows_integrations_analyzer', 'consolidation')

@@ -19,6 +19,7 @@ vi.mock('../../../../../src/utils/logger.js', () => ({
       info: vi.fn(),
       success: vi.fn(),
       error: vi.fn(),
+      warn: vi.fn(),
     })),
   },
 }));
@@ -259,7 +260,11 @@ describe('wikiGenerationNode (finalization)', () => {
     expect(String(claudeWrite?.[1]).match(/LLM Wiki/g)).toHaveLength(1);
   });
 
-  it('fails fast when a core doc is missing from state', async () => {
+  it('degrades (not fails) when the architecture core doc is missing from state', async () => {
+    // P4 made wiki generation non-fatal: a missing/failed architecture doc
+    // emits phase4_wiki_generation.status = 'degraded' and lets the workflow
+    // continue so CLAUDE.md / framework-config.json / Phase 5 resources still
+    // ship. Phase 6 surfaces the gap on the operator terminal.
     const broken = {
       ...state,
       phase4_wiki_docs: {
@@ -270,9 +275,25 @@ describe('wikiGenerationNode (finalization)', () => {
 
     const result = await wikiGenerationNode(broken);
 
-    expect(result.current_phase).toBe('failed');
-    expect(result.errors?.some((e) => e.includes('Core wiki doc (architecture) is missing'))).toBe(
-      true,
-    );
+    expect(result.current_phase).not.toBe('failed');
+    expect(result.phase4_wiki_generation?.status).toBe('degraded');
+    expect(result.phase4_wiki_generation?.reason).toContain('architecture');
+    expect(result.phase4_wiki_generation?.llm_wiki_written).toBe(false);
+  });
+
+  it('marks status=failed when phase4_wiki_docs.context is missing entirely', async () => {
+    const broken = {
+      ...state,
+      phase4_wiki_docs: {
+        ...state.phase4_wiki_docs!,
+        context: undefined,
+      },
+    };
+
+    const result = await wikiGenerationNode(broken);
+
+    expect(result.current_phase).not.toBe('failed');
+    expect(result.phase4_wiki_generation?.status).toBe('failed');
+    expect(result.phase4_wiki_generation?.reason).toMatch(/context/);
   });
 });

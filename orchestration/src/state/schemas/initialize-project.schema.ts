@@ -101,6 +101,16 @@ export const PhaseWikiGenerationSchema = z.object({
   llm_wiki_written: z.boolean().default(false),
   files: z.array(z.string()).default([]),
   timestamp: z.string(),
+  /**
+   * Wiki finalization status. `ok` = every expected page was generated and
+   * persisted to `docs/llm-wiki/`. `degraded` = some pages were generated
+   * but the architecture doc (or another required core doc) failed, so the
+   * wiki is incomplete. `failed` = no wiki content was written at all.
+   * Phase 6 validation surfaces this on the operator terminal.
+   */
+  status: z.enum(['ok', 'degraded', 'failed']).optional(),
+  /** One-line explanation when `status !== 'ok'`. */
+  reason: z.string().optional(),
 });
 
 /**

@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { validateAgentOutput } from '../schemas/phase1-agent-outputs.schema.js';
 import { logger } from './logger.js';
+import {
+  applyMergePatch,
+  getPatchPaths,
+  isPatchEnvelope,
+  readPatchBaseline,
+  writePatchBaseline,
+  type PatchEnvelope,
+} from '../nodes/initialize-project/phase1/shared/patch-mode.js';
 
 /**
  * Validation result
@@ -243,23 +251,71 @@ export function extractBalancedJSON(text: string, startIndex: number): string | 
 }
 
 /**
- * Validate and parse agent output with automatic JSON extraction
+ * Validate and parse agent output with automatic JSON extraction.
  *
- * Combines extraction and validation in one step.
+ * When `tempDir` is supplied AND the parsed JSON is a PATCH MODE envelope
+ * (RFC 7396), the validator loads the previously-stored baseline for
+ * `agentName`, applies the merge patch, and validates the merged document.
+ * On successful validation it persists the merged data as the next baseline
+ * so subsequent retries can patch again.
+ *
+ * Pass-through when `tempDir` is omitted — callers that don't participate in
+ * patch mode (e.g. ad-hoc validators in tests) get the original semantics.
  *
  * @param rawOutput - Raw agent output (may contain markdown, explanatory text, etc.)
  * @param agentName - Name of the analyzer agent
- * @returns Validation result
+ * @param tempDir - Optional `<project>/.claude-temp/initialize-project/` directory used to resolve patch baselines
  */
 export function validateAndParseAgentOutput(
   rawOutput: string,
   agentName: string,
+  tempDir?: string,
 ): ValidationResult {
   try {
     const jsonString = extractJSON(rawOutput);
 
-    const result = validateAnalyzerOutput(jsonString, agentName);
-    if (!result.valid) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonString);
+    } catch (parseError) {
+      return {
+        valid: false,
+        errors: ['Invalid JSON format: ' + (parseError as Error).message],
+      };
+    }
+
+    let mergedFromPatch = false;
+    if (tempDir && isPatchEnvelope(parsed)) {
+      const envelope = parsed as PatchEnvelope;
+      const targetAgent = envelope._patch_target_agent;
+      const { baselinePath } = getPatchPaths(tempDir, targetAgent);
+      const baselineEntry = readPatchBaseline(baselinePath);
+      if (baselineEntry === undefined) {
+        return {
+          valid: false,
+          errors: [
+            'PATCH MODE rejected: no baseline output exists yet for this analyzer. ' +
+              'Emit the COMPLETE output JSON on this attempt; the framework will ' +
+              'save it as the baseline for any future patches.',
+          ],
+        };
+      }
+      parsed = applyMergePatch(baselineEntry.data, envelope._patch);
+      mergedFromPatch = true;
+    }
+
+    const result = validateAnalyzerOutput(parsed as object, agentName);
+
+    if (result.valid && tempDir) {
+      const { baselinePath } = getPatchPaths(tempDir, agentName);
+      writePatchBaseline(baselinePath, result.data, 'fully-clean');
+    } else if (!result.valid && mergedFromPatch) {
+      result.errors = [
+        'PATCH MODE merged successfully but the merged document failed validation:',
+        ...result.errors,
+        '',
+        'Fix the patch fields so the MERGED result validates, OR emit the COMPLETE output JSON to reset the baseline.',
+      ];
     }
 
     return result;

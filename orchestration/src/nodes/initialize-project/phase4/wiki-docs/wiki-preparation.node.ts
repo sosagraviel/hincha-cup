@@ -76,12 +76,16 @@ export async function wikiPreparationNode(
       temp_dir: tempDir,
     };
   } catch (error) {
-    const errorMessage = `Wiki preparation failed: ${(error as Error).message}`;
+    const err = error instanceof Error ? error : new Error(String(error));
+    const errorMessage = `Wiki preparation failed: ${err.message}`;
     phaseLogger.error(` ✗ ${errorMessage}`);
+    if (err.stack) phaseLogger.error(err.stack);
+    phaseLogger.warn(
+      'Wiki generation is non-fatal — continuing without docs/llm-wiki/. CLAUDE.md, framework-config.json, and Phase 5 resources still ship. Phase 6 surfaces phase4_wiki_status=failed.',
+    );
 
     return {
       errors: [errorMessage],
-      current_phase: 'failed',
     };
   }
 }

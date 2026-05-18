@@ -61,15 +61,27 @@ export function normaliseServiceIds(consolidation: unknown): NormaliseResult {
  * Compute the legacy → canonical service-id rewrites from any
  * findings-shape sources that contain a `services[]` array.
  *
- * Public so callers that operate on separate analyzer blobs (Phase
- * 4's context-generation node loads four analyzer files
- * individually) can derive the rewrites once from the structure
- * analyzer's slice and reuse them across the other three.
+ * Collision-safe: when two services would collapse onto the same canonical id
+ * (e.g. `firebase/functions` and `functions/` both canonicalise to
+ * `functions`), the rewrite is SKIPPED for the colliding services. Their
+ * legacy ids stay intact (the structure analyzer already disambiguates them
+ * with multi-segment forms like `firebase-functions` /
+ * `functions-python-lib-logging`); rewriting them would create duplicate ids
+ * in `stack_profile.services`, which `StackProfileSchema.refine()` rejects
+ * with `Service IDs must be unique across all services`.
+ *
+ * Public so callers that operate on separate analyzer blobs (Phase 4's
+ * context-generation node loads four analyzer files individually) can derive
+ * the rewrites once from the structure analyzer's slice and reuse them
+ * across the other three.
  */
 export function computeServiceIdRewrites(
   findingsSources: Array<Record<string, unknown> | undefined>,
 ): ServiceIdRewrites {
-  const rewrites: ServiceIdRewrites = {};
+  type Candidate = { legacyId: string; canonical: string };
+  const candidates: Candidate[] = [];
+  const reservedCanonicalsFromLegacy = new Set<string>();
+
   for (const src of findingsSources) {
     if (!src) continue;
     const services = src.services;
@@ -80,9 +92,26 @@ export function computeServiceIdRewrites(
       const path = typeof s.path === 'string' ? s.path : undefined;
       if (!legacyId || !path) continue;
       const canonical = canonicalIdFromPath(path);
-      if (!canonical || canonical === legacyId) continue;
-      if (!(legacyId in rewrites)) rewrites[legacyId] = canonical;
+      if (!canonical) continue;
+      if (canonical === legacyId) {
+        reservedCanonicalsFromLegacy.add(legacyId);
+        continue;
+      }
+      candidates.push({ legacyId, canonical });
     }
+  }
+
+  const canonicalCounts = new Map<string, number>();
+  for (const c of candidates) {
+    canonicalCounts.set(c.canonical, (canonicalCounts.get(c.canonical) ?? 0) + 1);
+  }
+
+  const rewrites: ServiceIdRewrites = {};
+  for (const { legacyId, canonical } of candidates) {
+    const collidesWithOtherCandidate = (canonicalCounts.get(canonical) ?? 0) > 1;
+    const collidesWithExistingLegacyId = reservedCanonicalsFromLegacy.has(canonical);
+    if (collidesWithOtherCandidate || collidesWithExistingLegacyId) continue;
+    if (!(legacyId in rewrites)) rewrites[legacyId] = canonical;
   }
   return rewrites;
 }

@@ -191,9 +191,9 @@ describe('wiki-generator.service', () => {
     expect(prompts.some((p) => p.includes('architectural narrative'))).toBe(true);
   });
 
-  it('service-doc concurrency is bounded (default 3)', async () => {
+  it('service-doc concurrency is bounded by the default cap (8) when the project has more services', async () => {
     const stackProfile = {
-      services: Array.from({ length: 8 }, (_, i) => ({
+      services: Array.from({ length: 12 }, (_, i) => ({
         id: `svc-${i}`,
         path: `apps/svc-${i}`,
         type: 'backend',
@@ -219,8 +219,40 @@ describe('wiki-generator.service', () => {
 
     await service.generateAll();
 
-    expect(peak).toBeLessThanOrEqual(3);
+    // Default cap is 8 (see WIKI_CONCURRENCY_DEFAULT). With 12 services the
+    // concurrency must reach 8 but never exceed it.
+    expect(peak).toBeLessThanOrEqual(8);
     expect(peak).toBeGreaterThan(1);
+  });
+
+  it('service-doc concurrency caps at the service count for small projects', async () => {
+    const stackProfile = {
+      services: [
+        { id: 'a', path: 'a', type: 'backend' },
+        { id: 'b', path: 'b', type: 'backend' },
+      ],
+    };
+
+    let inFlight = 0;
+    let peak = 0;
+
+    const service = new WikiGeneratorService({
+      ...buildInput(),
+      stackProfile,
+      agentInvoker: async ({ filename }: WikiAgentInvocation) => {
+        if (filename.startsWith('services/')) {
+          inFlight++;
+          peak = Math.max(peak, inFlight);
+          await new Promise((r) => setTimeout(r, 25));
+          inFlight--;
+        }
+        return `# ${filename}`;
+      },
+    });
+
+    await service.generateAll();
+
+    expect(peak).toBeLessThanOrEqual(2);
   });
 
   it('serviceDocConcurrency option overrides the default cap', async () => {
@@ -507,13 +539,24 @@ describe('wiki-generator.service', () => {
     expect(slugifyServiceId('backend/api service')).toBe('backend-api-service');
   });
 
-  it('configures wiki-generator with the same tier mappings as architect-synthesizer', () => {
+  it('configures wiki-generator with the same model alias as architect-synthesizer in every tier', () => {
+    // wiki-generator and architect-synthesizer share the same model family
+    // because both produce long-form narrative content; only their reasoning
+    // effort / thinking-budget differs (the synthesizer reasons across
+    // analyzers, the wiki shapes content per service). Asserting on the
+    // alias only keeps the regression guard while letting Phase A tune
+    // effort independently.
     const config = JSON.parse(
       readFileSync(join(process.cwd(), 'config/model-config.json'), 'utf-8'),
     );
 
+    const aliasOf = (entry: unknown): string =>
+      typeof entry === 'string' ? entry : ((entry as { alias: string }).alias as string);
+
     for (const tier of Object.values(config.tiers) as any[]) {
-      expect(tier.agents['wiki-generator']).toStrictEqual(tier.agents['architect-synthesizer']);
+      expect(aliasOf(tier.agents['wiki-generator'])).toBe(
+        aliasOf(tier.agents['architect-synthesizer']),
+      );
     }
   });
 });
