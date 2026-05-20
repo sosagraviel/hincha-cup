@@ -156,12 +156,36 @@ export async function wikiGenerationNode(
     phaseLogger.success(`✓ Written LLM wiki: ${llmWikiPath}`);
     phaseLogger.success('✓ Updated context references');
 
+    // Honor an upstream 'degraded' marker emitted by the service-docs node
+    // when only a subset of service docs were generated (typical cause:
+    // CLI rate-limit). Also detect partial coverage by comparing
+    // serviceDocs.length against the stack-profile service list — keeps the
+    // signal accurate when the upstream marker is absent for any reason.
+    const upstreamStatus = state.phase4_wiki_generation?.status;
+    const upstreamReason = state.phase4_wiki_generation?.reason;
+    const expectedServiceCount = Array.isArray(
+      (context.stackProfile as { services?: unknown[] } | undefined)?.services,
+    )
+      ? ((context.stackProfile as { services: unknown[] }).services.length ?? 0)
+      : 0;
+    const partial = expectedServiceCount > 0 && serviceDocs.length < expectedServiceCount;
+    const status: 'ok' | 'degraded' = upstreamStatus === 'degraded' || partial ? 'degraded' : 'ok';
+    const reason =
+      status === 'degraded'
+        ? (upstreamReason ??
+          `service-doc coverage is partial: generated ${serviceDocs.length} of ${expectedServiceCount} expected docs`)
+        : undefined;
+    if (status === 'degraded') {
+      phaseLogger.warn(` ⚠ wiki status downgraded to 'degraded' — ${reason}`);
+    }
+
     return {
       phase4_wiki_generation: {
         llm_wiki_written: true,
         files: writtenFiles,
         timestamp: new Date().toISOString(),
-        status: 'ok',
+        status,
+        ...(reason ? { reason } : {}),
       },
       llm_wiki_path: llmWikiPath,
       llm_wiki_files: writtenFiles,

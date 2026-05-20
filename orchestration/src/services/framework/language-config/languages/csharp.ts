@@ -11,7 +11,12 @@ export const csharp: LanguageConfig = {
   key: 'csharp',
   displayName: 'C#',
   extensions: ['cs', 'csx'],
-  manifests: [{ kind: '*.csproj', format: 'xml' }],
+  manifests: [
+    { kind: '*.csproj', format: 'xml', manager: 'nuget' },
+    { kind: '*.sln', format: 'text', manager: 'nuget' },
+    { kind: 'Directory.Build.props', format: 'xml', manager: 'nuget' },
+    { kind: 'global.json', format: 'json', manager: 'nuget' },
+  ],
   lockFiles: [{ filename: 'packages.lock.json', manager: 'nuget' }],
   runtimeVersionFiles: [
     {

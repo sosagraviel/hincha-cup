@@ -390,6 +390,13 @@ The script auto-detects project and framework paths from its own location, so no
 --skip-gap-questions          # Skip Phase 2 gap analysis questions (full auto)
 --timeout <seconds>           # Max execution time (default: 3600)
 --clean                       # Remove .claude-temp/.codex-temp after completion
+--ignore <path>               # Exclude an extra directory or relative path
+                              # from analysis. Additive to .gitignore + the
+                              # framework's built-in defaults. Two equivalent
+                              # forms:
+                              #   --ignore a --ignore b     (repeatable)
+                              #   --ignore a,b,c            (comma-separated)
+                              # Both can be mixed in the same command.
 --help, -h                    # Show help
 ```
 
@@ -444,6 +451,37 @@ MODEL_TIER=advanced ./qubika-agentic-framework/scripts/initialize-project.sh
   --skip-gap-questions \
   --provider claude
 ```
+
+### Example 5b: Exclude Test Fixtures or Sample Sub-Projects
+
+Some repositories vendor sample applications or test fixtures alongside real
+code (for example, integration-test scaffolds under `test/integration/`). By
+default the analyzers will pick them up as real services and generate a wiki
+page per fixture. Use `--ignore` to keep the analysis focused on production
+code.
+
+`--ignore` accepts two equivalent forms — pick whichever is easier to type:
+
+```bash
+# Repeatable form
+./qubika-agentic-framework/scripts/initialize-project.sh \
+  --ignore orchestration/test/integration/initialize-project/projects \
+  --ignore website/build
+
+# CSV form (comma-separated list of paths)
+./qubika-agentic-framework/scripts/initialize-project.sh \
+  --ignore orchestration/test/integration/initialize-project/projects,website/build
+
+# Both forms can be mixed in the same command
+./qubika-agentic-framework/scripts/initialize-project.sh \
+  --ignore docs/legacy \
+  --ignore orchestration/test/integration,website/build
+```
+
+The exclusions are additive: built-in framework defaults (`node_modules`,
+`.git`, `dist`, etc.) and entries from your project's `.gitignore` remain in
+effect. Absolute paths, parent-directory traversal (`..`), and glob characters
+are rejected.
 
 ### Example 6: Fast Tier on a Real Project
 
@@ -515,6 +553,27 @@ MODEL_TIER=fast ./qubika-agentic-framework/scripts/initialize-project.sh
 # Inspect previous phase outputs
 ls .claude-temp/initialize-project/
 ```
+
+### Issue: Test fixtures or sample apps show up as real services
+
+If the generated wiki contains per-service pages for what are actually
+integration-test fixtures, vendored sample applications, or other non-product
+sub-projects, exclude them with `--ignore`. The flag is additive to
+`.gitignore` and the framework's built-in defaults, and accepts either a
+repeatable form or a comma-separated list:
+
+```bash
+# Single path
+./qubika-agentic-framework/scripts/initialize-project.sh \
+  --ignore orchestration/test/integration/initialize-project/projects
+
+# Multiple paths, comma-separated
+./qubika-agentic-framework/scripts/initialize-project.sh \
+  --ignore orchestration/test/integration/projects,docs/legacy,website/build
+```
+
+After the run, regenerate the wiki and the Phase 1 analyzers will no longer
+walk the excluded subtree.
 
 ## Performance
 

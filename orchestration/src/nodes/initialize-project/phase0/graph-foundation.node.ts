@@ -1,9 +1,15 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
 import type { InitializeProjectState } from '../../../state/schemas/initialize-project.schema.js';
 import { buildCodeGraph } from '../../../services/graph-wiki/code-graph.service.js';
 import {
   hashGraphDb,
   runGraphPrefetch,
 } from '../../../services/framework/code-graph/graph-prefetch.service.js';
+import {
+  hashExtraIgnorePaths,
+  syncCodeReviewGraphIgnore,
+} from '../../../services/framework/code-graph/code-review-graphignore.service.js';
 import {
   upsertCodeGraphMcpConfig,
   upsertCodexPathRestrictionHookConfig,
@@ -15,7 +21,10 @@ import {
   inspectProject,
   writeProjectInspection,
 } from '../../../services/framework/project-inspection/index.js';
-import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
+import {
+  EXTRA_IGNORE_PATHS_FILENAME,
+  getExcludedDirectories,
+} from '../../../utils/shared/prompt-loader.js';
 
 /** Formats a build duration as "2.4s" for durations under a minute, or "1m 12s" for longer. */
 function formatBuildTime(ms: number | undefined): string {
@@ -32,10 +41,20 @@ export async function graphFoundationNode(
   const phaseLogger = logger.child('Phase 0: Graph Foundation');
   phaseLogger.info('Building code graph...');
 
+  const extraIgnorePaths = state.extra_ignore_paths ?? [];
+  persistExtraIgnorePaths(state.project_path, extraIgnorePaths, phaseLogger);
+  const extraIgnoreHash = syncGraphIgnoreFile(
+    state.project_path,
+    state.framework_path,
+    extraIgnorePaths,
+    phaseLogger,
+  );
+
   try {
     const result = await buildCodeGraph({
       projectPath: state.project_path,
       frameworkPath: state.framework_path,
+      extraIgnoreHash,
     });
 
     phaseLogger.success(`Code graph ready: ${result.code_graph_path}`);
@@ -148,5 +167,72 @@ export async function graphFoundationNode(
       current_phase: 'failed',
       errors: [`graph_foundation: ${message}`],
     };
+  }
+}
+
+/**
+ * Write the user-supplied `--ignore` paths to disk so child-process hooks
+ * (the Claude/Codex stop hook, the PreToolUse path-restriction hook) — which
+ * never see LangGraph state — can pick them up through
+ * `getExcludedDirectories()`. Always writes (even when the list is empty) so
+ * stale entries from a prior run don't leak into a flagless re-run.
+ */
+/**
+ * Splice the user-supplied `--ignore` paths into the project's
+ * `.code-review-graphignore` BEFORE the code graph builds, so the graph
+ * never indexes the excluded subtrees. Returns the deterministic hash of
+ * the user list so `buildCodeGraph` can detect drift across runs and force
+ * a tier-3 rebuild when needed.
+ *
+ * Reads the framework's seed template (`templates/code-review-graphignore`)
+ * when the file doesn't exist yet — keeps a single source of truth for the
+ * default exclusion set.
+ */
+function syncGraphIgnoreFile(
+  projectPath: string,
+  frameworkPath: string,
+  paths: ReadonlyArray<string>,
+  log: ReturnType<typeof logger.child>,
+): string {
+  try {
+    const templatePath = join(frameworkPath, 'templates', 'code-review-graphignore');
+    let templateBody: string | undefined;
+    if (existsSync(templatePath)) {
+      try {
+        templateBody = readFileSync(templatePath, 'utf-8');
+      } catch {
+        templateBody = undefined;
+      }
+    }
+    const result = syncCodeReviewGraphIgnore(projectPath, paths, { templateBody });
+    if (result.changed) {
+      log.info(
+        `  .code-review-graphignore managed block updated (${paths.length} user path${paths.length === 1 ? '' : 's'}) — graph will rebuild on drift`,
+      );
+    }
+    return result.hash;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn(`  Failed to sync .code-review-graphignore (non-fatal): ${msg}`);
+    return hashExtraIgnorePaths(paths);
+  }
+}
+
+function persistExtraIgnorePaths(
+  projectPath: string,
+  paths: ReadonlyArray<string>,
+  log: ReturnType<typeof logger.child>,
+): void {
+  try {
+    const tempDir = resolveTempPath(projectPath, 'initialize-project');
+    mkdirSync(tempDir, { recursive: true });
+    const target = join(tempDir, EXTRA_IGNORE_PATHS_FILENAME);
+    writeFileSync(target, JSON.stringify({ paths: [...paths] }), 'utf-8');
+    if (paths.length > 0) {
+      log.info(`  Extra ignore paths persisted: ${paths.join(', ')}`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn(`  Failed to persist extra ignore paths (non-fatal): ${msg}`);
   }
 }

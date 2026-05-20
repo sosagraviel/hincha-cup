@@ -19,6 +19,13 @@ import type { CodeGraphStats } from '../../state/schemas/initialize-project.sche
 export interface CodeGraphBuildOptions {
   projectPath: string;
   frameworkPath: string;
+  /**
+   * sha-256 hash of the user-supplied `--ignore` paths
+   * (`hashExtraIgnorePaths(...)`). When set, the tier decision forces
+   * tier-3 on drift vs. the prior build, and the new hash is persisted
+   * to `.code-review-graph/.state.json` after the build succeeds.
+   */
+  extraIgnoreHash?: string;
 }
 
 export interface CodeGraphBuildResult {
@@ -60,6 +67,13 @@ interface GraphStateFile {
   last_indexed_commit?: string;
   updated_at?: string;
   tool_version?: string;
+  /**
+   * sha-256 hash of the user-supplied `--ignore` paths persisted alongside
+   * the last successful build. When this drifts from the current value
+   * (see `syncCodeReviewGraphIgnore`), `decideGraphTier` returns `tier3` so
+   * the graph is rebuilt with the new exclusion set.
+   */
+  framework_extra_ignore_hash?: string;
 }
 
 interface LauncherJson {
@@ -332,9 +346,15 @@ async function resolveToolVersion(projectPath: string, frameworkPath: string): P
 
 /**
  * Persists `.code-review-graph/.state.json` with the current commit, ISO
- * timestamp, and tool version. Creates the directory if it does not exist.
+ * timestamp, and tool version. When `extraIgnoreHash` is supplied it's
+ * persisted alongside so the next run's `decideGraphTier` can detect
+ * `--ignore` drift and force a tier-3 rebuild.
  */
-async function writeGraphState(projectPath: string, frameworkPath: string): Promise<void> {
+async function writeGraphState(
+  projectPath: string,
+  frameworkPath: string,
+  extraIgnoreHash?: string,
+): Promise<void> {
   const dir = codeReviewGraphDir(projectPath);
   mkdirSync(dir, { recursive: true });
 
@@ -343,6 +363,7 @@ async function writeGraphState(projectPath: string, frameworkPath: string): Prom
     last_indexed_commit: resolveCurrentCommit(projectPath),
     updated_at: new Date().toISOString(),
     tool_version: toolVersion,
+    ...(extraIgnoreHash ? { framework_extra_ignore_hash: extraIgnoreHash } : {}),
   };
   writeFileSync(graphStatePath(projectPath), JSON.stringify(state, null, 2), 'utf-8');
 }
@@ -469,7 +490,11 @@ function isMultiRepo(projectPath: string, frameworkPath: string): boolean {
   }
 }
 
-export function decideGraphTier(projectPath: string, frameworkPath: string): GraphTier {
+export function decideGraphTier(
+  projectPath: string,
+  frameworkPath: string,
+  options: { currentExtraIgnoreHash?: string } = {},
+): GraphTier {
   if (isMultiRepo(projectPath, frameworkPath)) return 'tier3';
 
   const dbPath = graphDbPath(projectPath);
@@ -481,6 +506,17 @@ export function decideGraphTier(projectPath: string, frameworkPath: string): Gra
   const state = loadGraphState(projectPath);
   const lastIndexed = state?.last_indexed_commit;
   if (!lastIndexed || lastIndexed === 'unknown') return 'tier3';
+
+  // `--ignore` drift: when the user adds, removes, or changes the set of
+  // extra ignore paths, the existing graph index is stale (it still has
+  // the old exclusions baked in). Force a full rebuild so the index
+  // reflects the current `.code-review-graphignore` managed block.
+  if (
+    options.currentExtraIgnoreHash !== undefined &&
+    state?.framework_extra_ignore_hash !== options.currentExtraIgnoreHash
+  ) {
+    return 'tier3';
+  }
 
   const head = resolveCurrentCommit(projectPath);
   if (head === 'unknown') return 'tier3';
@@ -515,7 +551,9 @@ export async function buildCodeGraph(
   }
 
   // ===== State-first tier check (pure file reads; no graph subprocess) =====
-  const tier = decideGraphTier(options.projectPath, options.frameworkPath);
+  const tier = decideGraphTier(options.projectPath, options.frameworkPath, {
+    currentExtraIgnoreHash: options.extraIgnoreHash,
+  });
 
   let buildTimeMs = 0;
 
@@ -575,7 +613,7 @@ export async function buildCodeGraph(
   }
 
   if (tier !== 'tier1') {
-    await writeGraphState(options.projectPath, options.frameworkPath);
+    await writeGraphState(options.projectPath, options.frameworkPath, options.extraIgnoreHash);
   }
 
   let stats: CodeGraphStats;

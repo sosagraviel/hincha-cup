@@ -47,122 +47,6 @@ export interface GraphToolUsesSidecar {
 }
 
 /**
- * Per-analyzer soft caps for total tool calls. Exceeding the cap
- * surfaces a `tool_call_budget_exceeded` soft warning in the persisted
- * output but does NOT fail the run.
- *
- * These are fall-back ceilings; the actual budget enforcement is the
- * per-tool table below.
- *
- * Stack-agnostic: the values are wall-clock budgets, not
- * language-specific. The manifests / build configs analyzers must read
- * vary by language but the AGGREGATE budget is calibrated against the
- * analyzer's prescribed step count, not the language.
- */
-export const PER_ANALYZER_TOOL_CALL_CAPS: Record<string, number> = {
-  'structure-architecture-analyzer': 35,
-  'tech-stack-dependencies-analyzer': 30,
-  'code-patterns-testing-analyzer': 30,
-  'data-flows-integrations-analyzer': 40,
-};
-
-/**
- * Per-analyzer per-tool soft caps. Templated into the analyzer prompt
- * as a markdown table the agent re-reads mid-session. Exceeding any
- * per-tool cap surfaces `per_tool_budget_exceeded` in the soft-warning
- * list but does NOT fail the run.
- *
- * The overflow-doubling rule (an overflow on a tool counts double
- * against that tool's remaining budget) is enforced by the discipline
- * itself; this table is the soft-cap baseline.
- *
- * Stack-agnostic: the values are call counts, not language-specific.
- */
-export const PER_ANALYZER_PER_TOOL_CAPS: Record<string, Record<string, number>> = {
-  'structure-architecture-analyzer': {
-    mcp__code_graph__get_minimal_context_tool: 2,
-    mcp__code_graph__list_communities_tool: 2,
-    mcp__code_graph__get_community_tool: 4,
-    mcp__code_graph__get_hub_nodes_tool: 2,
-    mcp__code_graph__get_bridge_nodes_tool: 2,
-    mcp__code_graph__semantic_search_nodes_tool: 6,
-    mcp__code_graph__query_graph_tool: 6,
-    mcp__code_graph__get_impact_radius_tool: 2,
-    mcp__code_graph__list_flows_tool: 2,
-    mcp__code_graph__get_flow_tool: 2,
-    mcp__code_graph__find_large_functions_tool: 2,
-    mcp__code_graph__traverse_graph_tool: 2,
-  },
-  'tech-stack-dependencies-analyzer': {
-    mcp__code_graph__get_minimal_context_tool: 1,
-    mcp__code_graph__list_communities_tool: 1,
-    mcp__code_graph__get_community_tool: 3,
-    mcp__code_graph__semantic_search_nodes_tool: 6,
-    mcp__code_graph__query_graph_tool: 4,
-    mcp__code_graph__find_large_functions_tool: 1,
-  },
-  'code-patterns-testing-analyzer': {
-    mcp__code_graph__get_minimal_context_tool: 1,
-    mcp__code_graph__list_communities_tool: 1,
-    mcp__code_graph__get_community_tool: 3,
-    mcp__code_graph__semantic_search_nodes_tool: 8,
-    mcp__code_graph__query_graph_tool: 4,
-    mcp__code_graph__find_large_functions_tool: 4,
-  },
-  'data-flows-integrations-analyzer': {
-    mcp__code_graph__get_minimal_context_tool: 1,
-    mcp__code_graph__list_communities_tool: 0,
-    mcp__code_graph__get_community_tool: 0,
-    mcp__code_graph__list_flows_tool: 2,
-    mcp__code_graph__get_flow_tool: 4,
-    mcp__code_graph__semantic_search_nodes_tool: 6,
-    mcp__code_graph__query_graph_tool: 6,
-    mcp__code_graph__traverse_graph_tool: 2,
-  },
-};
-
-/**
- * Render the per-analyzer per-tool cap table as a markdown table the analyzer
- * can read mid-session. Returns an empty string when the analyzer name is not
- * in `PER_ANALYZER_PER_TOOL_CAPS` (no cap table to inject — fall back to the
- * total-cap warning only).
- */
-export function renderPerToolCapsTable(agentName: string): string {
-  const caps = PER_ANALYZER_PER_TOOL_CAPS[agentName];
-  if (!caps) return '';
-
-  const entries = Object.entries(caps).sort(([a], [b]) => a.localeCompare(b));
-  const forbidden = entries.filter(([, cap]) => cap === 0).map(([tool]) => tool);
-  const allowed = entries.filter(([, cap]) => cap > 0);
-
-  const sections: string[] = ['### Per-tool soft caps (this analyzer)', ''];
-
-  if (forbidden.length > 0) {
-    sections.push(
-      '**Forbidden for this analyzer** (any call triggers `per_tool_budget_exceeded`):',
-      '',
-      ...forbidden.map((t) => `- \`${t}\``),
-      '',
-    );
-  }
-
-  if (allowed.length > 0) {
-    sections.push(
-      '| Tool | Max calls |',
-      '|---|---:|',
-      ...allowed.map(([tool, cap]) => `| \`${tool}\` | ${cap} |`),
-      '',
-    );
-  }
-
-  sections.push(
-    "An overflow sentinel from any tool counts DOUBLE against that tool's remaining budget. Exceeding any cap surfaces `per_tool_budget_exceeded` in this analyzer's soft-warning list — non-blocking, but visible in the run report.",
-  );
-
-  return sections.join('\n');
-}
-
-/**
  * Per-analyzer thresholds for `low_graph_ratio` (graph-call ratio
  * below which the agent is "grep-spamming over the graph").
  *
@@ -216,33 +100,11 @@ export function computeSoftWarnings(
     }
   }
 
-  const cap = PER_ANALYZER_TOOL_CALL_CAPS[agentName];
-  if (typeof cap === 'number' && total > cap) {
-    warnings.add('tool_call_budget_exceeded');
-  }
-
-  const perToolCaps = PER_ANALYZER_PER_TOOL_CAPS[agentName];
-  if (perToolCaps) {
-    const overflowsByTool: Record<string, number> = {};
-    for (const ov of overflows) {
-      overflowsByTool[ov.tool] = (overflowsByTool[ov.tool] ?? 0) + 1;
-    }
-    for (const [tool, perToolCap] of Object.entries(perToolCaps)) {
-      const calls = nameCounts[tool] ?? 0;
-      const ov = overflowsByTool[tool] ?? 0;
-      const effective = calls + ov;
-      if (effective > perToolCap) {
-        warnings.add('per_tool_budget_exceeded');
-        break;
-      }
-    }
-  }
-
   if (overflows.length > 0) {
     warnings.add('graph_overflow_detected');
   }
 
-  if (graphCount === 0 && nonGraphCount > 0 && perToolCaps) {
+  if (graphCount === 0 && nonGraphCount > 0) {
     warnings.add('mcp_completely_unavailable');
   }
 

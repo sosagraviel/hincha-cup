@@ -182,8 +182,7 @@ describe('extractGraphToolUsesFromCodexJsonl — overflow detection', () => {
   });
 
   it('regression: 38 tool calls + 4 overflows on a single tool', () => {
-    // Reproduces the exact distribution that motivated the per-tool
-    // budget caps in commit 1: structure-architecture-analyzer hit
+    // Reproduces a real distribution: structure-architecture-analyzer hit
     // get_community_tool 38 times and 4 of them overflowed.
     const lines: string[] = [];
     for (let i = 0; i < 38; i++) {

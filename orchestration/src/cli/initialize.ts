@@ -21,6 +21,7 @@ import {
   computeRunStats,
 } from '../services/framework/debug-store/index.js';
 import { renderRunIndexHtml } from '../services/framework/transcripts/index.js';
+import { parseIgnoreFlag } from './parse-ignore-flag.js';
 
 const program = new Command();
 
@@ -47,6 +48,10 @@ program
     '--keep-runs <n>',
     'How many debug run folders to keep under .<provider>-temp/<workflow>/debug/runs/ (default: 10)',
     '10',
+  )
+  .option(
+    '--ignore <path...>',
+    'Extra directory or relative path to exclude from analysis. Two equivalent forms: repeatable (--ignore a --ignore b) or comma-separated (--ignore a,b,c). Additive to .gitignore + framework defaults.',
   )
   .action(async (options) => {
     if (options.debug) {
@@ -148,6 +153,15 @@ program
       if (isNaN(startPhase) || startPhase < 1 || startPhase > 6) {
         logger.error(`Invalid start-phase: ${options.startPhase}. Must be between 1 and 6.`);
         process.exit(1);
+      }
+
+      const extraIgnorePaths = parseIgnoreFlag(options.ignore);
+      if (extraIgnorePaths.error) {
+        logger.error(`Invalid --ignore value: ${extraIgnorePaths.error}`);
+        process.exit(1);
+      }
+      if (extraIgnorePaths.paths.length > 0) {
+        logger.info(`Extra ignore paths: ${extraIgnorePaths.paths.join(', ')}`);
       }
 
       /**
@@ -419,6 +433,7 @@ program
         errors: [],
         warnings: [],
         start_phase: startPhase,
+        extra_ignore_paths: extraIgnorePaths.paths,
         ...previousPhaseData,
       };
 

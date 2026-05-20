@@ -5,7 +5,10 @@ export const go: LanguageConfig = {
   key: 'go',
   displayName: 'Go',
   extensions: ['go'],
-  manifests: [{ kind: 'go.mod', format: 'text' }],
+  manifests: [
+    { kind: 'go.mod', format: 'text', manager: 'go-modules' },
+    { kind: 'go.work', format: 'text', manager: 'go-modules' },
+  ],
   lockFiles: [{ filename: 'go.sum', manager: 'go-modules' }],
   runtimeVersionFiles: [
     { key: 'go', filename: 'go.mod', extract: regexFirstGroup(/^go\s+([\w.]+)/m) },

@@ -178,6 +178,10 @@ function extractServiceRefs(structure: AnalyzerOutputLike): ComposerServiceRef[]
     if (!isRecord(entry)) continue;
     const id = stringOrEmpty(entry.id);
     if (!id) continue;
+    // Skip services the structure analyzer explicitly flagged as non-real
+    // (workspace-yaml-derived dirs that hold only migrations, fixtures, etc.).
+    // Omitted flag = real; only an explicit `false` filters the entry out.
+    if (entry.service_is_real === false) continue;
     refs.push({
       id,
       path: stringOrEmpty(entry.path),

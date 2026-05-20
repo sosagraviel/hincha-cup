@@ -278,29 +278,6 @@ describe('buildPhase1AnalyzerPrompt — prefix is byte-identical across all 4 an
     expect(expectedPrefix).not.toContain('Authoritative Service List'.toUpperCase());
   });
 
-  it('per-analyzer tool-cap table does NOT leak into the cache-eligible prefix', () => {
-    // Tool caps vary per analyzer (different per-analyzer budgets in
-    // PER_ANALYZER_PER_TOOL_CAPS). They MUST live in the tail.
-    const fullPrompt = buildPhase1AnalyzerPrompt(
-      '/test/project',
-      '/test/framework',
-      'structure-architecture-analyzer',
-      undefined,
-      SHARED_GRAPH_CONTEXT,
-    );
-
-    const expectedPrefix = buildPhase1SharedPrefix({
-      projectPath: '/test/project',
-      frameworkPath: '/test/framework',
-      graphContext: SHARED_GRAPH_CONTEXT,
-    });
-
-    expect(fullPrompt.slice(0, expectedPrefix.length)).toBe(expectedPrefix);
-    // The tool-budget guidance section name appears in the tail (uppercased).
-    expect(fullPrompt).toContain('TOOL BUDGET GUIDANCE');
-    expect(expectedPrefix).not.toContain('TOOL BUDGET GUIDANCE');
-  });
-
   it('different graphContext invalidates the prefix consistently across all analyzers', () => {
     // Sanity check: when the run's graph context changes, every
     // analyzer's prefix changes by the same amount. Stops a future

@@ -148,8 +148,8 @@ export type NeedsVerificationEntry = z.infer<typeof NeedsVerificationEntrySchema
  * replays predate the graph-navigation redesign.
  *
  * `soft_warning` values come from a fixed vocabulary
- * (`low_graph_ratio` / `graph_search_overuse` /
- * `tool_call_budget_exceeded` / `tech_stack_inspection_redundant_glob` /
+ * (`low_graph_ratio` / `graph_overflow_detected` /
+ * `tech_stack_inspection_redundant_glob` /
  * `mcp_completely_unavailable`) — non-blocking; surfaced by the
  * sidecar usage analyzer.
  */

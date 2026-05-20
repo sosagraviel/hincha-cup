@@ -54,6 +54,19 @@ Stack agnosticism is enforced by `orchestration/src/services/framework/language-
 
 Adding a new vendor / library / manifest kind is one line in one file. Every downstream phase picks it up at the next run — composer views populate, the synthesizer composes, the wiki generator references, the service-completeness validator widens its discovery surface.
 
+## Excluded directories — `.gitignore`, framework defaults, and `--ignore`
+
+`orchestration/src/utils/shared/prompt-loader.ts` is the single source of truth for "which directories does Phase 1 not walk?". `getExcludedDirectories(projectPath, frameworkPath)` merges, in priority order:
+
+1. The framework's own clone directory (when the project lives outside the framework).
+2. `STANDARD_IGNORE_DIRS` — static build artifacts and tool caches (`node_modules`, `.git`, `dist`, `build`, `.venv`, `.pytest_cache`, …) plus provider-managed temp dirs from the registry.
+3. Directory-style entries parsed from the project's `.gitignore` (bare basenames; complex globs are skipped).
+4. User-supplied paths from the `--ignore` CLI flag.
+
+The user list is plumbed via a disk-side bridge: the Phase 0 graph-foundation node writes `<tempDir>/initialize-project/extra-ignore-paths.json` (`{ "paths": string[] }`), and `getExcludedDirectories()` reads it back. Going via disk keeps a single signature for the ~12 in-process consumers AND makes the list available to child-process hooks (the `validate-analyzer-json` stop hook, the PreToolUse `restrict-agent-paths` hook) that never see LangGraph state.
+
+The bridge file is rewritten on every Phase 0 run — running without `--ignore` clears the file to an empty array, so stale entries from a prior run can never leak in.
+
 ## Phase 5 — implementer-agent generation
 
 Phase 5 is deterministic. It walks the stack profile and, for every distinct service language, decides whether to emit a dedicated `implementer-<lang>.md` agent or to let the work fall through to `implementer-generic.md`.

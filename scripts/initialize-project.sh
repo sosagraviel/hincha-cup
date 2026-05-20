@@ -60,6 +60,16 @@ ${BLUE}OPTIONS:${NC}
     --provider PROVIDER  AI provider to use: claude or codex
                          Default: auto-detect (checks API keys then CLI availability)
 
+    --ignore PATH        Extra directory or relative path to exclude from
+                         analysis. Additive to .gitignore + framework defaults.
+                         Two equivalent forms — pick whichever is easier:
+                           Repeatable: --ignore PATH1 --ignore PATH2
+                           CSV:        --ignore PATH1,PATH2,PATH3
+                         Example (repeatable):
+                           --ignore orchestration/test/integration --ignore website/build
+                         Example (CSV):
+                           --ignore orchestration/test/integration,website/build
+
     --help, -h           Show this help message
 
 ${BLUE}ENVIRONMENT VARIABLES:${NC}
@@ -134,6 +144,7 @@ START_PHASE=1
 TIMEOUT=3600
 CLEAN_TEMP="false"
 PROVIDER=""
+IGNORE_PATHS=()
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -155,6 +166,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         --provider)
             PROVIDER="$2"
+            shift 2
+            ;;
+        --ignore)
+            # Repeatable flag. Comma-separated values also accepted — the TS
+            # CLI normalises and validates each entry.
+            IFS=',' read -r -a _ignore_tokens <<< "$2"
+            for _ignore_token in "${_ignore_tokens[@]}"; do
+                [ -n "$_ignore_token" ] && IGNORE_PATHS+=("$_ignore_token")
+            done
             shift 2
             ;;
         --help|-h)
@@ -467,6 +487,14 @@ if true; then
         "$ORCHESTRATION_CLI"
         --provider "$PROVIDER"
     )
+
+    # Forward each user-supplied --ignore path. TS-side parseIgnoreFlag()
+    # validates absolute / glob / parent-escape input before workflow starts.
+    if [ "${#IGNORE_PATHS[@]}" -gt 0 ]; then
+        for _ignore_path in "${IGNORE_PATHS[@]}"; do
+            TSX_ARGS+=(--ignore "$_ignore_path")
+        done
+    fi
 
     # Build tsx command with optional start-phase parameter
     if [ "$START_PHASE" -gt 1 ]; then

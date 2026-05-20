@@ -202,6 +202,18 @@ export const InitializeProjectStateSchema = z.object({
 
   temp_dir: z.string().optional(),
 
+  /**
+   * Additional project-relative paths to exclude from analysis, sourced from
+   * the `--ignore` CLI flag. Merged into the canonical excluded-directories
+   * list at `prompt-loader.ts:getExcludedDirectories` via a disk-side bridge
+   * file written in Phase 0 — so child-process hooks (which never see this
+   * state) inherit the same exclusions as in-process consumers.
+   *
+   * Optional so existing test fixtures and call sites don't have to pass it
+   * explicitly; treat absent as `[]` at consumption time.
+   */
+  extra_ignore_paths: z.array(z.string()).optional(),
+
   phase1_retry_tracking: Phase1RetryTrackingSchema.default({}),
   phase2_retry: RetryStateSchema.optional(),
   phase3_retry: RetryStateSchema.optional(),
@@ -332,6 +344,17 @@ export const InitializeProjectAnnotation = Annotation.Root({
   temp_dir: Annotation<string | undefined>({
     reducer: (left, right) => right ?? left,
     default: () => undefined,
+  }),
+
+  /**
+   * User-supplied `--ignore` paths from the CLI. LangGraph drops any
+   * `initialState` field that isn't declared as a channel here, so the value
+   * MUST exist as an Annotation for `state.extra_ignore_paths` to survive
+   * the graph transition into Phase 0.
+   */
+  extra_ignore_paths: Annotation<string[] | undefined>({
+    reducer: (left, right) => right ?? left,
+    default: () => [],
   }),
 
   phase1_retry_tracking: Annotation<Phase1RetryTracking>({

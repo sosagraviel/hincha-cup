@@ -27,12 +27,23 @@ this mapping; never re-glob:
 | `documentation.readme_paths[]` | trigger README run-section extraction below                    |
 | `manifests[].path`             | (informs per-service `manifest_file`)                          |
 
-Forbidden Globs (inspection covers them): `**/package.json`,
-`**/pyproject.toml`, `**/Cargo.toml`, `**/go.mod`, `**/Gemfile`,
-`**/composer.json`, `**/*.csproj`, `**/.env*`, `**/Dockerfile*`,
-`**/.github/workflows/*`, `**/pnpm-workspace.yaml`, `**/lerna.json`,
-`**/nx.json`, `**/turbo.json`, `**/.nvmrc`, `**/.python-version`,
-`**/.ruby-version`.
+Forbidden Globs **and Reads** (inspection covers them — re-reading
+the file content costs ~20–40 s per Sonnet turn for no new signal):
+`**/package.json`, `**/pyproject.toml`, `**/Cargo.toml`, `**/go.mod`,
+`**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/.env*`,
+`**/Dockerfile*`, `**/.github/workflows/*`, `**/pnpm-workspace.yaml`,
+`**/lerna.json`, `**/nx.json`, `**/turbo.json`, `**/.nvmrc`,
+`**/.python-version`, `**/.ruby-version`. Inspection's
+`monorepo.{package_manager, workspace_tool, workspace_config}`,
+`ci_cd.config_files[]`, `infrastructure[]`, and
+`documentation.readme_paths[]` carry the paths verbatim.
+
+**Performance — batch independent file Reads in a single response.**
+When you need to read several files Sonnet supports parallel tool_use
+blocks: emit them in ONE assistant turn instead of one per turn. Each
+turn costs ~20–40 s of model processing; batching cuts wall-clock
+linearly. Same for paginating one large file — use a single Read with
+an adequate range, not multiple paginated Reads.
 
 ## Step 1 — Cheapest entry point
 
@@ -146,14 +157,20 @@ import_conventions}`.
 
 ## Step 9 — Path aliases (graph cannot answer)
 
-Read ONE build config per service (tsconfig / jsconfig / pyproject /
-go.mod / pom.xml / build.gradle / Cargo.toml / composer.json /
-\*.csproj / build.sbt / mix.exs / pubspec.yaml). Plus ONE bundler
-config when present (vite / webpack / esbuild / rollup / parcel).
-Cap: 2 reads per service. Skip services without aliases.
+Most services have NO path aliases. Default: emit empty
+`findings.path_aliases: {}` and skip this step entirely.
+
+ONLY when the project's primary language is one of (`typescript`,
+`javascript`) and you have a strong reason to believe aliases exist
+(e.g. inspection's `manifests[]` for the TypeScript service shows a
+`baseUrl` or `paths` hint), perform AT MOST ONE Read of that
+service's `tsconfig.json` / `jsconfig.json`. **No per-service
+fan-out** — alias resolution does not change downstream behavior in
+the framework's generated artifacts; spending more than one focused
+Read on this step is wasted wall-clock.
 
 Report `findings.path_aliases` as `{alias → resolved_path}`. Empty
-object when none.
+object when none — the default.
 
 ## Step 10 — Database layer
 
@@ -161,18 +178,31 @@ object when none.
   / mongodb / redis / sqlite / dynamodb / clickhouse / cassandra / cockroach).
 - ORM / data-access: from graph class names + manifest dep tokens
   (typeorm / prisma / sequelize / sqlalchemy / django / gorm / diesel
-  / hibernate / activerecord / mongoose / mikro-orm / etc.).
-- Migration commands: ONE read of the build-tool's script section per
-  service.
+  / hibernate / activerecord / mongoose / mikro-orm / etc.). Manifest
+  dep tokens are already in `inspection.manifests[].dependencies` —
+  scan them rather than re-reading manifests.
+- Migration commands: derive from the SAME manifest scripts you
+  already saw in inspection (`db:migrate`, `migration:run`,
+  `prisma migrate`, `alembic upgrade`, etc.). **No new Reads** — if
+  inspection's manifest didn't capture scripts, emit empty
+  `migration_commands: []` and move on.
 
 Report `findings.database.{type, orm, migration_commands[]}`.
 
-## Step 11 — README run-section extraction
+## Step 11 — README run-section extraction (top-level README only)
 
-When inspection lists README paths, Read each (cap: 3) and extract
-"Getting Started" / "Quick start" / "Run locally" / "Development" /
-similar sections. Surface relevant commands into `findings.automation.
-readme_run_sections[]` — see Output section for shape.
+Read AT MOST ONE README — the project's top-level README (the first
+entry in `inspection.documentation.readme_paths[]`, which is the
+shortest path / closest to repo root). Per-service READMEs are noise
+for the structure analyzer's output; the per-service wiki pages
+generate from analyzer findings, not from READMEs.
+
+Extract "Getting Started" / "Quick start" / "Run locally" /
+"Development" / similar sections. Surface relevant commands into
+`findings.automation.readme_run_sections[]` — see Output section
+for shape. When the top-level README has no such section, emit an
+empty `readme_run_sections[]` — do NOT fan out to per-service READMEs
+to find more commands.
 
 ## Output
 

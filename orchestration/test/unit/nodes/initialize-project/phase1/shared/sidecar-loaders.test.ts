@@ -97,8 +97,6 @@ describe('loadCodexSidecar — round-trip with applyGraphToolUsageFromSidecar', 
     ]);
     expect(result.graph_overflow_count).toBe(2);
     expect(result.graph_overflow_tools).toEqual(['mcp__code_graph__get_community_tool']);
-    // 4 calls + 2 overflows × 2 = 8 effective vs cap 4 for get_community_tool
-    expect(result.soft_warning).toContain('per_tool_budget_exceeded');
     expect(result.soft_warning).toContain('graph_overflow_detected');
   });
 

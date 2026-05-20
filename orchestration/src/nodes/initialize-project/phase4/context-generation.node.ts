@@ -139,6 +139,12 @@ export async function contextGenerationNode(
     const codePatternsFindings = codePatternsData?.findings;
     const dataFlowsFindings = dataFlowsData?.findings;
 
+    /*
+     * Normalise service-ID drift downstream. The Phase 1 stop hook
+     * soft-warns on drift; Phase 4 rewrites the offending keys to the
+     * structure analyzer's canonical IDs so composer-views see consistent
+     * per-service maps. Recoverable drift never aborts the run.
+     */
     const idRewrites = computeServiceIdRewrites([
       structureFindings,
       techStackFindings,
@@ -152,8 +158,8 @@ export async function contextGenerationNode(
       phaseLogger.info(` Normalising service IDs: ${summary}`);
       applyServiceIdRewritesToFindings(structureFindings, idRewrites);
       applyServiceIdRewritesToFindings(techStackFindings, idRewrites);
-      applyServiceIdRewritesToFindings(codePatternsFindings, idRewrites);
-      applyServiceIdRewritesToFindings(dataFlowsFindings, idRewrites);
+      if (codePatternsFindings) applyServiceIdRewritesToFindings(codePatternsFindings, idRewrites);
+      if (dataFlowsFindings) applyServiceIdRewritesToFindings(dataFlowsFindings, idRewrites);
     }
 
     const languagesFromPhase1 = extractLanguagesFromPhase1(structureFindings, techStackFindings);
@@ -342,24 +348,10 @@ export async function contextGenerationNode(
     if (existsSync(consolidationPath)) {
       try {
         const consolidationBlob = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
-        if (
-          Object.keys(idRewrites).length > 0 &&
-          consolidationBlob &&
-          typeof consolidationBlob === 'object'
-        ) {
-          const cf = (consolidationBlob as Record<string, unknown>).consolidated_findings;
-          if (cf && typeof cf === 'object') {
-            for (const value of Object.values(cf)) {
-              if (!value || typeof value !== 'object') continue;
-              const valueObj = value as Record<string, unknown>;
-              applyServiceIdRewritesToFindings(
-                valueObj.findings as Record<string, unknown> | undefined,
-                idRewrites,
-              );
-              applyServiceIdRewritesToFindings(valueObj, idRewrites);
-            }
-          }
-        }
+        // Phase B: the rewrite-on-Phase-4 escape hatch is removed. The
+        // structure analyzer's IDs are authoritative; drift is rejected at
+        // Phase 1. If somehow `idRewrites` is non-empty here we'd already
+        // have thrown above.
         const catalogBundle = buildCatalogFromConsolidation(consolidationBlob);
         if (catalogBundle.automation) stackProfile.automation = catalogBundle.automation;
         if (catalogBundle.readme_run_sections) {

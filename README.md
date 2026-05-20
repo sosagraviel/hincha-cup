@@ -43,6 +43,8 @@ $implement-ticket PROJ-456
 
 The framework supports **Claude Code** (`/skill [args]`) and **Codex CLI** (`$skill [args]`, with `/skills` to list available skills). Initialize for either provider with `--provider claude|codex` (auto-detects from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` when omitted).
 
+If your repository vendors test fixtures or sample sub-projects that should not be analyzed as real services, add `--ignore <path>` — additive to `.gitignore` and accepts both forms: repeatable (`--ignore a --ignore b`) or comma-separated (`--ignore a,b,c`). Example: `./qubika-agentic-framework/scripts/initialize-project.sh --ignore test/integration/fixtures,docs/legacy`.
+
 ### LLM Wiki
 
 `/initialize-project` generates `docs/llm-wiki/` — a structured, provenance-tracked knowledge base that agents consult instead of re-grepping the codebase on every ticket. Keep it current with:

@@ -19,7 +19,6 @@ import {
 import { renderPromptScripts } from '../../../../services/framework/prompt-scripts/index.js';
 import type { CodeGraphStats } from '../../../../state/schemas/initialize-project.schema.js';
 import type { AuthoritativeService } from './authoritative-services.js';
-import { PER_ANALYZER_TOOL_CALL_CAPS, renderPerToolCapsTable } from './graph-tool-usage.js';
 import { resolveTempPath } from '../../../../utils/provider-paths.js';
 import {
   hashGraphDb,
@@ -183,21 +182,6 @@ export function buildPhase1AnalyzerPrompt(
         buildAuthoritativeServicesBlock(authoritativeServices),
       ),
     );
-  }
-
-  const cap = PER_ANALYZER_TOOL_CALL_CAPS[agentName];
-  const perToolCapsTable = renderPerToolCapsTable(agentName);
-  if (typeof cap === 'number' || perToolCapsTable) {
-    const sections: string[] = [];
-    if (typeof cap === 'number') {
-      sections.push(
-        `Total tool-call budget for this analyzer: **${cap}**. Exceeding ${cap} substantially without new findings surfaces a non-blocking \`tool_call_budget_exceeded\` warning. The graph is the language-agnostic primitive — favour it over Glob/Read for any structural or relational question.`,
-      );
-    }
-    if (perToolCapsTable) {
-      sections.push(perToolCapsTable);
-    }
-    tailParts.push(buildContentSection('Tool Budget Guidance', sections.join('\n\n')));
   }
 
   if (executionInstructions) {

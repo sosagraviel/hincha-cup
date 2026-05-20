@@ -11,6 +11,7 @@ import { logger } from '../../../../../utils/logger.js';
 import { getFrameworkAgentPath } from '../../../shared/index.js';
 import { getInitializeProjectPhase } from '../../../../../services/framework/debug-store/index.js';
 import { validateConsolidationOutput } from './validate-consolidation-output.js';
+import { buildConsolidationPrompt } from '../prompt-builder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,7 +48,15 @@ export async function consolidateQuestions(
     ): Promise<{ output: string; sessionId: string }> => {
       const factory = await AgentFactory.create();
 
-      const inputPrompt = loadConsolidationInstructions();
+      // Compose the agent input: static instructions first, then the
+      // dynamic input-gaps payload (+ retry feedback when present). The
+      // builder was previously orphaned — the agent received only the
+      // instructions and reported "No gap data was provided", inventing
+      // metadata fields that failed validation. Always pass the gaps so
+      // the agent has actual data to consolidate.
+      const instructions = loadConsolidationInstructions();
+      const dynamicInput = buildConsolidationPrompt(gaps, feedbackPrompt);
+      const inputPrompt = `${instructions}\n\n${dynamicInput}`;
 
       const agent = await factory.createAgent({
         agentName: 'question-consolidator',

@@ -47,8 +47,19 @@ export async function wikiServiceDocsNode(
       'Wiki generation is non-fatal — continuing with an empty service_docs list. Phase 6 will surface phase4_wiki_status=degraded so the gap is visible.',
     );
 
+    // Eagerly mark the wiki status as degraded so the finalization node
+    // (which only sees architecture + service_docs and would otherwise emit
+    // status='ok') downgrades correctly. Phase 6 then routes missing
+    // service-doc files to warnings instead of errors.
     return {
       phase4_wiki_docs: { service_docs: [] },
+      phase4_wiki_generation: {
+        llm_wiki_written: false,
+        files: [],
+        timestamp: new Date().toISOString(),
+        status: 'degraded',
+        reason: errorMessage,
+      },
       errors: [errorMessage],
     };
   }

@@ -6,7 +6,16 @@
 import { readFileSync, existsSync } from 'fs';
 import { join, basename, resolve } from 'path';
 import matter from 'gray-matter';
-import { getAllProviderManagedDirs } from '../provider-paths.js';
+import { getAllProviderManagedDirs, getAllProviderTempDirs } from '../provider-paths.js';
+
+/**
+ * Filename, relative to `<tempDir>/initialize-project/`, where the
+ * `--ignore` CLI flag persists user-supplied extra exclusion paths so
+ * child-process hooks can read the same list as in-process consumers.
+ *
+ * Shape on disk: `{ "paths": string[] }`.
+ */
+export const EXTRA_IGNORE_PATHS_FILENAME = 'extra-ignore-paths.json';
 
 /**
  * Non-provider-specific directories ignored during analysis — build artifacts,
@@ -82,19 +91,66 @@ export function parseGitignore(projectPath: string): string[] {
 }
 
 /**
- * Get all directories to exclude from analysis
+ * Get all directories to exclude from analysis.
+ *
+ * Merges, in priority order: framework basename (when the project lives
+ * outside the framework), the static build-artifact list (`STANDARD_IGNORE_DIRS`),
+ * directory-style entries parsed from the project's `.gitignore`, and any
+ * user-supplied extras persisted by Phase 0 from the `--ignore` CLI flag.
  */
 export function getExcludedDirectories(projectPath: string, frameworkPath?: string): string[] {
   const frameworkDirName = frameworkPath ? basename(frameworkPath) : 'qubika-agentic-framework';
 
   const gitignoreDirs = parseGitignore(projectPath);
   const projectInsideFramework = frameworkPath ? isPathInside(projectPath, frameworkPath) : false;
+  const extraIgnorePaths = readExtraIgnorePaths(projectPath);
 
   const segments = projectInsideFramework
-    ? [...STANDARD_IGNORE_DIRS, ...gitignoreDirs]
-    : [frameworkDirName, ...STANDARD_IGNORE_DIRS, ...gitignoreDirs];
+    ? [...STANDARD_IGNORE_DIRS, ...gitignoreDirs, ...extraIgnorePaths]
+    : [frameworkDirName, ...STANDARD_IGNORE_DIRS, ...gitignoreDirs, ...extraIgnorePaths];
 
   return Array.from(new Set(segments));
+}
+
+/**
+ * Read user-supplied extra ignore paths from
+ * `<projectPath>/<provider-temp>/initialize-project/extra-ignore-paths.json`
+ * for whichever provider temp dir exists. The file is written by the Phase 0
+ * graph-foundation node from CLI state; this helper is the read-side bridge
+ * for child-process hooks and any other call site that only has `projectPath`.
+ *
+ * Returns `[]` when the file is missing or malformed — failure is non-fatal
+ * by design.
+ */
+export function readExtraIgnorePaths(projectPath: string): string[] {
+  for (const tempDirName of getAllProviderTempDirs()) {
+    const filePath = join(
+      projectPath,
+      tempDirName,
+      'initialize-project',
+      EXTRA_IGNORE_PATHS_FILENAME,
+    );
+    if (!existsSync(filePath)) continue;
+    try {
+      const parsed = JSON.parse(readFileSync(filePath, 'utf-8')) as unknown;
+      if (!parsed || typeof parsed !== 'object') return [];
+      const paths = (parsed as { paths?: unknown }).paths;
+      if (!Array.isArray(paths)) return [];
+      const cleaned: string[] = [];
+      const seen = new Set<string>();
+      for (const entry of paths) {
+        if (typeof entry !== 'string') continue;
+        const trimmed = entry.trim().replace(/^[/\\]+|[/\\]+$/g, '');
+        if (!trimmed || seen.has(trimmed)) continue;
+        seen.add(trimmed);
+        cleaned.push(trimmed);
+      }
+      return cleaned;
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 /**

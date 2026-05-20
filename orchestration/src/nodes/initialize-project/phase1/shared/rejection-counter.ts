@@ -32,11 +32,15 @@ const COUNTER_SUFFIX = '.rejection-count.json';
 
 /**
  * Threshold above which a soft-classified code stops blocking and is attached
- * to `soft_warning[]` instead. Two strikes is enough signal that the model
- * cannot resolve the gate from the available feedback — additional retries
- * just burn output tokens.
+ * to `soft_warning[]` instead. One strike is enough signal — production runs
+ * across thousands of developer machines cannot afford a second retry round
+ * (each one burns ~30–120 s on Sonnet plus subscription tokens). The
+ * framework's downstream layers (Phase 2 consolidation, Phase 4 service-ID
+ * normalisation, composer-views slice-first fallback) recover gracefully
+ * from a single miss; surfacing the violation as a soft warning gives the
+ * operator enough signal without a retry storm.
  */
-export const REJECTION_AUTO_DOWNGRADE_THRESHOLD = 2;
+export const REJECTION_AUTO_DOWNGRADE_THRESHOLD = 1;
 
 function counterPath(tempDir: string, agentName: string): string {
   const filename = COUNTER_FILENAME_BY_AGENT[agentName] ?? `${agentName}.json`;

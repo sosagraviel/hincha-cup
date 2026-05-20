@@ -9,6 +9,7 @@ export const java: LanguageConfig = {
     { kind: 'pom.xml', format: 'xml', manager: 'maven' },
     { kind: 'build.gradle', format: 'text', manager: 'gradle' },
     { kind: 'build.gradle.kts', format: 'text', manager: 'gradle' },
+    { kind: 'AndroidManifest.xml', format: 'xml', manager: 'gradle' },
   ],
   lockFiles: [],
   runtimeVersionFiles: [{ key: 'java', filename: '.java-version', extract: firstLine }],

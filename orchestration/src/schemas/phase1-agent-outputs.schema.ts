@@ -123,6 +123,20 @@ export const StructureAnalyzerServiceSchema = z
       .string()
       .optional()
       .describe("Path to manifest file (e.g., 'src/api/package.json')"),
+    service_is_real: z
+      .boolean()
+      .optional()
+      .describe(
+        'Judgment flag — set to FALSE when the directory looks like a service ' +
+          'from its manifest/file presence but is not actually production-runnable ' +
+          'as its own service (e.g. workspace-yaml-derived directory holding only ' +
+          'SQL migrations, only test fixtures, only generated artifacts, or a ' +
+          'historical scaffold that no longer ships). When omitted, treated as TRUE. ' +
+          'Phase 2 composer-views filter out services flagged false so the ' +
+          'synthesizer and per-service wiki pages never document non-services. ' +
+          'Set conservatively — false is a strong claim that requires reading the ' +
+          "directory's contents.",
+      ),
   })
   .passthrough();
 export type StructureAnalyzerService = z.infer<typeof StructureAnalyzerServiceSchema>;

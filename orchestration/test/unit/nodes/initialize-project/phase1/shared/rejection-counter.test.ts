@@ -38,9 +38,11 @@ describe('rejection-counter', () => {
   });
 
   it('keeps per-(agent, code) state isolated', () => {
-    recordRejection(tempDir, 'a', 'E060');
-    recordRejection(tempDir, 'a', 'E060');
-    recordRejection(tempDir, 'a', 'E061');
+    // Record exactly threshold hits on (a, E060) — should downgrade.
+    for (let i = 0; i < REJECTION_AUTO_DOWNGRADE_THRESHOLD; i++) {
+      recordRejection(tempDir, 'a', 'E060');
+    }
+    // (a, E061) and (b, E060) have zero recordings — must NOT downgrade.
     expect(shouldAutoDowngrade(tempDir, 'a', 'E060')).toBe(true);
     expect(shouldAutoDowngrade(tempDir, 'a', 'E061')).toBe(false);
     expect(shouldAutoDowngrade(tempDir, 'b', 'E060')).toBe(false);

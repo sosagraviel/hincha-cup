@@ -17,6 +17,7 @@ vi.mock('../../../../../src/services/framework/mcp-config.service.js', () => ({
 const infoMessages: string[] = [];
 const successMessages: string[] = [];
 const errorMessages: string[] = [];
+const warnMessages: string[] = [];
 
 vi.mock('../../../../../src/utils/logger.js', () => ({
   logger: {
@@ -29,6 +30,9 @@ vi.mock('../../../../../src/utils/logger.js', () => ({
       }),
       error: vi.fn((msg: string) => {
         errorMessages.push(msg);
+      }),
+      warn: vi.fn((msg: string) => {
+        warnMessages.push(msg);
       }),
     })),
   },
@@ -49,6 +53,7 @@ describe('graphFoundationNode', () => {
     infoMessages.length = 0;
     successMessages.length = 0;
     errorMessages.length = 0;
+    warnMessages.length = 0;
   });
 
   it('returns graph metadata when graph build succeeds', async () => {
@@ -67,10 +72,12 @@ describe('graphFoundationNode', () => {
 
     const result = await graphFoundationNode(baseState);
 
-    expect(buildCodeGraph).toHaveBeenCalledWith({
-      projectPath: '/test/project',
-      frameworkPath: '/test/framework',
-    });
+    expect(buildCodeGraph).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectPath: '/test/project',
+        frameworkPath: '/test/framework',
+      }),
+    );
     expect(result).toMatchObject({
       code_graph_available: true,
       code_graph_path: '/test/project/.code-review-graph/graph.db',

@@ -146,7 +146,7 @@ describe('wiki-generator.service', () => {
     expect(wikiFilenames).not.toContain('wiki/PATTERNS.md');
   });
 
-  it('prompts are closed-book: no graph-first directive, no MCP tool names', async () => {
+  it('prompts are graph-augmented (Phase D): primary source is digested upstream, graph + Read are recovery tools', async () => {
     const prompts: string[] = [];
     const service = new WikiGeneratorService({
       ...buildInput(),
@@ -158,10 +158,13 @@ describe('wiki-generator.service', () => {
 
     await service.generateAll();
 
-    const joined = prompts.join('\n');
-    expect(joined).not.toContain('Use graph MCP tools first');
-    expect(joined).not.toContain('mcp__code_graph__');
-    expect(prompts.every((prompt) => prompt.includes('You have NO tools'))).toBe(true);
+    // Phase D opened the wiki agent to read-only graph + Read so per-page
+    // enumerations (routes / collections / env vars) can recover facts the
+    // upstream context missed. The agent stays a synthesis agent — Edit /
+    // Write / Bash / Grep / Glob remain forbidden — and the primary
+    // narrative source is still the digested upstream. The (not determined
+    // by analysis) fallback is reserved for facts the graph + upstream
+    // both can't answer.
     expect(prompts.every((prompt) => prompt.includes('(not determined by analysis)'))).toBe(true);
     expect(prompts.every((prompt) => prompt.includes('Digested upstream (structured):'))).toBe(
       true,
