@@ -127,15 +127,27 @@ export const StructureAnalyzerServiceSchema = z
       .boolean()
       .optional()
       .describe(
-        'Judgment flag — set to FALSE when the directory looks like a service ' +
-          'from its manifest/file presence but is not actually production-runnable ' +
-          'as its own service (e.g. workspace-yaml-derived directory holding only ' +
-          'SQL migrations, only test fixtures, only generated artifacts, or a ' +
-          'historical scaffold that no longer ships). When omitted, treated as TRUE. ' +
+        'Judgment flag — set to FALSE when the directory holds a manifest but is ' +
+          'NOT a runnable / documentable service in its own right. Default is TRUE ' +
+          '(omit the field). Set to false ONLY when the manifest+contents pattern ' +
+          'matches one of: ' +
+          '(a) **Shared tooling/config package** — manifest dependencies are ALL ' +
+          'tooling (linters, formatters, test runners, build tools, language ' +
+          'presets) and the package exports a small config object consumed by ' +
+          'OTHER services as a devDependencies entry. Stack-agnostic examples: ' +
+          'shared ESLint / Prettier / Jest / tsconfig / stylelint config packages ' +
+          '(JS/TS); shared rubocop / standardrb config gems (Ruby); shared ' +
+          'checkstyle / spotbugs config jars (Java); shared ruff / black config ' +
+          'packages (Python). Detect via the manifest-deps shape, NOT the ' +
+          'package name. ' +
+          '(b) **Migration-only / fixture-only / generated-only directory** — ' +
+          'manifest present but contents are only SQL migrations, test fixtures, ' +
+          'mocks, or framework-generated code. ' +
           'Phase 2 composer-views filter out services flagged false so the ' +
           'synthesizer and per-service wiki pages never document non-services. ' +
-          'Set conservatively — false is a strong claim that requires reading the ' +
-          "directory's contents.",
+          'Set conservatively — false is a strong claim. The manifest content is ' +
+          'already in `inspection.manifests[]`; no new Reads required to apply ' +
+          'this judgment.',
       ),
   })
   .passthrough();

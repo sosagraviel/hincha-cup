@@ -127,6 +127,33 @@ For each service from Step 2, record:
 - `manifest_file` — relative path
 - `entry_points` — from §Step 2 procedure
 - `file_count` — from community size
+- `service_is_real` — **JUDGMENT FLAG, apply to EVERY candidate**.
+  Default is TRUE (omit the field). Set to **false** ONLY when the
+  service's parsed manifest from `inspection.manifests[]` matches a
+  non-service pattern below. This costs NO new tool calls — every
+  manifest is already parsed in inspection.
+  1. **Shared tooling/config package** — manifest's `dependencies` (and
+     often `peerDependencies`) are ALL tooling: linters, formatters,
+     test runners, build tools, language presets. The package's purpose
+     is to export a config object that OTHER services consume as a
+     devDependencies entry. Detect via the manifest-deps shape, not the
+     package name. Stack-agnostic examples: shared `eslint-config-*` /
+     `prettier-config-*` / `jest-preset-*` / `tsconfig-*` /
+     `stylelint-config-*` (JS/TS); shared `rubocop-config-*` /
+     `standardrb-config-*` (Ruby); shared `checkstyle-config-*` /
+     `spotbugs-config-*` (Java); shared `ruff-config-*` /
+     `black-config-*` (Python). Setup-tool packages with no domain
+     logic (`commitlint-config-*`, `syncpack`, `husky-config-*`,
+     `lint-staged-config-*`) match the same shape.
+  2. **Migration-only / fixture-only / generated-only directory** —
+     manifest exists but the directory's contents are only SQL
+     migrations, test fixtures, mocks, or framework-generated code.
+     The graph shows no production-source nodes.
+
+  When set to false, downstream composer-views drop the entry so the
+  synthesizer and per-service wiki pages never document non-services.
+  **Set conservatively** — when in doubt, OMIT (default TRUE). False is
+  a strong claim and a wrong false silently removes a real service.
 
 Service-type inference signals (stack-agnostic, name-token shape):
 
