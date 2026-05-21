@@ -470,39 +470,65 @@ export async function runPreflightChecks(
     }
   }
 
-  const rootClaudeMdPath = join(projectPath, 'CLAUDE.md');
-  const dotClaudeClaudeMdPath = join(projectPath, '.claude', 'CLAUDE.md');
+  const isCodexProvider = requestedProvider === 'codex' || requestedProvider === 'openai';
+  const isClaudeProvider = !isCodexProvider;
 
-  if (existsSync(rootClaudeMdPath)) {
-    warnings.push(
-      `Existing CLAUDE.md detected at project root: ${rootClaudeMdPath}\n` +
-        `\n` +
-        `initialize-project will generate .claude/CLAUDE.md in Phase 4.\n` +
-        `Claude Code loads BOTH files, which can produce conflicting instructions.\n` +
-        `\n` +
-        `Recommended: after initialization completes, manually merge the two files.\n` +
-        `Treat the generated .claude/CLAUDE.md as the source of truth for framework\n` +
-        `conventions, and move any project-specific rules from ./CLAUDE.md into it.\n` +
-        `\n` +
-        `See: docs/getting-started/QUICKSTART.md — "Projects with existing Claude configuration"`,
-    );
+  if (isClaudeProvider) {
+    const rootClaudeMdPath = join(projectPath, 'CLAUDE.md');
+    const dotClaudeClaudeMdPath = join(projectPath, '.claude', 'CLAUDE.md');
+
+    if (existsSync(rootClaudeMdPath)) {
+      warnings.push(
+        `Existing CLAUDE.md detected at project root: ${rootClaudeMdPath}\n` +
+          `\n` +
+          `initialize-project will generate .claude/CLAUDE.md in Phase 4.\n` +
+          `Claude Code loads BOTH files, which can produce conflicting instructions.\n` +
+          `\n` +
+          `Recommended: after initialization completes, manually merge the two files.\n` +
+          `Treat the generated .claude/CLAUDE.md as the source of truth for framework\n` +
+          `conventions, and move any project-specific rules from ./CLAUDE.md into it.\n` +
+          `\n` +
+          `See: docs/getting-started/QUICKSTART.md — "Projects with existing Claude configuration"`,
+      );
+    }
+
+    if (existsSync(dotClaudeClaudeMdPath)) {
+      warnings.push(
+        `Existing .claude/CLAUDE.md detected: ${dotClaudeClaudeMdPath}\n` +
+          `\n` +
+          `initialize-project (Phase 4) will OVERWRITE this file with a freshly\n` +
+          `generated version based on the current project analysis.\n` +
+          `\n` +
+          `Recommended: back up the existing file before continuing, e.g.\n` +
+          `  cp "${dotClaudeClaudeMdPath}" "${dotClaudeClaudeMdPath}.bak"\n` +
+          `\n` +
+          `After initialization, diff the backup against the new file and merge any\n` +
+          `custom content you want to preserve.\n` +
+          `\n` +
+          `See: docs/getting-started/QUICKSTART.md — "Projects with existing Claude configuration"`,
+      );
+    }
   }
 
-  if (existsSync(dotClaudeClaudeMdPath)) {
-    warnings.push(
-      `Existing .claude/CLAUDE.md detected: ${dotClaudeClaudeMdPath}\n` +
-        `\n` +
-        `initialize-project (Phase 4) will OVERWRITE this file with a freshly\n` +
-        `generated version based on the current project analysis.\n` +
-        `\n` +
-        `Recommended: back up the existing file before continuing, e.g.\n` +
-        `  cp "${dotClaudeClaudeMdPath}" "${dotClaudeClaudeMdPath}.bak"\n` +
-        `\n` +
-        `After initialization, diff the backup against the new file and merge any\n` +
-        `custom content you want to preserve.\n` +
-        `\n` +
-        `See: docs/getting-started/QUICKSTART.md — "Projects with existing Claude configuration"`,
-    );
+  if (isCodexProvider) {
+    const dotCodexAgentsMdPath = join(projectPath, '.codex', 'AGENTS.md');
+
+    if (existsSync(dotCodexAgentsMdPath)) {
+      warnings.push(
+        `Existing .codex/AGENTS.md detected: ${dotCodexAgentsMdPath}\n` +
+          `\n` +
+          `initialize-project (Phase 4) will OVERWRITE this file with a freshly\n` +
+          `generated version based on the current project analysis.\n` +
+          `\n` +
+          `Recommended: back up the existing file before continuing, e.g.\n` +
+          `  cp "${dotCodexAgentsMdPath}" "${dotCodexAgentsMdPath}.bak"\n` +
+          `\n` +
+          `After initialization, diff the backup against the new file and merge any\n` +
+          `custom content you want to preserve.\n` +
+          `\n` +
+          `See: docs/getting-started/QUICKSTART.md — "Projects with existing Codex configuration"`,
+      );
+    }
   }
 
   return {
