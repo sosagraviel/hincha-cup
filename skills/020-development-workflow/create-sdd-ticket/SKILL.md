@@ -155,7 +155,7 @@ Optional flag: pass `--skip-wiki` to bypass Phase 0.2 entirely (useful for fresh
 
 #### When `--from-jira`: invoke `/fetch-ticket-context` (MANDATORY)
 
-When the input mode is `--from-jira`, invoking `/fetch-ticket-context` is **mandatory**, not optional. The canonical artifact at `$ARTIFACTS_DIR/context/ticket-context.md` — body, comments, linked resources, attachments, related tickets — is the source of truth for the rest of the workflow. Do NOT operate on the raw description-only response of `mcp__atlassian__getJiraIssue`; that bypasses the comment material the SDD synthesis depends on.
+When the input mode is `--from-jira`, invoking `/fetch-ticket-context` is **mandatory**, not optional. The canonical artifact at `$ARTIFACTS_DIR/context/ticket-context.md` — body, comments, linked resources, attachments, related tickets — is the source of truth for the rest of the workflow. Do NOT operate on the raw description-only response of `mcp__atlassian__jira_get_issue`; that bypasses the comment material the SDD synthesis depends on.
 
 ```bash
 ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/${JIRA_KEY}/artifacts"

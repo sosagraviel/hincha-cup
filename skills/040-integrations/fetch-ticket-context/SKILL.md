@@ -188,11 +188,11 @@ Per-field rules:
   include the plain text of the subtree and append `_(partial conversion)_`
   to `body_markdown`. Never abort processing on a single comment.
 - **`mentions`**: ADF marks mentions as `{ "type": "mention", "attrs":
-  { "id": "<accountId>", "text": "@..." } }`. Resolve each `accountId`
-  to a `displayName` via `mcp__atlassian__lookupJiraAccountId`. Use an
-  in-memory cache keyed by `accountId` for the duration of the run
-  (one ticket may mention the same user repeatedly). If resolution
-  fails, fall back to `@unknown-user` and continue.
+  { "id": "<accountId>", "text": "@..." } }`. Preserve `attrs.id` as
+  `accountId` when present, and derive `displayName` from the embedded
+  mention text in `attrs.text` (for example, strip a leading `@` from
+  `@John Smith` to produce `John Smith`). If `attrs.text` is missing or
+  empty, fall back to `@unknown-user` and continue.
 - **`ticket_refs`**: regex `\b[A-Z][A-Z0-9]+-[0-9]+\b` over `body_plain`.
   Enrichment (summary/status of referenced tickets) happens in Phase 4.
 - **`is_bot`**: true when `author.accountType == "app"` OR `author.displayName`
@@ -387,9 +387,9 @@ fi
 ### Phase 4: Fetch Related Tickets
 
 ```bash
-blockers=$(echo "$ticket_data" | jq -r '.fields.issuelinks[] | select(.type.name=="Blocks") | .outwardIssue.key')
-dependencies=$(echo "$ticket_data" | jq -r '.fields.issuelinks[] | select(.type.name=="Blocks") | .inwardIssue.key')
-blocked_by=$(echo "$ticket_data" | jq -r '.fields.issuelinks[] | select(.type.name=="is blocked by") | .outwardIssue.key')
+blockers=$(echo "$ticket_data" | jq -r '.fields.issuelinks[] | select(.type.outward=="blocks" and .outwardIssue) | .outwardIssue.key')
+dependencies=$(echo "$ticket_data" | jq -r '.fields.issuelinks[] | select(.type.inward=="is blocked by" and .inwardIssue) | .inwardIssue.key')
+blocked_by=$(echo "$ticket_data" | jq -r '.fields.issuelinks[] | select(.type.inward=="is blocked by" and .inwardIssue) | .inwardIssue.key')
 
 # Optionally enrich each id with its summary; ids alone are still acceptable per the artifact contract.
 ```
@@ -436,7 +436,7 @@ $acceptance_criteria
 
 ## Comments
 
-> $total comments fetched · $shown shown · $bots_hidden bots hidden · $status_hidden status-changes hidden$( [[ "$artifact_mode" == "full" && "$shown" -lt "$total" ]] && echo " · max-comments cap: 50" )
+> $total comments fetched · $shown shown · $bots_hidden bots hidden · $status_hidden status-changes hidden$( visible_before_cap=$(( total - bots_hidden - status_hidden - ${short_hidden:-0} )); [[ "$artifact_mode" == "full" && "$shown" -lt "$visible_before_cap" ]] && echo " · max-comments cap: 50" )
 > Listed chronologically. When two comments conflict on the same point, the most recent one wins (downstream synthesis rule). Comments that read as questions with no later answer remain open.
 
 $(format_enriched_comments "$shown_comments")
@@ -650,7 +650,12 @@ cache_meta="$cache_dir/${JIRA_KEY}.meta.json"
 # Cache hit ONLY when both age and ticket.updated agree
 if [[ -f "$cache_file" && -f "$cache_meta" ]]; then
     cached_updated=$(jq -r '.ticket_updated' "$cache_meta")
-    cache_age_min=$(( ( $(date +%s) - $(stat -f %m "$cache_file") ) / 60 ))
+    if stat -c %Y "$cache_file" >/dev/null 2>&1; then
+        cache_mtime=$(stat -c %Y "$cache_file")
+    else
+        cache_mtime=$(stat -f %m "$cache_file")
+    fi
+    cache_age_min=$(( ( $(date +%s) - cache_mtime ) / 60 ))
 
     # Cheap freshness check via /jira skill: ask for the `updated` field only.
     current_updated=$(fetch_jira_issue "$JIRA_KEY" --fields "updated" \
