@@ -102,14 +102,14 @@ context-gathering on top of it.
 Ask `/jira` for the ticket with these specific parameters:
 
 - `fields`: `summary,description,priority,assignee,labels,comment,issuelinks,status,parent,customfield_*`
-- `expand`: `renderedFields,names,changelog` — `renderedFields` returns description/comments as HTML so we can convert to markdown cleanly; `changelog` lets us correlate comments with status transitions later
+- `expand`: `renderedFields,names` — `renderedFields` returns description/comments as HTML so we can convert to markdown cleanly. Do NOT expand `changelog`: Jira's changelog preserves the full body of every deleted comment in `histories[].items[].fromString` (where `field == "Comment"` and `toString == ""`). Including it in the response leaks deleted-comment bodies into the LLM context and they end up treated as live answers during synthesis.
 - `comment_limit`: high enough to bring the first page (Phase 1a handles pagination beyond that)
 
 ```bash
 # Pseudo-code — actual invocation goes through the /jira skill:
 ticket_data=$(fetch_jira_issue "$JIRA_KEY" \
     --fields "summary,description,priority,assignee,labels,comment,issuelinks,status,parent,customfield_*" \
-    --expand "renderedFields,names,changelog")
+    --expand "renderedFields,names")
 
 # Extract top-level fields
 summary=$(echo "$ticket_data" | jq -r '.fields.summary')
@@ -199,9 +199,11 @@ Per-field rules:
   matches the bot blacklist (case-insensitive contains): `Slack`, `Jenkins`,
   `GitHub`, `Bitbucket`, `Bamboo`.
 - **`is_status_change`**: true when `body_plain` matches `^Status changed:`
-  OR the comment's `created` timestamp is within ±5 seconds of a
-  changelog entry of type `status`. Use the `changelog.histories[]` array
-  returned by the initial fetch.
+  (Jira's auto-comment prefix on transitions). Localized prefixes — e.g.
+  `^Estado cambiado:` for Spanish sites — should be added here if a target
+  site uses them. Do NOT cross-reference the changelog: expanding it leaks
+  deleted-comment bodies into context, which downstream synthesis then
+  treats as live answers.
 
 #### 1c. Noise filters
 
@@ -744,7 +746,7 @@ recommend code changes.
 
 **Issue: "Comments missing from artifact"**
 
-- Verify the initial fetch used `--fields ... ,comment, ...` AND `--expand renderedFields,changelog`.
+- Verify the initial fetch used `--fields ... ,comment, ...` AND `--expand renderedFields,names`.
 - If `comment.total > comment.maxResults`, confirm pagination ran (Phase 1a).
 - Filters drop bots, status-changes, and comments under 20 chars by default — try `--include-bots --include-status-changes` to see whether material was filtered.
 
