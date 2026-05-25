@@ -118,10 +118,8 @@ def save_state(state: Dict[str, Any]) -> None:
         debug(f"save_state failed: {e}")
 
 
-def state_key(session_id: str, transcript_path: str) -> str:
-    # stable key even if session_id collides
-    raw = f"{session_id}::{transcript_path}"
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+def state_key(session_id: str, transcript_path: str = "") -> str:
+    return session_id
 
 
 # ----------------- Hook payload -----------------
@@ -272,11 +270,13 @@ class SessionState:
     offset: int = 0
     buffer: str = ""
     turn_count: int = 0
+    command_turn_count: int = 0  # resets each UserPromptSubmit; used for turn naming
     current_trace_id: Optional[str] = None
     current_root_span_id: Optional[str] = None
     current_trace_name: Optional[str] = None
     current_phase_span_id: Optional[str] = None
     current_phase_name: Optional[str] = None
+    current_skill_span_id: Optional[str] = None  # set while a Skill tool is active
 
 
 def load_session_state(global_state: Dict[str, Any], key: str) -> SessionState:
@@ -285,11 +285,13 @@ def load_session_state(global_state: Dict[str, Any], key: str) -> SessionState:
         offset=int(s.get("offset", 0)),
         buffer=str(s.get("buffer", "")),
         turn_count=int(s.get("turn_count", 0)),
+        command_turn_count=int(s.get("command_turn_count", 0)),
         current_trace_id=s.get("current_trace_id"),
         current_root_span_id=s.get("current_root_span_id"),
         current_trace_name=s.get("current_trace_name"),
         current_phase_span_id=s.get("current_phase_span_id"),
         current_phase_name=s.get("current_phase_name"),
+        current_skill_span_id=s.get("current_skill_span_id"),
     )
 
 
@@ -300,11 +302,13 @@ def write_session_state(
         "offset": ss.offset,
         "buffer": ss.buffer,
         "turn_count": ss.turn_count,
+        "command_turn_count": ss.command_turn_count,
         "current_trace_id": ss.current_trace_id,
         "current_root_span_id": ss.current_root_span_id,
         "current_trace_name": ss.current_trace_name,
         "current_phase_span_id": ss.current_phase_span_id,
         "current_phase_name": ss.current_phase_name,
+        "current_skill_span_id": ss.current_skill_span_id,
         "updated": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -789,13 +793,15 @@ def main() -> int:
                 ss = load_session_state(state, key)
 
                 if event_name == "UserPromptSubmit":
-                    # New turn -> mint a fresh trace_id, this event is the root.
-                    # Also reset phase tracking so a new command starts clean.
+                    # New user command -> mint a fresh trace and reset ALL tracking,
+                    # including any skill span that was still open from the previous command.
                     ss.current_trace_id = _new_trace_id()
                     ss.current_root_span_id = None
                     ss.current_trace_name = _trace_name_for_event(payload)
                     ss.current_phase_span_id = None
                     ss.current_phase_name = None
+                    ss.current_skill_span_id = None
+                    ss.command_turn_count = 0
                     new_span = emit_event(
                         langfuse,
                         session_id,
@@ -807,19 +813,38 @@ def main() -> int:
                     if new_span:
                         ss.current_root_span_id = new_span
                 else:
-                    # Mid-turn event -> attach to existing trace; if none exists
-                    # (e.g., hook fired before a UserPromptSubmit was captured),
-                    # create one now and make this event the root.
+                    # Mid-turn event -> attach to existing trace.
+                    # For low-value lifecycle events (SubagentStop, SessionStart/End)
+                    # that fire without an active trace, skip rather than creating
+                    # a new orphan trace.
+                    _anchor_only_events = {"SubagentStop", "SessionStart", "SessionEnd"}
                     if not ss.current_trace_id:
+                        if event_name in _anchor_only_events:
+                            write_session_state(state, key, ss)
+                            save_state(state)
+                            return 0
+                        # For tool/prompt events with no trace yet (e.g., hook fired
+                        # before UserPromptSubmit was captured), mint one now.
                         ss.current_trace_id = _new_trace_id()
                         ss.current_trace_name = _trace_name_for_event(payload)
                         ss.current_root_span_id = None
 
-                    # Nest under the active phase span when one is open; otherwise
-                    # fall back to the root span established by UserPromptSubmit.
                     tool_name_evt = payload.get("tool_name") or ""
                     tool_input_evt = payload.get("tool_input") or {}
-                    parent = ss.current_phase_span_id or ss.current_root_span_id
+
+                    # in_progress phases are siblings under the skill/root span —
+                    # using current_phase_span_id here would nest each phase inside
+                    # the previous one. All other events nest under the active phase.
+                    _is_phase_open = (
+                        event_name == "PreToolUse"
+                        and tool_name_evt == "TaskUpdate"
+                        and (tool_input_evt.get("status") or "") == "in_progress"
+                    )
+                    parent = (
+                        (ss.current_skill_span_id or ss.current_root_span_id)
+                        if _is_phase_open
+                        else (ss.current_phase_span_id or ss.current_root_span_id)
+                    )
 
                     new_span = emit_event(
                         langfuse,
@@ -830,11 +855,33 @@ def main() -> int:
                         trace_name_override=ss.current_trace_name,
                     )
 
+                    # Skill tracking: PreToolUse(Skill) opens a skill-level span.
+                    # Only the outermost skill (e.g. implement-ticket, when no phase
+                    # is active yet) sets current_skill_span_id — that becomes the
+                    # stable anchor for all sibling phase spans. Sub-skills that fire
+                    # inside a phase (doc-updater, wiki-refresh, etc.) update only
+                    # current_phase_span_id so tool calls nest under them, but they
+                    # must NOT overwrite the root skill anchor.
+                    if event_name == "PreToolUse" and tool_name_evt == "Skill":
+                        if new_span:
+                            if not ss.current_phase_span_id:
+                                # Top-level skill: set the stable anchor for phases
+                                ss.current_skill_span_id = new_span
+                            ss.current_phase_span_id = new_span
+                            ss.current_phase_name = (
+                                f"skill:{tool_input_evt.get('skill', 'unknown')}"
+                            )
+
+                    # PostToolUse(Skill): the Skill tool returned its content, but
+                    # the actual skill WORK happens in subsequent LLM turns. Keep
+                    # current_skill_span_id alive so every Stop within the skill
+                    # stays on the same trace. Only UserPromptSubmit resets it.
+
                     # Phase tracking: TaskUpdate(status=in_progress) opens a new
-                    # phase span. We intentionally do NOT clear it on completed —
-                    # the phase span stays as parent until the next in_progress
-                    # fires, so transcript turns (Stop) also nest under it.
-                    if event_name == "PreToolUse" and tool_name_evt == "TaskUpdate":
+                    # phase span inside the active skill (or at root). We do NOT
+                    # clear it on completed — it stays as parent until the next
+                    # in_progress fires, so transcript turns (Stop) also nest under it.
+                    elif event_name == "PreToolUse" and tool_name_evt == "TaskUpdate":
                         status_evt = tool_input_evt.get("status") or ""
                         if status_evt == "in_progress" and new_span:
                             ss.current_phase_span_id = new_span
@@ -900,6 +947,7 @@ def main() -> int:
             for idx, t in enumerate(turns):
                 emitted += 1
                 turn_num = ss.turn_count + emitted
+                cmd_turn_num = ss.command_turn_count + emitted  # relative to current command
                 is_latest = idx == total - 1
                 if is_latest and ss.current_trace_id:
                     t_tid = ss.current_trace_id
@@ -915,7 +963,7 @@ def main() -> int:
                     emit_turn(
                         langfuse,
                         session_id,
-                        turn_num,
+                        cmd_turn_num,
                         t,
                         transcript_path,
                         trace_id=t_tid,
@@ -927,12 +975,13 @@ def main() -> int:
                     # continue emitting other turns
 
             ss.turn_count += emitted
-            # Turn complete -> clear trace handles so the next prompt starts fresh.
-            # Phase span intentionally kept: it stays as parent until the next
-            # in_progress fires on the following turn.
-            ss.current_trace_id = None
-            ss.current_root_span_id = None
-            ss.current_trace_name = None
+            ss.command_turn_count += emitted
+            # Never clear trace state here. Multi-turn commands (implement-ticket,
+            # create-sdd-ticket) span multiple Claude Code "turns" each ending
+            # with a Stop event. Clearing here creates a new root trace per turn.
+            # UserPromptSubmit is the only event that marks a new user command —
+            # it resets current_trace_id, current_root_span_id, and current_trace_name.
+            # Phase span kept regardless: stays as parent until next in_progress fires.
             write_session_state(state, key, ss)
             save_state(state)
 
