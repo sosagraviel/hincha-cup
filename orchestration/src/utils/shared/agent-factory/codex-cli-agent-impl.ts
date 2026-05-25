@@ -56,9 +56,8 @@ export function killAllActiveCodexProcesses() {
 
 /**
  * Transform a JSON Schema to be compatible with OpenAI Structured Outputs.
- * (unchanged — see inline comments at top of function)
  */
-function transformSchemaForStructuredOutputs(
+export function transformSchemaForStructuredOutputs(
   schema: Record<string, unknown>,
 ): Record<string, unknown> {
   const result = JSON.parse(JSON.stringify(schema)) as Record<string, unknown>;
@@ -87,7 +86,15 @@ function transformObjectRecursive(node: Record<string, unknown>): void {
     const additional = node['additionalProperties'];
 
     if (properties) {
-      const currentRequired = (node['required'] as string[]) || [];
+      for (const [propName, propSchema] of Object.entries(properties)) {
+        if (isNeverJsonSchema(propSchema)) {
+          delete properties[propName];
+        }
+      }
+
+      const currentRequired = ((node['required'] as string[]) || []).filter(
+        (propName) => propName in properties,
+      );
       const allPropertyNames = Object.keys(properties);
       node['additionalProperties'] = false;
       for (const propName of allPropertyNames) {
@@ -136,6 +143,16 @@ function transformObjectRecursive(node: Record<string, unknown>): void {
   }
 }
 
+function isNeverJsonSchema(schema: Record<string, unknown>): boolean {
+  const notSchema = schema['not'];
+  return (
+    notSchema !== null &&
+    typeof notSchema === 'object' &&
+    !Array.isArray(notSchema) &&
+    Object.keys(notSchema as Record<string, unknown>).length === 0
+  );
+}
+
 function isAlreadyNullable(schema: Record<string, unknown>): boolean {
   if (Array.isArray(schema['anyOf'])) {
     return schema['anyOf'].some(
@@ -152,7 +169,11 @@ async function generateOutputSchema(
   const zodSchema = getSchemaForAgent(agentName);
   if (!zodSchema) return null;
   try {
-    const rawJsonSchema = z.toJSONSchema(zodSchema, { target: 'draft-7' });
+    const rawJsonSchema = z.toJSONSchema(zodSchema, {
+      target: 'draft-7',
+      io: 'input',
+      unrepresentable: 'any',
+    });
     const jsonSchema = transformSchemaForStructuredOutputs(
       rawJsonSchema as Record<string, unknown>,
     );
@@ -165,6 +186,14 @@ async function generateOutputSchema(
     );
     return null;
   }
+}
+
+export function normalizeCodexReasoningEffort(effort: string | undefined): string | undefined {
+  // Codex CLI may attach native web_search tools to exec requests. The OpenAI
+  // API rejects web_search when reasoning.effort is "minimal", so floor Codex
+  // invocations to "low". Claude has its own adapter and mapping.
+  if (effort === 'minimal') return 'low';
+  return effort;
 }
 
 export async function createCodexCLIAgentImpl(
@@ -182,13 +211,15 @@ export async function createCodexCLIAgentImpl(
       const isRetry = !!config.resumeSessionId;
       const attemptNumber = input.attemptNumber ?? 1;
 
+      const trackerId = config.trackerId ?? config.agentName;
+      const trackerDisplayName = config.trackerDisplayName ?? config.agentName;
       const action = getAgentAction(config.agentName);
       const sessionInfo = isRetry ? `resume:${sessionId}` : sessionId;
       const authInfo = `Auth: Subscription, Provider: openai, Model: ${modelInfo.alias}, Cli: codex, CliVersion: v${codexCLI.version}, Session: ${sessionInfo}`;
 
       logger.trackConcurrentAgentStart(
-        config.agentName,
-        config.agentName,
+        trackerId,
+        trackerDisplayName,
         `${action} (${authInfo})`,
       );
 
@@ -203,7 +234,7 @@ export async function createCodexCLIAgentImpl(
 
         const executionTimeMs = Date.now() - startTime;
         logger.trackConcurrentAgentSucceed(
-          config.agentName,
+          trackerId,
           `Completed in ${(executionTimeMs / 1000).toFixed(1)}s`,
         );
 
@@ -226,7 +257,7 @@ export async function createCodexCLIAgentImpl(
         const executionTimeMs = Date.now() - startTime;
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.trackConcurrentAgentFail(
-          config.agentName,
+          trackerId,
           `Failed after ${(executionTimeMs / 1000).toFixed(1)}s`,
         );
 
@@ -271,7 +302,9 @@ async function invokeCodexCLI(
 
   const codexCLI = getCodexCLIPath(config.frameworkPath);
   const model = getCodexCLIModelForAgent(config.agentName, config.frameworkPath);
-  const reasoningEffort = getCodexReasoningEffortForAgent(config.agentName, config.frameworkPath);
+  const reasoningEffort = normalizeCodexReasoningEffort(
+    getCodexReasoningEffortForAgent(config.agentName, config.frameworkPath),
+  );
 
   const recorder = beginAttemptRecorder({
     agentName: config.agentName,
@@ -338,7 +371,7 @@ async function invokeCodexCLI(
       outcome: 'success',
       codexSessionIdOverride: codexSessionId ?? undefined,
     });
-    await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null);
+    await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null, first.stdout);
     await recorder.finalize('success', { code: first.code });
     await removeScratchDir();
     return { output, sessionId: run.sessionId, codexSessionId };
@@ -405,7 +438,7 @@ async function invokeCodexCLI(
       outcome: 'success',
       codexSessionIdOverride: codexSessionId ?? undefined,
     });
-    await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null);
+    await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null, lastStdout);
     await recorder.finalize('success', { code: 0 });
     await removeScratchDir();
     return { output, sessionId: run.sessionId, codexSessionId };
@@ -424,44 +457,58 @@ async function invokeCodexCLI(
     outcome: 'success',
     codexSessionIdOverride: codexSessionId ?? undefined,
   });
-  await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null);
+  await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null, lastStdout);
   await recorder.finalize('success', { code: 0, failureReason: 'internal-validation-exhausted' });
   await removeScratchDir();
   return { output, sessionId: run.sessionId, codexSessionId };
 }
 
 /**
- * Codex equivalent of Claude's Stop hook sidecar writer. Locates the rollout JSONL,
- * parses graph tool uses, and writes the sidecar so the analyzer node can read it.
+ * Codex equivalent of Claude's Stop hook sidecar writer. Attempts to locate the
+ * rollout JSONL in ~/.codex/sessions first; falls back to the captured stdout
+ * (which carries the same JSONL stream) because `codex exec` mode does not write
+ * rollout files to disk.
  * Best-effort: a missing sidecar causes the analyzer to return empty telemetry.
  */
 async function writeCodexGraphToolUsesSidecar(
   projectPath: string,
   frameworkSessionId: string,
   codexSessionId: string | null,
+  stdoutFallback?: string,
 ): Promise<void> {
-  if (!codexSessionId) {
+  let jsonl: string | null = null;
+
+  if (codexSessionId) {
+    try {
+      const rolloutPath = await locateCodexRollout(codexSessionId, { timeoutMs: 3000 });
+      if (rolloutPath) {
+        jsonl = await readFile(rolloutPath, 'utf-8');
+      }
+    } catch {
+      // fall through to stdout fallback
+    }
+  }
+
+  if (!jsonl && stdoutFallback) {
+    jsonl = stdoutFallback;
+  }
+
+  if (!jsonl) {
+    logger.warn(
+      `[graph-tool-uses] No JSONL source for session ${frameworkSessionId} — analyzer will see empty graph telemetry`,
+    );
     return;
   }
 
   try {
-    const rolloutPath = await locateCodexRollout(codexSessionId, { timeoutMs: 3000 });
-    if (!rolloutPath) {
-      logger.warn(
-        `[graph-tool-uses] Could not locate Codex rollout for session ${codexSessionId} — analyzer will see empty graph telemetry`,
-      );
-      return;
-    }
-    const jsonl = await readFile(rolloutPath, 'utf-8');
     const sidecar = extractGraphToolUsesFromCodexJsonl(jsonl);
-
     const dir = codexSidecarDir(projectPath);
     await mkdir(dir, { recursive: true });
     const out = path.join(dir, `${frameworkSessionId}.graph-tool-uses.json`);
     await writeFile(out, JSON.stringify(sidecar, null, 2), 'utf-8');
   } catch (err) {
     logger.warn(
-      `[graph-tool-uses] Failed to write Codex sidecar for session ${codexSessionId}: ${err instanceof Error ? err.message : String(err)}`,
+      `[graph-tool-uses] Failed to write Codex sidecar for session ${frameworkSessionId}: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 }
