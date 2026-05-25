@@ -44,8 +44,21 @@ The parent agent passes the ticket context as a file on disk. Before you touch t
 - Priority and labels
 - Linked external docs (Notion pages, Confluence pages, design links)
 - Blocking tickets ("Blocked by") and dependent tickets ("Blocks")
+- Comments — read `## Comments` as authoritative input, NOT metadata
 
 Hold these in mind while reading the wiki and deciding what to verify via the graph. Surface missing acceptance criteria, unresolved blockers, or ambiguous requirements in the plan's `Assumptions And Open Questions` section — do not silently paper over them.
+
+### Reading `## Comments`
+
+The `## Comments` section of the ticket-context artifact carries the conversation that happened on the ticket between humans — questions, answers, decisions, deltas to the description. Treat every shown comment as part of the requirement input, not as ambient noise.
+
+Rules:
+
+1. **Chronological precedence — most recent wins.** When a comment contradicts the description or an earlier comment on the same point (technology swap, requirement change, scope addition, scope removal), the more recent comment is authoritative. The plan must reflect the final state of the conversation, not the description-only view.
+2. **Strong-decision exception.** When an older comment carries a strong-decision marker (`approved:`, `decision:`, `confirmed:`, "decisión:", "confirmado:") and no later comment explicitly contradicts it, the decision stands — the more recent comment adds rather than overrides.
+3. **Cite comments by id.** Comments are rendered with a `[#NNNN]` prefix (the literal Jira comment id). When a plan step, risk, or open question is justified by a specific comment, cite it as `comment #NNNN` in the relevant section (`Implementation Steps`, `Risk Assessment`, or `Assumptions And Open Questions`).
+4. **Open questions.** When a comment reads as a question (`?`, "no está claro si…", "duda:", "should we…") and no later comment from a different author resolves it, list it under `Assumptions And Open Questions` as an open question, citing the source comment id. Do NOT silently assume an answer — `/implement-ticket` Phase 3 surfaces these to the user.
+5. **External-doc origin.** Each entry in `## Linked Resources` carries an `Origin:` line. A link from the description is more authoritative than a link from an old comment; prefer description-linked specs when both disagree.
 
 ## Graph-First Approach
 
