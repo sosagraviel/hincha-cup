@@ -185,6 +185,11 @@ export function extractServicesFromPhase1Analyzers(
   }
 
   for (const svc of structureFindings.services) {
+    // Honor the structure analyzer's judgment: directories flagged as
+    // non-real (config/tooling packages, migration/fixture-only dirs) must
+    // not propagate into the stack profile or any downstream artefact.
+    // Omitted flag = real; only an explicit `false` filters the entry.
+    if (svc.service_is_real === false) continue;
     const service: Service = {
       id: svc.id,
       name: svc.name,

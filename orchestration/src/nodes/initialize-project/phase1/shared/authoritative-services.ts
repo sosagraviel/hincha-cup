@@ -142,6 +142,10 @@ function loadFromStructureOutput(tempDir: string): StructureLoadResult {
   const services: AuthoritativeService[] = [];
   for (const entry of rawServices) {
     if (!isObject(entry)) continue;
+    // Honor the structure analyzer's judgment: directories flagged as
+    // non-real must not be fed to sibling Phase 1 analyzers (tech-stack,
+    // code-patterns, data-flows) as authoritative services.
+    if (entry.service_is_real === false) continue;
     const id = typeof entry.id === 'string' ? entry.id.trim() : '';
     const path = typeof entry.path === 'string' ? entry.path.trim() : '';
     if (!id) continue;
