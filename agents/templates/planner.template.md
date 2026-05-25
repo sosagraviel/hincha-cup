@@ -189,13 +189,40 @@ Scan the ticket context and your drafted plan for these categories. Flag every o
 
 For each flagged risk, give: severity (High / Medium / Low), a specific reason, and a mitigation or rollback strategy.
 
-### 4. Recommended Implementer
+### 4. Recommended Implementers (per-service)
 
-Recommend the best implementer agent based on the affected files:
+A ticket can touch more than one stack. Pick implementers from the project's discovered services, not from the file extensions alone:
 
-- `implementer-typescript` for primarily `.ts` or `.tsx` changes.
-- `implementer-python` for primarily `.py` changes.
-- `implementer-generic` for mixed stacks, config, docs, scripts, or unsupported file types.
+1. Read `framework-config.json::stack_profile.services` from the
+   project root. Each service carries `path` and `language`.
+2. For every path in your `Affected Files`, find its owning service
+   by **longest-prefix match** on `services[].path`. Paths that match
+   no service fall into a synthetic `__root__` bucket.
+3. Group affected services by `language` and dedupe — one bucket per
+   distinct language. Map each bucket to an implementer:
+   - `python` → `implementer-python`
+   - `typescript` → `implementer-typescript`
+   - `javascript` → `implementer-typescript` (same toolchain — the TS
+     implementer covers Node/JS)
+   - anything else, mixed unclassified, or `__root__` → `implementer-generic`
+
+   **Constrain each bucket's agent choice to the `Available
+   Implementers` list passed by the orchestrator.** Only those agents
+   actually exist on disk under `.claude/agents/` (or `.codex/agents/`
+   on Codex) for this project. If your preferred mapping is not in
+   that list (e.g., `implementer-python` is unavailable because the
+   target project was initialized without a Python stack), fall back
+   to `implementer-generic`. If `implementer-generic` is **also**
+   absent from `Available Implementers`, ABORT planning by emitting a
+   single entry literally equal to
+   `ERROR: no compatible implementer agents installed — rerun /initialize-project`
+   and stop. Every entry you emit MUST appear in `Available
+   Implementers` verbatim.
+4. Emit one entry per resulting bucket. The list MUST be non-empty.
+5. **Order matters.** Phase 5 dispatches implementers in the order you
+   list them, and later implementers see earlier edits on disk. When
+   one stack's contract feeds another (e.g., a backend endpoint
+   consumed by a frontend client), list the producer first.
 
 ### 5. Quality Guidelines
 
@@ -267,9 +294,16 @@ Cite each source with its `confidence` from frontmatter (`high|medium|low`) and 
 - E2E/manual checks:
 - Commands to run:
 
-## Recommended Implementer
+## Recommended Implementers
 
-`implementer-typescript`, `implementer-python`, or `implementer-generic`, with rationale.
+Non-empty ordered list. One entry per unique language bucket derived from `stack_profile.services` (see section *Recommended Implementers (per-service)* above for the selection rule). Each entry names the implementer agent, the affected service IDs it covers, the scoped files within those services, and a one-line rationale. Phase 5 spawns each entry sequentially in the listed order.
+
+1. `<implementer-python|implementer-typescript|implementer-generic>` — services: `<service-id>[, <service-id>...]`
+   - `<path/to/file>`
+   - `<path/to/file>`
+   - rationale: <why this implementer, why this position in the order>
+
+(Repeat the block once per bucket. Single-stack tickets produce a list of length 1.)
 
 ## Assumptions And Open Questions
 

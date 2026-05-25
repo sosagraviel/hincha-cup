@@ -18,7 +18,7 @@ Implement the ticket described above through the full wiki-aware and graph-aware
 **Codex does not spawn subagents programmatically.** You (the agent running this skill) execute every phase yourself, switching your operating persona by loading the corresponding role prompt from `{{CONFIG_DIR}}/agents/`:
 
 - Planning phase (Phase 3): read `{{CONFIG_DIR}}/agents/planner.md` and follow its instructions as your active role.
-- Implementation phase (Phase 5): read `{{CONFIG_DIR}}/agents/<recommended-implementer>.md` — pick the file from the planner's `Recommended Implementer` section (`implementer-typescript.md`, `implementer-python.md`, or `implementer-generic.md`). A missing recommendation is a Phase 3 Constraint violation and should already have aborted the run.
+- Implementation phase (Phase 5): for each entry in the planner's `Recommended Implementers` list (in the listed order), read `{{CONFIG_DIR}}/agents/<entry.agent>.md` and apply it as your active role to produce that entry's scoped files. The set of valid `<entry.agent>` values is `$AVAILABLE_IMPLEMENTERS` — the implementer files actually installed under `{{CONFIG_DIR}}/agents/` (enumerated at Phase 3 start). Move to the next entry only after the current one's files are written. An empty list or an unknown agent name is a Phase 3 Constraint violation and should already have aborted the run.
 - Visual verification (Phase 7): read `{{CONFIG_DIR}}/agents/visual-verifier.md` and follow it.
 
 When a phase below says "apply the planner role prompt", treat it as: read that file, internalise the instructions, and produce the artifact it specifies. Do not try to spawn it as a separate process.
@@ -190,12 +190,24 @@ Constraint: Do not proceed if `wiki-context.md` is missing or the router could n
 
 ### Phase 3: Planning
 
+Before switching to the planner persona, enumerate the implementer agents that actually exist in this project's `{{CONFIG_DIR}}/agents/`.
+The planner MUST constrain its `Recommended Implementers` mapping to this set:
+
+```bash
+AVAILABLE_IMPLEMENTERS=$(ls {{CONFIG_DIR}}/agents/implementer-*.md 2>/dev/null \
+  | xargs -n1 basename | sed 's/\.md$//' | tr '\n' ',' | sed 's/,$//')
+```
+
 Apply the planner role prompt: read `{{CONFIG_DIR}}/agents/planner.md`
 and follow it as your active persona. Feed it the canonical artifact
 PATHS (not bodies):
 - `$ARTIFACTS_DIR/context/ticket-context.md`
 - `$ARTIFACTS_DIR/context/wiki-context.md` (`WIKI_INDEX_SNAPSHOT`,
   `WIKI_CORE`, and `## get_minimal_context_tool Payload` when present).
+- Available implementers (you MUST constrain your bucket→agent
+  mapping to this set — see the planner template's `Recommended
+  Implementers (per-service)` selection rule, step 3 fallback):
+  `$AVAILABLE_IMPLEMENTERS`.
 
 Hard rules — re-call ban:
 - Do NOT re-call `mcp__code_graph__get_minimal_context_tool`. Phase 2
@@ -219,15 +231,15 @@ Produce an `Implementation Plan` containing:
 - Test strategy.
 - `Wiki Evidence` (cite the wiki paths actually consulted).
 - `Graph Evidence` (cite the graph queries and results that justify the plan).
-- `Recommended Implementer` section naming exactly one of `implementer-typescript` | `implementer-python` | `implementer-generic` with rationale.
+- `Recommended Implementers` section — a non-empty ordered list, one entry per unique language bucket derived from `framework-config.json::stack_profile.services` (longest-prefix file→service match, dedupe by `language`; `python`→`implementer-python`, `typescript`/`javascript`→`implementer-typescript`, anything else or unmapped→`implementer-generic`). Each entry names its agent, the service IDs it covers, the scoped files within them, and a one-line rationale. Order matters — Phase 5 dispatches entries sequentially, so list producers before consumers (e.g., a backend stack before a frontend stack that consumes its endpoints).
 
-If the workspace contains multiple git repos and the change touches more than one, the plan SHOULD identify which repo each file belongs to so Phase 9 can fan out cleanly.
+If the workspace contains multiple git repos and the change touches more than one, the plan SHOULD identify which repo each file belongs to so Phase 9 can fan out cleanly. `Recommended Implementers` and `Affected Repositories` are orthogonal — the former drives Phase 5 per-stack implementer dispatch, the latter drives Phase 8.4 commit + Phase 9 PR fanout per git repo.
 
 Persist the plan verbatim to `$ARTIFACTS_DIR/plans/implementation-plan.md`.
 
-Expected outputs: `$ARTIFACTS_DIR/plans/implementation-plan.md` exists, contains `Wiki Evidence` and `Graph Evidence`, test strategy and target files are named, contains a `Recommended Implementer` section naming exactly one of `implementer-typescript` | `implementer-python` | `implementer-generic`, and (in `multi` mode) contains an `Affected Repositories` section listing each touched repo path with the files within it. In `single` mode the section may be absent — the agent infers it as the single workspace repo.
+Expected outputs: `$ARTIFACTS_DIR/plans/implementation-plan.md` exists, contains `Wiki Evidence` and `Graph Evidence`, test strategy and target files are named, contains a `Recommended Implementers` section that is a non-empty ordered list where **every entry's agent name appears verbatim in `$AVAILABLE_IMPLEMENTERS`** (no recommending agents that are not installed under `{{CONFIG_DIR}}/agents/`), plus the service IDs and scoped files each entry covers, and (in `multi` mode) contains an `Affected Repositories` section listing each touched repo path with the files within it. In `single` mode the `Affected Repositories` section may be absent — the agent infers it as the single workspace repo.
 
-Constraint: Do not proceed if the plan is missing, Wiki Evidence or Graph Evidence is absent, or `Recommended Implementer` is missing.
+Constraint: Do not proceed if the plan is missing, Wiki Evidence or Graph Evidence is absent, `Recommended Implementers` is missing/empty, or any entry's agent name is not present in `$AVAILABLE_IMPLEMENTERS` (i.e., not installed under `{{CONFIG_DIR}}/agents/`).
 
 ### Phase 4: Environment Setup
 
@@ -243,16 +255,19 @@ Constraint: STOP if branching from anything other than the active branch without
 
 ### Phase 5: Implementation
 
-Apply the implementer role prompt: read
-`{{CONFIG_DIR}}/agents/<recommended-implementer>.md` where
-`<recommended-implementer>` is the value from the planner's
-`Recommended Implementer` section (`implementer-typescript`,
-`implementer-python`, or `implementer-generic`).
+Parse the planner's `Recommended Implementers` section into an ordered list. **For each entry, in the listed order**, apply that implementer's role prompt: read `{{CONFIG_DIR}}/agents/<entry.agent>.md`. Every entry's `<entry.agent>` was already validated against `$AVAILABLE_IMPLEMENTERS` in Phase 3, so any installed `implementer-*.md` file is fair game (not just the canonical TypeScript / Python / generic trio). Sequential — finish the current entry's
+scoped files before moving to the next entry, so later entries see
+earlier edits on disk (this matters when one stack's contract feeds
+another, e.g., a backend endpoint consumed by a frontend client).
 
-Feed the role prompt the canonical artifact PATHS (not bodies):
+Feed each role prompt the canonical artifact PATHS (not bodies):
 - `$ARTIFACTS_DIR/plans/implementation-plan.md`
 - `$ARTIFACTS_DIR/context/wiki-context.md`
 - `$ARTIFACTS_DIR/context/ticket-context.md`
+
+Plus the entry's `Scoped Files` list (verbatim from the plan). Treat
+files outside the current entry's scope as out of scope for this
+persona pass.
 
 Hard rules — re-call ban:
 - Do NOT re-call `mcp__code_graph__get_minimal_context_tool`. The Phase
@@ -276,9 +291,9 @@ evidence: `mcp__code_graph__get_impact_radius_tool`,
 - Follow project conventions from `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}`.
 - Create/modify files exactly as listed in the plan.
 
-Expected outputs: code changes exist, new files created as planned; completion summary lists wiki pages consulted and any fresh graph checks; completion summary contains a `## Wiki Delta Hints` JSONL fenced block (may be empty, but section must be present).
+Expected outputs, **per entry**: code changes exist within that entry's scope, new files created as planned; the per-entry completion summary lists wiki pages consulted and any fresh graph checks; the per-entry completion summary contains a `## Wiki Delta Hints` JSONL fenced block (may be empty, but section must be present).
 
-Constraint: Do not proceed if no code changes exist, or if the plan's Wiki Evidence / Graph Evidence were not consumed, or if the implementer did not emit a parseable Wiki Delta Hints block.
+Constraint: Do not advance to the next entry — and do not proceed to Phase 6 — if any entry produced no code changes within its scope, did not consume the plan's Wiki Evidence / Graph Evidence, or did not emit a parseable Wiki Delta Hints block.
 
 ### Phase 6: Testing
 
@@ -291,7 +306,7 @@ Otherwise:
 
 In a multi-repo workspace, run the test stack in each affected child repo and namespace coverage under `$ARTIFACTS_DIR/coverage/<repo-basename>/`.
 
-If tests fail: re-apply the implementer role prompt with the failing test output and fix. Max 3 fix iterations (global across all repos in multi-repo workspaces).
+If tests fail: map each failing test file back to its owning service via longest-prefix match on `stack_profile.services[].path`, then re-apply ONLY the `Recommended Implementers` entries whose `Scoped Files` overlap with the failure set (in the original listed order) with the failing test output and fix. Max 3 fix iterations, **global** across all implementers and all repos in multi-repo workspaces.
 
 Expected outputs: all tests pass and coverage reports collected, OR phase correctly skipped via `--skip-tests`.
 
@@ -382,10 +397,10 @@ For each PR URL produced by Phase 9 (single-repo: one URL; multi-repo: one per a
 - Run `/pr-reviewer --pr-url <URL> --jira-key <TICKET_ID> --mode automated [--repos <abs-repo-path>]`.
 - Run `/security-review --pr-url <URL> --jira-key <TICKET_ID> [--repos <abs-repo-path>] [--baseline <prior-findings.json>]`.
 - If blocking issues are found:
-  - Re-apply the implementer role prompt (`{{CONFIG_DIR}}/agents/<recommended-implementer>.md`) with the review findings.
+  - Map each finding's file path back to its owning service (longest-prefix on `stack_profile.services[].path`); re-apply ONLY the `Recommended Implementers` entries whose `Scoped Files` overlap with the finding set, in the original listed order, with the review findings.
   - Re-run tests (Phase 6 logic).
   - Re-run the reviews.
-  - Max 3 iterations (global across all PRs in a multi-repo workspace).
+  - Max 3 iterations, **global** across all PRs, all implementers, and all repos in a multi-repo workspace.
 - Exit when approved or the global iteration cap is reached.
 
 After the loop, in multi-repo mode only:
@@ -426,8 +441,8 @@ If a phase fails:
 
 - `/fetch-ticket-context` — Phase 1 (Jira tickets only).
 - `mcp__code_graph__get_minimal_context_tool` — Phase 2 (called exactly once; result reused by the planner).
-- `planner` role prompt — Phase 3 sole `Implementation Plan` author, Wiki Evidence and Graph Evidence owner, `Recommended Implementer` selector.
-- `implementer-<stack>` role prompt — Phase 5, Phase 6 (fixes), Phase 10 (fixes); consumes the plan's Wiki + Graph evidence before any fresh discovery.
+- `planner` role prompt — Phase 3 sole `Implementation Plan` author, Wiki Evidence and Graph Evidence owner, `Recommended Implementers` per-stack selector.
+- `implementer-<stack>` role prompts — Phase 5 (one persona switch per stack from `stack_profile.services`, applied sequentially in the planner's listed order), Phase 6 (fixes — only the implementer(s) owning failing tests), Phase 10 (fixes — only the implementer(s) owning review findings); each pass consumes the plan's Wiki + Graph evidence before any fresh discovery, scoped to its entry's `Scoped Files`.
 - `visual-verifier` role prompt — Phase 7.
 - `/doc-updater` — Phase 8.
 - `/wiki-refresh` — Phase 8.5 (auto-invoked with `--commit --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR`; reads per-repo commits from `.state.json`, surgically edits affected pages under a high-level-only conservatism rule, commits `docs/llm-wiki/**` itself when the wiki is git-tracked or emits a diff manifest + warning for Phase 9 otherwise).

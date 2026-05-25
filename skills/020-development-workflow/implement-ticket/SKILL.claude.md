@@ -96,9 +96,9 @@ Create each task using TaskCreate with these exact values:
 4. Phase 3: Planning
    subject: "Phase 3: Planning"
    activeForm: "Creating implementation plan"
-   Steps: MUST spawn planner agent, planner consumes the ticket context from Phase 1 and the Phase 2 wiki context (`WIKI_INDEX_SNAPSHOT`, `WIKI_CORE`, and the optional `get_minimal_context_tool` payload when present), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact, planner emits a `Recommended Implementer` section naming exactly one of `implementer-typescript` | `implementer-python` | `implementer-generic` with rationale. If the workspace contains multiple git repos and the change touches more than one, the plan SHOULD identify which repo each file belongs to so Phase 9 can fan out cleanly.
-   Expected outputs: planner agent was spawned with the Phase 2 wiki context injected, parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 3 planning artifact, Wiki Evidence exists and cites the wiki paths actually used, Graph Evidence exists, test strategy defined, files to create/modify identified, `Recommended Implementer` present in the plan naming one of `implementer-typescript` | `implementer-python` | `implementer-generic`
-   Constraint: Do not proceed if planner agent was not spawned, Wiki Evidence or Graph Evidence is absent, the planner-authored `Implementation Plan` does not exist, Phase 3 produced competing planning artifacts, or `Recommended Implementer` is missing.
+   Steps: MUST spawn planner agent, planner consumes the ticket context from Phase 1 and the Phase 2 wiki context (`WIKI_INDEX_SNAPSHOT`, `WIKI_CORE`, and the optional `get_minimal_context_tool` payload when present), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact, planner emits a `Recommended Implementers` section — a non-empty ordered list, one entry per unique language bucket derived from `framework-config.json::stack_profile.services` (longest-prefix file→service match, dedupe by `language`; `python`→`implementer-python`, `typescript`/`javascript`→`implementer-typescript`, anything else or unmapped→`implementer-generic`), each entry naming its agent, the service IDs it covers, and the scoped files within them. If the workspace contains multiple git repos and the change touches more than one, the plan SHOULD identify which repo each file belongs to so Phase 9 can fan out cleanly.
+   Expected outputs: planner agent was spawned with the Phase 2 wiki context injected, parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 3 planning artifact, Wiki Evidence exists and cites the wiki paths actually used, Graph Evidence exists, test strategy defined, files to create/modify identified, `Recommended Implementers` present as a non-empty ordered list with each entry naming one of `implementer-typescript` | `implementer-python` | `implementer-generic`, the service IDs it covers, and its scoped files.
+   Constraint: Do not proceed if planner agent was not spawned, Wiki Evidence or Graph Evidence is absent, the planner-authored `Implementation Plan` does not exist, Phase 3 produced competing planning artifacts, `Recommended Implementers` is missing/empty, or any entry's agent name is not present in `$AVAILABLE_IMPLEMENTERS` (i.e., not installed under `.claude/agents/`).
 
 5. Phase 4: Environment Setup
    subject: "Phase 4: Environment Setup"
@@ -110,9 +110,9 @@ Create each task using TaskCreate with these exact values:
 6. Phase 5: Implementation
    subject: "Phase 5: Implementation"
    activeForm: "Implementing code changes"
-   Steps: MUST spawn graph-aware implementer-{lang} agent with the planner-authored `Implementation Plan` from Phase 3, pass the same `WIKI_CORE` page paths the planner cited (including any service docs the wiki router already matched) plus the plan's `Wiki Evidence` and `Graph Evidence`, implementer absorbs those artifacts before any fresh discovery, implementer runs targeted graph checks only for high-risk edits flagged by the plan, implements code following the plan, follows project conventions from {{INSTRUCTION_FILE}}, creates/modifies files as needed, includes wiki pages consulted and any fresh graph queries in the final implementation summary, implementer MUST end its completion summary with a `## Wiki Delta Hints` JSONL fenced block (see implementer template); the block may be empty if no wiki impact, but the section MUST be present
-   Expected outputs: graph-aware implementer agent was spawned, implementer confirmed it consumed the plan's Wiki Evidence and Graph Evidence, code changes exist, new files created as planned, completion summary contains a parseable `## Wiki Delta Hints` JSONL block
-   Constraint: Do not proceed if implementer agent was not spawned, the plan's Wiki Evidence / Graph Evidence were not consumed, no code changes exist, or the implementer did not emit a parseable Wiki Delta Hints block.
+   Steps: For each entry in the plan's `Recommended Implementers`, in the listed order, MUST spawn that graph-aware implementer agent (`Task(subagent_type: <entry.agent>, ...)`) with the planner-authored `Implementation Plan`, the same `WIKI_CORE` page paths the planner cited (including any service docs the wiki router already matched), the plan's `Wiki Evidence` and `Graph Evidence`, and a `Scoped Files` block containing ONLY that entry's files. Implementer absorbs those artifacts before any fresh discovery, runs targeted graph checks only for high-risk edits flagged by the plan, implements code following the plan within its scope, follows project conventions from {{INSTRUCTION_FILE}}, includes wiki pages consulted and any fresh graph queries in its completion summary, and MUST end its completion summary with a `## Wiki Delta Hints` JSONL fenced block (see implementer template). **Sequential** — wait for each implementer to finish (code changes verified + parseable hints block emitted) before spawning the next entry. The block may be empty if no wiki impact, but the section MUST be present.
+   Expected outputs: every entry in `Recommended Implementers` was spawned in order; each implementer confirmed it consumed the plan's Wiki Evidence and Graph Evidence; code changes exist for every entry's scope; every implementer's completion summary contains a parseable `## Wiki Delta Hints` JSONL block.
+   Constraint: Do not proceed if any implementer entry was not spawned, the plan's Wiki Evidence / Graph Evidence were not consumed, no code changes exist in an entry's scope, or any implementer did not emit a parseable Wiki Delta Hints block.
 
 7. Phase 6: Testing
    subject: "Phase 6: Testing"
@@ -287,6 +287,13 @@ CONTINUE WITH Phase 3.
 
 ### Phase 3: Planning
 
+Before spawning the planner, enumerate the implementer agents that actually exist in this project's `.claude/agents/`. The planner MUST constrain its `Recommended Implementers` mapping to this set:
+
+```bash
+AVAILABLE_IMPLEMENTERS=$(ls {{CONFIG_DIR}}/agents/implementer-*.md 2>/dev/null \
+  | xargs -n1 basename | sed 's/\.md$//' | tr '\n' ',' | sed 's/,$//')
+```
+
 Spawn `planner` via `Task(subagent_type: "planner", prompt: ...)`. Keep
 the prompt short — the planner's system prompt already covers
 methodology. Include only:
@@ -294,6 +301,10 @@ methodology. Include only:
 - Ticket ID and one-line summary.
 - Input paths (PATHS, not bodies): `$ARTIFACTS_DIR/context/ticket-context.md`,
   `$ARTIFACTS_DIR/context/wiki-context.md`.
+- Available implementers (planner MUST constrain its bucket→agent
+  mapping to this set — see the planner template's `Recommended
+  Implementers (per-service)` selection rule, step 3 fallback):
+  `$AVAILABLE_IMPLEMENTERS`.
 - Hard rules — re-call ban:
   - Do NOT re-call `mcp__code_graph__get_minimal_context_tool`. Phase 2
     already invoked it (at most once); the full payload is in
@@ -311,14 +322,10 @@ methodology. Include only:
 Persist the planner's returned markdown verbatim to
 `$ARTIFACTS_DIR/plans/implementation-plan.md`.
 
-Verify: plan file exists, contains `Wiki Evidence` and `Graph Evidence`,
-test strategy and target files are named, contains a
-`Recommended Implementer` section naming exactly one of
-`implementer-typescript` | `implementer-python` | `implementer-generic`,
-and (in `multi` mode) contains an `Affected Repositories` section
-listing each touched repo path with the files within it. In `single`
-mode the section may be absent — the parent/main agent infers it as
-the single workspace repo.
+Verify: plan file exists, contains `Wiki Evidence` and `Graph Evidence`, test strategy and target files are named, contains a `Recommended Implementers` section that is a non-empty ordered list where **every entry's agent name appears verbatim in `$AVAILABLE_IMPLEMENTERS`** (no recommending agents that are not installed under `.claude/agents/`), the service IDs it covers (derived from `framework-config.json::stack_profile.services`), and its scoped files; and (in `multi` mode) contains an `Affected Repositories` section listing each touched repo path with the files within it.
+In `single` mode the `Affected Repositories` section may be absent — the parent/main agent infers it as the single workspace repo. 
+
+`Recommended Implementers` and `Affected Repositories` are orthogonal: the former drives Phase 5 implementer dispatch (per stack), the latter drives Phase 8.4 commit + Phase 9 PR fanout (per git repo).
 
 CONTINUE WITH Phase 4.
 
@@ -333,17 +340,20 @@ CONTINUE WITH Phase 5.
 
 ### Phase 5: Implementation
 
-Spawn the stack-specific `implementer-{lang}` via
-`Task(subagent_type: <picked-from-plan>, prompt: ...)`. Pick the
-subagent_type from the planner's `Recommended Implementer`. Keep the
-prompt short — the implementer's system prompt already covers methodology.
-Include only:
+Parse the planner's `Recommended Implementers` section into an ordered list. For **each entry**, in the listed order, spawn the stack-specific implementer via `Task(subagent_type: <entry.agent>, prompt: ...)`.
+**Sequential** — wait for one to finish before spawning the next, so later implementers see earlier edits on disk (this matters when one stack's contract feeds another, e.g., a backend endpoint consumed by a frontend client).
+
+Keep each prompt short — the implementer's system prompt already covers
+methodology. Include only:
 
 - Ticket ID and one-line summary.
 - Input paths (PATHS, not bodies):
   `$ARTIFACTS_DIR/plans/implementation-plan.md`,
   `$ARTIFACTS_DIR/context/wiki-context.md`,
   `$ARTIFACTS_DIR/context/ticket-context.md`.
+- A `## Scoped Files` block containing ONLY this entry's files (verbatim
+  from the plan). The implementer MUST treat files outside this block as
+  out of scope.
 - Hard rules — re-call ban:
   - Do NOT re-call `mcp__code_graph__get_minimal_context_tool`. The
     Phase 2 payload (when present) is referenced in the plan; the
@@ -366,9 +376,9 @@ Include only:
   lacks a symbol). `mcp__code_graph__get_architecture_overview_tool` is
   forbidden.
 
-Verify: code changes exist; completion summary lists wiki pages consulted and any fresh graph checks; completion summary contains a `## Wiki Delta Hints` JSONL fenced block (may be empty, but section must be present).
+Verify, **per entry**: code changes exist within that entry's scope; the completion summary lists wiki pages consulted and any fresh graph checks; the completion summary contains a `## Wiki Delta Hints` JSONL fenced block (may be empty, but section must be present).
 
-CRITICAL: Do not proceed to Phase 6 if the implementer did not emit a parseable Wiki Delta Hints block.
+CRITICAL: Do not spawn the next entry — and do not proceed to Phase 6 — until the current entry has satisfied both checks. If any entry's implementer did not emit a parseable Wiki Delta Hints block, STOP.
 
 CONTINUE WITH Phase 6.
 
@@ -394,7 +404,7 @@ Otherwise:
 
 In a multi-repo workspace, run the test stack in each affected child repo and namespace coverage under `$ARTIFACTS_DIR/coverage/<repo-basename>/`.
 
-If tests fail: spawn implementer to fix issues. Max 3 fix iterations (global across all repos in multi-repo workspaces).
+If tests fail: map each failing test file back to its owning service via longest-prefix match on `stack_profile.services[].path`, then re-spawn ONLY the `Recommended Implementers` entries whose `Scoped Files` overlap with the failure set (in the original listed order). Max 3 fix iterations, **global** across all implementers and all repos in multi-repo workspaces.
 
 CRITICAL: If tests still fail after 3 iterations, STOP. Report failure. Do not continue.
 
@@ -477,12 +487,12 @@ For each PR URL produced by Phase 9 (single-repo: one URL; multi-repo: one per a
 - Run PR review: `/pr-reviewer --pr-url <URL> --jira-key <TICKET-ID> --mode automated [--repos <abs-repo-path>]`
 - Run security review: `/security-review --pr-url <URL> --jira-key <TICKET-ID> [--repos <abs-repo-path>] [--baseline <prior-findings.json>]`
 - If blocking issues found:
-  - Spawn implementer agent with fixes
+  - Map each finding's file path back to its owning service (longest-prefix on `stack_profile.services[].path`); re-spawn ONLY the `Recommended Implementers` entries whose `Scoped Files` overlap with the finding set, in the original listed order
   - Re-run tests
   - Re-review (max 3 iterations)
 - Exit when approved or max iterations reached
 
-In a multi-repo workspace, run the reviews once per PR URL produced by Phase 9 — each invocation passes the corresponding repo path via `--repos <abs>`. Fix commits land in the corresponding repo (`git -C <repo>`). The 3-iteration retry budget is global across all PRs.
+In a multi-repo workspace, run the reviews once per PR URL produced by Phase 9 — each invocation passes the corresponding repo path via `--repos <abs>`. Fix commits land in the corresponding repo (`git -C <repo>`). The 3-iteration retry budget is global across all PRs and all implementers.
 
 **Multi-repo aggregation (after the loop):** when more than one PR URL was reviewed for the same ticket, run a final aggregation pass:
 
@@ -515,8 +525,8 @@ If a phase fails:
 
 - `/fetch-ticket-context`: Phase 1 (Jira tickets only)
 - `mcp__code_graph__get_minimal_context_tool`: Phase 2 (called exactly once; result reused by planner)
-- `planner` agent: Phase 3 sole `Implementation Plan` author, context parser, Wiki Evidence and Graph Evidence owner
-- `implementer-{lang}` agent: Phase 5, Phase 6 (fixes), Phase 10 (fixes); consumes planner's Wiki+Graph evidence before any fresh discovery
+- `planner` agent: Phase 3 sole `Implementation Plan` author, context parser, Wiki Evidence and Graph Evidence owner, `Recommended Implementers` per-stack selector
+- `implementer-{lang}` agent: Phase 5 (one per stack from `stack_profile.services`, dispatched sequentially in the planner's listed order), Phase 6 (fixes — only the implementer(s) owning failing tests), Phase 10 (fixes — only the implementer(s) owning review findings); consumes planner's Wiki+Graph evidence before any fresh discovery, scoped per spawn to its entry's `Scoped Files`
 - `visual-verifier` agent: Phase 7
 - `/doc-updater`: Phase 8
 - `/wiki-refresh`: Phase 8.5 (auto-invoked with `--commit --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR`; reads per-repo commits from `.state.json`, surgically edits affected pages under a high-level-only conservatism rule, commits `docs/llm-wiki/**` itself when the wiki is git-tracked or emits a diff manifest + warning for Phase 9 otherwise)
