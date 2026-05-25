@@ -4,6 +4,23 @@ Optional, zero-config-by-default. If the env vars below are not set, QAF behaves
 
 ---
 
+## Configuration scope: global vs project
+
+Before following the steps below, decide where you want to configure the hook:
+
+| | Global | Project-scoped |
+|---|---|---|
+| **Config file** | `~/.claude/settings.json` | `<project>/.claude/settings.json` |
+| **Hook location** | `~/.claude/hooks/langfuse_hook.py` | `<project>/.claude/hooks/langfuse_hook.py` |
+| **Active for** | All Claude Code sessions on your machine | Only when Claude Code is opened from that project |
+| **Use when** | You want tracing everywhere | Different projects use different Langfuse projects or regions |
+
+**This guide uses the global paths throughout.** If you prefer project-scoped setup, replace every `~/.claude/` with `<project>/.claude/` as you follow the steps — everything else is identical.
+
+> **Note** — regardless of which scope you choose, hook state files (`langfuse_state.json`, `langfuse_hook.log`) are always written to `~/.claude/state/`.
+
+---
+
 ## What gets traced
 
 The Claude Code hook captures every QAF workflow turn as a hierarchical Langfuse trace:
@@ -65,11 +82,35 @@ Reference: https://langfuse.com/self-hosting/docker-compose
 
 ## Step 3 — Install the Python SDK
 
+The hook script imports `langfuse` at startup, so the library must be importable from whichever Python executable Claude Code finds on `PATH` when it fires the hook — this is the Python environment that is **active when you launch Claude Code**, not necessarily a globally installed one.
+
+**Global install (simplest):**
+
 ```bash
 pip install langfuse
 ```
 
-Verify:
+**Isolated env with `uv` (recommended if you prefer not to install globally):**
+
+```bash
+uv venv ~/.claude/hooks/.venv
+uv pip install --python ~/.claude/hooks/.venv langfuse
+```
+
+Then point the hook command at the venv's interpreter (adjust Step 6 accordingly):
+
+```
+~/.claude/hooks/.venv/bin/python ~/.claude/hooks/langfuse_hook.py
+```
+
+**Activate an existing venv before starting Claude Code:**
+
+```bash
+source .venv/bin/activate
+claude   # or however you launch Claude Code
+```
+
+Verify whichever approach you chose:
 
 ```bash
 python -c "from langfuse import Langfuse; print('OK')"
