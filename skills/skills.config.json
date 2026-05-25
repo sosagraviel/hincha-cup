@@ -95,6 +95,15 @@
       "compatible_languages": ["typescript", "javascript"]
     },
     {
+      "name": "e2e-test-architecture",
+      "path": "030-quality-assurance/e2e-test-architecture",
+      "description": "E2E test automation architecture patterns: Page Object Model (POM), BasePage, component objects, constants/selector files (test-ids, URLs, test-data), describe block naming conventions, test naming conventions, helper and fixture patterns. Use when setting up, extending, or reviewing a Playwright or Cypress test suite.",
+      "trigger_mode": "triggered",
+      "triggers": ["playwright", "cypress", "e2e", "page object", "POM", "test architecture", "test structure", "test helpers", "test fixtures", "selectors"],
+      "compatible_languages": ["typescript", "javascript"],
+      "is_linkable_to_agents": true
+    },
+    {
       "name": "playwright-e2e-automation",
       "path": "030-quality-assurance/playwright-e2e-automation",
       "description": "Playwright E2E testing automation",
