@@ -939,17 +939,16 @@ def main() -> int:
                 save_state(state)
                 return 0
 
-            # emit turns. The most recent turn attaches to the current trace
-            # established by UserPromptSubmit / mid-turn hooks. Any older turns
-            # we may be catching up on get their own ad-hoc trace ids.
+            # emit turns. All turns in a batch attach to the current trace when
+            # one is active — a multi-turn command (implement-ticket) accumulates
+            # turns before Stop fires, and they must all land on the same trace.
+            # Only orphaned catch-up turns (no active trace) get their own trace id.
             emitted = 0
-            total = len(turns)
             for idx, t in enumerate(turns):
                 emitted += 1
                 turn_num = ss.turn_count + emitted
                 cmd_turn_num = ss.command_turn_count + emitted  # relative to current command
-                is_latest = idx == total - 1
-                if is_latest and ss.current_trace_id:
+                if ss.current_trace_id:
                     t_tid = ss.current_trace_id
                     # Nest under active phase span so transcript turns appear
                     # inside the phase that was running when Stop fired.
