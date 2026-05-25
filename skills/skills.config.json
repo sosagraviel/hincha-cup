@@ -26,6 +26,12 @@
       "trigger_mode": "always"
     },
     {
+      "name": "apply-pr-feedback",
+      "path": "020-development-workflow/apply-pr-feedback",
+      "description": "Apply GitHub PR review feedback to an existing branch (no new PR; updates the same branch)",
+      "trigger_mode": "always"
+    },
+    {
       "name": "wiki-refresh",
       "path": "020-development-workflow/wiki-refresh",
       "description": "Incrementally refresh docs/llm-wiki/ after code changes. Use when wiki is stale or after merging a feature branch.",
