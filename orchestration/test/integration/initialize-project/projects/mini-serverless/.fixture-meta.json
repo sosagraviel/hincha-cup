@@ -15,7 +15,6 @@
     "linter_config": ["eslint.config.mjs", "pyproject.toml"],
     "formatter_config": ["prettier.config.mjs", ".prettierignore"],
     "editor_config": [".editorconfig"],
-    "vscode": [".vscode/settings.json", ".vscode/extensions.json"],
     "automation": [
       "Makefile",
       "scripts/sanity_check.sh",

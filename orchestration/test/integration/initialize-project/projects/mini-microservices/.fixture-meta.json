@@ -16,7 +16,6 @@
     "linter_config": [".golangci.yml", "pyproject.toml"],
     "formatter_config": ["prettier.config.mjs", ".prettierignore"],
     "editor_config": [".editorconfig"],
-    "vscode": [".vscode/settings.json", ".vscode/extensions.json"],
     "devcontainer": [".devcontainer/devcontainer.json"],
     "automation": ["Makefile", "scripts/setup.sh", "scripts/gen-protos.sh"],
     "containers": ["docker-compose.yml", "docker-compose.test.yml"],
