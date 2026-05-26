@@ -166,13 +166,13 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
       expect(codebaseGrepIdx).toBeGreaterThan(graphToolIdx);
     });
 
-    it('inference order has exactly 6 numbered steps', () => {
+    it('inference order has exactly 7 numbered steps', () => {
       const inferenceSection = content.slice(
         content.indexOf('Required inference order:'),
         content.indexOf('UI-specific handling must remain available:'),
       );
       const stepMatches = inferenceSection.match(/^\d+\./gm) ?? [];
-      expect(stepMatches).toHaveLength(6);
+      expect(stepMatches).toHaveLength(7);
     });
   });
 
