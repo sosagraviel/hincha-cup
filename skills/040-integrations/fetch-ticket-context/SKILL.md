@@ -650,6 +650,7 @@ cache_meta="$cache_dir/${JIRA_KEY}.meta.json"
 # Cache hit ONLY when both age and ticket.updated agree
 if [[ -f "$cache_file" && -f "$cache_meta" ]]; then
     cached_updated=$(jq -r '.ticket_updated' "$cache_meta")
+
     if stat -c %Y "$cache_file" >/dev/null 2>&1; then
         cache_mtime=$(stat -c %Y "$cache_file")
     else

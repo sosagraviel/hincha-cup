@@ -75,6 +75,27 @@ For full setup instructions, provider details, workflows, and guides see the [do
 
 ---
 
+## MCP integrations
+
+QAF skills can route user-input prompts through an MCP tool instead of console, enabling web UI, Slack, and ticketing backends to receive structured question batches.
+
+**Opt-in**: set `QAF_ASK_USER_MCP_TOOL=mcp__qaf__ask_user_questions` in your shell environment.
+
+**Payload contract**: documented in [`docs/mcp-user-questions/README.md`](./docs/mcp-user-questions/README.md)
+
+**Integration plan**: documented in [`docs/mcp-user-questions/README.md`](./docs/mcp-user-questions/README.md)
+
+**Hook scripts**: shipped under [`docs/mcp-user-questions/`](./docs/mcp-user-questions/). `/initialize-project` does **not** auto-install them. To enable the MCP path, follow the manual install steps in [`docs/mcp-user-questions/README.md`](./docs/mcp-user-questions/README.md): copy both scripts into your project, substitute the framework-version placeholder, register the `SessionStart` hook in `.claude/settings.json`, and `chmod +x` the result.
+
+**Requirement**: `jq` must be installed on the developer machine when this env var is set. Without `jq`, the payload builder exits with an actionable error.
+
+- macOS: `brew install jq`
+- Ubuntu/Debian: `sudo apt-get install jq`
+
+When `QAF_ASK_USER_MCP_TOOL` is unset, all skill behavior is identical to the console-only default — no hooks are required and no session file is read.
+
+---
+
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/thisisqubika/qubika-agentic-framework/issues)

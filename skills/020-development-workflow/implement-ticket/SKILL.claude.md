@@ -103,7 +103,7 @@ Create each task using TaskCreate with these exact values:
 5. Phase 4: Environment Setup
    subject: "Phase 4: Environment Setup"
    activeForm: "Setting up environment"
-   Steps: MUST branch from the currently active branch in each affected repo. MUST NOT `git checkout`/`switch` to another branch first, and MUST NOT pass a base argument to `git checkout -b`. Branching from any base other than the active branch REQUIRES explicit user consent via `AskUserQuestion` — never assume `main`/`master`/`development`. Then run `git -C <repo> checkout -b <new-branch>` per affected repo, and allocate ports / docker-compose override / env vars / BEFORE screenshots as needed.
+   Steps: MUST branch from the currently active branch in each affected repo. MUST NOT `git checkout`/`switch` to another branch first, and MUST NOT pass a base argument to `git checkout -b`. Branching from any base other than the active branch REQUIRES explicit user consent — when `QAF_ASK_USER_MCP_TOOL` is set, use the MCP payload path; otherwise use `AskUserQuestion` — never assume `main`/`master`/`development`. Then run `git -C <repo> checkout -b <new-branch>` per affected repo, and allocate ports / docker-compose override / env vars / BEFORE screenshots as needed.
    Expected outputs: feature branch created in each affected repo, rooted at the branch that was active when Phase 4 started
    Constraint: STOP if branching from anything other than the active branch without explicit user consent.
 
@@ -331,7 +331,18 @@ CONTINUE WITH Phase 4.
 
 ### Phase 4: Environment Setup
 
-- Create feature branch (e.g., `feature/PROJ-123-description`). **MUST branch from the currently active branch in each affected repo.** MUST NOT `git checkout`/`switch` to another branch first, and MUST NOT pass a base argument to `git checkout -b`. Branching from any base other than the active branch REQUIRES explicit user consent via `AskUserQuestion` — never assume `main`/`master`/`development`. Then run `git -C <repo> checkout -b <new-branch>` per affected repo.
+- Create feature branch (e.g., `feature/PROJ-123-description`). **MUST branch from the currently active branch in each affected repo.** MUST NOT `git checkout`/`switch` to another branch first, and MUST NOT pass a base argument to `git checkout -b`. Branching from any base other than the active branch REQUIRES explicit user consent — obtain it as follows:
+
+```bash
+if [[ -n "${QAF_ASK_USER_MCP_TOOL:-}" ]]; then
+  PAYLOAD=$(MCP_SKILL=implement-ticket MCP_PHASE=phase-4-branch-consent MCP_TICKET_ID="${TICKET_ID:-}" \
+    bash "$MCP_AUQ_HOOKS/build-mcp-payload.sh")
+  mcp__qaf__ask_user_questions "$(jq '.questions=[{id:"phase-4-branch-consent",question:"Which base should this branch use?",options:[{label:"Use active branch"},{label:"Use a different base"}],multi_select:false}]' <<<"$PAYLOAD")"
+else
+  AskUserQuestion "Branch consent: should I branch from the currently active branch, or use a different base? Never assume main/master/development."
+fi
+```
+
 - Allocate ports for services (if needed)
 - Create docker-compose override (if needed)
 - Capture BEFORE screenshots (if frontend) into `$ARTIFACTS_DIR/screenshots/before/`

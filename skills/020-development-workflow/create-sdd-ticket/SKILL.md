@@ -214,7 +214,29 @@ UI-specific handling must remain available:
 - ask all unresolved questions at once
 - avoid asking for information that could have been inferred from the repository
 
-Preferred question format:
+**Before choosing a path, you MUST detect the execution context by running this exact bash command and reading its literal output. Do NOT infer the value from prior context — run the check.**
+
+```bash
+echo "QAF_ASK_USER_MCP_TOOL=${QAF_ASK_USER_MCP_TOOL:-UNSET}"
+```
+
+- If the output ends in `=UNSET`, use the interactive-execution block below.
+- Otherwise (any non-empty value), use the autonomous-execution block below.
+
+When QAF_ASK_USER_MCP_TOOL is set (autonomous execution — questions are routed via MCP):
+
+```bash
+if [[ -n "${QAF_ASK_USER_MCP_TOOL:-}" ]]; then
+  PAYLOAD=$(MCP_SKILL=create-sdd-ticket MCP_PHASE=phase-3-gaps \
+    bash "$MCP_AUQ_HOOKS/build-mcp-payload.sh")
+  mkdir -p "$ARTIFACTS_DIR/decisions"
+  jq -r '.invocation.batch_id' <<<"$PAYLOAD" > "$ARTIFACTS_DIR/decisions/sdd-batch.txt"
+  QUESTIONS_JSON="<build questions array from unresolvedGaps>"
+  "$QAF_ASK_USER_MCP_TOOL" "$(jq --argjson q "$QUESTIONS_JSON" '.questions=$q' <<<"$PAYLOAD")"
+fi
+```
+
+When QAF_ASK_USER_MCP_TOOL is unset (interactive execution — engineer reads and replies inline):
 
 ```markdown
 I need clarification on ${unresolvedGaps.length} item(s) that could not be inferred:
@@ -607,6 +629,34 @@ Summarize:
 - the exact remaining questions
 
 Example:
+
+**Before choosing a path, you MUST detect the execution context by running this exact bash command and reading its literal output. Do NOT infer the value from prior context — run the check.**
+
+```bash
+echo "QAF_ASK_USER_MCP_TOOL=${QAF_ASK_USER_MCP_TOOL:-UNSET}"
+```
+
+- If the output ends in `=UNSET`, use the interactive-execution block below.
+- Otherwise (any non-empty value), use the autonomous-execution block below.
+
+When QAF_ASK_USER_MCP_TOOL is set (autonomous execution — questions are routed via MCP):
+
+```bash
+if [[ -n "${QAF_ASK_USER_MCP_TOOL:-}" ]]; then
+  HOOK_SCRIPT="${MCP_AUQ_HOOKS:-}/build-mcp-payload.sh"
+  if [[ ! -f "$CLAUDE_PROJECT_DIR/.claude-temp/sessions/session.json" || ! -f "$HOOK_SCRIPT" ]]; then
+    echo "QAF_ASK_USER_MCP_TOOL set but session or MCP_AUQ_HOOKS hook missing. See ask-user-questions-contract.md §3.3."
+    exit 1
+  fi
+  export MCP_SKILL=create-sdd-ticket MCP_PHASE=phase-3-gaps-reask
+  export MCP_PARENT_BATCH_ID="$(cat "$ARTIFACTS_DIR/decisions/sdd-batch.txt" 2>/dev/null || true)"
+  PAYLOAD=$(source "$HOOK_SCRIPT")
+  QUESTIONS_JSON="<build questions array from remaining unresolved gaps>"
+  "$QAF_ASK_USER_MCP_TOOL" "$(jq --argjson q "$QUESTIONS_JSON" '.questions=$q' <<<"$PAYLOAD")"
+fi
+```
+
+When QAF_ASK_USER_MCP_TOOL is unset (interactive execution — engineer reads and replies inline):
 
 ```markdown
 🧠 Gap Detection Summary:
