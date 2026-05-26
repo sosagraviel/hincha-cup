@@ -88,6 +88,9 @@ export function computeServiceIdRewrites(
     if (!Array.isArray(services)) continue;
     for (const s of services) {
       if (!isObject(s)) continue;
+      // Skip non-real services so they can't participate in id-collision
+      // accounting and block a real service's canonical rewrite.
+      if (s.service_is_real === false) continue;
       const legacyId = typeof s.id === 'string' ? s.id : undefined;
       const path = typeof s.path === 'string' ? s.path : undefined;
       if (!legacyId || !path) continue;

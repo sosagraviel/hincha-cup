@@ -80,6 +80,12 @@ export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInpu
   const services: CuratedSynthesisInput['summary']['services'] = [];
   for (const s of servicesRaw) {
     if (!isObject(s)) continue;
+    // Honor the structure analyzer's judgment: non-real services
+    // (config/tooling packages, migration/fixture-only dirs) must not enter
+    // the synthesis prompt — otherwise the LLM copies them into the
+    // Services & Ports table, Directory Structure tree, and File Placement
+    // Guide of the final CLAUDE.md.
+    if (s.service_is_real === false) continue;
     const id = typeof s.id === 'string' ? s.id : typeof s.name === 'string' ? s.name : null;
     if (!id) continue;
     const entry: CuratedSynthesisInput['summary']['services'][number] = { id };
