@@ -217,11 +217,7 @@ export async function createCodexCLIAgentImpl(
       const sessionInfo = isRetry ? `resume:${sessionId}` : sessionId;
       const authInfo = `Auth: Subscription, Provider: openai, Model: ${modelInfo.alias}, Cli: codex, CliVersion: v${codexCLI.version}, Session: ${sessionInfo}`;
 
-      logger.trackConcurrentAgentStart(
-        trackerId,
-        trackerDisplayName,
-        `${action} (${authInfo})`,
-      );
+      logger.trackConcurrentAgentStart(trackerId, trackerDisplayName, `${action} (${authInfo})`);
 
       const startTime = Date.now();
 
@@ -371,7 +367,12 @@ async function invokeCodexCLI(
       outcome: 'success',
       codexSessionIdOverride: codexSessionId ?? undefined,
     });
-    await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null, first.stdout);
+    await writeCodexGraphToolUsesSidecar(
+      config.projectPath,
+      run.sessionId,
+      codexSessionId ?? null,
+      first.stdout,
+    );
     await recorder.finalize('success', { code: first.code });
     await removeScratchDir();
     return { output, sessionId: run.sessionId, codexSessionId };
@@ -438,7 +439,12 @@ async function invokeCodexCLI(
       outcome: 'success',
       codexSessionIdOverride: codexSessionId ?? undefined,
     });
-    await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null, lastStdout);
+    await writeCodexGraphToolUsesSidecar(
+      config.projectPath,
+      run.sessionId,
+      codexSessionId ?? null,
+      lastStdout,
+    );
     await recorder.finalize('success', { code: 0 });
     await removeScratchDir();
     return { output, sessionId: run.sessionId, codexSessionId };
@@ -457,7 +463,12 @@ async function invokeCodexCLI(
     outcome: 'success',
     codexSessionIdOverride: codexSessionId ?? undefined,
   });
-  await writeCodexGraphToolUsesSidecar(config.projectPath, run.sessionId, codexSessionId ?? null, lastStdout);
+  await writeCodexGraphToolUsesSidecar(
+    config.projectPath,
+    run.sessionId,
+    codexSessionId ?? null,
+    lastStdout,
+  );
   await recorder.finalize('success', { code: 0, failureReason: 'internal-validation-exhausted' });
   await removeScratchDir();
   return { output, sessionId: run.sessionId, codexSessionId };

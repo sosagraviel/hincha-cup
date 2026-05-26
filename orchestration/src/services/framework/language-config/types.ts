@@ -30,6 +30,15 @@ export interface ManifestEntry {
    * Used by post-fill manifest-kind → manager mapping.
    */
   readonly manager?: string;
+  /**
+   * Whether this manifest marks a workspace root. Defaults to `true`.
+   * Set `false` for files that legitimately carry language/manager
+   * metadata but are not project entry points — e.g. `global.json`, an
+   * SDK-version pin that frequently coexists with a real workspace root
+   * (`package.json` + `global.json` for `dotnet tool install`). Treating
+   * such files as primary would false-positive `is_monorepo`.
+   */
+  readonly isPrimary?: boolean;
 }
 
 export interface LockFileEntry {
@@ -193,6 +202,13 @@ export interface LanguageConfig {
    * `implementer-generic`.
    */
   readonly hasImplementerAgent?: boolean;
+
+  /**
+   * Override for the `mastering-*` skill directory name when it differs
+   * from `key`. E.g. C# uses `key: 'csharp'` but the canonical skill lives
+   * under `mastering-dotnet-skill/`. Defaults to `key` when omitted.
+   */
+  readonly skillName?: string;
 
   /**
    * Marks an auxiliary file-type language (shell, sql, html, css, …) — one

@@ -297,10 +297,19 @@ export function manifestInfoMap(): Record<string, { language: string; type: stri
 
 /**
  * Manifest filenames the framework treats as workspace roots. Excludes lock
- * files and ambiguous-manager manifests.
+ * files, ambiguous-manager manifests, and entries explicitly marked
+ * `isPrimary: false` (e.g. `global.json`).
  */
 export function primaryManifestFilenames(): ReadonlySet<string> {
-  return new Set(Object.keys(manifestInfoMap()));
+  const nonPrimary = new Set<string>();
+  for (const entry of allManifests()) {
+    if (entry.isPrimary === false) nonPrimary.add(entry.kind);
+  }
+  const out = new Set<string>();
+  for (const name of Object.keys(manifestInfoMap())) {
+    if (!nonPrimary.has(name)) out.add(name);
+  }
+  return out;
 }
 
 /**

@@ -28,4 +28,12 @@ export const swift: LanguageConfig = {
     testRunners: ['xctest', 'quick', 'nimble'],
     commonFrameworks: ['vapor', 'kitura', 'perfect', 'hummingbird'],
   },
+  commandDefaults: {
+    lint: 'swiftlint lint',
+    format: 'swiftformat .',
+    typecheck: "xcodebuild build -destination 'platform=iOS Simulator,name=iPhone 16'",
+    test: "xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 16'",
+    build: "xcodebuild build -destination 'platform=iOS Simulator,name=iPhone 16'",
+  },
+  hasImplementerAgent: true,
 };

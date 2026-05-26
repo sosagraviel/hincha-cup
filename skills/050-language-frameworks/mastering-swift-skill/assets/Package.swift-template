@@ -1,0 +1,63 @@
+// swift-tools-version: 6.0
+// Copy this file to your project root as Package.swift and adjust as needed.
+import PackageDescription
+
+let package = Package(
+    name: "<#PackageName#>",
+
+    // Minimum supported platform versions
+    platforms: [
+        .iOS(.v17),
+        .macOS(.v14),
+        .watchOS(.v10),
+        .tvOS(.v17),
+    ],
+
+    // Exported products (libraries, executables, or plugins)
+    products: [
+        .library(
+            name: "<#PackageName#>",
+            targets: ["<#PackageName#>"]
+        ),
+        // Uncomment to add a CLI tool:
+        // .executable(name: "<#ToolName#>", targets: ["<#ToolName#>"]),
+    ],
+
+    // External dependencies — add as needed
+    dependencies: [
+        // .package(url: "https://github.com/apple/swift-algorithms", from: "1.2.0"),
+        // .package(url: "https://github.com/apple/swift-log", from: "1.5.4"),
+        // .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
+    ],
+
+    targets: [
+        // Main library target
+        .target(
+            name: "<#PackageName#>",
+            dependencies: [
+                // .product(name: "Algorithms", package: "swift-algorithms"),
+            ],
+            path: "Sources/<#PackageName#>",
+            swiftSettings: [
+                .swiftLanguageVersion(.v6),
+            ]
+        ),
+
+        // Uncomment for an executable target:
+        // .executableTarget(
+        //     name: "<#ToolName#>",
+        //     dependencies: ["<#PackageName#>"],
+        //     path: "Sources/<#ToolName#>"
+        // ),
+
+        // Test target
+        .testTarget(
+            name: "<#PackageName#>Tests",
+            dependencies: ["<#PackageName#>"],
+            path: "Tests/<#PackageName#>Tests",
+            swiftSettings: [
+                .swiftLanguageVersion(.v6),
+            ]
+        ),
+    ]
+)

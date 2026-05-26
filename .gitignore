@@ -49,3 +49,4 @@ qubika-agentic-framework/
 .claude/scheduled_tasks.lock
 
 .mcp.json
+package-lock.json

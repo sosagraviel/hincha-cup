@@ -361,14 +361,16 @@ describe('language-config registry', () => {
       const frameworkRoot = path.resolve(__dirname, '..', '..', '..', '..', '..', '..');
       const skillsDir = path.join(frameworkRoot, 'skills', '050-language-frameworks');
       for (const key of languagesWithImplementerAgent()) {
+        const cfg = getLanguageByKey(key);
+        const skillKey = cfg?.skillName ?? key;
         const candidates = [
-          path.join(skillsDir, `mastering-${key}-skill`, 'SKILL.md'),
-          path.join(skillsDir, `mastering-${key}`, 'SKILL.md'),
+          path.join(skillsDir, `mastering-${skillKey}-skill`, 'SKILL.md'),
+          path.join(skillsDir, `mastering-${skillKey}`, 'SKILL.md'),
         ];
         const ok = candidates.some((p) => fs.existsSync(p));
         expect(
           ok,
-          `'${key}' has hasImplementerAgent: true but no mastering-${key}(-skill)/SKILL.md exists. ` +
+          `'${key}' has hasImplementerAgent: true but no mastering-${skillKey}(-skill)/SKILL.md exists. ` +
             `Either add the skill at one of [${candidates.map((p) => path.relative(frameworkRoot, p)).join(', ')}], ` +
             `or remove hasImplementerAgent from languages/${key}.ts so the language falls through to implementer-generic.`,
         ).toBe(true);

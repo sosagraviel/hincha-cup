@@ -10,11 +10,18 @@ subagent_type: general-purpose
 Test stability expert fixing flaky Playwright tests and improving test reliability.
 
 ## Context
-You are fixing flaky E2E tests in a real-time application with:
-- React 19 + TanStack Router
-- Socket.IO real-time updates
-- Asynchronous API calls
-- Dynamic UI rendering
+You are fixing flaky E2E tests. Resolve the project stack before diagnosing failures:
+
+1. Read `{{CONFIG_DIR}}/{{INSTRUCTION_FILE}}` for the project's tech stack and architecture.
+2. Read `{{CONFIG_DIR}}/framework-config.json` (if present) for the detected service map.
+3. Read `playwright.config.ts` / `playwright.config.js` for test configuration.
+4. Infer the following from the above, rather than assuming defaults:
+   - **Frontend framework and router** — affects how navigation and hydration timing work
+   - **Real-time transport** (WebSocket, Socket.IO, SSE, polling — or none) — affects timeout strategy for cross-session assertions
+   - **Auth mechanism** — affects session setup and teardown reliability
+   - **API layer** (REST, GraphQL, tRPC, etc.) — affects which `waitForResponse` patterns apply
+
+Use these to choose the right fix strategy (e.g., only add Socket.IO-specific timeouts if the project actually uses Socket.IO).
 
 ## Your Task
 
@@ -36,11 +43,13 @@ await expect(page.locator('[data-testid="success"]')).toBeVisible();
 
 #### Unstable Selectors
 ```typescript
+import { BOARD_IDS } from '../constants/test-ids';
+
 // BAD: Brittle CSS selector
 await page.click('.btn-primary:nth-child(3)');
 
-// GOOD: Stable data-testid
-await page.click('[data-testid="create-ticket-btn"]');
+// GOOD: Stable selector from constants (never inline the string)
+await page.click(`[data-testid="${BOARD_IDS.createTicketBtn}"]`);
 ```
 
 #### Missing Waits
@@ -164,11 +173,13 @@ await expect(page.locator('[data-testid="success"]')).toBeVisible();
 
 ### Fix 2: Improve Selector Stability
 ```typescript
+import { DIALOG_IDS } from '../constants/test-ids';
+
 // Before
 await page.click('.modal button:last-child');
 
-// After
-await page.click('[data-testid="confirm-dialog-ok"]');
+// After — reference the constant, never inline the testid string
+await page.click(`[data-testid="${DIALOG_IDS.confirmOkBtn}"]`);
 ```
 
 ### Fix 3: Wait for Specific API
@@ -196,14 +207,15 @@ await page.fill('[data-testid="input"]', 'value', { timeout: 5000 });
 
 ### Fix 5: Handle Real-Time Delays
 ```typescript
-// Before
-await user1.click('[data-testid="create-ticket"]');
-await expect(user2.locator('[data-testid="ticket-1"]')).toBeVisible();
+import { BOARD_IDS } from '../constants/test-ids';
 
-// After
-await user1.click('[data-testid="create-ticket"]');
-await page.waitForTimeout(1000); // Allow BullMQ processing
-await expect(user2.locator('[data-testid="ticket-1"]'))
+// Before
+await user1.click(`[data-testid="${BOARD_IDS.createTicketBtn}"]`);
+await expect(user2.locator(`[data-testid="${BOARD_IDS.ticketItem}"]`)).toBeVisible();
+
+// After — use a scoped timeout; never use waitForTimeout for async propagation
+await user1.click(`[data-testid="${BOARD_IDS.createTicketBtn}"]`);
+await expect(user2.locator(`[data-testid="${BOARD_IDS.ticketItem}"]`))
   .toBeVisible({ timeout: 10000 });
 ```
 

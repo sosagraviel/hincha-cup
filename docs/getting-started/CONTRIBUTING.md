@@ -605,5 +605,6 @@ Thank you for contributing to the AI Agentic Framework! 🎉
 
 - [Architecture](../architecture/ARCHITECTURE.md) - How the framework works
 - [Adding Skills](../guides/ADDING_SKILLS.md) - Complete guide to adding and distributing skills
+- [Adding a Language](../guides/ADDING_A_LANGUAGE.md) - Checklist for wiring a new language end-to-end
 - [API Reference](../reference/API_REFERENCE.md) - Skills, agents, and commands
 - [Skill Catalog](../../SKILL_CATALOG.md) - Available skills with detection logic

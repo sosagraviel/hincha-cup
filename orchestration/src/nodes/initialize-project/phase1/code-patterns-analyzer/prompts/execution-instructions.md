@@ -81,6 +81,16 @@ principle-based: unit/component runners → `unit`; integration runners →
 `integration`; end-to-end runners → `e2e`. `config_file` defaults to
 the manifest path the framework was discovered in.
 
+**Sub-bucket override for directory-organised runners.** Some runners
+own all three tiers via directory convention rather than a separate
+runner per tier. When the runner is `rspec` or `minitest`, classify
+each test file by its directory prefix instead of the runner's default
+unit tier:
+
+- `spec/system/`, `spec/features/`, `test/system/` → `e2e` (Capybara-driven system tests)
+- `spec/requests/`, `spec/integration/` → `integration`
+- everything else → `unit`
+
 `file_count` is **optional in the schema** — emit it only when the
 graph bucketing in this step gave you the count for free. Do NOT Glob
 or Read to derive it.

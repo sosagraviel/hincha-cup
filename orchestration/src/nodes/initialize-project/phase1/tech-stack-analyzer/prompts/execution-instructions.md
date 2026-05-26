@@ -72,7 +72,8 @@ per credible category, name-token query:
 - **ORM / data-access**: typeorm / prisma / sequelize / sqlalchemy /
   django / gorm / diesel / hibernate / activerecord
 - **auth**: passport / jsonwebtoken / jose / auth0 / keycloak / oauth / oidc
-- **payments / email / monitoring**: stripe / sendgrid / sentry / datadog
+- **payments / email / monitoring**: stripe / sendgrid / mailgun / sentry / datadog / newrelic / paypal / algolia
+- **cloud**: aws-sdk / google-cloud / azure
 
 Mark each as `confirmed` (real import) vs `declared` (manifest-only).
 

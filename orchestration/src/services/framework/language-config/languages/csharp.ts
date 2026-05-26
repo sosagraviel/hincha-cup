@@ -15,7 +15,7 @@ export const csharp: LanguageConfig = {
     { kind: '*.csproj', format: 'xml', manager: 'nuget' },
     { kind: '*.sln', format: 'text', manager: 'nuget' },
     { kind: 'Directory.Build.props', format: 'xml', manager: 'nuget' },
-    { kind: 'global.json', format: 'json', manager: 'nuget' },
+    { kind: 'global.json', format: 'json', manager: 'nuget', isPrimary: false },
   ],
   lockFiles: [{ filename: 'packages.lock.json', manager: 'nuget' }],
   runtimeVersionFiles: [
@@ -99,4 +99,6 @@ export const csharp: LanguageConfig = {
     test: 'dotnet test',
     build: 'dotnet build',
   },
+  hasImplementerAgent: true,
+  skillName: 'dotnet',
 };

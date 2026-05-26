@@ -52,11 +52,11 @@ export const ruby: LanguageConfig = {
     ],
   },
   commandDefaults: {
-    lint: 'rubocop',
-    format: 'rubocop -a',
-    typecheck: 'bundle exec steep check',
+    lint: 'bundle exec rubocop',
+    format: 'bundle exec rubocop -a',
+    typecheck: '',
     test: 'bundle exec rspec',
-    build: 'bundle install',
+    build: '',
   },
   hasImplementerAgent: true,
 };

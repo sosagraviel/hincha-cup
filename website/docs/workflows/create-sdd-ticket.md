@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 2
 title: Create Implementation-Ready Tickets
 description: Transform ideas into detailed, actionable tickets with AI-powered analysis. Generates complete tickets with user stories, acceptance criteria, and technical notes.
 ---
@@ -111,21 +111,68 @@ $create-sdd-ticket --from-input "Make the app better" --save-to-markdown ./specs
 
 The AI automatically:
 
-1. **Understands Context** - Analyzes codebase for similar features
-2. **Expands Requirements** - Creates detailed user stories and acceptance criteria
-3. **Identifies Gaps** - Asks clarifying questions if needed
-4. **Structures Output** - Formats for developers
+1. **Injects Project Context** - Loads architectural conventions before anything else (see below)
+2. **Understands Context** - Analyzes codebase for similar features
+3. **Expands Requirements** - Creates detailed user stories and acceptance criteria
+4. **Identifies Gaps** - Asks clarifying questions if needed
+5. **Validates against INVEST** - Rejects and rewrites tickets that aren't Independent, Negotiable, Valuable, Estimable, Small, or Testable
+6. **Structures Output** - Formats for developers
+
+### Phase 0: Project Context Injection
+
+Before any ticket analysis, gap detection, or question generation, the skill
+invokes the `project-context` skill (generated for your project during
+`initialize-project`). This loads:
+
+- conventions and patterns already used in the codebase
+- integration points and known constraints
+- naming, testing, and deployment expectations
+- project-specific gotchas that should influence gap detection
+
+The result: every clarifying question and every BDD scenario is grounded in
+your project's actual reality — not generic best-practice guesses. A "should
+errors be returned as 4xx or as a problem-details body?" question only gets
+asked if your codebase doesn't already establish a convention.
+
+If the generated `project-context` skill isn't present (e.g. you've never run
+`initialize-project`), the skill falls back to reading `CLAUDE.md` and doing
+explicit codebase inspection. Context loading is treated as required work
+either way — it's never skipped.
 
 ### Gap Analysis
 
-If the AI needs more information, it asks questions like:
+If the AI still needs more information after Phase 0, it asks questions like:
 - "Should this work for all user roles or just admins?"
 - "What happens if the export takes more than 5 seconds?"
 - "Should users filter by date range?"
 
+Crucially, project-context-aware questions look more like:
+- "Your existing user list uses Algolia for search — should this export
+  pipeline reuse it, or should we paginate the SQL query directly?"
+- "I see error handling currently follows the `problem-details` RFC 7807
+  pattern in `src/api/errors/`. Should new error responses follow the same?"
+
 You can:
 - **Answer questions** for a complete ticket
 - **Skip for now** and add details later
+
+### INVEST Validation Gate
+
+Before output, every generated ticket is validated against the **INVEST**
+criteria:
+
+| Letter | Criterion | What gets rejected |
+|---|---|---|
+| **I**ndependent | No blocking dependencies | Tickets that say "depends on PROJ-X being done" |
+| **N**egotiable | Implementation flexibility | Tickets that prescribe exact code or libraries |
+| **V**aluable | Delivers user value | Refactors with no user-visible outcome |
+| **E**stimable | Clear enough to estimate | Vague scope ("improve performance") |
+| **S**mall | 1-3 days completable | Multi-week epics |
+| **T**estable | Clear acceptance criteria | Tickets without measurable success conditions |
+
+A ticket that fails any criterion is rewritten before output, or — if the
+input is fundamentally too vague to satisfy INVEST — the skill asks a
+targeted clarifying question instead of producing a low-quality ticket.
 
 ---
 

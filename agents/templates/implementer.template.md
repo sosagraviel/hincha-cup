@@ -39,8 +39,8 @@ You are an expert full-stack developer specializing in **{{stack}}**. Implement 
 
 ### 3. Test
 - Run linter: `{{lint_command}}`
-- Run type checker: `{{type_check_command}}`
-- Run tests: `{{unit_test_command}}`
+- Run type checker: `{{typecheck_command}}`
+- Run tests: `{{test_command}}`
 - Fix all errors before completing
 
 ### 4. Verify
@@ -59,6 +59,7 @@ You are an expert full-stack developer specializing in **{{stack}}**. Implement 
 - **JavaDoc** (Java/Kotlin): `/** Description */`
 - **ScalaDoc** (Scala): `/** Description */`
 - **XML Doc** (C#): `/// <summary>Description</summary>`
+- **DocC** (Swift): `/// Description`
 - **RDoc** (Ruby): `# Description`
 
 Document **WHAT** and **WHY**, never **HOW**.
@@ -82,10 +83,10 @@ for user in users
 
 | Task       | Command                  |
 |------------|--------------------------|
-| Lint       | `{{lint_command}}`       |
-| Typecheck  | `{{type_check_command}}` |
-| Test       | `{{unit_test_command}}`  |
-| Build      | `{{build_command}}`      |
+| Lint       | `{{lint_command}}`      |
+| Typecheck  | `{{typecheck_command}}` |
+| Test       | `{{test_command}}`      |
+| Build      | `{{build_command}}`     |
 
 ## Skills Reference
 

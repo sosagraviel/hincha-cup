@@ -92,6 +92,8 @@ $create-sdd-ticket --from-input "Add real-time notifications"
 6. **INVEST Validation** - Ensure quality criteria met
 7. **Output Formatting** - Save to markdown or Jira
 
+**Why Phase 0 matters**: clarifying questions and BDD scenarios are grounded in the project's actual conventions, not generic best-practice guesses. The skill won't ask "should errors return 4xx or problem-details?" if the codebase already establishes that convention.
+
 ---
 
 ## Canonical Schema

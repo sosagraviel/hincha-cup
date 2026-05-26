@@ -48,14 +48,47 @@ export interface AuthConfig {
 }
 
 /**
+ * Information about a detected Claude gateway deployment (Foundry / Bedrock / Vertex).
+ *
+ * When any of these are configured, the Claude CLI routes requests through the gateway
+ * using cloud-provider credentials (Azure / AWS / GCP) instead of `api.anthropic.com`,
+ * so neither `claude login` nor `ANTHROPIC_API_KEY` is required for the framework to run.
+ */
+interface ClaudeGateway {
+  type: 'foundry' | 'bedrock' | 'vertex';
+  description: string;
+}
+
+/**
+ * Detect whether the environment is configured to route Claude through a gateway
+ * (Azure AI Foundry, AWS Bedrock, or Google Vertex AI). Returns null if none is set.
+ */
+function detectClaudeGateway(): ClaudeGateway | null {
+  if (process.env.CLAUDE_CODE_USE_FOUNDRY === '1' && process.env.ANTHROPIC_FOUNDRY_RESOURCE) {
+    return {
+      type: 'foundry',
+      description: `Azure AI Foundry (resource: ${process.env.ANTHROPIC_FOUNDRY_RESOURCE})`,
+    };
+  }
+  if (process.env.CLAUDE_CODE_USE_BEDROCK === '1') {
+    return { type: 'bedrock', description: 'AWS Bedrock' };
+  }
+  if (process.env.CLAUDE_CODE_USE_VERTEX === '1') {
+    return { type: 'vertex', description: 'Google Vertex AI' };
+  }
+  return null;
+}
+
+/**
  * Detect available authentication methods and select the best option
  *
  * Priority order:
  * 1. Explicit PROVIDER (claude/codex)
- * 2. Provider API keys as CLI provider selectors (ANTHROPIC_API_KEY, OPENAI_API_KEY)
- * 3. Claude CLI with subscription authentication
- * 4. Codex CLI with subscription authentication
- * 5. None (error state)
+ * 2. Claude gateway env (Foundry / Bedrock / Vertex) — routes through cloud provider
+ * 3. Provider API keys as CLI provider selectors (ANTHROPIC_API_KEY, OPENAI_API_KEY)
+ * 4. Claude CLI with subscription authentication
+ * 5. Codex CLI with subscription authentication
+ * 6. None (error state)
  *
  * @returns Authentication configuration
  *
@@ -128,11 +161,32 @@ export async function detectAuthMode(): Promise<AuthConfig> {
           `Then authenticate: claude login`,
       );
     }
-    if (!anthropicKey && !(await isClaudeCLIAuthenticated())) {
+    const gateway = detectClaudeGateway();
+    if (!gateway && !anthropicKey && !(await isClaudeCLIAuthenticated())) {
       throw new Error(
         `Provider 'claude' was requested but Claude CLI is not authenticated.\n\n` +
-          `Please authenticate: claude login\n\n` +
-          `Or set ANTHROPIC_API_KEY before running the framework.`,
+          `Please choose one of the following:\n` +
+          `  - Run: claude login\n` +
+          `  - Set ANTHROPIC_API_KEY\n` +
+          `  - Configure a gateway: CLAUDE_CODE_USE_FOUNDRY=1 + ANTHROPIC_FOUNDRY_RESOURCE,\n` +
+          `    CLAUDE_CODE_USE_BEDROCK=1, or CLAUDE_CODE_USE_VERTEX=1`,
+      );
+    }
+    return {
+      mode: AuthMode.CLAUDE_CLI,
+      provider: 'anthropic',
+      hasAPIKey: !!anthropicKey,
+      ...baseConfig,
+    };
+  }
+
+  const gateway = detectClaudeGateway();
+  if (gateway) {
+    if (!hasClaudeCLI) {
+      throw new Error(
+        `${gateway.description} is configured for Claude, but Claude CLI is not installed.\n\n` +
+          `Install with: npm install -g @anthropic-ai/claude-code\n` +
+          `Or run: cd orchestration && pnpm install`,
       );
     }
     return {
@@ -414,6 +468,18 @@ export function getAuthErrorMessage(authConfig: AuthConfig): string {
     lines.push('  Then run: claude login');
     lines.push('');
   }
+
+  // Option 4: Cloud-provider gateways (Foundry / Bedrock / Vertex)
+  lines.push('Option 4: Route Claude through a cloud-provider gateway');
+  lines.push('  Azure AI Foundry:');
+  lines.push('    export CLAUDE_CODE_USE_FOUNDRY=1');
+  lines.push('    export ANTHROPIC_FOUNDRY_RESOURCE=<your-foundry-resource>');
+  lines.push('  AWS Bedrock:');
+  lines.push('    export CLAUDE_CODE_USE_BEDROCK=1');
+  lines.push('  Google Vertex AI:');
+  lines.push('    export CLAUDE_CODE_USE_VERTEX=1');
+  lines.push('  (Auth uses your Azure / AWS / GCP credentials — no Anthropic account needed.)');
+  lines.push('');
 
   lines.push('For more information, see:');
   lines.push('  - API Keys: https://platform.claude.com or https://platform.openai.com');

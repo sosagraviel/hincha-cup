@@ -68,12 +68,26 @@ Launch the healer agent from `./agents/healer.md` with the failing test.
 
 ### Test Location
 
-- E2E tests: `services/web-frontend/e2e/**/*.e2e.spec.ts`
+The E2E directory is project-specific. Resolve it in this order:
+1. `testDir` in `playwright.config.ts` / `playwright.config.js`
+2. First existing directory among: `e2e/`, `tests/e2e/`, `test/e2e/`, `playwright/`
+3. Default: `e2e/`
+
+Test files follow: `<E2E_DIR>/tests/<feature>.e2e.spec.ts`
+
+### Run Command
+
+The E2E command is project-specific. Resolve it in this order:
+1. `package.json` script whose name or value contains `playwright` or `e2e`
+   (priority: `test:e2e` > `e2e` > `test:playwright`)
+2. `npx playwright test` (fallback when `playwright.config.ts` exists but no script)
 
 ### Test Patterns
 
 ```typescript
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import { BOARD_IDS } from '../constants/test-ids';
+import { URLS } from '../constants/urls';
 
 test.describe('Ticket Board', () => {
   test('should create and update ticket with real-time sync', async ({
@@ -83,15 +97,21 @@ test.describe('Ticket Board', () => {
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
 
-    const page1 = await context1.newPage();
-    const page2 = await context2.newPage();
+    try {
+      const page1 = await context1.newPage();
+      const page2 = await context2.newPage();
 
-    // User 1 creates ticket
-    await page1.goto('/orgs/org-id/projects/project-id');
-    await page1.click('[data-testid="create-ticket"]');
+      // User 1 creates ticket — orgId and projectId come from apiHelper.createOrg / createProject in beforeAll
+      await page1.goto(URLS.board(seededOrgId, seededProjectId));
+      await page1.click(`[data-testid="${BOARD_IDS.createTicketBtn}"]`);
 
-    // User 2 sees real-time update
-    await expect(page2.locator('[data-testid="ticket-1"]')).toBeVisible();
+      // User 2 sees real-time update
+      await expect(page2.locator(`[data-testid="${BOARD_IDS.ticketItem}"]`))
+        .toBeVisible({ timeout: 5000 });
+    } finally {
+      await context1.close();
+      await context2.close();
+    }
   });
 });
 ```
@@ -106,17 +126,17 @@ test.describe('Ticket Board', () => {
 ## Commands
 
 ```bash
-# Run all E2E tests
-pnpm --filter web-frontend test:e2e
+# Run all E2E tests (replace E2E_COMMAND with detected value)
+$E2E_COMMAND
 
 # Run specific test file
-pnpm --filter web-frontend test:e2e -- ticket-board.e2e.spec.ts
+$E2E_COMMAND -- <E2E_DIR>/tests/ticket-board.e2e.spec.ts
 
-# Run in headed mode
-pnpm --filter web-frontend test:e2e -- --headed
+# Run in headed mode (Playwright)
+$E2E_COMMAND -- --headed
 
-# Debug mode
-pnpm --filter web-frontend test:e2e -- --debug
+# Debug mode (Playwright)
+$E2E_COMMAND -- --debug
 ```
 
 ## Agent Invocation Pattern
@@ -149,25 +169,47 @@ Task({
 For real-time features, always use multiple browser contexts:
 
 ```typescript
-test('chat message real-time delivery', async ({ browser }) => {
-  // User 1 context
-  const user1Context = await browser.newContext();
-  const user1Page = await user1Context.newPage();
+import { test, expect } from '../fixtures';
+import { CHAT_IDS } from '../constants/test-ids';
+import { URLS } from '../constants/urls';
+import { CHAT_DATA } from '../constants/test-data';
 
-  // User 2 context
-  const user2Context = await browser.newContext();
-  const user2Page = await user2Context.newPage();
+test.describe('Chat: Send message', () => {
+  let seededRoomId: string;
 
-  // Both users join same chat room
-  await user1Page.goto('/chat/room-123');
-  await user2Page.goto('/chat/room-123');
+  test.beforeAll(async ({ apiHelper }) => {
+    const room = await apiHelper.createRoom(CHAT_DATA.defaultRoomName);
+    seededRoomId = room.id;
+  });
 
-  // User 1 sends message
-  await user1Page.fill('[data-testid="message-input"]', 'Hello');
-  await user1Page.click('[data-testid="send-button"]');
+  test.afterAll(async ({ apiHelper }) => {
+    await apiHelper.deleteRoom(seededRoomId);
+  });
 
-  // User 2 receives message in real-time
-  await expect(user2Page.locator('text=Hello')).toBeVisible({ timeout: 5000 });
+  test('should deliver message to second user in real time', async ({ browser }) => {
+    const user1Context = await browser.newContext();
+    const user2Context = await browser.newContext();
+
+    try {
+      const user1Page = await user1Context.newPage();
+      const user2Page = await user2Context.newPage();
+
+      await user1Page.goto(URLS.chatRoom(seededRoomId));
+      await user2Page.goto(URLS.chatRoom(seededRoomId));
+
+      await user1Page.fill(`[data-testid="${CHAT_IDS.messageInput}"]`, CHAT_DATA.defaultMessage);
+      await user1Page.click(`[data-testid="${CHAT_IDS.sendBtn}"]`);
+
+      await expect(
+        user2Page.locator(`[data-testid="${CHAT_IDS.messageItem}"]`, {
+          hasText: CHAT_DATA.defaultMessage,
+        }),
+      ).toBeVisible({ timeout: 5000 });
+    } finally {
+      await user1Context.close();
+      await user2Context.close();
+    }
+  });
 });
 ```
 
