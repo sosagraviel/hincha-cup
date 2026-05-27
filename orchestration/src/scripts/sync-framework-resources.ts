@@ -30,6 +30,7 @@ import {
 import { resolveSkills } from '../nodes/initialize-project/phase5/skill-resolver.js';
 import { generateAgents } from '../nodes/initialize-project/phase5/agent-generator.js';
 import { upsertCodeGraphMcpConfig } from '../services/framework/mcp-config.service.js';
+import { copyPreflightScripts } from '../services/framework/preflight-scripts.service.js';
 import {
   resolveConfigPath,
   resolveFrameworkConfigPath,
@@ -481,6 +482,34 @@ async function removeLegacyCommandsDir(config: SyncConfig): Promise<void> {
 }
 
 /**
+ * Sync the Phase 0 preflight shim scripts (`ensure-context.sh` + `lib/resolve-paths.sh`)
+ * into the project's provider config directory.
+ *
+ * Returns `{ updated }` where `updated` is true if any file actually changed
+ * on disk; false on idempotent re-runs.
+ */
+export async function syncPreflightScripts(config: SyncConfig): Promise<{ updated: boolean }> {
+  logger.info('Step 7.5: Syncing preflight shim scripts...');
+
+  const result = copyPreflightScripts({
+    projectPath: config.projectPath,
+    frameworkPath: config.frameworkPath,
+    provider: getActiveProvider(),
+  });
+
+  if (result.changed) {
+    logger.success(
+      `  ✓ Preflight scripts synced: ${result.files.length} file(s) under ${result.scriptsDir}`,
+    );
+  } else {
+    logger.info(`  ℹ️  Preflight scripts already up to date (${result.scriptsDir})`);
+  }
+  logger.info('');
+
+  return { updated: result.changed };
+}
+
+/**
  * Sync project MCP config used by native Claude Code sessions.
  */
 export async function syncMcpConfig(config: SyncConfig): Promise<{
@@ -547,6 +576,8 @@ async function main() {
 
     await removeLegacyCommandsDir(config);
 
+    const preflightResult = await syncPreflightScripts(config);
+
     const mcpResult = await syncMcpConfig(config);
 
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -568,6 +599,7 @@ async function main() {
       agentsResult.updated +
       agentsResult.added +
       agentsResult.regenerated +
+      (preflightResult.updated ? 1 : 0) +
       (mcpResult.updated ? 1 : 0);
 
     if (totalChanges === 0) {

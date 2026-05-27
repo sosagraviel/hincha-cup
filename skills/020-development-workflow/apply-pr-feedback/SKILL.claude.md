@@ -79,7 +79,7 @@ Create each task using `TaskCreate` with these exact values:
 1. Phase 0: Preflight (Auto-bootstrap + Validation)
    subject: "Phase 0: Preflight (Auto-bootstrap + Validation)"
    activeForm: "Running deterministic preflight (auto-bootstrap + validation)"
-   Steps: (a) Run `bash $FRAMEWORK_PATH/scripts/ensure-context.sh --artifacts-dir "$ARTIFACTS_DIR"` — auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or updates the graph, re-emits `.mcp.json`, and writes `$ARTIFACTS_DIR/.preflight-ok`. (b) If the script exits non-zero, STOP and surface its output verbatim. (c) Defensive double-check: working tree of the target repo is clean, `HEAD` matches `--branch`, `gh` CLI is authenticated, Jira MCP is available when `--from-jira` is used, `.code-review-graph/graph.db` exists, project root `.mcp.json` has `mcpServers.code_graph`, `mcp__code_graph__*` tools visible in this session, `docs/llm-wiki/CLAUDE.md` exists, `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES}.md` exist with valid YAML frontmatter.
+   Steps: (a) Run `bash {{CONFIG_DIR}}/scripts/ensure-context.sh --artifacts-dir "$ARTIFACTS_DIR"` (anchored at the target repo root via `cd "$(git rev-parse --show-toplevel)"`) — auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or updates the graph, re-emits `.mcp.json`, and writes `$ARTIFACTS_DIR/.preflight-ok`. (b) If the script exits non-zero, STOP and surface its output verbatim. (c) Defensive double-check: working tree of the target repo is clean, `HEAD` matches `--branch`, `gh` CLI is authenticated, Jira MCP is available when `--from-jira` is used, `.code-review-graph/graph.db` exists, project root `.mcp.json` has `mcpServers.code_graph`, `mcp__code_graph__*` tools visible in this session, `docs/llm-wiki/CLAUDE.md` exists, `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES}.md` exist with valid YAML frontmatter.
    Expected outputs: `$ARTIFACTS_DIR/.preflight-ok` exists, git is clean in the target repo, current branch is `--branch`, tools available, graph DB present, MCP config present, graph tools visible, LLM wiki present and well-formed.
    Constraint: If `ensure-context.sh` exits non-zero, STOP and surface its output. If any defensive assertion fails despite a fresh marker, delete the marker, rerun `ensure-context.sh` once; if it still fails, STOP.
 
@@ -155,11 +155,12 @@ This phase has two parts. **Part A (auto-bootstrap) is mandatory and runs first.
 
 ```bash
 REPO="${REPO:-$(pwd)}"   # set from --repo or default to cwd
+cd "$(git -C "$REPO" rev-parse --show-toplevel)"
 PR_NUMBER="<from --pr-number>"
 TICKET_ID="<resolved-id>"
 ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"
 mkdir -p "$ARTIFACTS_DIR/pr/$PR_NUMBER/commits"
-bash "$FRAMEWORK_PATH/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR"
+bash "{{CONFIG_DIR}}/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR"
 ```
 
 If the script exits non-zero, STOP and surface its output verbatim. Failure marker `$ARTIFACTS_DIR/.preflight-failed` carries `{reason, git_head, ran_at}`.

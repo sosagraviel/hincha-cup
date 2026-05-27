@@ -39,7 +39,8 @@ Execute these in order, starting at Phase 0. Do NOT skip ahead. Provider note: e
 Run the deterministic preflight before any wiki work. It auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds/updates the code graph, re-emits `.mcp.json` (or `.codex/config.toml`), and writes a success marker.
 
 ```bash
-bash "$FRAMEWORK_PATH/scripts/ensure-context.sh"
+cd "$(git rev-parse --show-toplevel)"
+bash "{{CONFIG_DIR}}/scripts/ensure-context.sh"
 ```
 
 The Phase 6 `mcp__code_graph__*` calls assume this preflight succeeded.

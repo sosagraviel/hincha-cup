@@ -276,7 +276,7 @@ describe('SKILL.claude.md — Phase F regression', () => {
     it('Phase 0 invokes ensure-context.sh as its first step', () => {
       const section = extractPhase0Section(content);
       expect(section).toMatch(
-        /bash\s+"?\$FRAMEWORK_PATH\/scripts\/ensure-context\.sh"?\s+--artifacts-dir\s+"?\$ARTIFACTS_DIR"?/,
+        /bash\s+"?\{\{CONFIG_DIR\}\}\/scripts\/ensure-context\.sh"?\s+--artifacts-dir\s+"?\$ARTIFACTS_DIR"?/,
       );
     });
 
@@ -484,7 +484,7 @@ describe('SKILL.codex.md — Phase F regression (symmetric)', () => {
     it('Phase 0 invokes ensure-context.sh as its first step', () => {
       const section = extractPhase0Section(content);
       expect(section).toMatch(
-        /bash\s+"?\$FRAMEWORK_PATH\/scripts\/ensure-context\.sh"?\s+--artifacts-dir\s+"?\$ARTIFACTS_DIR"?/,
+        /bash\s+"?\{\{CONFIG_DIR\}\}\/scripts\/ensure-context\.sh"?\s+--artifacts-dir\s+"?\$ARTIFACTS_DIR"?/,
       );
     });
 

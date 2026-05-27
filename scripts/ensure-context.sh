@@ -41,7 +41,43 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/resolve-paths.sh"
 
 PROJECT_PATH="$(project_path)"
-FRAMEWORK_PATH="$(framework_path)"
+FRAMEWORK_PATH="$(framework_path)" || {
+  # resolve-paths.sh already printed the diagnostic. Emit a structured failure
+  # marker so callers (the skill body) can surface a consistent state.
+  FAILED_DIR="${ARTIFACTS_DIR:-$PROJECT_PATH/.claude-temp/preflight}"
+  mkdir -p "$FAILED_DIR" 2>/dev/null || true
+  cat > "$FAILED_DIR/.preflight-failed" 2>/dev/null <<EOF
+{
+  "reason": "framework_not_found",
+  "ran_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+}
+EOF
+  exit 4
+}
+
+REQUIRED_FRAMEWORK_FILES=(
+  "$FRAMEWORK_PATH/scripts/setup-code-graph.sh"
+  "$FRAMEWORK_PATH/scripts/code-review-graph-mcp.sh"
+)
+for __required in "${REQUIRED_FRAMEWORK_FILES[@]}"; do
+  if [ ! -f "$__required" ]; then
+    echo "[ensure-context] ERROR: required framework file missing: $__required" >&2
+    echo "[ensure-context] The framework checkout at $FRAMEWORK_PATH appears to be incomplete." >&2
+    echo "[ensure-context] Remediation: re-clone https://github.com/thisisqubika/qubika-agentic-framework into $PROJECT_PATH/qubika-agentic-framework or export FRAMEWORK_PATH to a complete checkout." >&2
+    FAILED_DIR="${ARTIFACTS_DIR:-$PROJECT_PATH/.claude-temp/preflight}"
+    mkdir -p "$FAILED_DIR" 2>/dev/null || true
+    cat > "$FAILED_DIR/.preflight-failed" 2>/dev/null <<EOF
+{
+  "reason": "framework_not_found",
+  "missing": "$__required",
+  "framework_path": "$FRAMEWORK_PATH",
+  "ran_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+}
+EOF
+    exit 4
+  fi
+done
+unset __required REQUIRED_FRAMEWORK_FILES
 
 # ---------- option parsing ----------
 ARTIFACTS_DIR=""
