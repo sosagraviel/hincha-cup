@@ -1,12 +1,14 @@
 /**
- * Copies the Phase 0 preflight shim into a project's provider config directory.
+ * Copies the preflight scripts and their dependencies into a project's
+ * provider config directory so that engineers can run `ensure-context.sh`
+ * without a `qubika-agentic-framework/` checkout present in their project.
  *
  * Skills like `/implement-ticket`, `/create-sdd-ticket`, `/wiki-refresh`, and
  * `/apply-pr-feedback` call `bash {{CONFIG_DIR}}/scripts/ensure-context.sh` as
- * their first phase. The shim files copied here let those skills locate the
- * real framework checkout without the engineer having to export
- * `FRAMEWORK_PATH` in their shell — `scripts/lib/resolve-paths.sh` runs in
- * dual mode and walks a fallback chain when it detects it is the shim copy.
+ * their literal first phase; the script transitively invokes `setup-code-graph.sh`
+ * and writes a `.mcp.json` (or `.codex/config.toml`) that points at the shipped
+ * `code-review-graph-mcp.sh`. All of those live inside `<configDir>/scripts/`
+ * after this service runs, so no `$FRAMEWORK_PATH` lookup is needed at runtime.
  *
  * Idempotent: re-running with no source changes is a no-op (no rewrite, no
  * touch of file mtime).
@@ -40,8 +42,43 @@ const PREFLIGHT_SCRIPTS: PreflightScriptSpec[] = [
     executable: true,
   },
   {
-    source: 'scripts/lib/resolve-paths.sh',
+    source: 'scripts/setup-code-graph.sh',
+    dest: 'setup-code-graph.sh',
+    executable: true,
+  },
+  {
+    source: 'scripts/code-review-graph-mcp.sh',
+    dest: 'code-review-graph-mcp.sh',
+    executable: true,
+  },
+  {
+    source: 'scripts/lib/resolve-paths.shim.sh',
     dest: 'lib/resolve-paths.sh',
+    executable: false,
+  },
+  {
+    source: 'scripts/lib/bootstrap-uv.sh',
+    dest: 'lib/bootstrap-uv.sh',
+    executable: false,
+  },
+  {
+    source: 'scripts/lib/register-submodules.sh',
+    dest: 'lib/register-submodules.sh',
+    executable: false,
+  },
+  {
+    source: 'scripts/lib/patch-code-review-graph.py',
+    dest: 'lib/patch-code-review-graph.py',
+    executable: false,
+  },
+  {
+    source: 'templates/code-review-graphignore',
+    dest: 'templates/code-review-graphignore',
+    executable: false,
+  },
+  {
+    source: 'templates/code-review-graph-gitignore',
+    dest: 'templates/code-review-graph-gitignore',
     executable: false,
   },
 ];

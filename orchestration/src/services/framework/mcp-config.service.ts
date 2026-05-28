@@ -31,15 +31,31 @@ export interface CodeGraphMcpValidationResult {
 const CODE_GRAPH_SERVER_NAME = 'code_graph';
 const CODEX_CONFIG_FILE = 'config.toml';
 
-export function getCodeGraphMcpServer(projectPath: string, frameworkPath: string) {
+/**
+ * Build the expected `code_graph` MCP server config for a project. The launcher
+ * path prefers the shipped copy inside the project's provider config dir
+ * (`<project>/.claude/scripts/code-review-graph-mcp.sh`) so the MCP server keeps
+ * working when the user has no `qubika-agentic-framework/` checkout in their
+ * project. Falls back to the framework's own copy when the shipped one is
+ * absent — covers framework dogfooding before sync has populated `.claude/`,
+ * plus any other pre-bootstrap state.
+ *
+ * This is the single source of truth for the launcher path; `ensure-context.sh`
+ * resolves it from `$SCRIPT_DIR` and both writers agree by construction in
+ * every layout we support.
+ */
+export function getCodeGraphMcpServer(
+  projectPath: string,
+  frameworkPath: string,
+  provider: Provider = getActiveProvider(),
+) {
+  const { configDir } = getProviderPaths(provider);
+  const shippedLauncher = join(projectPath, configDir, 'scripts', 'code-review-graph-mcp.sh');
+  const frameworkLauncher = join(frameworkPath, 'scripts', 'code-review-graph-mcp.sh');
+  const launcher = existsSync(shippedLauncher) ? shippedLauncher : frameworkLauncher;
   return {
     command: 'bash',
-    args: [
-      join(frameworkPath, 'scripts', 'code-review-graph-mcp.sh'),
-      'serve',
-      '--repo',
-      projectPath,
-    ],
+    args: [launcher, 'serve', '--repo', projectPath],
   };
 }
 
@@ -62,7 +78,7 @@ function upsertClaudeCodeGraphMcpConfig(params: {
 }): CodeGraphMcpConfigResult {
   const { projectPath, frameworkPath } = params;
   const configPath = join(projectPath, '.mcp.json');
-  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath);
+  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath, Provider.CLAUDE);
 
   let config: McpConfig = {};
   let backedUp = false;
@@ -125,7 +141,7 @@ function validateClaudeCodeGraphMcpConfig(params: {
 }): CodeGraphMcpValidationResult {
   const { projectPath, frameworkPath } = params;
   const configPath = join(projectPath, '.mcp.json');
-  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath);
+  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath, Provider.CLAUDE);
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -187,7 +203,7 @@ function upsertCodexCodeGraphMcpConfig(params: {
   const { projectPath, frameworkPath } = params;
   const configDir = join(projectPath, getProviderPaths(Provider.CODEX).configDir);
   const configPath = join(configDir, CODEX_CONFIG_FILE);
-  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath);
+  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath, Provider.CODEX);
   const existingContent = existsSync(configPath) ? readFileSync(configPath, 'utf-8') : '';
   const existingServer = extractCodeGraphMcpTomlServer(existingContent);
   const changed = !codexMcpServerMatches(existingServer, expectedServer);
@@ -292,7 +308,7 @@ function validateCodexCodeGraphMcpConfig(params: {
     getProviderPaths(Provider.CODEX).configDir,
     CODEX_CONFIG_FILE,
   );
-  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath);
+  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath, Provider.CODEX);
   const errors: string[] = [];
   const warnings: string[] = [];
 

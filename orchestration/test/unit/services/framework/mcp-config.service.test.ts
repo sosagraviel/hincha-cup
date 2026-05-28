@@ -22,13 +22,16 @@ describe('mcp-config.service', () => {
     tempDir = mkdtempSync(join(tmpdir(), 'mcp-config-service-'));
     const projectPath = join(tempDir, 'project');
     const frameworkPath = join(tempDir, 'framework');
-    mkdirSync(join(projectPath, provider === Provider.CODEX ? '.codex' : '.claude'), {
-      recursive: true,
-    });
+    const configDir = provider === Provider.CODEX ? '.codex' : '.claude';
+    mkdirSync(join(projectPath, configDir, 'scripts'), { recursive: true });
     mkdirSync(join(frameworkPath, 'scripts'), { recursive: true });
     mkdirSync(join(projectPath, '.code-review-graph'), { recursive: true });
     writeFileSync(join(projectPath, '.code-review-graph/graph.db'), '');
     writeFileSync(join(frameworkPath, 'scripts', 'code-review-graph-mcp.sh'), '#!/bin/bash\n');
+    writeFileSync(
+      join(projectPath, configDir, 'scripts', 'code-review-graph-mcp.sh'),
+      '#!/bin/bash\n',
+    );
     return { projectPath, frameworkPath };
   }
 
@@ -46,7 +49,7 @@ describe('mcp-config.service', () => {
     expect(config.mcpServers.code_graph).toEqual({
       command: 'bash',
       args: [
-        join(frameworkPath, 'scripts', 'code-review-graph-mcp.sh'),
+        join(projectPath, '.claude', 'scripts', 'code-review-graph-mcp.sh'),
         'serve',
         '--repo',
         projectPath,
@@ -137,7 +140,7 @@ describe('mcp-config.service', () => {
     expect(config).toContain('[mcp_servers.code_graph]');
     expect(config).toContain('command = "bash"');
     expect(config).toContain(
-      `args = ["${join(frameworkPath, 'scripts', 'code-review-graph-mcp.sh')}", "serve", "--repo", "${projectPath}"]`,
+      `args = ["${join(projectPath, '.codex', 'scripts', 'code-review-graph-mcp.sh')}", "serve", "--repo", "${projectPath}"]`,
     );
   });
 
@@ -211,5 +214,17 @@ describe('mcp-config.service', () => {
 
     expect(result.valid).toBe(true);
     expect(result.errors).toEqual([]);
+  });
+
+  it('falls back to the framework launcher when the shipped one is absent (dogfood)', () => {
+    const { projectPath, frameworkPath } = createWorkspace();
+    rmSync(join(projectPath, '.claude', 'scripts', 'code-review-graph-mcp.sh'));
+
+    upsertCodeGraphMcpConfig({ projectPath, frameworkPath, provider: Provider.CLAUDE });
+
+    const config = JSON.parse(readFileSync(join(projectPath, '.mcp.json'), 'utf-8'));
+    expect(config.mcpServers.code_graph.args[0]).toBe(
+      join(frameworkPath, 'scripts', 'code-review-graph-mcp.sh'),
+    );
   });
 });
