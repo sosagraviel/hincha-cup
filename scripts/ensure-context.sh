@@ -199,7 +199,7 @@ block = (
     "]\n"
 )
 
-pattern = re.compile(r'^\[mcp_servers\.code_graph\][^\[]*', re.MULTILINE)
+pattern = re.compile(r'^\[mcp_servers\.code_graph\].*?(?=^\[|\Z)', re.MULTILINE | re.DOTALL)
 without = pattern.sub('', existing).rstrip()
 new_content = (without + "\n\n" + block) if without else block
 

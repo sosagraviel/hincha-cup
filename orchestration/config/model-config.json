@@ -284,6 +284,30 @@
         "wiki-generator": "gemini-latest",
         "question-consolidator": "gemini-latest"
       }
+    },
+    "codex-fast": {
+      "description": "Codex fast tier — gpt-5.4-mini for all agents. Use with --provider codex for faster, cheaper runs.",
+      "provider": "openai",
+      "agents": {
+        "planner": "gpt5-mini",
+        "implementer": "gpt5-mini",
+        "implementer-generic": "gpt5-mini",
+        "implementer-typescript": "gpt5-mini",
+        "implementer-python": "gpt5-mini",
+        "implementer-go": "gpt5-mini",
+        "implementer-java": "gpt5-mini",
+        "implementer-rust": "gpt5-mini",
+        "reviewer": "gpt5-mini",
+        "visual-verifier": "gpt5-mini",
+        "structure-architecture-analyzer": "gpt5-mini",
+        "tech-stack-dependencies-analyzer": "gpt5-mini",
+        "code-patterns-testing-analyzer": "gpt5-mini",
+        "data-flows-integrations-analyzer": "gpt5-mini",
+        "service-detail-extractor": "gpt5-mini",
+        "architect-synthesizer": { "alias": "gpt5-mini", "reasoningEffort": "medium" },
+        "wiki-generator": { "alias": "gpt5-mini", "reasoningEffort": "low" },
+        "question-consolidator": "gpt5-mini"
+      }
     }
   },
   "thinkingBudgets": {

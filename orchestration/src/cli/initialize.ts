@@ -24,6 +24,44 @@ import { renderRunIndexHtml } from '../services/framework/transcripts/index.js';
 import { parseIgnoreFlag } from './parse-ignore-flag.js';
 import { loadClaudeSettingsEnv } from '../auth/claude-settings-loader.js';
 
+/**
+ * Maps a generic speed tier name to the correct Codex tier.
+ * Allows `MODEL_TIER=fast` to work the same way for both Claude and Codex.
+ */
+const CLAUDE_TO_CODEX_TIER: Record<string, string> = {
+  fast: 'codex-fast',
+  standard: 'openai',
+  advanced: 'openai',
+};
+
+function resolveCodexTier(tier: string | undefined, log: typeof logger): string {
+  const t = tier ?? 'standard';
+  if (t in CLAUDE_TO_CODEX_TIER) {
+    const mapped = CLAUDE_TO_CODEX_TIER[t];
+    if (t !== mapped) {
+      log.info(`Mapped tier '${t}' → '${mapped}' for Codex provider`);
+    }
+    return mapped;
+  }
+  // Already a codex-native tier (openai, codex-fast, gemini, …) — pass through.
+  return t;
+}
+
+const CODEX_TO_CLAUDE_TIER: Record<string, string> = {
+  openai: 'standard',
+  'codex-fast': 'fast',
+};
+
+function resolveClaudeTier(tier: string | undefined, log: typeof logger): string {
+  const t = tier ?? 'standard';
+  if (t in CODEX_TO_CLAUDE_TIER) {
+    const mapped = CODEX_TO_CLAUDE_TIER[t];
+    log.info(`Mapped tier '${t}' → '${mapped}' for Claude provider`);
+    return mapped;
+  }
+  return t;
+}
+
 const program = new Command();
 
 program
@@ -121,12 +159,11 @@ program
         if (providerLower === 'codex' || providerLower === 'openai') {
           setActiveProvider(Provider.CODEX);
           process.env.PROVIDER = 'codex';
-          if (!options.modelTier) {
-            process.env.MODEL_TIER = 'openai';
-          }
+          process.env.MODEL_TIER = resolveCodexTier(process.env.MODEL_TIER, logger);
         } else if (providerLower === 'claude' || providerLower === 'anthropic') {
           setActiveProvider(Provider.CLAUDE);
           process.env.PROVIDER = 'claude';
+          process.env.MODEL_TIER = resolveClaudeTier(process.env.MODEL_TIER, logger);
         } else {
           logger.error(`Unknown provider: ${options.provider}. Use 'claude' or 'codex'.`);
           process.exit(1);
@@ -225,14 +262,15 @@ program
         if (preflightResult.authMode === 'claude_cli') {
           setActiveProvider(Provider.CLAUDE);
           process.env.PROVIDER = 'claude';
+          process.env.MODEL_TIER = resolveClaudeTier(process.env.MODEL_TIER, logger);
+          resetLLMFactory();
+          llmFactory = getLLMFactory();
         } else if (preflightResult.authMode === 'codex_cli') {
           setActiveProvider(Provider.CODEX);
           process.env.PROVIDER = 'codex';
-          if (!options.modelTier) {
-            process.env.MODEL_TIER = 'openai';
-            resetLLMFactory();
-            llmFactory = getLLMFactory();
-          }
+          process.env.MODEL_TIER = resolveCodexTier(process.env.MODEL_TIER, logger);
+          resetLLMFactory();
+          llmFactory = getLLMFactory();
         }
       }
 

@@ -111,7 +111,8 @@ function parseTomlStringValue(block: string, key: string): string | undefined {
 }
 
 function parseTomlStringArrayValue(block: string, key: string): string[] | undefined {
-  const match = block.match(new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*\\[([^\\]]*)\\]`, 'm'));
+  // Match both single-line `args = ["a", "b"]` and multi-line `args = [\n  "a",\n  "b",\n]`.
+  const match = block.match(new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*\\[([^\\]]*)\\]`, 'ms'));
   if (!match) return undefined;
 
   const values: string[] = [];
