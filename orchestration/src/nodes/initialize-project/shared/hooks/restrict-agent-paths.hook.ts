@@ -45,6 +45,7 @@
 
 import path from 'path';
 import process from 'process';
+import { isPathExcluded } from '../../../../utils/shared/prompt-loader.js';
 
 interface HookInput {
   session_id?: string;
@@ -94,11 +95,26 @@ function isInside(abs: string, root: string): boolean {
   return !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
-function findExcludedSegment(abs: string, excluded: string[]): string | null {
+/**
+ * Return the excluded-list entry that matches `abs`, or null. Single-segment
+ * entries match wherever they appear as a path component in `abs` (any-depth
+ * semantics, applied without needing `projectPath`). Multi-segment entries
+ * like `orchestration/test/integration/initialize-project` are
+ * project-root-anchored — we convert `abs` to a project-relative path before
+ * comparison so the prefix match is meaningful.
+ */
+function findExcludedMatch(abs: string, projectPath: string, excluded: string[]): string | null {
   const segments = abs.split(path.sep);
-  for (const seg of segments) {
-    if (!seg) continue;
-    if (excluded.includes(seg)) return seg;
+  for (const entry of excluded) {
+    if (!entry || entry.includes('/') || entry.includes('\\')) continue;
+    if (segments.includes(entry)) return entry;
+  }
+  if (isInside(abs, projectPath)) {
+    const rel = path.relative(projectPath, abs);
+    for (const entry of excluded) {
+      if (!entry || !(entry.includes('/') || entry.includes('\\'))) continue;
+      if (isPathExcluded(rel, [entry])) return entry;
+    }
   }
   return null;
 }
@@ -236,8 +252,10 @@ function scanBashCommand(
     if (!isInside(abs, projectPath)) {
       return { reason: `absolute path '${abs}' escapes the project (${projectPath})` };
     }
-    const seg = findExcludedSegment(abs, excluded);
-    if (seg) return { reason: `path '${abs}' contains excluded dir '${seg}'` };
+    const excludedMatch = findExcludedMatch(abs, projectPath, excluded);
+    if (excludedMatch) {
+      return { reason: `path '${abs}' contains excluded dir '${excludedMatch}'` };
+    }
   }
 
   let matchedEnumerator = false;
@@ -270,8 +288,19 @@ function scanBashCommand(
 function validateGlobPattern(input: Record<string, unknown>, excluded: string[]): string | null {
   const pattern = (input.pattern as string | undefined) ?? '';
   if (!pattern) return null;
+  const segments = pattern.split(/[\/\\]/);
   for (const dir of excluded) {
-    if (pattern.split(/[\/\\]/).some((seg) => seg === dir)) {
+    if (!dir) continue;
+    if (dir.includes('/') || dir.includes('\\')) {
+      const normalisedPattern = pattern.replace(/\\/g, '/').replace(/^\.\/+/, '');
+      const normalisedDir = dir.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+      if (
+        normalisedPattern === normalisedDir ||
+        normalisedPattern.startsWith(normalisedDir + '/')
+      ) {
+        return `glob pattern enters excluded dir '${dir}'`;
+      }
+    } else if (segments.some((seg) => seg === dir)) {
       return `glob pattern enters excluded dir '${dir}'`;
     }
   }
@@ -417,11 +446,11 @@ async function main(): Promise<void> {
       );
     }
 
-    const seg = findExcludedSegment(abs, cfg.excluded);
-    if (seg) {
+    const match = findExcludedMatch(abs, cfg.projectPath, cfg.excluded);
+    if (match) {
       return block(
         [
-          `❌ PATH EXCLUSION: ${toolName} blocked — path enters excluded dir '${seg}'.`,
+          `❌ PATH EXCLUSION: ${toolName} blocked — path enters excluded dir '${match}'.`,
           `  Tool arg: ${argName}=${rawPath}`,
           `  Resolved: ${abs}`,
           ``,

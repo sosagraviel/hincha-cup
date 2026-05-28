@@ -6,6 +6,7 @@ import {
   EXTRA_IGNORE_PATHS_FILENAME,
   STANDARD_IGNORE_DIRS,
   getExcludedDirectories,
+  isPathExcluded,
   readExtraIgnorePaths,
 } from '../../../../src/utils/shared/prompt-loader.js';
 
@@ -79,5 +80,62 @@ describe('prompt-loader extra-ignore-paths bridge', () => {
     const result = getExcludedDirectories(projectDir);
     expect(result.filter((d) => d === 'node_modules').length).toBe(1);
     expect(result).toContain('unique-extra');
+  });
+});
+
+describe('isPathExcluded', () => {
+  const excluded = [
+    'node_modules',
+    '.git',
+    'dist',
+    'orchestration/test/integration/initialize-project',
+  ];
+
+  it('matches a single-segment entry anywhere in the path', () => {
+    expect(isPathExcluded('node_modules', excluded)).toBe(true);
+    expect(isPathExcluded('node_modules/foo', excluded)).toBe(true);
+    expect(isPathExcluded('packages/a/node_modules/lib/index.js', excluded)).toBe(true);
+    expect(isPathExcluded('src/.git/objects', excluded)).toBe(true);
+  });
+
+  it('matches a multi-segment entry only when project-root-anchored', () => {
+    expect(isPathExcluded('orchestration/test/integration/initialize-project', excluded)).toBe(
+      true,
+    );
+    expect(
+      isPathExcluded(
+        'orchestration/test/integration/initialize-project/projects/mini-monorepo/package.json',
+        excluded,
+      ),
+    ).toBe(true);
+  });
+
+  it('does not match a multi-segment entry at a deeper anchor point', () => {
+    expect(
+      isPathExcluded('foo/orchestration/test/integration/initialize-project/file.ts', excluded),
+    ).toBe(false);
+  });
+
+  it('does not match an unrelated subpath that shares a leading segment', () => {
+    expect(isPathExcluded('orchestration/src/cli/initialize.ts', excluded)).toBe(false);
+    expect(isPathExcluded('orchestration/test/unit/foo.test.ts', excluded)).toBe(false);
+  });
+
+  it('tolerates leading "./", trailing "/", and backslashes', () => {
+    expect(isPathExcluded('./orchestration/test/integration/initialize-project/', excluded)).toBe(
+      true,
+    );
+    expect(
+      isPathExcluded('orchestration\\test\\integration\\initialize-project\\file.ts', excluded),
+    ).toBe(true);
+  });
+
+  it('returns false for empty / root-equivalent paths', () => {
+    expect(isPathExcluded('', excluded)).toBe(false);
+    expect(isPathExcluded('.', excluded)).toBe(false);
+  });
+
+  it('returns false when the excluded list is empty', () => {
+    expect(isPathExcluded('node_modules/foo', [])).toBe(false);
   });
 });

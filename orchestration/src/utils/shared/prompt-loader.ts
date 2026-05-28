@@ -154,6 +154,48 @@ export function readExtraIgnorePaths(projectPath: string): string[] {
 }
 
 /**
+ * Test whether a project-relative path is excluded by any entry in
+ * `excludedDirs`. The list returned by {@link getExcludedDirectories}
+ * mixes two shapes that consumers must treat differently:
+ *
+ *   - **Single-segment names** (`node_modules`, `.git`, `dist`, …)
+ *     match wherever they appear in the path. A `node_modules` segment
+ *     at any depth excludes the path.
+ *   - **Multi-segment paths** (`orchestration/test/integration/initialize-project`,
+ *     typically supplied via `--ignore`) are project-root-anchored.
+ *     They match only when the path equals the entry or descends from
+ *     it. Multi-segment entries are NEVER matched at deeper anchor
+ *     points — that would conflate "any-depth" and "anchored" semantics.
+ *
+ * Pass project-relative POSIX-style paths. Trailing slashes / leading
+ * `./` / Windows backslashes are tolerated.
+ */
+export function isPathExcluded(relPath: string, excludedDirs: ReadonlyArray<string>): boolean {
+  const normalised = relPath
+    .replace(/\\/g, '/')
+    .replace(/^\.\/+/, '')
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '');
+  if (normalised === '' || normalised === '.') return false;
+  const segments = normalised.split('/');
+  for (const rawEntry of excludedDirs) {
+    if (!rawEntry) continue;
+    const entry = rawEntry
+      .replace(/\\/g, '/')
+      .replace(/^\.\/+/, '')
+      .replace(/^\/+/, '')
+      .replace(/\/+$/, '');
+    if (!entry) continue;
+    if (entry.includes('/')) {
+      if (normalised === entry || normalised.startsWith(entry + '/')) return true;
+    } else if (segments.includes(entry)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Returns true when `inner` is strictly inside `outer` (either equal or a
  * subdirectory). Both paths are resolved before comparison so symlinks /
  * trailing slashes don't trip the check.

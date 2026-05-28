@@ -2,7 +2,7 @@ import { readdir, readFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { logger } from '../../../utils/logger.js';
 import { MANIFEST_FILES, PRIMARY_MANIFESTS, WORKSPACE_NAMES } from './constants.js';
-import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
+import { getExcludedDirectories, isPathExcluded } from '../../../utils/shared/prompt-loader.js';
 import type { ManifestInfo } from './types.js';
 
 /**
@@ -42,9 +42,9 @@ export async function detectWorkspaces(
   const workspaces: Workspace[] = [];
   const errors: string[] = [];
 
-  const excludedDirSet = new Set(getExcludedDirectories(projectPath, frameworkPath));
+  const excludedDirs = getExcludedDirectories(projectPath, frameworkPath);
 
-  await findManifestFiles(projectPath, 0, maxDepth, workspaces, errors, excludedDirSet);
+  await findManifestFiles(projectPath, '', 0, maxDepth, workspaces, errors, excludedDirs);
 
   const primaryWorkspaces = filterToPrimaryWorkspaces(workspaces);
 
@@ -61,15 +61,19 @@ export async function detectWorkspaces(
 }
 
 /**
- * Recursively find manifest files in the project
+ * Recursively find manifest files in the project. `relPath` is the
+ * project-root-relative path of `dirPath` (`''` for the project root)
+ * — needed so multi-segment `--ignore` entries can be matched against
+ * the anchored path, not just the basename of each subdir.
  */
 async function findManifestFiles(
   dirPath: string,
+  relPath: string,
   currentDepth: number,
   maxDepth: number,
   found: Workspace[],
   errors: string[],
-  excludedDirSet: Set<string>,
+  excludedDirs: ReadonlyArray<string>,
 ): Promise<void> {
   if (currentDepth > maxDepth) {
     return;
@@ -80,20 +84,22 @@ async function findManifestFiles(
 
     for (const entry of entries) {
       const fullPath = join(dirPath, entry.name);
+      const childRel = relPath ? `${relPath}/${entry.name}` : entry.name;
 
       try {
         if (entry.isDirectory()) {
-          if (excludedDirSet.has(entry.name)) {
+          if (isPathExcluded(childRel, excludedDirs)) {
             continue;
           }
 
           await findManifestFiles(
             fullPath,
+            childRel,
             currentDepth + 1,
             maxDepth,
             found,
             errors,
-            excludedDirSet,
+            excludedDirs,
           );
         } else if (entry.isFile()) {
           const manifestInfo = MANIFEST_FILES[entry.name];

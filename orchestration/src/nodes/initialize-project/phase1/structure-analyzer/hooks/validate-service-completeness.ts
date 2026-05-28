@@ -20,6 +20,7 @@
 import fs from 'fs';
 import path from 'path';
 import { allManifestPatternsForDiscovery } from '../../../../../services/framework/language-config/index.js';
+import { isPathExcluded } from '../../../../../utils/shared/prompt-loader.js';
 import {
   formatValidationError,
   type ValidationCodeKey,
@@ -51,17 +52,15 @@ function normaliseDir(input: string): string {
 }
 
 /**
- * Match a relative path against the excluded-directory list. A path is
- * excluded when any of its segments equals an excluded name. The list
- * comes from the framework's standard exclusions
- * (`STANDARD_IGNORE_DIRS` + project gitignore).
+ * Match a relative path against the excluded-directory list using the
+ * shared single-segment-any-depth + multi-segment-anchored semantics
+ * (see `isPathExcluded` in `prompt-loader.ts`). The list mixes both
+ * shapes: `STANDARD_IGNORE_DIRS` are bare directory names and the
+ * `--ignore` extras are project-root-anchored paths like
+ * `orchestration/test/integration/initialize-project`.
  */
 function isExcluded(relPath: string, excludedDirs: ReadonlyArray<string>): boolean {
-  const segments = relPath.split('/');
-  for (const seg of segments) {
-    if (excludedDirs.includes(seg)) return true;
-  }
-  return false;
+  return isPathExcluded(relPath, excludedDirs);
 }
 
 /**
