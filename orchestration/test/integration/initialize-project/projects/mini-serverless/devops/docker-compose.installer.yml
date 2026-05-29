@@ -1,0 +1,8 @@
+# Auxiliary compose for the install pipeline — matches clasp's pattern.
+services:
+  installer:
+    image: node:22-slim
+    working_dir: /app
+    command: ["bash", "scripts/install.sh"]
+    volumes:
+      - ..:/app

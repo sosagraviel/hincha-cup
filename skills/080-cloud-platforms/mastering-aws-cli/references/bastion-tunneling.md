@@ -315,7 +315,7 @@ ssh bastion-prod
 
 # SCP through SSM
 scp -o ProxyCommand="aws ssm start-session --target i-123 --document-name AWS-StartSSHSession --parameters portNumber=22" \
-    myfile.txt ec2-user@i-123:/home/ec2-user/
+    myfile.txt ec2-user@i-123:~/
 ```
 
 ### Multi-Hop SSH Through Bastion

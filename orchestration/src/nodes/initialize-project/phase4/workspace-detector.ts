@@ -2,7 +2,7 @@ import { readdir, readFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { logger } from '../../../utils/logger.js';
 import { MANIFEST_FILES, PRIMARY_MANIFESTS, WORKSPACE_NAMES } from './constants.js';
-import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
+import { getExcludedDirectories, isPathExcluded } from '../../../utils/shared/prompt-loader.js';
 import type { ManifestInfo } from './types.js';
 
 /**
@@ -42,22 +42,14 @@ export async function detectWorkspaces(
   const workspaces: Workspace[] = [];
   const errors: string[] = [];
 
-  // Single source of truth for exclusions — same set the file-counter and
-  // the analyzer prompts use. Includes STANDARD_IGNORE_DIRS, provider-
-  // managed dirs (`.claude*`, `.codex*`), `.gitignore` entries, and the
-  // framework checkout's basename.
-  const excludedDirSet = new Set(getExcludedDirectories(projectPath, frameworkPath));
+  const excludedDirs = getExcludedDirectories(projectPath, frameworkPath);
 
-  // Find all manifest files
-  await findManifestFiles(projectPath, 0, maxDepth, workspaces, errors, excludedDirSet);
+  await findManifestFiles(projectPath, '', 0, maxDepth, workspaces, errors, excludedDirs);
 
-  // Filter to primary manifests only (remove lock files if primary exists in same dir)
   const primaryWorkspaces = filterToPrimaryWorkspaces(workspaces);
 
-  // Determine if this is a monorepo
   const isMonorepo = primaryWorkspaces.length > 1;
 
-  // Enrich workspaces with metadata
   await enrichWorkspaces(primaryWorkspaces, errors);
 
   return {
@@ -69,15 +61,19 @@ export async function detectWorkspaces(
 }
 
 /**
- * Recursively find manifest files in the project
+ * Recursively find manifest files in the project. `relPath` is the
+ * project-root-relative path of `dirPath` (`''` for the project root)
+ * — needed so multi-segment `--ignore` entries can be matched against
+ * the anchored path, not just the basename of each subdir.
  */
 async function findManifestFiles(
   dirPath: string,
+  relPath: string,
   currentDepth: number,
   maxDepth: number,
   found: Workspace[],
   errors: string[],
-  excludedDirSet: Set<string>,
+  excludedDirs: ReadonlyArray<string>,
 ): Promise<void> {
   if (currentDepth > maxDepth) {
     return;
@@ -88,26 +84,24 @@ async function findManifestFiles(
 
     for (const entry of entries) {
       const fullPath = join(dirPath, entry.name);
+      const childRel = relPath ? `${relPath}/${entry.name}` : entry.name;
 
       try {
         if (entry.isDirectory()) {
-          // Skip every excluded dir (framework checkout, gitignore entries,
-          // build artifacts, and provider-managed temp/config dirs).
-          if (excludedDirSet.has(entry.name)) {
+          if (isPathExcluded(childRel, excludedDirs)) {
             continue;
           }
 
-          // Recursively scan subdirectory
           await findManifestFiles(
             fullPath,
+            childRel,
             currentDepth + 1,
             maxDepth,
             found,
             errors,
-            excludedDirSet,
+            excludedDirs,
           );
         } else if (entry.isFile()) {
-          // Check if this is a known manifest file
           const manifestInfo = MANIFEST_FILES[entry.name];
 
           if (manifestInfo) {
@@ -120,13 +114,11 @@ async function findManifestFiles(
           }
         }
       } catch (error) {
-        // Permission denied or other file-level error
         const errorMsg = `Error accessing ${fullPath}: ${error instanceof Error ? error.message : String(error)}`;
         errors.push(errorMsg);
       }
     }
   } catch (error) {
-    // Directory-level error
     const errorMsg = `Error reading directory ${dirPath}: ${error instanceof Error ? error.message : String(error)}`;
     errors.push(errorMsg);
   }
@@ -139,24 +131,20 @@ async function findManifestFiles(
 function filterToPrimaryWorkspaces(workspaces: Workspace[]): Workspace[] {
   const workspacesByPath = new Map<string, Workspace[]>();
 
-  // Group by path
   for (const ws of workspaces) {
     const existing = workspacesByPath.get(ws.path) || [];
     existing.push(ws);
     workspacesByPath.set(ws.path, existing);
   }
 
-  // For each path, keep only primary manifests
   const filtered: Workspace[] = [];
 
   for (const [path, workspacesInDir] of workspacesByPath.entries()) {
     const primaryInDir = workspacesInDir.filter((ws) => PRIMARY_MANIFESTS.has(ws.manifest_file));
 
     if (primaryInDir.length > 0) {
-      // Use primary manifests only
       filtered.push(...primaryInDir);
     } else {
-      // No primary manifest, keep lock files (rare case)
       filtered.push(...workspacesInDir);
     }
   }
@@ -170,7 +158,6 @@ function filterToPrimaryWorkspaces(workspaces: Workspace[]): Workspace[] {
 async function enrichWorkspaces(workspaces: Workspace[], errors: string[]): Promise<void> {
   for (const ws of workspaces) {
     try {
-      // Try to extract name from manifest
       if (ws.manifest_file === 'package.json') {
         const name = await extractNameFromPackageJson(ws.path);
         if (name) {
@@ -193,12 +180,10 @@ async function enrichWorkspaces(workspaces: Workspace[], errors: string[]): Prom
         }
       }
 
-      // Fallback: use directory name
       if (!ws.name) {
         ws.name = basename(ws.path);
       }
     } catch (error) {
-      // Non-fatal error, just skip enrichment
       const errorMsg = `Could not enrich workspace ${ws.path}: ${error instanceof Error ? error.message : String(error)}`;
       errors.push(errorMsg);
     }
@@ -224,7 +209,6 @@ async function extractNameFromPackageJson(workspacePath: string): Promise<string
 async function extractNameFromPyprojectToml(workspacePath: string): Promise<string | undefined> {
   try {
     const content = await readFile(join(workspacePath, 'pyproject.toml'), 'utf8');
-    // Simple regex-based extraction (avoid full TOML parser dependency)
     const match = content.match(/^\s*name\s*=\s*["']([^"']+)["']/m);
     return match ? match[1] : undefined;
   } catch {
@@ -238,7 +222,6 @@ async function extractNameFromPyprojectToml(workspacePath: string): Promise<stri
 async function extractNameFromCargoToml(workspacePath: string): Promise<string | undefined> {
   try {
     const content = await readFile(join(workspacePath, 'Cargo.toml'), 'utf8');
-    // Simple regex-based extraction
     const match = content.match(/^\s*name\s*=\s*["']([^"']+)["']/m);
     return match ? match[1] : undefined;
   } catch {
@@ -252,10 +235,8 @@ async function extractNameFromCargoToml(workspacePath: string): Promise<string |
 async function extractNameFromGoMod(workspacePath: string): Promise<string | undefined> {
   try {
     const content = await readFile(join(workspacePath, 'go.mod'), 'utf8');
-    // Extract module name from first line: "module github.com/user/project"
     const match = content.match(/^module\s+(.+)$/m);
     if (match) {
-      // Use last part of module path as name
       const parts = match[1].trim().split('/');
       return parts[parts.length - 1];
     }
@@ -270,8 +251,6 @@ async function extractNameFromGoMod(workspacePath: string): Promise<string | und
  * (has a primary manifest file)
  */
 export function isWorkspaceDirectory(dirPath: string): boolean {
-  // This is a synchronous helper - for async detection, use detectWorkspaces
-  // Here we just check if the directory name suggests it's a workspace
   const dirName = basename(dirPath);
 
   return WORKSPACE_NAMES.has(dirName);

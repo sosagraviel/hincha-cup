@@ -82,6 +82,12 @@ $implement-ticket --help
 
 ---
 
+## Working with Multiple Repositories
+
+If your product is split across **two or more Git repositories** (for example, one repo for the backend and another for the frontend) and you want QAF to plan and implement changes across them as a single product, follow the [Multi-Repository Setup](/docs/workflows/initialize-project#multi-repository-setup) guide instead. It uses the same script, but with a parent folder that holds every related repository side by side.
+
+---
+
 ## Authentication Setup
 
 ### Option 1: CLI login (Recommended)

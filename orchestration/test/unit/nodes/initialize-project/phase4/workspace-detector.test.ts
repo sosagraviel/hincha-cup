@@ -87,7 +87,7 @@ describe('workspace-detector', () => {
       const result = await detectWorkspaces(testDir);
 
       expect(result.workspaces[0].manifest_file).toBe('go.mod');
-      expect(result.workspaces[0].type).toBe('gomod');
+      expect(result.workspaces[0].type).toBe('go-modules');
       expect(result.workspaces[0].language).toBe('go');
       expect(result.workspaces[0].name).toBe('my-project');
     });
@@ -256,7 +256,7 @@ describe('workspace-detector', () => {
       expect(result.workspaces).toHaveLength(1);
       expect(result.workspaces[0].manifest_file).toBe('global.json');
       expect(result.workspaces[0].language).toBe('csharp');
-      expect(result.workspaces[0].type).toBe('dotnet');
+      expect(result.workspaces[0].type).toBe('nuget');
       expect(result.is_monorepo).toBe(false);
     });
 
@@ -304,13 +304,13 @@ describe('workspace-detector', () => {
       expect(paths.some((p) => p.includes('apps/api'))).toBe(true);
     });
 
-    it('should detect Kotlin Gradle workspace', async () => {
+    it('should detect Gradle (Kotlin-DSL) workspace as java/gradle', async () => {
       await writeFile(join(testDir, 'build.gradle.kts'), '// Kotlin DSL');
 
       const result = await detectWorkspaces(testDir);
 
       expect(result.workspaces[0].manifest_file).toBe('build.gradle.kts');
-      expect(result.workspaces[0].language).toBe('kotlin');
+      expect(result.workspaces[0].language).toBe('java');
       expect(result.workspaces[0].type).toBe('gradle');
     });
 
@@ -393,7 +393,7 @@ describe('workspace-detector', () => {
 
       expect(info).toEqual({
         language: 'go',
-        type: 'gomod',
+        type: 'go-modules',
       });
     });
 

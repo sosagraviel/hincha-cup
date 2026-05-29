@@ -18,7 +18,6 @@ export class ProviderFactory {
    * Auto-detect and create the appropriate provider
    */
   static async detect(): Promise<ProviderAdapter> {
-    // Check explicit provider override
     const explicitProvider = process.env.PROVIDER?.toLowerCase();
 
     if (explicitProvider === 'codex' || explicitProvider === 'openai') {
@@ -31,7 +30,6 @@ export class ProviderFactory {
       return new ClaudeProvider(config);
     }
 
-    // Auto-detect from API keys
     if (process.env.ANTHROPIC_API_KEY) {
       return new ClaudeProvider({
         provider: Provider.CLAUDE,
@@ -51,7 +49,6 @@ export class ProviderFactory {
     }
 
     if (process.env.GOOGLE_API_KEY) {
-      // Google API key defaults to Claude provider for CLI execution
       return new ClaudeProvider({
         provider: Provider.CLAUDE,
         authMethod: AuthMethod.API_KEY,
@@ -60,7 +57,6 @@ export class ProviderFactory {
       });
     }
 
-    // Auto-detect from CLI availability
     const codexProvider = new CodexProvider();
     if (await codexProvider.isCLIAvailable()) {
       if (await codexProvider.isCLIAuthenticated()) {

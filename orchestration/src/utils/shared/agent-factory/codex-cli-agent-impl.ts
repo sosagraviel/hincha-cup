@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { mkdtemp, rm, writeFile, readFile } from 'fs/promises';
+import { mkdtemp, mkdir, rm, writeFile, readFile } from 'fs/promises';
 import { z } from 'zod';
 import { AuthMode } from '../../../auth/auth-detector.js';
 import { getLLMFactory } from '../../../llm/llm-factory.js';
@@ -16,11 +16,17 @@ import {
   getCodexReasoningEffortForAgent,
 } from './codex-cli-utils.js';
 import { getSchemaForAgent } from '../../../schemas/phase1-agent-outputs.schema.js';
-import { summarizeCliError } from '../../../services/framework/debug-store/index.js';
+import {
+  summarizeCliError,
+  emitTokenUsage,
+} from '../../../services/framework/debug-store/index.js';
 import { beginAttemptRecorder, type AttemptRecorder } from './attempt-recorder.js';
 import { getExcludedDirectories } from '../prompt-loader.js';
+import { extractGraphToolUsesFromCodexJsonl } from '../../../nodes/initialize-project/phase1/shared/graph-tool-uses-extractor.js';
+import { codexSidecarDir } from '../../../nodes/initialize-project/phase1/shared/graph-tool-usage.js';
+import { locateCodexRollout } from '../../../services/framework/transcripts/capture.js';
+import { extractUsageFromCodexJsonl, rollupToCacheHit } from './usage-extractor.js';
 
-// Track active processes and invocations for cleanup
 const activeCodexProcesses: Set<ChildProcess> = new Set();
 const activeCodexInvocations: Map<number, (reason: Error) => void> = new Map();
 let codexInvocationCounter = 0;
@@ -42,7 +48,7 @@ export function killAllActiveCodexProcesses() {
     try {
       if (proc.pid && !proc.killed) proc.kill('SIGKILL');
     } catch {
-      // ignore
+      continue;
     }
   }
   activeCodexProcesses.clear();
@@ -50,9 +56,8 @@ export function killAllActiveCodexProcesses() {
 
 /**
  * Transform a JSON Schema to be compatible with OpenAI Structured Outputs.
- * (unchanged — see inline comments at top of function)
  */
-function transformSchemaForStructuredOutputs(
+export function transformSchemaForStructuredOutputs(
   schema: Record<string, unknown>,
 ): Record<string, unknown> {
   const result = JSON.parse(JSON.stringify(schema)) as Record<string, unknown>;
@@ -81,7 +86,15 @@ function transformObjectRecursive(node: Record<string, unknown>): void {
     const additional = node['additionalProperties'];
 
     if (properties) {
-      const currentRequired = (node['required'] as string[]) || [];
+      for (const [propName, propSchema] of Object.entries(properties)) {
+        if (isNeverJsonSchema(propSchema)) {
+          delete properties[propName];
+        }
+      }
+
+      const currentRequired = ((node['required'] as string[]) || []).filter(
+        (propName) => propName in properties,
+      );
       const allPropertyNames = Object.keys(properties);
       node['additionalProperties'] = false;
       for (const propName of allPropertyNames) {
@@ -130,6 +143,16 @@ function transformObjectRecursive(node: Record<string, unknown>): void {
   }
 }
 
+function isNeverJsonSchema(schema: Record<string, unknown>): boolean {
+  const notSchema = schema['not'];
+  return (
+    notSchema !== null &&
+    typeof notSchema === 'object' &&
+    !Array.isArray(notSchema) &&
+    Object.keys(notSchema as Record<string, unknown>).length === 0
+  );
+}
+
 function isAlreadyNullable(schema: Record<string, unknown>): boolean {
   if (Array.isArray(schema['anyOf'])) {
     return schema['anyOf'].some(
@@ -146,7 +169,11 @@ async function generateOutputSchema(
   const zodSchema = getSchemaForAgent(agentName);
   if (!zodSchema) return null;
   try {
-    const rawJsonSchema = z.toJSONSchema(zodSchema, { target: 'draft-7' });
+    const rawJsonSchema = z.toJSONSchema(zodSchema, {
+      target: 'draft-7',
+      io: 'input',
+      unrepresentable: 'any',
+    });
     const jsonSchema = transformSchemaForStructuredOutputs(
       rawJsonSchema as Record<string, unknown>,
     );
@@ -159,6 +186,14 @@ async function generateOutputSchema(
     );
     return null;
   }
+}
+
+export function normalizeCodexReasoningEffort(effort: string | undefined): string | undefined {
+  // Codex CLI may attach native web_search tools to exec requests. The OpenAI
+  // API rejects web_search when reasoning.effort is "minimal", so floor Codex
+  // invocations to "low". Claude has its own adapter and mapping.
+  if (effort === 'minimal') return 'low';
+  return effort;
 }
 
 export async function createCodexCLIAgentImpl(
@@ -176,20 +211,18 @@ export async function createCodexCLIAgentImpl(
       const isRetry = !!config.resumeSessionId;
       const attemptNumber = input.attemptNumber ?? 1;
 
+      const trackerId = config.trackerId ?? config.agentName;
+      const trackerDisplayName = config.trackerDisplayName ?? config.agentName;
       const action = getAgentAction(config.agentName);
       const sessionInfo = isRetry ? `resume:${sessionId}` : sessionId;
       const authInfo = `Auth: Subscription, Provider: openai, Model: ${modelInfo.alias}, Cli: codex, CliVersion: v${codexCLI.version}, Session: ${sessionInfo}`;
 
-      logger.trackConcurrentAgentStart(
-        config.agentName,
-        config.agentName,
-        `${action} (${authInfo})`,
-      );
+      logger.trackConcurrentAgentStart(trackerId, trackerDisplayName, `${action} (${authInfo})`);
 
       const startTime = Date.now();
 
       try {
-        const { output } = await invokeCodexCLI(config, {
+        const { output, codexSessionId } = await invokeCodexCLI(config, {
           inputPrompt: input.inputPrompt,
           sessionId,
           attemptNumber,
@@ -197,18 +230,44 @@ export async function createCodexCLIAgentImpl(
 
         const executionTimeMs = Date.now() - startTime;
         logger.trackConcurrentAgentSucceed(
-          config.agentName,
+          trackerId,
           `Completed in ${(executionTimeMs / 1000).toFixed(1)}s`,
         );
+
+        const usage = await readCodexUsage(codexSessionId);
+        emitTokenUsage(config.projectPath, {
+          ts: new Date().toISOString(),
+          phase: config.phase?.phaseId ?? 'phase-unknown',
+          agent: config.agentName,
+          input_tokens: usage.inputTokens,
+          output_tokens: usage.outputTokens,
+          cache_hit: rollupToCacheHit(usage),
+          cache_read_input_tokens: usage.cacheReadInputTokens,
+          cache_creation_input_tokens: usage.cacheCreationInputTokens,
+          duration_ms: executionTimeMs,
+          budget_key: config.budgetKey,
+        }).catch(() => undefined);
 
         return { output, sessionId, mode: AuthMode.CODEX_CLI, executionTimeMs };
       } catch (error: unknown) {
         const executionTimeMs = Date.now() - startTime;
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.trackConcurrentAgentFail(
-          config.agentName,
+          trackerId,
           `Failed after ${(executionTimeMs / 1000).toFixed(1)}s`,
         );
+
+        emitTokenUsage(config.projectPath, {
+          ts: new Date().toISOString(),
+          phase: config.phase?.phaseId ?? 'phase-unknown',
+          agent: config.agentName,
+          input_tokens: -1,
+          output_tokens: -1,
+          cache_hit: false,
+          duration_ms: executionTimeMs,
+          budget_key: config.budgetKey,
+        }).catch(() => undefined);
+
         throw new Error(`Codex CLI execution failed after ${executionTimeMs}ms: ${errorMessage}`);
       }
     },
@@ -223,17 +282,10 @@ async function invokeCodexCLI(
     sessionId: string;
     attemptNumber: number;
   },
-): Promise<{ output: string; sessionId: string }> {
+): Promise<{ output: string; sessionId: string; codexSessionId: string | null }> {
   if (isCodexAborting) throw new Error('SIGINT: Workflow interrupted by user (CTRL+C)');
 
   const timeout = config.timeout ?? 300000;
-  // Transient scratch dir for the subprocess — holds the per-iteration prompt
-  // file (stdin to `codex exec`), the `-o` output capture file, and the
-  // generated JSON Schema passed via `--output-schema`. All of these are
-  // internal to Codex's invocation; debug artifacts live under the
-  // DebugStore's run dir. Keeping scratch out of `.<provider>-temp/<agent>/`
-  // avoids the orphan "agent/<uuid>/prompt.txt" folders the project used to
-  // accumulate after successful runs.
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'framework-codex-'));
   const removeScratchDir = async () => {
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
@@ -241,11 +293,14 @@ async function invokeCodexCLI(
 
   const agentContent = fs.readFileSync(config.agentFilePath, 'utf-8');
   const agentBody = agentContent.replace(/^---[\s\S]*?---\n?/, '');
-  const fullPrompt = `${agentBody}\n\n---\n\n${run.inputPrompt}`;
+
+  const fullPrompt = `${run.inputPrompt}\n\n---\n\n${agentBody}`;
 
   const codexCLI = getCodexCLIPath(config.frameworkPath);
   const model = getCodexCLIModelForAgent(config.agentName, config.frameworkPath);
-  const reasoningEffort = getCodexReasoningEffortForAgent(config.agentName, config.frameworkPath);
+  const reasoningEffort = normalizeCodexReasoningEffort(
+    getCodexReasoningEffortForAgent(config.agentName, config.frameworkPath),
+  );
 
   const recorder = beginAttemptRecorder({
     agentName: config.agentName,
@@ -289,6 +344,8 @@ async function invokeCodexCLI(
     frameworkPath: config.frameworkPath,
     timeout,
     iteration: 0,
+    extraEnv: config.extraEnv,
+    allowReadPaths: config.allowReadPaths,
   });
 
   if (first.code !== 0) {
@@ -310,9 +367,15 @@ async function invokeCodexCLI(
       outcome: 'success',
       codexSessionIdOverride: codexSessionId ?? undefined,
     });
+    await writeCodexGraphToolUsesSidecar(
+      config.projectPath,
+      run.sessionId,
+      codexSessionId ?? null,
+      first.stdout,
+    );
     await recorder.finalize('success', { code: first.code });
     await removeScratchDir();
-    return { output, sessionId: run.sessionId };
+    return { output, sessionId: run.sessionId, codexSessionId };
   }
 
   let validation = config.validator(output);
@@ -346,6 +409,8 @@ async function invokeCodexCLI(
       frameworkPath: config.frameworkPath,
       timeout,
       iteration,
+      extraEnv: config.extraEnv,
+      allowReadPaths: config.allowReadPaths,
     });
     if (resumeRun.code !== 0) {
       await finalizeCodexFailure(recorder, resumeRun, run.sessionId, feedbackPrompt);
@@ -374,9 +439,15 @@ async function invokeCodexCLI(
       outcome: 'success',
       codexSessionIdOverride: codexSessionId ?? undefined,
     });
+    await writeCodexGraphToolUsesSidecar(
+      config.projectPath,
+      run.sessionId,
+      codexSessionId ?? null,
+      lastStdout,
+    );
     await recorder.finalize('success', { code: 0 });
     await removeScratchDir();
-    return { output, sessionId: run.sessionId };
+    return { output, sessionId: run.sessionId, codexSessionId };
   }
 
   logger.warn(
@@ -392,10 +463,65 @@ async function invokeCodexCLI(
     outcome: 'success',
     codexSessionIdOverride: codexSessionId ?? undefined,
   });
-  // We still return output so the external retry layer can observe the failure.
+  await writeCodexGraphToolUsesSidecar(
+    config.projectPath,
+    run.sessionId,
+    codexSessionId ?? null,
+    lastStdout,
+  );
   await recorder.finalize('success', { code: 0, failureReason: 'internal-validation-exhausted' });
   await removeScratchDir();
-  return { output, sessionId: run.sessionId };
+  return { output, sessionId: run.sessionId, codexSessionId };
+}
+
+/**
+ * Codex equivalent of Claude's Stop hook sidecar writer. Attempts to locate the
+ * rollout JSONL in ~/.codex/sessions first; falls back to the captured stdout
+ * (which carries the same JSONL stream) because `codex exec` mode does not write
+ * rollout files to disk.
+ * Best-effort: a missing sidecar causes the analyzer to return empty telemetry.
+ */
+async function writeCodexGraphToolUsesSidecar(
+  projectPath: string,
+  frameworkSessionId: string,
+  codexSessionId: string | null,
+  stdoutFallback?: string,
+): Promise<void> {
+  let jsonl: string | null = null;
+
+  if (codexSessionId) {
+    try {
+      const rolloutPath = await locateCodexRollout(codexSessionId, { timeoutMs: 3000 });
+      if (rolloutPath) {
+        jsonl = await readFile(rolloutPath, 'utf-8');
+      }
+    } catch {
+      // fall through to stdout fallback
+    }
+  }
+
+  if (!jsonl && stdoutFallback) {
+    jsonl = stdoutFallback;
+  }
+
+  if (!jsonl) {
+    logger.warn(
+      `[graph-tool-uses] No JSONL source for session ${frameworkSessionId} — analyzer will see empty graph telemetry`,
+    );
+    return;
+  }
+
+  try {
+    const sidecar = extractGraphToolUsesFromCodexJsonl(jsonl);
+    const dir = codexSidecarDir(projectPath);
+    await mkdir(dir, { recursive: true });
+    const out = path.join(dir, `${frameworkSessionId}.graph-tool-uses.json`);
+    await writeFile(out, JSON.stringify(sidecar, null, 2), 'utf-8');
+  } catch (err) {
+    logger.warn(
+      `[graph-tool-uses] Failed to write Codex sidecar for session ${frameworkSessionId}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }
 
 async function finalizeCodexFailure(
@@ -478,6 +604,8 @@ function runCodex(params: {
   frameworkPath: string;
   timeout: number;
   iteration: number;
+  extraEnv?: Record<string, string>;
+  allowReadPaths?: ReadonlyArray<string>;
 }): Promise<{
   code: number | null;
   stdout: string;
@@ -506,22 +634,28 @@ function runCodex(params: {
 
       let timeoutId: NodeJS.Timeout | undefined;
 
-      // Codex's hook system is notification-only — there is no PreToolUse
-      // equivalent that can block a tool call. We still pass the same env
-      // contract that Claude uses so (a) any framework-aware tooling that
-      // reads these vars stays consistent across providers, and (b) if
-      // Codex gains blocking-hook support later, the wiring is already in
-      // place. Hard path enforcement on Codex today is prompt-level only
-      // (the `<excluded_directories>` block in `prompt-builder.ts`).
+      /*
+       * Codex has no `permissions.deny` analogue, so we always pass the
+       * full project default excluded-dirs list straight to the PreToolUse
+       * hook (Codex configures the hook via
+       * `upsertCodexPathRestrictionHookConfig`). Combined with
+       * `FRAMEWORK_ALLOW_READ_PATHS`, the hook still blocks every file
+       * under those dirs except the explicit allow-list entries — the
+       * surgical exemption mirrors the Claude path even though there's no
+       * deny rule to compete with.
+       */
       const excludedDirs = getExcludedDirectories(params.cwd, params.frameworkPath);
+      const allowReadPathsEnv = JSON.stringify([...(params.allowReadPaths ?? [])]);
 
       const proc = spawn(params.codexPath, cliArgs, {
         cwd: params.cwd,
         env: {
           ...process.env,
+          ...(params.extraEnv ?? {}),
           FRAMEWORK_PATH: params.frameworkPath,
           FRAMEWORK_PROJECT_PATH: params.cwd,
           FRAMEWORK_EXCLUDED_DIRS: JSON.stringify(excludedDirs),
+          FRAMEWORK_ALLOW_READ_PATHS: allowReadPathsEnv,
           FRAMEWORK_ENFORCE: '1',
         },
         stdio: [promptFd, 'pipe', 'pipe'],
@@ -614,5 +748,31 @@ function parseCodexJsonOutput(jsonStream: string): string {
   return jsonStream;
 }
 
-// Re-exposed to match the prior export surface used by the validator
+/**
+ * Best-effort read of the Codex rollout JSONL and rollup of token usage / cache reads.
+ * Returns the unknown-marker shape on any failure.
+ */
+async function readCodexUsage(codexSessionId: string | null): Promise<{
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+}> {
+  const unknown = {
+    inputTokens: -1,
+    outputTokens: -1,
+    cacheReadInputTokens: -1,
+    cacheCreationInputTokens: -1,
+  };
+  if (!codexSessionId) return unknown;
+  try {
+    const rolloutPath = await locateCodexRollout(codexSessionId, { timeoutMs: 1000 });
+    if (!rolloutPath) return unknown;
+    const jsonl = await readFile(rolloutPath, 'utf-8');
+    return extractUsageFromCodexJsonl(jsonl);
+  } catch {
+    return unknown;
+  }
+}
+
 export type { ValidationResult };

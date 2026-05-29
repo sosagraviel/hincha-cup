@@ -4,9 +4,18 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { join, basename } from 'path';
+import { join, basename, resolve } from 'path';
 import matter from 'gray-matter';
-import { getAllProviderManagedDirs } from '../provider-paths.js';
+import { getAllProviderManagedDirs, getAllProviderTempDirs } from '../provider-paths.js';
+
+/**
+ * Filename, relative to `<tempDir>/initialize-project/`, where the
+ * `--ignore` CLI flag persists user-supplied extra exclusion paths so
+ * child-process hooks can read the same list as in-process consumers.
+ *
+ * Shape on disk: `{ "paths": string[] }`.
+ */
+export const EXTRA_IGNORE_PATHS_FILENAME = 'extra-ignore-paths.json';
 
 /**
  * Non-provider-specific directories ignored during analysis — build artifacts,
@@ -65,13 +74,11 @@ export function parseGitignore(projectPath: string): string[] {
       if (!trimmed || trimmed.startsWith('#')) continue;
 
       const dirName = trimmed
-        .replace(/^\//, '') // Remove leading slash
-        .replace(/\/$/, '') // Remove trailing slash
-        .replace(/^\*\*\//, ''); // Remove **/ prefix
+        .replace(/^\//, '')
+        .replace(/\/$/, '')
+        .replace(/^\*\*\//, '');
 
-      // Skip patterns with wildcards or subdirectories
       if (dirName.includes('*') || dirName.includes('?') || dirName.includes('/')) continue;
-      // Skip file patterns (contain dots but not starting with dot)
       if (dirName.includes('.') && !dirName.startsWith('.')) continue;
 
       if (dirName) directories.push(dirName);
@@ -84,17 +91,120 @@ export function parseGitignore(projectPath: string): string[] {
 }
 
 /**
- * Get all directories to exclude from analysis
+ * Get all directories to exclude from analysis.
+ *
+ * Merges, in priority order: framework basename (when the project lives
+ * outside the framework), the static build-artifact list (`STANDARD_IGNORE_DIRS`),
+ * directory-style entries parsed from the project's `.gitignore`, and any
+ * user-supplied extras persisted by Phase 0 from the `--ignore` CLI flag.
  */
 export function getExcludedDirectories(projectPath: string, frameworkPath?: string): string[] {
-  // Determine framework directory name to exclude
-  // CRITICAL: This must match the logic in file-counter.ts and preflight-checks.ts
-  // Framework is ALWAYS at project root: <project>/<framework-name>/
-  const frameworkDirName = frameworkPath ? basename(frameworkPath) : 'qubika-agentic-framework'; // Fallback if not provided
+  const frameworkDirName = frameworkPath ? basename(frameworkPath) : 'qubika-agentic-framework';
 
   const gitignoreDirs = parseGitignore(projectPath);
+  const projectInsideFramework = frameworkPath ? isPathInside(projectPath, frameworkPath) : false;
+  const extraIgnorePaths = readExtraIgnorePaths(projectPath);
 
-  return Array.from(new Set([frameworkDirName, ...STANDARD_IGNORE_DIRS, ...gitignoreDirs]));
+  const segments = projectInsideFramework
+    ? [...STANDARD_IGNORE_DIRS, ...gitignoreDirs, ...extraIgnorePaths]
+    : [frameworkDirName, ...STANDARD_IGNORE_DIRS, ...gitignoreDirs, ...extraIgnorePaths];
+
+  return Array.from(new Set(segments));
+}
+
+/**
+ * Read user-supplied extra ignore paths from
+ * `<projectPath>/<provider-temp>/initialize-project/extra-ignore-paths.json`
+ * for whichever provider temp dir exists. The file is written by the Phase 0
+ * graph-foundation node from CLI state; this helper is the read-side bridge
+ * for child-process hooks and any other call site that only has `projectPath`.
+ *
+ * Returns `[]` when the file is missing or malformed — failure is non-fatal
+ * by design.
+ */
+export function readExtraIgnorePaths(projectPath: string): string[] {
+  for (const tempDirName of getAllProviderTempDirs()) {
+    const filePath = join(
+      projectPath,
+      tempDirName,
+      'initialize-project',
+      EXTRA_IGNORE_PATHS_FILENAME,
+    );
+    if (!existsSync(filePath)) continue;
+    try {
+      const parsed = JSON.parse(readFileSync(filePath, 'utf-8')) as unknown;
+      if (!parsed || typeof parsed !== 'object') return [];
+      const paths = (parsed as { paths?: unknown }).paths;
+      if (!Array.isArray(paths)) return [];
+      const cleaned: string[] = [];
+      const seen = new Set<string>();
+      for (const entry of paths) {
+        if (typeof entry !== 'string') continue;
+        const trimmed = entry.trim().replace(/^[/\\]+|[/\\]+$/g, '');
+        if (!trimmed || seen.has(trimmed)) continue;
+        seen.add(trimmed);
+        cleaned.push(trimmed);
+      }
+      return cleaned;
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
+ * Test whether a project-relative path is excluded by any entry in
+ * `excludedDirs`. The list returned by {@link getExcludedDirectories}
+ * mixes two shapes that consumers must treat differently:
+ *
+ *   - **Single-segment names** (`node_modules`, `.git`, `dist`, …)
+ *     match wherever they appear in the path. A `node_modules` segment
+ *     at any depth excludes the path.
+ *   - **Multi-segment paths** (`orchestration/test/integration/initialize-project`,
+ *     typically supplied via `--ignore`) are project-root-anchored.
+ *     They match only when the path equals the entry or descends from
+ *     it. Multi-segment entries are NEVER matched at deeper anchor
+ *     points — that would conflate "any-depth" and "anchored" semantics.
+ *
+ * Pass project-relative POSIX-style paths. Trailing slashes / leading
+ * `./` / Windows backslashes are tolerated.
+ */
+export function isPathExcluded(relPath: string, excludedDirs: ReadonlyArray<string>): boolean {
+  const normalised = relPath
+    .replace(/\\/g, '/')
+    .replace(/^\.\/+/, '')
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '');
+  if (normalised === '' || normalised === '.') return false;
+  const segments = normalised.split('/');
+  for (const rawEntry of excludedDirs) {
+    if (!rawEntry) continue;
+    const entry = rawEntry
+      .replace(/\\/g, '/')
+      .replace(/^\.\/+/, '')
+      .replace(/^\/+/, '')
+      .replace(/\/+$/, '');
+    if (!entry) continue;
+    if (entry.includes('/')) {
+      if (normalised === entry || normalised.startsWith(entry + '/')) return true;
+    } else if (segments.includes(entry)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Returns true when `inner` is strictly inside `outer` (either equal or a
+ * subdirectory). Both paths are resolved before comparison so symlinks /
+ * trailing slashes don't trip the check.
+ */
+function isPathInside(inner: string, outer: string): boolean {
+  const innerResolved = resolve(inner);
+  const outerResolved = resolve(outer);
+  if (innerResolved === outerResolved) return true;
+  return innerResolved.startsWith(outerResolved + '/');
 }
 
 /**
@@ -122,7 +232,6 @@ export function loadMarkdownFile(filePath: string): {
  * Maps agent names to new phase-specific locations
  */
 export function loadExecutionInstructions(agentName: string, frameworkPath: string): string | null {
-  // Map agent names to new execution-instructions locations
   const executionInstructionsMap: Record<string, string> = {
     'structure-architecture-analyzer':
       'orchestration/src/nodes/initialize-project/phase1/structure-analyzer/prompts/execution-instructions.md',
@@ -136,7 +245,6 @@ export function loadExecutionInstructions(agentName: string, frameworkPath: stri
 
   const newPath = executionInstructionsMap[agentName];
   if (!newPath) {
-    // Agent not in map - return null (execution instructions are optional)
     return null;
   }
 
@@ -145,7 +253,6 @@ export function loadExecutionInstructions(agentName: string, frameworkPath: stri
   try {
     return readFileSync(path, 'utf-8').trim();
   } catch {
-    // File doesn't exist - execution instructions are optional
     return null;
   }
 }

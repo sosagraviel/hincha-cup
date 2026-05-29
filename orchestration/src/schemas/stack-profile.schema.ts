@@ -1,39 +1,29 @@
 import { z } from 'zod';
 
-// ============================================================================
-// STACK PROFILE SCHEMA - SERVICE-CENTRIC ARCHITECTURE
-// ============================================================================
-// This schema defines the structure of the stack_profile section in framework-config.json.
-// It is fully service-centric with NO backward compatibility for legacy flat structures.
-//
-// Key Principles:
-// - Services array is the single source of truth
-// - Each service is a first-class entity with complete stack definition
-// - NO static assumptions about folder structure or paths
-// - All service attributes are discovered dynamically by Phase 1 agents
-// - Supports multi-language, multi-service architectures (serverless, microservices, monorepos)
-// ============================================================================
-
-// ----------------------------------------------------------------------------
-// Service Type Enumeration
-// ----------------------------------------------------------------------------
+/**
+ * Stack profile schema (service-centric).
+ *
+ * Defines the structure of the `stack_profile` section in
+ * `framework-config.json`. Services are the single source of truth;
+ * every service is a first-class entity with a complete stack
+ * definition. No static assumptions about folder structure or paths;
+ * all service attributes are discovered dynamically by Phase 1 agents.
+ * Supports multi-language, multi-service architectures (serverless,
+ * microservices, monorepos).
+ */
 
 export const ServiceTypeEnum = z.enum([
-  'backend', // API servers, GraphQL servers, REST APIs
-  'frontend', // Web applications, SPAs, SSR applications
-  'serverless', // Lambda functions, Cloud Functions, Firebase Functions
-  'mobile', // React Native, Flutter, native iOS/Android
-  'worker', // Background job processors, queue workers
-  'library', // Shared packages, utility libraries
-  'cli', // Command-line tools
-  'desktop', // Electron apps, native desktop applications
-  'infrastructure', // Terraform, Pulumi, CDK scripts
+  'backend',
+  'frontend',
+  'serverless',
+  'mobile',
+  'worker',
+  'library',
+  'cli',
+  'desktop',
+  'infrastructure',
 ]);
 export type ServiceType = z.infer<typeof ServiceTypeEnum>;
-
-// ----------------------------------------------------------------------------
-// Service Testing Configuration
-// ----------------------------------------------------------------------------
 
 export const ServiceTestingConfigSchema = z.object({
   framework: z.string().describe('Testing framework name (e.g., "Jest", "Pytest", "Playwright")'),
@@ -53,10 +43,6 @@ export const ServiceTestingSchema = z.object({
 });
 export type ServiceTesting = z.infer<typeof ServiceTestingSchema>;
 
-// ----------------------------------------------------------------------------
-// Service Database Configuration
-// ----------------------------------------------------------------------------
-
 export const ServiceDatabaseSchema = z.object({
   type: z.string().describe('Database type (e.g., "postgresql", "mongodb", "redis")'),
   client_library: z
@@ -75,10 +61,6 @@ export const ServiceDatabaseSchema = z.object({
 });
 export type ServiceDatabase = z.infer<typeof ServiceDatabaseSchema>;
 
-// ----------------------------------------------------------------------------
-// Service Environment Configuration
-// ----------------------------------------------------------------------------
-
 export const ServiceEnvironmentSchema = z.object({
   port: z.number().optional().describe('Port number if found in config or code'),
   env_file: z.string().optional().describe('Path to environment file (e.g., ".env", ".env.local")'),
@@ -87,12 +69,33 @@ export const ServiceEnvironmentSchema = z.object({
     .optional()
     .describe('Deployment target (e.g., "GCP Functions", "AWS Lambda", "Vercel")'),
   docker_image: z.string().optional().describe('Docker image name if service is containerized'),
+  port_applies: z
+    .boolean()
+    .optional()
+    .describe(
+      'Set to false ONLY when the service genuinely has no port (serverless ' +
+        'function invoked via event triggers, library, CLI tool, build step). ' +
+        'Omit when a port is set or when no search has been done yet.',
+    ),
+  port_applies_reason: z
+    .string()
+    .optional()
+    .describe(
+      'When port_applies=false, a one-line reason ' +
+        '(e.g. "AWS Lambda — invoked via API Gateway, no localhost port", ' +
+        '"library — no runtime", "build step — runs and exits"). Required ' +
+        'when port_applies=false.',
+    ),
+  port_search_evidence: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'When port is omitted AND port_applies=false, list ≥2 search attempts ' +
+        'that established no port applies (e.g. ["Read firebase.json — no ' +
+        'emulators block", "Read serverless.yml — no provider.dev port"]).',
+    ),
 });
 export type ServiceEnvironment = z.infer<typeof ServiceEnvironmentSchema>;
-
-// ----------------------------------------------------------------------------
-// Service Frameworks
-// ----------------------------------------------------------------------------
 
 export const ServiceFrameworksSchema = z.object({
   main: z
@@ -115,40 +118,45 @@ export const ServiceFrameworksSchema = z.object({
 });
 export type ServiceFrameworks = z.infer<typeof ServiceFrameworksSchema>;
 
-// ----------------------------------------------------------------------------
-// Complete Service Schema
-// ----------------------------------------------------------------------------
+/**
+ * Service-discovery quality floors enforced in Phase 4 context generation.
+ *
+ *   - `MIN_FILES_FOR_FALLBACK_SERVICE` (10): a language must have ≥ this many
+ *     files to earn a fallback (no-manifest) service entry. Below this, we
+ *     assume the language is incidental noise (one-off `*.sh` script,
+ *     vendored snippet) and skip it.
+ *   - `MIN_FILES_FOR_NO_MANIFEST_SERVICE` (5): final filter applied to ALL
+ *     services regardless of how they were discovered. A service is dropped
+ *     when it has no `manifest_file` AND its `file_count` is explicitly set
+ *     to < 5. Manifest-backed services are kept at any size, and services
+ *     with `file_count: undefined` are kept (no measurement = no evidence to
+ *     drop).
+ *
+ * These constants live here as documentation; the enforcement is in
+ * `phase4/context-generation.node.ts`.
+ */
+export const MIN_FILES_FOR_FALLBACK_SERVICE = 10;
+export const MIN_FILES_FOR_NO_MANIFEST_SERVICE = 5;
 
 export const ServiceSchema = z.object({
-  // Identity
   id: z.string().min(1).describe('Service identifier (e.g., "backend", "frontend", "auth-lambda")'),
   name: z.string().optional().describe('Human-readable service name from manifest or folder'),
   path: z
     .string()
     .describe('Relative path from repo root to service directory (DISCOVERED dynamically)'),
   type: ServiceTypeEnum.describe('Service type inferred from dependencies and entry points'),
-
-  // Stack
   language: z.string().describe('Primary language (e.g., "typescript", "python", "go")'),
   language_version: z
     .string()
     .optional()
     .describe('Language version from manifest (e.g., "5.8", "3.11", "1.21")'),
   frameworks: ServiceFrameworksSchema.describe('Frameworks detected for this service'),
-
-  // Testing (per-service)
   testing: ServiceTestingSchema.optional().describe('Testing configuration for this service'),
-
-  // Databases (per-service, supports polyglot persistence)
   databases: z
     .array(ServiceDatabaseSchema)
     .optional()
     .describe('Databases used by this service (discovered from dependencies)'),
-
-  // Environment
   environment: ServiceEnvironmentSchema.optional().describe('Environment configuration'),
-
-  // Metadata
   file_count: z.number().optional().describe('Number of files in service directory'),
   package_manager: z
     .string()
@@ -161,13 +169,140 @@ export const ServiceSchema = z.object({
 });
 export type Service = z.infer<typeof ServiceSchema>;
 
-// ----------------------------------------------------------------------------
-// Stack Profile Schema - CLEAN, SERVICE-CENTRIC ONLY
-// ----------------------------------------------------------------------------
+/**
+ * Stack-agnostic command-discovery contract: Phase 1 captures Tier-1
+ * wrapper entry points (Make/Just/Task/scripts/devcontainer/CI) plus
+ * the README "Getting Started" section verbatim, then a pure
+ * deterministic builder produces a `command_catalog` keyed by
+ * operation. The closed-book Phase 3 synthesizer renders the catalog
+ * directly — it never decides tier ordering itself.
+ */
+
+export const AutomationTargetSchema = z.object({
+  name: z.string().min(1).describe('Target / recipe / task name (e.g., "setup", "test:e2e")'),
+  group: z
+    .string()
+    .optional()
+    .describe(
+      'Group annotation extracted from leading comment (e.g., "@docker" → "docker"). ' +
+        'Free-form; the Makefile / Justfile / Taskfile author chose it.',
+    ),
+  description: z
+    .string()
+    .optional()
+    .describe('Description text extracted verbatim from the target comment.'),
+});
+export type AutomationTarget = z.infer<typeof AutomationTargetSchema>;
+
+export const AutomationFileSchema = z.object({
+  path: z.string().min(1).describe('Path relative to repo root (or relative to per-service root).'),
+  targets: z
+    .array(AutomationTargetSchema)
+    .describe('Targets / recipes / tasks discovered in the file.'),
+});
+export type AutomationFile = z.infer<typeof AutomationFileSchema>;
+
+export const AutomationShellScriptSchema = z.object({
+  path: z.string().min(1).describe('Path relative to repo root.'),
+  purpose: z
+    .enum(['setup', 'bootstrap', 'dev', 'test', 'reset', 'unknown'])
+    .describe('Inferred purpose from filename / shebang / comment block.'),
+  shebang: z.string().optional().describe('First line if it starts with `#!`.'),
+});
+export type AutomationShellScript = z.infer<typeof AutomationShellScriptSchema>;
+
+export const AutomationDevcontainerSchema = z.object({
+  postCreateCommand: z.string().optional(),
+  postStartCommand: z.string().optional(),
+});
+export type AutomationDevcontainer = z.infer<typeof AutomationDevcontainerSchema>;
+
+export const AutomationCiHintSchema = z.object({
+  file: z
+    .string()
+    .min(1)
+    .describe('Path to the CI definition (e.g., ".github/workflows/test.yml")'),
+  commands: z
+    .array(z.string().min(1))
+    .describe('Command lines extracted from `run:` / script steps in the CI file.'),
+});
+export type AutomationCiHint = z.infer<typeof AutomationCiHintSchema>;
+
+export const AutomationSchema = z.object({
+  makefiles: z.array(AutomationFileSchema).default([]),
+  justfiles: z.array(AutomationFileSchema).default([]),
+  taskfiles: z.array(AutomationFileSchema).default([]),
+  shell_scripts: z.array(AutomationShellScriptSchema).default([]),
+  devcontainer: AutomationDevcontainerSchema.optional(),
+  ci_hints: z.array(AutomationCiHintSchema).default([]),
+});
+export type Automation = z.infer<typeof AutomationSchema>;
+
+export const ReadmeRunSectionEntrySchema = z.object({
+  path: z.string().min(1).describe('README path (e.g., "README.md")'),
+  heading: z.string().min(1).describe('Heading text matched verbatim (e.g., "Getting Started")'),
+  body: z.string().describe('Section body verbatim (raw markdown until next `## ` heading).'),
+  fenced_blocks: z
+    .array(z.string())
+    .describe('Fenced code-block contents within the section, in document order.'),
+});
+export type ReadmeRunSectionEntry = z.infer<typeof ReadmeRunSectionEntrySchema>;
+
+export const CommandCatalogOperationEnum = z.enum([
+  'setup',
+  'start_dev',
+  'run_tests',
+  'run_unit_tests',
+  'run_integration_tests',
+  'run_e2e',
+  'run_lint',
+  'run_format',
+  'run_typecheck',
+  'run_build',
+  'run_migrations',
+  'generate_migration',
+  'revert_migration',
+  'seed',
+  'reset',
+]);
+export type CommandCatalogOperation = z.infer<typeof CommandCatalogOperationEnum>;
+
+export const CommandCatalogTierEnum = z.enum(['wrapper', 'readme', 'package_manager', 'ci']);
+export type CommandCatalogTier = z.infer<typeof CommandCatalogTierEnum>;
+
+export const CommandCatalogEntrySchema = z.object({
+  tier: CommandCatalogTierEnum.describe(
+    'Preference tier: `wrapper` > `readme` > `package_manager` > `ci`. ' +
+      'The synthesizer renders entries grouped by tier; lower tiers are ' +
+      'never listed before higher tiers for the same operation.',
+  ),
+  command: z.string().min(1).describe('Exact command line (e.g., "make setup", "pnpm test")'),
+  description: z
+    .string()
+    .optional()
+    .describe(
+      'Description verbatim from source (Makefile comment, README prose, etc.). ' +
+        'Never paraphrased — preserves stack-specific terms only when the source used them.',
+    ),
+  source: z.string().min(1).describe('File path the command came from (provenance, audit-trail).'),
+  per_service: z
+    .string()
+    .optional()
+    .describe('Service id when the command runs against a single service (Tier 3 only).'),
+});
+export type CommandCatalogEntry = z.infer<typeof CommandCatalogEntrySchema>;
+
+export const CommandCatalogSchema = z
+  .partialRecord(CommandCatalogOperationEnum, z.array(CommandCatalogEntrySchema))
+  .describe(
+    'Map of operation → ordered array of candidate commands across all four tiers. ' +
+      'Operations with no candidates are omitted. The first array entry is the ' +
+      'preferred command; subsequent entries are fallbacks.',
+  );
+export type CommandCatalog = z.infer<typeof CommandCatalogSchema>;
 
 export const StackProfileSchema = z
   .object({
-    // CORE: Services array (source of truth)
     services: z
       .array(ServiceSchema)
       .min(1)
@@ -175,8 +310,6 @@ export const StackProfileSchema = z
         'Array of discovered services. Each service is a first-class entity with complete stack definition. ' +
           'REQUIRED: At least 1 service must be present.',
       ),
-
-    // METADATA: Repository-level information
     is_monorepo: z
       .boolean()
       .describe('Whether the project is a monorepo (multiple packages/services in one repository)'),
@@ -192,8 +325,6 @@ export const StackProfileSchema = z
       .array(z.string())
       .optional()
       .describe('Infrastructure tools detected (e.g., ["Docker", "Kubernetes", "Terraform"])'),
-
-    // File counts (optional metadata for context)
     file_counts: z
       .object({
         total: z.number().describe('Total number of files in repository'),
@@ -203,10 +334,28 @@ export const StackProfileSchema = z
       })
       .optional()
       .describe('File statistics for the repository'),
+    automation: AutomationSchema.optional().describe(
+      'Discovered Tier-1 automation entry points: Make/Just/Task targets, ' +
+        'shell scripts, devcontainer hooks, CI hints. Populated by Phase 1 ' +
+        'structure-architecture-analyzer.',
+    ),
+    readme_run_sections: z
+      .array(ReadmeRunSectionEntrySchema)
+      .optional()
+      .describe(
+        'README sections matching `Getting Started` / `Setup` / `Quickstart` / ' +
+          '`Installation` / `Development` / `Running Locally` / `How to Run` ' +
+          '(case-insensitive). Reproduced verbatim with attribution.',
+      ),
+    command_catalog: CommandCatalogSchema.optional().describe(
+      'Operation → ordered list of candidate commands. Built deterministically ' +
+        'from `automation`, `readme_run_sections`, and per-service package- ' +
+        'manager scripts. Closed-book consumers (synthesizer, wiki generator, ' +
+        'skills) render this verbatim — never re-order tiers.',
+    ),
   })
   .refine(
     (data) => {
-      // Validation: Ensure unique service IDs
       const ids = data.services.map((s) => s.id);
       return new Set(ids).size === ids.length;
     },
@@ -217,10 +366,6 @@ export const StackProfileSchema = z
   );
 
 export type StackProfile = z.infer<typeof StackProfileSchema>;
-
-// ----------------------------------------------------------------------------
-// Helper Functions
-// ----------------------------------------------------------------------------
 
 /**
  * Get all unique languages from services

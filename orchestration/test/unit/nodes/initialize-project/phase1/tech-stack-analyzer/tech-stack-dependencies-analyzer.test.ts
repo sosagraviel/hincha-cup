@@ -81,7 +81,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
         const { output } = await agentInvoke('');
-        return JSON.parse(output);
+        return { data: JSON.parse(output), sessionId: undefined };
       },
     );
   });
@@ -141,9 +141,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     await techStackDependenciesAnalyzerNode(mockState);
 
     expect(mockAgent.invoke).toHaveBeenCalledWith({
-      inputPrompt: expect.stringContaining(
-        'Analyze the tech stack and dependencies at: /test/project',
-      ),
+      inputPrompt: expect.stringContaining('/test/project'),
     });
   });
 
@@ -163,13 +161,29 @@ describe('techStackDependenciesAnalyzerNode', () => {
       findings: { test: 'data' },
     };
 
-    vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockResolvedValue(mockData);
+    // The node now expects { data, sessionId } from retryWithEnhancedFeedback
+    // and overwrites graph_queries_used from the Stop hook's sidecar before
+    // persisting. With sessionId=undefined the helper forces graph_queries_used=[].
+    vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockResolvedValue({
+      data: mockData,
+      sessionId: undefined,
+    });
 
     await techStackDependenciesAnalyzerNode(mockState);
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.any(String),
-      JSON.stringify(mockData, null, 2),
+      JSON.stringify(
+        {
+          ...mockData,
+          graph_queries_used: [],
+          graph_overflow_count: 0,
+          graph_overflow_tools: [],
+          soft_warning: [],
+        },
+        null,
+        2,
+      ),
     );
   });
 
@@ -197,7 +211,10 @@ describe('techStackDependenciesAnalyzerNode', () => {
       vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
         async (agentInvoke: any) => {
           await agentInvoke('');
-          return { agent_name: 'test', timestamp: '2024-01-01T00:00:00Z', findings: {} };
+          return {
+            data: { agent_name: 'test', timestamp: '2024-01-01T00:00:00Z', findings: {} },
+            sessionId: undefined,
+          };
         },
       );
 
@@ -235,7 +252,9 @@ describe('techStackDependenciesAnalyzerNode', () => {
     );
   });
 
-  it('should preserve existing errors when adding new error', async () => {
+  it('returns only the new error; the LangGraph reducer merges with existing state.errors', async () => {
+    // Phase E: nodes return only NEW entries. The LangGraph annotation
+    // reducer (`(left, right) => [...left, ...right]`) concatenates.
     const stateWithErrors = {
       ...mockState,
       errors: ['Previous error 1', 'Previous error 2'],
@@ -245,10 +264,8 @@ describe('techStackDependenciesAnalyzerNode', () => {
 
     const result = await techStackDependenciesAnalyzerNode(stateWithErrors);
 
-    expect(result.errors).toHaveLength(3);
-    expect(result.errors).toContain('Previous error 1');
-    expect(result.errors).toContain('Previous error 2');
-    expect(result.errors?.[2]).toContain('New error');
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors?.[0]).toContain('New error');
   });
 
   it('should handle validation errors', async () => {
@@ -329,7 +346,7 @@ describe('techStackDependenciesAnalyzerNode', () => {
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
         const output = await agentInvoke('');
-        return JSON.parse(JSON.stringify(output));
+        return { data: JSON.parse(JSON.stringify(output)), sessionId: undefined };
       },
     );
 

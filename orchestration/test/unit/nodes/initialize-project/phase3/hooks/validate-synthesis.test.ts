@@ -10,87 +10,193 @@ describe('validate-synthesis hook', () => {
   );
 
   /**
-   * Helper to generate valid CLAUDE.md content
+   * Helpers that build a five-section synthesis blob accepted by the hook.
+   * Phase 3 emits: CLAUDE.md cheat-sheet, three prescriptive convention
+   * skills, and an architectural narrative for the wiki-generator.
    */
-  function generateValidClaudeMd(lineCount: number = 30): string {
-    const baseLines = [
-      '# Test Project',
-      '',
-      '> Quick reference for AI agents.',
-      '',
-      '## Tech Stack',
-      '',
-      '- TypeScript 5.3',
-      '- Node.js 20',
-      '- PostgreSQL 15',
-      '',
-      '## File Placement Guide',
-      '',
-      '| File Type | Location | Example |',
-      '|-----------|----------|---------|',
-      '| Controller | src/controllers/ | user.controller.ts |',
-      '| Service | src/services/ | user.service.ts |',
-      '| Model | src/models/ | user.model.ts |',
-      '',
-      '## Essential Commands',
-      '',
-      '| Task | Command |',
-      '|------|---------|',
-      '| Dev | npm run dev |',
-      '| Test | npm test |',
-      '',
-      '## Directory Structure',
-      '',
-      'src/',
-      '  controllers/',
-      '  services/',
-    ];
-
-    const additionalLines = Array.from(
-      { length: Math.max(0, lineCount - baseLines.length) },
-      (_, i) => `Additional line ${i + 1}`,
-    );
-
-    return [...baseLines, ...additionalLines].join('\n');
+  function pad(lines: string[], target: number, filler: string): string {
+    const out = [...lines];
+    while (out.length < target) out.push(`${filler} ${out.length}`);
+    return out.join('\n');
   }
 
-  /**
-   * Helper to generate valid project-context content
-   */
-  function generateValidProjectContext(lineCount: number = 50): string {
-    const baseLines = [
-      '---',
-      'name: project-context',
-      'description: Test project context',
-      '---',
-      '',
-      '# Project Context: Test',
-      '',
-      '## When to Use This Skill',
-      '',
-      '- When implementing features',
-      '- When debugging issues',
-      '',
-      '## Architecture',
-      '',
-      'This is comprehensive project context.',
-      '',
-      '## Gotchas',
-      '',
-      '```typescript',
-      '// Wrong',
-      'const bad = null;',
-      '// Correct',
-      'const good = value;',
-      '```',
-    ];
-
-    const additionalLines = Array.from(
-      { length: Math.max(0, lineCount - baseLines.length) },
-      (_, i) => `Additional context line ${i + 1}`,
+  function generateValidClaudeMd(target = 30): string {
+    return pad(
+      [
+        '# Test Project',
+        '',
+        '## Tech Stack',
+        '- TypeScript 5.3',
+        '- Node.js 20',
+        '- PostgreSQL 15',
+        '',
+        '## File Placement Guide',
+        '| File Type | Location | Example |',
+        '|-----------|----------|---------|',
+        '| Controller | src/controllers/ | user.controller.ts |',
+        '| Service | src/services/ | user.service.ts |',
+        '',
+        '## Directory Structure',
+        'src/',
+        '  controllers/',
+        '  services/',
+        '',
+        '## Essential Commands',
+        '| Task | Command |',
+        '|------|---------|',
+        '| Dev | npm run dev |',
+        '| Test | npm test |',
+      ],
+      target,
+      '- Additional cheat-sheet line',
     );
+  }
 
-    return [...baseLines, ...additionalLines].join('\n');
+  function generateValidCodeConventions(target = 30): string {
+    return pad(
+      [
+        '---',
+        'name: code-conventions',
+        'description: Project-specific coding conventions',
+        '---',
+        '',
+        '# Code Conventions',
+        '',
+        '## Naming',
+        '- camelCase variables',
+        '',
+        '## Gotchas',
+        '',
+        '```typescript',
+        '// WRONG',
+        'await orderRepo.save(order);',
+        '```',
+        '',
+        '```typescript',
+        '// CORRECT',
+        'return dataSource.transaction(async (m) => m.save(Order, order));',
+        '```',
+      ],
+      target,
+      '- additional rule',
+    );
+  }
+
+  function generateValidMultiFileWorkflows(target = 20): string {
+    return pad(
+      [
+        '---',
+        'name: multi-file-workflows',
+        'description: Cross-cutting checklists',
+        '---',
+        '',
+        '# Multi-File Workflows',
+        '',
+        '## Adding endpoint',
+        '1. Create controller',
+        '2. Add service',
+        '3. Wire DTO',
+        '',
+        // The multi-file-workflows skill body requires ≥1 fenced code block.
+        // The synthesis prompt asks for language-appropriate scaffolds;
+        // the validator enforces it.
+        '```typescript',
+        '// apps/api/src/modules/{domain}/{domain}.controller.ts',
+        '@Controller()',
+        'export class DomainController {}',
+        '```',
+      ],
+      target,
+      '- additional checklist step',
+    );
+  }
+
+  function generateValidTestingConventions(target = 25): string {
+    return pad(
+      [
+        '---',
+        'name: testing-conventions',
+        'description: Project-specific testing conventions',
+        '---',
+        '',
+        '# Testing Conventions',
+        '',
+        '## Philosophy',
+        '- Test behavior, not implementation',
+        '',
+        '## Unit Test Patterns',
+        '',
+        '```typescript',
+        "describe('UserService', () => {",
+        "  it('creates a user', async () => {",
+        '    const u = await service.create({});',
+        '    expect(u.id).toBeDefined();',
+        '  });',
+        '});',
+        '```',
+      ],
+      target,
+      '- additional testing rule',
+    );
+  }
+
+  function generateValidArchitecturalNarrative(target = 30): string {
+    return pad(
+      [
+        '# Architectural Narrative',
+        '',
+        '## Repository Shape',
+        'Monorepo with backend + frontend.',
+        '',
+        '## Service Inventory',
+        '- api: TypeScript backend',
+        '- web: TypeScript frontend',
+        '',
+        '## Cross-Service Flows',
+        'web calls api over HTTP.',
+      ],
+      target,
+      'Additional narrative paragraph',
+    );
+  }
+
+  /** Compose a full five-section synthesis blob from sub-fixtures. */
+  function buildValidSynthesis(opts?: {
+    claudeLines?: number;
+    codeConvLines?: number;
+    multiFileLines?: number;
+    testingLines?: number;
+    narrativeLines?: number;
+  }): string {
+    return [
+      '# CLAUDE.md Content',
+      '',
+      generateValidClaudeMd(opts?.claudeLines ?? 30),
+      '',
+      '---',
+      '',
+      '# code-conventions/SKILL.md Content',
+      '',
+      generateValidCodeConventions(opts?.codeConvLines ?? 30),
+      '',
+      '---',
+      '',
+      '# multi-file-workflows/SKILL.md Content',
+      '',
+      generateValidMultiFileWorkflows(opts?.multiFileLines ?? 20),
+      '',
+      '---',
+      '',
+      '# testing-conventions/SKILL.md Content',
+      '',
+      generateValidTestingConventions(opts?.testingLines ?? 25),
+      '',
+      '---',
+      '',
+      '# Architectural Narrative Content',
+      '',
+      generateValidArchitecturalNarrative(opts?.narrativeLines ?? 30),
+    ].join('\n');
   }
 
   /**
@@ -172,88 +278,66 @@ describe('validate-synthesis hook', () => {
 
   describe('Valid Synthesis Output', () => {
     it('should allow valid synthesis with all required sections', () => {
-      const claudeLines = generateValidClaudeMd(30);
-      const contextLines = generateValidProjectContext(50);
-
-      const validOutput = `# CLAUDE.md Content
-
-${claudeLines}
-
----
-
-# project-context/SKILL.md Content
-
-${contextLines}`;
-
-      const result = runHook(validOutput);
-
+      const result = runHook(buildValidSynthesis());
       expect(result.allowed).toBe(true);
     });
 
-    it('should allow synthesis with minimum line counts (30/50 lines)', () => {
-      const claudeLines = generateValidClaudeMd(30);
-      const contextLines = generateValidProjectContext(50);
-
-      const validOutput = `# CLAUDE.md Content
-
-${claudeLines}
-
----
-
-# project-context/SKILL.md Content
-
-${contextLines}`;
-
-      const result = runHook(validOutput);
-
+    it('should allow synthesis with minimum line counts on every section', () => {
+      const result = runHook(
+        buildValidSynthesis({
+          claudeLines: 30,
+          codeConvLines: 30,
+          multiFileLines: 20,
+          testingLines: 25,
+          narrativeLines: 30,
+        }),
+      );
       expect(result.allowed).toBe(true);
     });
   });
 
   describe('Invalid Synthesis Output - Missing Sections', () => {
     it('should block output missing CLAUDE.md Content section', () => {
-      const invalidOutput = `# Some Other Section
-
----
-
-# project-context/SKILL.md Content
-
-${'x'.repeat(500)}`;
-
+      const invalidOutput = buildValidSynthesis().replace('# CLAUDE.md Content', '');
       const result = runHook(invalidOutput);
 
       expect(result.allowed).toBe(false);
       expect(result.feedback?.toUpperCase()).toMatch(/CLAUDE\.MD|SECTION|MISSING/);
     });
 
-    it('should block output missing project-context section', () => {
-      const invalidOutput = `# CLAUDE.md Content
-
-${'x'.repeat(500)}
-
----
-
-# Wrong Section Name`;
-
+    it('should block output missing the architectural narrative section', () => {
+      const invalidOutput = buildValidSynthesis().replace('# Architectural Narrative Content', '');
       const result = runHook(invalidOutput);
 
       expect(result.allowed).toBe(false);
-      expect(result.feedback?.toUpperCase()).toMatch(/PROJECT-CONTEXT|SECTION|MISSING/);
+      expect(result.feedback?.toUpperCase()).toMatch(
+        /ARCHITECTURAL\sNARRATIVE|SECTION|MISSING|REQUIRED/,
+      );
     });
 
-    it('should block output missing separator', () => {
-      const invalidOutput = `# CLAUDE.md Content
-
-${'x'.repeat(300)}
-
-# project-context/SKILL.md Content
-
-${'x'.repeat(300)}`;
-
+    it('should block output missing the multi-file-workflows section', () => {
+      const invalidOutput = buildValidSynthesis().replace(
+        '# multi-file-workflows/SKILL.md Content',
+        '',
+      );
       const result = runHook(invalidOutput);
 
       expect(result.allowed).toBe(false);
-      expect(result.feedback?.toUpperCase()).toMatch(/SEPARATOR|SECTION|MISSING/);
+      expect(result.feedback?.toUpperCase()).toMatch(/MULTI-FILE-WORKFLOWS|SECTION|MISSING/);
+    });
+
+    it('blocks multi-file-workflows body that has zero fenced code blocks', () => {
+      // The multi-file-workflows skill body requires ≥1 fenced code block.
+      // Build the canonical synthesis, then strip every fenced block
+      // out of the multi-file-workflows section only.
+      const synthesis = buildValidSynthesis();
+      const canonicalMfw = generateValidMultiFileWorkflows(20);
+      const noCodeMfw = canonicalMfw.replace(/```[\s\S]*?```/g, 'no code here');
+      const without = synthesis.replace(canonicalMfw, noCodeMfw);
+
+      const result = runHook(without);
+      expect(result.allowed).toBe(false);
+      expect(result.feedback?.toUpperCase()).toMatch(/MULTI-FILE-WORKFLOWS.*CODE EXAMPLES/s);
     });
 
     it('should block output missing all sections', () => {
@@ -275,7 +359,6 @@ ${'x'.repeat(500)}`;
         timestamp: '2024-01-01T00:00:00Z',
         findings: {
           claude_md: 'content',
-          project_context: 'content',
         },
       });
 
@@ -292,14 +375,14 @@ Too short
 
 ---
 
-# project-context/SKILL.md Content
+# code-conventions/SKILL.md Content
 
 Also short`;
 
       const result = runHook(shortOutput);
 
       expect(result.allowed).toBe(false);
-      expect(result.feedback?.toUpperCase()).toMatch(/SHORT|MINIMUM|LINE/);
+      expect(result.feedback?.toUpperCase()).toMatch(/SHORT|MINIMUM|LINE|SECTION|MISSING/);
     });
 
     it('should block empty output', () => {
@@ -346,86 +429,36 @@ ${'x'.repeat(500)}`;
   });
 
   describe('Edge Cases', () => {
-    it('should allow synthesis with extra whitespace', () => {
-      const claudeLines = generateValidClaudeMd(30);
-      const contextLines = generateValidProjectContext(50);
-
-      const validOutput = `
-
-# CLAUDE.md Content
-
-${claudeLines}
-
----
-
-# project-context/SKILL.md Content
-
-${contextLines}
-
-`;
-
-      const result = runHook(validOutput);
-
+    it('should allow synthesis with surrounding whitespace', () => {
+      const result = runHook(`\n\n${buildValidSynthesis()}\n\n`);
       expect(result.allowed).toBe(true);
     });
 
-    it('should detect separator even with surrounding content', () => {
-      const claudeLines = generateValidClaudeMd(30);
-      const contextLines = generateValidProjectContext(50);
-
-      const validOutput = `# CLAUDE.md Content
-
-${claudeLines}
-
----
-
-# project-context/SKILL.md Content
-
-${contextLines}`;
-
-      const result = runHook(validOutput);
-
+    it('should accept synthesis with all five sections in order', () => {
+      const result = runHook(buildValidSynthesis());
       expect(result.allowed).toBe(true);
     });
 
-    it('should handle multiline content in both sections', () => {
-      const claudeLines = generateValidClaudeMd(30);
-      const contextLines = generateValidProjectContext(50);
-
-      const validOutput = `# CLAUDE.md Content
-
-${claudeLines}
-
----
-
-# project-context/SKILL.md Content
-
-${contextLines}`;
-
-      const result = runHook(validOutput);
-
+    it('should handle multi-line content in every section', () => {
+      const result = runHook(
+        buildValidSynthesis({
+          claudeLines: 60,
+          codeConvLines: 80,
+          multiFileLines: 60,
+          testingLines: 60,
+          narrativeLines: 80,
+        }),
+      );
       expect(result.allowed).toBe(true);
     });
   });
 
   describe('Hook Protocol Compliance', () => {
     it('should read from transcript_path not stdin', () => {
-      // This is tested implicitly by runHook helper
-      // If it tried to read stdin directly, it would fail
-      const claudeLines = generateValidClaudeMd(30);
-      const contextLines = generateValidProjectContext(50);
-
-      const validOutput = `# CLAUDE.md Content
-
-${claudeLines}
-
----
-
-# project-context/SKILL.md Content
-
-${contextLines}`;
-
-      const result = runHook(validOutput);
+      // Tested implicitly by runHook helper — it injects the agent output via
+      // a temporary transcript file, not stdin. If the hook ever regressed to
+      // reading stdin we'd see EAGAIN/empty-input errors here.
+      const result = runHook(buildValidSynthesis());
       expect(result.allowed).toBe(true);
     });
 

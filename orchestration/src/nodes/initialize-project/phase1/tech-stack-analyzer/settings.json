@@ -1,4 +1,8 @@
 {
+  "permissions": {
+    "allow": ["${FRAMEWORK_AGENT_READ_ALLOW}"],
+    "deny": ["${FRAMEWORK_EXCLUDED_DENY_RULES}"]
+  },
   "hooks": {
     "PreToolUse": [
       {

@@ -13,7 +13,6 @@ export function validateClaudeMdContent(content: string): string[] {
   const lines = content.split('\n');
   const fileName = getInstructionFileName();
 
-  // Check for project name heading (allows both uppercase and lowercase first letter)
   const hasProjectHeading = lines.some((line) => /^# [a-zA-Z]/.test(line.trim()));
   if (!hasProjectHeading) {
     errors.push(
@@ -28,7 +27,6 @@ export function validateClaudeMdContent(content: string): string[] {
     );
   }
 
-  // Check for required sections (## headings)
   const requiredSections = ['Tech Stack', 'File Placement', 'Essential Commands'];
   const sectionHeadings = lines
     .filter((line) => /^## /.test(line.trim()))
@@ -53,7 +51,6 @@ export function validateClaudeMdContent(content: string): string[] {
     );
   }
 
-  // Check for table format (| pipe characters)
   const hasTable = lines.some((line) => line.includes('|') && line.trim().startsWith('|'));
   if (!hasTable) {
     errors.push(
@@ -70,11 +67,8 @@ export function validateClaudeMdContent(content: string): string[] {
     );
   }
 
-  // Check for structured content (bullet lists OR tables)
   const hasBulletList = lines.some((line) => /^[-*] /.test(line.trim()));
 
-  // Accept either bullet lists or tables for structured content (e.g., Tech Stack)
-  // Tables are already validated above, so if we have either format, we're good
   if (!hasBulletList && !hasTable) {
     errors.push(
       `${fileName} MISSING STRUCTURED CONTENT`,

@@ -3,6 +3,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { buildContentSection } from '../../../utils/shared/context-tags.js';
 import { getInstructionFileName, resolveConfigPath } from '../../../utils/provider-paths.js';
+import { trimSynthesisInput } from './helpers/trim-synthesis-input.js';
 
 /**
  * Build a provider-aware output-format block that overrides the default
@@ -16,7 +17,24 @@ function buildProviderOutputFormat(): string {
   const instructionFile = getInstructionFileName();
   const sectionHeader = `# ${instructionFile} Content`;
   const instructionFilePath = resolveConfigPath('<project>', instructionFile);
-  const skillPath = resolveConfigPath('<project>', 'skills', 'project-context', 'SKILL.md');
+  const codeConventionsPath = resolveConfigPath(
+    '<project>',
+    'skills',
+    'code-conventions',
+    'SKILL.md',
+  );
+  const multiFileWorkflowsPath = resolveConfigPath(
+    '<project>',
+    'skills',
+    'multi-file-workflows',
+    'SKILL.md',
+  );
+  const testingConventionsPath = resolveConfigPath(
+    '<project>',
+    'skills',
+    'testing-conventions',
+    'SKILL.md',
+  );
 
   return [
     '<provider_output_format>',
@@ -25,12 +43,19 @@ function buildProviderOutputFormat(): string {
     '',
     `  • Instruction file name: ${instructionFile}`,
     `  • First-section marker (line 1 of your response): ${sectionHeader}`,
-    `  • Orchestration will write it to: ${instructionFilePath}`,
-    `  • Project-context skill will be written to: ${skillPath}`,
+    `  • Orchestration will write the instruction file to: ${instructionFilePath}`,
+    `  • code-conventions skill body → ${codeConventionsPath}`,
+    `  • multi-file-workflows skill body → ${multiFileWorkflowsPath}`,
+    `  • testing-conventions skill body → ${testingConventionsPath}`,
+    `  • Architectural narrative is consumed by the wiki-generator (Phase 4b);`,
+    `    do NOT emit YAML frontmatter, page titles, or filenames for it.`,
     '',
     `Your response MUST start with exactly: ${sectionHeader}`,
     'Followed by the instruction-file body, then `---`, then',
-    '`# project-context/SKILL.md Content`, then the skill body.',
+    '`# code-conventions/SKILL.md Content`, then the skill body, then `---`, then',
+    '`# multi-file-workflows/SKILL.md Content`, then the skill body, then `---`, then',
+    '`# testing-conventions/SKILL.md Content`, then the skill body, then `---`, then',
+    '`# Architectural Narrative Content`, then the descriptive prose.',
     '</provider_output_format>',
   ].join('\n');
 }
@@ -62,7 +87,7 @@ function loadSynthesisInstructions(): string {
  * and any validation feedback.
  */
 export function buildSynthesisPrompt(consolidatedData: any, feedbackPrompt?: string): string {
-  const consolidatedJson = JSON.stringify(consolidatedData, null, 2);
+  const consolidatedJson = JSON.stringify(trimSynthesisInput(consolidatedData), null, 2);
 
   const parts: string[] = [
     buildContentSection('Consolidated Analysis', consolidatedJson),

@@ -4,10 +4,6 @@
  * Centralized type definitions for Phase 6 validation components
  */
 
-// ============================================================================
-// VALIDATION RESULT TYPES
-// ============================================================================
-
 /**
  * Result of a validation check
  */
@@ -53,6 +49,7 @@ export interface PhaseCompletionResult extends ValidationResult {
   phase2Complete: boolean;
   phase3Complete: boolean;
   phase4Complete: boolean;
+  phase4WikiComplete?: boolean;
 }
 
 /**

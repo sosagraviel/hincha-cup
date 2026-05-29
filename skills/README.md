@@ -27,7 +27,7 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 |-------|---------|
 | start-task | Isolated git worktree per task with auto port detection and `.claude` config copy |
 
-**Related artifacts (not static skills)**: `initialize-project` is implemented as the TypeScript orchestration CLI; `project-context` is generated per target project by that pipeline.
+**Related artifacts (not static skills)**: `initialize-project` is implemented as the TypeScript orchestration CLI. Per-project generated outputs include three prescriptive convention skills (`code-conventions`, `multi-file-workflows`, `testing-conventions`) plus a graph-grounded LLM wiki — not reusable skill folders in this repo.
 
 **When to use**: Starting a new ticket in parallel with other work, keeping experiments isolated
 
@@ -38,13 +38,13 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 
 | Skill | Purpose |
 |-------|---------|
-| analyze-requirements | Jira ticket analysis → implementation plan with file changes, risks, and steps |
-| architect-agent | Coordinate planning, delegation, and evaluation across architect and code agent workspaces |
-| code-implementation | Language-aware implementation orchestrator (auto-detects Python/TypeScript) |
 | create-sdd-ticket | Generate specification-driven development (SDD) tickets with gap detection |
-| implement-ticket | End-to-end ticket orchestrator: analyze → implement → quality → security → PR |
+| implement-ticket | End-to-end ticket orchestrator: plan → implement → test → review → PR |
 | mastering-git-cli | Git expertise — branches, commits, merges, rebases, worktrees, conflict resolution |
+| repo-fanout-pr | Fan out a multi-repo change into one commit + push + PR per affected child repo and cross-link the PR bodies; invoked by `/implement-ticket` Phase 9 |
 | skill-creator | Create, modify, improve, and eval skills |
+| wiki-add-service | Create a new service-doc page under `docs/llm-wiki/wiki/services/` when `/wiki-refresh` flags a missing service |
+| wiki-refresh | Incrementally refresh `docs/llm-wiki/` after code changes; runs as Phase 8.5 of `/implement-ticket` |
 
 **When to use**: Implementing features, fixing bugs, daily coding tasks
 
@@ -55,9 +55,8 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 
 | Skill | Purpose |
 |-------|---------|
-| code-quality-check | Linting, type checking, test coverage (80%+ threshold) |
 | create-pr | GitHub PR with conventional commits, descriptions, artifacts |
-| doc-updater | Maintain `CLAUDE.md` and `project-context` accuracy after code changes |
+| doc-updater | Maintain `CLAUDE.md` and the three generated convention skills (`code-conventions`, `multi-file-workflows`, `testing-conventions`) accuracy after code changes |
 | jest-coverage-automation | AI-powered Jest test generation and coverage improvement |
 | playwright-e2e-automation | Multi-step Playwright E2E automation with Planner/Implementer/Healer agents |
 | pr-reviewer | Comprehensive GitHub PR code review with structured feedback |
@@ -114,8 +113,9 @@ Based on [Johnny Decimal best practices](https://johnnydecimal.com/) and [organi
 | Skill | Purpose |
 |-------|---------|
 | design-doc-mermaid | Generate Mermaid diagrams (activity, sequence, architecture, ER) from code/text |
+| ingest-external-docs | Stage external descriptive docs (PDFs, Confluence/Notion exports, ADRs from outside the repo) under `docs/llm-wiki/raw/external/` so the wiki-generator absorbs them on the next `/wiki-refresh`. Export-first; opt-in via `wiki.cache_external` |
 
-**When to use**: Creating technical documentation, visualizing architectures
+**When to use**: Creating technical documentation, visualizing architectures, importing external context (design docs, ADRs, vendor specs) the codebase analysis cannot derive
 
 ---
 
@@ -232,13 +232,19 @@ Only create new groups when:
 
 ### New Feature Implementation
 ```
-1. 040/fetch-ticket-context  → Get full context
-2. 020/analyze-requirements  → Plan implementation
-3. 020/code-implementation   → Write code
-4. 030/code-quality-check    → Verify quality
-5. 030/security-review       → Check security
-6. 030/create-pr             → Submit for review
+1. 020/create-sdd-ticket     → Draft SDD ticket with gap detection (optional pre-step)
+2. 020/implement-ticket      → End-to-end orchestrator. Runs Phases 0–11:
+                                preflight → context → wiki preload → plan
+                                → implement → test → visual → docs → wiki
+                                → PR → review (pr-reviewer + security-review)
+                                → cleanup
 ```
+
+The legacy `analyze-requirements` / `code-implementation` /
+`code-quality-check` skills were removed in the 2026-04-30 flow-cleanup
+pass — every step they performed now lives inside `/implement-ticket`'s
+phase pipeline, fed by Phase 1's analyzer outputs and the canonical
+artifact tree at `<TEMP_DIR>/tickets/<TICKET_ID>/artifacts/`.
 
 ### Parallel Ticket Kickoff
 ```

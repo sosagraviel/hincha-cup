@@ -1,119 +1,43 @@
 /**
  * Phase 5: Resources Constants
  *
- * Centralized constants for Phase 5 components
+ * All language-specific defaults (default commands, implementer-agent gate)
+ * are derived from the centralized language-config registry. Adding a new
+ * language is a one-file change under
+ * `services/framework/language-config/languages/`.
  */
 
 import type { CommandSet } from './types.js';
-
-// ============================================================================
-// COMMAND DEFAULTS
-// ============================================================================
-
-/**
- * Command defaults for different languages
- * Used to generate agent configuration when project doesn't have explicit commands
- */
-export const COMMAND_DEFAULTS: Record<string, CommandSet> = {
-  typescript: {
-    lint: 'npm run lint',
-    format: 'npm run format',
-    typecheck: 'npm run typecheck',
-    test: 'npm test',
-    build: 'npm run build',
-  },
-  javascript: {
-    lint: 'npm run lint',
-    format: 'npm run format',
-    typecheck: '',
-    test: 'npm test',
-    build: 'npm run build',
-  },
-  python: {
-    lint: 'ruff check .',
-    format: 'black .',
-    typecheck: 'mypy .',
-    test: 'pytest',
-    build: 'python -m build',
-  },
-  go: {
-    lint: 'golangci-lint run',
-    format: 'go fmt ./...',
-    typecheck: 'go vet ./...',
-    test: 'go test ./...',
-    build: 'go build ./...',
-  },
-  csharp: {
-    lint: 'dotnet format --verify-no-changes',
-    format: 'dotnet format',
-    typecheck: 'dotnet build --no-incremental',
-    test: 'dotnet test',
-    build: 'dotnet build',
-  },
-  rust: {
-    lint: 'cargo clippy',
-    format: 'cargo fmt',
-    typecheck: 'cargo check',
-    test: 'cargo test',
-    build: 'cargo build',
-  },
-  java: {
-    lint: 'mvn checkstyle:check',
-    format: 'mvn spotless:apply',
-    typecheck: 'mvn compile',
-    test: 'mvn test',
-    build: 'mvn package',
-  },
-  scala: {
-    lint: 'sbt scalafmtCheckAll',
-    format: 'sbt scalafmtAll',
-    typecheck: 'sbt compile',
-    test: 'sbt test',
-    build: 'sbt package',
-  },
-  php: {
-    lint: 'composer run-script phpcs',
-    format: 'composer run-script phpcbf',
-    typecheck: 'composer run-script phpstan',
-    test: 'composer run-script test',
-    build: 'composer install',
-  },
-  ruby: {
-    lint: 'bundle exec rubocop',
-    format: 'bundle exec rubocop -a',
-    // Ruby has no default static type checker.
-    typecheck: '',
-    test: 'bundle exec rspec',
-    // Ruby is interpreted — no build step.
-    build: '',
-  },
-  swift: {
-    lint: 'swiftlint lint',
-    format: 'swiftformat .',
-    typecheck: "xcodebuild build -destination 'platform=iOS Simulator,name=iPhone 16'",
-    test: "xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 16'",
-    build: "xcodebuild build -destination 'platform=iOS Simulator,name=iPhone 16'",
-  },
-};
-
-// ============================================================================
-// SUPPORTED LANGUAGES
-// ============================================================================
+import {
+  commandDefaultsByLanguage,
+  languagesWithImplementerAgent,
+} from '../../../services/framework/language-config/index.js';
 
 /**
- * Languages supported by the framework for dedicated implementer agents
- * Languages not in this list will be handled by implementer-generic
+ * Default lint / format / typecheck / test / build commands per language —
+ * used by the Phase 5 implementer-agent generator when the project's
+ * manifest carries no script overrides. Derived from each language's
+ * `commandDefaults` field in the language-config registry.
  */
-export const SUPPORTED_IMPLEMENTER_LANGUAGES = [
-  'typescript',
-  'javascript',
-  'python',
-  'go',
-  'rust',
-  'java',
-  'scala',
-  'csharp',
-  'php',
-  'ruby',
-  'swift',
-];
+export const COMMAND_DEFAULTS: Record<string, CommandSet> = (() => {
+  const out: Record<string, CommandSet> = {};
+  for (const [key, defaults] of Object.entries(commandDefaultsByLanguage())) {
+    out[key] = {
+      lint: defaults.lint ?? '',
+      format: defaults.format ?? '',
+      typecheck: defaults.typecheck ?? '',
+      test: defaults.test ?? '',
+      build: defaults.build ?? '',
+    };
+  }
+  return out;
+})();
+
+/**
+ * Language keys for which Phase 5 generates a dedicated implementer agent
+ * (e.g. `implementer-typescript`, `implementer-python`). Languages outside
+ * this set are handled by `implementer-generic`. Derived from the
+ * registry's `hasImplementerAgent` flag.
+ */
+export const SUPPORTED_IMPLEMENTER_LANGUAGES: ReadonlyArray<string> =
+  languagesWithImplementerAgent();

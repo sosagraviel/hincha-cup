@@ -41,8 +41,6 @@ export function parseCodexTranscript(
     const ts = (entry.timestamp as string | undefined) ?? undefined;
     const sessionId = opts.sessionId;
 
-    // Codex rollout files flatten `item` into the top-level object, so either
-    // form can appear. Discover the type.
     const type = (entry.type as string | undefined) ?? undefined;
 
     switch (type) {
@@ -233,9 +231,7 @@ function pushToolCallItem(
   if (typeof input === 'string') {
     try {
       input = JSON.parse(input);
-    } catch {
-      // leave as string
-    }
+    } catch {}
   }
   events.push({
     t: 'tool_use',

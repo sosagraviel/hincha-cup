@@ -60,6 +60,16 @@ ${BLUE}OPTIONS:${NC}
     --provider PROVIDER  AI provider to use: claude or codex
                          Default: auto-detect (checks API keys then CLI availability)
 
+    --ignore PATH        Extra directory or relative path to exclude from
+                         analysis. Additive to .gitignore + framework defaults.
+                         Two equivalent forms — pick whichever is easier:
+                           Repeatable: --ignore PATH1 --ignore PATH2
+                           CSV:        --ignore PATH1,PATH2,PATH3
+                         Example (repeatable):
+                           --ignore orchestration/test/integration --ignore website/build
+                         Example (CSV):
+                           --ignore orchestration/test/integration,website/build
+
     --help, -h           Show this help message
 
 ${BLUE}ENVIRONMENT VARIABLES:${NC}
@@ -134,6 +144,7 @@ START_PHASE=1
 TIMEOUT=3600
 CLEAN_TEMP="false"
 PROVIDER=""
+IGNORE_PATHS=()
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -155,6 +166,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         --provider)
             PROVIDER="$2"
+            shift 2
+            ;;
+        --ignore)
+            # Repeatable flag. Comma-separated values also accepted — the TS
+            # CLI normalises and validates each entry.
+            IFS=',' read -r -a _ignore_tokens <<< "$2"
+            for _ignore_token in "${_ignore_tokens[@]}"; do
+                [ -n "$_ignore_token" ] && IGNORE_PATHS+=("$_ignore_token")
+            done
             shift 2
             ;;
         --help|-h)
@@ -213,11 +233,13 @@ echo -e "${CYAN}  AI AGENTIC FRAMEWORK - PROJECT INITIALIZATION${NC}"
 echo -e "${CYAN}========================================================================${NC}"
 echo ""
 
-# Auto-detect framework path from script's own location
-# This script is at: framework-dir/scripts/initialize-project.sh
-# So framework root is one level up
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FRAMEWORK_PATH="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Resolve FRAMEWORK_PATH and PROJECT_PATH via the canonical helper.
+# Both are LOCALLY scoped — never `export`. The agent-factory in TS is the only
+# legitimate point that injects FRAMEWORK_PATH into a child process's env.
+# shellcheck source=lib/resolve-paths.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/resolve-paths.sh"
+FRAMEWORK_PATH="$(framework_path)"
+PROJECT_PATH="$(project_path)"
 
 # Validate framework path exists
 if [ ! -d "$FRAMEWORK_PATH" ]; then
@@ -229,35 +251,22 @@ if [ ! -d "$FRAMEWORK_PATH" ]; then
     exit 1
 fi
 
-# Detect dogfooding mode: framework directory is a symlink pointing to "."
-# When qubika-agentic-framework -> ., doing cd qubika-agentic-framework/.. goes to parent
-# We need to detect this case and fix the paths
-FRAMEWORK_REAL_PATH="$(cd "$FRAMEWORK_PATH" && pwd -P)"
-
-# If framework's real path equals its parent directory, we're in dogfooding mode
-if [ "$FRAMEWORK_REAL_PATH" = "$(dirname "$FRAMEWORK_PATH")" ]; then
-    # Dogfooding mode: framework is using itself via symlink
+# Surface dogfooding mode for the user (helper handled the actual detection).
+# In dogfooding, the framework's physical path equals its logical parent because the
+# `qubika-agentic-framework -> .` self-symlink redirects in-place.
+if [ "$(cd "$FRAMEWORK_PATH" && pwd -P)" = "$(cd "$FRAMEWORK_PATH/.." && pwd)" ]; then
     echo -e "${YELLOW}🔄 Dogfooding mode detected (framework developing itself)${NC}"
-    PROJECT_PATH="$FRAMEWORK_REAL_PATH"
-    export PROJECT_PATH
-    export FRAMEWORK_PATH
-else
-    # Normal mode: Detect project path from parent directory of framework
-    # Framework should be at: project-root/qubika-agentic-framework
-    PROJECT_PATH="$(cd "$FRAMEWORK_PATH/.." && pwd)"
-
-    # Validate project path is not the same as framework (framework should be inside project)
-    if [ "$PROJECT_PATH" = "$FRAMEWORK_PATH" ]; then
-        echo -e "${RED}Error: Framework is not inside a project directory${NC}"
-        echo ""
-        echo "The framework must be cloned at your project root:"
-        echo ""
-        echo "  cd /path/to/your/project"
-        echo "  git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework"
-        echo "  ./qubika-agentic-framework/scripts/initialize-project.sh"
-        echo ""
-        exit 1
-    fi
+elif [ "$PROJECT_PATH" = "$FRAMEWORK_PATH" ]; then
+    # Normal mode but framework is NOT inside a target project — bail out.
+    echo -e "${RED}Error: Framework is not inside a project directory${NC}"
+    echo ""
+    echo "The framework must be cloned at your project root:"
+    echo ""
+    echo "  cd /path/to/your/project"
+    echo "  git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-agentic-framework"
+    echo "  ./qubika-agentic-framework/scripts/initialize-project.sh"
+    echo ""
+    exit 1
 fi
 
 echo -e "${BLUE}ℹ Framework location: $FRAMEWORK_PATH${NC}"
@@ -453,10 +462,10 @@ if true; then
     # When user presses CTRL+C, both bash and tsx receive SIGINT, tsx handles it properly
     cd "$FRAMEWORK_PATH/orchestration" || exit 1
 
-    # Export environment variable for child process
+    # Export only what tsx genuinely needs to receive via env. PROJECT_PATH and
+    # FRAMEWORK_PATH are NOT exported — tsx uses paths.service to derive them
+    # locally from import.meta.url (single source of truth).
     export MODEL_TIER="${MODEL_TIER:-standard}"
-    export PROJECT_PATH
-    export FRAMEWORK_PATH
     export PROVIDER
 
     # Run tsx in foreground - CTRL+C will send SIGINT to tsx which has proper handlers
@@ -472,13 +481,20 @@ if true; then
     # NOTE: tsx must run in foreground to preserve stdin access for interactive prompts
     # The gap questions feature requires stdin to be connected to the terminal
 
-    # Build common tsx arguments
+    # Build common tsx arguments. --project-path / --framework-path are no longer
+    # passed: paths.service.ts derives them from import.meta.url.
     TSX_ARGS=(
         "$ORCHESTRATION_CLI"
-        --project-path "$PROJECT_PATH"
-        --framework-path "$FRAMEWORK_PATH"
         --provider "$PROVIDER"
     )
+
+    # Forward each user-supplied --ignore path. TS-side parseIgnoreFlag()
+    # validates absolute / glob / parent-escape input before workflow starts.
+    if [ "${#IGNORE_PATHS[@]}" -gt 0 ]; then
+        for _ignore_path in "${IGNORE_PATHS[@]}"; do
+            TSX_ARGS+=(--ignore "$_ignore_path")
+        done
+    fi
 
     # Build tsx command with optional start-phase parameter
     if [ "$START_PHASE" -gt 1 ]; then

@@ -42,7 +42,6 @@ export function translateHooksToProvider(
   provider: Provider,
   frameworkPath: string,
 ): string {
-  // Resolve ${FRAMEWORK_PATH} in all commands
   const resolvedHooks = hooks.map((hook) => ({
     ...hook,
     command: hook.command.replace(/\$\{FRAMEWORK_PATH\}|\$FRAMEWORK_PATH/g, frameworkPath),

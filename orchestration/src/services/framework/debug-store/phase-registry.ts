@@ -11,6 +11,11 @@ export const INITIALIZE_PROJECT_PHASES: Record<string, PhaseSlot> = {
     phaseNumber: 1,
     phaseLabel: 'Phase 1 — Discovery',
   },
+  phase1_5: {
+    phaseId: 'phase-1-discovery',
+    phaseNumber: 1,
+    phaseLabel: 'Phase 1 — Discovery',
+  },
   phase2: {
     phaseId: 'phase-2-consolidation',
     phaseNumber: 2,
@@ -25,6 +30,11 @@ export const INITIALIZE_PROJECT_PHASES: Record<string, PhaseSlot> = {
     phaseId: 'phase-4-context-generation',
     phaseNumber: 4,
     phaseLabel: 'Phase 4 — Context Generation',
+  },
+  phase4Wiki: {
+    phaseId: 'phase-4-wiki',
+    phaseNumber: 4,
+    phaseLabel: 'Phase 4 — Wiki Generation',
   },
   phase5: {
     phaseId: 'phase-5-resources',

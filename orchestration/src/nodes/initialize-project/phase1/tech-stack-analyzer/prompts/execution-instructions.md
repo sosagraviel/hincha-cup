@@ -1,812 +1,189 @@
-# Tech Stack & Dependencies Analysis Instructions
+# Tech Stack & Dependencies Analysis
 
-<objective>
-Analyze dependencies, databases, infrastructure tools, CI/CD pipelines, and deployment configuration for each service. Provide comprehensive tech stack information to understand the operational requirements.
-</objective>
+Analyze dependencies, databases, infrastructure tools, CI/CD pipelines,
+and deployment per service.
 
-**IMPORTANT: Service Discovery Ownership**
+**Service IDs come from the structure analyzer** — never redeclare;
+key per-service findings under `findings.dependencies.by_service.<id>`.
+The legacy `services` array is deprecated.
 
-- **Structure Analyzer (Agent 01)** is the SINGLE SOURCE OF TRUTH for service discovery
-- DO NOT redeclare services in your output
-- REFERENCE services by ID from Structure Analyzer
-- Organize findings using service IDs as keys (e.g., `dependencies.by_service.backend`)
-- The `services` array field is DEPRECATED - use by_service maps instead
+Follow the **Graph navigation discipline** templated into your system
+prompt: lean parameters everywhere; respect drill-in caps;
+`get_architecture_overview` is **forbidden** (use `get_minimal_context`
 
-<discovery_process>
+- `list_communities` instead).
 
-## Step 1: Find Dependency Manifests and Lock Files
+## Step 0 — Inspection summary (pre-rendered)
 
-For each service discovered in Phase 1 (by Structure Analyzer), locate and read its dependency files:
+<<script:inspection-summary>>
 
-<manifest_patterns>
+The above is a Phase 0 summary. The full structured data lives at
+`<tempDir>/project-inspection.json` — read it ONLY when this summary
+doesn't carry a specific field you need. Copy verbatim where
+indicated; do NOT re-glob to derive any of it:
 
-**Package Managers:**
+| Inspection field                             | Output field                                                     |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| `manifests[]`                                | (read for deps in Step 4)                                        |
+| `lock_files[].manager`                       | `findings.dependencies.by_service.<svc>.manager`                 |
+| `runtime_versions{}`                         | `findings.runtime_versions` (verbatim, drop `tool-versions-raw`) |
+| `ci_cd.{provider,config_files}`              | `findings.ci_cd.{provider,config_files}`                         |
+| `infrastructure[]`                           | `findings.infrastructure` (verbatim concrete names)              |
+| `environment.{required_vars,template_files}` | `findings.environment.{required_vars,template_files}`            |
+| `monorepo.{package_manager,workspace_tool}`  | `findings.monorepo`                                              |
+| `infrastructure_services_hints[]`            | (used by data-flows; ignore here)                                |
 
-- JavaScript/TypeScript: package.json, package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb
-- Python: pyproject.toml, setup.py, requirements.txt, Pipfile, Pipfile.lock, poetry.lock
-- Go: go.mod, go.sum
-- Rust: Cargo.toml, Cargo.lock
-- Java: pom.xml, build.gradle, build.gradle.kts, gradle.lockfile
-- Ruby: Gemfile, Gemfile.lock
-- PHP: composer.json, composer.lock
-- C#: \*.csproj, packages.lock.json
-- Swift: Package.swift, Package.resolved
-- Elixir: mix.exs, mix.lock
+### HARD GLOB BAN
 
-Read each manifest to extract dependencies and their versions.
+The Stop hook emits `tech_stack_inspection_redundant_glob` (soft
+warning) when you Glob any of these — inspection covers them all:
 
-**CRITICAL:** For each service, create a comprehensive dependency breakdown:
+- `**/package.json`, `**/pyproject.toml`, `**/Cargo.toml`, `**/go.mod`,
+  `**/Gemfile`, `**/composer.json`, `**/*.csproj`, `**/Package.swift`,
+  `**/mix.exs`, `**/build.gradle*`, `**/pom.xml`, `**/pubspec.yaml`
+- All lock files (`pnpm-lock.yaml`, `poetry.lock`, etc.)
+- `.env*` templates
+- `Dockerfile*`, `docker-compose*.{yml,yaml}`
+- `.github/workflows/*`, `.gitlab-ci.yml`, etc.
+- `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, `turbo.json`, `go.work`
+- `.tool-versions`, `.nvmrc`, `.python-version`, `.ruby-version`
 
-1. **Production dependencies:** Dependencies required at runtime
-2. **Development dependencies:** Dependencies only for development (testing, linting, etc.)
-3. **Notable dependencies:** Top 3-5 most important dependencies (frameworks, ORMs, key libraries)
-4. **Dependency counts:** Total count of production and dev dependencies
+Legitimate Globs in this analyzer: graph `semantic_search_nodes`
+queries (Steps 1-3) + per-service build-tool config Reads (Step 11).
 
-**Report in `findings.dependencies.by_package` object for detailed analysis.**
+## Step 1 — Cheapest entry point
 
-</manifest_patterns>
+`get_minimal_context({ task: "Inventory the tech stack and dependencies" })`.
 
-## Step 2: Comprehensive Dependency Analysis
+## Step 2 — Service inventory
 
-<dependency_analysis>
+Use the **AUTHORITATIVE SERVICE LIST** injected into your prompt — it
+is the structure-analyzer's discovered services. Do NOT call
+`list_communities` to derive services: graph communities are code-
+pattern clusters (`*-it:should`, `*-constructor`, etc.), not services.
 
-For each service (or root if monorepo), extract and categorize ALL dependencies:
+## Step 3 — Confirmed-via-import SDKs (graph)
 
-### JavaScript/TypeScript (package.json)
+ONE `semantic_search_nodes({ limit: 20, detail_level: "minimal" })`
+per credible category, name-token query:
 
-Read `dependencies` (production) and `devDependencies` (development):
+- **databases**: postgres / mysql / sqlite / mssql / mongodb / redis /
+  dynamodb / elasticsearch / clickhouse / cassandra / cockroach
+- **ORM / data-access**: typeorm / prisma / sequelize / sqlalchemy /
+  django / gorm / diesel / hibernate / activerecord
+- **auth**: passport / jsonwebtoken / jose / auth0 / keycloak / oauth / oidc
+- **payments / email / monitoring**: stripe / sendgrid / mailgun / sentry / datadog / newrelic / paypal / algolia
+- **cloud**: aws-sdk / google-cloud / azure
 
-```json
-{
-  "dependencies": {
-    "@nestjs/common": "^11.0.11", // PRODUCTION
-    "typeorm": "^0.3.21"
-  },
-  "devDependencies": {
-    "@nestjs/testing": "^11.0.11", // DEVELOPMENT
-    "jest": "^29.7.0"
-  }
-}
+Mark each as `confirmed` (real import) vs `declared` (manifest-only).
+
+## Step 4 — Read per-service manifest
+
+For each service from Step 2: read its dependency manifest (path
+comes from the structure analyzer's `service.path`). Read the
+lock file alongside if present. Cap: 1 manifest + 1 lock per service.
+
+## Step 5 — Categorise dependencies
+
+For each service, extract:
+
+1. **production** — runtime deps (primary manifest section)
+2. **development** — dev/test deps
+3. **notable** — top 3-5 frameworks / ORMs / key libraries
+4. **count** — `{ production, dev }`
+
+Mark each as `confirmed` (Step 3 import site) or `declared`.
+**Report under `findings.dependencies.by_service.<service_id>`.**
+
+## Step 6 — DB + ORM
+
+From Step 3's confirmed candidates: record `type` (engine token),
+`orm` (data-access token), `migration_tool` + `migration_commands`
+(one config read per service). Defer to structure-analyzer's
+`findings.database` when already covered.
+
+## Step 7 — CI/CD pipelines (Glob required — graph cannot answer)
+
+ONE Glob over canonical CI configs, then read each match (cap: 5):
+
+```
+{.github/workflows/*.{yml,yaml},.gitlab-ci.yml,.circleci/config.yml,Jenkinsfile,.travis.yml,azure-pipelines.yml,bitbucket-pipelines.yml,buildspec.yml,cloudbuild.yaml}
 ```
 
-### Python (pyproject.toml)
+Extract per pipeline: `provider`, `config_files`, `triggers`, `stages`,
+`test_commands`, `build_commands`, `deploy_commands`, `environments`.
+No match → `"provider": "none"`.
 
-Read `[project.dependencies]` (production) and `[project.optional-dependencies.dev]` or `[tool.poetry.group.dev.dependencies]` (development):
+## Step 8 — Infrastructure & deployment (Glob required)
 
-```toml
-[project.dependencies]
-fastapi = "^0.109.0"  # PRODUCTION
-sqlalchemy = "^2.0.25"
+ONE Glob, then read up to 5 matched files:
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.0.0"  # DEVELOPMENT
-black = "^24.1.0"
+```
+{Dockerfile*,Containerfile,docker-compose*.{yml,yaml},k8s/**/*.{yml,yaml},Chart.yaml,values.yaml,*.tf,Pulumi.yaml,serverless.yml,netlify.toml,vercel.json,template.yaml}
 ```
 
-### Go (go.mod)
+`findings.infrastructure` lists CONCRETE tool names operators run
+(`docker`, `docker-compose`, `kubernetes`, `helm`, `terraform`,
+`pulumi`, `serverless`, `sam`, `netlify`, `vercel`, `nginx`).
+Never emit category abstractions.
 
-All dependencies in `require` block are typically production (Go doesn't separate dev deps in go.mod):
+`findings.deployment.{target, config_files, runtime_config, scaling}`.
 
-```go
-require (
-    github.com/gin-gonic/gin v1.9.1
-    gorm.io/gorm v1.25.5
-)
-```
+## Step 9 — Environment vars (redacted)
 
-### Rust (Cargo.toml)
+ONE Glob over `.env.example` / `.env.sample` / `.env.template`.
+Extract variable NAMES ONLY. Report
+`findings.environment.{required_vars[], environments[], config_approach}`.
 
-Read `[dependencies]` (production) and `[dev-dependencies]` (development):
+## Step 10 — External services
 
-```toml
-[dependencies]
-axum = "0.7"  # PRODUCTION
-tokio = "1.35"
+For each detected service: `{service, sdk, config_location,
+confirmed|declared}`. Primary signal: graph import sites from Step 3.
 
-[dev-dependencies]
-cargo-test = "0.1"  # DEVELOPMENT
-```
+## Step 11 — Build tools (one config read per service)
 
-**Report format:**
+The structure analyzer recorded each service's build config. Read it
+ONCE per service and extract `lint_command`, `format_command`,
+`test_command`, `build_command`. Report under
+`findings.build_tools.<service_id>` with `tool`, `config_file`.
 
-```json
-"dependencies": {
-  "by_package": {
-    "root": {
-      "production": {
-        "@keycloak/keycloak-admin-client": "^26.1.4",
-        "ajv": "^8.18.0"
-      },
-      "dev": {
-        "@commitlint/cli": "^19.8.0",
-        "husky": "^9.1.7"
-      },
-      "notable": ["@keycloak/keycloak-admin-client", "husky"],
-      "count": {
-        "production": 4,
-        "dev": 3
-      }
-    },
-    "services/backend": {
-      "production": {...},
-      "dev": {...},
-      "notable": [...],
-      "count": {...}
-    }
-  },
-  "conflicts": [],  // Version conflicts across services (if any)
-  "lock_strategy": "strict"  // "strict" if lock files present, "loose" if not
-}
-```
+## Step 12 — Monorepo
 
-</dependency_analysis>
-
-## Step 3: Identify Databases from Dependencies
-
-<database_detection>
-
-Search for database client libraries in dependencies:
-
-**SQL Databases:**
-
-- PostgreSQL: pg, psycopg2, asyncpg, node-postgres, pg-promise
-- MySQL: mysql, mysql2, mysqlclient, PyMySQL, aiomysql
-- SQLite: sqlite3, better-sqlite3, pysqlite3
-- SQL Server: mssql, tedious, pymssql, pyodbc
-
-**NoSQL Databases:**
-
-- MongoDB: mongodb, mongoose, pymongo, motor
-- Redis: redis, ioredis, redis-py, aioredis
-- Elasticsearch: @elastic/elasticsearch, elasticsearch-py
-- DynamoDB: aws-sdk, boto3 (with dynamodb imports)
-
-**ORMs indicate database usage:**
-
-- TypeORM, Prisma, Sequelize, Knex (Node)
-- SQLAlchemy, Django ORM, Tortoise ORM (Python)
-- GORM (Go), Diesel (Rust), Hibernate/JPA (Java), ActiveRecord (Ruby)
-
-For each database client found:
-
-1. Note the database type inferred from client library
-2. Record ORM if present
-3. Search for migration tool configs (TypeORM migrations, Alembic, Flyway, Liquibase)
-
-</database_detection>
-
-## Step 4: Comprehensive CI/CD Pipeline Analysis
-
-<cicd_patterns>
-
-Search for CI/CD configuration files:
-
-**GitHub Actions:** `.github/workflows/*.yml`, `.github/workflows/*.yaml`
-**GitLab CI:** `.gitlab-ci.yml`
-**CircleCI:** `.circleci/config.yml`
-**Jenkins:** `Jenkinsfile`, `.jenkins/*.groovy`
-**Travis CI:** `.travis.yml`
-**Azure Pipelines:** `azure-pipelines.yml`, `.azure/*.yml`
-**Bitbucket Pipelines:** `bitbucket-pipelines.yml`
-**AWS CodePipeline:** `buildspec.yml`
-**Google Cloud Build:** `cloudbuild.yaml`
-
-If NO CI/CD config files found, report `"provider": "none"`.
-
-### Read Pipeline Files to Extract:
-
-1. **Provider:** Which CI/CD system (e.g., "GitHub Actions", "GitLab CI")
-2. **Config files:** List all found config file paths
-3. **Triggers:** When pipeline runs (push, pull_request, manual, schedule)
-4. **Stages:** Pipeline stages (build, test, deploy, lint)
-5. **Test commands:** Commands that run tests (e.g., `npm test`, `pytest`, `go test`)
-6. **Build commands:** Commands that build artifacts (e.g., `npm run build`, `go build`)
-7. **Deploy commands:** Commands that deploy (e.g., `kubectl apply`, `docker push`)
-8. **Environments:** Target environments (development, staging, production)
-
-**Example GitHub Actions workflow extraction:**
-
-```yaml
-# .github/workflows/ci.yml
-name: CI
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - run: npm install
-      - run: npm test # TEST COMMAND
-      - run: npm run build # BUILD COMMAND
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - run: kubectl apply -f k8s/ # DEPLOY COMMAND
-    environment: production # ENVIRONMENT
-```
-
-**Report format:**
-
-```json
-"ci_cd": {
-  "provider": "GitHub Actions",
-  "config_files": [".github/workflows/ci.yml", ".github/workflows/deploy.yml"],
-  "triggers": ["push", "pull_request", "workflow_dispatch"],
-  "stages": ["lint", "test", "build", "deploy"],
-  "test_commands": ["npm test", "npm run test:e2e"],
-  "build_commands": ["npm run build"],
-  "deploy_commands": ["kubectl apply -f k8s/"],
-  "environments": ["development", "staging", "production"]
-}
-```
-
-If CI/CD not detected:
-
-```json
-"ci_cd": {
-  "provider": "none",
-  "config_files": [],
-  "triggers": [],
-  "stages": [],
-  "test_commands": [],
-  "build_commands": [],
-  "deploy_commands": [],
-  "environments": []
-}
-```
-
-</cicd_patterns>
-
-## Step 5: Infrastructure & Deployment Analysis
-
-<infrastructure_discovery>
-
-### Infrastructure Detection
-
-Search for infrastructure configuration files:
-
-**Containerization:**
-
-- Docker: `Dockerfile*`, `docker-compose*.yml`, `.dockerignore`
-- Podman: `Containerfile`
-
-**Orchestration:**
-
-- Kubernetes: `k8s/`, `kubernetes/`, `*.yaml` files with `kind: Deployment/Service/Ingress`
-- Docker Compose: `docker-compose*.yml`
-- Helm: `Chart.yaml`, `values.yaml`, `templates/`
-
-**Infrastructure as Code:**
-
-- Terraform: `*.tf`, `terraform.tfvars`
-- Pulumi: `Pulumi.yaml`, `__main__.py|ts|go`
-- CloudFormation: `*.template.json`, `*.template.yaml`
-- Ansible: `ansible/`, `playbooks/`, `*.ansible.yml`
-
-**Serverless:**
-
-- Serverless Framework: `serverless.yml`
-- AWS SAM: `template.yaml` (with `Transform: AWS::Serverless-2016-10-31`)
-- Netlify: `netlify.toml`
-- Vercel: `vercel.json`
-
-### Deployment Configuration Analysis
-
-Read Docker Compose / Kubernetes / Serverless configs to extract:
-
-1. **Deployment target:** "docker", "kubernetes", "serverless", "platform" (Vercel/Netlify)
-2. **Config files:** List ALL deployment-related files found
-3. **Runtime config:**
-   - Ports exposed (from docker-compose ports, Dockerfile EXPOSE, k8s Service)
-   - Worker/replica counts (from docker-compose scale, k8s replicas)
-   - Memory limits (from docker-compose mem_limit, k8s resources)
-4. **Scaling config:**
-   - Min/max replicas (from HorizontalPodAutoscaler, docker swarm, serverless auto-scaling)
-   - Autoscaling enabled or manual scaling
-
-**Example Docker Compose extraction:**
-
-```yaml
-# docker-compose.yml
-services:
-  backend:
-    build: ./services/backend
-    ports:
-      - '3050:3050' # PORT
-    environment:
-      - NODE_ENV=production
-  frontend:
-    build: ./services/web-frontend
-    ports:
-      - '2712:2712' # PORT
-```
-
-**Report format:**
-
-```json
-"infrastructure": ["docker", "docker-compose"],
-"deployment": {
-  "target": "docker",
-  "config_files": [
-    "docker-compose.yml",
-    "docker-compose.production.yml",
-    "services/backend/Dockerfile.development",
-    "services/backend/Dockerfile.production"
-  ],
-  "runtime_config": {
-    "port": "3050 (backend), 2712 (frontend)",
-    "workers": "not specified",
-    "memory": "not specified"
-  },
-  "scaling": {
-    "min_replicas": 1,
-    "max_replicas": 1,
-    "autoscaling": false
-  }
-}
-```
-
-</infrastructure_discovery>
-
-## Step 6: Environment Configuration Discovery
-
-<environment_analysis>
-
-Search for environment configuration patterns:
-
-**Environment Files:**
-
-- `.env.example`, `.env.sample`, `.env.template`
-- `config/`, `env/` directories
-- Environment-specific configs: `.env.development`, `.env.production`, `.env.staging`
-
-**Configuration Management:**
-
-- dotenv usage in dependencies
-- Config libraries (node-config, python-decouple, viper for Go)
-- Environment variable references in code (`process.env`, `os.getenv`, `os.Getenv`)
-
-### Extract from Environment Example Files:
-
-Read `.env.example` or `.env.template` to find **required environment variable names** (NEVER actual values):
-
-```bash
-# .env.example
-DATABASE_URL=postgresql://...
-REDIS_URL=redis://...
-API_KEY=your_api_key_here
-PORT=3000
-NODE_ENV=development
-```
-
-Extract variable names: `DATABASE_URL`, `REDIS_URL`, `API_KEY`, `PORT`, `NODE_ENV`
-
-### Detect Environment Types:
-
-From file names and CI/CD configs, identify which environments exist:
-
-- `.env.development` → "development"
-- `.env.production` → "production"
-- `.env.staging` → "staging"
-- `.env.test` → "test"
-
-**Report format:**
-
-```json
-"environment": {
-  "required_vars": [
-    "DATABASE_URL",
-    "REDIS_URL",
-    "API_KEY",
-    "PORT",
-    "NODE_ENV",
-    "JWT_SECRET"
-  ],
-  "environments": ["development", "production", "staging"],
-  "config_approach": "dotenv"  // or "env-vars", "config-files", "secrets-manager"
-}
-```
-
-</environment_analysis>
-
-## Step 7: External Services Detection
-
-<external_services>
-
-**Identify external service integrations from SDKs in dependencies:**
-
-### Authentication & Identity
-
-- **Keycloak:** `@keycloak/keycloak-admin-client`, `keycloak-js`
-- **Auth0:** `@auth0/auth0-react`, `auth0`
-- **Firebase Auth:** `firebase`, `@angular/fire`
-- **AWS Cognito:** `@aws-sdk/client-cognito-identity`
-- **OAuth providers:** `passport-google-oauth20`, `passport-github2`, `omniauth-google-oauth2`, `omniauth-github`
-
-### Monitoring & Error Tracking
-
-- **Sentry:** `@sentry/node`, `@sentry/react`, `@sentry/nestjs`, `sentry-ruby`, `sentry-rails`
-- **Datadog:** `dd-trace`, `@datadog/browser-rum`, `datadog`
-- **New Relic:** `newrelic`, `newrelic_rpm`
-- **LogRocket:** `logrocket`
-
-### Payment Processing
-
-- **Stripe:** `stripe`, `@stripe/stripe-js`
-- **PayPal:** `@paypal/checkout-server-sdk`, `paypal-checkout-sdk`, `paypal-server-sdk`
-
-### Email Services
-
-- **SendGrid:** `@sendgrid/mail`, `sendgrid-ruby`
-- **Mailgun:** `mailgun-js`, `mailgun-ruby`
-- **AWS SES:** `@aws-sdk/client-ses`, `aws-sdk-ses`
-- **MailHog:** (dev tool, found in docker-compose)
-
-### Cloud Services
-
-- **AWS SDK:** `@aws-sdk/*`, `boto3`, `aws-sdk-go-v2`, `aws-sdk-s3`, `aws-sdk-dynamodb`, `aws-sdk-rails`
-- **Google Cloud:** `@google-cloud/*`, `google-cloud-*`
-- **Azure:** `@azure/*`, `azure-storage-blob`
-
-### Search & Analytics
-
-- **Algolia:** `algoliasearch`, `algoliasearch-rails`
-- **Elasticsearch:** `@elastic/elasticsearch`, `elasticsearch-rails`, `elasticsearch-model`
-
-**For each detected service, report:**
-
-1. Service name
-2. SDK package name and version
-3. Config location (e.g., "dependencies", "docker-compose", "env variables")
-
-**Report format:**
-
-```json
-"external_services": [
-  {
-    "service": "Keycloak",
-    "sdk": "@keycloak/keycloak-admin-client v26.1.4",
-    "config_location": "docker-compose configuration"
-  },
-  {
-    "service": "Sentry",
-    "sdk": "@sentry/nestjs v9.30.0 / @sentry/react v9.32.0",
-    "config_location": "vite.config.ts, backend dependencies"
-  },
-  {
-    "service": "Google OAuth",
-    "sdk": "passport-google-oauth20 v2.0.0",
-    "config_location": "backend dependencies"
-  }
-]
-```
-
-</external_services>
-
-## Step 8: Build Tools Analysis
-
-<build_tools>
-
-**Identify build tools and their configurations:**
-
-### JavaScript/TypeScript Build Tools
-
-Search dependencies for:
-
-- **Bundlers:** webpack, vite, rollup, parcel, esbuild, turbo
-- **Transpilers:** @babel/core, tsc (TypeScript compiler)
-- **Task Runners:** gulp, grunt, nx
-
-Read build configuration files:
-
-- `vite.config.ts/js`
-- `webpack.config.js`
-- `rollup.config.js`
-- `turbo.json`
-
-### Extract Build Commands from package.json scripts:
-
-```json
-{
-  "scripts": {
-    "lint": "eslint --max-warnings=0", // LINT COMMAND
-    "format": "prettier --write src", // FORMAT COMMAND
-    "test": "jest", // TEST COMMAND
-    "build": "tsc -b && vite build" // BUILD COMMAND
-  }
-}
-```
-
-### Other Ecosystems
-
-- **Python:** `setup.py`, `pyproject.toml` build-system, `tox.ini`
-- **Go:** Built-in `go build`, `Makefile`
-- **Rust:** Built-in `cargo build`
-- **Java:** Maven (`pom.xml`), Gradle (`build.gradle`)
-- **Ruby:** Bundler (`Gemfile`), Rake (`Rakefile`)
-
-**Report format:**
-
-```json
-"build_tools": {
-  "tool": "vite",
-  "config_file": "services/web-frontend/vite.config.ts",
-  "lint_command": "eslint --max-warnings=0",
-  "format_command": "prettier --write src",
-  "test_command": "jest",
-  "build_command": "pnpm --filter @org/shared build && tsc -b && vite build"
-}
-```
-
-</build_tools>
-
-## Step 9: Enhanced Monorepo Analysis
-
-<monorepo_analysis>
-
-**If monorepo detected, provide detailed workspace configuration:**
-
-### Read Workspace Configuration:
-
-- **JavaScript/TypeScript:** `pnpm-workspace.yaml`, `package.json` workspaces field, `lerna.json`, `nx.json`
-- **Python:** Multiple `pyproject.toml` files, `poetry` workspaces
-- **Go:** `go.work` file
-- **Rust:** `Cargo.toml` `[workspace]` section
-
-### Extract:
-
-1. **Enabled:** true/false
-2. **Tool:** Which monorepo tool ("pnpm workspaces", "npm workspaces", "yarn workspaces", "lerna", "nx", "turborepo", "go workspaces", "cargo workspaces")
-3. **Workspace manager:** Package manager used
-4. **Build all command:** Command to build all packages (from root package.json scripts or turbo.json)
-5. **Test all command:** Command to test all packages
-
-**Example for pnpm monorepo:**
-
-Read `pnpm-workspace.yaml`:
-
-```yaml
-packages:
-  - 'packages/*'
-  - 'services/*'
-  - 'seeds/*'
-```
-
-Read root `package.json` scripts:
-
-```json
-{
-  "scripts": {
-    "build:all": "pnpm -r build",
-    "test:all": "pnpm -r test"
-  }
-}
-```
-
-**Report format:**
+If detected (workspace config OR `>1` community), report:
 
 ```json
 "monorepo": {
   "enabled": true,
-  "tool": "pnpm workspaces",
-  "workspace_manager": "pnpm",
-  "build_all_command": "pnpm -r build",
-  "test_all_command": "pnpm -r test"
+  "tool": "<canonical name>",       // "pnpm workspaces", "Nx", "Turborepo", "Maven multi-module", "Cargo workspaces", etc.
+  "package_manager": "<bare name>",  // "pnpm", "poetry", "cargo" — NO version
+  "workspace_config": "<path>",
+  "build_all_command": "...",
+  "test_all_command": "..."
 }
 ```
 
-If not a monorepo:
+Phase 4 normalises both fields via stack-agnostic helpers — emit
+canonical shapes.
 
-```json
-"monorepo": {
-  "enabled": false,
-  "tool": "none",
-  "workspace_manager": "npm",
-  "build_all_command": "not specified",
-  "test_all_command": "not specified"
-}
-```
+## Output
 
-</monorepo_analysis>
+Emit the shape below. Optional fields use the `"name?"` suffix — OMIT
+the field entirely when no value (do NOT emit `null`). Enums must use
+one of the listed tokens verbatim. Per-service maps key by IDs from
+your AUTHORITATIVE SERVICE LIST.
 
-</discovery_process>
+<<script:critic-block agent=tech-stack-dependencies-analyzer>>
 
-<critical_thinking>
+## `needs_verification` rules
 
-## Self-Verification Checklist
+Only when ALL hold: (a) cannot be determined from code/configs after
+exhaustive search, (b) in-scope (affects a generated artefact), (c)
+business/intent decision the operator is uniquely positioned to answer.
 
-1. **Found dependency manifests for all services?** Cross-check against Phase 1 service list
-2. **Comprehensive dependency breakdown complete?** Each service should have production/dev/notable/count fields
-3. **Database clients found but no database type?** Infer from client library name (pg = PostgreSQL, mongodb = MongoDB)
-4. **ORM present but no explicit database client?** ORM implies database (TypeORM often uses PostgreSQL)
-5. **CI/CD detection attempted?** If no config files found, report `"provider": "none"` (don't leave empty)
-6. **CI/CD commands extracted?** Test, build, and deploy commands from pipeline config
-7. **Infrastructure config found?** Check for Dockerfile, docker-compose, k8s configs
-8. **Deployment target identified?** Should be "docker", "kubernetes", "serverless", or "platform"
-9. **Environment variables extracted?** Read .env.example or .env.template for required var names
-10. **External services detected?** Check dependencies for Sentry, Keycloak, Auth0, Stripe, etc.
-11. **Build tools identified?** Find vite, webpack, or other bundlers and their config files
-12. **Build commands extracted?** Lint, format, test, build commands from package.json scripts
-13. **Monorepo analysis complete?** If monorepo, provide tool, workspace manager, and commands
-14. **Docker in dependencies but no Dockerfile?** Search more broadly (might be in subdirectories)
+Hard-rejected by Stop hook: credentials, production state, external
+infra "managed elsewhere", dependency versions, DB types,
+CI presence, infra tools.
 
-## Common Patterns by Ecosystem
-
-**Node.js/TypeScript:**
-
-- Lock file indicates package manager: package-lock.json (npm), yarn.lock (yarn), pnpm-lock.yaml (pnpm)
-- Testing: jest, vitest, mocha, cypress, playwright
-- Build tools: webpack, vite, rollup, esbuild, turbo
-
-**Python:**
-
-- Package manager from lock file: poetry.lock (Poetry), Pipfile.lock (Pipenv), requirements.txt (pip)
-- Testing: pytest, unittest, nose
-- ASGI/WSGI servers: uvicorn, gunicorn, hypercorn
-
-**Go:**
-
-- Dependencies in go.mod, versions locked in go.sum
-- Testing: built-in `go test`
-- Common frameworks: gin, echo, chi, fiber
-
-**Rust:**
-
-- Dependencies in Cargo.toml with [dependencies], locked in Cargo.lock
-- Testing: built-in `cargo test`
-- Web frameworks: axum, rocket, actix-web
-
-**Ruby:**
-
-- Dependencies in Gemfile, versions locked in Gemfile.lock (Bundler)
-- Testing: rspec, minitest, capybara
-- Web frameworks: rails, sinatra
-
-</critical_thinking>
-
-<output_format>
-
-See shared output format documentation at: `../../../shared/prompts/output-format.md`
-
-## Key Points
-
-- Output raw JSON only (no markdown, no commentary)
-- DEPRECATED field: `findings.services` array (use by_service maps instead)
-- Use service IDs as keys in `dependencies.by_service` map (e.g., "backend", "web-frontend")
-- Service IDs must match those from Structure Analyzer (Agent 01)
-- Optional fields: `findings.monorepo` for monorepo-level config
-- Optional field: `needs_verification` array (maximum 5 items)
-
-## Example Output Structure
-
-```json
-{
-  "agent_name": "tech-stack-dependencies-analyzer",
-  "timestamp": "2026-04-02T10:30:00.000Z",
-  "findings": {
-    "infrastructure": ["docker", "docker-compose"],
-    "dependencies": {
-      "by_service": {
-        "root": {
-          "production": ["@keycloak/keycloak-admin-client", "ajv"],
-          "development": ["@commitlint/cli", "husky"],
-          "notable": ["@keycloak/keycloak-admin-client", "husky"]
-        },
-        "backend": {
-          "production": ["@nestjs/common", "typeorm", "pg"],
-          "development": ["@nestjs/testing", "jest"],
-          "notable": ["@nestjs/common", "typeorm", "pg"]
-        },
-        "web-frontend": {
-          "production": ["react", "zustand", "vite"],
-          "development": ["@vitejs/plugin-react", "vitest"],
-          "notable": ["react", "zustand", "vite"]
-        }
-      },
-      "shared_across_services": ["typescript", "prettier"],
-      "notable_versions": {
-        "node": "20.10.0",
-        "typescript": "5.3.3"
-      }
-    },
-    "ci_cd": {
-      "provider": "GitHub Actions",
-      "config_files": [".github/workflows/ci.yml"],
-      "triggers": ["push", "pull_request"],
-      "stages": ["lint", "test", "build", "deploy"],
-      "test_commands": ["npm test"],
-      "build_commands": ["npm run build"],
-      "deploy_commands": ["kubectl apply -f k8s/"],
-      "environments": ["development", "production"]
-    },
-    "deployment": {
-      "target": "docker",
-      "config_files": [
-        "docker-compose.yml",
-        "docker-compose.production.yml",
-        "services/backend/Dockerfile.production"
-      ],
-      "runtime_config": {
-        "port": "3050 (backend), 2712 (frontend)",
-        "workers": "not specified",
-        "memory": "not specified"
-      },
-      "scaling": {
-        "min_replicas": 1,
-        "max_replicas": 1,
-        "autoscaling": false
-      }
-    },
-    "environment": {
-      "required_vars": ["DATABASE_URL", "REDIS_URL", "JWT_SECRET", "SENTRY_DSN"],
-      "environments": ["development", "production"],
-      "config_approach": "dotenv"
-    },
-    "databases": [
-      {
-        "type": "postgres",
-        "orm": "TypeORM",
-        "migration_tool": "TypeORM",
-        "migration_commands": ["npx typeorm migration:create", "npx typeorm migration:run"]
-      },
-      {
-        "type": "redis",
-        "orm": "ioredis",
-        "migration_tool": "none",
-        "migration_commands": []
-      }
-    ],
-    "external_services": [
-      {
-        "service": "Keycloak",
-        "sdk": "@keycloak/keycloak-admin-client v26.1.4",
-        "config_location": "docker-compose configuration"
-      },
-      {
-        "service": "Sentry",
-        "sdk": "@sentry/nestjs v9.30.0",
-        "config_location": "backend dependencies"
-      }
-    ],
-    "build_tools": {
-      "tool": "vite",
-      "config_file": "services/web-frontend/vite.config.ts",
-      "lint_command": "eslint --max-warnings=0",
-      "format_command": "prettier --write src",
-      "test_command": "jest",
-      "build_command": "tsc -b && vite build"
-    },
-    "monorepo": {
-      "enabled": true,
-      "tool": "pnpm workspaces",
-      "workspace_manager": "pnpm",
-      "build_all_command": "pnpm -r build",
-      "test_all_command": "pnpm -r test"
-    }
-  },
-  "needs_verification": []
-}
-```
-
-</output_format>
-
-<verification_guidelines>
-
-See shared verification format documentation at: `../../../shared/prompts/verification-format.md`
-
-Use `needs_verification` for:
-
-- Production credentials and URLs (not in codebase for security)
-- External service endpoints not configured in code
-- Infrastructure details managed outside repository
-- Deployment-specific configuration values
-
-Do NOT use for:
-
-- Dependency versions (readable from manifests)
-- Database types (inferable from client libraries)
-- CI/CD presence (detectable from config files)
-- Infrastructure tools (detectable from Dockerfiles, k8s configs)
-
-</verification_guidelines>
+**Record absence as a finding** — when evidence proves "no", emit
+the absence in `findings.*` (e.g. `provider: "none"`,
+`notable_absent: [...]`). Don't drop info on the floor.

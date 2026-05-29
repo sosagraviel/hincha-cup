@@ -12,19 +12,23 @@
 
 ## Overview
 
-Transforms tickets into production-ready PRs through 11-phase TypeScript orchestration using LangGraph state machines.
+Transforms tickets into production-ready PRs through 14-phase TypeScript orchestration using LangGraph state machines.
 
 **Features**:
-- 11 sequential phases (Phase 0-10)
+- 14 sequential phases (Phase 0–11 with sub-phases 8.4 and 8.5)
 - TypeScript orchestration with type safety
+- Wiki-aware planning (LLM wiki preloaded in Phase 2)
+- Graph-aware implementation (code graph consulted throughout)
 - Visual regression testing (Playwright)
 - Comprehensive quality gates
 - Artifact-based agent communication
 - Multi-language support
+- Implementation committed in Phase 8.4 so the Phase 8.5 wiki refresh sees the real diff
+- Automatic wiki refresh (Phase 8.5) before every PR
 
-**Flow**: `Ticket → Context → Planning → Implementation → Testing → Visual → PR`
+**Flow**: `Ticket → Context → Wiki Preload → Planning → Implementation → Testing → Visual → Docs → Implementation Commit → Wiki Refresh → PR`
 
-**Duration**: 15-35 minutes
+**Duration**: 17-40 minutes
 
 ---
 
@@ -70,17 +74,20 @@ const graph = new StateGraph(ImplementTicketAnnotation)
 
 | Phase | Duration | Purpose |
 |-------|----------|---------|
-| 0 | 30-60s | Load ticket context, validate environment |
-| 1 | 2-5min | Create implementation plan with planner agent |
-| 2 | 1-2min | Identify and resolve requirement gaps |
-| 3 | 1-3min | Validate architectural decisions |
-| 4 | 3-8min | Generate code with implementer agent |
-| 5 | <1min | Manage dependencies and resources |
-| 6 | 2-5min | Run comprehensive test suite |
-| 7 | 1-3min | Run quality gates (linting, type checking) |
-| 8 | 1-2min | Validate external service integrations |
-| 9 | 2-4min | Visual regression testing (UI only) |
-| 10 | 1-2min | Create PR and archive artifacts |
+| 0 | <3 s hot, ~5 s cold (graph fresh) / 30–90 s cold (graph build) | Preflight: `bash $FRAMEWORK_PATH/scripts/ensure-context.sh`. Auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or incrementally updates the graph, re-emits the local MCP config, then runs structural assertions as defensive double-checks. STOPs on non-zero exit. Wiki staleness is handled separately by `/wiki-refresh` (Phase 8.5). |
+| 1 | 1-2min | Context: fetch ticket from Jira/markdown/input |
+| 2 | 1-2min | Wiki Preload: read the wiki router (`docs/llm-wiki/CLAUDE.md`/`AGENTS.md`) and `index.md` (summary catalog), expand 1–3 matched page bodies, optionally call `get_minimal_context_tool` once if the matched bodies don't fully answer the planner's likely questions |
+| 3 | 2-5min | Planning: planner agent consumes wiki + graph context; produces Implementation Plan. Mid-session `⚠ BUDGET WARNING` messages injected via stop hooks when token thresholds are approached — informational, non-blocking. |
+| 4 | 1-3min | Environment: create branch, allocate ports, capture before-screenshots |
+| 5 | 3-8min | Implementation: graph-aware implementer consumes plan + wiki evidence. Also receives mid-session `⚠ BUDGET WARNING` stop-hook messages directing it to trim exploratory graph queries. |
+| 6 | 2-5min | Testing: run unit/integration/E2E tests with coverage |
+| 7 | 2-4min | Visual: pixel-diff comparison; visual-verifier agent if >5% changed |
+| 8 | 1-3min | Documentation: invoke `/doc-updater` to update CLAUDE.md/project-context |
+| 8.4 | <30 s | Implementation Commit: stage and commit the implementer's edits + tests + doc-updater output in each affected repo with `<type>(<TICKET>): <title>` Conventional Commit. Excludes `docs/llm-wiki/**` (Phase 8.5 owns that). Must run BEFORE Phase 8.5 so `/wiki-refresh` can diff `.state.json` HEAD against a HEAD that contains the actual work. |
+| 8.5 | 1-2min | Wiki Refresh: invoke `/wiki-refresh --commit --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR`. The skill diffs per-repo commits from `docs/llm-wiki/.state.json`, applies a high-level-only conservatism rule to identify affected pages, surgically edits them, then either commits `docs/llm-wiki/**` itself (when the wiki is git-tracked) or writes a diff manifest + warning artifact for Phase 9 to embed in PR bodies. Blocks PR only on hard errors (state missing, page update failure, wiki-commit hook failure). |
+| 9 | 1-2min | PR Creation: push + open pull request (the implementation commit is already in place from Phase 8.4; the optional wiki commit is from Phase 8.5). Multi-repo workspaces delegate to `/repo-fanout-pr --no-commit` for per-repo push + PR + cross-link. |
+| 10 | 2-4min | Review: `/pr-reviewer` + `/security-review`; up to 3 fix iterations |
+| 11 | 1-2min | Cleanup: archive artifacts, emit token-usage summary |
 
 ---
 

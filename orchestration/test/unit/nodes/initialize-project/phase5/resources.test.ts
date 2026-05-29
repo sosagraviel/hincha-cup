@@ -4,6 +4,8 @@ import type { InitializeProjectState } from '../../../../../src/state/schemas/in
 import * as fs from 'fs';
 import * as skillResolver from '../../../../../src/nodes/initialize-project/phase5/skill-resolver.js';
 import * as agentGenerator from '../../../../../src/nodes/initialize-project/phase5/agent-generator.js';
+import * as mcpConfigService from '../../../../../src/services/framework/mcp-config.service.js';
+import * as preflightScriptsService from '../../../../../src/services/framework/preflight-scripts.service.js';
 
 vi.mock('fs', () => ({
   mkdirSync: vi.fn(),
@@ -41,6 +43,14 @@ vi.mock('../../../../../src/nodes/initialize-project/phase5/agent-generator.js',
   writeAgents: vi.fn(),
 }));
 
+vi.mock('../../../../../src/services/framework/mcp-config.service.js', () => ({
+  upsertCodeGraphMcpConfig: vi.fn(),
+}));
+
+vi.mock('../../../../../src/services/framework/preflight-scripts.service.js', () => ({
+  copyPreflightScripts: vi.fn(),
+}));
+
 describe('resourcesNode', () => {
   let mockState: InitializeProjectState;
 
@@ -57,7 +67,8 @@ describe('resourcesNode', () => {
       phase4_context: {
         framework_config_generated: true,
         claude_md_written: true,
-        project_context_written: true,
+        conventions_skills_written: true,
+        architectural_narrative_written: true,
         timestamp: '2024-01-01T00:00:00Z',
       },
       errors: [],
@@ -117,6 +128,22 @@ describe('resourcesNode', () => {
       { name: 'planner', content: 'agent content' },
       { name: 'implementer', content: 'agent content' },
     ] as any);
+
+    vi.mocked(mcpConfigService.upsertCodeGraphMcpConfig).mockReturnValue({
+      configPath: '/test/project/.mcp.json',
+      changed: true,
+      backedUp: false,
+    });
+
+    vi.mocked(preflightScriptsService.copyPreflightScripts).mockReturnValue({
+      configDir: '.claude',
+      scriptsDir: '/test/project/.claude/scripts',
+      changed: true,
+      files: [
+        '/test/project/.claude/scripts/ensure-context.sh',
+        '/test/project/.claude/scripts/lib/resolve-paths.sh',
+      ],
+    });
   });
 
   it('should throw error if phase4_context not completed', async () => {
@@ -204,6 +231,16 @@ describe('resourcesNode', () => {
     expect(agentGenerator.writeAgents).toHaveBeenCalledWith(expect.any(Array), '/test/project');
   });
 
+  it('should configure project MCP for native Claude Code sessions', async () => {
+    await resourcesNode(mockState);
+
+    expect(mcpConfigService.upsertCodeGraphMcpConfig).toHaveBeenCalledWith({
+      projectPath: '/test/project',
+      frameworkPath: '/test/framework',
+      provider: 'claude',
+    });
+  });
+
   it('should handle errors gracefully', async () => {
     vi.mocked(fs.readFileSync).mockImplementation(() => {
       throw new Error('File read error');
@@ -215,7 +252,10 @@ describe('resourcesNode', () => {
     expect(result.current_phase).toBe('failed');
   });
 
-  it('should preserve existing errors when adding new error', async () => {
+  it('returns only the new error; the LangGraph reducer merges with existing state.errors', async () => {
+    // Phase E removed the `[...state.errors, new]` spread that duplicated
+    // every error against the concat reducer. Nodes now return only the
+    // delta; the reducer joins the lists.
     mockState.errors = ['Previous error'];
     vi.mocked(fs.readFileSync).mockImplementation(() => {
       throw new Error('New error');
@@ -223,8 +263,7 @@ describe('resourcesNode', () => {
 
     const result = await resourcesNode(mockState);
 
-    expect(result.errors).toHaveLength(2);
-    expect(result.errors).toContain('Previous error');
+    expect(result.errors).toEqual(['Resources copying failed: New error']);
   });
 
   it('should handle missing stack profile in config', async () => {

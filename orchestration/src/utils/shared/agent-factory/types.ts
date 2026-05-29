@@ -1,15 +1,18 @@
 import { AuthMode } from '../../../auth/auth-detector.js';
 import type { ValidationResult } from '../../validator.js';
 import type { PhaseSlot } from '../../../services/framework/debug-store/index.js';
+import type { BudgetKey } from '../../../services/framework/budgets.js';
 
 export interface AgentConfig {
   agentName: string;
-  agentFilePath: string; // Absolute path to agent .md file
+  agentFilePath: string;
   projectPath: string;
   frameworkPath: string;
   timeout?: number;
-  resumeSessionId?: string; // Session ID to resume (for context-preserving retry)
-  settingsPath?: string; // Optional path to settings.json file passed via --settings flag
+  resumeSessionId?: string;
+  settingsPath?: string;
+  trackerId?: string;
+  trackerDisplayName?: string;
   /**
    * Phase context used by the debug store to place per-attempt artifacts under
    * `debug/runs/<runId>/<phaseId>/<agentName>/attempt-<N>/<sessionId>/`.
@@ -17,6 +20,11 @@ export interface AgentConfig {
    * to a phase-less slot (`phase-unknown`).
    */
   phase?: PhaseSlot;
+  /**
+   * Optional budget key used by the token-usage emitter to tag this agent call
+   * with a known SLA budget for aggregation and breach detection.
+   */
+  budgetKey?: BudgetKey;
   /**
    * Internal validator invoked after each Codex CLI exec completes successfully.
    *
@@ -28,18 +36,41 @@ export interface AgentConfig {
   validator?: (output: string) => ValidationResult;
   /** Max in-session self-correction attempts for Codex when validator is set. Defaults to 5. */
   maxInternalIterations?: number;
+  /**
+   * Optional override of the framework's standard excluded-directories list.
+   * When provided, drives the PreToolUse hook's deny list and the resolved
+   * `permissions.deny` rules. Use sparingly — Phase 3's synthesizer is the
+   * only current caller.
+   */
+  excludedDirsOverride?: ReadonlyArray<string>;
+  /**
+   * Optional list of absolute file paths the agent is allowed to read even
+   * if their directory is otherwise denied. Rendered into the resolved
+   * `permissions.allow` array AND forwarded to the PreToolUse path-restriction
+   * hook via `FRAMEWORK_ALLOW_READ_PATHS` (JSON array of absolute paths).
+   *
+   * Glob characters are rejected by `buildClaudeAllowReadRules` — pass exact
+   * absolute file paths only. Use sparingly: each entry is a hole in the
+   * deny boundary.
+   */
+  allowReadPaths?: ReadonlyArray<string>;
+  /**
+   * Optional per-spawn environment variables forwarded into the spawned CLI process.
+   * Framework-controlled vars (FRAMEWORK_PATH, etc.) always win on a key collision.
+   */
+  extraEnv?: Record<string, string>;
 }
 
 export interface AgentInvokeInput {
-  inputPrompt: string; // Full input prompt (built by caller/node)
-  attemptNumber?: number; // 1-based attempt number for per-attempt diagnostics
+  inputPrompt: string;
+  attemptNumber?: number;
 }
 
 export interface AgentInvokeResult {
   output: string;
   mode: AuthMode;
   executionTimeMs: number;
-  sessionId: string; // Session ID for context-preserving retry with --resume
+  sessionId: string;
 }
 
 export interface Agent {

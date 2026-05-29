@@ -16,6 +16,10 @@ Dual-mode visual testing pipeline that compares UI implementation against Figma 
 
 This skill is **stack-agnostic**. The visual testing pipeline (configuration, capture, comparison, iteration) is framework-independent. Framework-specific renderer timing (hydration, transitions, async rendering) lives in `references/*-specialization.md` files loaded dynamically based on project detection. See [`references/renderer-adapters.md`](references/renderer-adapters.md) for the universal capture sequence and common concerns.
 
+## Boundary — relationship to `/ui-testing`
+
+This skill handles **only Level 4 (visual)** of the broader UI testing taxonomy: Figma design fidelity + screenshot regression. For unit / component / E2E orchestration use `/ui-testing`, which delegates Level 4 to this skill when the resolved level set includes visual. Both invocation paths are supported — invoke this skill directly when only visual work is needed; invoke `/ui-testing` when multiple levels apply.
+
 ## Modes
 
 | Mode           | Purpose                                                | Reference source                                      | Default threshold   |

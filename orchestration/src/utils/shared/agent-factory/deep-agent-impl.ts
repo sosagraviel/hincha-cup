@@ -6,9 +6,12 @@ import { loadMarkdownFile } from '../prompt-loader.js';
 import type { Agent, AgentConfig, AgentInvokeInput, AgentInvokeResult } from './types.js';
 import { getAgentAction } from './agent-utils.js';
 import { beginAttemptRecorder } from './attempt-recorder.js';
+import { emitTokenUsage } from '../../../services/framework/debug-store/index.js';
 
 /**
- * Create agent using DeepAgents.js (API key mode)
+ * Create agent using DeepAgents.js (API key mode).
+ * Phase 1 analyzer prompts share a byte-identical prefix so the provider prefix cache
+ * hits on calls 2..N without explicit cache_control markers.
  */
 export async function createDeepAgentImpl(
   config: AgentConfig,
@@ -56,11 +59,10 @@ export async function createDeepAgentImpl(
       const action = getAgentAction(config.agentName);
       const authInfo = `Auth: API Key, Provider: ${authProvider}, Model: ${modelInfo.alias}`;
 
-      logger.trackConcurrentAgentStart(
-        config.agentName,
-        config.agentName,
-        `${action} (${authInfo})`,
-      );
+      const trackerId = config.trackerId ?? config.agentName;
+      const trackerDisplayName = config.trackerDisplayName ?? config.agentName;
+
+      logger.trackConcurrentAgentStart(trackerId, trackerDisplayName, `${action} (${authInfo})`);
 
       const startTime = Date.now();
       const timeout = config.timeout || 300000;
@@ -88,8 +90,17 @@ export async function createDeepAgentImpl(
           (result.content as string | undefined) ??
           JSON.stringify(result);
 
+        const usage = result.usage as
+          | {
+              input_tokens?: number;
+              output_tokens?: number;
+              cache_read_input_tokens?: number;
+              cache_creation_input_tokens?: number;
+            }
+          | undefined;
+
         logger.trackConcurrentAgentSucceed(
-          config.agentName,
+          trackerId,
           `Completed in ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
         );
 
@@ -102,13 +113,26 @@ export async function createDeepAgentImpl(
         });
         await recorder.finalize('success');
 
+        emitTokenUsage(config.projectPath, {
+          ts: new Date().toISOString(),
+          phase: config.phase?.phaseId ?? 'phase-unknown',
+          agent: config.agentName,
+          input_tokens: usage?.input_tokens ?? -1,
+          output_tokens: usage?.output_tokens ?? -1,
+          cache_hit: (usage?.cache_read_input_tokens ?? 0) > 0,
+          cache_read_input_tokens: usage?.cache_read_input_tokens ?? -1,
+          cache_creation_input_tokens: usage?.cache_creation_input_tokens ?? -1,
+          duration_ms: executionTimeMs,
+          budget_key: config.budgetKey,
+        }).catch(() => undefined);
+
         return { output, sessionId, mode: AuthMode.API_KEY, executionTimeMs };
       } catch (error: unknown) {
         const executionTimeMs = Date.now() - startTime;
         const errorMessage = error instanceof Error ? error.message : String(error);
 
         logger.trackConcurrentAgentFail(
-          config.agentName,
+          trackerId,
           `Failed after ${(executionTimeMs / 1000).toFixed(1)}s (${authInfo})`,
         );
 
@@ -119,6 +143,17 @@ export async function createDeepAgentImpl(
           outcome: 'failure',
         });
         await recorder.finalize('failure');
+
+        emitTokenUsage(config.projectPath, {
+          ts: new Date().toISOString(),
+          phase: config.phase?.phaseId ?? 'phase-unknown',
+          agent: config.agentName,
+          input_tokens: -1,
+          output_tokens: -1,
+          cache_hit: false,
+          duration_ms: executionTimeMs,
+          budget_key: config.budgetKey,
+        }).catch(() => undefined);
 
         throw new Error(`DeepAgent execution failed after ${executionTimeMs}ms: ${errorMessage}`);
       }

@@ -166,6 +166,219 @@ describe('Phase 1 Agent Output Schemas', () => {
       // Verify monorepo_layout doesn't have packages in the type
       expect(result.findings.monorepo_layout).toBeDefined();
     });
+
+    describe('architecture.coupling', () => {
+      // The structure analyzer's Step 3 surfaces hub + bridge nodes from
+      // the graph. The canonical home is
+      // findings.architecture.coupling = { hubs[], bridges[] }. The
+      // fields are graph-native (qualified_name / kind / score) — no
+      // language assumption.
+      const baseOutput = {
+        agent_name: 'structure-architecture-analyzer',
+        timestamp: '2026-05-05T10:00:00.000Z',
+        findings: {
+          services: [
+            {
+              id: 'svc-a',
+              path: 'svc-a',
+              type: 'backend',
+              language: 'typescript',
+              frameworks: {},
+            },
+          ],
+        },
+      };
+
+      it('accepts a valid architecture.coupling block with hubs + bridges', () => {
+        const out = {
+          ...baseOutput,
+          findings: {
+            ...baseOutput.findings,
+            architecture: {
+              coupling: {
+                hubs: [
+                  { qualified_name: 'svc-a:Foo', kind: 'Class', score: 12 },
+                  { qualified_name: 'svc-a:Bar', kind: 'File', score: 9 },
+                  { qualified_name: 'svc-a:Baz', kind: 'Function', score: 7 },
+                ],
+                bridges: [
+                  { qualified_name: 'svc-a:GatewayHandler', kind: 'Function', score: 18 },
+                  { qualified_name: 'svc-a:CrossCuttingMiddleware', kind: 'Class', score: 11 },
+                  { qualified_name: 'svc-a:RouterMount', kind: 'File', score: 8 },
+                ],
+              },
+            },
+          },
+        };
+        const parsed = StructureAnalyzerOutputSchema.parse(out);
+        expect((parsed.findings as any).architecture?.coupling?.hubs).toHaveLength(3);
+        expect((parsed.findings as any).architecture?.coupling?.bridges).toHaveLength(3);
+      });
+
+      it('accepts hubs / bridges with only the required qualified_name', () => {
+        // kind and score are optional — a small graph that produced no
+        // numeric score still passes.
+        const out = {
+          ...baseOutput,
+          findings: {
+            ...baseOutput.findings,
+            architecture: {
+              coupling: {
+                hubs: [{ qualified_name: 'pkg/x' }],
+                bridges: [{ qualified_name: 'pkg/y' }],
+              },
+            },
+          },
+        };
+        expect(() => StructureAnalyzerOutputSchema.parse(out)).not.toThrow();
+      });
+
+      it('rejects hub entries without qualified_name (anti-fabrication)', () => {
+        const out = {
+          ...baseOutput,
+          findings: {
+            ...baseOutput.findings,
+            architecture: {
+              coupling: {
+                hubs: [{ kind: 'Class', score: 1 }], // missing qualified_name
+                bridges: [],
+              },
+            },
+          },
+        };
+        expect(() => StructureAnalyzerOutputSchema.parse(out)).toThrow();
+      });
+
+      it('still accepts output without architecture.coupling (back-compat / tiny graphs)', () => {
+        // The field is optional — small projects without enough graph
+        // topology to surface hubs/bridges still pass the schema; the
+        // analyzer prompt directs them to surface a needs_verification
+        // item instead of fabricating qualified names.
+        expect(() => StructureAnalyzerOutputSchema.parse(baseOutput)).not.toThrow();
+      });
+
+      it('coupling rejects a non-array hubs value', () => {
+        const out = {
+          ...baseOutput,
+          findings: {
+            ...baseOutput.findings,
+            architecture: {
+              coupling: {
+                hubs: 'not-an-array',
+                bridges: [],
+              },
+            },
+          },
+        };
+        expect(() => StructureAnalyzerOutputSchema.parse(out)).toThrow();
+      });
+    });
+
+    describe('needs_verification entry shape', () => {
+      // needs_verification has two required fields:
+      //   - attempted_resolution: string[] (≥2 entries)
+      //   - impact: string (≥40 chars)
+      // The text-shape rules (graph internals ban / fabricated numbers /
+      // generic impact) live in `validateNeedsVerificationProse` and are
+      // exercised in needs-verification-quality.test.ts. The schema only
+      // enforces the structural shape; this block locks that down.
+      const baseFindings = {
+        services: [
+          {
+            id: 'api',
+            path: 'services/api',
+            type: 'backend',
+            language: 'typescript',
+            frameworks: { main: 'NestJS' },
+          },
+        ],
+      };
+
+      const goodEntry = {
+        id: 'v1',
+        question: 'Is the Redis instance shared or per-service?',
+        reason: 'Connection configs do not specify isolation.',
+        attempted_resolution: [
+          'Read services/backend/src/redis/redis.module.ts',
+          'Grep "createClient" services/',
+        ],
+        impact:
+          'Decides whether ARCHITECTURE.md describes Redis topology as shared or per-service.',
+      };
+
+      const baseOutput = {
+        agent_name: 'structure-architecture-analyzer' as const,
+        timestamp: '2026-05-05T00:00:00.000Z',
+        findings: baseFindings,
+      };
+
+      it('accepts a complete entry with attempted_resolution + impact', () => {
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [goodEntry],
+          }),
+        ).not.toThrow();
+      });
+
+      it('rejects entries missing attempted_resolution', () => {
+        const { attempted_resolution: _ar, ...rest } = goodEntry;
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [rest],
+          }),
+        ).toThrow();
+      });
+
+      it('rejects attempted_resolution with fewer than 2 entries', () => {
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [{ ...goodEntry, attempted_resolution: ['Read package.json'] }],
+          }),
+        ).toThrow();
+      });
+
+      it('rejects entries missing impact', () => {
+        const { impact: _imp, ...rest } = goodEntry;
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [rest],
+          }),
+        ).toThrow();
+      });
+
+      it('rejects impact strings shorter than 40 chars', () => {
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [{ ...goodEntry, impact: 'too short' }],
+          }),
+        ).toThrow();
+      });
+
+      it('still accepts an empty needs_verification array (target = 0 items)', () => {
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({ ...baseOutput, needs_verification: [] }),
+        ).not.toThrow();
+      });
+
+      it('caps the array at 3 items even when each is well-formed', () => {
+        expect(() =>
+          StructureAnalyzerOutputSchema.parse({
+            ...baseOutput,
+            needs_verification: [
+              { ...goodEntry, id: 'v1' },
+              { ...goodEntry, id: 'v2' },
+              { ...goodEntry, id: 'v3' },
+              { ...goodEntry, id: 'v4' },
+            ],
+          }),
+        ).toThrow();
+      });
+    });
   });
 
   describe('02: Tech Stack Analyzer Schema', () => {
@@ -195,7 +408,10 @@ describe('Phase 1 Agent Output Schemas', () => {
       expect(() => TechStackAnalyzerOutputSchema.parse(outputWithoutServices)).not.toThrow();
     });
 
-    it('should accept output WITH services array (backward compat)', () => {
+    it('rejects output WITH findings.services[] (forbidden — analyzer 01 is the single source of truth)', () => {
+      // The tech-stack analyzer is downstream of structure-architecture-analyzer
+      // and consumes its services[] verbatim. Emitting findings.services[]
+      // here is a regression and the schema must reject it.
       const outputWithServices = {
         agent_name: 'tech-stack-dependencies-analyzer',
         timestamp: '2026-04-07T10:00:00.000Z',
@@ -220,8 +436,7 @@ describe('Phase 1 Agent Output Schemas', () => {
         needs_verification: [],
       };
 
-      // Should parse because services is optional
-      expect(() => TechStackAnalyzerOutputSchema.parse(outputWithServices)).not.toThrow();
+      expect(() => TechStackAnalyzerOutputSchema.parse(outputWithServices)).toThrow();
     });
 
     it('should accept dependencies.by_service map structure', () => {
@@ -283,18 +498,18 @@ describe('Phase 1 Agent Output Schemas', () => {
       expect(() => CodePatternsAnalyzerOutputSchema.parse(outputWithoutServices)).not.toThrow();
     });
 
-    it('should NOT have frameworks.testing field (anti-duplication test)', () => {
-      const outputWithFrameworksTesting = {
+    it('rejects output WITH findings.services[] (forbidden — single source of truth)', () => {
+      // The code-patterns analyzer is downstream of structure-architecture-analyzer
+      // and consumes its services[] verbatim via the AUTHORITATIVE SERVICE LIST
+      // in its prompt. Emitting findings.services[] here is a regression and
+      // the schema must reject it.
+      const outputWithServices = {
         agent_name: 'code-patterns-testing-analyzer',
         timestamp: '2026-04-07T10:00:00.000Z',
         findings: {
           services: [
             {
               id: 'backend',
-              // frameworks.testing removed - duplicates testing.*.framework
-              frameworks: {
-                testing: ['jest'], // This should NOT be in schema
-              },
               testing: {
                 unit: {
                   framework: 'jest',
@@ -307,10 +522,7 @@ describe('Phase 1 Agent Output Schemas', () => {
         needs_verification: [],
       };
 
-      // Should parse due to .passthrough(), but frameworks.testing is not typed
-      const result = CodePatternsAnalyzerOutputSchema.parse(outputWithFrameworksTesting);
-      // Verify output parses (passthrough allows extra fields)
-      expect(result).toBeDefined();
+      expect(() => CodePatternsAnalyzerOutputSchema.parse(outputWithServices)).toThrow();
     });
 
     it('should accept testing organized by service ID', () => {

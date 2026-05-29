@@ -7,7 +7,17 @@ import type { Gap, ConsolidatedGap } from './types.js';
 import { extractStructuredGaps } from './helpers/extract-structured-gaps.js';
 import { consolidateQuestions } from './helpers/consolidate-questions.js';
 import { askGapQuestions } from './helpers/ask-gap-questions.js';
+import { exactTextDedupe } from './helpers/exact-text-dedupe.js';
 import { resolveTempPath } from '../../../../utils/provider-paths.js';
+import { buildComposerViewsFromDisk } from '../composer-views/build-composer-views.js';
+import { mkdirSync } from 'fs';
+
+/**
+ * Gap-count threshold below which the LLM consolidator is NOT spawned. After
+ * the deterministic exact-text dedupe pre-pass, most projects fall under 4
+ * gaps; below this threshold the LLM's semantic-merge value is negligible.
+ */
+const LLM_CONSOLIDATOR_THRESHOLD = 3;
 
 /**
  * Consolidates outputs from all 4 Phase 1 analyzer agents
@@ -20,7 +30,6 @@ export async function consolidationNode(
   const phaseLogger = logger.child('Phase 2: Consolidation');
   phaseLogger.info(' Starting...');
 
-  // Read Phase 1 outputs from disk (not from state)
   const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   const phase1Dir = join(tempDir, 'phase1-outputs');
 
@@ -51,10 +60,19 @@ export async function consolidationNode(
 
   phaseLogger.info(' ✓ All Phase 1 outputs loaded from disk');
 
+  for (const a of analyzers) {
+    const count = typeof a.graph_overflow_count === 'number' ? a.graph_overflow_count : 0;
+    if (count > 0) {
+      const tools = Array.isArray(a.graph_overflow_tools)
+        ? a.graph_overflow_tools.join(', ')
+        : 'unknown';
+      phaseLogger.warn(
+        ` ⚠ ${a.agent_name ?? 'analyzer'} hit ${count} graph-tool overflow${count === 1 ? '' : 's'} on: ${tools}. Re-tighten parameters in execution-instructions.md (lean defaults, drill-in caps).`,
+      );
+    }
+  }
+
   try {
-    // ========================================================================
-    // STEP 1: MERGE ANALYSES
-    // ========================================================================
     phaseLogger.info(' Step 1: Merging analyzer outputs...');
 
     const consolidated = analysisConsolidator(analyzers);
@@ -65,18 +83,12 @@ export async function consolidationNode(
     phaseLogger.info(' ✓ Consolidation complete');
     logger.blank();
 
-    // ========================================================================
-    // STEP 2: GAP ANALYSIS
-    // ========================================================================
     phaseLogger.info(' Step 2: Analyzing gaps...');
 
     const consolidationData = JSON.parse(readFileSync(consolidatedPath, 'utf-8'));
     let gaps: Gap[] = [];
 
-    // Extract gaps from identified_gaps array (which are strings)
-    // We need to reconstruct Gap objects from the consolidated analysis
     if (consolidationData.identified_gaps && consolidationData.identified_gaps.length > 0) {
-      // Re-run gap extraction to get structured data
       gaps = extractStructuredGaps(analyzers);
     }
 
@@ -86,60 +98,103 @@ export async function consolidationNode(
     phaseLogger.info(`  Conflicts detected: ${conflictsCount}`);
     logger.blank();
 
-    // ========================================================================
-    // STEP 3: QUESTION CONSOLIDATION (if > 1 gap)
-    // ========================================================================
     if (gaps.length > 1) {
       phaseLogger.info(' Step 3: Consolidating similar questions...');
-      phaseLogger.info('  Running AI-powered question consolidation agent...');
-      logger.blank();
 
-      const consolidationResult = await consolidateQuestions(
-        gaps,
-        state.project_path,
-        state.framework_path,
-        tempDir,
-        consolidatedPath,
-      );
-
-      if (consolidationResult.success && consolidationResult.consolidated) {
-        // Update consolidation.json with consolidated gaps
-        const consolidatedGaps = consolidationResult.consolidated.consolidated_gaps;
-
-        // Ensure every gap has an agent field (fallback to first consolidated_from if missing)
-        consolidatedGaps.forEach((gap) => {
-          if (!gap.agent && gap.consolidated_from && gap.consolidated_from.length > 0) {
-            gap.agent = gap.consolidated_from[0];
-          }
-        });
-
-        consolidationData.gaps = consolidatedGaps;
-        consolidationData.question_consolidation =
-          consolidationResult.consolidated.consolidation_metadata;
-        writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
-
-        const newGapCount = consolidationResult.consolidated.consolidated_gaps.length;
-        phaseLogger.info(`  Questions after consolidation: ${newGapCount} (was ${gaps.length})`);
-        gaps = consolidationResult.consolidated.consolidated_gaps;
-      } else {
-        phaseLogger.info('  ⚠ WARNING: Question consolidation failed');
-        phaseLogger.info('  Proceeding with original unconsolidated gaps');
-
-        // Convert gaps to ConsolidatedGap format (each gap is its own group)
-        const consolidatedGaps: ConsolidatedGap[] = gaps.map((gap) => ({
-          ...gap,
-          consolidated_from: [gap.agent],
-          original_count: 1,
-        }));
-
-        consolidationData.gaps = consolidatedGaps;
-        writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
+      const dedupePass = exactTextDedupe(gaps);
+      if (dedupePass.eliminatedDuplicates > 0) {
+        phaseLogger.info(
+          `  Pre-pass dedupe: collapsed ${dedupePass.eliminatedDuplicates} exact-text duplicate(s) ` +
+            `(${gaps.length} → ${dedupePass.dedupedGaps.length} gap(s))`,
+        );
       }
-      logger.blank();
+
+      if (dedupePass.dedupedGaps.length <= LLM_CONSOLIDATOR_THRESHOLD) {
+        phaseLogger.info(
+          `  Fast path: ≤${LLM_CONSOLIDATOR_THRESHOLD} gap(s) after dedupe — skipping LLM consolidator (saves ~10-15s).`,
+        );
+        consolidationData.gaps = dedupePass.dedupedGaps;
+        consolidationData.question_consolidation = {
+          original_gap_count: gaps.length,
+          consolidated_gap_count: dedupePass.dedupedGaps.length,
+          reduction_percentage:
+            gaps.length > 0
+              ? Math.round(((gaps.length - dedupePass.dedupedGaps.length) / gaps.length) * 100)
+              : 0,
+          consolidation_groups: dedupePass.deterministicGroups,
+          fast_path: true,
+        };
+        writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
+        gaps = dedupePass.dedupedGaps;
+        logger.blank();
+      } else {
+        phaseLogger.info('  Running AI-powered question consolidation agent...');
+        logger.blank();
+
+        const consolidationResult = await consolidateQuestions(
+          dedupePass.dedupedGaps,
+          state.project_path,
+          state.framework_path,
+          tempDir,
+          consolidatedPath,
+        );
+
+        if (consolidationResult.success && consolidationResult.consolidated) {
+          const consolidatedGaps = consolidationResult.consolidated.consolidated_gaps;
+
+          consolidatedGaps.forEach((gap) => {
+            if (!gap.agent && gap.consolidated_from && gap.consolidated_from.length > 0) {
+              gap.agent = gap.consolidated_from[0];
+            }
+          });
+
+          const llmGroups =
+            consolidationResult.consolidated.consolidation_metadata.consolidation_groups ?? [];
+          const mergedGroups = [
+            ...dedupePass.deterministicGroups,
+            ...llmGroups.map((g, idx) => ({
+              ...g,
+              group_id: dedupePass.deterministicGroups.length + idx + 1,
+            })),
+          ];
+
+          consolidationData.gaps = consolidatedGaps;
+          consolidationData.question_consolidation = {
+            ...consolidationResult.consolidated.consolidation_metadata,
+            original_gap_count: gaps.length,
+            consolidation_groups: mergedGroups,
+            fast_path: false,
+            deterministic_eliminated: dedupePass.eliminatedDuplicates,
+          };
+          writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
+
+          const newGapCount = consolidationResult.consolidated.consolidated_gaps.length;
+          phaseLogger.info(`  Questions after consolidation: ${newGapCount} (was ${gaps.length})`);
+          gaps = consolidationResult.consolidated.consolidated_gaps;
+        } else {
+          phaseLogger.info('  ⚠ WARNING: Question consolidation failed');
+          phaseLogger.info('  Proceeding with deterministic dedupe result only');
+
+          consolidationData.gaps = dedupePass.dedupedGaps;
+          consolidationData.question_consolidation = {
+            original_gap_count: gaps.length,
+            consolidated_gap_count: dedupePass.dedupedGaps.length,
+            reduction_percentage:
+              gaps.length > 0
+                ? Math.round(((gaps.length - dedupePass.dedupedGaps.length) / gaps.length) * 100)
+                : 0,
+            consolidation_groups: dedupePass.deterministicGroups,
+            fast_path: true,
+            llm_failure_fallback: true,
+          };
+          writeFileSync(consolidatedPath, JSON.stringify(consolidationData, null, 2));
+          gaps = dedupePass.dedupedGaps;
+        }
+        logger.blank();
+      }
     } else if (gaps.length === 1) {
       phaseLogger.info(' Step 3: Only 1 gap found - skipping consolidation');
 
-      // Convert single gap to ConsolidatedGap format
       const consolidatedGap: ConsolidatedGap = {
         ...gaps[0],
         consolidated_from: [gaps[0].agent],
@@ -154,9 +209,6 @@ export async function consolidationNode(
       logger.blank();
     }
 
-    // ========================================================================
-    // STEP 4: INTERACTIVE QUESTIONS (if needed)
-    // ========================================================================
     const needsUserInput = gaps.length > 5 || conflictsCount > 0;
 
     if (needsUserInput) {
@@ -172,7 +224,6 @@ export async function consolidationNode(
         phaseLogger.info('  (Synthesis will proceed with available data)');
         logger.blank();
       } else {
-        // Stop all ora spinners to prevent interference with user input
         logger.stopAllSpinners();
         phaseLogger.info('Launching interactive questionnaire...');
         logger.blank();
@@ -190,7 +241,7 @@ export async function consolidationNode(
           logger.blank();
 
           return {
-            errors: [...state.errors, 'Gap questionnaire failed'],
+            errors: ['Gap questionnaire failed'],
             current_phase: 'failed',
           };
         }
@@ -203,12 +254,67 @@ export async function consolidationNode(
       logger.blank();
     }
 
-    // ========================================================================
-    // STEP 5: FINALIZE CONSOLIDATION
-    // ========================================================================
     phaseLogger.info(' Step 4: Finalizing consolidation...');
 
     const finalConsolidation = JSON.parse(readFileSync(consolidatedPath, 'utf-8'));
+
+    phaseLogger.info(' Step 5: Building composer views...');
+    const composerViewWarnings: string[] = [];
+    try {
+      const composerViewsDir = join(tempDir, 'composer-views');
+      mkdirSync(composerViewsDir, { recursive: true });
+      const bundle = buildComposerViewsFromDisk(tempDir, new Date().toISOString());
+      writeFileSync(
+        join(composerViewsDir, 'code-conventions.input.json'),
+        JSON.stringify(bundle.code_conventions, null, 2),
+      );
+      writeFileSync(
+        join(composerViewsDir, 'multi-file-workflows.input.json'),
+        JSON.stringify(bundle.multi_file_workflows, null, 2),
+      );
+      writeFileSync(
+        join(composerViewsDir, 'testing-conventions.input.json'),
+        JSON.stringify(bundle.testing_conventions, null, 2),
+      );
+      writeFileSync(
+        join(composerViewsDir, 'architecture-narrative.input.json'),
+        JSON.stringify(bundle.architecture_narrative, null, 2),
+      );
+      writeFileSync(join(composerViewsDir, '_bundle.json'), JSON.stringify(bundle, null, 2));
+      const presentSummary = [
+        `code-conventions=${bundle.code_conventions.present.any_service_patterns ? '✓' : '∅'}`,
+        `multi-file-workflows=${bundle.multi_file_workflows.present.any_request_lifecycle ? '✓' : '∅'}`,
+        `testing-conventions=${bundle.testing_conventions.present.any_service_tests ? '✓' : '∅'}`,
+        `architecture-narrative=${bundle.architecture_narrative.present.repository_shape_summary ? '✓' : '∅'}`,
+      ].join(' ');
+      phaseLogger.success(`  ✓ composer views written (${presentSummary})`);
+
+      let emptyCount = 0;
+      for (const flagsObj of [
+        bundle.code_conventions.present,
+        bundle.multi_file_workflows.present,
+        bundle.testing_conventions.present,
+        bundle.architecture_narrative.present,
+      ]) {
+        for (const [key, v] of Object.entries(flagsObj as Record<string, unknown>)) {
+          if (key.endsWith('_source')) continue;
+          if (v === false) emptyCount += 1;
+        }
+      }
+      if (emptyCount >= 4) {
+        composerViewWarnings.push(
+          `[phase2] composer_view_empty_section_count=${emptyCount} — the synthesizer will skip several sections; review Phase 1 / Phase 1.5 outputs to see why analyzers found little to populate them with.`,
+        );
+        phaseLogger.warn(
+          `  ⚠ ${emptyCount} composer-view section(s) empty (present.*: false). Synthesizer will skip them.`,
+        );
+      }
+    } catch (err) {
+      phaseLogger.warn(
+        `  ⚠ composer-views build failed: ${(err as Error).message}. Phase 3 will fall back to legacy consolidation.`,
+      );
+    }
+    logger.blank();
 
     phaseLogger.success('Consolidation ready for synthesis');
     phaseLogger.info(`  File: ${consolidatedPath}`);
@@ -218,7 +324,6 @@ export async function consolidationNode(
     phaseLogger.info(`  - Gaps identified: ${gaps.length}`);
 
     return {
-      // Mark Phase 1 as completed (Phase 6 validation checks this)
       phase1_analysis: {
         all_completed: true,
         completion_timestamp: new Date().toISOString(),
@@ -229,13 +334,14 @@ export async function consolidationNode(
         timestamp: new Date().toISOString(),
       },
       current_phase: 'phase2_consolidation',
+      ...(composerViewWarnings.length > 0 ? { warnings: composerViewWarnings } : {}),
     };
   } catch (error) {
     const errorMessage = `Consolidation failed: ${(error as Error).message}`;
     phaseLogger.error(` ✗ Error: ${errorMessage}`);
 
     return {
-      errors: [...state.errors, errorMessage],
+      errors: [errorMessage],
       current_phase: 'failed',
     };
   }

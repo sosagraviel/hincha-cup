@@ -5,7 +5,10 @@ import { resolveSkills, copyResolvedSkills } from './skill-resolver.js';
 import { generateAgents, writeAgents } from './agent-generator.js';
 import type { StackProfile } from '../../../schemas/index.js';
 import { logger } from '../../../utils/logger.js';
-import { resolveFrameworkConfigPath } from '../../../utils/provider-paths.js';
+import { upsertCodeGraphMcpConfig } from '../../../services/framework/mcp-config.service.js';
+import { copyPreflightScripts } from '../../../services/framework/preflight-scripts.service.js';
+import { getActiveProvider, resolveFrameworkConfigPath } from '../../../utils/provider-paths.js';
+import { UTILITY_LANGUAGES } from '../phase4/constants.js';
 
 /**
  * Phase 5: Resources Node
@@ -28,22 +31,18 @@ export async function resourcesNode(
   try {
     const frameworkConfigPath = resolveFrameworkConfigPath(state.project_path);
 
-    // Verify Phase 4 completed by checking file exists (never use state)
     if (!existsSync(frameworkConfigPath)) {
       throw new Error('Phase 4 context generation not completed - framework-config.json not found');
     }
 
-    // Read framework-config.json to get stack profile
     const frameworkConfig = JSON.parse(readFileSync(frameworkConfigPath, 'utf-8'));
     const stackProfile: StackProfile = frameworkConfig.stack_profile;
 
     phaseLogger.info(' Stack profile loaded');
 
-    // Get languages from services array
     const languages = Array.from(new Set(stackProfile.services.map((s) => s.language)));
     phaseLogger.info(`  Languages: ${languages.join(', ') || 'none'}`);
 
-    // VALIDATION: Ensure stack profile is complete before generating resources
     phaseLogger.info(' Validating stack profile before resource generation...');
 
     if (!stackProfile || !stackProfile.services || stackProfile.services.length === 0) {
@@ -58,27 +57,14 @@ export async function resourcesNode(
       );
     }
 
-    // If we have file counts, verify they match languages
     if (stackProfile.file_counts?.by_language) {
-      // Debug logging
       phaseLogger.info(
         `  Services: ${stackProfile.services.map((s) => `${s.id}(${s.language})`).join(', ')}`,
       );
       phaseLogger.info(`  File counts: ${JSON.stringify(stackProfile.file_counts.by_language)}`);
 
-      // Languages commonly used for infrastructure/config files rather than services
-      const INFRASTRUCTURE_LANGUAGES = new Set([
-        'javascript',
-        'json',
-        'yaml',
-        'yml',
-        'toml',
-        'ini',
-        'sh',
-        'bash',
-      ]);
-      const WARN_THRESHOLD = 10; // Warn for 10-19 files (may be utility scripts or test fixtures)
-      const ERROR_THRESHOLD = 20; // Error for 20+ files (likely a real service)
+      const WARN_THRESHOLD = 10;
+      const ERROR_THRESHOLD = 20;
 
       const profileLanguages = new Set(languages.map((l) => l.toLowerCase()));
 
@@ -86,18 +72,15 @@ export async function resourcesNode(
         const langLower = lang.toLowerCase();
         const isInProfile = profileLanguages.has(langLower);
 
-        // Skip if language is in profile (valid)
         if (isInProfile) continue;
 
-        // Skip infrastructure languages with modest file counts
-        if (INFRASTRUCTURE_LANGUAGES.has(langLower) && fileCount < 30) {
+        if (UTILITY_LANGUAGES.has(langLower)) {
           phaseLogger.info(
-            ` ${fileCount} ${lang} files - likely infrastructure/config files, skipping validation`,
+            ` ${fileCount} ${lang} files detected (utility language — not expected in stack profile).`,
           );
           continue;
         }
 
-        // STRICT: 20+ files without a service is a hard error (Phase 4 should have created a fallback service)
         if (fileCount >= ERROR_THRESHOLD) {
           phaseLogger.error(` Language ${lang} has ${fileCount} files but is not in stack profile`);
           throw new Error(
@@ -106,7 +89,6 @@ export async function resourcesNode(
           );
         }
 
-        // LENIENT: 10-19 files is a warning (may be scattered config files)
         if (fileCount >= WARN_THRESHOLD) {
           phaseLogger.warn(
             ` Advisory: ${fileCount} ${lang} files found but no service detected. ` +
@@ -122,18 +104,29 @@ export async function resourcesNode(
       phaseLogger.info(`  Monorepo with ${serviceCount} service${serviceCount !== 1 ? 's' : ''}`);
     }
 
-    // Step 1: Resolve and copy filtered skills
     phaseLogger.info(' Resolving skills...');
     const resolvedSkills = resolveSkills(stackProfile, state.framework_path);
 
     phaseLogger.info(`  Resolved ${resolvedSkills.length} skills`);
 
-    // Copy resolved skills
     const copiedSkillsCount = copyResolvedSkills(resolvedSkills, state.project_path);
 
     phaseLogger.success(`✓ Copied ${resolvedSkills.length} skills (${copiedSkillsCount} files)`);
 
-    // Step 2: Generate agents
+    phaseLogger.info(' Copying preflight shim scripts...');
+    const preflightResult = copyPreflightScripts({
+      projectPath: state.project_path,
+      frameworkPath: state.framework_path,
+      provider: getActiveProvider(),
+    });
+    if (preflightResult.changed) {
+      phaseLogger.success(
+        `✓ Copied ${preflightResult.files.length} preflight script(s) to ${preflightResult.scriptsDir}`,
+      );
+    } else {
+      phaseLogger.success(`✓ Preflight scripts already up to date (${preflightResult.scriptsDir})`);
+    }
+
     phaseLogger.info(' Generating agents...');
     const templatesPath = join(state.framework_path, 'agents', 'templates');
     const agents = generateAgents(
@@ -144,10 +137,22 @@ export async function resourcesNode(
       state.framework_path,
     );
 
-    // Write agents to disk
     writeAgents(agents, state.project_path);
 
     phaseLogger.success(`✓ Generated ${agents.length} agents`);
+
+    phaseLogger.info(' Configuring project MCP...');
+    const mcpResult = upsertCodeGraphMcpConfig({
+      projectPath: state.project_path,
+      frameworkPath: state.framework_path,
+      provider: getActiveProvider(),
+    });
+
+    if (mcpResult.changed) {
+      phaseLogger.success(`✓ Configured code graph MCP (${mcpResult.configPath})`);
+    } else {
+      phaseLogger.success('✓ Code graph MCP already configured');
+    }
 
     phaseLogger.success(' ✓ Resource copying complete');
 
@@ -160,7 +165,7 @@ export async function resourcesNode(
     phaseLogger.error((error as Error).stack || '');
 
     return {
-      errors: [...state.errors, errorMessage],
+      errors: [errorMessage],
       current_phase: 'failed',
     };
   }

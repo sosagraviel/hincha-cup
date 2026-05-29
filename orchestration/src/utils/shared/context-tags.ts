@@ -7,60 +7,23 @@ import { AuthMode } from '../../auth/auth-detector.js';
  */
 
 /**
- * Prefix to prepend for "extended thinking" / deep reasoning.
- *
- * - Claude (CLI or API): the literal `ultrathink` keyword switches Claude into
- *   extended thinking mode. It's a Claude-specific directive.
- * - Codex / OpenAI: reasoning effort is controlled via the CLI flag
- *   `--config model_reasoning_effort=high` — `ultrathink` is meaningless and
- *   would just be noise tokens at the top of the prompt.
- *
- * Callers should use this helper instead of hardcoding `ultrathink\n\n` so the
- * prompt adapts to the active provider.
- */
-export function reasoningPrefix(authConfig: AuthConfig): string {
-  const isClaude =
-    authConfig.mode === AuthMode.CLAUDE_CLI ||
-    (authConfig.mode === AuthMode.API_KEY && authConfig.provider === 'anthropic');
-  return isClaude ? 'ultrathink\n\n' : '';
-}
-
-/**
  * Build excluded directories XML tag.
  *
- * The block is intentionally forceful: agents routinely ignore a weak
- * comma-separated list and then walk into node_modules / dist / the framework
- * itself, blowing the token budget on a single run. The instructions here are
- * written so that every tool call the agent makes (Glob, Grep, Read, Bash) can
- * be checked against them.
+ * Framework deny-rules + PreToolUse hooks enforce these at runtime
+ * across Glob/Grep/Read/Bash. The prompt restatement is for model
+ * awareness only — the hook does the enforcement. We compress to one
+ * comma-separated line to keep the cache-eligible shared prefix small
+ * (the dirs list is the largest fixed-size block in the prefix).
+ *
+ * Stack-agnostic: the directory names come from the registry-derived
+ * `getExcludedDirectories()` list. The rendered format is purely
+ * cosmetic.
  */
 export function buildExcludedDirsTag(dirs: string[]): string {
-  const bullets = dirs.map((d) => `  - ${d}`).join('\n');
   return [
     '<excluded_directories>',
-    'CRITICAL: Do NOT read, scan, traverse, list, glob, grep, or count files in',
-    'any of the directories below — at ANY depth. These directories contain',
-    'dependencies, build artifacts, generated output, caches, framework',
-    'internals, and gitignored paths. Analyzing them wastes token budget and',
-    'produces irrelevant findings.',
-    '',
-    'Excluded directories (apply recursively at every level of nesting):',
-    bullets,
-    '',
-    'How to apply this list:',
-    '  - Glob: prefix patterns with project-relative paths and do NOT match',
-    '    inside excluded dirs (e.g. use `services/**/*.ts`, never `**/*.ts`',
-    '    without filters).',
-    '  - Grep: pass a path that is NOT one of these dirs, or use the `glob`',
-    '    option to narrow. Never grep the repo root without exclusions.',
-    '  - Bash with `find` / `ls` / `grep -r`: you MUST pipe through a filter',
-    '    that drops every excluded dir above (use `-prune`, `grep -vE`, or',
-    '    equivalent). A single-dir filter like `grep -v node_modules` is NOT',
-    '    enough — you must exclude ALL of the dirs above.',
-    '  - Read: never open a file whose path starts with one of these dirs.',
-    '',
-    'If a tool call would enter an excluded directory, stop and choose a',
-    'different approach.',
+    'Off-limits (deny-rules + PreToolUse hooks enforce; reason as if absent):',
+    dirs.join(', '),
     '</excluded_directories>',
   ].join('\n');
 }

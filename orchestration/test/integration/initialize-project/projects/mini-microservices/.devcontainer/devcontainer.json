@@ -1,0 +1,14 @@
+{
+  "name": "mini-microservices",
+  "image": "mcr.microsoft.com/devcontainers/universal:linux",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.22" },
+    "ghcr.io/devcontainers/features/dotnet:2": { "version": "8.0" },
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.12" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "make setup",
+  "customizations": {
+    "vscode": { "extensions": ["golang.go", "ms-python.python", "ms-dotnettools.csharp"] }
+  }
+}

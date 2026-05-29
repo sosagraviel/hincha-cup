@@ -44,17 +44,63 @@ vi.mock('../../../../../src/nodes/initialize-project/phase4/workspace-detector.j
 describe('contextGenerationNode', () => {
   let mockState: InitializeProjectState;
 
-  const validSynthesis = `
-# CLAUDE.md Content
+  // Minimal valid five-section synthesis blob. context-generation does not
+  // run the line-count validator (that's a Phase 3 concern), it only invokes
+  // the extractor — so each body just needs to satisfy the extractor's
+  // section-bounding rules. The content matches the contract documented in
+  // synthesis-instructions.md.
+  const validSynthesis = `# CLAUDE.md Content
 
-This is the CLAUDE.md content
-for the project
+# TestProject
+
+cheat-sheet body
 
 ---
 
-# project-context/SKILL.md Content
+# code-conventions/SKILL.md Content
 
-This is the project context content
+---
+name: code-conventions
+description: Project-specific coding conventions
+---
+
+# Code Conventions
+
+rule body
+
+---
+
+# multi-file-workflows/SKILL.md Content
+
+---
+name: multi-file-workflows
+description: Cross-cutting checklists
+---
+
+# Multi-File Workflows
+
+checklist body
+
+---
+
+# testing-conventions/SKILL.md Content
+
+---
+name: testing-conventions
+description: Project-specific testing conventions
+---
+
+# Testing Conventions
+
+test rule body
+
+---
+
+# Architectural Narrative Content
+
+# Architectural Narrative
+
+descriptive prose for the wiki-generator
 `;
 
   beforeEach(() => {
@@ -199,15 +245,16 @@ This is the project context content
     expect(result.current_phase).toBe('failed');
   });
 
-  it('should fail if project-context section not found', async () => {
-    const invalidSynthesis = `
-# CLAUDE.md Content
+  it('should fail if any required convention-skill section is missing', async () => {
+    const invalidSynthesis = `# CLAUDE.md Content
 
-Test content
+# TestProject
+
+cheat-sheet body
 
 ---
 
-# project-context/WRONG.md Content
+# code-conventions/WRONG.md Content
 
 Wrong content
 `;
@@ -227,16 +274,28 @@ Wrong content
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.stringContaining('CLAUDE.md'),
-      expect.stringContaining('This is the CLAUDE.md content'),
+      expect.stringContaining('cheat-sheet body'),
     );
   });
 
-  it('should extract and write project-context/SKILL.md', async () => {
+  it('should extract and write the three prescriptive convention skills', async () => {
+    await contextGenerationNode(mockState);
+
+    const calls = vi.mocked(fs.writeFileSync).mock.calls;
+    const findCallMatching = (regex: RegExp): unknown[] | undefined =>
+      calls.find(([path]) => regex.test(String(path)));
+    expect(findCallMatching(/code-conventions\/SKILL\.md/)).toBeDefined();
+    expect(findCallMatching(/multi-file-workflows\/SKILL\.md/)).toBeDefined();
+    expect(findCallMatching(/testing-conventions\/SKILL\.md/)).toBeDefined();
+  });
+
+  it('should persist the architectural narrative to <tempDir>/architectural-narrative.md', async () => {
     await contextGenerationNode(mockState);
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
-      expect.stringContaining('SKILL.md'),
-      expect.stringContaining('This is the project context content'),
+      expect.stringContaining('architectural-narrative.md'),
+      expect.stringContaining('descriptive prose for the wiki-generator'),
+      'utf-8',
     );
   });
 
@@ -248,10 +307,16 @@ Wrong content
     });
   });
 
-  it('should create project-context directory', async () => {
+  it('should create the convention-skill directories', async () => {
     await contextGenerationNode(mockState);
 
-    expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('project-context'), {
+    expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('code-conventions'), {
+      recursive: true,
+    });
+    expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('multi-file-workflows'), {
+      recursive: true,
+    });
+    expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('testing-conventions'), {
       recursive: true,
     });
   });
@@ -328,7 +393,8 @@ Wrong content
 
     expect(result.phase4_context).toBeDefined();
     expect(result.phase4_context?.claude_md_written).toBe(true);
-    expect(result.phase4_context?.project_context_written).toBe(true);
+    expect(result.phase4_context?.conventions_skills_written).toBe(true);
+    expect(result.phase4_context?.architectural_narrative_written).toBe(true);
     expect(result.phase4_context?.framework_config_generated).toBe(true);
   });
 
@@ -336,7 +402,10 @@ Wrong content
     const result = await contextGenerationNode(mockState);
 
     expect(result.claude_md_path).toContain('CLAUDE.md');
-    expect(result.project_context_path).toContain('SKILL.md');
+    expect(result.code_conventions_path).toContain('code-conventions/SKILL.md');
+    expect(result.multi_file_workflows_path).toContain('multi-file-workflows/SKILL.md');
+    expect(result.testing_conventions_path).toContain('testing-conventions/SKILL.md');
+    expect(result.architectural_narrative_path).toContain('architectural-narrative.md');
     expect(result.framework_config_path).toContain('framework-config.json');
   });
 

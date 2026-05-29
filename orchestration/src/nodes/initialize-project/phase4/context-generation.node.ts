@@ -21,21 +21,41 @@ import { extractFrameworks } from './helpers/framework-extractor.js';
 import { extractInfrastructure } from './helpers/infrastructure-extractor.js';
 import { extractServicesFromPhase1Analyzers } from './helpers/service-extractor.js';
 import { validateStackProfile } from './helpers/stack-profile-validator.js';
+import { UTILITY_LANGUAGES } from './constants.js';
+import {
+  normalisePackageManager,
+  normaliseWorkspaceTool,
+} from './helpers/workspace-tool-normalizer.js';
 import { resolveConfigPath, resolveTempPath } from '../../../utils/provider-paths.js';
+import {
+  PortablePathResolver,
+  PortableWriter,
+  asAbsolutePath,
+} from '../../../services/framework/portable-paths/index.js';
+import { FrameworkConfigSchema } from '../../../schemas/framework-config.schema.js';
+import { buildCatalogFromConsolidation } from '../phase3/helpers/build-catalog-from-consolidation.js';
+import { renderGettingStarted } from './render-getting-started.js';
+import { basename } from 'path';
+import {
+  computeServiceIdRewrites,
+  applyServiceIdRewritesToFindings,
+} from './helpers/normalise-service-ids.js';
 
 /**
  * Phase 4: Context Generation Node
  *
- * This node:
- * - Extracts CLAUDE.md and project-context content from Phase 3 synthesis using regex
- * - Runs stack detection using existing utilities
- * - Generates framework-config.json with all phase outputs
- * - Writes all files to project directory
+ * Splits the Phase 3 synthesis blob into its five sections and persists them:
+ *   1. CLAUDE.md (or AGENTS.md on Codex) → `<project>/.claude/CLAUDE.md`
+ *   2. code-conventions/SKILL.md         → `<project>/.claude/skills/code-conventions/SKILL.md`
+ *   3. multi-file-workflows/SKILL.md     → `<project>/.claude/skills/multi-file-workflows/SKILL.md`
+ *   4. testing-conventions/SKILL.md      → `<project>/.claude/skills/testing-conventions/SKILL.md`
+ *   5. Architectural Narrative           → `<tempDir>/architectural-narrative.md`
+ *      (descriptive prose; consumed by the wiki-generator in Phase 4b. It is
+ *      NOT a skill.)
  *
- * Features:
- * - Fast regex-based extraction (no LLM calls)
- * - Deterministic and reliable
- * - Matches bash flow implementation
+ * Then runs the stack-detection / file-counting / workspace-detection
+ * utilities and writes `framework-config.json`. Pure regex extraction — no
+ * LLM calls in this node.
  *
  * @param state - Current workflow state
  * @returns Updated state with context generation results
@@ -47,7 +67,6 @@ export async function contextGenerationNode(
   const phaseLogger = logger.child('Phase 4: Context Generation');
   phaseLogger.info(' Starting file extraction...');
 
-  // Read Phase 3 synthesis from disk (not from state)
   const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   const synthesisPath = join(tempDir, 'synthesis-raw.md');
 
@@ -65,19 +84,22 @@ export async function contextGenerationNode(
       state.project_path,
       phaseLogger,
     );
-    const claudeMdContent = synthesisResult.claudeMdContent;
-    const claudeMdPath = synthesisResult.claudeMdPath;
-    const projectContextContent = synthesisResult.projectContextContent;
-    const projectContextPath = synthesisResult.projectContextPath;
+    const {
+      claudeMdContent,
+      claudeMdPath,
+      codeConventionsContent,
+      codeConventionsPath,
+      multiFileWorkflowsContent,
+      multiFileWorkflowsPath,
+      testingConventionsContent,
+      testingConventionsPath,
+      architecturalNarrative,
+    } = synthesisResult;
 
-    const claudeMdLines = claudeMdContent.split('\n').length;
-    const projectContextLines = projectContextContent.split('\n').length;
-    phaseLogger.success(`✓ Extracted CLAUDE.md (${claudeMdLines} lines)`);
-    phaseLogger.success(`✓ Extracted project-context/SKILL.md (${projectContextLines} lines)`);
-    phaseLogger.success(`✓ Written: ${claudeMdPath}`);
-    phaseLogger.success(`✓ Written: ${projectContextPath}`);
+    const architecturalNarrativePath = join(tempDir, 'architectural-narrative.md');
+    writeFileSync(architecturalNarrativePath, architecturalNarrative, 'utf-8');
+    phaseLogger.success(`✓ Written: ${architecturalNarrativePath}`);
 
-    // Read Phase 1 analysis files from disk (not from state)
     phaseLogger.info(' Loading Phase 1 analysis from disk...');
 
     const phase1Dir = join(tempDir, 'phase1-outputs');
@@ -97,7 +119,6 @@ export async function contextGenerationNode(
     const structureArchData = JSON.parse(readFileSync(structureArchPath, 'utf-8'));
     const techStackData = JSON.parse(readFileSync(techStackPath, 'utf-8'));
 
-    // Also read code-patterns-testing for testing_framework field
     const codePatternsData = existsSync(codePatternsPath)
       ? JSON.parse(readFileSync(codePatternsPath, 'utf-8'))
       : {
@@ -106,7 +127,6 @@ export async function contextGenerationNode(
           findings: {},
         };
 
-    // Read data-flows-integrations if it exists
     const dataFlowsData = existsSync(dataFlowsPath)
       ? JSON.parse(readFileSync(dataFlowsPath, 'utf-8'))
       : null;
@@ -117,12 +137,35 @@ export async function contextGenerationNode(
     const structureFindings = structureArchData.findings;
     const techStackFindings = techStackData.findings;
     const codePatternsFindings = codePatternsData?.findings;
+    const dataFlowsFindings = dataFlowsData?.findings;
+
+    /*
+     * Normalise service-ID drift downstream. The Phase 1 stop hook
+     * soft-warns on drift; Phase 4 rewrites the offending keys to the
+     * structure analyzer's canonical IDs so composer-views see consistent
+     * per-service maps. Recoverable drift never aborts the run.
+     */
+    const idRewrites = computeServiceIdRewrites([
+      structureFindings,
+      techStackFindings,
+      codePatternsFindings,
+      dataFlowsFindings,
+    ]);
+    if (Object.keys(idRewrites).length > 0) {
+      const summary = Object.entries(idRewrites)
+        .map(([legacy, canonical]) => `${legacy} → ${canonical}`)
+        .join(', ');
+      phaseLogger.info(` Normalising service IDs: ${summary}`);
+      applyServiceIdRewritesToFindings(structureFindings, idRewrites);
+      applyServiceIdRewritesToFindings(techStackFindings, idRewrites);
+      if (codePatternsFindings) applyServiceIdRewritesToFindings(codePatternsFindings, idRewrites);
+      if (dataFlowsFindings) applyServiceIdRewritesToFindings(dataFlowsFindings, idRewrites);
+    }
 
     const languagesFromPhase1 = extractLanguagesFromPhase1(structureFindings, techStackFindings);
 
     phaseLogger.info(`  Languages from Phase 1: ${languagesFromPhase1.join(', ') || 'none'}`);
 
-    // STEP 1: Count files by language (independent validation)
     phaseLogger.info(' Counting files by language for validation...');
     let fileCountResult: FileCountResult | undefined;
     try {
@@ -131,7 +174,6 @@ export async function contextGenerationNode(
         ` ✓ Found ${fileCountResult.total_files} files across ${fileCountResult.by_language.length} languages`,
       );
 
-      // Log breakdown
       for (const langCount of fileCountResult.by_language) {
         phaseLogger.info(`   ${langCount.language}: ${langCount.count} files`);
       }
@@ -142,11 +184,9 @@ export async function contextGenerationNode(
       phaseLogger.warn(' Continuing with agent-detected languages only');
     }
 
-    // STEP 2: Cross-validate agent findings with file counts
     let detectedLanguages = new Set<string>(languagesFromPhase1);
     detectedLanguages = crossValidateWithFileCount(detectedLanguages, fileCountResult, phaseLogger);
 
-    // STEP 3: Detect workspaces for monorepo projects
     phaseLogger.info(' Detecting workspaces...');
     let workspaceResult: WorkspaceDetectionResult | undefined;
     try {
@@ -168,8 +208,12 @@ export async function contextGenerationNode(
       );
     }
 
-    // STEP 4: Merge workspace detection results with agent findings
-    detectedLanguages = mergeWorkspaceLanguages(detectedLanguages, workspaceResult, phaseLogger);
+    detectedLanguages = mergeWorkspaceLanguages(
+      detectedLanguages,
+      workspaceResult,
+      phaseLogger,
+      fileCountResult,
+    );
 
     const finalLanguages = Array.from(detectedLanguages);
 
@@ -178,23 +222,19 @@ export async function contextGenerationNode(
     phaseLogger.info(`  Frontend frameworks: ${frontendFrameworks.join(', ') || 'none'}`);
     phaseLogger.info(`  Backend frameworks: ${backendFrameworks.join(', ') || 'none'}`);
 
-    const infrastructureFromPhase1 = extractInfrastructure(techStackFindings);
+    const infrastructureFromPhase1 = extractInfrastructure(techStackFindings, state.project_path);
 
     phaseLogger.info(
       `  Infrastructure from Phase 1: ${infrastructureFromPhase1.join(', ') || 'none'}`,
     );
 
-    // NOTE: Testing framework extraction now handled by extractServicesFromPhase1Analyzers()
-    // Testing data comes from codePatternsFindings.services[].testing field
-    // This legacy code that extracted from multi_stack.workspaces has been removed
-
-    // STEP 5: Validate stack profile completeness
     phaseLogger.info(' Validating stack profile completeness...');
-    validateStackProfile(finalLanguages, fileCountResult, phaseLogger);
+    const cleanedLanguages = validateStackProfile(finalLanguages, fileCountResult, phaseLogger);
     phaseLogger.success(' ✓ Stack profile validation passed');
-    phaseLogger.info(`  Final languages: ${finalLanguages.join(', ')}`);
+    phaseLogger.info(`  Final languages: ${cleanedLanguages.join(', ')}`);
+    finalLanguages.length = 0;
+    finalLanguages.push(...cleanedLanguages);
 
-    // ========== EXTRACT SERVICES FROM PHASE 1 ANALYZERS ==========
     phaseLogger.info('📦 Extracting service configurations...');
 
     let services: Service[];
@@ -213,31 +253,28 @@ export async function contextGenerationNode(
         );
       }
 
-      // ADD FALLBACK SERVICES: For languages with significant files but no manifest-based service
-      // This ensures we generate implementers for utility scripts, test code, etc.
       if (fileCountResult) {
-        const FALLBACK_THRESHOLD = 10; // Create fallback service if >= 10 files
+        const FALLBACK_THRESHOLD = 10;
         const existingLanguages = new Set(services.map((s) => s.language.toLowerCase()));
         let fallbackCount = 0;
 
         for (const langCount of fileCountResult.by_language) {
           const lang = langCount.language.toLowerCase();
 
-          // Skip if we already have a service for this language
           if (existingLanguages.has(lang)) continue;
 
-          // Skip if below threshold
           if (langCount.count < FALLBACK_THRESHOLD) continue;
 
-          // Create generic fallback service for this language
+          if (UTILITY_LANGUAGES.has(lang)) continue;
+
           const fallbackService: Service = {
             id: `${lang}-scripts`,
             name: `${lang.charAt(0).toUpperCase() + lang.slice(1)} Scripts`,
-            path: '.', // Root level (files scattered across project)
-            type: 'library' as any, // Generic type for utility code
+            path: '.',
+            type: 'library' as any,
             language: lang,
-            language_version: undefined, // Unknown without manifest
-            frameworks: {}, // No framework detection for fallback services
+            language_version: undefined,
+            frameworks: {},
             file_count: langCount.count,
           };
 
@@ -254,21 +291,44 @@ export async function contextGenerationNode(
           );
         }
       }
+
+      const MIN_FILES_NO_MANIFEST = 5;
+      const beforeFilter = services.length;
+      services = services.filter((service) => {
+        if (service.manifest_file) return true;
+        if (service.file_count === undefined) return true;
+        if (service.file_count >= MIN_FILES_NO_MANIFEST) return true;
+        phaseLogger.info(
+          `   ⏭  Dropping low-signal service "${service.id}" (no manifest, file_count=${service.file_count} < ${MIN_FILES_NO_MANIFEST})`,
+        );
+        return false;
+      });
+      if (services.length !== beforeFilter) {
+        phaseLogger.info(
+          `   Filtered ${beforeFilter - services.length} low-signal service(s); ${services.length} remaining`,
+        );
+      }
+      if (services.length === 0) {
+        throw new Error(
+          'No services remain after filtering. Either manifest discovery failed or every ' +
+            'discovered service has < 5 files and no manifest. Check Phase 1 structure analyzer output.',
+        );
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       phaseLogger.error(` Failed to extract services: ${errorMsg}`);
       throw error;
     }
 
-    // ========== BUILD SERVICE-CENTRIC STACK PROFILE ==========
     const stackProfile: StackProfile = {
-      // CORE: Service-centric data (source of truth)
       services,
-
-      // METADATA: Repository-level information
       is_monorepo: workspaceResult?.is_monorepo || false,
-      workspace_tool: techStackFindings?.monorepo?.workspace_manager,
-      package_manager: techStackFindings?.monorepo?.package_manager,
+      workspace_tool:
+        normaliseWorkspaceTool(techStackFindings?.monorepo?.tool) ??
+        normaliseWorkspaceTool(techStackFindings?.monorepo?.workspace_manager),
+      package_manager:
+        normalisePackageManager(techStackFindings?.monorepo?.package_manager) ??
+        normalisePackageManager(techStackFindings?.monorepo?.workspace_manager),
       infrastructure: infrastructureFromPhase1.length > 0 ? infrastructureFromPhase1 : undefined,
       file_counts: fileCountResult
         ? {
@@ -284,12 +344,76 @@ export async function contextGenerationNode(
         : undefined,
     };
 
+    const consolidationPath = join(tempDir, 'phase2-consolidation.json');
+    if (existsSync(consolidationPath)) {
+      try {
+        const consolidationBlob = JSON.parse(readFileSync(consolidationPath, 'utf-8'));
+        // Phase B: the rewrite-on-Phase-4 escape hatch is removed. The
+        // structure analyzer's IDs are authoritative; drift is rejected at
+        // Phase 1. If somehow `idRewrites` is non-empty here we'd already
+        // have thrown above.
+        const catalogBundle = buildCatalogFromConsolidation(consolidationBlob);
+        if (catalogBundle.automation) stackProfile.automation = catalogBundle.automation;
+        if (catalogBundle.readme_run_sections) {
+          stackProfile.readme_run_sections = catalogBundle.readme_run_sections;
+        }
+        stackProfile.command_catalog = catalogBundle.command_catalog;
+
+        const tierCounts: Record<string, number> = {
+          wrapper: 0,
+          readme: 0,
+          package_manager: 0,
+          ci: 0,
+        };
+        let totalEntries = 0;
+        for (const entries of Object.values(catalogBundle.command_catalog)) {
+          for (const entry of entries) {
+            totalEntries++;
+            tierCounts[entry.tier] = (tierCounts[entry.tier] ?? 0) + 1;
+          }
+        }
+        const opCount = Object.keys(catalogBundle.command_catalog).length;
+        phaseLogger.info(
+          ` catalog: ${totalEntries} entries across ${opCount} operations ` +
+            `(${tierCounts.wrapper} wrapper, ${tierCounts.readme} readme, ` +
+            `${tierCounts.package_manager} package_manager, ${tierCounts.ci} ci)`,
+        );
+        if (totalEntries === 0) {
+          phaseLogger.warn(
+            ' ⚠ Catalog is EMPTY. CLAUDE.md will render the' +
+              ' "(no commands discovered)" placeholder. Check Phase 1 ' +
+              'analyzer outputs for `automation`, `readme_run_sections`, ' +
+              'and per-service `build_tools`.',
+          );
+        }
+
+        const projectName = basename(state.project_path);
+        const gettingStartedMd = renderGettingStarted({
+          projectName,
+          commandCatalog: catalogBundle.command_catalog,
+          readmeRunSections: catalogBundle.readme_run_sections,
+        });
+        const wikiDir = join(state.project_path, 'docs', 'llm-wiki', 'wiki');
+        mkdirSync(wikiDir, { recursive: true });
+        const gettingStartedPath = join(wikiDir, 'getting-started.md');
+        writeFileSync(gettingStartedPath, gettingStartedMd);
+        phaseLogger.success(` ✓ Written: ${gettingStartedPath}`);
+      } catch (e) {
+        phaseLogger.warn(
+          ` ⚠ Could not build command catalog from consolidation: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    } else {
+      phaseLogger.warn(
+        ` ⚠ Phase 2 consolidation not found at ${consolidationPath} — skipping command catalog build`,
+      );
+    }
+
     const stackProfilePath = join(state.temp_dir!, 'stack-profile.json');
     writeFileSync(stackProfilePath, JSON.stringify(stackProfile, null, 2));
 
     phaseLogger.info(' Generating framework-config.json...');
 
-    // Prepare Phase 1 analysis data for config generator
     const phase1Data = {
       structure_architecture: structureArchData,
       tech_stack_dependencies: techStackData,
@@ -307,7 +431,10 @@ export async function contextGenerationNode(
     );
 
     const configPath = resolveConfigPath(state.project_path, 'framework-config.json');
-    writeFileSync(configPath, JSON.stringify(frameworkConfig, null, 2));
+    const portableWriter = new PortableWriter(
+      new PortablePathResolver(asAbsolutePath(state.project_path)),
+    );
+    portableWriter.writeJson(asAbsolutePath(configPath), frameworkConfig);
     phaseLogger.success(`✓ Written: ${configPath}`);
 
     return {
@@ -317,19 +444,25 @@ export async function contextGenerationNode(
         validation_passed: true,
         extracted_files: {
           claude_md: claudeMdContent,
-          project_context_md: projectContextContent,
+          code_conventions_md: codeConventionsContent,
+          multi_file_workflows_md: multiFileWorkflowsContent,
+          testing_conventions_md: testingConventionsContent,
         },
       },
       phase4_context: {
         claude_md_written: true,
-        project_context_written: true,
+        conventions_skills_written: true,
+        architectural_narrative_written: true,
         stack_profile: stackProfile,
         framework_config_generated: true,
         timestamp: new Date().toISOString(),
       },
       framework_config_path: configPath,
       claude_md_path: claudeMdPath,
-      project_context_path: projectContextPath,
+      code_conventions_path: codeConventionsPath,
+      multi_file_workflows_path: multiFileWorkflowsPath,
+      testing_conventions_path: testingConventionsPath,
+      architectural_narrative_path: architecturalNarrativePath,
       current_phase: 'phase4_context',
     };
   } catch (error) {
@@ -337,7 +470,7 @@ export async function contextGenerationNode(
     phaseLogger.error(` ✗ ${errorMessage}`);
 
     return {
-      errors: [...state.errors, errorMessage],
+      errors: [errorMessage],
       current_phase: 'failed',
     };
   }

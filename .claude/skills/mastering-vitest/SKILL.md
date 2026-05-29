@@ -1,14 +1,6 @@
 ---
 name: mastering-vitest
-description: >
-  Vitest testing patterns, configuration, and best practices for TypeScript/JavaScript projects.
-  Use when writing unit tests with Vitest, configuring test environments, or improving test coverage.
-version: 1.0.0
-category: programming-languages
-keywords: [vitest, testing, unit-test, coverage, typescript]
-triggers: [vitest]
-compatible_languages: [typescript, javascript]
-last_updated: 2026-03-25
+description: Vitest testing patterns, configuration, and best practices for TypeScript/JavaScript project. Use when writing unit tests with Vitest, configuring test environments, or improving test coverage.
 ---
 
 # Mastering Vitest
@@ -25,18 +17,19 @@ pnpm add -D vitest
 ```
 
 ```ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vitest';
 
 describe('sum', () => {
   it('adds two numbers', () => {
-    expect(1 + 2).toBe(3)
-  })
-})
+    expect(1 + 2).toBe(3);
+  });
+});
 ```
 
 ## When to Use This Skill
 
 Use when:
+
 - Writing unit or integration tests for TypeScript/JavaScript projects
 - Configuring Vitest for monorepos, workspaces, or custom environments
 - Mocking modules, functions, or timers in tests
@@ -49,13 +42,13 @@ Use when:
 ### Basic `vitest.config.ts`
 
 ```ts
-import { defineConfig } from 'vitest/config'
-import path from 'path'
+import { defineConfig } from 'vitest/config';
+import path from 'path';
 
 export default defineConfig({
   test: {
     globals: true,
-    environment: 'node',             // 'node' | 'jsdom' | 'happy-dom' | 'edge-runtime'
+    environment: 'node', // 'node' | 'jsdom' | 'happy-dom' | 'edge-runtime'
     include: ['src/**/*.test.{ts,tsx}'],
     exclude: ['node_modules', 'dist', 'e2e'],
     setupFiles: ['./src/test-setup.ts'],
@@ -64,7 +57,7 @@ export default defineConfig({
     typecheck: { enabled: true },
   },
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
-})
+});
 ```
 
 When your project already has a `vite.config.ts`, Vitest reads it automatically -- just add the `test` key there instead.
@@ -74,22 +67,32 @@ When your project already has a `vite.config.ts`, Vitest reads it automatically 
 For monorepos, use `vitest.workspace.ts`:
 
 ```ts
-import { defineWorkspace } from 'vitest/config'
+import { defineWorkspace } from 'vitest/config';
 
 export default defineWorkspace([
-  { extends: './vitest.config.ts', test: { name: 'unit', include: ['src/**/*.test.ts'], environment: 'node' } },
-  { extends: './vitest.config.ts', test: { name: 'components', include: ['src/**/*.test.tsx'], environment: 'jsdom' } },
-])
+  {
+    extends: './vitest.config.ts',
+    test: { name: 'unit', include: ['src/**/*.test.ts'], environment: 'node' },
+  },
+  {
+    extends: './vitest.config.ts',
+    test: {
+      name: 'components',
+      include: ['src/**/*.test.tsx'],
+      environment: 'jsdom',
+    },
+  },
+]);
 ```
 
 ### Environment Selection
 
-| Environment    | Use Case                             | Package                         |
-| -------------- | ------------------------------------ | ------------------------------- |
-| `node`         | Utility functions, API logic, models | built-in                        |
-| `jsdom`        | React/DOM component testing          | built-in                        |
-| `happy-dom`    | Faster DOM testing (less complete)   | `vitest-environment-happy-dom`  |
-| `edge-runtime` | Edge function / middleware testing    | `@edge-runtime/vm`             |
+| Environment    | Use Case                             | Package                        |
+| -------------- | ------------------------------------ | ------------------------------ |
+| `node`         | Utility functions, API logic, models | built-in                       |
+| `jsdom`        | React/DOM component testing          | built-in                       |
+| `happy-dom`    | Faster DOM testing (less complete)   | `vitest-environment-happy-dom` |
+| `edge-runtime` | Edge function / middleware testing   | `@edge-runtime/vm`             |
 
 Per-file override: add `// @vitest-environment jsdom` at the top of the file.
 
@@ -100,19 +103,31 @@ Per-file override: add `// @vitest-environment jsdom` at the top of the file.
 ```ts
 describe('Calculator', () => {
   describe('add', () => {
-    it('returns sum of two positive numbers', () => { expect(add(2, 3)).toBe(5) })
-    it('handles negative numbers', () => { expect(add(-1, -2)).toBe(-3) })
-  })
-})
+    it('returns sum of two positive numbers', () => {
+      expect(add(2, 3)).toBe(5);
+    });
+    it('handles negative numbers', () => {
+      expect(add(-1, -2)).toBe(-3);
+    });
+  });
+});
 ```
 
 ### Lifecycle Hooks
 
 ```ts
-beforeAll(async () => { await db.connect() })
-afterAll(async () => { await db.disconnect() })
-beforeEach(async () => { await db.seed() })
-afterEach(async () => { await db.clear() })
+beforeAll(async () => {
+  await db.connect();
+});
+afterAll(async () => {
+  await db.disconnect();
+});
+beforeEach(async () => {
+  await db.seed();
+});
+afterEach(async () => {
+  await db.clear();
+});
 ```
 
 ### Parameterized Tests (`.each`)
@@ -122,32 +137,38 @@ it.each([
   { a: 1, b: 2, expected: 3 },
   { a: -1, b: 1, expected: 0 },
 ])('add($a, $b) returns $expected', ({ a, b, expected }) => {
-  expect(add(a, b)).toBe(expected)
-})
+  expect(add(a, b)).toBe(expected);
+});
 
 describe.each([
   { role: 'admin', canDelete: true },
   { role: 'viewer', canDelete: false },
 ])('role=$role', ({ role, canDelete }) => {
-  it(`canDelete is ${canDelete}`, () => { expect(getPermissions(role).canDelete).toBe(canDelete) })
-})
+  it(`canDelete is ${canDelete}`, () => {
+    expect(getPermissions(role).canDelete).toBe(canDelete);
+  });
+});
 ```
 
 ### Async & Concurrent
 
 ```ts
 it('fetches user data', async () => {
-  const user = await fetchUser('123')
-  expect(user.name).toBe('Alice')
-})
+  const user = await fetchUser('123');
+  expect(user.name).toBe('Alice');
+});
 
 it('rejects on not found', async () => {
-  await expect(fetchUser('999')).rejects.toThrow('Not found')
-})
+  await expect(fetchUser('999')).rejects.toThrow('Not found');
+});
 
 // Run tests in parallel within a describe block
-it.concurrent('fetches users', async () => { expect(await getUsers()).toBeDefined() })
-it.concurrent('fetches posts', async () => { expect(await getPosts()).toBeDefined() })
+it.concurrent('fetches users', async () => {
+  expect(await getUsers()).toBeDefined();
+});
+it.concurrent('fetches posts', async () => {
+  expect(await getPosts()).toBeDefined();
+});
 ```
 
 ## Mocking
@@ -155,46 +176,46 @@ it.concurrent('fetches posts', async () => { expect(await getPosts()).toBeDefine
 ### `vi.fn()` - Function Mocks
 
 ```ts
-const callback = vi.fn()
-processData([1, 2, 3], callback)
-expect(callback).toHaveBeenCalledTimes(3)
-expect(callback).toHaveBeenCalledWith(1)
+const callback = vi.fn();
+processData([1, 2, 3], callback);
+expect(callback).toHaveBeenCalledTimes(3);
+expect(callback).toHaveBeenCalledWith(1);
 
 // Typed mock with return value
-const getPrice = vi.fn<(id: string) => Promise<number>>()
-getPrice.mockResolvedValue(29.99)
+const getPrice = vi.fn<(id: string) => Promise<number>>();
+getPrice.mockResolvedValue(29.99);
 ```
 
 ### `vi.mock()` - Module Mocking
 
 ```ts
-import { fetchUser } from '@/shared/api/user'
+import { fetchUser } from '@/shared/api/user';
 
-vi.mock('@/shared/api/user') // auto-mock: all exports become vi.fn()
+vi.mock('@/shared/api/user'); // auto-mock: all exports become vi.fn()
 
 it('calls fetchUser', async () => {
-  vi.mocked(fetchUser).mockResolvedValue({ id: '1', name: 'Alice' })
-  const user = await fetchUser('1')
-  expect(user.name).toBe('Alice')
-})
+  vi.mocked(fetchUser).mockResolvedValue({ id: '1', name: 'Alice' });
+  const user = await fetchUser('1');
+  expect(user.name).toBe('Alice');
+});
 ```
 
 ### Partial Module Mocking
 
 ```ts
 vi.mock('@/shared/lib/utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/shared/lib/utils')>()
-  return { ...actual, formatDate: vi.fn(() => '2026-01-01') }
-})
+  const actual = await importOriginal<typeof import('@/shared/lib/utils')>();
+  return { ...actual, formatDate: vi.fn(() => '2026-01-01') };
+});
 ```
 
 ### `vi.spyOn()` - Spy on Methods
 
 ```ts
-const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-doSomethingThatLogs()
-expect(consoleSpy).toHaveBeenCalledWith('Something went wrong')
-consoleSpy.mockRestore()
+const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+doSomethingThatLogs();
+expect(consoleSpy).toHaveBeenCalledWith('Something went wrong');
+consoleSpy.mockRestore();
 ```
 
 ### Manual Mocks
@@ -204,17 +225,21 @@ Place in `__mocks__/` adjacent to the module. Used automatically when `vi.mock()
 ### Timer Mocking
 
 ```ts
-beforeEach(() => { vi.useFakeTimers() })
-afterEach(() => { vi.useRealTimers() })
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 it('debounces the callback', () => {
-  const fn = vi.fn()
-  const debounced = debounce(fn, 300)
-  debounced()
-  expect(fn).not.toHaveBeenCalled()
-  vi.advanceTimersByTime(300)
-  expect(fn).toHaveBeenCalledOnce()
-})
+  const fn = vi.fn();
+  const debounced = debounce(fn, 300);
+  debounced();
+  expect(fn).not.toHaveBeenCalled();
+  vi.advanceTimersByTime(300);
+  expect(fn).toHaveBeenCalledOnce();
+});
 ```
 
 ## Snapshot Testing
@@ -264,7 +289,7 @@ pnpm add -D @testing-library/react @testing-library/jest-dom @testing-library/us
 
 ```ts
 // src/test-setup.ts
-import '@testing-library/jest-dom/vitest'
+import '@testing-library/jest-dom/vitest';
 ```
 
 Set `environment: 'jsdom'` and `setupFiles: ['./src/test-setup.ts']` in config.
@@ -272,43 +297,45 @@ Set `environment: 'jsdom'` and `setupFiles: ['./src/test-setup.ts']` in config.
 ### Render, Query, and User Events
 
 ```tsx
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 describe('KpiCard', () => {
   it('displays the KPI value and label', () => {
-    render(<KpiCard value={42} label="Revenue" trend="up" />)
-    expect(screen.getByText('42')).toBeInTheDocument()
-    expect(screen.getByText('Revenue')).toBeInTheDocument()
-  })
-})
+    render(<KpiCard value={42} label='Revenue' trend='up' />);
+    expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.getByText('Revenue')).toBeInTheDocument();
+  });
+});
 
 it('loads data and displays results', async () => {
-  render(<UserProfile userId="123" />)
-  expect(await screen.findByText('Alice')).toBeInTheDocument()
-  expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-})
+  render(<UserProfile userId='123' />);
+  expect(await screen.findByText('Alice')).toBeInTheDocument();
+  expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+});
 
 it('submits the form', async () => {
-  const user = userEvent.setup()
-  const onSubmit = vi.fn()
-  render(<LoginForm onSubmit={onSubmit} />)
-  await user.type(screen.getByLabelText('Email'), 'alice@example.com')
-  await user.click(screen.getByRole('button', { name: 'Sign in' }))
-  expect(onSubmit).toHaveBeenCalled()
-})
+  const user = userEvent.setup();
+  const onSubmit = vi.fn();
+  render(<LoginForm onSubmit={onSubmit} />);
+  await user.type(screen.getByLabelText('Email'), 'alice@example.com');
+  await user.click(screen.getByRole('button', { name: 'Sign in' }));
+  expect(onSubmit).toHaveBeenCalled();
+});
 ```
 
 ### Testing Hooks
 
 ```tsx
-import { renderHook, act } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react';
 
 it('increments counter', () => {
-  const { result } = renderHook(() => useCounter(0))
-  act(() => { result.current.increment() })
-  expect(result.current.count).toBe(1)
-})
+  const { result } = renderHook(() => useCounter(0));
+  act(() => {
+    result.current.increment();
+  });
+  expect(result.current.count).toBe(1);
+});
 ```
 
 ## Custom Matchers
@@ -316,17 +343,18 @@ it('increments counter', () => {
 ```ts
 expect.extend({
   toBeWithinRange(received: number, floor: number, ceiling: number) {
-    const pass = received >= floor && received <= ceiling
+    const pass = received >= floor && received <= ceiling;
     return {
       pass,
-      message: () => `expected ${received} ${pass ? 'not ' : ''}to be within range ${floor}..${ceiling}`,
-    }
+      message: () =>
+        `expected ${received} ${pass ? 'not ' : ''}to be within range ${floor}..${ceiling}`,
+    };
   },
-})
+});
 
 declare module 'vitest' {
   interface Assertion<T = unknown> {
-    toBeWithinRange(floor: number, ceiling: number): T
+    toBeWithinRange(floor: number, ceiling: number): T;
   }
 }
 ```
@@ -336,28 +364,31 @@ declare module 'vitest' {
 ### Type-Level Assertions with `expectTypeOf`
 
 ```ts
-import { expectTypeOf } from 'vitest'
+import { expectTypeOf } from 'vitest';
 
 it('returns the correct type', () => {
-  expectTypeOf(add(1, 2)).toBeNumber()
-  expectTypeOf(fetchUser).returns.resolves.toMatchTypeOf<{ id: string; name: string }>()
-})
+  expectTypeOf(add(1, 2)).toBeNumber();
+  expectTypeOf(fetchUser).returns.resolves.toMatchTypeOf<{
+    id: string;
+    name: string;
+  }>();
+});
 
 it('accepts correct parameters', () => {
-  expectTypeOf(add).toBeCallableWith(1, 2)
-  expectTypeOf(add).parameter(0).toBeNumber()
-})
+  expectTypeOf(add).toBeCallableWith(1, 2);
+  expectTypeOf(add).parameter(0).toBeNumber();
+});
 ```
 
 ### Typed Mocks
 
 ```ts
-import type { UserService } from '@/entities/user/model/types'
+import type { UserService } from '@/entities/user/model/types';
 
 const mockService: UserService = {
   getUser: vi.fn<UserService['getUser']>(),
   updateUser: vi.fn<UserService['updateUser']>(),
-}
+};
 ```
 
 Enable `typecheck: { enabled: true }` in config for compile-time checks during test runs.

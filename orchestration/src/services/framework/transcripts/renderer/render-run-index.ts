@@ -1,4 +1,6 @@
 import type { AttemptMeta, RunManifest } from '../../debug-store/types.js';
+import type { RunStats } from '../../debug-store/run-stats.js';
+import { formatCacheHitRate } from '../../debug-store/run-stats.js';
 import { escapeHtml } from './html-escape.js';
 import { INLINE_STYLES } from './inline-assets.js';
 
@@ -11,6 +13,11 @@ export interface RunIndexAttempt {
 export interface RenderRunIndexOptions {
   manifest: RunManifest;
   attempts: RunIndexAttempt[];
+  /**
+   * Optional run-level aggregate stats (cache hit rate + graph overflow
+   * count). When provided, extra rows render in the sidebar meta-card.
+   */
+  stats?: RunStats;
 }
 
 /**
@@ -18,7 +25,7 @@ export interface RenderRunIndexOptions {
  */
 export async function renderRunIndexHtml(opts: RenderRunIndexOptions): Promise<string> {
   const css = INLINE_STYLES;
-  const { manifest, attempts } = opts;
+  const { manifest, attempts, stats } = opts;
 
   const sorted = [...attempts].sort((a, b) => {
     if (a.meta.phaseNumber !== b.meta.phaseNumber) return a.meta.phaseNumber - b.meta.phaseNumber;
@@ -75,6 +82,7 @@ export async function renderRunIndexHtml(opts: RenderRunIndexOptions): Promise<s
       ${metaRow('Duration', formatDuration(manifest.durationMs))}
       ${metaRow('Project', manifest.projectPath)}
       ${metaRow('Git', manifest.gitBranch ? `${manifest.gitBranch}${manifest.gitSha ? ' @ ' + manifest.gitSha.slice(0, 10) : ''}` : undefined)}
+      ${stats ? renderStatsRows(stats) : ''}
     </dl>
   </aside>
   <main class="main run-index">
@@ -96,6 +104,7 @@ export async function renderRunIndexHtml(opts: RenderRunIndexOptions): Promise<s
         ${rows.join('\n')}
       </tbody>
     </table>
+    ${renderPhaseStatsRows(sorted)}
   </main>
 </div>
 </body>
@@ -111,6 +120,138 @@ function buildSubtitle(manifest: RunManifest, total: number): string {
 function metaRow(label: string, value: string | undefined): string {
   if (!value) return '';
   return `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`;
+}
+
+/**
+ * Render the run-stats rows into the sidebar meta-card.
+ *
+ *   - `Cache hit rate` — fraction of calls with cache_read > 0.
+ *   - `Cached tokens` — total tokens served from cache at ~10% rate
+ *     (the actual savings indicator, since hit rate alone doesn't
+ *     reveal whether cached prefixes were 100 tokens or 100K).
+ *   - `Graph overflows` — count of graph MCP results that exceeded
+ *     the per-call token cap.
+ *
+ * Always rendered when `stats` is supplied — even when values are
+ * zero — because the absence of a row is itself misleading (the
+ * operator cannot tell whether caching is broken or simply untested).
+ *
+ * The `Cached tokens` row is omitted only when the value is -1 (older
+ * runs predate the field-split and have no measurement).
+ */
+function renderStatsRows(stats: RunStats): string {
+  const hitText =
+    stats.totalAgentCalls === 0
+      ? `${formatCacheHitRate(stats.cacheHitRate)} (no calls)`
+      : `${formatCacheHitRate(stats.cacheHitRate)} (${stats.cacheHits}/${stats.totalAgentCalls})`;
+
+  const overflowText =
+    stats.graphOverflowCount === 0
+      ? '0'
+      : `${stats.graphOverflowCount}${stats.graphOverflowTools.length > 0 ? ` (${stats.graphOverflowTools.join(', ')})` : ''}`;
+
+  const rows = [metaRow('Cache hit rate', hitText)];
+
+  if (stats.cacheReadInputTokens >= 0) {
+    const cachedFmt = formatTokenCount(stats.cacheReadInputTokens);
+    const creationFmt =
+      stats.cacheCreationInputTokens > 0
+        ? ` (+${formatTokenCount(stats.cacheCreationInputTokens)} written)`
+        : '';
+    rows.push(metaRow('Cached tokens', `${cachedFmt}${creationFmt}`));
+  }
+
+  rows.push(metaRow('Graph overflows', overflowText));
+
+  if (stats.softWarningCounts) {
+    const softWarningEntries = Object.entries(stats.softWarningCounts).sort(([a], [b]) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    );
+    if (softWarningEntries.length === 0) {
+      rows.push(metaRow('Soft warnings', '0'));
+    } else {
+      const total = softWarningEntries.reduce((acc, [, n]) => acc + n, 0);
+      const breakdown = softWarningEntries.map(([k, n]) => `${k}: ${n}`).join(', ');
+      rows.push(metaRow('Soft warnings', `${total} (${breakdown})`));
+    }
+  }
+
+  return rows.join('');
+}
+
+/**
+ * Render per-phase attempt statistics as a small table beneath the main
+ * attempt list. Stack-agnostic — reads only `phaseLabel` / `phaseId` and
+ * `durationMs`, which are framework-defined regardless of project shape.
+ */
+export function renderPhaseStatsRows(attempts: RunIndexAttempt[]): string {
+  const byPhase = new Map<
+    string,
+    { label: string; durations: number[]; outcomes: Map<string, number> }
+  >();
+  for (const a of attempts) {
+    const key = a.meta.phaseLabel ?? a.meta.phaseId;
+    if (!byPhase.has(key)) {
+      byPhase.set(key, { label: key, durations: [], outcomes: new Map() });
+    }
+    const entry = byPhase.get(key)!;
+    if (typeof a.meta.durationMs === 'number') entry.durations.push(a.meta.durationMs);
+    const outcome = a.meta.outcome ?? 'unknown';
+    entry.outcomes.set(outcome, (entry.outcomes.get(outcome) ?? 0) + 1);
+  }
+  if (byPhase.size === 0) return '';
+
+  const rows: string[] = [];
+  for (const [, entry] of byPhase) {
+    const n = entry.durations.length;
+    const avg = n > 0 ? entry.durations.reduce((a, b) => a + b, 0) / n : 0;
+    const max = n > 0 ? Math.max(...entry.durations) : 0;
+    const outcomeText = [...entry.outcomes.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ');
+    rows.push(
+      `<tr>
+        <td>${escapeHtml(entry.label)}</td>
+        <td>${n}</td>
+        <td>${escapeHtml(formatDurationMs(avg))}</td>
+        <td>${escapeHtml(formatDurationMs(max))}</td>
+        <td>${escapeHtml(outcomeText)}</td>
+      </tr>`,
+    );
+  }
+  return `
+    <h2>Phase statistics</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Phase</th>
+          <th>Attempts</th>
+          <th>Avg duration</th>
+          <th>Max duration</th>
+          <th>Outcomes</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.join('\n')}
+      </tbody>
+    </table>`;
+}
+
+function formatDurationMs(ms: number): string {
+  return formatDuration(Math.round(ms));
+}
+
+/**
+ * Format a non-negative token count compactly for the sidebar:
+ * `123` / `1.2K` / `12K` / `1.2M`. The denominators are decimal
+ * (not 1024-based) because OpenAI/Anthropic bill in raw tokens.
+ */
+function formatTokenCount(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 10_000) return `${(n / 1000).toFixed(1)}K`;
+  if (n < 1_000_000) return `${Math.round(n / 1000)}K`;
+  return `${(n / 1_000_000).toFixed(1)}M`;
 }
 
 function formatDuration(ms: number | undefined): string {

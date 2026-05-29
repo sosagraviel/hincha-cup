@@ -1,7 +1,7 @@
 import { readdir } from 'fs/promises';
 import { join, extname, basename } from 'path';
 import { LANGUAGE_EXTENSIONS, isToolingConfigFile } from './constants.js';
-import { getExcludedDirectories } from '../../../utils/shared/prompt-loader.js';
+import { getExcludedDirectories, isPathExcluded } from '../../../utils/shared/prompt-loader.js';
 
 /**
  * File count information for a specific language
@@ -53,12 +53,7 @@ export async function countFilesByLanguage(
   maxDepth: number = 10,
   frameworkPath?: string,
 ): Promise<FileCountResult> {
-  // Single source of truth for what to ignore. This picks up:
-  //   - NON_PROVIDER_IGNORE_DIRS (hardcoded list like node_modules)
-  //   - getAllProviderManagedDirs() (`.claude*`, `.codex*`)
-  //   - .gitignore entries at the project root (dir patterns only)
-  //   - the framework checkout's basename
-  const excludedDirSet = new Set(getExcludedDirectories(projectPath, frameworkPath));
+  const excludedDirs = getExcludedDirectories(projectPath, frameworkPath);
 
   const languageFiles = new Map<string, Set<string>>();
   const toolingConfigCounts = new Map<string, number>();
@@ -69,7 +64,7 @@ export async function countFilesByLanguage(
     languageFiles.set(lang, new Set());
   }
 
-  await scanDirectory(projectPath, 0);
+  await scanDirectory(projectPath, '', 0);
 
   const byLanguage: FileCount[] = [];
   let totalFiles = 0;
@@ -106,9 +101,16 @@ export async function countFilesByLanguage(
   };
 
   /**
-   * Recursively scan a directory for source files.
+   * Recursively scan a directory for source files. `relPath` is the
+   * project-root-relative path of `dirPath` (`''` for the project root)
+   * — needed so multi-segment `--ignore` entries can be matched against
+   * the full anchored path instead of just the directory basename.
    */
-  async function scanDirectory(dirPath: string, currentDepth: number): Promise<void> {
+  async function scanDirectory(
+    dirPath: string,
+    relPath: string,
+    currentDepth: number,
+  ): Promise<void> {
     if (currentDepth > maxDepth) return;
 
     directoriesScanned++;
@@ -125,11 +127,12 @@ export async function countFilesByLanguage(
 
     for (const entry of entries) {
       const fullPath = join(dirPath, entry.name);
+      const childRel = relPath ? `${relPath}/${entry.name}` : entry.name;
 
       try {
         if (entry.isDirectory()) {
-          if (excludedDirSet.has(entry.name)) continue;
-          await scanDirectory(fullPath, currentDepth + 1);
+          if (isPathExcluded(childRel, excludedDirs)) continue;
+          await scanDirectory(fullPath, childRel, currentDepth + 1);
           continue;
         }
 
@@ -140,8 +143,6 @@ export async function countFilesByLanguage(
           if (!extensions.includes(ext)) continue;
 
           if (isToolingConfigFile(entry.name)) {
-            // Track tooling-config files separately for diagnostics but
-            // don't let them influence language detection.
             toolingConfigCounts.set(language, (toolingConfigCounts.get(language) ?? 0) + 1);
             break;
           }
@@ -183,10 +184,5 @@ export function detectLanguageFromExtension(filename: string): string | undefine
   return undefined;
 }
 
-// Re-export so tests and diagnostics can introspect the tooling filter
-// through the same API surface as the counter.
 export { isToolingConfigFile, TOOLING_CONFIG_PATTERNS } from './constants.js';
-
-// Kept for completeness — basename is a common helper used by call sites
-// that previously reached into this module's internals.
 export { basename };

@@ -8,24 +8,6 @@
       "trigger_mode": "always"
     },
     {
-      "name": "analyze-requirements",
-      "path": "020-development-workflow/analyze-requirements",
-      "description": "Requirements analysis and clarification patterns",
-      "trigger_mode": "always"
-    },
-    {
-      "name": "architect-agent",
-      "path": "020-development-workflow/architect-agent",
-      "description": "Software architecture and design patterns",
-      "trigger_mode": "always"
-    },
-    {
-      "name": "code-implementation",
-      "path": "020-development-workflow/code-implementation",
-      "description": "Code implementation best practices",
-      "trigger_mode": "always"
-    },
-    {
       "name": "create-sdd-ticket",
       "path": "020-development-workflow/create-sdd-ticket",
       "description": "Software Design Document ticket creation",
@@ -44,17 +26,38 @@
       "trigger_mode": "always"
     },
     {
+      "name": "apply-pr-feedback",
+      "path": "020-development-workflow/apply-pr-feedback",
+      "description": "Apply GitHub PR review feedback to an existing branch (no new PR; updates the same branch)",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "wiki-refresh",
+      "path": "020-development-workflow/wiki-refresh",
+      "description": "Incrementally refresh docs/llm-wiki/ after code changes. Use when wiki is stale or after merging a feature branch.",
+      "trigger_mode": "always"
+    },
+    {
+      "name": "wiki-add-service",
+      "path": "020-development-workflow/wiki-add-service",
+      "description": "Create a new service-doc page under docs/llm-wiki/wiki/services/ for a service that exists in the project but has no wiki page yet. Use when /wiki-refresh surfaces a missing-service suggestion.",
+      "trigger_mode": "always",
+      "is_linkable_to_agents": false
+    },
+    {
+      "name": "repo-fanout-pr",
+      "path": "020-development-workflow/repo-fanout-pr",
+      "description": "Fans out a multi-repo change into one commit + push + PR per affected child repo and cross-links the PR bodies. Invoked by /implement-ticket Phase 9 when the workspace contains more than one git repo. Not for direct user use.",
+      "trigger_mode": "always",
+      "is_linkable_to_agents": false
+    },
+    {
       "name": "mastering-git-cli",
       "path": "020-development-workflow/mastering-git-cli",
       "description": "Git version control operations: git status, git log, git diff, commits, branches, merge conflicts, rebase, stash, cherry-pick, git history, worktrees, submodules, and repository troubleshooting. Use for git commands, branch management, merge strategies, conflict resolution, commit history, viewing changes, checking repository state, and git workflows.",
       "trigger_mode": "always",
-      "is_linkable_to_agents": true
-    },
-    {
-      "name": "code-quality-check",
-      "path": "030-quality-assurance/code-quality-check",
-      "description": "Code quality and linting validation",
-      "trigger_mode": "always"
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "create-pr",
@@ -65,7 +68,7 @@
     {
       "name": "doc-updater",
       "path": "030-quality-assurance/doc-updater",
-      "description": "Documentation update patterns",
+      "description": "Maintain {{INSTRUCTION_FILE}} (CLAUDE.md/AGENTS.md) and the three generated convention skills (code-conventions, multi-file-workflows, testing-conventions) accuracy after code changes. Surgical updates only; defers descriptive content to /wiki-refresh and graph maintenance to ensure-context.sh.",
       "trigger_mode": "always"
     },
     {
@@ -92,7 +95,8 @@
       "description": "Jest testing framework automation",
       "trigger_mode": "triggered",
       "triggers": ["jest"],
-      "compatible_languages": ["typescript", "javascript"]
+      "compatible_languages": ["typescript", "javascript"],
+      "agent_roles": ["implementer"]
     },
     {
       "name": "e2e-test-architecture",
@@ -109,7 +113,8 @@
       "description": "Playwright E2E testing automation",
       "trigger_mode": "triggered",
       "triggers": ["playwright", "@playwright/test"],
-      "compatible_languages": ["typescript", "javascript"]
+      "compatible_languages": ["typescript", "javascript"],
+      "agent_roles": ["implementer"]
     },
     {
       "name": "pytest-patterns",
@@ -117,7 +122,8 @@
       "description": "Pytest testing patterns for Python",
       "trigger_mode": "triggered",
       "triggers": ["pytest"],
-      "compatible_languages": ["python"]
+      "compatible_languages": ["python"],
+      "agent_roles": ["implementer"]
     },
     {
       "name": "ui-testing",
@@ -134,7 +140,8 @@
         "svelte"
       ],
       "compatible_languages": ["typescript", "javascript"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "ui-visual-testing",
@@ -151,7 +158,8 @@
         "svelte"
       ],
       "compatible_languages": ["typescript", "javascript"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "fetch-ticket-context",
@@ -185,7 +193,8 @@
       "path": "040-integrations/mastering-github-cli",
       "description": "GitHub CLI (gh) for viewing GitHub Actions logs, workflow run outputs, CI/CD failures, action results, workflow status, PR checks, downloading artifacts, monitoring workflows, checking run logs, viewing workflow failures, repository operations, issues, pull requests, and GitHub automation. Use for GitHub Actions, workflow logs, CI logs, action outputs, workflow monitoring, gh run commands, gh workflow commands, and GitHub repository management.",
       "trigger_mode": "always",
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "notion-document-manager",
@@ -315,7 +324,8 @@
       "description": "Vitest testing patterns and best practices",
       "trigger_mode": "triggered",
       "triggers": ["vitest"],
-      "compatible_languages": ["typescript", "javascript"]
+      "compatible_languages": ["typescript", "javascript"],
+      "agent_roles": ["implementer"]
     },
     {
       "name": "atomic-design-react",
@@ -331,7 +341,8 @@
       "description": "LangGraph agent development patterns",
       "trigger_mode": "triggered",
       "triggers": ["langgraph", "@langchain/langgraph"],
-      "compatible_languages": ["typescript", "javascript", "python"]
+      "compatible_languages": ["typescript", "javascript", "python"],
+      "agent_roles": ["implementer"]
     },
     {
       "name": "design-doc-mermaid",
@@ -340,12 +351,20 @@
       "trigger_mode": "always"
     },
     {
+      "name": "wiki-ingest-external-docs",
+      "path": "020-development-workflow/wiki-ingest-external-docs",
+      "description": "Stage external descriptive docs (PDFs, DOCX, HTML, Notion/Confluence exports, GitHub issues, images) into docs/llm-wiki/raw/external/ following Karpathy's LLM-Wiki pattern. Content-addressed, manifest-indexed, export-first. Opt-in via wiki.cache_external in framework-config.json. wiki-refresh consumes the manifest on the next run.",
+      "trigger_mode": "always",
+      "is_linkable_to_agents": false
+    },
+    {
       "name": "developing-with-docker",
       "path": "070-infrastructure/developing-with-docker",
       "description": "Docker development and containerization",
       "trigger_mode": "triggered",
       "triggers": ["docker", "dockerfile"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "mastering-aws-cdk",
@@ -354,7 +373,8 @@
       "trigger_mode": "triggered",
       "triggers": ["aws-cdk", "@aws-cdk"],
       "compatible_languages": ["typescript", "javascript", "python"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "mastering-aws-cli",
@@ -362,7 +382,8 @@
       "description": "AWS CLI commands and automation",
       "trigger_mode": "triggered",
       "triggers": ["aws"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "mastering-gcloud-commands",
@@ -370,7 +391,8 @@
       "description": "Google Cloud CLI commands and workflows",
       "trigger_mode": "triggered",
       "triggers": ["gcloud", "google-cloud"],
-      "is_linkable_to_agents": true
+      "is_linkable_to_agents": true,
+      "agent_roles": ["implementer"]
     },
     {
       "name": "using-firebase",
@@ -378,7 +400,26 @@
       "description": "Firebase development patterns",
       "trigger_mode": "triggered",
       "triggers": ["firebase"],
-      "compatible_languages": ["typescript", "javascript"]
+      "compatible_languages": ["typescript", "javascript"],
+      "agent_roles": ["implementer"]
+    },
+    {
+      "name": "code-conventions",
+      "path": "010-foundation/code-conventions",
+      "description": "Project-specific coding conventions, gotchas, and WRONG/CORRECT examples (generated during initialization)",
+      "trigger_mode": "generated"
+    },
+    {
+      "name": "multi-file-workflows",
+      "path": "010-foundation/multi-file-workflows",
+      "description": "Ordered checklists for cross-cutting changes — add endpoint, add entity, etc. (generated during initialization)",
+      "trigger_mode": "generated"
+    },
+    {
+      "name": "testing-conventions",
+      "path": "010-foundation/testing-conventions",
+      "description": "Project-specific testing conventions, fixtures, mocking rules, and examples (generated during initialization)",
+      "trigger_mode": "generated"
     },
     {
       "name": "mastering-react-native-skill",
@@ -397,12 +438,6 @@
       "triggers": ["expo", "expo-router", "eas"],
       "compatible_languages": ["typescript", "javascript"],
       "is_linkable_to_agents": true
-    },
-    {
-      "name": "project-context",
-      "path": "010-foundation/project-context",
-      "description": "Project-specific architecture and patterns (generated during initialization)",
-      "trigger_mode": "generated"
     }
   ]
 }

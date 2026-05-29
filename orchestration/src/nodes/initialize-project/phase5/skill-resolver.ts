@@ -34,12 +34,10 @@ export function resolveSkills(stackProfile: StackProfile, frameworkPath: string)
   const resolved: ResolvedSkill[] = [];
 
   for (const skill of skills) {
-    // Skip generated skills (like project-context)
     if (skill.trigger_mode === 'generated') {
       continue;
     }
 
-    // Always include "always" skills
     if (skill.trigger_mode === 'always') {
       resolved.push({
         name: skill.name,
@@ -50,11 +48,11 @@ export function resolveSkills(stackProfile: StackProfile, frameworkPath: string)
         compatible_languages: skill.compatible_languages,
         trigger_mode: skill.trigger_mode,
         is_linkable_to_agents: skill.is_linkable_to_agents,
+        agent_roles: skill.agent_roles,
       });
       continue;
     }
 
-    // Check if triggered skills match
     const { matches, matchedTriggers } = matchesTriggers(skill, detectedStack);
     if (matches) {
       resolved.push({
@@ -66,12 +64,11 @@ export function resolveSkills(stackProfile: StackProfile, frameworkPath: string)
         compatible_languages: skill.compatible_languages,
         trigger_mode: skill.trigger_mode,
         is_linkable_to_agents: skill.is_linkable_to_agents,
+        agent_roles: skill.agent_roles,
       });
     }
   }
 
-  // NOTE: project-context is NOT added here because it's marked as "generated"
-  // Agents will add it manually after filtering to ensure it's always included
   return resolved;
 }
 
@@ -91,7 +88,6 @@ export function copyResolvedSkills(resolvedSkills: ResolvedSkill[], projectPath:
   let totalFiles = 0;
 
   for (const skill of resolvedSkills) {
-    // Flatten the structure - use skill name only (last directory in path)
     const targetPath = join(skillsTargetDir, skill.name);
     const copiedFiles = copySkillForProvider(skill.path, targetPath, provider);
     totalFiles += copiedFiles;

@@ -2,6 +2,7 @@ import { StateGraph, END, START } from '@langchain/langgraph';
 import type { InitializeProjectState } from '../state/schemas/initialize-project.schema.js';
 import { InitializeProjectAnnotation } from '../state/schemas/initialize-project.schema.js';
 
+import { graphFoundationNode } from '../nodes/initialize-project/phase0/graph-foundation.node.js';
 import { structureArchitectureAnalyzerNode } from '../nodes/initialize-project/phase1/structure-analyzer/structure-architecture-analyzer.node.js';
 import { techStackDependenciesAnalyzerNode } from '../nodes/initialize-project/phase1/tech-stack-analyzer/tech-stack-dependencies-analyzer.node.js';
 import { codePatternsTestingAnalyzerNode } from '../nodes/initialize-project/phase1/code-patterns-analyzer/code-patterns-testing-analyzer.node.js';
@@ -9,23 +10,22 @@ import { dataFlowsIntegrationsAnalyzerNode } from '../nodes/initialize-project/p
 import { consolidationNode } from '../nodes/initialize-project/phase2/question-consolidator/question-consolidator.node.js';
 import { synthesisNode } from '../nodes/initialize-project/phase3/synthesis.node.js';
 import { contextGenerationNode } from '../nodes/initialize-project/phase4/context-generation.node.js';
+import { wikiPreparationNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-preparation.node.js';
+import { wikiArchitectureDocNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-architecture.node.js';
+import { wikiServiceDocsNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-service-docs.node.js';
+import { wikiGenerationNode } from '../nodes/initialize-project/phase4/wiki-generation.node.js';
 import { resourcesNode } from '../nodes/initialize-project/phase5/resources.node.js';
 import { validationNode } from '../nodes/initialize-project/phase6/validation.node.js';
 
 /**
  * Router function to determine which phase to start from
  */
-function routeToPhase(state: InitializeProjectState): string | string[] {
+export function routeToPhase(state: InitializeProjectState): string | string[] {
   const startPhase = (state as any).start_phase || 1;
 
   switch (startPhase) {
     case 1:
-      return [
-        'structure_architecture_analyzer',
-        'tech_stack_dependencies_analyzer',
-        'code_patterns_testing_analyzer',
-        'data_flows_integrations_analyzer',
-      ];
+      return 'graph_foundation';
     case 2:
       return 'consolidation';
     case 3:
@@ -42,18 +42,72 @@ function routeToPhase(state: InitializeProjectState): string | string[] {
 }
 
 /**
+ * Phase 1 fans out to all four analyzers in parallel.
+ *
+ * Cross-analyzer service-ID consistency is preserved by a two-stage contract:
+ *   (a) downstream analyzers (tech-stack, code-patterns, data-flows) inject
+ *       a deterministic, inspection-derived seed of service IDs at prompt-
+ *       build time (see `buildServiceSeedFromInspection`), so they never
+ *       invent their own IDs from scratch;
+ *   (b) Phase 2 consolidation reconciles any drift between the seed-derived
+ *       IDs and the structure-architecture-analyzer's authoritative IDs via
+ *       `applyServiceIdRewritesToFindings` before any artefact is generated.
+ *
+ * This removes the ~15 min sequential head that the original SSoT design
+ * (commit e7de7d0) imposed on the run; the canonical ID guarantees survive
+ * via the inspection seed + Phase 2 reconciliation.
+ */
+export function routeAfterGraphFoundation(state: InitializeProjectState): string | string[] {
+  if (state.current_phase === 'failed') {
+    return END;
+  }
+  return [
+    'structure_architecture_analyzer',
+    'tech_stack_dependencies_analyzer',
+    'code_patterns_testing_analyzer',
+    'data_flows_integrations_analyzer',
+  ];
+}
+
+/**
+ * Architecture doc and per-service docs run in parallel: architecture
+ * references service IDs via wikilinks written from the structure
+ * analyzer's services array, NOT from the per-service doc output, so
+ * the two LLM calls have no data dependency.
+ */
+export function routeAfterWikiPreparation(state: InitializeProjectState): string | string[] {
+  if (state.current_phase === 'failed') {
+    return END;
+  }
+  return ['wiki_architecture_doc', 'wiki_service_docs'];
+}
+
+/**
  * Initialize Project Graph - 6-Phase Workflow
  *
- * PHASE 1 (PARALLEL): Run 4 analyzer agents concurrently
- * PHASE 2: Consolidate findings and identify gaps
- * PHASE 3: Run Opus synthesis agent for comprehensive analysis
- * PHASE 4: Generate CLAUDE.md and project-context/SKILL.md
- * PHASE 5: Copy skills and resources
- * PHASE 6: Final validation
+ * PHASE 1 (sequential head + parallel tail):
+ *   `structure_architecture_analyzer` first (single source of truth for
+ *   `services[]`), then `[tech-stack, code-patterns, data-flows]` in
+ *   parallel with structure's `services[]` injected as authoritative
+ *   input.
+ * PHASE 2: Consolidate findings and identify gaps.
+ * PHASE 3: Run the synthesis agent for comprehensive analysis.
+ * PHASE 4: Generate CLAUDE.md plus three prescriptive convention
+ *   skills (`code-conventions`, `multi-file-workflows`,
+ *   `testing-conventions`) and persist the architectural narrative for
+ *   the wiki-generator.
+ * PHASE 4b: Generate `docs/llm-wiki` via subgraph: wiki_preparation →
+ *   `[wiki_architecture_doc, wiki_service_docs]` in parallel →
+ *   `wiki_generation` (deterministic SERVICES.md catalog + index + disk
+ *   writes).
+ * PHASE 5: Copy skills and resources.
+ * PHASE 6: Final validation.
  *
- * Supports starting from any phase using the start_phase parameter in state.
+ * Supports starting from any phase using the `start_phase` parameter
+ * in state.
  */
 export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation)
+  .addNode('graph_foundation', graphFoundationNode)
   .addNode('structure_architecture_analyzer', structureArchitectureAnalyzerNode)
   .addNode('tech_stack_dependencies_analyzer', techStackDependenciesAnalyzerNode)
   .addNode('code_patterns_testing_analyzer', codePatternsTestingAnalyzerNode)
@@ -61,19 +115,25 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addNode('consolidation', consolidationNode)
   .addNode('synthesis', synthesisNode)
   .addNode('context_generation', contextGenerationNode)
+  .addNode('wiki_preparation', wikiPreparationNode)
+  .addNode('wiki_architecture_doc', wikiArchitectureDocNode)
+  .addNode('wiki_service_docs', wikiServiceDocsNode)
+  .addNode('wiki_generation', wikiGenerationNode)
   .addNode('resources', resourcesNode)
   .addNode('validation', validationNode)
-  // Conditional routing from START based on start_phase
   .addConditionalEdges(START, routeToPhase)
-  // Phase 1 → Phase 2 edges
+  .addConditionalEdges('graph_foundation', routeAfterGraphFoundation)
   .addEdge('structure_architecture_analyzer', 'consolidation')
   .addEdge('tech_stack_dependencies_analyzer', 'consolidation')
   .addEdge('code_patterns_testing_analyzer', 'consolidation')
   .addEdge('data_flows_integrations_analyzer', 'consolidation')
-  // Linear flow from Phase 2 onwards
   .addEdge('consolidation', 'synthesis')
   .addEdge('synthesis', 'context_generation')
-  .addEdge('context_generation', 'resources')
+  .addEdge('context_generation', 'wiki_preparation')
+  .addConditionalEdges('wiki_preparation', routeAfterWikiPreparation)
+  .addEdge('wiki_architecture_doc', 'wiki_generation')
+  .addEdge('wiki_service_docs', 'wiki_generation')
+  .addEdge('wiki_generation', 'resources')
   .addEdge('resources', 'validation')
   .addEdge('validation', END);
 

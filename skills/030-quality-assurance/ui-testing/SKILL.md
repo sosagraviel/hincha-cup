@@ -15,7 +15,11 @@ allowed-tools: Read, Write, Bash, Glob, Grep, Edit, Skill
 
 Coordinates test generation across four testing levels for UI tasks. Detects the project's existing testing infrastructure, loads framework-specific specializations, suggests setup when tools are missing, and delegates test generation to specialised mastery skills.
 
-This skill is **stack-agnostic**. Core orchestration logic (test level selection, tool detection algorithm, report format) is framework-independent. Framework-specific knowledge (tool variants, install commands, starter configs) lives in `references/*-specialization.md` files that are loaded dynamically based on project detection.
+This skill is **stack-agnostic**. Core orchestration logic (test level selection, tool detection algorithm, report format) is framework-independent. Framework-specific knowledge (tool variants, install commands, starter configs) lives in `references/*-specialization.md` files that are loaded dynamically based on project detection. Project-specific test layout (where atoms / molecules / pages live in THIS codebase) is delegated to the per-project `testing-conventions` skill at `{{CONFIG_DIR}}/skills/testing-conventions/SKILL.md` (synthesised by Phase 3 of `/initialize-project`).
+
+## Boundary — relationship to `/ui-visual-testing`
+
+This skill is the **orchestrator** across all four testing levels (unit / component / E2E / visual). When the resolved level set includes Level 4 (visual), this skill delegates to `/ui-visual-testing` (see Step 6). The visual-testing skill is also independently invokable when only visual regression / Figma-fidelity work is needed; this skill is the right entry point when multiple levels apply.
 
 ## Workflow
 
@@ -58,14 +62,17 @@ Classify the current task by running `classifyUITask()` logic against the availa
 
 1. If a ticket key was provided, read the ticket content (title, description, acceptance criteria, DoD).
 2. Scan the current working branch diff (`git diff main...HEAD --name-only`) to identify changed/new UI files.
-3. Classify into one of these task types:
-   - **New atom/molecule component** — new file in `shared/ui/` or `entities/*/ui/`
-   - **New organism/widget** — new file in `widgets/`
-   - **New page/feature** — new file in `app/` pages or `features/`
+3. **Read the project's testing layout** from `{{CONFIG_DIR}}/skills/testing-conventions/SKILL.md` (synthesised by `/initialize-project` Phase 3). It documents WHICH directories hold atoms / molecules / organisms / pages in this codebase — atomic-design layout, FSD layout, flat `components/`, Next.js `app/`, or any other shape. Do NOT hardcode a methodology here; the project's actual convention is the source of truth.
+4. Classify into one of these task types by matching the changed files against the directory patterns from `testing-conventions`:
+   - **New atom/molecule component** — new file in the project's atom/molecule directory
+   - **New organism/widget** — new file in the project's organism/widget directory
+   - **New page/feature** — new file in the project's pages/features directory
    - **Redesign existing screen** — modifications to existing page/widget with visual changes
    - **Bug fix on existing UI** — fix-type commit touching UI files
-   - **Design token/theme change** — changes to `globals.css`, theme files, or token definitions
+   - **Design token/theme change** — changes to theme tokens, design system primitives, or global stylesheets
    - **Accessibility improvement** — a11y-related changes (aria attributes, keyboard navigation, focus management)
+
+If `{{CONFIG_DIR}}/skills/testing-conventions/SKILL.md` is missing (project not yet initialised), fall back to detecting common patterns from `package.json` + the actual directory tree under `src/` or `apps/`. Surface a warning that the classification is heuristic; recommend the user run `/initialize-project` for accurate convention pickup.
 
 Output the classification and proceed.
 

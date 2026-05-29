@@ -1,0 +1,27 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: mini-microservices
+
+build:
+  artifacts:
+    - image: frontend
+      context: frontend
+    - image: productcatalogservice
+      context: productcatalogservice
+    - image: cartservice
+      context: cartservice
+    - image: recommendationservice
+      context: recommendationservice
+    - image: paymentservice
+      context: paymentservice
+
+deploy:
+  kustomize:
+    paths: [kubernetes]
+
+profiles:
+  - name: compose
+    deploy:
+      docker:
+        useCompose: true

@@ -1,0 +1,50 @@
+{
+  "protocol_version": "2",
+  "session": {
+    "session_id": "00000000-0000-0000-0000-000000000001",
+    "transcript_path": "/stub/project/.claude/projects/stub/transcript.jsonl",
+    "source": "startup",
+    "started_at": "2026-01-01T00:00:00.000Z"
+  },
+  "invocation": {
+    "skill": "implement-ticket",
+    "phase": "phase-4-branch-consent",
+    "batch_id": "00000000-0000-0000-0000-000000000002",
+    "called_at": "2026-01-01T00:01:00.000Z",
+    "attempt": 1
+  },
+  "ticket": {
+    "id": "STUB-123",
+    "source": "jira",
+    "title": "Stub ticket",
+    "url": "https://stub.atlassian.net/browse/STUB-123"
+  },
+  "project": {
+    "path": "/stub/project",
+    "name": "stub-project",
+    "repo_url": "git@github.com:stub/stub-project.git",
+    "branch": "main",
+    "commit_sha": "0000000000000000000000000000000000000001",
+    "dirty": false
+  },
+  "user": {
+    "email": "stub@example.com",
+    "name": "Stub User"
+  },
+  "runtime": {
+    "platform": "linux",
+    "node_version": "v22.0.0",
+    "cwd": "/stub/project"
+  },
+  "questions": [
+    {
+      "id": "phase-4-branch-consent",
+      "question": "Which base should this branch use?",
+      "options": [
+        {"label": "Use active branch main"},
+        {"label": "Use a different base"}
+      ],
+      "multi_select": false
+    }
+  ]
+}

@@ -45,4 +45,8 @@ qubika-agentic-framework/
 
 .codex-temp/
 .codex-backups/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+.mcp.json
 package-lock.json

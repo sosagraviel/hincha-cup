@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { validationNode } from '../../../../../src/nodes/initialize-project/phase6/validation.node.js';
 import type { InitializeProjectState } from '../../../../../src/state/schemas/initialize-project.schema.js';
 import * as fs from 'fs';
+import * as mcpConfigService from '../../../../../src/services/framework/mcp-config.service.js';
 
 vi.mock('fs', () => ({
   existsSync: vi.fn(),
@@ -26,6 +27,10 @@ vi.mock('../../../../../src/utils/logger.js', () => ({
   },
 }));
 
+vi.mock('../../../../../src/services/framework/mcp-config.service.js', () => ({
+  validateCodeGraphMcpConfig: vi.fn(),
+}));
+
 describe('validationNode', () => {
   let mockState: InitializeProjectState;
 
@@ -38,7 +43,10 @@ describe('validationNode', () => {
       current_phase: 'phase5_resources',
       temp_dir: '/test/temp',
       claude_md_path: '/test/project/.claude/CLAUDE.md',
-      project_context_path: '/test/project/.claude/project-context/SKILL.md',
+      code_conventions_path: '/test/project/.claude/skills/code-conventions/SKILL.md',
+      multi_file_workflows_path: '/test/project/.claude/skills/multi-file-workflows/SKILL.md',
+      testing_conventions_path: '/test/project/.claude/skills/testing-conventions/SKILL.md',
+      architectural_narrative_path: '/test/temp/architectural-narrative.md',
       framework_config_path: '/test/project/.claude/framework-config.json',
       phase1_analysis: { all_completed: true },
       phase1_retry_tracking: {},
@@ -51,7 +59,8 @@ describe('validationNode', () => {
       phase4_context: {
         framework_config_generated: true,
         claude_md_written: true,
-        project_context_written: true,
+        conventions_skills_written: true,
+        architectural_narrative_written: true,
         timestamp: '2024-01-01T00:00:00Z',
       },
       errors: [],
@@ -62,8 +71,30 @@ describe('validationNode', () => {
     // Mock successful validation scenario
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('docs/llm-wiki/wiki/services/main.md')) {
+        return [
+          '---',
+          'document_type: service',
+          'summary: Main backend service',
+          'last_updated: 2026-05-12T00:00:00.000Z',
+          'service_id: main',
+          '---',
+          '# Main Service',
+        ].join('\n');
+      }
+      if (path.includes('docs/llm-wiki')) {
+        return [
+          '---',
+          'document_type: architecture',
+          'summary: Project architecture',
+          'last_updated: 2026-05-12T00:00:00.000Z',
+          '---',
+          '# Wiki Document',
+        ].join('\n');
+      }
       if (path.includes('CLAUDE.md')) return 'x'.repeat(200);
       if (path.includes('SKILL.md')) return 'x'.repeat(200);
+      if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('framework-config.json')) {
         return JSON.stringify({
           version: '2.0.0',
@@ -87,6 +118,12 @@ describe('validationNode', () => {
       'implementer-typescript.md',
       'implement.md',
     ] as any);
+
+    vi.mocked(mcpConfigService.validateCodeGraphMcpConfig).mockReturnValue({
+      valid: true,
+      errors: [],
+      warnings: [],
+    });
   });
 
   it('should validate successfully with all requirements met', async () => {
@@ -94,6 +131,46 @@ describe('validationNode', () => {
 
     expect(result.current_phase).toBe('complete');
     expect(result.completed_at).toBeDefined();
+  });
+
+  it('should validate wiki files when wiki state is present', async () => {
+    mockState.llm_wiki_path = '/test/project/docs/llm-wiki';
+    mockState.phase4_wiki_generation = {
+      llm_wiki_written: true,
+      files: [
+        '/test/project/docs/llm-wiki/wiki/index.md',
+        '/test/project/docs/llm-wiki/wiki/ARCHITECTURE.md',
+        '/test/project/docs/llm-wiki/wiki/SERVICES.md',
+      ],
+      timestamp: '2024-01-01T00:00:00Z',
+    };
+
+    const result = await validationNode(mockState);
+
+    expect(result.current_phase).toBe('complete');
+    expect(result.llm_wiki_path).toBe('/test/project/docs/llm-wiki');
+    // After H4 the cross-cutting wiki shrank to: index.md + ARCHITECTURE.md
+    // + SERVICES.md (catalog) + per-service docs (none in this fixture).
+    expect(result.llm_wiki_files).toHaveLength(4);
+  });
+
+  it('should fail if wiki state is present but a core wiki file is missing', async () => {
+    mockState.llm_wiki_path = '/test/project/docs/llm-wiki';
+    mockState.phase4_wiki_generation = {
+      llm_wiki_written: true,
+      files: [],
+      timestamp: '2024-01-01T00:00:00Z',
+    };
+    vi.mocked(fs.existsSync).mockImplementation(
+      (path: any) => !String(path).includes('ARCHITECTURE.md'),
+    );
+
+    const result = await validationNode(mockState);
+
+    expect(result.current_phase).toBe('failed');
+    expect(
+      result.errors?.some((error) => error.includes('docs/llm-wiki/wiki/ARCHITECTURE.md')),
+    ).toBe(true);
   });
 
   it('should fail if CLAUDE.md path not set', async () => {
@@ -119,6 +196,7 @@ describe('validationNode', () => {
 
   it('should warn if CLAUDE.md content is too short', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('CLAUDE.md')) return 'short';
       if (path.includes('SKILL.md')) return 'x'.repeat(200);
       if (path.includes('framework-config.json')) {
@@ -135,19 +213,29 @@ describe('validationNode', () => {
     );
   });
 
-  it('should fail if project-context/SKILL.md not found', async () => {
-    mockState.project_context_path = undefined;
-    // Mock existsSync to return false for SKILL.md
-    vi.mocked(fs.existsSync).mockImplementation((path: any) => !path.includes('SKILL.md'));
+  it('should fail if any of the three convention skills is missing', async () => {
+    mockState.code_conventions_path = undefined;
+    mockState.multi_file_workflows_path = undefined;
+    mockState.testing_conventions_path = undefined;
+    // Mock existsSync to return false for any SKILL.md path
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => !String(path).includes('SKILL.md'));
 
     const result = await validationNode(mockState);
 
     expect(result.errors).toBeDefined();
-    expect(result.errors?.some((e) => e.includes('project-context/SKILL.md not found'))).toBe(true);
+    // At least one of the three convention skills must be reported missing.
+    expect(
+      result.errors?.some((e) =>
+        /code-conventions\/SKILL\.md not found|multi-file-workflows\/SKILL\.md not found|testing-conventions\/SKILL\.md not found/.test(
+          e,
+        ),
+      ),
+    ).toBe(true);
   });
 
-  it('should warn if SKILL.md content is too short', async () => {
+  it('should warn if a convention-skill SKILL.md is too short', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('CLAUDE.md')) return 'x'.repeat(200);
       if (path.includes('SKILL.md')) return 'short';
       if (path.includes('framework-config.json')) {
@@ -159,8 +247,14 @@ describe('validationNode', () => {
     const result = await validationNode(mockState);
 
     expect(result.warnings).toBeDefined();
+    // Each of the three convention skills validates short-content separately;
+    // any of the three reporting "content seems too short" satisfies the contract.
     expect(
-      result.warnings?.some((w) => w.includes('project-context/SKILL.md content seems too short')),
+      result.warnings?.some((w) =>
+        /code-conventions\/SKILL\.md content seems too short|multi-file-workflows\/SKILL\.md content seems too short|testing-conventions\/SKILL\.md content seems too short/.test(
+          w,
+        ),
+      ),
     ).toBe(true);
   });
 
@@ -179,6 +273,7 @@ describe('validationNode', () => {
 
   it('should fail if framework-config.json has invalid JSON', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('framework-config.json')) return 'invalid json{';
       return 'x'.repeat(200);
     });
@@ -190,6 +285,7 @@ describe('validationNode', () => {
 
   it('should fail if framework-config.json missing version', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('framework-config.json')) {
         return JSON.stringify({ project_metadata: {}, stack_profile: {} });
       }
@@ -206,6 +302,7 @@ describe('validationNode', () => {
 
   it('should fail if framework-config.json missing project_metadata', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('framework-config.json')) {
         return JSON.stringify({ version: '2.0.0', stack_profile: {} });
       }
@@ -222,6 +319,7 @@ describe('validationNode', () => {
 
   it('should fail if framework-config.json missing stack_profile', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('framework-config.json')) {
         return JSON.stringify({ version: '2.0.0', project_metadata: {} });
       }
@@ -274,6 +372,7 @@ describe('validationNode', () => {
   it('should warn about missing implementers for significant languages', async () => {
     // Mock framework config with services array showing typescript and javascript
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('CLAUDE.md')) return 'x'.repeat(200);
       if (path.includes('SKILL.md')) return 'x'.repeat(200);
       if (path.includes('framework-config.json')) {
@@ -315,6 +414,56 @@ describe('validationNode', () => {
     const result = await validationNode(mockState);
 
     expect(result.current_phase).toBe('complete');
+  });
+
+  it('should fail if generated planner or implementer agents are not graph-aware', async () => {
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('.claude/agents/planner.md')) return 'tools: Read, Grep, Glob';
+      if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
+      if (path.includes('CLAUDE.md')) return 'x'.repeat(200);
+      if (path.includes('SKILL.md')) return 'x'.repeat(200);
+      if (path.includes('framework-config.json')) {
+        return JSON.stringify({
+          version: '2.0.0',
+          project_metadata: {},
+          stack_profile: {
+            services: [{ id: 'main', language: 'typescript', path: 'src', type: 'backend' }],
+          },
+        });
+      }
+      return '';
+    });
+
+    const result = await validationNode(mockState);
+
+    expect(result.current_phase).toBe('failed');
+    expect(result.errors?.some((e) => e.includes('planner.md missing mcp__code_graph'))).toBe(true);
+  });
+
+  it('should fail if code graph MCP config is missing', async () => {
+    vi.mocked(mcpConfigService.validateCodeGraphMcpConfig).mockReturnValue({
+      valid: false,
+      errors: ['Project MCP config not found: .mcp.json'],
+      warnings: [],
+    });
+
+    const result = await validationNode(mockState);
+
+    expect(result.current_phase).toBe('failed');
+    expect(result.errors?.some((e) => e.includes('Project MCP config not found'))).toBe(true);
+  });
+
+  it('should fail if code graph MCP config is invalid', async () => {
+    vi.mocked(mcpConfigService.validateCodeGraphMcpConfig).mockReturnValue({
+      valid: false,
+      errors: ['Project MCP config .mcp.json is missing mcpServers.code_graph'],
+      warnings: [],
+    });
+
+    const result = await validationNode(mockState);
+
+    expect(result.current_phase).toBe('failed');
+    expect(result.errors?.some((e) => e.includes('mcpServers.code_graph'))).toBe(true);
   });
 
   it('should fail if phase1 not completed', async () => {
@@ -388,12 +537,19 @@ describe('validationNode', () => {
     expect(result.total_duration_ms).toBeUndefined();
   });
 
-  it('should preserve existing warnings', async () => {
+  it('returns only validation-node-derived warnings; the reducer concatenates with prior state', async () => {
+    // Phase E: nodes return only their NEW entries — the LangGraph reducer
+    // (`(left, right) => [...left, ...right]`) handles the merge. The
+    // pre-Phase-E spread duplicated prior warnings every time a node ran.
     mockState.warnings = ['Previous warning'];
 
     const result = await validationNode(mockState);
 
-    expect(result.warnings).toContain('Previous warning');
+    // The returned `warnings` is the validation-node's own contribution
+    // (possibly empty when nothing flagged) — NOT a union with state.warnings.
+    if (Array.isArray(result.warnings)) {
+      expect(result.warnings).not.toContain('Previous warning');
+    }
   });
 
   it('should handle validation errors gracefully', async () => {
@@ -423,6 +579,7 @@ describe('validationNode', () => {
 
   it('should handle errors reading framework config for multi-stack validation', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('framework-config.json')) {
         if (path.includes('validation')) throw new Error('Read error');
         return JSON.stringify({

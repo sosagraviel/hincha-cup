@@ -15,7 +15,6 @@ import fs from 'fs';
 import { z } from 'zod';
 import { extractJSON } from '../../../../utils/validator.js';
 
-// Question Consolidation schema
 const ConsolidatedGapSchema = z.object({
   agent: z.string().min(1, 'Agent name is required'),
   item: z.string().min(1, 'Item name is required'),
@@ -33,7 +32,7 @@ const ConsolidationMetadataSchema = z.object({
   original_gap_count: z.number().int().nonnegative(),
   consolidated_gap_count: z.number().int().nonnegative(),
   reduction_percentage: z.number().int().min(0).max(100),
-  consolidation_groups: z.array(z.any()).optional(), // Flexible for groups structure
+  consolidation_groups: z.array(z.any()).optional(),
 });
 
 const ConsolidationOutputSchema = z.object({
@@ -80,16 +79,13 @@ async function readStdinAsync(): Promise<string> {
 
 async function main() {
   try {
-    // Read stdin to get hook input metadata (production-ready async method)
     const stdinBuffer = await readStdinAsync();
     const input: HookInput = JSON.parse(stdinBuffer);
 
-    // Allow if stop hook is explicitly active (legacy/testing mode)
     if (input.stop_hook_active === true) {
       return allow();
     }
 
-    // Require transcript for validation
     if (!input.transcript_path) {
       return blockWithFeedback(
         '❌ HOOK ERROR: No transcript path provided\n\n' +
@@ -121,7 +117,6 @@ async function main() {
 
     const assistantMessages = transcript
       .filter((msg: any) => {
-        // Support both formats: direct (msg.type === "assistant") and wrapped (msg.message.role === "assistant")
         return msg.type === 'assistant' || (msg.message && msg.message.role === 'assistant');
       })
       .reverse();
@@ -136,7 +131,6 @@ async function main() {
 
     const lastMessage = assistantMessages[0];
 
-    // Get content from either direct format or wrapped format
     const messageContent = lastMessage.message ? lastMessage.message.content : lastMessage.content;
 
     if (!messageContent || !Array.isArray(messageContent)) {
@@ -212,18 +206,16 @@ async function main() {
       );
     }
 
-    // Auto-unwrap if wrapped in analyzer schema
     let parsed = data as any;
     if (parsed.findings && typeof parsed.findings === 'object') {
       parsed = parsed.findings;
     }
 
-    // Auto-wrap if bare array
     if (Array.isArray(parsed)) {
       parsed = {
         consolidated_gaps: parsed,
         consolidation_metadata: {
-          original_gap_count: 0, // Will be filled by orchestrator
+          original_gap_count: 0,
           consolidated_gap_count: parsed.length,
           reduction_percentage: 0,
           consolidation_groups: [],
@@ -231,7 +223,6 @@ async function main() {
       };
     }
 
-    // Auto-remap if wrong key name
     if (!parsed.consolidated_gaps && !Array.isArray(parsed)) {
       const arrayKey = Object.keys(parsed).find(
         (k) => Array.isArray(parsed[k]) && k !== 'consolidation_groups',
@@ -249,7 +240,6 @@ async function main() {
           const pathStr = err.path.length > 0 ? `${err.path.join('.')}` : 'root';
           let errorMsg = `  ${index + 1}. Field "${pathStr}": ${err.message}`;
 
-          // Add specific guidance for common errors
           if (pathStr === 'consolidated_gaps' && err.code === 'invalid_type') {
             errorMsg += `\n     → The "consolidated_gaps" field MUST be an array of gap objects`;
             errorMsg += `\n     → Check that you have: "consolidated_gaps": [...]`;
@@ -303,7 +293,6 @@ async function main() {
 
     return allow();
   } catch (error) {
-    // CRITICAL: On hook error, BLOCK (fail-safe) - don't allow potentially bad output
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     return blockWithFeedback(
       `❌ HOOK CRASHED: ${errorMsg}\n\n` +

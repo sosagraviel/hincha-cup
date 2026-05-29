@@ -349,17 +349,61 @@ $implement-ticket TEST-123    # Codex CLI
 
 ## Testing Your Changes
 
-### Integration Tests
+### Unit + Integration Tests
 
-The framework includes integration tests for the full SDLC workflow:
+All tests live under `orchestration/test/`. The integration fixtures simulate three realistic project shapes so the framework can be exercised end-to-end without paying for a tokenless dry-run.
 
 ```bash
-# Run all integration tests
-./qubika-agentic-framework/tests/run-integration-tests.sh
+# Unit tests (offline, no LLM calls, ~10s)
+pnpm --filter orchestration test:unit
 
-# Run specific test
-./qubika-agentic-framework/tests/run-integration-tests.sh go-microservice
+# Integration tests (live Claude CLI required)
+pnpm --filter orchestration test:integration
 ```
+
+#### End-to-end integration fixtures
+
+Three fixture projects live under `orchestration/test/integration/initialize-project/projects/`:
+
+| Fixture | Shape | Stack |
+|---|---|---|
+| `mini-monorepo` | Single-repo monorepo | NestJS + React + Postgres + Keycloak |
+| `mini-microservices` | Multi-language services | Go + .NET + Python + Node + protobuf |
+| `mini-serverless` | Cloud-functions monorepo | Firebase + GCP Cloud Functions + TS/JS/Python |
+
+Each fixture ships with:
+- A `qubika-agentic-framework` symlink pointing back to the framework repo so the standard `./qubika-agentic-framework/scripts/initialize-project.sh` entry point works.
+- A `.fixture-meta.json` declaring expected services, languages, and required artefact paths.
+
+Run a fixture end-to-end:
+
+```bash
+# Dry-run — prints cost projection (~30K Haiku tokens, ~5-10 min) and exits
+./orchestration/test/integration/initialize-project/scripts/run-fixture.sh mini-monorepo
+
+# Actually execute — pass --confirm to spend tokens
+./orchestration/test/integration/initialize-project/scripts/run-fixture.sh mini-monorepo --confirm
+
+# Clean a fixture's run artefacts before re-running
+./orchestration/test/integration/initialize-project/scripts/clean-fixture.sh mini-monorepo
+```
+
+The runner sets `MODEL_TIER=fast` (Haiku family) and `PROJECT_PATH` so the framework treats the fixture as the target. Generated artefacts land in `.claude/`, `docs/llm-wiki/`, and per-run debug bundles under `.claude-temp/initialize-project/debug/runs/<runId>/`.
+
+When inspecting a finished run:
+
+```bash
+# Open the HTML debug index for the latest run
+open .claude-temp/initialize-project/debug/runs/$(ls -t .claude-temp/initialize-project/debug/runs/ | head -1)/index.html
+
+# Inspect the generated CLAUDE.md
+cat .claude/CLAUDE.md
+
+# Inspect the wiki services
+ls docs/llm-wiki/wiki/services/
+```
+
+A repo-wide sanity test (`test/unit/integration-fixtures/sanity.test.ts`) refuses to pass if a fixture contains committed run artefacts. Always run `clean-fixture.sh` before committing.
 
 ### Manual Testing
 
@@ -404,8 +448,11 @@ git checkout -b feature/add-vue-skill
 3. **Test thoroughly**
 
 ```bash
-# Run integration tests
-./qubika-agentic-framework/tests/run-integration-tests.sh
+# Unit tests
+pnpm --filter orchestration test:unit
+
+# Integration tests (requires live Claude CLI)
+pnpm --filter orchestration test:integration
 
 # Test on real projects
 ./qubika-agentic-framework/scripts/initialize-project.sh
@@ -510,6 +557,35 @@ Include:
 4. **Actual Behavior**: What actually happened?
 5. **Environment**: OS, Claude Code version, project type
 6. **Logs**: Relevant error messages or logs
+
+---
+
+## Extending the Language Registry
+
+The `/initialize-project` workflow runs deterministic post-fills driven by `orchestration/src/services/framework/language-config/`. Adding a new external service / auth library / event-queue library / framework / language / manifest kind takes one or two files — never an analyzer-prompt edit.
+
+### Where each token lives
+
+| Category | File | Field |
+|---|---|---|
+| External-service SDK (Stripe, Sentry, …) | `languages/<lang>.ts` | `toolTokens.externalServiceSdks[]` |
+| Auth library (Passport, NextAuth, …) | `languages/<lang>.ts` | `toolTokens.authLibraries[]` |
+| Event-queue library (BullMQ, Kafka, …) | `languages/<lang>.ts` | `toolTokens.eventQueueLibraries[]` |
+| Linter / formatter / type-checker / test-runner / common framework / database | `languages/<lang>.ts` | `toolTokens.*` |
+| Manifest kind for service discovery | `languages/<lang>.ts` | `manifests[]` |
+| Lock file → package manager mapping | `languages/<lang>.ts` | `lockFiles[]` |
+| Runtime-version pin file | `languages/<lang>.ts` | `runtimeVersionFiles[]` |
+| New language family | new `languages/<key>.ts` + one import line in `languages/index.ts` |
+
+### Worked example — add SendGrid for Python
+
+Open `orchestration/src/services/framework/language-config/languages/python.ts` and add one line to `externalServiceSdks`:
+
+```ts
+{ pkg: 'sendgrid', vendor: 'SendGrid', purpose: 'transactional email' },
+```
+
+That's it. The composer-derivation library picks it up at `/initialize-project` time, the composer view surfaces it under `architecture-narrative.external_services[]`, the synthesizer renders it into the architectural narrative, and the LLM wiki notes the integration — without any prompt edits or analyzer changes. Adding a new manifest kind (e.g. `BUILD.bazel`) automatically widens the service-completeness validator's discovery surface in the same way.
 
 ---
 

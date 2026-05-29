@@ -4,9 +4,8 @@ Skills for code quality checks, security reviews, automated testing, and pull re
 
 ## Skills in this group
 
-- **code-quality-check**: Automated quality verification with linters, type checkers, and test coverage (80%+ threshold)
 - **create-pr**: Create production-ready GitHub Pull Requests with artifacts (screenshots, videos, coverage)
-- **doc-updater**: Maintain `.claude/CLAUDE.md` and `project-context` accuracy after code changes
+- **doc-updater**: Maintain `.claude/CLAUDE.md` and the three generated convention skills (`code-conventions`, `multi-file-workflows`, `testing-conventions`) accuracy after code changes
 - **jest-coverage-automation**: AI-powered Jest test generation and coverage improvement until thresholds are met
 - **playwright-e2e-automation**: Multi-step Playwright E2E test automation using Planner, Implementer, and Healer agents
 - **pr-reviewer**: Comprehensive GitHub Pull Request code review with structured feedback for review-loop integration
@@ -14,6 +13,15 @@ Skills for code quality checks, security reviews, automated testing, and pull re
 - **security-review**: OWASP Top 10 scanning, secrets detection, and vulnerability analysis
 - **ui-testing**: Stack-agnostic UI testing orchestration across unit, component, E2E, and visual levels
 - **ui-visual-testing**: Dual-mode visual testing — Figma design fidelity and screenshot regression with an iterative fix loop
+- **wiki-lint**: Structural and semantic lint over `docs/llm-wiki/`; invoked by `/wiki-refresh`
+
+> Lint / typecheck / test execution lives in `/implement-ticket` Phase 6,
+> which auto-detects the project's runners from the Phase 1 analyzer
+> findings (no separate `/code-quality-check` skill — it was removed in the
+> 2026-04-30 flow-cleanup pass for re-discovering work the analyzers already
+> did). The skills in this group are invoked as discrete, targeted helpers
+> from inside `/implement-ticket` (Phases 6, 8, 8.5, 9, 10) — never as a
+> "first run quality check" pass.
 
 ## Featured Skill: Jest Coverage Automation
 

@@ -10,7 +10,6 @@ import { PREAMBLE_PATTERNS, SECTION_MARKERS } from './types.js';
 export function detectPreambleText(output: string): string | null {
   const firstLine = output.split('\n')[0].trim();
 
-  // Check if first line matches preamble patterns
   for (const pattern of PREAMBLE_PATTERNS) {
     if (pattern.test(firstLine)) {
       return [
@@ -40,13 +39,11 @@ export function detectPreambleText(output: string): string | null {
     }
   }
 
-  // Check if first non-empty line is NOT the header
   const firstNonEmpty = output
     .split('\n')
     .find((line) => line.trim().length > 0)
     ?.trim();
   if (firstNonEmpty && firstNonEmpty !== SECTION_MARKERS.CLAUDE_MD_HEADER) {
-    // Only warn if it's clearly not close to the header
     if (!firstNonEmpty.includes('CLAUDE') && !firstNonEmpty.startsWith('#')) {
       return [
         'OUTPUT DOES NOT START WITH CORRECT HEADER',

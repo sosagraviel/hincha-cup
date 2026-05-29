@@ -9,10 +9,22 @@ import { logger } from '../../../../utils/logger.js';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { buildPhase1AnalyzerPrompt } from '../shared/prompt-builder.js';
+import { loadAuthoritativeServices } from '../shared/authoritative-services.js';
+import {
+  applyGraphToolUsageFromSidecar,
+  getSidecarLoaderForProvider,
+} from '../shared/graph-tool-usage.js';
 import { getFrameworkAgentPath } from '../../shared/index.js';
-import { reasoningPrefix } from '../../../../utils/shared/context-tags.js';
-import { resolveTempPath } from '../../../../utils/provider-paths.js';
-import { getInitializeProjectPhase } from '../../../../services/framework/debug-store/index.js';
+import {
+  analyzerExcludedDirsOverride,
+  analyzerReadableTempPaths,
+} from '../../../../services/framework/permissions/excluded-paths.js';
+import { resolveTempPath, getActiveProvider } from '../../../../utils/provider-paths.js';
+import { Provider } from '../../../../providers/types.js';
+import {
+  getInitializeProjectPhase,
+  tryActiveDebugStore,
+} from '../../../../services/framework/debug-store/index.js';
 
 /**
  * Data Flows & Integrations Analyzer Node
@@ -32,37 +44,49 @@ export async function dataFlowsIntegrationsAnalyzerNode(
   const tempDir = state.temp_dir || resolveTempPath(state.project_path, 'initialize-project');
   mkdirSync(join(tempDir, 'phase1-outputs'), { recursive: true });
 
+  const { services: authoritativeServices, error: servicesLoadError } =
+    loadAuthoritativeServices(tempDir);
+  if (servicesLoadError) {
+    logger.warn(`${agentName}: ${servicesLoadError} — proceeding without injection`);
+  }
+
   try {
     const agentInvoke = async (
       feedbackPrompt: string,
       resumeSessionId?: string,
       attemptNumber?: number,
     ): Promise<{ output: string; sessionId: string }> => {
-      // Build input prompt using shared utility
-      const contextPrompt = buildPhase1AnalyzerPrompt(
+      const inputPrompt = buildPhase1AnalyzerPrompt(
         state.project_path,
         state.framework_path,
         agentName,
-        feedbackPrompt, // Feedback for retry
+        feedbackPrompt,
+        {
+          available: state.code_graph_available ?? false,
+          dbPath: state.code_graph_path,
+          stats: state.code_graph_stats,
+        },
+        authoritativeServices,
       );
 
-      // Create agent using new interface
       const factory = await AgentFactory.create();
-
-      // Provider-aware reasoning prefix (ultrathink for Claude, empty for Codex)
-      const inputPrompt = `${reasoningPrefix(factory.getAuthConfig())}${contextPrompt}\n\nAnalyze the data flows and integrations at: ${state.project_path}`;
 
       const agent = await factory.createAgent({
         agentName,
         agentFilePath: getFrameworkAgentPath(state.framework_path, agentFile),
         projectPath: state.project_path,
         frameworkPath: state.framework_path,
-        timeout: 1800000, // 30 minutes
-        resumeSessionId, // Pass session ID for context-preserving retry
+        timeout: 1800000,
+        resumeSessionId,
         phase: getInitializeProjectPhase('phase1'),
         settingsPath: join(
           state.framework_path,
           'orchestration/src/nodes/initialize-project/phase1/data-flows-analyzer/settings.json',
+        ),
+        allowReadPaths: analyzerReadableTempPaths(state.project_path),
+        excludedDirsOverride: analyzerExcludedDirsOverride(
+          state.project_path,
+          state.framework_path,
         ),
       });
 
@@ -80,7 +104,7 @@ export async function dataFlowsIntegrationsAnalyzerNode(
 
     const outputPath = join(tempDir, 'phase1-outputs', '04-data-flows-integrations.json');
 
-    const validatedData = await retryWithEnhancedFeedback(
+    const { data: validatedData, sessionId } = await retryWithEnhancedFeedback(
       agentInvoke,
       validator,
       DEFAULT_RETRY_CONFIG,
@@ -91,7 +115,21 @@ export async function dataFlowsIntegrationsAnalyzerNode(
       },
     );
 
-    writeFileSync(outputPath, JSON.stringify(validatedData, null, 2));
+    const provider = getActiveProvider() === Provider.CODEX ? 'codex' : 'claude';
+    const persisted = applyGraphToolUsageFromSidecar(
+      validatedData,
+      state.project_path,
+      sessionId,
+      agentName,
+      getSidecarLoaderForProvider(provider),
+    );
+
+    writeFileSync(outputPath, JSON.stringify(persisted, null, 2));
+
+    const activeStore = tryActiveDebugStore();
+    if (activeStore && sessionId) {
+      await activeStore.overlaySessionOutput(agentName, sessionId, persisted);
+    }
 
     return {
       temp_dir: tempDir,
@@ -104,7 +142,7 @@ export async function dataFlowsIntegrationsAnalyzerNode(
     }
 
     return {
-      errors: [...state.errors, `${agentName}: ${err.message}`],
+      errors: [`${agentName}: ${err.message}`],
       current_phase: 'failed',
     };
   }

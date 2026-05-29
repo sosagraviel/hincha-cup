@@ -2,11 +2,13 @@
  * Phase 4: Language Validator Helper
  *
  * Cross-validates detected languages with file counts and workspace detection.
- * Ensures comprehensive language detection by merging multiple data sources.
+ * Every language token flows through `normalizeLanguage` so dialect tokens
+ * (`tsx`, `jsx`, `bash`, `kt`, etc.) collapse to canonical keys before deduping.
  */
 
-import type { FileCountResult } from '../types.js';
-import type { WorkspaceDetectionResult } from '../types.js';
+import { normalizeLanguage } from '../../../../schemas/language-normalization.js';
+import type { FileCountResult, WorkspaceDetectionResult } from '../types.js';
+import { UTILITY_LANGUAGES } from '../constants.js';
 
 /**
  * Cross-validate agent-detected languages with file count results
@@ -22,17 +24,21 @@ import type { WorkspaceDetectionResult } from '../types.js';
 export function crossValidateWithFileCount(
   detectedLanguages: Set<string>,
   fileCountResult: FileCountResult | undefined,
-  logger: any,
+  logger: { info: (m: string) => void; warn: (m: string) => void; error?: (m: string) => void },
 ): Set<string> {
   if (!fileCountResult) {
     return detectedLanguages;
   }
 
   for (const langCount of fileCountResult.by_language) {
-    const lang = langCount.language.toLowerCase();
+    const lang = normalizeLanguage(langCount.language);
+    if (!lang) continue;
 
-    // If file counter found significant files but agent missed it
     if (langCount.count >= 5 && !detectedLanguages.has(lang)) {
+      if (UTILITY_LANGUAGES.has(lang)) {
+        logger.info(` Agent skipped ${lang} (${langCount.count} files) - utility language`);
+        continue;
+      }
       logger.warn(` Agent missed ${lang} (${langCount.count} files) - adding to stack profile`);
       detectedLanguages.add(lang);
     }
@@ -55,23 +61,35 @@ export function crossValidateWithFileCount(
 export function mergeWorkspaceLanguages(
   detectedLanguages: Set<string>,
   workspaceResult: WorkspaceDetectionResult | undefined,
-  logger: any,
+  logger: { info: (m: string) => void; warn: (m: string) => void; error?: (m: string) => void },
+  fileCountResult?: FileCountResult,
 ): Set<string> {
   if (!workspaceResult || !workspaceResult.is_monorepo) {
     return detectedLanguages;
   }
 
-  // Extract unique languages from workspaces
-  const workspaceLanguages = new Set(
-    workspaceResult.workspaces.map((ws) => ws.language.toLowerCase()),
-  );
+  const workspaceLanguages = new Set<string>();
+  for (const ws of workspaceResult.workspaces) {
+    const canonical = normalizeLanguage(ws.language);
+    if (canonical) workspaceLanguages.add(canonical);
+  }
 
-  // Merge with detected languages
+  const hasSourceFiles = (lang: string): boolean => {
+    if (!fileCountResult) return true;
+    const entry = fileCountResult.by_language.find((lc) => normalizeLanguage(lc.language) === lang);
+    return !!(entry && entry.count > 0);
+  };
+
   for (const lang of Array.from(workspaceLanguages)) {
-    if (!detectedLanguages.has(lang)) {
-      logger.info(` Added ${lang} from workspace detection`);
-      detectedLanguages.add(lang);
+    if (detectedLanguages.has(lang)) continue;
+    if (!hasSourceFiles(lang)) {
+      logger.info(
+        ` Skipped ${lang} from workspace detection (no source files — likely config-only manifest)`,
+      );
+      continue;
     }
+    logger.info(` Added ${lang} from workspace detection`);
+    detectedLanguages.add(lang);
   }
 
   return detectedLanguages;

@@ -1,113 +1,241 @@
 import { describe, it, expect } from 'vitest';
-import {
-  validateSynthesisOutput,
-  type SynthesisValidationResult,
-} from '../../../../../src/nodes/initialize-project/phase3/validators/index.js';
+import { validateSynthesisOutput } from '../../../../../src/nodes/initialize-project/phase3/validators/index.js';
 import { extractSynthesisMarkdown } from '../../../../../src/nodes/initialize-project/phase3/validators/extract-synthesis-markdown.js';
 
 // ============================================================================
-// HELPER FUNCTIONS
+// FIXTURE BUILDERS
+//
+// Phase 3 synthesis emits FIVE sections separated by `---`:
+//   1. CLAUDE.md (or AGENTS.md on Codex) — cheat-sheet
+//   2. code-conventions/SKILL.md — prescriptive code rules
+//   3. multi-file-workflows/SKILL.md — cross-cutting checklists
+//   4. testing-conventions/SKILL.md — prescriptive test rules
+//   5. Architectural Narrative — descriptive prose for the wiki-generator
+//
+// The helpers below pad each section to a target line count so we can exercise
+// the line-floor / line-ceiling checks. Keep the fixtures minimal but valid
+// (frontmatter, H1, code block where required).
 // ============================================================================
 
-/**
- * Generate valid CLAUDE.md content with specified line count
- */
-function generateValidClaudeMd(lineCount: number = 50): string {
-  const lines = [
-    '# TestProject',
-    '',
-    '## Tech Stack',
-    '- TypeScript 5.3',
-    '- Node.js 20.x',
-    '- PostgreSQL 15',
-    '',
-    '## File Placement Guide',
-    '| File Type | Location | Example |',
-    '|-----------|----------|---------|',
-    '| Controller | src/controllers/ | user.controller.ts |',
-    '| Service | src/services/ | user.service.ts |',
-    '',
-    '## Essential Commands',
-    '| Task | Command |',
-    '|------|---------|',
-    '| Dev | npm run dev |',
-    '| Test | npm test |',
-  ];
-
-  // Pad with additional lines to reach target
-  while (lines.length < lineCount) {
-    lines.push('- Additional line ' + lines.length);
-  }
-
-  return lines.join('\n');
+function pad(lines: string[], target: number, filler: string): string {
+  const out = [...lines];
+  while (out.length < target) out.push(`${filler} ${out.length}`);
+  return out.join('\n');
 }
 
-/**
- * Generate valid project-context content with specified line count
- */
-function generateValidProjectContext(lineCount: number = 100): string {
-  const lines = [
-    '---',
-    'name: project-context',
-    'description: Deep architectural knowledge',
-    '---',
-    '',
-    '# Project Context: TestProject',
-    '',
-    '## When to Use This Skill',
-    '- When implementing features',
-    '- When debugging issues',
-    '',
-    '## Architecture Deep Dive',
-    'The system uses a layered architecture.',
-    '',
-    '## Gotchas & Non-Obvious Patterns',
-    '```typescript',
-    '// Wrong approach',
-    'async function bad() { return null; }',
-    '',
-    '// Correct approach',
-    'async function good() { return result; }',
-    '```',
-  ];
-
-  // Pad with additional lines to reach target
-  while (lines.length < lineCount) {
-    lines.push('Additional context line ' + lines.length);
-  }
-
-  return lines.join('\n');
+function fixtureClaudeMd(target = 50): string {
+  return pad(
+    [
+      '# TestProject',
+      '',
+      '## Tech Stack',
+      '- TypeScript 5.3',
+      '- Node.js 20.x',
+      '- PostgreSQL 15',
+      '',
+      '## File Placement Guide',
+      '| File Type | Location | Example |',
+      '|-----------|----------|---------|',
+      '| Controller | src/controllers/ | user.controller.ts |',
+      '| Service | src/services/ | user.service.ts |',
+      '',
+      '## Directory Structure',
+      'src/',
+      '  controllers/',
+      '  services/',
+      '',
+      '## Essential Commands',
+      '| Task | Command |',
+      '|------|---------|',
+      '| Dev | npm run dev |',
+      '| Test | npm test |',
+    ],
+    target,
+    '- Additional cheat-sheet line',
+  );
 }
 
-/**
- * Generate complete valid synthesis output
- */
-function generateValidSynthesis(claudeLines: number = 50, contextLines: number = 100): string {
+function fixtureCodeConventions(target = 60): string {
+  return pad(
+    [
+      '---',
+      'name: code-conventions',
+      'description: Project-specific coding conventions, gotchas, and WRONG/CORRECT examples',
+      '---',
+      '',
+      '# Code Conventions',
+      '',
+      '## Naming',
+      '- camelCase for variables',
+      '- PascalCase for classes',
+      '',
+      '## Gotchas',
+      '',
+      '### Transactions do not auto-rollback',
+      '',
+      '```typescript',
+      '// WRONG',
+      'await orderRepo.save(order);',
+      'await inventory.decrement(items);',
+      '```',
+      '',
+      '```typescript',
+      '// CORRECT',
+      'return dataSource.transaction(async (m) => {',
+      '  await m.save(Order, order);',
+      '  await inventory.decrement(items, m);',
+      '});',
+      '```',
+    ],
+    target,
+    '- additional rule',
+  );
+}
+
+function fixtureMultiFileWorkflows(target = 50): string {
+  return pad(
+    [
+      '---',
+      'name: multi-file-workflows',
+      'description: Ordered checklists for cross-cutting changes — add endpoint, add entity, etc.',
+      '---',
+      '',
+      '# Multi-File Workflows',
+      '',
+      '## Adding a new API endpoint',
+      '1. Create controller method',
+      '2. Add service method',
+      '3. Create DTO',
+      '4. Wire DTO export',
+      '5. Add unit test',
+      '',
+      // The multi-file-workflows skill body requires ≥1 fenced code block.
+      // Scaffolds belong in the language the structure analyzer detected;
+      // the canonical fixture uses TypeScript.
+      '```typescript',
+      '// apps/api/src/modules/{domain}/{domain}.controller.ts',
+      '@Controller()',
+      'export class DomainController {}',
+      '```',
+      '',
+      '## Adding a new database entity',
+      '1. Create migration',
+      '2. Update entity class',
+      '3. Update repository',
+    ],
+    target,
+    '- additional checklist step',
+  );
+}
+
+function fixtureTestingConventions(target = 50): string {
+  return pad(
+    [
+      '---',
+      'name: testing-conventions',
+      'description: Project-specific testing conventions, fixtures, mocking rules, and examples',
+      '---',
+      '',
+      '# Testing Conventions',
+      '',
+      '## Philosophy',
+      '- Test behavior, not implementation',
+      '- Do not mock the database',
+      '',
+      '## Unit Test Patterns',
+      '',
+      '```typescript',
+      "describe('UserService', () => {",
+      "  it('creates a user', async () => {",
+      '    const u = await service.create({ email: "a@b.com" });',
+      '    expect(u.id).toBeDefined();',
+      '  });',
+      '});',
+      '```',
+    ],
+    target,
+    '- additional testing rule',
+  );
+}
+
+function fixtureArchitecturalNarrative(target = 60): string {
+  return pad(
+    [
+      '# Architectural Narrative',
+      '',
+      '## Repository Shape',
+      'Monorepo with two backend services and a single web frontend.',
+      '',
+      '## Service Inventory',
+      '- api: NestJS backend (TypeScript)',
+      '- worker: queue consumer (TypeScript)',
+      '- web: Next.js app (TypeScript)',
+      '',
+      '## Cross-Service Flows',
+      'The web frontend calls api over HTTP. api dispatches background work to',
+      'worker via Redis Streams. All persistence is PostgreSQL.',
+      '',
+      '## Architectural Decisions',
+      '1. Pick monorepo: shared types between web and api outweigh CI cost.',
+      '2. Redis Streams over RabbitMQ: existing Redis fleet, simpler ops.',
+    ],
+    target,
+    'Additional narrative paragraph',
+  );
+}
+
+interface SynthesisOptions {
+  claudeLines?: number;
+  codeConvLines?: number;
+  multiFileLines?: number;
+  testingLines?: number;
+  narrativeLines?: number;
+}
+
+function fixtureSynthesis(opts: SynthesisOptions = {}): string {
   return [
     '# CLAUDE.md Content',
     '',
-    generateValidClaudeMd(claudeLines),
+    fixtureClaudeMd(opts.claudeLines ?? 50),
     '',
     '---',
     '',
-    '# project-context/SKILL.md Content',
+    '# code-conventions/SKILL.md Content',
     '',
-    generateValidProjectContext(contextLines),
+    fixtureCodeConventions(opts.codeConvLines ?? 60),
+    '',
+    '---',
+    '',
+    '# multi-file-workflows/SKILL.md Content',
+    '',
+    fixtureMultiFileWorkflows(opts.multiFileLines ?? 50),
+    '',
+    '---',
+    '',
+    '# testing-conventions/SKILL.md Content',
+    '',
+    fixtureTestingConventions(opts.testingLines ?? 50),
+    '',
+    '---',
+    '',
+    '# Architectural Narrative Content',
+    '',
+    fixtureArchitecturalNarrative(opts.narrativeLines ?? 60),
   ].join('\n');
 }
 
 // ============================================================================
-// TEST SUITE: EMPTY OUTPUT
+// EMPTY OUTPUT
 // ============================================================================
 
-describe('validateSynthesisOutput - Empty Output', () => {
-  it('should reject completely empty output', () => {
+describe('validateSynthesisOutput — empty output', () => {
+  it('rejects completely empty output', () => {
     const result = validateSynthesisOutput('');
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes('OUTPUT IS EMPTY'))).toBe(true);
   });
 
-  it('should reject whitespace-only output', () => {
+  it('rejects whitespace-only output', () => {
     const result = validateSynthesisOutput('   \n\n   \t  ');
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes('OUTPUT IS EMPTY'))).toBe(true);
@@ -115,701 +243,326 @@ describe('validateSynthesisOutput - Empty Output', () => {
 });
 
 // ============================================================================
-// TEST SUITE: JSON FORMAT DETECTION
+// JSON FORMAT DETECTION
 // ============================================================================
 
-describe('validateSynthesisOutput - JSON Format Detection', () => {
-  it('should detect JSON with agent_name field', () => {
+describe('validateSynthesisOutput — JSON format detection', () => {
+  it('rejects output that is a JSON object with agent_name', () => {
     const jsonOutput = JSON.stringify({
       agent_name: 'architect-synthesizer',
       findings: { test: 'data' },
     });
     const result = validateSynthesisOutput(jsonOutput);
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('OUTPUT IS JSON FORMAT'))).toBe(true);
-    expect(result.errors.some((e) => e.includes('MUST BE MARKDOWN'))).toBe(true);
+    expect(result.errors.some((e) => e.toUpperCase().includes('JSON'))).toBe(true);
   });
 
-  it('should detect valid JSON object even without agent_name', () => {
-    const jsonOutput = JSON.stringify({
-      data: 'test',
-      nested: { key: 'value' },
-    });
-    const result = validateSynthesisOutput(jsonOutput);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('JSON'))).toBe(true);
-  });
-
-  it('should not flag markdown that starts with curly brace in code block', () => {
-    const output = generateValidSynthesis();
-    const result = validateSynthesisOutput(output);
+  it('accepts five-section markdown without flagging it as JSON', () => {
+    const result = validateSynthesisOutput(fixtureSynthesis());
     expect(result.valid).toBe(true);
   });
 });
 
 // ============================================================================
-// TEST SUITE: PREAMBLE DETECTION
+// PREAMBLE / WRITE-TOOL DETECTION
 // ============================================================================
 
-describe('validateSynthesisOutput - Preamble Detection', () => {
-  const preamblePatterns = [
-    'Let me output the markdown content...',
-    "I'll generate the CLAUDE.md and project-context...",
-    "Here's what was produced:",
-    'Now I will create the files...',
-    'Based on my analysis, here is the output:',
-    'According to your requirements, I have generated:',
-    'I have generated the following content:',
-    'The output contains two files:',
-    'Below are the markdown files:',
-    'Outputting the synthesis results...',
-    'Generating the CLAUDE.md file...',
-  ];
-
-  preamblePatterns.forEach((preamble) => {
-    it(`should detect preamble: "${preamble.substring(0, 30)}..."`, () => {
-      const output = `${preamble}\n\n${generateValidSynthesis()}`;
-      const result = validateSynthesisOutput(output);
-      expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('PREAMBLE'))).toBe(true);
-    });
+describe('validateSynthesisOutput — preamble detection', () => {
+  it('rejects output with preamble before the first section header', () => {
+    const output = `Let me output the markdown content...\n\n${fixtureSynthesis()}`;
+    const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.toUpperCase().includes('PREAMBLE'))).toBe(true);
   });
 
-  it('should not flag valid output that starts with section header', () => {
-    const output = generateValidSynthesis();
+  it('accepts output that starts directly with the first section header', () => {
+    const result = validateSynthesisOutput(fixtureSynthesis());
+    expect(result.valid).toBe(true);
+  });
+});
+
+describe('validateSynthesisOutput — Write-tool usage detection', () => {
+  it('rejects output that mentions writing files', () => {
+    const output = `${fixtureSynthesis()}\n\nI wrote to the file CLAUDE.md`;
     const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.toUpperCase().includes('WRITE'))).toBe(true);
+  });
+});
+
+// ============================================================================
+// SECTION STRUCTURE
+// ============================================================================
+
+describe('validateSynthesisOutput — five-section structure', () => {
+  it('rejects output missing the CLAUDE.md header', () => {
+    const output = fixtureSynthesis().replace('# CLAUDE.md Content', '');
+    const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('CANNOT FIND ALL FIVE REQUIRED SECTIONS'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects output missing the code-conventions header', () => {
+    const output = fixtureSynthesis().replace('# code-conventions/SKILL.md Content', '');
+    const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('CANNOT FIND ALL FIVE REQUIRED SECTIONS'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects output missing the multi-file-workflows header', () => {
+    const output = fixtureSynthesis().replace('# multi-file-workflows/SKILL.md Content', '');
+    const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('CANNOT FIND ALL FIVE REQUIRED SECTIONS'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects output missing the testing-conventions header', () => {
+    const output = fixtureSynthesis().replace('# testing-conventions/SKILL.md Content', '');
+    const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('CANNOT FIND ALL FIVE REQUIRED SECTIONS'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects output missing the architectural narrative header', () => {
+    const output = fixtureSynthesis().replace('# Architectural Narrative Content', '');
+    const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('CANNOT FIND ALL FIVE REQUIRED SECTIONS'))).toBe(
+      true,
+    );
+  });
+
+  it('accepts output with all five sections in order', () => {
+    const result = validateSynthesisOutput(fixtureSynthesis());
     expect(result.valid).toBe(true);
   });
 });
 
 // ============================================================================
-// TEST SUITE: WRITE TOOL DETECTION
+// SKILL CONTENT VALIDATION
 // ============================================================================
 
-describe('validateSynthesisOutput - Write Tool Detection', () => {
-  const writeToolPatterns = [
-    'I wrote to the file',
-    'Created file CLAUDE.md',
-    'Saved content to .claude/',
-    'Using Write tool to create',
-    'writeFileSync was used',
-    'fs.write operation',
-  ];
+describe('validateSynthesisOutput — skill body validation', () => {
+  it('rejects code-conventions missing the YAML name slug', () => {
+    const output = fixtureSynthesis().replace('name: code-conventions', 'name: wrong-slug');
+    const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (e) =>
+          e.includes('CODE-CONVENTIONS/SKILL.MD FRONTMATTER HAS WRONG name') ||
+          e.includes('FRONTMATTER HAS WRONG name'),
+      ),
+    ).toBe(true);
+  });
 
-  writeToolPatterns.forEach((pattern) => {
-    it(`should detect Write tool usage: "${pattern}"`, () => {
-      const output = `${generateValidSynthesis()}\n\n${pattern}`;
-      const result = validateSynthesisOutput(output);
-      expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('WRITE TOOL'))).toBe(true);
-    });
+  it('rejects code-conventions without any code block', () => {
+    const noCode = fixtureCodeConventions(60).replace(/```[\s\S]*?```/g, 'no code here');
+    const output = fixtureSynthesis().replace(fixtureCodeConventions(60), noCode);
+    const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some((e) => e.includes('CODE-CONVENTIONS/SKILL.MD MISSING CODE EXAMPLES')),
+    ).toBe(true);
+  });
+
+  it('rejects testing-conventions without any code block', () => {
+    const noCode = fixtureTestingConventions(50).replace(/```[\s\S]*?```/g, 'no code here');
+    const output = fixtureSynthesis().replace(fixtureTestingConventions(50), noCode);
+    const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some((e) => e.includes('TESTING-CONVENTIONS/SKILL.MD MISSING CODE EXAMPLES')),
+    ).toBe(true);
+  });
+
+  it('rejects multi-file-workflows without any code block', () => {
+    // The multi-file-workflows skill body requires ≥1 fenced code block.
+    // Pure checklists are not accepted — the operator needs to see what
+    // a new file scaffold looks like.
+    const noCode = fixtureMultiFileWorkflows(50).replace(/```[\s\S]*?```/g, 'no code here');
+    const output = fixtureSynthesis().replace(fixtureMultiFileWorkflows(50), noCode);
+    const result = validateSynthesisOutput(output);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some((e) => e.includes('MULTI-FILE-WORKFLOWS/SKILL.MD MISSING CODE EXAMPLES')),
+    ).toBe(true);
   });
 });
 
 // ============================================================================
-// TEST SUITE: LENGTH VALIDATION
+// LINE-COUNT BOUNDS (per section)
 // ============================================================================
 
-describe('validateSynthesisOutput - Length Validation', () => {
-  it('should reject output shorter than 500 characters', () => {
-    const shortOutput = '# CLAUDE.md Content\n\nShort content';
-    const result = validateSynthesisOutput(shortOutput);
+describe('validateSynthesisOutput — line-count bounds', () => {
+  it('rejects CLAUDE.md below the floor', () => {
+    const result = validateSynthesisOutput(fixtureSynthesis({ claudeLines: 10 }));
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('TOO SHORT'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('CLAUDE.MD CONTENT TOO SHORT'))).toBe(true);
   });
 
-  it('should accept output longer than 500 characters with valid structure', () => {
-    const output = generateValidSynthesis();
-    expect(output.length).toBeGreaterThan(500);
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(true);
-  });
-});
-
-// ============================================================================
-// TEST SUITE: SECTION STRUCTURE
-// ============================================================================
-
-describe('validateSynthesisOutput - Section Structure', () => {
-  it('should reject output missing CLAUDE.md header', () => {
-    const output = `
-Some content here
-
----
-
-# project-context/SKILL.md Content
-
-${generateValidProjectContext()}
-    `.trim();
-    const result = validateSynthesisOutput(output);
+  it('rejects CLAUDE.md above the ceiling', () => {
+    const result = validateSynthesisOutput(fixtureSynthesis({ claudeLines: 300 }));
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('CANNOT FIND REQUIRED SECTIONS'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('CLAUDE.MD CONTENT TOO LONG'))).toBe(true);
   });
 
-  it('should reject output missing separator', () => {
-    const output = `
-# CLAUDE.md Content
-
-${generateValidClaudeMd()}
-
-# project-context/SKILL.md Content
-
-${generateValidProjectContext()}
-    `.trim();
-    const result = validateSynthesisOutput(output);
+  it('rejects code-conventions above the ceiling', () => {
+    const result = validateSynthesisOutput(fixtureSynthesis({ codeConvLines: 300 }));
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('CANNOT FIND REQUIRED SECTIONS'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('CODE-CONVENTIONS CONTENT TOO LONG'))).toBe(true);
   });
 
-  it('should reject output missing project-context header', () => {
-    const output = `
-# CLAUDE.md Content
-
-${generateValidClaudeMd()}
-
----
-
-${generateValidProjectContext()}
-    `.trim();
-    const result = validateSynthesisOutput(output);
+  it('rejects multi-file-workflows above the ceiling', () => {
+    const result = validateSynthesisOutput(fixtureSynthesis({ multiFileLines: 250 }));
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('CANNOT FIND REQUIRED SECTIONS'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('MULTI-FILE-WORKFLOWS CONTENT TOO LONG'))).toBe(
+      true,
+    );
   });
 
-  it('should accept output with all required sections', () => {
-    const output = generateValidSynthesis();
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(true);
-  });
-});
-
-// ============================================================================
-// TEST SUITE: CLAUDE.MD CONTENT VALIDATION
-// ============================================================================
-
-describe('validateSynthesisOutput - CLAUDE.md Content', () => {
-  it('should reject CLAUDE.md without project name heading', () => {
-    const claudeMd = [
-      '## Tech Stack',
-      '- TypeScript 5.3',
-      '',
-      '## File Placement Guide',
-      '| File Type | Location | Example |',
-      '|-----------|----------|---------|',
-      '| Controller | src/controllers/ | user.controller.ts |',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${claudeMd}\n\n---\n\n# project-context/SKILL.md Content\n\n${generateValidProjectContext()}`;
-    const result = validateSynthesisOutput(output);
+  it('rejects testing-conventions above the ceiling', () => {
+    const result = validateSynthesisOutput(fixtureSynthesis({ testingLines: 250 }));
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('PROJECT NAME HEADING'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('TESTING-CONVENTIONS CONTENT TOO LONG'))).toBe(
+      true,
+    );
   });
 
-  it('should reject CLAUDE.md missing Tech Stack section', () => {
-    const claudeMd = [
-      '# TestProject',
-      '',
-      '## File Placement Guide',
-      '| File Type | Location | Example |',
-      '|-----------|----------|---------|',
-      '| Controller | src/controllers/ | user.controller.ts |',
-      '',
-      '## Essential Commands',
-      '| Task | Command |',
-      '|------|---------|',
-      '| Dev | npm run dev |',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${claudeMd}\n\n---\n\n# project-context/SKILL.md Content\n\n${generateValidProjectContext()}`;
-    const result = validateSynthesisOutput(output);
+  it('rejects architectural-narrative below the floor', () => {
+    const result = validateSynthesisOutput(fixtureSynthesis({ narrativeLines: 10 }));
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('MISSING REQUIRED SECTIONS'))).toBe(true);
-    expect(result.errors.some((e) => e.includes('Tech Stack'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('ARCHITECTURAL-NARRATIVE CONTENT TOO SHORT'))).toBe(
+      true,
+    );
   });
 
-  it('should reject CLAUDE.md missing File Placement section', () => {
-    const claudeMd = [
-      '# TestProject',
-      '',
-      '## Tech Stack',
-      '- TypeScript 5.3',
-      '',
-      '## Essential Commands',
-      '| Task | Command |',
-      '|------|---------|',
-      '| Dev | npm run dev |',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${claudeMd}\n\n---\n\n# project-context/SKILL.md Content\n\n${generateValidProjectContext()}`;
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('File Placement'))).toBe(true);
-  });
-
-  it('should reject CLAUDE.md missing Essential Commands section', () => {
-    const claudeMd = [
-      '# TestProject',
-      '',
-      '## Tech Stack',
-      '- TypeScript 5.3',
-      '',
-      '## File Placement Guide',
-      '| File Type | Location | Example |',
-      '|-----------|----------|---------|',
-      '| Controller | src/controllers/ | user.controller.ts |',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${claudeMd}\n\n---\n\n# project-context/SKILL.md Content\n\n${generateValidProjectContext()}`;
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('Essential Commands'))).toBe(true);
-  });
-
-  it('should reject CLAUDE.md without tables', () => {
-    const claudeMd = [
-      '# TestProject',
-      '',
-      '## Tech Stack',
-      'TypeScript 5.3',
-      'Node.js 20.x',
-      '',
-      '## File Placement Guide',
-      'Controllers go in src/controllers/',
-      '',
-      '## Essential Commands',
-      'Dev: npm run dev',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${claudeMd}\n\n---\n\n# project-context/SKILL.md Content\n\n${generateValidProjectContext()}`;
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('TABLE FORMAT'))).toBe(true);
-  });
-
-  it('should accept CLAUDE.md with tables (even without bullet lists)', () => {
-    const claudeMd = [
-      '# TestProject',
-      '',
-      '## Tech Stack',
-      '| Technology | Version |',
-      '|------------|---------|',
-      '| TypeScript | 5.3 |',
-      '| Node.js | 20.x |',
-      '| NestJS | 10.x |',
-      '| PostgreSQL | 15 |',
-      '| Redis | 7.x |',
-      '',
-      '## File Placement Guide',
-      '| File Type | Location | Example |',
-      '|-----------|----------|---------|',
-      '| Controller | src/controllers/ | user.controller.ts |',
-      '| Service | src/services/ | user.service.ts |',
-      '| Entity | src/entities/ | user.entity.ts |',
-      '| DTO | src/dtos/ | create-user.dto.ts |',
-      '| Module | src/modules/ | user.module.ts |',
-      '| Guard | src/guards/ | auth.guard.ts |',
-      '',
-      '## Essential Commands',
-      '| Task | Command |',
-      '|------|---------|',
-      '| Dev | npm run dev |',
-      '| Build | npm run build |',
-      '| Test | npm test |',
-      '| Lint | npm run lint |',
-      '| Format | npm run format |',
-      '| Type Check | npm run typecheck |',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${claudeMd}\n\n---\n\n# project-context/SKILL.md Content\n\n${generateValidProjectContext()}`;
-    const result = validateSynthesisOutput(output);
+  it('accepts all sections at their floor limits', () => {
+    const result = validateSynthesisOutput(
+      fixtureSynthesis({
+        claudeLines: 30,
+        codeConvLines: 30,
+        multiFileLines: 20,
+        testingLines: 25,
+        narrativeLines: 30,
+      }),
+    );
     expect(result.valid).toBe(true);
   });
 
-  it('should accept CLAUDE.md with all required elements', () => {
-    const output = generateValidSynthesis();
-    const result = validateSynthesisOutput(output);
+  it('accepts all sections at their ceiling limits', () => {
+    const result = validateSynthesisOutput(
+      fixtureSynthesis({
+        claudeLines: 250,
+        codeConvLines: 250,
+        multiFileLines: 200,
+        testingLines: 200,
+        narrativeLines: 400,
+      }),
+    );
     expect(result.valid).toBe(true);
   });
 });
 
 // ============================================================================
-// TEST SUITE: PROJECT-CONTEXT CONTENT VALIDATION
-// ============================================================================
-
-describe('validateSynthesisOutput - project-context Content', () => {
-  it('should reject project-context without YAML frontmatter', () => {
-    const context = [
-      '# Project Context: TestProject',
-      '',
-      '## When to Use This Skill',
-      '- When implementing features',
-      '',
-      '```typescript',
-      'const example = true;',
-      '```',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${generateValidClaudeMd()}\n\n---\n\n# project-context/SKILL.md Content\n\n${context}`;
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('YAML FRONTMATTER'))).toBe(true);
-  });
-
-  it('should reject project-context with unclosed frontmatter', () => {
-    const context = [
-      '---',
-      'name: project-context',
-      '',
-      '# Project Context: TestProject',
-      '',
-      '```typescript',
-      'const example = true;',
-      '```',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${generateValidClaudeMd()}\n\n---\n\n# project-context/SKILL.md Content\n\n${context}`;
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('FRONTMATTER NOT CLOSED'))).toBe(true);
-  });
-
-  it('should reject project-context without name field in frontmatter', () => {
-    const context = [
-      '---',
-      'description: Deep knowledge',
-      '---',
-      '',
-      '# Project Context: TestProject',
-      '',
-      '```typescript',
-      'const example = true;',
-      '```',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${generateValidClaudeMd()}\n\n---\n\n# project-context/SKILL.md Content\n\n${context}`;
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('MISSING "name:" FIELD'))).toBe(true);
-  });
-
-  it('should reject project-context with wrong name in frontmatter', () => {
-    const context = [
-      '---',
-      'name: wrong-name',
-      '---',
-      '',
-      '# Project Context: TestProject',
-      '',
-      '```typescript',
-      'const example = true;',
-      '```',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${generateValidClaudeMd()}\n\n---\n\n# project-context/SKILL.md Content\n\n${context}`;
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('WRONG NAME'))).toBe(true);
-  });
-
-  it('should reject project-context without main heading', () => {
-    const context = [
-      '---',
-      'name: project-context',
-      '---',
-      '',
-      '## When to Use This Skill',
-      '- When implementing features',
-      '',
-      '```typescript',
-      'const example = true;',
-      '```',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${generateValidClaudeMd()}\n\n---\n\n# project-context/SKILL.md Content\n\n${context}`;
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('MAIN HEADING'))).toBe(true);
-  });
-
-  it('should reject project-context without code examples', () => {
-    const context = [
-      '---',
-      'name: project-context',
-      '---',
-      '',
-      '# Project Context: TestProject',
-      '',
-      '## When to Use This Skill',
-      '- When implementing features',
-      '',
-      '## Architecture',
-      'The system uses layered architecture.',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${generateValidClaudeMd()}\n\n---\n\n# project-context/SKILL.md Content\n\n${context}`;
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('CODE EXAMPLES'))).toBe(true);
-  });
-
-  it('should accept project-context with all required elements', () => {
-    const output = generateValidSynthesis();
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(true);
-  });
-});
-
-// ============================================================================
-// TEST SUITE: LINE COUNT VALIDATION
-// ============================================================================
-
-describe('validateSynthesisOutput - Line Count Validation', () => {
-  it('should reject CLAUDE.md with fewer than 30 lines', () => {
-    const output = generateValidSynthesis(25, 100);
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('CLAUDE.md CONTENT TOO SHORT'))).toBe(true);
-    expect(result.errors.some((e) => e.includes('25 lines'))).toBe(true);
-  });
-
-  it('should reject CLAUDE.md with more than 250 lines', () => {
-    const output = generateValidSynthesis(260, 100);
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('CLAUDE.md CONTENT TOO LONG'))).toBe(true);
-    expect(result.errors.some((e) => e.includes('260 lines'))).toBe(true);
-  });
-
-  it('should accept CLAUDE.md with exactly 30 lines', () => {
-    const output = generateValidSynthesis(30, 100);
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(true);
-  });
-
-  it('should accept CLAUDE.md with exactly 250 lines', () => {
-    const output = generateValidSynthesis(250, 100);
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(true);
-  });
-
-  it('should reject project-context with fewer than 50 lines', () => {
-    const output = generateValidSynthesis(50, 40);
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('PROJECT-CONTEXT CONTENT TOO SHORT'))).toBe(true);
-    expect(result.errors.some((e) => e.includes('40 lines'))).toBe(true);
-  });
-
-  it('should reject project-context with more than 600 lines', () => {
-    const output = generateValidSynthesis(50, 650);
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('PROJECT-CONTEXT CONTENT TOO LONG'))).toBe(true);
-    expect(result.errors.some((e) => e.includes('650 lines'))).toBe(true);
-  });
-
-  it('should accept project-context with exactly 50 lines', () => {
-    const output = generateValidSynthesis(50, 50);
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(true);
-  });
-
-  it('should accept project-context with exactly 600 lines', () => {
-    const output = generateValidSynthesis(50, 600);
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(true);
-  });
-});
-
-// ============================================================================
-// TEST SUITE: EXTRACTION FUNCTION
+// EXTRACTION FUNCTION
 // ============================================================================
 
 describe('extractSynthesisMarkdown', () => {
-  it('should extract both sections from valid output', () => {
-    const output = generateValidSynthesis();
-    const extracted = extractSynthesisMarkdown(output);
+  it('extracts all five sections from valid output', () => {
+    const extracted = extractSynthesisMarkdown(fixtureSynthesis());
     expect(extracted).not.toBeNull();
     expect(extracted!.claudemd).toContain('# TestProject');
-    expect(extracted!.projectContext).toContain('name: project-context');
+    expect(extracted!.codeConventions).toContain('name: code-conventions');
+    expect(extracted!.multiFileWorkflows).toContain('name: multi-file-workflows');
+    expect(extracted!.testingConventions).toContain('name: testing-conventions');
+    expect(extracted!.architecturalNarrative).toContain('# Architectural Narrative');
   });
 
-  it('should return null when CLAUDE.md header is missing', () => {
-    const output = 'Some content\n\n---\n\n# project-context/SKILL.md Content\n\nContent';
-    const extracted = extractSynthesisMarkdown(output);
-    expect(extracted).toBeNull();
+  it('returns null when any required section header is missing', () => {
+    const output = fixtureSynthesis().replace('# Architectural Narrative Content', '');
+    expect(extractSynthesisMarkdown(output)).toBeNull();
   });
 
-  it('should return null when separator is missing', () => {
-    const output =
-      '# CLAUDE.md Content\n\nContent\n\n# project-context/SKILL.md Content\n\nContent';
-    const extracted = extractSynthesisMarkdown(output);
-    expect(extracted).toBeNull();
-  });
-
-  it('should return null when project-context header is missing', () => {
-    const output = '# CLAUDE.md Content\n\nContent\n\n---\n\nContent';
-    const extracted = extractSynthesisMarkdown(output);
-    expect(extracted).toBeNull();
-  });
-
-  it('should handle preamble text before CLAUDE.md header', () => {
-    const preamble = 'Let me output the content:\n\n';
-    const validOutput = generateValidSynthesis();
-    const output = preamble + validOutput;
-    const extracted = extractSynthesisMarkdown(output);
+  it('handles preamble before the first header (extractor is lenient)', () => {
+    const extracted = extractSynthesisMarkdown(`Let me output:\n\n${fixtureSynthesis()}`);
     expect(extracted).not.toBeNull();
     expect(extracted!.claudemd).toContain('# TestProject');
   });
 
-  it('should handle extra whitespace around sections', () => {
-    const output = `# CLAUDE.md Content
-
-${generateValidClaudeMd()}
-
----
-
-# project-context/SKILL.md Content
-
-${generateValidProjectContext()}
-`;
+  it('accepts the AGENTS.md alias for the schema-doc header (Codex)', () => {
+    const output = fixtureSynthesis().replace('# CLAUDE.md Content', '# AGENTS.md Content');
     const extracted = extractSynthesisMarkdown(output);
     expect(extracted).not.toBeNull();
+    expect(extracted!.claudemd).toContain('# TestProject');
   });
 });
 
 // ============================================================================
-// TEST SUITE: ERROR FORMATTING
+// ERROR FORMATTING
 // ============================================================================
 
-describe('validateSynthesisOutput - Error Formatting', () => {
-  it('should include header with error count for formatted errors', () => {
-    // Use invalid structure (not empty) to trigger formatErrorsForAgent
-    const badOutput = `# CLAUDE.md Content\n\nShort`;
-    const result = validateSynthesisOutput(badOutput);
+describe('validateSynthesisOutput — error formatting', () => {
+  it('includes a SYNTHESIS VALIDATION FAILED header on structural failure', () => {
+    const result = validateSynthesisOutput('# CLAUDE.md Content\n\nShort');
     expect(result.errors.some((e) => e.includes('SYNTHESIS VALIDATION FAILED'))).toBe(true);
-    expect(result.errors.some((e) => e.includes('error(s)'))).toBe(true);
   });
 
-  it('should include WHAT WENT WRONG sections', () => {
+  it('includes 🔴 WHAT WENT WRONG and 🟢 HOW TO FIX scaffolding for empty output', () => {
     const result = validateSynthesisOutput('');
     expect(result.errors.some((e) => e.includes('🔴 WHAT WENT WRONG:'))).toBe(true);
-  });
-
-  it('should include HOW TO FIX sections', () => {
-    const result = validateSynthesisOutput('');
     expect(result.errors.some((e) => e.includes('🟢 HOW TO FIX:'))).toBe(true);
   });
 
-  it('should include complete required format at the end for formatted errors', () => {
-    // Use invalid structure (not empty) to trigger formatErrorsForAgent
-    const badOutput = `# CLAUDE.md Content\n\nShort`;
-    const result = validateSynthesisOutput(badOutput);
+  it('shows the complete five-section template in the footer of formatted errors', () => {
+    const result = validateSynthesisOutput('# CLAUDE.md Content\n\nShort');
     expect(result.errors.some((e) => e.includes('COMPLETE REQUIRED FORMAT'))).toBe(true);
-    expect(result.errors.some((e) => e.includes('# CLAUDE.md Content'))).toBe(true);
-    expect(result.errors.some((e) => e.includes('# project-context/SKILL.md Content'))).toBe(true);
-  });
-
-  it('should include final reminder to start with correct header for formatted errors', () => {
-    // Use invalid structure (not empty) to trigger formatErrorsForAgent
-    const badOutput = `# CLAUDE.md Content\n\nShort`;
-    const result = validateSynthesisOutput(badOutput);
-    expect(result.errors.some((e) => e.includes('START YOUR RESPONSE WITH'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('# code-conventions/SKILL.md Content'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('# multi-file-workflows/SKILL.md Content'))).toBe(
+      true,
+    );
+    expect(result.errors.some((e) => e.includes('# testing-conventions/SKILL.md Content'))).toBe(
+      true,
+    );
+    expect(result.errors.some((e) => e.includes('# Architectural Narrative Content'))).toBe(true);
   });
 });
 
 // ============================================================================
-// TEST SUITE: EDGE CASES
+// COMPREHENSIVE / EDGE CASES
 // ============================================================================
 
-describe('validateSynthesisOutput - Edge Cases', () => {
-  it('should handle multiple validation errors at once', () => {
-    const badOutput = `Let me create the output:
-
-{
-  "agent_name": "architect-synthesizer",
-  "findings": "data"
-}
-
-I wrote to the file successfully.`;
-
+describe('validateSynthesisOutput — edge cases', () => {
+  it('reports multiple violations at once', () => {
+    const badOutput = `Let me create the output:\n\n${JSON.stringify({ agent_name: 'x' })}\n\nI wrote to the file successfully.`;
     const result = validateSynthesisOutput(badOutput);
     expect(result.valid).toBe(false);
-    expect(result.errors.join('\n').toUpperCase()).toContain('JSON');
-    expect(result.errors.join('\n').toUpperCase()).toContain('PREAMBLE');
-    expect(result.errors.join('\n').toUpperCase()).toContain('WRITE');
+    const joined = result.errors.join('\n').toUpperCase();
+    expect(joined).toContain('JSON');
+    expect(joined).toContain('PREAMBLE');
+    expect(joined).toContain('WRITE');
   });
 
-  it('should handle output with correct structure but wrong content', () => {
-    const claudeMd = '# TestProject\n\nMinimal content';
-    const context = '---\nname: project-context\n---\n\n# Project Context: Test\n\nMinimal';
-    const output = `# CLAUDE.md Content\n\n${claudeMd}\n\n---\n\n# project-context/SKILL.md Content\n\n${context}`;
-
-    const result = validateSynthesisOutput(output);
+  it('exposes extracted sections even when validation fails on content shape', () => {
+    const result = validateSynthesisOutput(fixtureSynthesis({ claudeLines: 20 }));
     expect(result.valid).toBe(false);
-    // Should fail on multiple content checks
-    expect(result.errors.length).toBeGreaterThan(5);
-  });
-
-  it('should accept completely valid output', () => {
-    const output = generateValidSynthesis(100, 200);
-    const result = validateSynthesisOutput(output);
-    expect(result.valid).toBe(true);
-    expect(result.errors.length).toBe(0);
     expect(result.extracted).toBeDefined();
     expect(result.extracted!.claudemd).toContain('# TestProject');
-    expect(result.extracted!.projectContext).toContain('project-context');
+    expect(result.extracted!.architecturalNarrative).toContain('# Architectural Narrative');
   });
 
-  it('should handle case-insensitive section detection for required headings', () => {
-    const claudeMd = [
-      '# TestProject',
-      '',
-      '## tech stack',
-      '- TypeScript 5.3',
-      '',
-      '## file placement guide',
-      '| File Type | Location | Example |',
-      '|-----------|----------|---------|',
-      '| Controller | src/controllers/ | user.controller.ts |',
-      '',
-      '## ESSENTIAL COMMANDS',
-      '| Task | Command |',
-      '|------|---------|',
-      '| Dev | npm run dev |',
-    ].join('\n');
-
-    const output = `# CLAUDE.md Content\n\n${claudeMd}\n\n---\n\n# project-context/SKILL.md Content\n\n${generateValidProjectContext()}`;
-    const result = validateSynthesisOutput(output);
-    // Should pass structure checks (case-insensitive matching)
-    expect(result.errors.some((e) => e.includes('MISSING REQUIRED SECTIONS'))).toBe(false);
-  });
-});
-
-// ============================================================================
-// TEST SUITE: COMPREHENSIVE VALIDATION
-// ============================================================================
-
-describe('validateSynthesisOutput - Comprehensive Validation', () => {
-  it('should validate a perfect synthesis output', () => {
-    const output = generateValidSynthesis(100, 200);
-    const result = validateSynthesisOutput(output);
-
+  it('returns valid=true with empty errors for a perfect synthesis output', () => {
+    const result = validateSynthesisOutput(fixtureSynthesis());
     expect(result.valid).toBe(true);
     expect(result.errors).toEqual([]);
     expect(result.extracted).toBeDefined();
-    expect(result.extracted!.claudemd.split('\n').length).toBe(100);
-    expect(result.extracted!.projectContext.split('\n').length).toBe(200);
-  });
-
-  it('should provide extracted content even when validation fails', () => {
-    // Valid structure but wrong line counts
-    const output = generateValidSynthesis(20, 30);
-    const result = validateSynthesisOutput(output);
-
-    expect(result.valid).toBe(false);
-    expect(result.extracted).toBeDefined();
-    expect(result.extracted!.claudemd).toContain('# TestProject');
-    expect(result.extracted!.projectContext).toContain('project-context');
   });
 });

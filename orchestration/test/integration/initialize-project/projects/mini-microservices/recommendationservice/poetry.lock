@@ -1,0 +1,23 @@
+# Trimmed lockfile. Real projects ship the full poetry-generated content.
+[[package]]
+name = "grpcio"
+version = "1.65.0"
+description = "HTTP/2-based RPC framework"
+python-versions = ">=3.8"
+
+[[package]]
+name = "protobuf"
+version = "5.27.0"
+description = "Protocol Buffers"
+python-versions = ">=3.8"
+
+[[package]]
+name = "pytest"
+version = "8.2.0"
+description = "pytest"
+python-versions = ">=3.8"
+
+[metadata]
+lock-version = "2.0"
+python-versions = "^3.12"
+content-hash = "deadbeef"

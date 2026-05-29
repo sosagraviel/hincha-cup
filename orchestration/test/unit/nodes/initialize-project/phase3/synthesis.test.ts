@@ -37,6 +37,13 @@ vi.mock('../../../../../src/utils/enhanced-retry.js', () => ({
 }));
 
 // Helper to generate valid synthesis output with proper line counts
+/**
+ * Build a five-section synthesis blob that passes the post-Phase-3
+ * validators: CLAUDE.md cheat-sheet, three prescriptive convention skills
+ * (each with YAML frontmatter and the canonical name slug; code-conventions
+ * and testing-conventions carry a fenced code block), and an architectural
+ * narrative for the wiki-generator.
+ */
 function generateValidSynthesis() {
   const claudeContent = [
     '# TestProject',
@@ -52,47 +59,135 @@ function generateValidSynthesis() {
     '| Controller | src/controllers/ | user.controller.ts |',
     '| Service | src/services/ | user.service.ts |',
     '',
+    '## Directory Structure',
+    'src/',
+    '  controllers/',
+    '  services/',
+    '',
     '## Essential Commands',
     '| Task | Command |',
     '|------|---------|',
     '| Dev | npm run dev |',
     '| Test | npm test |',
-    ...Array.from({ length: 12 }, (_, i) => `Additional line ${i + 1}`),
+    ...Array.from({ length: 12 }, (_, i) => `Additional cheat-sheet line ${i + 1}`),
   ].join('\n');
 
-  const contextContent = [
+  const codeConventions = [
     '---',
-    'name: project-context',
-    'description: Deep architectural knowledge',
+    'name: code-conventions',
+    'description: Project-specific coding conventions, gotchas, and WRONG/CORRECT examples',
     '---',
     '',
-    '# Project Context: TestProject',
+    '# Code Conventions',
     '',
-    '## When to Use This Skill',
-    '- When implementing features',
-    '',
-    '## Architecture',
-    'The system uses layered architecture.',
+    '## Naming',
+    '- camelCase for variables',
     '',
     '## Gotchas',
+    '',
     '```typescript',
-    '// Wrong',
-    'const bad = null;',
-    '// Correct',
-    'const good = value;',
+    '// WRONG',
+    'await orderRepo.save(order);',
     '```',
-    ...Array.from({ length: 30 }, (_, i) => `Additional context line ${i + 1}`),
+    '',
+    '```typescript',
+    '// CORRECT',
+    'return dataSource.transaction(async (m) => m.save(Order, order));',
+    '```',
+    ...Array.from({ length: 35 }, (_, i) => `- additional rule ${i + 1}`),
   ].join('\n');
 
-  return `# CLAUDE.md Content
+  const multiFileWorkflows = [
+    '---',
+    'name: multi-file-workflows',
+    'description: Ordered checklists for cross-cutting changes',
+    '---',
+    '',
+    '# Multi-File Workflows',
+    '',
+    '## Adding a new API endpoint',
+    '1. Create controller method',
+    '2. Add service method',
+    '3. Create DTO',
+    '',
+    // The multi-file-workflows skill body requires ≥1 fenced code block.
+    '```typescript',
+    '// apps/api/src/modules/{domain}/{domain}.controller.ts',
+    '@Controller()',
+    'export class DomainController {}',
+    '```',
+    '',
+    ...Array.from({ length: 25 }, (_, i) => `- additional checklist step ${i + 1}`),
+  ].join('\n');
 
-${claudeContent}
+  const testingConventions = [
+    '---',
+    'name: testing-conventions',
+    'description: Project-specific testing conventions, fixtures, and examples',
+    '---',
+    '',
+    '# Testing Conventions',
+    '',
+    '## Philosophy',
+    '- Test behavior, not implementation',
+    '',
+    '## Unit Test Patterns',
+    '',
+    '```typescript',
+    "describe('UserService', () => {",
+    "  it('creates a user', async () => {",
+    '    const u = await service.create({ email: "a@b.com" });',
+    '    expect(u.id).toBeDefined();',
+    '  });',
+    '});',
+    '```',
+    ...Array.from({ length: 25 }, (_, i) => `- additional testing rule ${i + 1}`),
+  ].join('\n');
 
----
+  const architecturalNarrative = [
+    '# Architectural Narrative',
+    '',
+    '## Repository Shape',
+    'Monorepo with one backend service and one web frontend.',
+    '',
+    '## Service Inventory',
+    '- api: TypeScript backend',
+    '- web: TypeScript frontend',
+    '',
+    '## Cross-Service Flows',
+    'The web frontend calls api over HTTP.',
+    ...Array.from({ length: 35 }, (_, i) => `Additional narrative paragraph ${i + 1}`),
+  ].join('\n');
 
-# project-context/SKILL.md Content
-
-${contextContent}`;
+  return [
+    '# CLAUDE.md Content',
+    '',
+    claudeContent,
+    '',
+    '---',
+    '',
+    '# code-conventions/SKILL.md Content',
+    '',
+    codeConventions,
+    '',
+    '---',
+    '',
+    '# multi-file-workflows/SKILL.md Content',
+    '',
+    multiFileWorkflows,
+    '',
+    '---',
+    '',
+    '# testing-conventions/SKILL.md Content',
+    '',
+    testingConventions,
+    '',
+    '---',
+    '',
+    '# Architectural Narrative Content',
+    '',
+    architecturalNarrative,
+  ].join('\n');
 }
 
 describe('synthesisNode', () => {
@@ -147,7 +242,7 @@ describe('synthesisNode', () => {
         const { output } = await agentInvoke('');
         const result = validator(output);
         if (!result.valid) throw new Error('Validation failed');
-        return result.data; // Return validated data, not raw output
+        return { data: result.data, sessionId: undefined };
       },
     );
   });
@@ -222,7 +317,7 @@ describe('synthesisNode', () => {
     await synthesisNode(mockState);
 
     expect(mockAgent.invoke).toHaveBeenCalledWith({
-      inputPrompt: expect.stringContaining('Synthesize comprehensive results for: /test/project'),
+      inputPrompt: expect.stringContaining('CONSOLIDATED ANALYSIS'),
     });
   });
 
@@ -298,14 +393,18 @@ describe('synthesisNode', () => {
     expect(result.current_phase).toBe('failed');
   });
 
-  it('should preserve existing errors', async () => {
+  it('returns only the new error (the LangGraph reducer concatenates with existing state.errors)', async () => {
+    // Pre-Phase-E nodes used to return `[...state.errors, newError]`, but the
+    // annotation reducer (`reducer: (left, right) => [...left, ...right]`)
+    // already concatenates — the spread caused each error to be duplicated
+    // every phase. After Phase E, nodes return ONLY the new entries and
+    // rely on the reducer to merge.
     mockState.errors = ['Previous error'];
     vi.mocked(AgentFactory.create).mockRejectedValue(new Error('New error'));
 
     const result = await synthesisNode(mockState);
 
-    expect(result.errors).toHaveLength(2);
-    expect(result.errors).toContain('Previous error');
+    expect(result.errors).toEqual(['Synthesis failed: New error']);
   });
 
   it('should handle agent output variations', async () => {
@@ -329,7 +428,7 @@ describe('synthesisNode', () => {
         const { output } = await agentInvoke('');
         const result = validator(output);
         if (!result.valid) throw new Error('Validation failed');
-        return result.data;
+        return { data: result.data, sessionId: undefined };
       },
     );
     let result = await synthesisNode(mockState);
@@ -354,7 +453,7 @@ describe('synthesisNode', () => {
         const { output } = await agentInvoke('');
         const result = validator(output);
         if (!result.valid) throw new Error('Validation failed');
-        return result.data;
+        return { data: result.data, sessionId: undefined };
       },
     );
     result = await synthesisNode(mockState);
@@ -458,5 +557,110 @@ describe('synthesisNode', () => {
 
     const result = await synthesisNode(mockState);
     expect(result.errors).toBeDefined();
+  });
+
+  // The synthesizer can omit a "Validation Rules" section even when
+  // Phase 1 saw a validation lib in dependencies. The node surfaces a
+  // SOFT warning (no retry) so operators can choose to re-run synthesis.
+  describe('soft warning — missing validation-rules section', () => {
+    function mockReadFiles(consolidation: any, techStack: any | null) {
+      vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+        const p = String(path);
+        if (p.includes('phase2-consolidation.json')) {
+          return JSON.stringify(consolidation);
+        }
+        if (p.includes('02-tech-stack-dependencies.json')) {
+          return techStack === null ? '' : JSON.stringify(techStack);
+        }
+        return '{}';
+      });
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        const p = String(path);
+        if (p.includes('02-tech-stack-dependencies.json')) {
+          return techStack !== null;
+        }
+        return true;
+      });
+    }
+
+    it('emits a warning when validation libs are present but synthesis omits validation rules', async () => {
+      // Re-build the synthesis output so code-conventions has NO mention of
+      // validation. Replace any "validat"/"zod"/"class-validator" tokens in
+      // the default fixture with neutral filler.
+      const synthesis = generateValidSynthesis();
+      mockAgent.invoke.mockResolvedValue({ output: synthesis });
+
+      mockReadFiles(
+        { consolidated_findings: {}, timestamp: '2024-01-01' },
+        {
+          findings: {
+            dependencies: {
+              by_service: {
+                api: { production: ['express', 'class-validator', 'zod'], development: [] },
+              },
+            },
+          },
+        },
+      );
+
+      const result = await synthesisNode(mockState);
+      expect(result.current_phase).toBe('phase3_synthesis');
+      expect(result.warnings).toBeDefined();
+      const text = (result.warnings ?? []).join('\n');
+      expect(text).toContain('class-validator');
+      expect(text).toContain('zod');
+      expect(text).toContain('phase3');
+    });
+
+    it('does NOT emit a warning when no validation libs are in the dependency tree', async () => {
+      mockReadFiles(
+        { consolidated_findings: {}, timestamp: '2024-01-01' },
+        {
+          findings: {
+            dependencies: {
+              by_service: { api: { production: ['express', 'lodash'], development: [] } },
+            },
+          },
+        },
+      );
+
+      const result = await synthesisNode(mockState);
+      const warningText = (result.warnings ?? []).join('\n');
+      expect(warningText).not.toMatch(/validation libraries/i);
+    });
+
+    it('does NOT emit a warning when the tech-stack file is absent (older runs)', async () => {
+      mockReadFiles({ consolidated_findings: {}, timestamp: '2024-01-01' }, null);
+
+      const result = await synthesisNode(mockState);
+      const warningText = (result.warnings ?? []).join('\n');
+      expect(warningText).not.toMatch(/validation libraries/i);
+    });
+
+    it('does NOT emit a warning when synthesis covers validation (the lib is mentioned in body)', async () => {
+      // The default fixture's code-conventions body already does NOT mention
+      // validation, so we synthesize a body that does. Override the agent's
+      // output to embed "Zod" inside code-conventions.
+      const customSynthesis = generateValidSynthesis().replace(
+        '## Naming\n- camelCase for variables',
+        '## Validation Rules\n\nUse Zod on every controller boundary.',
+      );
+      mockAgent.invoke.mockResolvedValue({ output: customSynthesis });
+
+      mockReadFiles(
+        { consolidated_findings: {}, timestamp: '2024-01-01' },
+        {
+          findings: {
+            dependencies: {
+              by_service: { api: { production: ['zod'], development: [] } },
+            },
+          },
+        },
+      );
+
+      const result = await synthesisNode(mockState);
+      const warningText = (result.warnings ?? []).join('\n');
+      expect(warningText).not.toMatch(/does not mention validation rules/i);
+    });
   });
 });

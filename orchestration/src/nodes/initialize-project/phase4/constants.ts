@@ -1,134 +1,58 @@
 /**
  * Phase 4: Context Generation Constants
  *
- * Centralized constants for Phase 4 components
+ * All language-specific tables are derived from the centralized
+ * language-config registry (`services/framework/language-config`). Adding a
+ * new language is a one-file change in `languages/<key>.ts`; this file's
+ * constants pick it up automatically.
  */
 
 import type { ManifestInfo } from './types.js';
 import { STANDARD_IGNORE_DIRS } from '../../../utils/shared/prompt-loader.js';
-
-// ============================================================================
-// LANGUAGE EXTENSIONS
-// ============================================================================
-
-/**
- * Map of language names to their file extensions
- */
-export const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
-  typescript: ['.ts', '.tsx'],
-  javascript: ['.js', '.jsx', '.mjs', '.cjs'],
-  python: ['.py', '.pyw', '.pyx'],
-  java: ['.java'],
-  go: ['.go'],
-  rust: ['.rs'],
-  ruby: ['.rb', '.rake'],
-  php: ['.php'],
-  csharp: ['.cs'],
-  cpp: ['.cpp', '.cc', '.cxx', '.hpp', '.h', '.hxx'],
-  c: ['.c', '.h'],
-  swift: ['.swift'],
-  kotlin: ['.kt', '.kts'],
-  scala: ['.scala', '.sc'],
-  elixir: ['.ex', '.exs'],
-  clojure: ['.clj', '.cljs', '.cljc'],
-  haskell: ['.hs', '.lhs'],
-} as const;
-
-// ============================================================================
-// MANIFEST FILES
-// ============================================================================
+import {
+  allLockFiles,
+  languageExtensionsMap,
+  manifestInfoMap,
+  primaryManifestFilenames,
+  utilityLanguageKeys,
+} from '../../../services/framework/language-config/index.js';
 
 /**
- * Map of manifest files to their language and package manager type
+ * Map of language keys to their file extensions (with leading dots).
+ * Derived from the language-config registry.
  */
-export const MANIFEST_FILES: Record<string, ManifestInfo> = {
-  'package.json': { language: 'javascript', type: 'npm' },
-  'yarn.lock': { language: 'javascript', type: 'yarn' },
-  'pnpm-lock.yaml': { language: 'javascript', type: 'pnpm' },
-  'requirements.txt': { language: 'python', type: 'pip' },
-  Pipfile: { language: 'python', type: 'pipenv' },
-  'pyproject.toml': { language: 'python', type: 'poetry' },
-  'setup.py': { language: 'python', type: 'setuptools' },
-  'go.mod': { language: 'go', type: 'gomod' },
-  'Cargo.toml': { language: 'rust', type: 'cargo' },
-  'pom.xml': { language: 'java', type: 'maven' },
-  'build.gradle': { language: 'java', type: 'gradle' },
-  'build.gradle.kts': { language: 'kotlin', type: 'gradle' },
-  'build.sbt': { language: 'scala', type: 'sbt' },
-  // Intentionally NOT in PRIMARY_MANIFESTS: global.json is an SDK-version pin
-  // that frequently coexists with other primary manifests (e.g., package.json
-  // in repos that just need `dotnet tool install`). Treating it as primary
-  // would flip is_monorepo to true on hybrid repos. Real .NET workspace roots
-  // are detected via *.csproj/*.sln by the Phase 1 LLM analyzers.
-  'global.json': { language: 'csharp', type: 'dotnet' },
-  Gemfile: { language: 'ruby', type: 'bundler' },
-  'composer.json': { language: 'php', type: 'composer' },
-  'Package.swift': { language: 'swift', type: 'spm' },
-  'Cargo.lock': { language: 'rust', type: 'cargo' },
-  'mix.exs': { language: 'elixir', type: 'mix' },
-  'rebar.config': { language: 'erlang', type: 'rebar' },
-  'project.clj': { language: 'clojure', type: 'leiningen' },
-  'deps.edn': { language: 'clojure', type: 'tools.deps' },
-} as const;
+export const LANGUAGE_EXTENSIONS: Record<string, string[]> = languageExtensionsMap();
 
 /**
- * Primary manifest files that indicate a workspace root
- * (vs. lock files which are secondary)
+ * Map of manifest filenames to their language and package manager type.
+ * Includes lock files whose manager is unambiguous so workspace detection
+ * still keys off the lock file when the manifest is absent.
  */
-export const PRIMARY_MANIFESTS = new Set([
-  'package.json',
-  'requirements.txt',
-  'Pipfile',
-  'pyproject.toml',
-  'setup.py',
-  'go.mod',
-  'Cargo.toml',
-  'pom.xml',
-  'build.gradle',
-  'build.gradle.kts',
-  'build.sbt',
-  'Gemfile',
-  'composer.json',
-  'Package.swift',
-  'mix.exs',
-  'rebar.config',
-  'project.clj',
-  'deps.edn',
-]);
+export const MANIFEST_FILES: Record<string, ManifestInfo> = (() => {
+  const out: Record<string, ManifestInfo> = { ...manifestInfoMap() };
+  for (const lock of allLockFiles()) {
+    if (lock.filename in out) continue;
+    out[lock.filename] = { language: lock.languageKey, type: lock.manager };
+  }
+  return out;
+})();
 
-// ============================================================================
-// IGNORE DIRECTORIES
-// ============================================================================
+/**
+ * Primary manifest filenames that mark a workspace root (lock files are
+ * secondary). Derived from the language-config registry.
+ */
+export const PRIMARY_MANIFESTS: ReadonlySet<string> = primaryManifestFilenames();
 
 /**
  * Directories to ignore during workspace detection and file counting.
- * Single source of truth is `STANDARD_IGNORE_DIRS` in prompt-loader so the
- * file-counter, workspace-detector, analyzer prompts, and PreToolUse hook
- * all agree on what counts as "ignorable".
- *
- * Runtime exclusions (framework dir, `.gitignore` entries) are layered on
- * via `getExcludedDirectories(projectPath, frameworkPath)` at call sites.
+ * Single source of truth is `STANDARD_IGNORE_DIRS` in prompt-loader.
  */
 export const IGNORE_DIRS: Set<string> = new Set(STANDARD_IGNORE_DIRS);
 
-// ============================================================================
-// TOOLING CONFIG FILES
-// ============================================================================
-
 /**
  * Regex patterns that match JavaScript/TypeScript tooling configuration
- * filenames (linters, test runners, build tools, commit hooks, etc.). These
- * are legitimate JS/TS files but they don't describe the project's source
- * language — a TypeScript repo with ten `*.config.mjs` files should still be
- * reported as TypeScript, not as "also has JavaScript".
- *
- * Used by `file-counter.ts` to exclude tooling configs from per-language
- * counts so the language-validator doesn't tag JS purely because of
- * `eslint.config.mjs` / `commitlint.config.js` / `jest.config.mjs`.
- *
- * Two patterns cover the vast majority of cases in the wild:
- *   - `<name>.config.{js,mjs,cjs,ts,tsx}`  — eslint.config.mjs, jest.config.ts
- *   - `.<name>rc.{js,mjs,cjs,ts,tsx}`      — .eslintrc.js, .babelrc.cjs
+ * filenames (`<name>.config.{js,mjs,cjs,ts,tsx}` and `.<name>rc.{js,...}`).
+ * Used by `file-counter.ts` to exclude these from per-language counts.
  */
 export const TOOLING_CONFIG_PATTERNS: ReadonlyArray<RegExp> = [
   /^[^.].+\.config\.(?:js|mjs|cjs|ts|tsx)$/i,
@@ -138,10 +62,6 @@ export const TOOLING_CONFIG_PATTERNS: ReadonlyArray<RegExp> = [
 export function isToolingConfigFile(filename: string): boolean {
   return TOOLING_CONFIG_PATTERNS.some((re) => re.test(filename));
 }
-
-// ============================================================================
-// WORKSPACE NAMES
-// ============================================================================
 
 /**
  * Common workspace directory names
@@ -161,10 +81,6 @@ export const WORKSPACE_NAMES = new Set([
   'common',
   'core',
 ]);
-
-// ============================================================================
-// FRAMEWORK KEYWORDS
-// ============================================================================
 
 /**
  * Frontend framework keywords for categorization
@@ -193,9 +109,33 @@ export const BACKEND_FRAMEWORK_KEYWORDS = [
   'gin',
 ] as const;
 
-// ============================================================================
-// VALIDATION THRESHOLDS
-// ============================================================================
+/**
+ * Languages that legitimately appear in file counts but are intentionally
+ * omitted from the stack profile (shell scripts, CSS, SQL migrations,
+ * JSON/YAML/TOML config files, dockerfile, markdown, …). Validators use
+ * this set to suppress "language present but missing from stack profile"
+ * warnings.
+ *
+ * Registered languages flagged `isUtility: true` are pulled from the
+ * registry; the trailing list covers file-format tokens that don't have
+ * full LanguageConfig entries (Dockerfile, JSON, YAML, …).
+ */
+export const UTILITY_LANGUAGES: ReadonlySet<string> = new Set<string>([
+  ...utilityLanguageKeys(),
+  'scss',
+  'sass',
+  'less',
+  'bash',
+  'dockerfile',
+  'markdown',
+  'yaml',
+  'json',
+  'toml',
+  'xml',
+  'csv',
+  'ini',
+  'env',
+]);
 
 /**
  * Minimum file count to consider a language significant

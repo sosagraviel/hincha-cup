@@ -68,8 +68,6 @@ export function parseClaudeTranscript(
           content,
         };
         events.push(userEv);
-        // Tool results arrive as user messages with tool_result blocks —
-        // surface them as standalone events too so filters work nicely.
         for (const block of content) {
           if (block.type === 'tool_result') {
             events.push({
@@ -231,7 +229,6 @@ function extractContentBlocks(raw: unknown): ContentBlock[] {
         blocks.push({ type: 'thinking', text: String(block.thinking ?? '') });
         break;
       default:
-        // Unknown block type — stringify as text so content is not lost.
         blocks.push({ type: 'text', text: JSON.stringify(block) });
     }
   }

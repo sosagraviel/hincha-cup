@@ -1,20 +1,20 @@
 ---
 name: create-pr
-description: Create production-ready GitHub Pull Request with comprehensive artifacts (screenshots, videos, coverage). Integrates with implement-ticket 10-phase workflow. Use when implementation and testing complete.
+description: Create a production-ready GitHub Pull Request with comprehensive artifacts (screenshots, videos, coverage). Single-repo PR creator complementary to /repo-fanout-pr (multi-repo). Use when implementation and testing complete.
 argument-hint: '[JIRA-KEY]'
 allowed-tools: Read, Write, Bash, Glob, Grep, Skill
 ---
 
-# Create Production PR Skill V2
+# Create Production PR Skill
 
-Creates production-ready GitHub Pull Requests with comprehensive artifacts, visual verification results, and automated documentation.
+Creates production-ready GitHub Pull Requests with comprehensive artifacts, visual verification results, and automated documentation. Single-repo only; for multi-repo workspaces, `/implement-ticket` Phase 9 delegates to `/repo-fanout-pr` instead.
 
 ## Contents
 
 - [Purpose](#purpose)
 - [When to Use](#when-to-use)
 - [Workflow](#workflow)
-- [Integration with implement-ticket V2](#integration-with-implement-ticket-v2)
+- [Integration with implement-ticket](#integration-with-implement-ticket)
 - [PR Description Format](#pr-description-format)
 - [Artifact Collection](#artifact-collection)
 - [Error Handling](#error-handling)
@@ -39,14 +39,14 @@ This skill creates PRs by:
 
 Activate this skill when:
 
-- After implement-ticket V2 workflow completes (Phase 8)
+- After implement-ticket workflow completes (Phase 8)
 - All tests passing (unit, integration, E2E)
 - Visual verification complete (if applicable)
 - Ready to submit code for review
 
 **Note**: This skill is automatically invoked by implement-ticket Phase 8, but can also be run standalone.
 
-## Integration with implement-ticket V2
+## Integration with implement-ticket
 
 This skill is designed to work seamlessly with the new 10-phase implement-ticket workflow:
 
@@ -59,7 +59,7 @@ implement-ticket Phase 0-7 → Phase 8: PR Creation (THIS SKILL) → Phase 9-10
 The skill reads artifacts from the standardized directory structure:
 
 ```
-.claude/artifacts/{JIRA_KEY}/
+{{TEMP_DIR}}/artifacts/{JIRA_KEY}/
 ├── context/
 │   └── full-context.md                    # Phase 1
 ├── plans/
@@ -91,8 +91,8 @@ If run independently (outside implement-ticket):
 
 The skill will:
 
-1. Check for artifacts in `.claude/artifacts/PROJ-123/`
-2. If artifacts exist, use them (prefer implement-ticket V2 structure)
+1. Check for artifacts in `{{TEMP_DIR}}/artifacts/PROJ-123/`
+2. If artifacts exist, use them (prefer implement-ticket structure)
 3. If no artifacts, fall back to legacy artifact locations
 4. Generate PR description based on available artifacts
 
@@ -106,7 +106,7 @@ run_preflight_checks() {
     echo "🔍 Running pre-flight checks..."
 
     local checks_passed=true
-    ARTIFACTS_DIR=".claude/artifacts/$jira_key"
+    ARTIFACTS_DIR="{{TEMP_DIR}}/artifacts/$jira_key"
 
     # 1. Check if in git repository
     if ! git rev-parse --git-dir > /dev/null 2>&1; then
@@ -185,7 +185,7 @@ collect_artifacts() {
 
     echo "📦 Collecting artifacts..."
 
-    ARTIFACTS_DIR=".claude/artifacts/$jira_key"
+    ARTIFACTS_DIR="{{TEMP_DIR}}/artifacts/$jira_key"
     UTILS_DIR="$HOME/.claude/utils"
 
     # Use ArtifactCollector utility
@@ -225,7 +225,7 @@ create_feature_branch() {
 
     echo "🌿 Creating feature branch..."
 
-    ARTIFACTS_DIR=".claude/artifacts/$jira_key"
+    ARTIFACTS_DIR="{{TEMP_DIR}}/artifacts/$jira_key"
 
     # Get current branch (should be main/master/develop)
     current_branch=$(git branch --show-current)
@@ -296,7 +296,7 @@ stage_and_commit() {
 
     echo "📝 Staging changes and creating commit..."
 
-    ARTIFACTS_DIR=".claude/artifacts/$jira_key"
+    ARTIFACTS_DIR="{{TEMP_DIR}}/artifacts/$jira_key"
 
     # Get list of changed files
     changed_files=$(git status --porcelain)
@@ -389,7 +389,7 @@ push_to_remote() {
 
     echo "⬆️  Pushing to remote repository..."
 
-    ARTIFACTS_DIR=".claude/artifacts/$jira_key"
+    ARTIFACTS_DIR="{{TEMP_DIR}}/artifacts/$jira_key"
     branch_name=$(cat "$ARTIFACTS_DIR/pr-branch.txt")
 
     # Push branch with upstream tracking
@@ -416,7 +416,7 @@ generate_pr_description() {
 
     echo "📋 Generating PR description..."
 
-    ARTIFACTS_DIR=".claude/artifacts/$jira_key"
+    ARTIFACTS_DIR="{{TEMP_DIR}}/artifacts/$jira_key"
     UTILS_DIR="$HOME/.claude/utils"
 
     # Use ArtifactCollector to generate PR documentation
@@ -481,7 +481,7 @@ create_github_pr() {
 
     echo "🚀 Creating GitHub Pull Request..."
 
-    ARTIFACTS_DIR=".claude/artifacts/$jira_key"
+    ARTIFACTS_DIR="{{TEMP_DIR}}/artifacts/$jira_key"
 
     # Get PR details
     branch_name=$(cat "$ARTIFACTS_DIR/pr-branch.txt")
@@ -537,7 +537,7 @@ link_pr_to_jira() {
 
     echo "🔗 Linking PR to Jira ticket..."
 
-    ARTIFACTS_DIR=".claude/artifacts/$jira_key"
+    ARTIFACTS_DIR="{{TEMP_DIR}}/artifacts/$jira_key"
     pr_url=$(cat "$ARTIFACTS_DIR/pr-url.txt" 2>/dev/null)
 
     if [[ -z "$pr_url" ]]; then
@@ -696,7 +696,7 @@ fi
 
 ```bash
 # Check artifacts before creating PR
-ls -la .claude/artifacts/PROJ-123/
+ls -la {{TEMP_DIR}}/artifacts/PROJ-123/
 
 # Expected structure:
 # - screenshots/
@@ -709,10 +709,10 @@ ls -la .claude/artifacts/PROJ-123/
 
 ```bash
 # If visual verification was performed
-cat .claude/artifacts/PROJ-123/screenshots/diffs/visual-diff-report.json
+cat {{TEMP_DIR}}/artifacts/PROJ-123/screenshots/diffs/visual-diff-report.json
 
 # Check for failures
-jq -r '.overallStatus' .claude/artifacts/PROJ-123/screenshots/diffs/visual-diff-report.json
+jq -r '.overallStatus' {{TEMP_DIR}}/artifacts/PROJ-123/screenshots/diffs/visual-diff-report.json
 ```
 
 ### 4. Keep PRs Focused
@@ -771,7 +771,7 @@ $ /implement-ticket PROJ-123 --no-stop
 $ /create-pr PROJ-456
 
 🔍 Running pre-flight checks...
-   ⚠️  Artifacts not found at .claude/artifacts/PROJ-456/
+   ⚠️  Artifacts not found at {{TEMP_DIR}}/artifacts/PROJ-456/
    Falling back to legacy locations...
    ✅ Remote repository configured
 
@@ -835,7 +835,7 @@ jobs:
 **Issue: "Artifacts not found"**
 
 - Check if implement-ticket workflow completed
-- Verify artifacts directory exists: `ls .claude/artifacts/PROJ-123/`
+- Verify artifacts directory exists: `ls {{TEMP_DIR}}/artifacts/PROJ-123/`
 - Fall back to legacy artifact locations
 
 **Issue: "Push failed - permission denied"**
@@ -858,7 +858,7 @@ jobs:
 
 ## References
 
-- implement-ticket V2: `skills/020-development-workflow/implement-ticket/SKILL.claude.md` (Claude) or `SKILL.codex.md` (Codex)
+- implement-ticket: `skills/020-development-workflow/implement-ticket/SKILL.claude.md` (Claude) or `SKILL.codex.md` (Codex)
 - ArtifactCollector utility: `utils/artifact-collector.js`
 - GitHub CLI: https://cli.github.com/
 - Conventional Commits: https://www.conventionalcommits.org/

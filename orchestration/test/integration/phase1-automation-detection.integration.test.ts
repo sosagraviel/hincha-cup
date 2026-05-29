@@ -190,13 +190,17 @@ make test
       expect(existsSync(structureOutputPath)).toBe(true);
       expect(existsSync(techStackOutputPath)).toBe(true);
 
-      // Read and verify structure analyzer found automation
+      // Read and verify structure analyzer found automation. Targets are
+      // structured `{name, group?, description?}` objects.
       const structureOutput = JSON.parse(require('fs').readFileSync(structureOutputPath, 'utf8'));
       expect(structureOutput.findings.automation).toBeDefined();
       expect(structureOutput.findings.automation.makefiles).toHaveLength(1);
-      expect(structureOutput.findings.automation.makefiles[0].targets).toContain('dev');
-      expect(structureOutput.findings.automation.makefiles[0].targets).toContain('build');
-      expect(structureOutput.findings.automation.makefiles[0].targets).toContain('test');
+      const targetNames = structureOutput.findings.automation.makefiles[0].targets.map(
+        (t: { name: string }) => t.name,
+      );
+      expect(targetNames).toContain('dev');
+      expect(targetNames).toContain('build');
+      expect(targetNames).toContain('test');
 
       // Read and verify tech stack analyzer found documented commands
       const techStackOutput = JSON.parse(require('fs').readFileSync(techStackOutputPath, 'utf8'));
@@ -309,8 +313,9 @@ export default function Page() {
 
       // Structure analyzer should find no automation files
       const structureOutput = JSON.parse(require('fs').readFileSync(structureOutputPath, 'utf8'));
-      expect(structureOutput.findings.automation?.makefiles).toBeUndefined();
-      expect(structureOutput.findings.automation?.shell_scripts).toBeUndefined();
+      // AutomationSchema defaults missing arrays to []
+      expect(structureOutput.findings.automation?.makefiles ?? []).toHaveLength(0);
+      expect(structureOutput.findings.automation?.shell_scripts ?? []).toHaveLength(0);
 
       // Tech stack analyzer should have commands with package_json source
       const techStackOutput = JSON.parse(require('fs').readFileSync(techStackOutputPath, 'utf8'));
@@ -455,14 +460,19 @@ make build  # Build for production
       expect(existsSync(structureOutputPath)).toBe(true);
       expect(existsSync(techStackOutputPath)).toBe(true);
 
-      // Verify all automation types detected
+      // Verify all automation types detected. Targets are structured
+      // `{name, group?, description?}` objects; shell_scripts
+      // entries have `path` + enum `purpose` (the legacy `name` field was
+      // dropped because it's derivable from `path`).
       const structureOutput = JSON.parse(require('fs').readFileSync(structureOutputPath, 'utf8'));
       expect(structureOutput.findings.automation).toBeDefined();
       expect(structureOutput.findings.automation.makefiles).toHaveLength(1);
-      expect(structureOutput.findings.automation.makefiles[0].targets).toContain('dev');
+      const makeTargets = structureOutput.findings.automation.makefiles[0].targets;
+      expect(makeTargets.map((t: { name: string }) => t.name)).toContain('dev');
       expect(structureOutput.findings.automation.shell_scripts).toHaveLength(1);
-      expect(structureOutput.findings.automation.shell_scripts[0].name).toBe('setup.sh');
-      expect(structureOutput.findings.automation.shell_scripts[0].purpose).toContain('setup');
+      const setupScript = structureOutput.findings.automation.shell_scripts[0];
+      expect(setupScript.path).toContain('setup.sh');
+      expect(['setup', 'bootstrap', 'unknown']).toContain(setupScript.purpose);
 
       // Verify documented commands have correct priority
       const techStackOutput = JSON.parse(require('fs').readFileSync(techStackOutputPath, 'utf8'));

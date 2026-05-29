@@ -61,6 +61,11 @@ export class AgentFactory {
 
   /**
    * Create agent using Claude CLI or Codex CLI.
+   *
+   * Per-agent reasoning effort is resolved inside each CLI adapter from
+   * `model-config.json` (`LLMFactory.getReasoningEffort`). The adapters
+   * translate the model-config value into whichever flag the active CLI
+   * supports.
    */
   async createAgent(config: AgentConfig): Promise<Agent> {
     if (this.authConfig.mode === AuthMode.API_KEY) {

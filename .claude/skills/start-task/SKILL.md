@@ -328,13 +328,12 @@ def setup_env_files(worktree_path, env_files, port_mappings):
 ### Step 7: Copy .claude Configuration
 
 ```bash
-# Copy .claude directory to worktree
+# Copy config directory to worktree
 cp -r .claude "$WORKTREE_PATH/"
 
 # This preserves:
 # - CLAUDE.md (project knowledge)
 # - skills/ (project-specific skills)
-# - commands/ (custom slash commands)
 ```
 
 ### Step 8: Register Task
@@ -569,7 +568,7 @@ if git worktree list | grep -q "$WORKTREE_PATH"; then
 fi
 ```
 
-### No CLAUDE.md Found
+### No Project Instruction File Found
 
 ```bash
 if [[ ! -f ".claude/CLAUDE.md" ]]; then

@@ -1,6 +1,6 @@
 import path from 'path';
 import { mkdir, readFile, rm, writeFile, readdir, stat, copyFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, readdirSync } from 'fs';
 import { logger } from '../../../utils/logger.js';
 import { resolveTempPath } from '../../../utils/provider-paths.js';
 import { Provider } from '../../../providers/types.js';
@@ -16,7 +16,7 @@ import type {
   ValidationFailureEntry,
 } from './types.js';
 
-const MAX_STREAM_BYTES = 4 * 1024 * 1024; // 4 MB per stream (matches legacy cap)
+const MAX_STREAM_BYTES = 4 * 1024 * 1024;
 
 function truncate(s: string | undefined, cap = MAX_STREAM_BYTES): string | undefined {
   if (s === undefined) return undefined;
@@ -151,6 +151,61 @@ export class DebugStore {
     );
   }
 
+  /**
+   * Find the on-disk attempt directory for a given (agentName, sessionId)
+   * pair, scanning the run's directory tree. Used by Phase 1 analyzer nodes
+   * to overlay the post-sidecar persisted output onto the debug bucket.
+   *
+   * Returns null when no matching directory exists (legitimate: the run may
+   * not have produced a debug attempt for this session, e.g. when the
+   * provider's transcript was unobtainable). Caller treats null as no-op.
+   *
+   * Stack-agnostic — only uses string identifiers.
+   */
+  findAttemptDirBySession(agentName: string, sessionId: string): string | null {
+    if (!agentName || !sessionId) return null;
+    try {
+      const phaseDirs = readdirSync(this.context.runDir);
+      for (const phaseId of phaseDirs) {
+        const agentDir = path.join(this.context.runDir, phaseId, agentName);
+        if (!existsSync(agentDir)) continue;
+        const attemptDirs = readdirSync(agentDir).filter((d) => d.startsWith('attempt-'));
+        for (const attempt of attemptDirs) {
+          const sessionDir = path.join(agentDir, attempt, sessionId);
+          if (existsSync(sessionDir)) return sessionDir;
+        }
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  /**
+   * Overlay a post-sidecar persisted output onto the existing
+   * `output.<ext>` file for the matching attempt. JSON values are pretty-
+   * printed; markdown / plain text passes through. Best-effort: silently
+   * skips when the attempt dir cannot be located. Idempotent.
+   */
+  async overlaySessionOutput(
+    agentName: string,
+    sessionId: string,
+    value: string | object,
+  ): Promise<void> {
+    const dir = this.findAttemptDirBySession(agentName, sessionId);
+    if (!dir) return;
+    const raw = typeof value === 'string' ? value : JSON.stringify(value);
+    const ext = detectOutputExtension(raw);
+    const formatted = ext === 'json' ? prettyPrintJson(raw) : raw;
+    try {
+      await writeFile(path.join(dir, `output.${ext}`), truncate(formatted) ?? '', 'utf-8');
+    } catch (err) {
+      logger.warn(
+        `[debug-store] failed to overlay output.${ext} at ${dir}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   async writeRunManifest(manifest: RunManifest): Promise<void> {
     const manifestPath = path.join(this.context.runDir, 'run.json');
     try {
@@ -191,15 +246,11 @@ export class DebugStore {
     const target = this.context.runId;
     try {
       await rm(latest, { force: true });
-    } catch {
-      // ignore
-    }
+    } catch {}
     try {
       const { symlink } = await import('fs/promises');
       await symlink(target, latest, 'dir');
-    } catch {
-      // Symlinks fail on some platforms — fine, `latest` is convenience only.
-    }
+    } catch {}
   }
 
   /**
@@ -229,7 +280,7 @@ export class DebugStore {
             return { name: e.name, full, mtime: s?.mtimeMs ?? 0 };
           }),
       );
-      folders.sort((a, b) => a.mtime - b.mtime); // oldest first
+      folders.sort((a, b) => a.mtime - b.mtime);
       const excess = folders.length - keep;
       if (excess <= 0) return [];
       const toDelete = folders.slice(0, excess);
@@ -238,9 +289,7 @@ export class DebugStore {
         try {
           await rm(f.full, { recursive: true, force: true });
           deleted.push(f.name);
-        } catch {
-          // best-effort
-        }
+        } catch {}
       }
       return deleted;
     } catch {
@@ -309,7 +358,18 @@ export class AttemptWriter {
     }
   }
 
-  async writeOutputRaw(raw: string): Promise<void> {
+  /**
+   * Last value written via `writeOutput`. Used by `writeOutputRaw` to skip
+   * byte-identical duplicate files. Caller can opt back into a separate raw
+   * view with `writeOutputRaw(raw, { force: true })`.
+   */
+  private lastOutputValue: string | undefined;
+  private lastOutputExtension: 'json' | 'md' | 'txt' | undefined;
+
+  async writeOutputRaw(raw: string, opts: { force?: boolean } = {}): Promise<void> {
+    if (!opts.force && this.lastOutputValue !== undefined && raw === this.lastOutputValue) {
+      return;
+    }
     try {
       await this.ensureDir();
       await writeFile(path.join(this.attemptDir, 'output.raw.txt'), truncate(raw) ?? '', 'utf-8');
@@ -320,17 +380,34 @@ export class AttemptWriter {
 
   /**
    * Best-effort structured output write. Detects the format (JSON / Markdown /
-   * plain text) and picks an appropriate filename. Always also writes the raw
-   * bytes via writeOutputRaw() when the caller wants both.
+   * plain text), pretty-prints JSON for readability, and writes to
+   * `output.<ext>`.
    */
   async writeOutput(value: string): Promise<void> {
     try {
       await this.ensureDir();
       const ext = detectOutputExtension(value);
-      await writeFile(path.join(this.attemptDir, `output.${ext}`), truncate(value) ?? '', 'utf-8');
+      const formatted = ext === 'json' ? prettyPrintJson(value) : value;
+      await writeFile(
+        path.join(this.attemptDir, `output.${ext}`),
+        truncate(formatted) ?? '',
+        'utf-8',
+      );
+      this.lastOutputValue = formatted;
+      this.lastOutputExtension = ext;
     } catch (err) {
       this.logFailure('output.*', err);
     }
+  }
+
+  /**
+   * Overlay the persisted (post-sidecar) view of an analyzer's output onto
+   * the existing `output.<ext>` file. Idempotent: takes a parsed object or
+   * a raw string. Pretty-prints JSON.
+   */
+  async updateOutput(value: string | object): Promise<void> {
+    const raw = typeof value === 'string' ? value : JSON.stringify(value);
+    await this.writeOutput(raw);
   }
 
   async writeOutputSchema(schema: object | string): Promise<void> {
@@ -409,7 +486,8 @@ export class AttemptWriter {
   async writeNormalizedEvents(content: string): Promise<void> {
     try {
       await this.ensureDir();
-      await writeFile(path.join(this.attemptDir, 'events.jsonl'), content, 'utf-8');
+      const enriched = enrichEventsJsonl(content);
+      await writeFile(path.join(this.attemptDir, 'events.jsonl'), enriched, 'utf-8');
     } catch (err) {
       this.logFailure('events.jsonl', err);
     }
@@ -485,6 +563,91 @@ function looksLikeJson(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Pretty-print a JSON string with 2-space indentation. Returns the input
+ * unchanged when parsing fails (defensive — never throw from a debug-store
+ * writer; a bad `output.json` shouldn't break the run). Stack-agnostic and
+ * input-shape-agnostic.
+ */
+function prettyPrintJson(value: string): string {
+  try {
+    const parsed = JSON.parse(value);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Current schema version of the events.jsonl envelope. Bump whenever the
+ * shape of an event line changes incompatibly so downstream consumers can
+ * branch on schemaVersion.
+ */
+export const EVENTS_JSONL_SCHEMA_VERSION = 1;
+
+/**
+ * Enrich a normalized events.jsonl payload by:
+ *   1. Prepending a `{"t":"meta","schemaVersion":N,...}` line so consumers
+ *      can tell which envelope shape they're reading.
+ *   2. Dropping consecutive duplicate `passthrough-*` events. The dedup is
+ *      conservative: only consecutive duplicates with identical `subtype` +
+ *      `text|payload` are dropped.
+ *
+ * Idempotent: detecting an existing meta line at the head leaves the
+ * payload untouched on a second pass.
+ */
+export function enrichEventsJsonl(content: string): string {
+  const lines = content.split('\n').filter((l) => l.trim().length > 0);
+  if (lines.length === 0) {
+    return JSON.stringify({
+      t: 'meta',
+      schemaVersion: EVENTS_JSONL_SCHEMA_VERSION,
+      generatedAt: new Date().toISOString(),
+    });
+  }
+
+  let firstParsed: { t?: unknown; schemaVersion?: unknown } | null = null;
+  try {
+    firstParsed = JSON.parse(lines[0]);
+  } catch {
+    firstParsed = null;
+  }
+  const alreadyEnriched =
+    firstParsed && firstParsed.t === 'meta' && typeof firstParsed.schemaVersion === 'number';
+
+  const deduped: string[] = [];
+  let lastPassthroughKey: string | null = null;
+  const startIdx = alreadyEnriched ? 1 : 0;
+  for (let i = startIdx; i < lines.length; i += 1) {
+    const line = lines[i];
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      parsed = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      parsed = null;
+    }
+    if (parsed && typeof parsed.subtype === 'string' && parsed.subtype.startsWith('passthrough-')) {
+      const key = `${parsed.subtype}::${typeof parsed.text === 'string' ? parsed.text : JSON.stringify(parsed.payload ?? null)}`;
+      if (key === lastPassthroughKey) continue;
+      lastPassthroughKey = key;
+    } else {
+      lastPassthroughKey = null;
+    }
+    deduped.push(line);
+  }
+
+  if (alreadyEnriched) {
+    return [lines[0], ...deduped].join('\n');
+  }
+
+  const meta = JSON.stringify({
+    t: 'meta',
+    schemaVersion: EVENTS_JSONL_SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+  });
+  return [meta, ...deduped].join('\n');
 }
 
 /**

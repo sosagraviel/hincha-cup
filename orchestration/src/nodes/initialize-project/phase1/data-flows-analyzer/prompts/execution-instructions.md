@@ -1,494 +1,178 @@
-# Data Flows & Integrations Analysis Instructions
+# Data Flows & Integrations Analysis
 
-<objective>
-Analyze authentication, authorization, API design patterns, external integrations, and data flow patterns. Document how the application handles requests, integrates with external services, and manages data transformations.
-</objective>
+Auth, authorization, API design, external integrations, background
+jobs, caching, inter-service communication, infrastructure services.
 
-**IMPORTANT: Infrastructure Services Focus**
+**Service IDs come from the structure analyzer** — never redeclare
+application services. Use `infrastructure_services` (NOT `services`)
+for runtime infra (redis / postgres / queues / etc.). Use
+`service_communication` keyed by service id for inter-service flow.
 
-- **Structure Analyzer (Agent 01)** is the SINGLE SOURCE OF TRUTH for application service discovery
-- DO NOT list application services (backend, frontend, mobile) in your output
-- Focus ONLY on INFRASTRUCTURE services (redis, postgres, message queues, email servers, etc.)
-- Use `infrastructure_services` field (NOT `services`) to avoid confusion
-- Use `service_communication` map with service IDs as keys to document application service interactions
-- Reference application services by ID from Structure Analyzer when documenting communication patterns
+Follow the **Graph navigation discipline** templated into your system
+prompt: lean parameters everywhere; respect drill-in caps;
+`get_architecture_overview` is **forbidden**.
 
-<discovery_process>
+**Skip community drill-ins.** This analyzer's prescribed flow is
+flows + lifecycles + integrations — not module clustering. Do NOT
+call `get_community_tool` (even with `include_members: false`). The
+community-detection output frequently includes test-descriptor
+clusters (`it:should`, `describe:returns`, …) whose bare metadata
+alone overflows the per-call token cap. Stay inside `get_flow`,
+`list_flows`, `semantic_search_nodes`, and `query_graph` for every
+drill-in you need.
 
-## Step 1: Identify Authentication Patterns
+## Step 0 — Read inspection FIRST (MANDATORY)
 
-Search for authentication implementation in code:
+`Read <tempDir>/project-inspection.json`. Three inspection slots are
+load-bearing for this analyzer:
 
-<auth_detection>
+| Inspection field                  | Use                                                              |
+| --------------------------------- | ---------------------------------------------------------------- |
+| `infrastructure_services_hints[]` | `{name, port, source_file}` triples — emit verbatim into         |
+|                                   | `findings.infrastructure_services[]` (wrap each with the         |
+|                                   | wiki-canonical `service` label + `role`)                         |
+| `environment.required_vars[]`     | informs `findings.authentication.providers` when names match     |
+|                                   | provider tokens (`KEYCLOAK_*` / `OAUTH_*` / `STRIPE_*` / etc.)   |
+| `infrastructure[]`                | informs `findings.deployment.target` (firebase / serverless / …) |
 
-**JWT (JSON Web Tokens):**
+Forbidden Globs (inspection covers them): `**/package.json`,
+`**/.env*`, `**/Dockerfile*`, lock files, `**/docker-compose*`,
+`**/.github/workflows/*`.
+
+## Step 1 — Cheapest entry point
+
+`get_minimal_context({ task: "Map auth, request lifecycles, persistence, integrations" })`.
+
+## Step 2 — Auth + request lifecycle (flow inventory)
+
+`list_flows({ sort_by: "criticality", limit: 30, detail_level: "minimal" })`.
+Pick at most 5 flows whose names match `auth | guard | middleware |
+request` or a service entry-point. For each:
+`get_flow({ flow_id, include_source: false })`. Set
+`include_source: true` for at most 1 flow.
 
-- Dependencies: jsonwebtoken, jose, jwt-decode, pyjwt, golang-jwt
-- Search patterns: `jwt.sign`, `jwt.verify`, `JWT.encode`, `jwt.NewWithClaims`
-- Config files: Look for JWT_SECRET, TOKEN_EXPIRY in env examples
+Flow execution path encodes the auth chain (CORS → RateLimiter →
+AuthGuard → RolesGuard → Handler, in whatever shape).
 
-**OAuth 2.0 / OpenID Connect:**
+Empty-graph fallback: ONE `semantic_search_nodes` per credible auth
+scheme — name tokens: `jwt`, `jose`, `oauth`, `oidc`, `passport`,
+`keycloak`, `session`, `cookie`, `api-key`, `basic-auth`.
 
-- Dependencies: passport, next-auth, authlib, oauth2, oidc-client
-- Search patterns: `passport.use`, `OAuth2Strategy`, `authorize_url`, `token_url`
-- Config: CLIENT_ID, CLIENT_SECRET, REDIRECT_URI in env examples
+## Step 3 — Authorization
 
-**Session-based:**
+ONE `semantic_search_nodes({ kind: "Class", limit: 15, detail_level:
+"minimal" })` with name token `RolesGuard | PermissionsGuard | hasRole
+| checkPermission | Policy | Authorize | CASL | Casbin | Pundit |
+Cancan`. RBAC if role tokens; ABAC if policy/attribute tokens.
 
-- Dependencies: express-session, flask-session, gorilla/sessions
-- Search patterns: `session.save`, `request.session`, `c.Session`
-- Config: SESSION_SECRET in env examples
+## Step 4 — API design
 
-**API Keys:**
+ONE `semantic_search_nodes({ kind: "Class", limit: 15, detail_level:
+"minimal" })` per protocol with name tokens:
 
-- Search for: `X-API-Key`, `Authorization: Bearer`, API key validation middleware
-- Common patterns: Custom headers, query parameters, bearer tokens
+- **REST**: Controller / Handler / Route / Endpoint
+- **GraphQL**: Resolver / Schema / ObjectType
+- **gRPC**: ServiceDefinition / GrpcMethod / RpcService
+- **WebSocket**: WebSocketGateway / SubscribeMessage
 
-Read auth middleware files to understand full authentication flow.
+Report `findings.api_design.{primary, secondary[], patterns, versioning}`
+with booleans per protocol.
 
-</auth_detection>
+## Step 5 — External integrations
 
-## Step 2: Discover Authorization Patterns
+ONE `semantic_search_nodes({ limit: 15, detail_level: "minimal" })`
+per category, single comma-separated name-token query:
 
-<authorization_patterns>
+- **payments**: stripe / paypal / square / adyen / braintree
+- **email**: sendgrid / mailgun / ses / postmark / nodemailer / mailchimp
+- **cloud storage**: s3 / gcs / azureblob / cloudinary / cloudflare-r2
+- **auth providers**: auth0 / firebase-auth / cognito / keycloak / okta / clerk
+- **monitoring**: sentry / datadog / newrelic / honeybadger / rollbar / bugsnag
+- **observability**: opentelemetry / prometheus / jaeger / zipkin
 
-**Role-Based Access Control (RBAC):**
+For each: `{name, sdk + version, confirmed | declared}`.
 
-- Search for: `@Roles`, `hasRole`, `checkPermission`, role decorators
-- Look for: role definitions, permission matrices, guard implementations
+## Step 6 — Background jobs
 
-**Attribute-Based Access Control (ABAC):**
+ONE `semantic_search_nodes({ limit: 15, detail_level: "minimal" })`
+with name tokens `bullmq | bull | agenda | celery | rq | dramatiq |
+huey | asynq | sidekiq | resque | shoryuken | hangfire | quartz |
+sneakers`. Report `findings.background_jobs.{library, queues[],
+scheduling, retry_policy}`.
 
-- Search for: policy files, attribute checks, condition-based guards
-- Look for: CASL, Casbin, custom policy engines
+## Step 7 — Caching
 
-**Route-Level Guards:**
+ONE `semantic_search_nodes({ kind: "Function", limit: 15,
+detail_level: "minimal" })` with name tokens `Redis | Memcached |
+createClient | cache.get | cache.set | hazelcast | infinispan | apc |
+varnish`. Report `findings.caching.{type, client, strategy,
+ttl_configured, use_cases[]}`.
 
-- NestJS: `@UseGuards(AuthGuard)`, guard implementations
-- Express: Middleware like `isAuthenticated`, `requireRole`
-- Django: `@login_required`, `@permission_required` decorators
-- FastAPI: `Depends(get_current_user)`, security dependencies
+## Step 8 — Inter-service communication
 
-Identify which routes require authentication vs. public access.
+For each candidate broker, ONE `query_graph({ pattern: "imports_of",
+target: "<broker-package>" })`. Tokens: kafka / amqp / rabbitmq / nats
+/ sqs / pubsub / azure-service-bus / pulsar / redis-streams /
+activemq.
 
-</authorization_patterns>
+Report `findings.inter_service_communication.{pattern (monolithic |
+modular-monolith | microservices | event-driven), message_broker,
+sync_protocol (rest | grpc | graphql | n-a), async_protocol,
+service_discovery, api_gateway}`.
 
-## Step 3: Map API Design Patterns
+## Step 9 — Infrastructure services (use inspection hints)
 
-<api_patterns>
+`inspection.infrastructure_services_hints[]` carries named service →
+port triples already extracted from docker-compose + firebase
+emulators. **Emit each as a `findings.infrastructure_services[]`
+entry** with these fields:
 
-**REST APIs:**
+- `id` — verbatim from inspection
+- `service` — canonical wiki label (e.g. `inspection.name="postgres"`
+  → `service: "PostgreSQL"`; `inspection.name="redis"` →
+  `service: "Redis"`; `inspection.name="keycloak"` →
+  `service: "Keycloak"`)
+- `type` — `database` / `cache+queue` / `identity-provider` /
+  `monitoring` / etc.
+- `port` — from inspection
+- `role` — one-line operator-facing description
+- `port_search_evidence` — minimum 2 entries citing the source file
+  (use `source_file` from inspection + any cross-reference)
 
-- Search for: HTTP method decorators (@Get, @Post, app.get, router.post)
-- Patterns: Resource-based URLs, CRUD operations
-- Versioning: /api/v1/, /v2/ in routes
+SaaS-only services with no localhost port (Sentry / Datadog / Stripe
+production) use the OPT-OUT shape: `{port_applies: false,
+port_applies_reason: "SaaS — accessed via HTTPS to vendor DSN, no
+localhost port", port_search_evidence: [...≥2 entries...]}`.
 
-**GraphQL:**
+The Stop hook hard-rejects entries with neither a `port` nor the
+opt-out shape.
 
-- Dependencies: graphql, apollo-server, graphene, gqlgen
-- Files: schema.graphql, resolvers, type definitions
-- Operations: queries, mutations, subscriptions
+## Step 10 — Data transformation
 
-**gRPC:**
+Detect DTO / serializer / validator / mapper patterns from the graph's
+class names. Report `findings.data_transformation.{dto_library,
+validation, serialization}`.
 
-- Dependencies: @grpc/grpc-js, grpcio, grpc-go
-- Files: \*.proto files, generated code
-- Patterns: Service definitions, RPC methods
+## Output
 
-**WebSocket / Real-time:**
+Emit the shape below. Optional fields use the `"name?"` suffix — OMIT
+the field entirely when no value (do NOT emit `null`). Per-service
+maps key by IDs from your AUTHORITATIVE SERVICE LIST.
 
-- Dependencies: socket.io, ws, websockets, gorilla/websocket
-- Patterns: Event handlers, room/namespace management
-- Use cases: Chat, notifications, live updates
+<<script:critic-block agent=data-flows-integrations-analyzer>>
 
-Document the primary API style and any secondary patterns.
+E012: each `infrastructure_services[]` entry needs either `port` (int)
+OR `{ port_applies: false, port_applies_reason: <string>,
+port_search_evidence: [<string>,<string>] }`.
 
-</api_patterns>
+## `needs_verification` rules
 
-## Step 4: Identify External Integrations
+Only when ALL hold: (a) cannot be determined from code/configs after
+exhaustive search, (b) in-scope, (c) business/intent decision.
 
-<external_integrations>
+Hard-rejected: credentials, production endpoints, "managed elsewhere",
+auth patterns (discoverable from graph), API design (discoverable),
+integration presence (discoverable), data transformation (code analysis).
 
-Search for third-party service integrations:
-
-**Payment Processors:**
-
-- Stripe: stripe dependency, `stripe.charges.create`
-- PayPal: paypal-rest-sdk, PayPal API calls
-- Square: square dependency
-
-**Email Services:**
-
-- SendGrid: @sendgrid/mail, `sgMail.send`
-- Mailgun: mailgun-js, Mailgun API
-- AWS SES: aws-sdk with SES, boto3 SES
-
-**Cloud Storage:**
-
-- AWS S3: aws-sdk, boto3, s3 client
-- Google Cloud Storage: @google-cloud/storage
-- Azure Blob: @azure/storage-blob
-
-**Analytics:**
-
-- Google Analytics: gtag, analytics.js
-- Mixpanel: mixpanel dependency
-- Segment: @segment/analytics-node
-
-**Authentication Providers:**
-
-- Auth0: auth0 dependency, Auth0 config
-- Firebase Auth: firebase-admin, Firebase SDK
-- Cognito: aws-sdk with Cognito
-
-**Message Queues / Event Streaming:**
-
-- RabbitMQ: amqplib, pika
-- Kafka: kafkajs, confluent-kafka
-- Redis Pub/Sub: ioredis with publish/subscribe
-
-**Monitoring / Logging:**
-
-- Sentry: @sentry/node, sentry-sdk
-- DataDog: dd-trace, datadog
-- New Relic: newrelic
-
-Search for API clients, SDK initialization, and webhook handlers for each integration.
-
-</external_integrations>
-
-## Step 5: Document Data Flow Patterns
-
-<data_flows>
-
-**Request Processing Flow:**
-
-1. Client sends request
-2. Middleware chain executes (CORS, auth, validation)
-3. Route handler processes request
-4. Business logic executes
-5. Data layer interaction (database, cache)
-6. Response transformation
-7. Response sent to client
-
-**Data Transformation Patterns:**
-
-- DTOs (Data Transfer Objects): Request/response shaping
-- Serializers: Convert models to JSON (Django REST, Marshmallow)
-- Mappers: Transform between layers (entity → DTO → response)
-- Validators: Input validation (class-validator, Joi, Pydantic)
-
-**State Management (Frontend):**
-
-- Redux: actions, reducers, store configuration
-- MobX: observable stores
-- Zustand: store definitions
-- Context API: React context providers
-
-Search for these patterns in code to understand data flow architecture.
-
-</data_flows>
-
-## Step 6: Identify Background Job & Queue Patterns
-
-<background_jobs>
-
-**Job Queue Libraries:**
-
-### Node.js/TypeScript
-
-- **BullMQ:** `bullmq` dependency, queue definitions, worker processors
-- **Bull:** `bull` dependency (older version of BullMQ)
-- **Agenda:** `agenda` dependency, job scheduling
-- **Bee-Queue:** `bee-queue` dependency
-
-### Python
-
-- **Celery:** `celery` dependency, task decorators `@app.task`
-- **RQ (Redis Queue):** `rq` dependency, `@job` decorator
-- **Dramatiq:** `dramatiq` dependency
-
-### Go
-
-- **Asynq:** `github.com/hibiken/asynq` in go.mod
-- **Machinery:** `github.com/RichardKnop/machinery` in go.mod
-
-### Ruby
-
-- **Sidekiq:** `sidekiq` gem, worker classes
-- **Resque:** `resque` gem
-
-**Search for:**
-
-1. Queue definitions and configuration
-2. Worker/processor files (files with "worker", "job", "processor" in name)
-3. Cron/scheduled job configurations
-4. Job retry policies and error handling
-
-**Report format:**
-
-```json
-"background_jobs": {
-  "library": "BullMQ",
-  "queues": ["email-queue", "notification-queue", "data-processing"],
-  "scheduling": true,
-  "retry_policy": "exponential backoff"
-}
-```
-
-</background_jobs>
-
-## Step 7: Detect Caching Patterns
-
-<caching_patterns>
-
-**Cache Implementations:**
-
-### In-Memory Caching
-
-- **Node:** `node-cache`, `lru-cache`, `memory-cache`
-- **Python:** `cachetools`, `functools.lru_cache`
-- **Go:** Built-in with `sync.Map` or third-party like `go-cache`
-
-### Distributed Caching
-
-- **Redis:** `ioredis`, `redis`, `redis-py`, `go-redis`
-- **Memcached:** `memcached`, `pymemcache`
-
-**Cache Strategies:**
-
-- **Read-through:** Check cache first, load from DB on miss
-- **Write-through:** Write to cache and DB simultaneously
-- **Write-behind:** Write to cache immediately, DB asynchronously
-- **Cache-aside:** Application manually manages cache
-
-**Search for:**
-
-1. Cache client initialization
-2. Cache key patterns (look for `cache.get()`, `cache.set()` calls)
-3. TTL (Time-To-Live) configurations
-4. Cache invalidation strategies
-
-**Report format:**
-
-```json
-"caching": {
-  "type": "redis",
-  "client": "ioredis 5.9",
-  "strategy": "cache-aside",
-  "ttl_configured": true,
-  "use_cases": ["session storage", "API response caching", "rate limiting"]
-}
-```
-
-</caching_patterns>
-
-## Step 8: Map Inter-Service Communication (Microservices)
-
-<inter_service_communication>
-
-**For microservices architectures, identify how services communicate:**
-
-### Synchronous Communication
-
-- **HTTP/REST:** Direct HTTP calls between services
-- **gRPC:** High-performance RPC calls
-- **GraphQL:** Federation, schema stitching
-
-### Asynchronous Communication
-
-- **Message Brokers:**
-  - **RabbitMQ:** `amqplib`, `pika`, `amqp091-go`
-  - **Kafka:** `kafkajs`, `confluent-kafka`, `kafka-go`
-  - **AWS SQS:** `@aws-sdk/client-sqs`, `boto3` SQS
-  - **Google Pub/Sub:** `@google-cloud/pubsub`
-  - **NATS:** `nats`, `nats.py`, `nats.go`
-
-### Service Discovery
-
-- **Consul:** `consul` client libraries
-- **Eureka:** `eureka-js-client`, Spring Cloud Eureka
-- **etcd:** `etcd3`, `python-etcd`, `go.etcd.io/etcd`
-- **Kubernetes:** Service discovery via DNS/env vars
-
-### API Gateway
-
-- **Kong:** Configuration files, plugins
-- **AWS API Gateway:** CDK/CloudFormation definitions
-- **NGINX:** `nginx.conf` with reverse proxy configs
-- **Traefik:** `traefik.yml` configuration
-
-**Search for:**
-
-1. Service-to-service HTTP clients (Axios, Fetch, Requests, net/http)
-2. Message producer/consumer code
-3. Service registry client initialization
-4. Gateway configuration files
-
-**Report format:**
-
-```json
-"inter_service_communication": {
-  "pattern": "event-driven",
-  "message_broker": "RabbitMQ",
-  "sync_protocol": "REST",
-  "async_protocol": "AMQP",
-  "service_discovery": "kubernetes-dns",
-  "api_gateway": "nginx"
-}
-```
-
-If single service (not microservices):
-
-```json
-"inter_service_communication": {
-  "pattern": "monolithic",
-  "message_broker": "none",
-  "sync_protocol": "n/a",
-  "async_protocol": "n/a"
-}
-```
-
-</inter_service_communication>
-
-</discovery_process>
-
-<critical_thinking>
-
-## Self-Verification Checklist
-
-1. **Auth dependencies found but no implementation?** Search for middleware, guards, decorators
-2. **External service SDK but no usage?** Search for client initialization, API calls
-3. **GraphQL schema but no resolvers?** Look in separate resolvers directory or files
-4. **WebSocket dependency but no handlers?** Search for `io.on`, `socket.on` event handlers
-5. **Payment integration unclear?** Check for webhook handlers, confirmation endpoints
-6. **Queue library present but no workers?** Search for files with "worker", "job", "processor" in name
-7. **Redis in dependencies but purpose unclear?** Check for caching, session storage, or pub/sub patterns
-8. **Multiple services but no message broker?** Check if it's truly microservices or modular monolith
-9. **API gateway configured?** Look for NGINX, Kong, or cloud gateway configurations
-
-## Common Integration Patterns
-
-**Node.js/TypeScript typically integrates:**
-
-- Stripe for payments
-- SendGrid for email
-- AWS S3 for storage
-- Auth0 or Firebase for authentication
-
-**Python typically integrates:**
-
-- Stripe or PayPal for payments
-- SendGrid or AWS SES for email
-- boto3 for AWS services
-- OAuth libraries for social auth
-
-</critical_thinking>
-
-<output_format>
-
-See shared output format documentation at: `../../../shared/prompts/output-format.md`
-
-## Key Points
-
-- Output raw JSON only (no markdown, no commentary)
-- Field `findings` can contain any relevant integration/data flow information
-- Schema allows passthrough fields for flexibility
-- Optional field: `needs_verification` array (maximum 5 items)
-
-## Example Output Structure
-
-```json
-{
-  "agent_name": "data-flows-integrations-analyzer",
-  "timestamp": "2026-04-02T10:30:00.000Z",
-  "findings": {
-    "authentication": {
-      "type": "JWT + OAuth2",
-      "libraries": ["passport-jwt", "passport-google-oauth20"],
-      "middleware": "src/modules/auth/guards/",
-      "providers": ["local", "google", "github"]
-    },
-    "authorization": {
-      "type": "RBAC",
-      "implementation": "NestJS Guards + Custom Decorators",
-      "roles": ["admin", "user", "moderator"]
-    },
-    "api_design": {
-      "primary": "REST",
-      "secondary": ["WebSocket"],
-      "versioning": "none",
-      "patterns": {
-        "rest": true,
-        "graphql": false,
-        "grpc": false,
-        "websockets": true
-      }
-    },
-    "external_integrations": [
-      {
-        "service": "Keycloak",
-        "purpose": "Identity and Access Management",
-        "sdk": "@keycloak/keycloak-admin-client 26.1.4"
-      },
-      {
-        "service": "Sentry",
-        "purpose": "Error tracking and monitoring",
-        "sdk": "@sentry/nestjs 9.30.0"
-      },
-      {
-        "service": "MailHog",
-        "purpose": "Email testing (development)",
-        "sdk": "SMTP (docker-compose)"
-      }
-    ],
-    "background_jobs": {
-      "library": "BullMQ",
-      "queues": ["email-notifications", "data-processing"],
-      "scheduling": true,
-      "retry_policy": "configurable per queue"
-    },
-    "caching": {
-      "type": "redis",
-      "client": "ioredis 5.9.2",
-      "strategy": "cache-aside",
-      "ttl_configured": true,
-      "use_cases": ["session storage", "rate limiting", "temporary data"]
-    },
-    "inter_service_communication": {
-      "pattern": "monolithic with internal modules",
-      "message_broker": "none",
-      "sync_protocol": "internal method calls",
-      "async_protocol": "BullMQ for background jobs"
-    },
-    "data_transformation": {
-      "dto_library": "class-validator + class-transformer",
-      "validation": "NestJS ValidationPipe",
-      "serialization": "class-transformer decorators"
-    }
-  },
-  "needs_verification": []
-}
-```
-
-</output_format>
-
-<verification_guidelines>
-
-See shared verification format documentation at: `../../../shared/prompts/verification-format.md`
-
-Use `needs_verification` for:
-
-- External API credentials and secrets
-- Third-party service configuration values
-- Webhook secrets and signing keys
-- Production environment endpoints
-
-Do NOT use for:
-
-- Authentication patterns (discoverable from code)
-- API design style (REST/GraphQL/gRPC discoverable from routes)
-- Integration presence (SDK dependencies visible)
-- Data transformation patterns (code analysis)
-
-</verification_guidelines>
+**Record absence as a finding** (e.g. `webhooks: []`,
+`message_broker: "none"`).

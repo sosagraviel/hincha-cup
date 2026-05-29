@@ -2,7 +2,7 @@
 
 Generates comprehensive, gap-free tickets following Specification-Driven Development (SDD) principles.
 
-**Version**: 2.0.0
+**Version**: 3.1.0
 **File**: `skills/020-development-workflow/create-sdd-ticket/SKILL.md`
 
 ---
@@ -24,11 +24,12 @@ Generates comprehensive, gap-free tickets following Specification-Driven Develop
 - **T**estable - Clear acceptance criteria
 
 ### 3. Minimal Engineer Interruption
-Performs deep codebase inference for:
-- Architecture patterns
-- File placement conventions
-- Naming conventions
-- Dependencies
+Performs wiki-first inference before touching the codebase:
+1. LLM wiki (`docs/llm-wiki/wiki/`) — pre-digested architecture, service contracts, patterns
+2. Code graph — symbol lookups, community membership, callers
+3. Project context skill and `CLAUDE.md`/`AGENTS.md`
+4. Codebase grep + file inspection (narrowed by graph)
+5. Engineer questions — only for gaps 1–4 cannot resolve
 
 ---
 
@@ -78,15 +79,17 @@ $create-sdd-ticket --from-input "Add real-time notifications"
 
 ---
 
-## Workflow (8 Phases)
+## Workflow (9 Phases)
 
-0. **Project Context Injection** - Invoke `project-context` skill to load codebase conventions, integration points, and constraints **before** any analysis runs (falls back to `CLAUDE.md` if `project-context` isn't generated yet)
+0. **Preflight (MANDATORY)** - Run `bash $FRAMEWORK_PATH/scripts/ensure-context.sh`. Auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or incrementally updates the graph, refreshes the wiki when stale, re-emits the local MCP config, and writes a `.preflight-ok` marker. Hot path: <3 s. STOPs on non-zero exit; do NOT continue to later phases.
+0.1. **Inject Project Context** - Load project-context skill and `CLAUDE.md`/`AGENTS.md`
+0.2. **Wiki & Graph Context Preload** - Read `docs/llm-wiki/wiki/` core docs; run one `get_minimal_context_tool` call; persist context artifact. Graceful fallback when wiki is missing (fresh clone, `/initialize-project` not yet run). Pass `--skip-wiki` to bypass explicitly.
 1. **Parse Input** - Load from text, Jira, or markdown
-2. **Canonical Format** - Transform to standard structure
-3. **Codebase Inference** - Infer missing information from codebase (now context-aware)
-4. **Gap Detection** - Identify and resolve remaining gaps with project-grounded questions
-5. **SDD Template** - Format with user stories and BDD scenarios
-6. **INVEST Validation** - Hard gate: tickets failing Independent / Negotiable / Valuable / Estimable / Small / Testable are rewritten before output
+2. **Intelligent Gap Detection** - Consult wiki first, then graph, then project-context, then codebase grep, then ask you
+3. **Batch Questions** - Ask remaining questions in one batch (minimized by phases 0.2 and 2)
+4. **Process Answers** - Fill gaps and re-validate completeness
+5. **SDD Template** - Format with user stories and BDD scenarios; include `wikiEvidence` and `graphEvidence` in `technicalContext`
+6. **INVEST Validation** - Ensure quality criteria met
 7. **Output Formatting** - Save to markdown or Jira
 
 **Why Phase 0 matters**: clarifying questions and BDD scenarios are grounded in the project's actual conventions, not generic best-practice guesses. The skill won't ask "should errors return 4xx or problem-details?" if the codebase already establishes that convention.
@@ -115,7 +118,11 @@ $create-sdd-ticket --from-input "Add real-time notifications"
   "technicalContext": {
     "architecture": "Backend: NestJS + JWT, Frontend: React",
     "dependencies": ["@nestjs/jwt", "bcrypt"],
-    "filesToModify": ["src/auth/auth.controller.ts"]
+    "filesToModify": ["src/auth/auth.controller.ts"],
+    "wikiEvidence": ["docs/llm-wiki/wiki/services/auth.md", "docs/llm-wiki/wiki/PATTERNS.md#jwt"],
+    "graphEvidence": [
+      { "tool": "mcp__code_graph__semantic_search_nodes_tool", "params": { "query": "JWT token" }, "finding": "2 hits in src/auth/" }
+    ]
   },
   "estimatedEffort": "2 days",
   "priority": "high"
@@ -240,6 +247,28 @@ $create-sdd-ticket --from-jira "PROJ-456" --save-to-jira "<board-url>"
 
 ---
 
+---
+
+## External Document Caching
+
+When `framework-config.json` has `wiki.cache_external: true`, the `fetch-ticket-context` skill
+persists every external doc fetched from Jira, Notion, or Confluence to:
+
+```
+docs/llm-wiki/raw/external/<source-type>/<source-id>.md
+```
+
+Each cached file carries frontmatter with `source_url`, `source_type`, `source_id`, `ticket_id`,
+`fetched_at`, and `sha256`. Subsequent runs hitting the same external doc read from this cache
+(valid for 7 days) instead of making a new network request.
+
+The default (`cache_external: false`) is identical to the legacy "fetch-and-discard" behavior —
+no files are written — so existing projects are unaffected until they opt in.
+
+Pass `--refresh-external` to `fetch-ticket-context` to bypass the cache for a single run.
+
 **See also**:
 - `skills/020-development-workflow/create-sdd-ticket/SKILL.md`
+- `skills/040-integrations/fetch-ticket-context/SKILL.md`
+- `orchestration/src/services/graph-wiki/external-cache.ts`
 - `schemas/sdd-ticket.schema.json`

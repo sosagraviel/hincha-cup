@@ -9,7 +9,11 @@ import { join } from 'path';
 import type { StackProfile } from '../../../../schemas/index.js';
 import type { GeneratedAgent, ResolvedSkill } from '../types.js';
 import { SUPPORTED_IMPLEMENTER_LANGUAGES } from '../constants.js';
-import { extractPackageCommands, getDefaultCommands } from './command-extractor.js';
+import {
+  detectBuildTool,
+  extractCommandsFromManifest,
+  getDefaultCommands,
+} from './command-extractor.js';
 import { renderTemplate } from './template-renderer.js';
 import { hasFrontendService } from './stack-extractor.js';
 
@@ -39,7 +43,7 @@ export function generatePlannerAgent(
     model: 'opus',
     description: 'Create detailed implementation plans with full architecture awareness',
     content,
-    path: '', // Will be set when writing
+    path: '',
   };
 }
 
@@ -64,14 +68,24 @@ export function generateImplementerAgent(
   const template = readFileSync(actualTemplatePath, 'utf-8');
   const skillNames = skills.map((s) => s.name);
 
-  const packageCommands = extractPackageCommands(projectPath);
-  const defaultCommands = getDefaultCommands(language);
+  const buildTool = detectBuildTool(projectPath, language);
+  const packageCommands = extractCommandsFromManifest(projectPath, language, buildTool);
+  const defaultCommands = getDefaultCommands(language, projectPath, buildTool);
+
+  const lintCommand = packageCommands.lint || defaultCommands.lint || '';
+  const formatCommand = packageCommands.format || defaultCommands.format || '';
+  const typecheckCommand = packageCommands.typecheck || defaultCommands.typecheck || '';
+  const testCommand = packageCommands.test || defaultCommands.test || '';
+  const buildCommand = packageCommands.build || defaultCommands.build || '';
+
   const commands = {
-    lint_command: packageCommands.lint || defaultCommands.lint || '',
-    format_command: packageCommands.format || defaultCommands.format || '',
-    typecheck_command: packageCommands.typecheck || defaultCommands.typecheck || '',
-    test_command: packageCommands.test || defaultCommands.test || '',
-    build_command: packageCommands.build || defaultCommands.build || '',
+    lint_command: lintCommand,
+    format_command: formatCommand,
+    type_check_command: typecheckCommand,
+    unit_test_command: testCommand,
+    build_command: buildCommand,
+    typecheck_command: typecheckCommand,
+    test_command: testCommand,
   };
 
   const content = renderTemplate(template, {
@@ -86,7 +100,7 @@ export function generateImplementerAgent(
     model: 'sonnet',
     description: `Implement ${language} code following team conventions`,
     content,
-    path: '', // Will be set when writing
+    path: '',
   };
 }
 
@@ -117,7 +131,7 @@ export function generateGenericImplementerAgent(
     description:
       'Expert full-stack and DevOps specialist implementing any file type following best practices',
     content,
-    path: '', // Will be set when writing
+    path: '',
   };
 }
 
@@ -149,7 +163,7 @@ export function generateVisualVerifierAgent(
     model: 'opus',
     description: 'Visual verification and UI diff analysis',
     content,
-    path: '', // Will be set when writing
+    path: '',
   };
 }
 

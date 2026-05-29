@@ -4,18 +4,10 @@
  * Centralized constants for Phase 6 validation thresholds and criteria
  */
 
-// ============================================================================
-// CONTENT VALIDATION THRESHOLDS
-// ============================================================================
-
 /**
  * Minimum content length for markdown files to be considered valid
  */
 export const MIN_CONTENT_LENGTH = 100;
-
-// ============================================================================
-// AGENT VALIDATION THRESHOLDS
-// ============================================================================
 
 /**
  * Minimum number of agents required for a valid setup
@@ -29,10 +21,6 @@ export const MIN_AGENT_COUNT = 2;
  */
 export const SIGNIFICANT_LANGUAGE_THRESHOLD = 10;
 
-// ============================================================================
-// DIRECTORY NAMES
-// ============================================================================
-
 /**
  * Standard .claude subdirectories that should exist after initialization
  */
@@ -40,7 +28,6 @@ export const REQUIRED_DIRECTORIES = {
   SKILLS: 'skills',
   AGENTS: 'agents',
   COMMANDS: 'commands',
-  PROJECT_CONTEXT: 'project-context',
 } as const;
 
 /**

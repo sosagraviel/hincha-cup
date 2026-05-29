@@ -1,0 +1,25 @@
+steps:
+  - name: 'node:22-slim'
+    entrypoint: 'bash'
+    args: ['-c', 'corepack enable && pnpm install --frozen-lockfile && pnpm --recursive lint && pnpm --recursive test']
+    id: 'lint-and-test'
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'functions'
+      - 'deploy'
+      - 'audit-py'
+      - '--gen2'
+      - '--runtime=python312'
+      - '--source=functions/python'
+      - '--entry-point=audit_handler'
+      - '--region=us-central1'
+      - '--trigger-http'
+    waitFor: ['lint-and-test']
+
+  - name: 'gcr.io/$PROJECT_ID/firebase'
+    args: ['deploy', '--only', 'firestore,storage,functions']
+    waitFor: ['lint-and-test']
+
+options:
+  logging: CLOUD_LOGGING_ONLY

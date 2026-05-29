@@ -6,10 +6,6 @@
 
 import { z } from 'zod';
 
-// ============================================================================
-// AGENT GENERATOR TYPES
-// ============================================================================
-
 /**
  * Agent metadata
  */
@@ -21,11 +17,20 @@ export interface AgentMetadata {
 }
 
 /**
- * Generated agent result
+ * Generated agent result.
+ *
+ * `assignedSkills` carries the resolved-skill list that was attached to
+ * this agent at generation time. It is consumed by the Codex skill-body
+ * inliner (see helpers/codex-skill-inliner.ts) which embeds each skill's
+ * on-disk body into the agent prompt at write time — Codex does not
+ * auto-load skills from frontmatter the way Claude Code does, so the
+ * bridge has to ship the bodies in the agent file itself. Empty for
+ * agents that don't carry skills (e.g., visual-verifier).
  */
 export interface GeneratedAgent extends AgentMetadata {
   content: string;
   path: string;
+  assignedSkills?: ResolvedSkill[];
 }
 
 /**
@@ -37,12 +42,21 @@ export interface AgentSkillAssignments {
   [agentName: string]: ResolvedSkill[]; // implementer-typescript, implementer-python, etc.
 }
 
-// ============================================================================
-// SKILL RESOLVER TYPES
-// ============================================================================
-
 /**
  * Skill Config Schema
+ *
+ * `agent_roles` controls which generated agents inherit this skill via the
+ * `skills:` frontmatter. Two roles exist today: `planner` and
+ * `implementer`. When the field is omitted, the skill defaults to BOTH
+ * roles (backwards compatible). Skills that are tooling-only (test
+ * runners, container helpers, cloud CLIs) declare `["implementer"]` so
+ * they don't bloat the planner's preloaded context with bodies the
+ * planner can't and won't run.
+ *
+ * `is_linkable_to_agents: false` overrides `agent_roles` — a skill that
+ * is not linkable to any agent (Confluence / Notion / Jira fetchers,
+ * external-doc ingestion) is copied to disk but never attached to any
+ * generated agent regardless of `agent_roles`.
  */
 export const SkillConfigSchema = z.object({
   name: z.string(),
@@ -52,6 +66,7 @@ export const SkillConfigSchema = z.object({
   trigger_mode: z.enum(['always', 'triggered', 'generated']).default('triggered'),
   compatible_languages: z.array(z.string()).optional(),
   is_linkable_to_agents: z.boolean().optional(),
+  agent_roles: z.array(z.enum(['planner', 'implementer'])).optional(),
 });
 
 export type SkillConfig = z.infer<typeof SkillConfigSchema>;
@@ -61,25 +76,38 @@ export const SkillsConfigFileSchema = z.object({
 });
 
 /**
+ * Agent roles a skill can attach to. See SkillConfigSchema for semantics.
+ */
+export type AgentRole = 'planner' | 'implementer';
+
+/**
  * Resolved skill with reason
  */
 export interface ResolvedSkill {
   name: string;
   path: string;
-  relative_path: string; // Original path in framework (e.g., "050-language-frameworks/mastering-javascript"), used for reference only
+  relative_path: string;
   reason: string;
   description: string;
   compatible_languages?: string[];
   trigger_mode?: 'always' | 'triggered' | 'generated';
   is_linkable_to_agents?: boolean;
+  /**
+   * Roles this skill should attach to via `skills:` frontmatter on
+   * generated agents. When omitted, defaults to BOTH `planner` and
+   * `implementer` (backwards compatible). Skills annotated as
+   * `["implementer"]` keep their bodies out of the planner's preloaded
+   * context — see plan.md §B.
+   */
+  agent_roles?: AgentRole[];
 }
 
 /**
  * Detected stack with both normalized and original package names
  */
 export interface DetectedStack {
-  normalized: Set<string>; // For exact matching: "firebase" -> "firebase"
-  original: Set<string>; // For prefix matching with delimiters: "@google-cloud/firestore"
+  normalized: Set<string>;
+  original: Set<string>;
 }
 
 /**
@@ -89,10 +117,6 @@ export interface TriggerMatchResult {
   matches: boolean;
   matchedTriggers: string[];
 }
-
-// ============================================================================
-// COMMAND EXTRACTION TYPES
-// ============================================================================
 
 /**
  * Language-specific command set

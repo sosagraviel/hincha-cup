@@ -70,11 +70,8 @@ export function validateAnalyzerOutput(
       data = output;
     }
 
-    // Treat explicit nulls as absent keys so OpenAI Structured Outputs (which
-    // emits `null` for optional fields) round-trips through Zod's `.optional()`.
     data = stripNullValues(data);
 
-    // Use centralized validator with automatic schema selection
     const result = validateAgentOutput(data);
 
     if (!result.success) {
@@ -85,7 +82,6 @@ export function validateAnalyzerOutput(
       logger.error(`Agent (from output): ${result.agentName || 'unknown'}`);
       logger.error(`Data keys: ${Object.keys(data || {}).join(', ')}`);
 
-      // Extract error messages from Zod error
       let errors: string[] = [];
 
       if (zodError && zodError.issues) {
@@ -163,26 +159,19 @@ export function validateAnalyzerOutput(
 export function extractJSON(output: string): string {
   const cleaned = output.trim();
 
-  // Case 1: Check if output contains markdown code block
-  // Matches bash: if grep -q '```json' "$OUTPUT_FILE"; then
   if (cleaned.includes('```json')) {
-    // Extract content between ```json and ``` (excluding the markers)
-    // Matches bash: sed -n '/```json/,/```/p' "$OUTPUT_FILE" | sed '1d;$d'
     const jsonBlockMatch = cleaned.match(/```json\s*\n([\s\S]*?)\n```/);
     if (jsonBlockMatch && jsonBlockMatch[1]) {
       return jsonBlockMatch[1].trim();
     }
-    // If we found ```json but couldn't extract, try fallback
   }
 
-  // Case 2: Find first '{' and extract the balanced JSON object
   const startIndex = cleaned.indexOf('{');
   if (startIndex >= 0) {
     const extracted = extractBalancedJSON(cleaned, startIndex);
     if (extracted) {
       return extracted;
     }
-    // Fallback: take from first { to end (original behavior)
     const lines = cleaned.split('\n');
     const firstBraceIndex = lines.findIndex((line) => line.trimStart().startsWith('{'));
     if (firstBraceIndex >= 0) {
@@ -190,70 +179,21 @@ export function extractJSON(output: string): string {
     }
   }
 
-  // If no JSON found, return as-is and let validation fail with helpful error
   return cleaned;
 }
 
 /**
- * Extract synthesis markdown sections from agent output
+ * Re-export the canonical synthesis extractor.
  *
- * Handles preamble text (like "Let me output..." or explanations) by finding
- * the actual section markers anywhere in the text. Similar to extractJSON resilience.
- *
- * Agents sometimes add conversational text before the actual output:
- * - "The validation hook requires my response to follow a specific format. Let me output..."
- * - "I see I need to follow the format. Here it is:"
- * - Tool use blocks before the actual content
- *
- * This function finds the section headers regardless of preamble.
- *
- * @param output - Raw output from synthesis agent
- * @returns Object with claudemd and projectContext content, or null if not found
+ * Phase 3 synthesis emits five sections (CLAUDE.md + 3 prescriptive skills +
+ * an architectural narrative); the splitter lives at
+ * `phase3/validators/extract-synthesis-markdown.ts` so the validator and the
+ * extractor share a single source of truth. This re-export exists only to
+ * keep `phase4/helpers/synthesis-extractor.ts`'s import path stable; new
+ * callers should import directly from the validators module.
  */
-export function extractSynthesisMarkdown(output: string): {
-  claudemd: string;
-  projectContext: string;
-} | null {
-  // Accept both providers' instruction-file headers: Claude emits
-  // "# CLAUDE.md Content", Codex emits "# AGENTS.md Content".
-  const CLAUDE_HEADER = '# CLAUDE.md Content';
-  const AGENTS_HEADER = '# AGENTS.md Content';
-  const CONTEXT_HEADER = '# project-context/SKILL.md Content';
-
-  let headerIndex = output.indexOf(CLAUDE_HEADER);
-  let headerLength = CLAUDE_HEADER.length;
-
-  if (headerIndex === -1) {
-    headerIndex = output.indexOf(AGENTS_HEADER);
-    headerLength = AGENTS_HEADER.length;
-  }
-
-  if (headerIndex === -1) {
-    return null;
-  }
-
-  // Find "---" separator on its own line after the instruction-file content
-  const separatorMatch = output.slice(headerIndex).match(/\n---\s*\n/);
-  if (!separatorMatch || separatorMatch.index === undefined) {
-    return null;
-  }
-
-  // Find project-context header AFTER the separator so a stray marker inside
-  // the instruction-file body can't be mistaken for the skill section.
-  const contextHeaderIndex = output.indexOf(CONTEXT_HEADER, headerIndex + separatorMatch.index);
-  if (contextHeaderIndex === -1) {
-    return null;
-  }
-
-  const claudeStartIndex = headerIndex + headerLength;
-  const claudeEndIndex = headerIndex + separatorMatch.index;
-  const claudemd = output.slice(claudeStartIndex, claudeEndIndex).trim();
-
-  const contextStartIndex = contextHeaderIndex + CONTEXT_HEADER.length;
-  const projectContext = output.slice(contextStartIndex).trim();
-
-  return { claudemd, projectContext };
-}
+export { extractSynthesisMarkdown } from '../nodes/initialize-project/phase3/validators/extract-synthesis-markdown.js';
+export type { ExtractedSynthesisSections } from '../nodes/initialize-project/phase3/validators/types.js';
 
 /**
  * Extract a balanced JSON object from a string starting at a given position.
@@ -299,18 +239,14 @@ export function extractBalancedJSON(text: string, startIndex: number): string | 
     }
   }
 
-  // Braces never balanced
   return null;
 }
 
 /**
- * Validate and parse agent output with automatic JSON extraction
- *
- * Combines extraction and validation in one step.
+ * Validate and parse agent output with automatic JSON extraction.
  *
  * @param rawOutput - Raw agent output (may contain markdown, explanatory text, etc.)
  * @param agentName - Name of the analyzer agent
- * @returns Validation result
  */
 export function validateAndParseAgentOutput(
   rawOutput: string,
@@ -319,16 +255,21 @@ export function validateAndParseAgentOutput(
   try {
     const jsonString = extractJSON(rawOutput);
 
-    const result = validateAnalyzerOutput(jsonString, agentName);
-    if (!result.valid) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonString);
+    } catch (parseError) {
+      return {
+        valid: false,
+        errors: ['Invalid JSON format: ' + (parseError as Error).message],
+      };
     }
 
-    return result;
+    return validateAnalyzerOutput(parsed as object, agentName);
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error('[validator] Exception during validation', err);
 
-    // Show first 500 chars of raw output for debugging
     const preview = rawOutput.substring(0, 500);
     const hasMore = rawOutput.length > 500;
 

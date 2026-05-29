@@ -51,7 +51,14 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**/*', 'node_modules/**/*', 'coverage/**/*'],
+    // Fixtures are test data with their own per-language toolchains.
+    // The framework's ESLint must not descend into them.
+    ignores: [
+      'dist/**/*',
+      'node_modules/**/*',
+      'coverage/**/*',
+      'test/integration/initialize-project/projects/**/*',
+    ],
   },
   prettierConfig, // Disable ESLint rules that conflict with Prettier
 );

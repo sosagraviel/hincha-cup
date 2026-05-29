@@ -30,7 +30,6 @@ export class HookRegistry {
     const phaseHooks = this.hooks.get(phase) || [];
     phaseHooks.push(hook);
 
-    // Sort by priority (highest first)
     phaseHooks.sort((a, b) => b.priority - a.priority);
 
     this.hooks.set(phase, phaseHooks);
@@ -109,7 +108,6 @@ export class HookRegistry {
           currentContext.logger.warn(
             `Hook ${hook.name} preExecution failed: ${error instanceof Error ? error.message : String(error)}`,
           );
-          // Continue with other hooks
         }
       }
     }
@@ -143,7 +141,6 @@ export class HookRegistry {
           context.logger.warn(
             `Hook ${hook.name} postExecution failed: ${error instanceof Error ? error.message : String(error)}`,
           );
-          // Continue with other hooks
         }
       }
     }
@@ -176,18 +173,15 @@ export class HookRegistry {
           context.logger.warn(
             `Hook ${hook.name} onError failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`,
           );
-          // Default to retry if hook fails
           actions.push('retry');
         }
       }
     }
 
-    // Return action with highest priority
-    // Priority: fail > skip > continue > retry
     if (actions.includes('fail')) return 'fail';
     if (actions.includes('skip')) return 'skip';
     if (actions.includes('continue')) return 'continue';
-    return 'retry'; // Default
+    return 'retry';
   }
 
   /**
@@ -211,7 +205,6 @@ export class HookRegistry {
           context.logger.warn(
             `Hook ${hook.name} onRetry failed: ${error instanceof Error ? error.message : String(error)}`,
           );
-          // Continue with other hooks
         }
       }
     }

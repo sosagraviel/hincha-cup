@@ -29,9 +29,6 @@ export function identifyGaps(analyzers: AnalyzerOutput[]): Gap[] {
   analyzers.forEach((analyzer) => {
     if (analyzer.needs_verification && analyzer.needs_verification.length > 0) {
       analyzer.needs_verification.forEach((item: any) => {
-        // Handle both string format (legacy) and object format (current)
-        // Object format: { item: string, question: string, reason: string }
-        // String format: just a string
         const isObject = typeof item === 'object' && item !== null;
         const itemText = isObject ? item.item || JSON.stringify(item) : String(item);
         const questionText = isObject ? item.question : String(item);

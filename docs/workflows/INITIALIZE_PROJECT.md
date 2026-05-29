@@ -21,9 +21,23 @@ Analyzes codebase and generates AI configuration via 6-phase workflow.
 
 ---
 
+## Recent changes (2026-04 init refactor)
+
+- **Single-init model.** No `-p` / `-f` flags, no `PROJECT_PATH` / `FRAMEWORK_PATH` env vars. The Bash entry point and the TypeScript layer derive both paths locally — Bash via `pwd -P` walking up from the script, TS via `import.meta.url`. The framework is expected to live as a child of the target project (`<project>/qubika-agentic-framework/…`); dogfooding is detected via the `qubika-agentic-framework -> .` self-symlink so this very repo can initialize itself.
+- **Phase 0 — Graph Foundation.** Runs *before* Phase 1. Builds `<project>/.code-review-graph/graph.db`, writes the project-level MCP config (`.mcp.json` for Claude, `.codex/config.toml` for Codex), then opens an MCP stdio session against `code-review-graph serve` and stashes the live tool catalog in workflow state. Failure here aborts the run (`current_phase: failed`) — analyzers without the graph are not allowed to silently fall back to file scanning.
+- **Live tool catalog.** Analyzer prompts no longer hard-code `mcp__code_graph__<name>` strings. Phase 1's `prompt-builder.ts` injects the catalog as a `=== CODE GRAPH CONTEXT ===` block, and the analyzer's Stop hook reads `transcript.jsonl` to count actual `mcp__code_graph__*` `tool_use` events. `graph_queries_used` in each analyzer's output is overwritten with the real count; an analyzer that claims graph use without making any call is rejected and retried.
+- **Portable artifacts.** Everything written under `<project>/.claude/` and `<project>/.codex/` flows through `PortableWriter` (services/framework/portable-paths/). Four layers of defense: branded TypeScript types (`AbsolutePath` / `ProjectRelativePath`), Zod refinements, the `PortableWriter` chokepoint, and a Phase 6 runtime walker (`portability-validator.ts`) that scans every committed text file for `/Users/<name>/` or `/home/<name>/` patterns. A non-portable path anywhere in the generated tree fails the run.
+- **`.code-review-graphignore`.** Lives in `templates/code-review-graphignore` in the framework; copied idempotently into `<project>/.code-review-graphignore` by `setup-code-graph.sh` and `sync-framework-resources.sh`. The framework folder no longer holds an inert copy.
+- **`framework-config.json`.** `project_metadata.project_path` was dropped — it was an absolute filesystem path written into a committed file, and nothing read it.
+- **Settings split.** `<project>/.claude/settings.json` is committed (shareable permissions); `<project>/.claude/settings.local.json` is gitignored.
+
+See [`docs/CODE_GRAPH.md`](../CODE_GRAPH.md) and [`docs/CLAUDE_DIR_LAYOUT.md`](../CLAUDE_DIR_LAYOUT.md) for details.
+
+---
+
 ## Architecture
 
-**Pattern**: Phase 1 (4 parallel analyzers) → Phases 2-6 (sequential)
+**Pattern**: Phase 0 (graph + catalog) → Phase 1 (4 parallel analyzers) → Phases 2-6 (sequential)
 
 ```typescript
 const graph = new StateGraph(InitializeProjectAnnotation)
@@ -67,6 +81,8 @@ const graph = new StateGraph(InitializeProjectAnnotation)
 
 **Writes**: `phase1-analysis.json`
 
+**Graph navigation discipline.** Every analyzer prompt embeds the canonical graph-tool discipline (single source: `services/graph-wiki/graph-navigation-discipline.ts`). The discipline forbids `mcp__code_graph__get_architecture_overview_tool` (its response cannot be bounded and overflows on any non-trivial codebase) and pins lean defaults (`detail_level: "minimal"`, `limit: 20` MAX, `include_members: false`, `include_source: false`) on every other graph tool. The same constant is upserted into `<project>/.claude/CLAUDE.md` (or `.codex/AGENTS.md`) and the project-context skill at Phase 4b, so every downstream agent (planner, implementer, ad-hoc Claude / Codex sessions) inherits the same rules. See [`docs/CODE_GRAPH.md`](../CODE_GRAPH.md) for the full discipline + lean-defaults table.
+
 ### Phase 2: Consolidation
 
 Merges Phase 1 analyzer outputs into unified analysis.
@@ -84,6 +100,17 @@ Generates human-readable project understanding from consolidated analysis.
 **Creates** (Claude Code layout — Codex writes to `.codex/` with `AGENTS.md` instead):
 - `.claude/CLAUDE.md` - Quick reference for Claude (`.codex/AGENTS.md` for Codex)
 - `.claude/skills/project-context/SKILL.md` - Deep project knowledge
+
+### Phase 4b: LLM-Wiki Generation
+
+**Creates** under `<project>/docs/llm-wiki/`:
+- `wiki/ARCHITECTURE.md`, `wiki/DATA-FLOWS.md`, `wiki/PATTERNS.md` — LLM-synthesized from already-digested upstream (Phase 1 analyzer JSONs + Phase 3 synthesis + the just-generated CLAUDE.md slice + project-context slice). The `wiki-generator` agent runs **closed-book** — no Read/Grep/Glob/MCP — so it cannot re-analyze the codebase.
+- `wiki/services/<id>.md` per detected service. Concurrency bounded to 3 in flight.
+- `wiki/SERVICES.md` — deterministic catalog (no LLM call).
+- `wiki/index.md` — deterministic summary catalog: one line per page with `summary` / `document_type` / `confidence` / `tags` / `related` inline. Tier 1 retrieval at consumer time is one read, not N.
+- `<schema-filename>` — the wiki's runtime router, project-specific. `CLAUDE.md` for Claude provider, `AGENTS.md` for Codex provider, `COPILOT.md` for GitHub Copilot. Capped at ~150 lines: decision table, tier discipline, ingest workflow, off-limits. The frontmatter contract for wiki pages lives in `docs/CLAUDE_DIR_LAYOUT.md` (developer-facing, not query-time).
+
+See [`docs/LLM_WIKI.md`](../LLM_WIKI.md) for the full router contract and consumer-side retrieval model.
 
 ### Phase 5: Resource Sync
 
@@ -115,17 +142,24 @@ pnpm initialize -- -p <project-path> -f <framework-path>
 ### Examples
 
 ```bash
-# Current directory
-pnpm initialize -- -p $(pwd) -f $(pwd)
+# Standard run from the target project root
+cd /path/to/project
+./qubika-agentic-framework/scripts/initialize-project.sh
 
-# Specific project
-pnpm initialize -- -p /path/to/project -f /path/to/framework
+# Fast tier (Haiku) — recommended for first-pass analysis of new projects
+MODEL_TIER=fast ./qubika-agentic-framework/scripts/initialize-project.sh
 
-# Resume from checkpoint
-pnpm initialize -- -p /path/to/project -f /path/to/framework --resume
+# Codex provider
+./qubika-agentic-framework/scripts/initialize-project.sh --provider codex
 
-# Debug mode
-DEBUG=true pnpm initialize -- -p /path/to/project -f /path/to/framework
+# Fully automated (CI / CD — skip interactive gap questions)
+./qubika-agentic-framework/scripts/initialize-project.sh --skip-gap-questions
+
+# Resume after interruption (start at phase 4)
+./qubika-agentic-framework/scripts/initialize-project.sh --start-phase 4
+
+# Integration-fixture runs (token-burning, requires --confirm)
+./orchestration/test/integration/initialize-project/scripts/run-fixture.sh mini-monorepo --confirm
 ```
 
 ---
@@ -162,6 +196,23 @@ pnpm initialize -- -p . -f /path/to/framework
 
 ---
 
+## Code Graph Bootstrap (First Run)
+
+On the very first run, the workflow invokes `scripts/setup-code-graph.sh` to install and invoke `code-review-graph`. The script resolves the tool using this priority order:
+
+1. `code-review-graph` already on PATH — used directly.
+2. `uvx` available — runs `uvx code-review-graph` without a persistent install.
+3. `uv` available (but no uvx) — installs via `uv tool install code-review-graph`.
+4. **Bootstrap**: if none of the above exist, the script downloads and installs `uv` automatically via the official installer (`curl -LsSf https://astral.sh/uv/install.sh | sh`), then uses `uvx`. This requires `curl` and outbound access to `astral.sh`. The installer places a single static binary in `~/.local/bin`; no system Python or sudo is needed.
+5. `pipx` — installs the package persistently.
+6. Python 3.10+ with pip — installs with `pip install --user`.
+
+When you see `[code-graph] bootstrapping uv (single-binary Python tool runner)` in the output, step 4 is running. This is a one-time operation; subsequent runs find `uvx` already on PATH.
+
+After installation, `setup-code-graph.sh` writes `<projectPath>/.code-review-graph/launcher.json`. The TypeScript layer reads this file on subsequent calls so it never needs to resolve the binary again from scratch.
+
+---
+
 ## Troubleshooting
 
 ### "Stack detection failed"
@@ -175,8 +226,11 @@ cat .claude-temp/initialize/artifacts/phase1-analysis.json | jq .stack_analyzer
 
 ### "Phase timeout"
 ```bash
-# Increase timeout or use opus
-MODEL_TIER=opus pnpm initialize ...
+# Increase the wall-clock timeout
+./qubika-agentic-framework/scripts/initialize-project.sh --timeout 5400
+
+# Or fall back to the fast (Haiku) tier
+MODEL_TIER=fast ./qubika-agentic-framework/scripts/initialize-project.sh
 ```
 
 ### "Validation failed"

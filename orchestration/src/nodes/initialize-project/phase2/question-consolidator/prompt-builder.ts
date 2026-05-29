@@ -8,7 +8,6 @@ export function buildConsolidationPrompt(gaps: any[], feedbackPrompt?: string): 
 
   const parts: string[] = [buildContentSection('Input Gaps', gapsJson)];
 
-  // Add consolidation-specific instructions
   parts.push(
     '',
     [

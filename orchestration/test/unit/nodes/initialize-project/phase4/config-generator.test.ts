@@ -81,7 +81,10 @@ describe('config-generator', () => {
       expect(config.version).toBe('2.0.0');
       expect(config.schema_version).toBe('1.0.0');
       expect(config.framework_version).toBe('2.0.0');
-      expect(config.project_metadata.project_path).toBe('/test/project');
+      // project_metadata.project_path was retired (zero readers in codebase) —
+      // assert it's no longer present so a future regression that re-adds the
+      // absolute-path field is caught by this test.
+      expect((config.project_metadata as Record<string, unknown>).project_path).toBeUndefined();
       expect(config.project_metadata.last_analysis).toBeDefined();
       expect(config.project_metadata.initialization_hash).toBeDefined();
     });

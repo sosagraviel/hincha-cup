@@ -475,6 +475,144 @@ Frontend: {{frameworks.frontend}}`;
         { recursive: true },
       );
     });
+
+    // Write-time guard. An implementer agent was once shipped with
+    // empty Typecheck/Test/Build cells because the renderer was passed
+    // `typecheck_command` while the template asks for
+    // `{{type_check_command}}`. Handlebars silently rendered empty
+    // strings. This guard catches both the placeholder leak (template
+    // variable miss) and the empty-cell leak (extractor + default both
+    // empty) BEFORE the file lands on disk.
+    describe('writeAgents — pre-flight render validation', () => {
+      it('throws when an unrendered Handlebars placeholder leaks through', () => {
+        const agents: GeneratedAgent[] = [
+          {
+            name: 'implementer-typescript',
+            filename: 'implementer-typescript.md',
+            model: 'sonnet',
+            description: 'TS impl',
+            content: '# Impl\n\n- Run linter: `{{lint_command}}`\n',
+            path: '',
+          },
+        ];
+
+        expect(() => writeAgents(agents, '/test/project')).toThrow(
+          /unrendered Handlebars placeholders.*\{\{lint_command\}\}/,
+        );
+        expect(fs.writeFileSync).not.toHaveBeenCalled();
+      });
+
+      it('reports every distinct placeholder, not just the first', () => {
+        const agents: GeneratedAgent[] = [
+          {
+            name: 'implementer-typescript',
+            filename: 'implementer-typescript.md',
+            model: 'sonnet',
+            description: 'TS impl',
+            content:
+              '# Impl\n\nLint `{{lint_command}}`, type `{{type_check_command}}`, test `{{unit_test_command}}`.',
+            path: '',
+          },
+        ];
+
+        try {
+          writeAgents(agents, '/test/project');
+          throw new Error('expected writeAgents to throw');
+        } catch (err) {
+          const msg = (err as Error).message;
+          expect(msg).toContain('{{lint_command}}');
+          expect(msg).toContain('{{type_check_command}}');
+          expect(msg).toContain('{{unit_test_command}}');
+        }
+      });
+
+      it('throws when implementer commands table has an empty cell', () => {
+        const agents: GeneratedAgent[] = [
+          {
+            name: 'implementer-typescript',
+            filename: 'implementer-typescript.md',
+            model: 'sonnet',
+            description: 'TS impl',
+            content: [
+              '# Implementer',
+              '',
+              '| Stage      | Command         |',
+              '| ---------- | --------------- |',
+              '| Lint       | `npm run lint`  |',
+              '| Typecheck  |                 |',
+              '| Test       | `npm test`      |',
+              '| Build      | `npm run build` |',
+            ].join('\n'),
+            path: '',
+          },
+        ];
+
+        expect(() => writeAgents(agents, '/test/project')).toThrow(/empty cell.*Typecheck/i);
+        expect(fs.writeFileSync).not.toHaveBeenCalled();
+      });
+
+      it('does NOT trigger empty-cell guard for implementer-generic (no commands table)', () => {
+        const agents: GeneratedAgent[] = [
+          {
+            name: 'implementer-generic',
+            filename: 'implementer-generic.md',
+            model: 'sonnet',
+            description: 'Generic',
+            content: '# Generic\n\nNo commands table here.\n',
+            path: '',
+          },
+        ];
+
+        expect(() => writeAgents(agents, '/test/project')).not.toThrow();
+        expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+      });
+
+      it('passes a fully-rendered implementer with all command cells populated', () => {
+        const agents: GeneratedAgent[] = [
+          {
+            name: 'implementer-typescript',
+            filename: 'implementer-typescript.md',
+            model: 'sonnet',
+            description: 'TS impl',
+            content: [
+              '# Implementer',
+              '',
+              '| Stage      | Command          |',
+              '| ---------- | ---------------- |',
+              '| Lint       | `npm run lint`   |',
+              '| Typecheck  | `npm run tsc`    |',
+              '| Test       | `npm test`       |',
+              '| Build      | `npm run build`  |',
+            ].join('\n'),
+            path: '',
+          },
+        ];
+
+        expect(() => writeAgents(agents, '/test/project')).not.toThrow();
+        expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+      });
+
+      it('points at the correct generator file in the error message', () => {
+        const agents: GeneratedAgent[] = [
+          {
+            name: 'planner',
+            filename: 'planner.md',
+            model: 'opus',
+            description: 'Planner',
+            content: '# Planner\n\n{{some_unknown_var}}',
+            path: '',
+          },
+        ];
+
+        try {
+          writeAgents(agents, '/test/project');
+          throw new Error('expected to throw');
+        } catch (err) {
+          const msg = (err as Error).message;
+          expect(msg).toMatch(/agent-generators\.ts/);
+        }
+      });
+    });
   });
 
   describe('Handlebars helpers', () => {

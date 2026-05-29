@@ -1,93 +1,173 @@
 /**
  * Phase 4: Synthesis Extractor Helper
  *
- * Extracts CLAUDE.md and project-context/SKILL.md content from Phase 3 synthesis
- * and writes them to the appropriate locations in the project directory.
+ * Extracts the five sections from Phase 3 synthesis (one Opus call) and
+ * writes the four file-bound sections to disk:
+ *
+ *   1. CLAUDE.md (or AGENTS.md on Codex) → `<project>/.claude/CLAUDE.md`
+ *      (or `.codex/AGENTS.md`).
+ *   2. code-conventions/SKILL.md → `<project>/.claude/skills/code-conventions/SKILL.md`.
+ *   3. multi-file-workflows/SKILL.md → `<project>/.claude/skills/multi-file-workflows/SKILL.md`.
+ *   4. testing-conventions/SKILL.md → `<project>/.claude/skills/testing-conventions/SKILL.md`.
+ *
+ * The fifth section — the Architectural Narrative — is NOT written as a
+ * skill. It is returned to the caller (Phase 4b wiki preparation) as
+ * descriptive prose the wiki-generator agent consumes when compiling
+ * ARCHITECTURE.md and per-service docs. See
+ * `ai-documentation-strategy/09-context-strategy/analysis.md` for the
+ * descriptive/prescriptive split.
+ *
+ * Every write goes through PortableWriter, which fails fast if the
+ * synthesizer emitted a non-portable absolute path (`/Users/<name>/…`).
+ * That triggers the orchestration's retry-with-feedback loop.
  */
 
-import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { extractSynthesisMarkdown } from '../../../../utils/validator.js';
+import { resolveConfigPath, resolveInstructionFilePath } from '../../../../utils/provider-paths.js';
 import {
-  resolveConfigPath,
-  resolveInstructionFilePath,
-  getInstructionFileName,
-} from '../../../../utils/provider-paths.js';
+  PortablePathResolver,
+  PortableWriter,
+  PortabilityError,
+  asAbsolutePath,
+} from '../../../../services/framework/portable-paths/index.js';
 
-/**
- * Result of synthesis extraction and file writing
- */
 export interface SynthesisExtractionResult {
   claudeMdContent: string;
-  projectContextContent: string;
+  codeConventionsContent: string;
+  multiFileWorkflowsContent: string;
+  testingConventionsContent: string;
+  architecturalNarrative: string;
   claudeMdPath: string;
-  projectContextPath: string;
+  codeConventionsPath: string;
+  multiFileWorkflowsPath: string;
+  testingConventionsPath: string;
 }
 
 /**
- * Extract and write synthesis files from Phase 3 synthesis output
- *
- * This function:
- * - Uses extractSynthesisMarkdown() to extract CLAUDE.md and project-context content
- * - Writes CLAUDE.md to .claude/CLAUDE.md
- * - Writes project-context/SKILL.md to .claude/skills/project-context/SKILL.md
- * - Normalizes the skill name to "project-context" (not project-specific name)
- *
- * @param synthesisContent - Raw synthesis content from Phase 3
- * @param projectPath - Path to the project root directory
- * @param logger - Logger instance for success messages
- * @returns Object containing content and paths for both files
- * @throws Error if extraction fails or required sections are missing
+ * Skill-specific metadata for the on-disk write step. The framework
+ * normalizes the YAML `name:` field to the canonical skill slug (regardless
+ * of what the LLM put in the synthesis blob) so consumers can look up the
+ * skill by a stable name.
  */
+const PRESCRIPTIVE_SKILLS = [
+  {
+    section: 'codeConventions' as const,
+    skillName: 'code-conventions',
+    successLabel: 'code-conventions/SKILL.md',
+  },
+  {
+    section: 'multiFileWorkflows' as const,
+    skillName: 'multi-file-workflows',
+    successLabel: 'multi-file-workflows/SKILL.md',
+  },
+  {
+    section: 'testingConventions' as const,
+    skillName: 'testing-conventions',
+    successLabel: 'testing-conventions/SKILL.md',
+  },
+];
+
+/**
+ * Force the YAML `name:` field in a skill body to the canonical slug. The
+ * synthesizer might emit `name: code_conventions` or `name: My Code Rules`;
+ * downstream skill-loading code requires the exact slug.
+ */
+function normalizeSkillName(content: string, expectedName: string): string {
+  return content.replace(
+    /^---\n([\s\S]*?)name:\s*[^\n]+\n([\s\S]*?)---/m,
+    (_match, before: string, after: string) => `---\n${before}name: ${expectedName}\n${after}---`,
+  );
+}
+
 export function extractAndWriteSynthesis(
   synthesisContent: string,
   projectPath: string,
   logger: any,
 ): SynthesisExtractionResult {
-  logger.info(' Extracting from markdown format...');
+  logger.info(' Extracting synthesis sections...');
 
-  // Use resilient extraction (handles preamble text like "Let me output...")
   const extracted = extractSynthesisMarkdown(synthesisContent);
   if (!extracted) {
     throw new Error(
-      'Could not find required sections in synthesis output. ' +
-        "Expected '# CLAUDE.md Content' or '# AGENTS.md Content', '---', " +
-        "and '# project-context/SKILL.md Content'",
+      'Could not find required sections in synthesis output. Expected (in order): ' +
+        '"# CLAUDE.md Content" (or "# AGENTS.md Content"), ' +
+        '"# code-conventions/SKILL.md Content", ' +
+        '"# multi-file-workflows/SKILL.md Content", ' +
+        '"# testing-conventions/SKILL.md Content", ' +
+        '"# Architectural Narrative Content".',
     );
   }
 
-  const claudeMdContent = extracted.claudemd;
-  const claudeMdLines = claudeMdContent.split('\n').length;
+  const claudeMdLines = extracted.claudemd.split('\n').length;
   logger.success(`✓ Extracted CLAUDE.md (${claudeMdLines} lines)`);
+  for (const { section, successLabel } of PRESCRIPTIVE_SKILLS) {
+    const lines = extracted[section].split('\n').length;
+    logger.success(`✓ Extracted ${successLabel} (${lines} lines)`);
+  }
+  const narrativeLines = extracted.architecturalNarrative.split('\n').length;
+  logger.success(`✓ Extracted Architectural Narrative (${narrativeLines} lines)`);
 
-  const projectContextContent = extracted.projectContext;
-  const projectContextLines = projectContextContent.split('\n').length;
-  logger.success(`✓ Extracted project-context/SKILL.md (${projectContextLines} lines)`);
+  const portableWriter = new PortableWriter(new PortablePathResolver(asAbsolutePath(projectPath)));
 
-  // Write instruction file (CLAUDE.md or AGENTS.md based on active provider)
   const claudeMdPath = resolveInstructionFilePath(projectPath);
-  mkdirSync(resolveConfigPath(projectPath), { recursive: true });
-  writeFileSync(claudeMdPath, claudeMdContent);
+  try {
+    portableWriter.writeMarkdown(asAbsolutePath(claudeMdPath), extracted.claudemd);
+  } catch (err) {
+    if (err instanceof PortabilityError) {
+      throw new Error(
+        `Phase 3 synthesis emitted a non-portable absolute path in CLAUDE.md content. ` +
+          `Re-run synthesis with explicit "use only project-relative paths" guidance. ` +
+          `Underlying: ${err.message}`,
+      );
+    }
+    throw err;
+  }
   logger.success(`✓ Written: ${claudeMdPath}`);
 
-  // Write project-context/SKILL.md
-  const projectContextDir = resolveConfigPath(projectPath, 'skills', 'project-context');
-  mkdirSync(projectContextDir, { recursive: true });
-  const projectContextPath = join(projectContextDir, 'SKILL.md');
+  const skillContents: Record<(typeof PRESCRIPTIVE_SKILLS)[number]['skillName'], string> = {
+    'code-conventions': '',
+    'multi-file-workflows': '',
+    'testing-conventions': '',
+  };
+  const skillPaths: Record<(typeof PRESCRIPTIVE_SKILLS)[number]['skillName'], string> = {
+    'code-conventions': '',
+    'multi-file-workflows': '',
+    'testing-conventions': '',
+  };
 
-  // Ensure the skill name is always "project-context" (not project-specific name)
-  const normalizedProjectContext = projectContextContent.replace(
-    /^---\n([\s\S]*?)name:\s*[^\n]+\n([\s\S]*?)---/m,
-    (match, before, after) => `---\n${before}name: project-context\n${after}---`,
-  );
+  for (const { section, skillName } of PRESCRIPTIVE_SKILLS) {
+    const skillDir = resolveConfigPath(projectPath, 'skills', skillName);
+    const skillPath = join(skillDir, 'SKILL.md');
+    const normalized = normalizeSkillName(extracted[section], skillName);
 
-  writeFileSync(projectContextPath, normalizedProjectContext);
-  logger.success(`✓ Written: ${projectContextPath}`);
+    try {
+      portableWriter.writeMarkdown(asAbsolutePath(skillPath), normalized);
+    } catch (err) {
+      if (err instanceof PortabilityError) {
+        throw new Error(
+          `Phase 3 synthesis emitted a non-portable absolute path in ${skillName}/SKILL.md. ` +
+            `Re-run synthesis with explicit "use only project-relative paths" guidance. ` +
+            `Underlying: ${err.message}`,
+        );
+      }
+      throw err;
+    }
+    logger.success(`✓ Written: ${skillPath}`);
+
+    skillContents[skillName] = normalized;
+    skillPaths[skillName] = skillPath;
+  }
 
   return {
-    claudeMdContent,
-    projectContextContent: normalizedProjectContext,
+    claudeMdContent: extracted.claudemd,
+    codeConventionsContent: skillContents['code-conventions'],
+    multiFileWorkflowsContent: skillContents['multi-file-workflows'],
+    testingConventionsContent: skillContents['testing-conventions'],
+    architecturalNarrative: extracted.architecturalNarrative,
     claudeMdPath,
-    projectContextPath,
+    codeConventionsPath: skillPaths['code-conventions'],
+    multiFileWorkflowsPath: skillPaths['multi-file-workflows'],
+    testingConventionsPath: skillPaths['testing-conventions'],
   };
 }

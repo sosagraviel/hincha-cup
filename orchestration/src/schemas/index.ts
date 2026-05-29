@@ -4,7 +4,6 @@
  * Central export point for all schema definitions
  */
 
-// Stack Profile schemas (Service-Centric)
 export {
   StackProfileSchema,
   ServiceSchema,
@@ -22,7 +21,6 @@ export {
   type ServiceDatabase,
   type ServiceEnvironment,
   type ServiceFrameworks,
-  // Helper functions
   getLanguagesFromStackProfile,
   getPrimaryLanguage,
   getAllDatabases,
@@ -32,7 +30,6 @@ export {
   getAllTestingFrameworks,
 } from './stack-profile.schema.js';
 
-// Framework Config schemas
 export {
   FrameworkConfigSchema,
   ResourceInfoSchema,
@@ -48,7 +45,6 @@ export {
   type ResourceState,
 } from './framework-config.schema.js';
 
-// UI Visual Testing schemas
 export {
   ViewportSchema,
   IgnoreRegionSchema,
@@ -63,3 +59,24 @@ export {
   type FigmaConfig,
   type UIVisualTestingConfig,
 } from './ui-visual-testing.schema.js';
+
+export {
+  FixInstructionSchema,
+  SeveritySchema,
+  FindingSchema,
+  RepositoryRefSchema,
+  TokenUsageSchema,
+  ReviewResultsSchema,
+  SecurityResultsSchema,
+  PrCrossRepoSummarySchema,
+  SecurityCrossRepoSummarySchema,
+  type FixInstruction,
+  type Severity,
+  type Finding,
+  type RepositoryRef,
+  type TokenUsage,
+  type ReviewResults,
+  type SecurityResults,
+  type PrCrossRepoSummary,
+  type SecurityCrossRepoSummary,
+} from './quality-review.schema.js';

@@ -237,7 +237,11 @@ describe('consolidationNode', () => {
     expect(result.current_phase).toBe('phase2_consolidation');
   });
 
-  it('should preserve existing errors', async () => {
+  it('returns only the new error; the LangGraph reducer merges with existing state.errors', async () => {
+    // Phase E: nodes return only their delta — the annotation reducer
+    // (`(left, right) => [...left, ...right]`) concatenates. The previous
+    // `[...state.errors, new]` spread caused each error to duplicate every
+    // phase.
     mockState.errors = ['Previous error'];
     vi.mocked(consolidationUtil.analysisConsolidator).mockImplementation(() => {
       throw new Error('New error');
@@ -245,6 +249,7 @@ describe('consolidationNode', () => {
 
     const result = await consolidationNode(mockState);
 
-    expect(result.errors).toContain('Previous error');
+    expect(result.errors).not.toContain('Previous error');
+    expect(result.errors?.some((e) => e.includes('New error'))).toBe(true);
   });
 });

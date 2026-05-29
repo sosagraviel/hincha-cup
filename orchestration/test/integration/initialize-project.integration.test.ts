@@ -106,16 +106,23 @@ describe('Initialize Project Integration Tests - 6-Phase Workflow', () => {
       // Verify Phase 4 (context generation)
       expect(result.phase4_context).toBeDefined();
       expect(result.phase4_context?.claude_md_written).toBe(true);
-      expect(result.phase4_context?.project_context_written).toBe(true);
+      expect(result.phase4_context?.conventions_skills_written).toBe(true);
+      expect(result.phase4_context?.architectural_narrative_written).toBe(true);
       expect(result.phase4_context?.framework_config_generated).toBe(true);
 
       // Verify files were created
       expect(result.claude_md_path).toBeDefined();
       expect(result.framework_config_path).toBeDefined();
-      expect(result.project_context_path).toBeDefined();
+      expect(result.code_conventions_path).toBeDefined();
+      expect(result.multi_file_workflows_path).toBeDefined();
+      expect(result.testing_conventions_path).toBeDefined();
+      expect(result.architectural_narrative_path).toBeDefined();
       expect(existsSync(result.claude_md_path!)).toBe(true);
       expect(existsSync(result.framework_config_path!)).toBe(true);
-      expect(existsSync(result.project_context_path!)).toBe(true);
+      expect(existsSync(result.code_conventions_path!)).toBe(true);
+      expect(existsSync(result.multi_file_workflows_path!)).toBe(true);
+      expect(existsSync(result.testing_conventions_path!)).toBe(true);
+      expect(existsSync(result.architectural_narrative_path!)).toBe(true);
 
       console.log('✓ All assertions passed');
     }, 1200000); // 20 minute timeout for full workflow

@@ -1,0 +1,390 @@
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { Provider } from '../../providers/types.js';
+import { getActiveProvider, getProviderPaths } from '../../utils/provider-paths.js';
+import { graphDbPath } from '../graph-wiki/code-graph.service.js';
+import {
+  codexMcpServerMatches,
+  extractCodeGraphMcpTomlServer,
+  upsertCodeGraphMcpTomlBlock,
+} from './codex-mcp-toml.js';
+import { upsertCodexPathRestrictionHookBlock } from './codex-hooks-toml.js';
+
+interface McpConfig {
+  mcpServers?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface CodeGraphMcpConfigResult {
+  configPath: string;
+  changed: boolean;
+  backedUp: boolean;
+  backupPath?: string;
+}
+
+export interface CodeGraphMcpValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+const CODE_GRAPH_SERVER_NAME = 'code_graph';
+const CODEX_CONFIG_FILE = 'config.toml';
+
+/**
+ * Build the expected `code_graph` MCP server config for a project. The launcher
+ * path prefers the shipped copy inside the project's provider config dir
+ * (`<project>/.claude/scripts/code-review-graph-mcp.sh`) so the MCP server keeps
+ * working when the user has no `qubika-agentic-framework/` checkout in their
+ * project. Falls back to the framework's own copy when the shipped one is
+ * absent — covers framework dogfooding before sync has populated `.claude/`,
+ * plus any other pre-bootstrap state.
+ *
+ * This is the single source of truth for the launcher path; `ensure-context.sh`
+ * resolves it from `$SCRIPT_DIR` and both writers agree by construction in
+ * every layout we support.
+ */
+export function getCodeGraphMcpServer(
+  projectPath: string,
+  frameworkPath: string,
+  provider: Provider = getActiveProvider(),
+) {
+  const { configDir } = getProviderPaths(provider);
+  const shippedLauncher = join(projectPath, configDir, 'scripts', 'code-review-graph-mcp.sh');
+  const frameworkLauncher = join(frameworkPath, 'scripts', 'code-review-graph-mcp.sh');
+  const launcher = existsSync(shippedLauncher) ? shippedLauncher : frameworkLauncher;
+  return {
+    command: 'bash',
+    args: [launcher, 'serve', '--repo', projectPath],
+  };
+}
+
+export function upsertCodeGraphMcpConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+  provider?: Provider;
+}): CodeGraphMcpConfigResult {
+  const { projectPath, frameworkPath, provider = getActiveProvider() } = params;
+  if (provider === Provider.CODEX) {
+    return upsertCodexCodeGraphMcpConfig({ projectPath, frameworkPath });
+  }
+
+  return upsertClaudeCodeGraphMcpConfig({ projectPath, frameworkPath });
+}
+
+function upsertClaudeCodeGraphMcpConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+}): CodeGraphMcpConfigResult {
+  const { projectPath, frameworkPath } = params;
+  const configPath = join(projectPath, '.mcp.json');
+  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath, Provider.CLAUDE);
+
+  let config: McpConfig = {};
+  let backedUp = false;
+  let backupPath: string | undefined;
+
+  if (existsSync(configPath)) {
+    config = readMcpConfig(configPath);
+  }
+
+  if (!isPlainObject(config.mcpServers)) {
+    if (config.mcpServers !== undefined) {
+      throw new Error(`Invalid MCP config at ${configPath}: mcpServers must be an object.`);
+    }
+    config.mcpServers = {};
+  }
+
+  const existingCodeGraph = config.mcpServers[CODE_GRAPH_SERVER_NAME];
+  const changed = JSON.stringify(existingCodeGraph) !== JSON.stringify(expectedServer);
+
+  if (!changed) {
+    return {
+      configPath,
+      changed: false,
+      backedUp: false,
+    };
+  }
+
+  if (existingCodeGraph !== undefined && existsSync(configPath)) {
+    backupPath = backupMcpConfig(projectPath, configPath);
+    backedUp = true;
+  }
+
+  config.mcpServers[CODE_GRAPH_SERVER_NAME] = expectedServer;
+  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+
+  return {
+    configPath,
+    changed: true,
+    backedUp,
+    backupPath,
+  };
+}
+
+export function validateCodeGraphMcpConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+  provider?: Provider;
+}): CodeGraphMcpValidationResult {
+  const { projectPath, frameworkPath, provider = getActiveProvider() } = params;
+  if (provider === Provider.CODEX) {
+    return validateCodexCodeGraphMcpConfig({ projectPath, frameworkPath });
+  }
+
+  return validateClaudeCodeGraphMcpConfig({ projectPath, frameworkPath });
+}
+
+function validateClaudeCodeGraphMcpConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+}): CodeGraphMcpValidationResult {
+  const { projectPath, frameworkPath } = params;
+  const configPath = join(projectPath, '.mcp.json');
+  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath, Provider.CLAUDE);
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!existsSync(graphDbPath(projectPath))) {
+    errors.push('Code graph database not found: .code-review-graph/graph.db');
+  }
+
+  if (!existsSync(configPath)) {
+    errors.push('Project MCP config not found: .mcp.json');
+    return { valid: errors.length === 0, errors, warnings };
+  }
+
+  let config: McpConfig;
+  try {
+    config = readMcpConfig(configPath);
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : String(error));
+    return { valid: false, errors, warnings };
+  }
+
+  if (!isPlainObject(config.mcpServers)) {
+    errors.push('Project MCP config .mcp.json is missing object field: mcpServers');
+    return { valid: false, errors, warnings };
+  }
+
+  const codeGraphServer = config.mcpServers[CODE_GRAPH_SERVER_NAME];
+  if (!isPlainObject(codeGraphServer)) {
+    errors.push('Project MCP config .mcp.json is missing mcpServers.code_graph');
+    return { valid: false, errors, warnings };
+  }
+
+  if (codeGraphServer.command !== expectedServer.command) {
+    errors.push('mcpServers.code_graph.command must be "bash"');
+  }
+
+  const args = codeGraphServer.args;
+  if (!Array.isArray(args)) {
+    errors.push('mcpServers.code_graph.args must be an array');
+  } else {
+    const expectedArgs = expectedServer.args;
+    for (const expectedArg of expectedArgs) {
+      if (!args.includes(expectedArg)) {
+        errors.push(`mcpServers.code_graph.args missing required value: ${expectedArg}`);
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+  };
+}
+
+function upsertCodexCodeGraphMcpConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+}): CodeGraphMcpConfigResult {
+  const { projectPath, frameworkPath } = params;
+  const configDir = join(projectPath, getProviderPaths(Provider.CODEX).configDir);
+  const configPath = join(configDir, CODEX_CONFIG_FILE);
+  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath, Provider.CODEX);
+  const existingContent = existsSync(configPath) ? readFileSync(configPath, 'utf-8') : '';
+  const existingServer = extractCodeGraphMcpTomlServer(existingContent);
+  const changed = !codexMcpServerMatches(existingServer, expectedServer);
+
+  if (!changed) {
+    return {
+      configPath,
+      changed: false,
+      backedUp: false,
+    };
+  }
+
+  let backedUp = false;
+  let backupPath: string | undefined;
+  if (existingServer !== undefined && existsSync(configPath)) {
+    backupPath = backupMcpConfig(projectPath, configPath, Provider.CODEX);
+    backedUp = true;
+  }
+
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(configPath, upsertCodeGraphMcpTomlBlock(existingContent, expectedServer));
+
+  return {
+    configPath,
+    changed: true,
+    backedUp,
+    backupPath,
+  };
+}
+
+/**
+ * Upsert the framework's path-restriction hook block into Codex's
+ * `.codex/config.toml`.
+ *
+ * Why this exists: Codex CLI has no `permissions.deny` equivalent (the
+ * Claude-side mechanism for filtering Glob/Grep results — see
+ * `permissions/excluded-paths.ts`). Codex's tool surface is Bash + apply_patch
+ * + MCP, so `find` / `grep` walks happen inside Bash. The official Codex
+ * hooks docs (https://developers.openai.com/codex/hooks) document a
+ * `PreToolUse` event with `permissionDecision: "deny"` support, which is
+ * exactly the contract our existing `restrict-agent-paths.hook.ts` uses
+ * (exit 2 with stderr feedback ⇒ block). This wires the hook into Codex's
+ * config so Codex sessions get the same blocking guarantee Claude sessions
+ * already have through `permissions.deny`.
+ *
+ * Idempotent: the upsert uses sentinel comments to identify the framework's
+ * managed block; surrounding Codex config (other `[mcp_servers.*]` tables,
+ * user model/sandbox config) is preserved byte-for-byte.
+ *
+ * Stack-agnostic — only TOML mechanics; no language or framework
+ * assumptions. Covers Codex on every project shape (PHP, Python, Go,
+ * legacy .NET, etc.).
+ */
+export function upsertCodexPathRestrictionHookConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+}): CodeGraphMcpConfigResult {
+  const { projectPath, frameworkPath } = params;
+  const configDir = join(projectPath, getProviderPaths(Provider.CODEX).configDir);
+  const configPath = join(configDir, CODEX_CONFIG_FILE);
+  const tsxBin = join(frameworkPath, 'orchestration/node_modules/.bin/tsx');
+  const hookScript = join(
+    frameworkPath,
+    'orchestration/src/nodes/initialize-project/shared/hooks/restrict-agent-paths.hook.ts',
+  );
+  const existingContent = existsSync(configPath) ? readFileSync(configPath, 'utf-8') : '';
+  const updated = upsertCodexPathRestrictionHookBlock(existingContent, { tsxBin, hookScript });
+
+  if (updated === existingContent) {
+    return {
+      configPath,
+      changed: false,
+      backedUp: false,
+    };
+  }
+
+  let backedUp = false;
+  let backupPath: string | undefined;
+  if (existsSync(configPath)) {
+    backupPath = backupMcpConfig(projectPath, configPath, Provider.CODEX);
+    backedUp = true;
+  }
+
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(configPath, updated);
+
+  return {
+    configPath,
+    changed: true,
+    backedUp,
+    backupPath,
+  };
+}
+
+function validateCodexCodeGraphMcpConfig(params: {
+  projectPath: string;
+  frameworkPath: string;
+}): CodeGraphMcpValidationResult {
+  const { projectPath, frameworkPath } = params;
+  const configPath = join(
+    projectPath,
+    getProviderPaths(Provider.CODEX).configDir,
+    CODEX_CONFIG_FILE,
+  );
+  const expectedServer = getCodeGraphMcpServer(projectPath, frameworkPath, Provider.CODEX);
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!existsSync(graphDbPath(projectPath))) {
+    errors.push('Code graph database not found: .code-review-graph/graph.db');
+  }
+
+  if (!existsSync(configPath)) {
+    errors.push('Codex MCP config not found: .codex/config.toml');
+    return { valid: errors.length === 0, errors, warnings };
+  }
+
+  const configContent = readFileSync(configPath, 'utf-8');
+  const codeGraphServer = extractCodeGraphMcpTomlServer(configContent);
+  if (!codeGraphServer) {
+    errors.push('Codex MCP config .codex/config.toml is missing [mcp_servers.code_graph]');
+    return { valid: false, errors, warnings };
+  }
+
+  if (codeGraphServer.command !== expectedServer.command) {
+    errors.push('mcp_servers.code_graph.command must be "bash"');
+  }
+
+  const args = codeGraphServer.args;
+  if (!Array.isArray(args)) {
+    errors.push('mcp_servers.code_graph.args must be an array');
+  } else {
+    const expectedArgs = expectedServer.args;
+    for (const expectedArg of expectedArgs) {
+      if (!args.includes(expectedArg)) {
+        errors.push(`mcp_servers.code_graph.args missing required value: ${expectedArg}`);
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+  };
+}
+
+function readMcpConfig(configPath: string): McpConfig {
+  const raw = readFileSync(configPath, 'utf-8');
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isPlainObject(parsed)) {
+      throw new Error('root value must be an object');
+    }
+    return parsed as McpConfig;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid MCP config JSON at ${configPath}: ${message}`);
+  }
+}
+
+function backupMcpConfig(
+  projectPath: string,
+  configPath: string,
+  provider: Provider = Provider.CLAUDE,
+): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupDir = join(
+    projectPath,
+    getProviderPaths(provider).backupDir,
+    'mcp-config',
+    timestamp,
+  );
+  mkdirSync(backupDir, { recursive: true });
+
+  const backupPath = join(backupDir, provider === Provider.CODEX ? CODEX_CONFIG_FILE : '.mcp.json');
+  copyFileSync(configPath, backupPath);
+  return backupPath;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}

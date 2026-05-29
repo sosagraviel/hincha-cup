@@ -2,7 +2,6 @@
 
 import { Command } from 'commander';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { createInitializeProjectGraph } from '../graphs/initialize-project.graph.js';
 import {
   devCheckpointer,
@@ -14,17 +13,54 @@ import { AgentFactory } from '../utils/shared/agent-factory/index.js';
 import { runPreflightChecks } from '../utils/preflight-checks.js';
 import { Provider } from '../providers/types.js';
 import { setActiveProvider, resolveTempPath } from '../utils/provider-paths.js';
+import { getFrameworkPath, getProjectPath } from '../services/framework/paths.service.js';
 import { resetLLMFactory } from '../llm/llm-factory.js';
-import { DebugStore, setActiveDebugStore } from '../services/framework/debug-store/index.js';
+import {
+  DebugStore,
+  setActiveDebugStore,
+  computeRunStats,
+} from '../services/framework/debug-store/index.js';
 import { renderRunIndexHtml } from '../services/framework/transcripts/index.js';
+import { parseIgnoreFlag } from './parse-ignore-flag.js';
 import { loadClaudeSettingsEnv } from '../auth/claude-settings-loader.js';
 
-// Get the directory where this CLI script is located
-// This file is at: <framework>/orchestration/dist/cli/initialize.js
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// Framework root is 3 levels up from dist/cli/initialize.js
-const DEFAULT_FRAMEWORK_PATH = path.resolve(__dirname, '../../..');
+/**
+ * Maps a generic speed tier name to the correct Codex tier.
+ * Allows `MODEL_TIER=fast` to work the same way for both Claude and Codex.
+ */
+const CLAUDE_TO_CODEX_TIER: Record<string, string> = {
+  fast: 'codex-fast',
+  standard: 'openai',
+  advanced: 'openai',
+};
+
+function resolveCodexTier(tier: string | undefined, log: typeof logger): string {
+  const t = tier ?? 'standard';
+  if (t in CLAUDE_TO_CODEX_TIER) {
+    const mapped = CLAUDE_TO_CODEX_TIER[t];
+    if (t !== mapped) {
+      log.info(`Mapped tier '${t}' → '${mapped}' for Codex provider`);
+    }
+    return mapped;
+  }
+  // Already a codex-native tier (openai, codex-fast, gemini, …) — pass through.
+  return t;
+}
+
+const CODEX_TO_CLAUDE_TIER: Record<string, string> = {
+  openai: 'standard',
+  'codex-fast': 'fast',
+};
+
+function resolveClaudeTier(tier: string | undefined, log: typeof logger): string {
+  const t = tier ?? 'standard';
+  if (t in CODEX_TO_CLAUDE_TIER) {
+    const mapped = CODEX_TO_CLAUDE_TIER[t];
+    log.info(`Mapped tier '${t}' → '${mapped}' for Claude provider`);
+    return mapped;
+  }
+  return t;
+}
 
 const program = new Command();
 
@@ -32,12 +68,6 @@ program
   .name('orchestrate:initialize')
   .description('Initialize AI Agentic Framework for a project using TypeScript CLI orchestration')
   .version('1.0.0')
-  .option('-p, --project-path <path>', 'Project path to initialize', process.cwd())
-  .option(
-    '-f, --framework-path <path>',
-    'Framework path',
-    process.env.FRAMEWORK_PATH || DEFAULT_FRAMEWORK_PATH,
-  )
   .option(
     '--model-tier <tier>',
     'Set model tier: fast, standard, advanced, openai, or gemini (default: standard)',
@@ -57,6 +87,10 @@ program
     '--keep-runs <n>',
     'How many debug run folders to keep under .<provider>-temp/<workflow>/debug/runs/ (default: 10)',
     '10',
+  )
+  .option(
+    '--ignore <path...>',
+    'Extra directory or relative path to exclude from analysis. Two equivalent forms: repeatable (--ignore a --ignore b) or comma-separated (--ignore a,b,c). Additive to .gitignore + framework defaults.',
   )
   .action(async (options) => {
     if (options.debug) {
@@ -116,9 +150,6 @@ program
     });
 
     try {
-      // ================================================================
-      // PROVIDER & TIER SETUP (must happen BEFORE getLLMFactory singleton)
-      // ================================================================
       if (options.modelTier) {
         process.env.MODEL_TIER = options.modelTier;
       }
@@ -128,19 +159,17 @@ program
         if (providerLower === 'codex' || providerLower === 'openai') {
           setActiveProvider(Provider.CODEX);
           process.env.PROVIDER = 'codex';
-          if (!options.modelTier) {
-            process.env.MODEL_TIER = 'openai';
-          }
+          process.env.MODEL_TIER = resolveCodexTier(process.env.MODEL_TIER, logger);
         } else if (providerLower === 'claude' || providerLower === 'anthropic') {
           setActiveProvider(Provider.CLAUDE);
           process.env.PROVIDER = 'claude';
+          process.env.MODEL_TIER = resolveClaudeTier(process.env.MODEL_TIER, logger);
         } else {
           logger.error(`Unknown provider: ${options.provider}. Use 'claude' or 'codex'.`);
           process.exit(1);
         }
       }
 
-      // Reset factory in case it was created with wrong tier before
       resetLLMFactory();
       let llmFactory = getLLMFactory();
 
@@ -168,8 +197,8 @@ program
         process.exit(0);
       }
 
-      const projectPath = path.resolve(options.projectPath);
-      const frameworkPath = path.resolve(options.frameworkPath);
+      const projectPath = getProjectPath();
+      const frameworkPath = getFrameworkPath();
 
       const startPhase = parseInt(options.startPhase || '1', 10);
       if (isNaN(startPhase) || startPhase < 1 || startPhase > 6) {
@@ -177,29 +206,30 @@ program
         process.exit(1);
       }
 
+      const extraIgnorePaths = parseIgnoreFlag(options.ignore);
+      if (extraIgnorePaths.error) {
+        logger.error(`Invalid --ignore value: ${extraIgnorePaths.error}`);
+        process.exit(1);
+      }
+      if (extraIgnorePaths.paths.length > 0) {
+        logger.info(`Extra ignore paths: ${extraIgnorePaths.paths.join(', ')}`);
+      }
+
       /**
-       * Derive schema key from agent name
-       * Pattern: "structure-architecture-analyzer" → "structure_architecture"
-       * 1. Remove "-analyzer" suffix
-       * 2. Replace hyphens with underscores
+       * Derive a schema key from an analyzer agent name. Strips the
+       * `-analyzer` suffix and converts hyphens to underscores. Example:
+       * `"structure-architecture-analyzer"` → `"structure_architecture"`.
        */
       const getSchemaKeyFromAgentName = (agentName: string): string => {
-        return agentName
-          .replace(/-analyzer$/, '') // Remove -analyzer suffix
-          .replace(/-/g, '_'); // Replace hyphens with underscores
+        return agentName.replace(/-analyzer$/, '').replace(/-/g, '_');
       };
 
-      // Import fs for phase data loading (when using --start-phase)
       const fs = await import('fs');
 
-      // ========================================================================
-      // PREFLIGHT CHECKS - SINGLE SOURCE OF TRUTH
-      // ========================================================================
       logger.section('Preflight Checks');
 
       const preflightResult = await runPreflightChecks(projectPath, frameworkPath);
 
-      // Display warnings (non-blocking)
       if (preflightResult.warnings.length > 0) {
         logger.blank();
         preflightResult.warnings.forEach((warning) => {
@@ -208,7 +238,6 @@ program
         logger.blank();
       }
 
-      // Display errors and exit if any
       if (!preflightResult.success) {
         logger.blank();
         logger.error('Preflight checks failed:');
@@ -220,7 +249,6 @@ program
         process.exit(1);
       }
 
-      // Display success
       logger.success(`✓ Node.js ${preflightResult.nodeVersion}`);
       logger.success(`✓ npm ${preflightResult.npmVersion}`);
       if (preflightResult.claudeVersion) {
@@ -230,24 +258,22 @@ program
         logger.success(`✓ Codex CLI ${preflightResult.codexVersion}`);
       }
 
-      // Auto-detect provider from preflight if not explicitly set
       if (!options.provider) {
         if (preflightResult.authMode === 'claude_cli') {
           setActiveProvider(Provider.CLAUDE);
           process.env.PROVIDER = 'claude';
+          process.env.MODEL_TIER = resolveClaudeTier(process.env.MODEL_TIER, logger);
+          resetLLMFactory();
+          llmFactory = getLLMFactory();
         } else if (preflightResult.authMode === 'codex_cli') {
           setActiveProvider(Provider.CODEX);
           process.env.PROVIDER = 'codex';
-          if (!options.modelTier) {
-            process.env.MODEL_TIER = 'openai';
-            resetLLMFactory(); // Tier changed, need to re-create factory
-            llmFactory = getLLMFactory();
-          }
+          process.env.MODEL_TIER = resolveCodexTier(process.env.MODEL_TIER, logger);
+          resetLLMFactory();
+          llmFactory = getLLMFactory();
         }
-        // claude is already the default
       }
 
-      // Show auth mode
       if (preflightResult.authMode === 'claude_cli') {
         if (process.env.ANTHROPIC_API_KEY) {
           logger.success('✓ Authentication: Anthropic API key');
@@ -268,27 +294,6 @@ program
         logger.success('✓ .gitignore contains required entries');
       }
       logger.blank();
-
-      // // Copy initialization agent files and hooks to target project BEFORE Phase 1
-      // // Store in .claude/agents/initialization/ subdirectory to separate from implementer/planner agents
-      // // This ensures Claude CLI can find them by name when invoked with --agent flag
-      // const targetInitAgentsDir = path.join(projectPath, ".claude", "agents", "initialization");
-      // const sourceAgentsDir = path.join(frameworkPath, "orchestration", "agents");
-
-      // // Create target .claude/agents/initialization directory
-      // fs.mkdirSync(targetInitAgentsDir, { recursive: true });
-
-      // // Copy all initialization agent markdown files and hooks directory
-      // // This includes: 01-04 (analyzers), 05 (synthesizer), 06 (consolidator), hooks/
-      // if (fs.existsSync(sourceAgentsDir)) {
-      //   fs.cpSync(sourceAgentsDir, targetInitAgentsDir, {
-      //     recursive: true,
-      //     filter: (src) => {
-      //       // Copy all .md files and the hooks directory
-      //       return src.endsWith(".md") || src.includes("hooks") || src === sourceAgentsDir;
-      //     },
-      //   });
-      // }
 
       logger.spinner('Initializing workflow...', 'init');
       await initializeDevCheckpointer();
@@ -323,9 +328,6 @@ program
 
       const tempDir = resolveTempPath(projectPath, 'initialize-project');
 
-      // ================================================================
-      // DEBUG STORE — always-on per-run artifact capture
-      // ================================================================
       const runStartedAt = new Date();
       const debugStore = await DebugStore.create({
         projectPath,
@@ -349,7 +351,6 @@ program
       );
 
       const keepRuns = parseInt(options.keepRuns ?? '10', 10) || 10;
-      // Prune oldest runs in the background so we don't delay the workflow.
       DebugStore.pruneRuns(projectPath, 'initialize-project', keepRuns)
         .then((deleted) => {
           if (deleted.length > 0) {
@@ -484,6 +485,7 @@ program
         errors: [],
         warnings: [],
         start_phase: startPhase,
+        extra_ignore_paths: extraIgnorePaths.paths,
         ...previousPhaseData,
       };
 
@@ -508,7 +510,6 @@ program
 
       logger.blank();
 
-      // Finalize debug run — update manifest with end time, render index.html.
       try {
         const endedAt = new Date();
         await debugStore.updateRunManifest({
@@ -534,11 +535,20 @@ program
       if (result.claude_md_path) {
         logger.keyValue('CLAUDE.md', result.claude_md_path, 'green');
       }
-      if (result.project_context_path) {
-        logger.keyValue('project-context/SKILL.md', result.project_context_path, 'green');
+      if (result.code_conventions_path) {
+        logger.keyValue('code-conventions/SKILL.md', result.code_conventions_path, 'green');
+      }
+      if (result.multi_file_workflows_path) {
+        logger.keyValue('multi-file-workflows/SKILL.md', result.multi_file_workflows_path, 'green');
+      }
+      if (result.testing_conventions_path) {
+        logger.keyValue('testing-conventions/SKILL.md', result.testing_conventions_path, 'green');
       }
       if (result.framework_config_path) {
         logger.keyValue('framework-config.json', result.framework_config_path, 'green');
+      }
+      if (result.llm_wiki_path) {
+        logger.keyValue('docs/llm-wiki', result.llm_wiki_path, 'green');
       }
       logger.decreaseIndent();
       logger.blank();
@@ -553,25 +563,31 @@ program
       }
 
       if (result.warnings && result.warnings.length > 0) {
+        const uniqueWarnings = Array.from(new Set(result.warnings as string[]));
         logger.warn('Warnings encountered:');
         logger.increaseIndent();
-        result.warnings.forEach((warning: string) => logger.warn(warning));
+        uniqueWarnings.forEach((warning) => logger.warn(warning));
         logger.decreaseIndent();
         logger.blank();
       }
 
       if (result.errors && result.errors.length > 0) {
+        const uniqueErrors = Array.from(new Set(result.errors as string[]));
         logger.error('Errors encountered:');
         logger.increaseIndent();
-        result.errors.forEach((error: string) => logger.error(error));
+        uniqueErrors.forEach((error) => logger.error(error));
         logger.decreaseIndent();
         process.exit(1);
       }
 
       logger.section('Next Steps');
-      logger.info('1. Review CLAUDE.md for project context');
+      logger.info('1. Review CLAUDE.md for the cheat-sheet (file placement, commands, stack)');
       logger.info('2. Check framework-config.json for configuration');
-      logger.info('3. Explore project-context/SKILL.md for project-specific guidance');
+      logger.info('3. Explore the three convention skills under .claude/skills/:');
+      logger.info('   - code-conventions/SKILL.md (gotchas + WRONG/CORRECT examples)');
+      logger.info('   - multi-file-workflows/SKILL.md (cross-file checklists)');
+      logger.info('   - testing-conventions/SKILL.md (test rules + fixtures)');
+      logger.info('4. Review docs/llm-wiki for the graph-backed architectural narrative');
       logger.blank();
 
       process.exit(0);
@@ -589,7 +605,7 @@ program
         logger.info('You can resume this workflow later using:');
         logger.info(`  npm run initialize -- --resume <thread-id>`);
         logger.blank();
-        process.exit(130); // Standard SIGINT exit code (128 + 2)
+        process.exit(130);
       }
 
       logger.error('Workflow failed', error instanceof Error ? error : new Error(String(error)));
@@ -661,7 +677,8 @@ async function buildRunIndexHtml(debugStore: DebugStore): Promise<string> {
     debug: false,
     startedAt: debugStore.getRunContext().startedAt,
   };
-  return renderRunIndexHtml({ manifest, attempts: filtered });
+  const stats = await computeRunStats(runDir);
+  return renderRunIndexHtml({ manifest, attempts: filtered, stats });
 }
 
 program.parse();

@@ -63,8 +63,6 @@ export async function locateCodexRollout(
 }
 
 async function searchRollout(root: string, sessionId: string): Promise<string | null> {
-  // Walk year/month/day shallowly. Sessions folder depth is fixed so we can
-  // avoid a full recursive walk.
   const entries = await safeReaddir(root);
   let newest: { path: string; mtime: number } | null = null;
   for (const yearEntry of entries) {

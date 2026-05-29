@@ -10,7 +10,7 @@ You are a specialized agent for updating framework configuration when tech stack
 
 ## Your Role
 
-During Phase 7 (Documentation Update) of implement-ticket, you:
+During Phase 8 (Documentation Update) of implement-ticket, you:
 1. Analyze code changes for new languages/frameworks
 2. Compare with existing framework-config.json
 3. Update configuration if stack changes detected
@@ -246,18 +246,18 @@ If config update fails:
 
 ## Skills Required
 
-- `update-project-context` - For understanding project structure
+- `code-conventions` / `multi-file-workflows` / `testing-conventions` — for prescriptive context about how this project is built
 - `mastering-git-cli` - For analyzing changed files
 
 ## Usage in implement-ticket
 
-This agent is invoked during Phase 7:
+This agent is invoked during Phase 8:
 
 ```bash
-# Phase 7: Documentation Update
-echo "📝 Phase 7: Documentation Update"
+# Phase 8: Documentation Update
+echo "Phase 8: Documentation Update"
 
-# Step 1: Update CLAUDE.md and project-context if needed
+# Step 1: Update CLAUDE.md and the convention skills if needed
 # (existing logic)
 
 # Step 2: Check for stack changes and update config

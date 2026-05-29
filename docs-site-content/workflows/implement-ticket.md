@@ -13,7 +13,7 @@ Produces complete pull requests with:
 - ✅ Documentation updates
 - ✅ Visual regression testing (for UI changes)
 
-**Duration**: 10-25 minutes depending on complexity
+**Duration**: 12-30 minutes depending on complexity
 
 ---
 
@@ -93,34 +93,38 @@ export DEBUG=true  # Verbose logging
 
 ---
 
-## 11-Phase Process
+## 13-Phase Process
 
 ```mermaid
 graph LR
     A[Phase 0: Preflight<br/>30-60s] --> B[Phase 1: Context<br/>2-5min]
-    B --> C[Phase 2: Planning<br/>1-2min]
-    C --> D[Phase 3: Environment<br/>1-3min]
-    D --> E[Phase 4: Implementation<br/>3-8min]
-    E --> F[Phase 5: Testing<br/>2-5min]
-    F --> G[Phase 6: Visual<br/>2-4min]
-    G --> H[Phase 7: Documentation<br/>1-3min]
-    H --> I[Phase 8: PR Creation<br/>1-2min]
-    I --> J[Phase 9: Review<br/>2-4min]
-    J --> K[Phase 10: Cleanup<br/>1-2min]
+    B --> C[Phase 2: Wiki Preload<br/>1-2min]
+    C --> D[Phase 3: Planning<br/>1-2min]
+    D --> E[Phase 4: Environment<br/>1-3min]
+    E --> F[Phase 5: Implementation<br/>3-8min]
+    F --> G[Phase 6: Testing<br/>2-5min]
+    G --> H[Phase 7: Visual<br/>2-4min]
+    H --> I[Phase 8: Documentation<br/>1-3min]
+    I --> J[Phase 8.5: Wiki Refresh<br/>1-2min]
+    J --> K[Phase 9: PR Creation<br/>1-2min]
+    K --> L[Phase 10: Review<br/>2-4min]
+    L --> M[Phase 11: Cleanup<br/>1-2min]
 ```
 
 **Phases**:
-0. Preflight - Validate environment, git status, prerequisites
+0. Preflight - Validate environment, git status, LLM wiki presence; warn (do not fail) on stale wiki
 1. Context - Gather ticket context from Jira/markdown/input
-2. Planning - Create implementation plan with AI planner
-3. Environment - Create feature branch and setup
-4. Implementation - Generate code with AI implementer
-5. Testing - Run test suite with coverage validation
-6. Visual - Capture and analyze visual changes (UI only)
-7. Documentation - Update project documentation
-8. PR Creation - Commit changes and create pull request
-9. Review - Run automated quality and security reviews
-10. Cleanup - Clean up and archive artifacts
+2. Wiki Preload - Tiered retrieval: Tier 1 builds a frontmatter summary index for all wiki pages (cheap); Tier 2 runs one `get_minimal_context_tool` call; Tier 3 expands full bodies only for the 1–3 most relevant pages. Saves ~15-20 KB of context versus loading all bodies; planners receive untruncated bodies for relevant docs.
+3. Planning - Create implementation plan with AI planner using wiki + graph context. Mid-session budget warnings (prefixed `⚠ BUDGET WARNING`) are emitted to the planner via stop hooks when token consumption approaches or exceeds budget thresholds — informational only, non-blocking.
+4. Environment - Create feature branch and setup
+5. Implementation - Generate code with graph-aware AI implementer. The implementer may also receive mid-session `⚠ BUDGET WARNING` messages via stop hooks, directing it to trim exploratory graph queries.
+6. Testing - Run test suite with coverage validation
+7. Visual - Capture and analyze visual changes (UI only)
+8. Documentation - Update project documentation via `/doc-updater`
+8.5. Wiki Refresh - Auto-run `/wiki-refresh --since <branch-base>`; commit wiki diff; block PR on structural lint failures
+9. PR Creation - Commit changes and create pull request (Phase 8.5 must be clean)
+10. Review - Run automated quality and security reviews
+11. Cleanup - Clean up, archive artifacts, emit token-usage summary
 
 ---
 

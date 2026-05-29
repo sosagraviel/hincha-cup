@@ -16,9 +16,10 @@
  *   npm run sync-framework-resources
  */
 
+import { fileURLToPath } from 'url';
 import { mkdir, cp, rm } from 'fs/promises';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { logger } from '../utils/logger.js';
 import { ConfigUpdaterService } from '../services/framework/config-updater.service.js';
 import {
@@ -28,15 +29,19 @@ import {
 } from '../services/framework/sync-helpers.service.js';
 import { resolveSkills } from '../nodes/initialize-project/phase5/skill-resolver.js';
 import { generateAgents } from '../nodes/initialize-project/phase5/agent-generator.js';
+import { upsertCodeGraphMcpConfig } from '../services/framework/mcp-config.service.js';
+import { copyPreflightScripts } from '../services/framework/preflight-scripts.service.js';
 import {
   resolveConfigPath,
   resolveFrameworkConfigPath,
   resolveBackupPath,
   setActiveProvider,
+  getActiveProvider,
   getProviderPaths,
   getAllProviderConfigDirs,
 } from '../utils/provider-paths.js';
 import { Provider } from '../providers/types.js';
+import { getFrameworkPath, getProjectPath } from '../services/framework/paths.service.js';
 
 interface SyncConfig {
   projectPath: string;
@@ -99,19 +104,13 @@ function resolveProviderFromEnvOrDisk(projectPath: string): Provider {
 const PROVIDER_DIR_CLAUDE = getProviderPaths(Provider.CLAUDE).configDir;
 
 /**
- * Auto-detect paths from script location
+ * Resolve paths via paths.service (single source of truth, derived from
+ * import.meta.url, dogfooding-aware via the qubika-agentic-framework -> .
+ * self-symlink check).
  */
 function detectPaths(): SyncConfig {
-  let frameworkPath: string;
-  let projectPath: string;
-
-  if (process.env.FRAMEWORK_PATH && process.env.PROJECT_PATH) {
-    frameworkPath = process.env.FRAMEWORK_PATH;
-    projectPath = process.env.PROJECT_PATH;
-  } else {
-    frameworkPath = join(process.cwd(), '..');
-    projectPath = join(frameworkPath, '..');
-  }
+  const frameworkPath = getFrameworkPath();
+  const projectPath = getProjectPath();
 
   if (!existsSync(frameworkPath)) {
     throw new Error(`Framework path does not exist: ${frameworkPath}`);
@@ -136,7 +135,6 @@ function detectPaths(): SyncConfig {
 async function validatePrerequisites(config: SyncConfig): Promise<void> {
   logger.info('Step 1: Validating prerequisites...');
 
-  // Check for framework-config.json
   const configFile = resolveFrameworkConfigPath(config.projectPath);
   if (!existsSync(configFile)) {
     throw new Error(
@@ -201,7 +199,6 @@ async function createBackup(config: SyncConfig): Promise<string> {
 
   await mkdir(backupDir, { recursive: true });
 
-  // Backup skills (excluding project-context)
   const skillsPath = resolveConfigPath(config.projectPath, 'skills');
   if (existsSync(skillsPath)) {
     const backupSkillsPath = join(backupDir, 'skills');
@@ -216,7 +213,6 @@ async function createBackup(config: SyncConfig): Promise<string> {
     }
   }
 
-  // Backup agents
   const agentsPath = resolveConfigPath(config.projectPath, 'agents');
   if (existsSync(agentsPath)) {
     try {
@@ -246,20 +242,16 @@ async function syncSkills(config: SyncConfig): Promise<{
   const configUpdater = new ConfigUpdaterService(config.projectPath, config.frameworkPath);
   const frameworkConfig = await configUpdater.readConfig();
 
-  // Resolve which skills should exist based on stack profile
   const resolvedSkills = resolveSkills(frameworkConfig.stack_profile as any, config.frameworkPath);
 
   const result = { updated: 0, added: 0, removed: 0, skipped: 0 };
 
-  // Create a set of skill names that should exist
   const expectedSkillNames = new Set(resolvedSkills.map((s) => s.name));
 
-  // Process each skill that should exist for this project
   for (const resolvedSkill of resolvedSkills) {
     const skillName = resolvedSkill.name;
     const existingSkillInfo = frameworkConfig.resource_state.skills[skillName];
 
-    // Skip if skill is user-managed
     if (existingSkillInfo && !existingSkillInfo.managed_by_framework) {
       result.skipped++;
       continue;
@@ -273,7 +265,6 @@ async function syncSkills(config: SyncConfig): Promise<{
 
     const currentSourceHash = configUpdater.hashDirectory(sourcePath);
 
-    // If skill doesn't exist in project yet, add it
     if (!existingSkillInfo) {
       try {
         const syncResult = await addSingleSkill(
@@ -284,7 +275,6 @@ async function syncSkills(config: SyncConfig): Promise<{
         if (syncResult.added) {
           result.added++;
 
-          // Add to resource state
           await configUpdater.updateResourceState('skills', skillName, {
             managed_by_framework: true,
             source_path: `skills/${resolvedSkill.relative_path}`,
@@ -297,9 +287,7 @@ async function syncSkills(config: SyncConfig): Promise<{
           `  Failed to add skill ${skillName}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
-    }
-    // If skill exists and source has changed, update it
-    else if (currentSourceHash !== existingSkillInfo.source_hash) {
+    } else if (currentSourceHash !== existingSkillInfo.source_hash) {
       try {
         const syncResult = await updateSingleSkill(
           skillName,
@@ -309,7 +297,6 @@ async function syncSkills(config: SyncConfig): Promise<{
         if (syncResult.updated) {
           result.updated++;
 
-          // Update hash in config
           await configUpdater.updateResourceState('skills', skillName, {
             source_hash: currentSourceHash,
             file_hash: currentSourceHash,
@@ -323,17 +310,14 @@ async function syncSkills(config: SyncConfig): Promise<{
     }
   }
 
-  // Remove skills that are no longer in the framework (only if managed by framework)
   const existingSkills = Object.keys(frameworkConfig.resource_state.skills || {});
   for (const existingSkillName of existingSkills) {
     const skillInfo = frameworkConfig.resource_state.skills[existingSkillName];
 
-    // Skip if skill is user-managed
     if (!skillInfo.managed_by_framework) {
       continue;
     }
 
-    // If skill no longer exists in resolved skills, remove it
     if (!expectedSkillNames.has(existingSkillName)) {
       try {
         const skillPath = resolveConfigPath(config.projectPath, 'skills', existingSkillName);
@@ -344,7 +328,6 @@ async function syncSkills(config: SyncConfig): Promise<{
           result.removed++;
         }
 
-        // Remove from resource state
         await configUpdater.removeResourceFromState('skills', existingSkillName);
       } catch (error) {
         logger.error(
@@ -380,7 +363,6 @@ async function syncAgents(
   const configUpdater = new ConfigUpdaterService(config.projectPath, config.frameworkPath);
   const frameworkConfig = await configUpdater.readConfig();
 
-  // Resolve skills and generate all agents that should exist
   const resolvedSkills = resolveSkills(frameworkConfig.stack_profile as any, config.frameworkPath);
   const templatesPath = join(config.frameworkPath, 'agents', 'templates');
   const allAgents = generateAgents(
@@ -393,29 +375,23 @@ async function syncAgents(
 
   const result = { updated: 0, added: 0, regenerated: 0, skipped: 0 };
 
-  // Process each agent that should exist for this project
   for (const agent of allAgents) {
     const agentName = agent.name;
     const existingAgentInfo = frameworkConfig.resource_state.agents[agentName];
 
-    // Skip if agent is user-managed
     if (existingAgentInfo && !existingAgentInfo.managed_by_framework) {
       result.skipped++;
       continue;
     }
 
-    // Determine template path based on agent name
     let templateFilename: string;
     if (agentName === 'implementer-generic') {
-      // implementer-generic uses its own dedicated template
       templateFilename = 'implementer-generic.template.md';
     } else if (agentName.startsWith('implementer-')) {
-      // Language-specific implementers: check for dedicated template, fall back to generic
       const dedicatedTemplate = `${agentName}.template.md`;
       const dedicatedPath = join(config.frameworkPath, 'agents', 'templates', dedicatedTemplate);
       templateFilename = existsSync(dedicatedPath) ? dedicatedTemplate : 'implementer.template.md';
     } else {
-      // Other agents use their own templates
       templateFilename = `${agentName}.template.md`;
     }
     const templatePath = join(config.frameworkPath, 'agents', 'templates', templateFilename);
@@ -428,7 +404,6 @@ async function syncAgents(
     const currentTemplateHash = configUpdater.hashFile(templatePath);
     const relativeTemplatePath = `agents/templates/${templateFilename}`;
 
-    // If agent doesn't exist in project yet, add it
     if (!existingAgentInfo) {
       try {
         const regenerateResult = await regenerateSingleAgent(
@@ -439,7 +414,6 @@ async function syncAgents(
         if (regenerateResult.success) {
           result.added++;
 
-          // Add to resource state
           await configUpdater.updateResourceState('agents', agentName, {
             managed_by_framework: true,
             template_path: relativeTemplatePath,
@@ -454,9 +428,7 @@ async function syncAgents(
           `  Failed to add agent ${agentName}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
-    }
-    // If agent exists and (template changed OR skills changed), update it
-    else if (currentTemplateHash !== existingAgentInfo.template_hash || skillsChanged) {
+    } else if (currentTemplateHash !== existingAgentInfo.template_hash || skillsChanged) {
       try {
         const regenerateResult = await regenerateSingleAgent(
           agentName,
@@ -466,7 +438,6 @@ async function syncAgents(
         if (regenerateResult.success) {
           result.updated++;
 
-          // Update hash in config
           await configUpdater.updateResourceState('agents', agentName, {
             template_hash: currentTemplateHash,
             file_hash: configUpdater.hashFile(
@@ -511,6 +482,66 @@ async function removeLegacyCommandsDir(config: SyncConfig): Promise<void> {
 }
 
 /**
+ * Sync the Phase 0 preflight shim scripts (`ensure-context.sh` + `lib/resolve-paths.sh`)
+ * into the project's provider config directory.
+ *
+ * Returns `{ updated }` where `updated` is true if any file actually changed
+ * on disk; false on idempotent re-runs.
+ */
+export async function syncPreflightScripts(config: SyncConfig): Promise<{ updated: boolean }> {
+  logger.info('Step 7.5: Syncing preflight shim scripts...');
+
+  const result = copyPreflightScripts({
+    projectPath: config.projectPath,
+    frameworkPath: config.frameworkPath,
+    provider: getActiveProvider(),
+  });
+
+  if (result.changed) {
+    logger.success(
+      `  ✓ Preflight scripts synced: ${result.files.length} file(s) under ${result.scriptsDir}`,
+    );
+  } else {
+    logger.info(`  ℹ️  Preflight scripts already up to date (${result.scriptsDir})`);
+  }
+  logger.info('');
+
+  return { updated: result.changed };
+}
+
+/**
+ * Sync project MCP config used by native Claude Code sessions.
+ */
+export async function syncMcpConfig(config: SyncConfig): Promise<{
+  updated: boolean;
+  backupPath?: string;
+}> {
+  logger.info('Step 8: Syncing MCP config...');
+  const provider = getActiveProvider();
+
+  const result = upsertCodeGraphMcpConfig({
+    projectPath: config.projectPath,
+    frameworkPath: config.frameworkPath,
+    provider,
+  });
+
+  if (result.changed) {
+    logger.success(`  ✓ Code graph MCP configured: ${result.configPath}`);
+    if (result.backupPath) {
+      logger.info(`  ℹ️  Previous code_graph MCP config backed up: ${result.backupPath}`);
+    }
+  } else {
+    logger.info('  ℹ️  Code graph MCP already configured');
+  }
+  logger.info('');
+
+  return {
+    updated: result.changed,
+    backupPath: result.backupPath,
+  };
+}
+
+/**
  * Main sync function
  */
 async function main() {
@@ -518,12 +549,8 @@ async function main() {
   logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
   try {
-    // Detect paths
     const config = detectPaths();
 
-    // Resolve and activate the provider before any path resolution occurs.
-    // This must happen before validatePrerequisites(), which uses
-    // resolveFrameworkConfigPath().
     const provider = resolveProviderFromEnvOrDisk(config.projectPath);
     setActiveProvider(provider);
     const providerPaths = getProviderPaths();
@@ -532,31 +559,27 @@ async function main() {
     logger.info(`  Framework: ${config.frameworkPath}`);
     logger.info(`  Provider:  ${provider} (config: ${providerPaths.configDir})\n`);
 
-    // Validate prerequisites
     await validatePrerequisites(config);
 
-    // Detect framework version
     const versionInfo = await detectFrameworkVersion(config);
 
-    // Detect user modifications
     const modifications = await detectUserModifications(config);
 
-    // Create backup
     const backupPath = await createBackup(config);
 
-    // Sync skills
     const skillsResult = await syncSkills(config);
 
-    // Sync agents (pass skills result to know if skills changed)
     const agentsResult = await syncAgents(
       config,
       skillsResult.added > 0 || skillsResult.updated > 0,
     );
 
-    // Clean up legacy commands directory (slash-commands were deprecated in favour of direct skill invocation)
     await removeLegacyCommandsDir(config);
 
-    // Summary
+    const preflightResult = await syncPreflightScripts(config);
+
+    const mcpResult = await syncMcpConfig(config);
+
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     logger.info('  SYNC COMPLETE');
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -575,7 +598,9 @@ async function main() {
       skillsResult.added +
       agentsResult.updated +
       agentsResult.added +
-      agentsResult.regenerated;
+      agentsResult.regenerated +
+      (preflightResult.updated ? 1 : 0) +
+      (mcpResult.updated ? 1 : 0);
 
     if (totalChanges === 0) {
       logger.info('ℹ️  No changes needed - all resources are up to date');
@@ -586,6 +611,7 @@ async function main() {
     logger.info('\nNotes:');
     logger.info('  - User-modified resources were preserved');
     logger.info('  - Backup created before any changes');
+    logger.info('  - Restart Claude Code after MCP config changes so /mcp picks up code_graph');
     logger.info('  - Run this script again anytime to sync updates\n');
 
     process.exit(0);
@@ -595,4 +621,6 @@ async function main() {
   }
 }
 
-main();
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main();
+}

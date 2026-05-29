@@ -60,7 +60,7 @@ describe('dataFlowsIntegrationsAnalyzerNode', () => {
     vi.mocked(enhancedRetry.retryWithEnhancedFeedback).mockImplementation(
       async (agentInvoke: any) => {
         const { output } = await agentInvoke('');
-        return JSON.parse(output);
+        return { data: JSON.parse(output), sessionId: undefined };
       },
     );
   });

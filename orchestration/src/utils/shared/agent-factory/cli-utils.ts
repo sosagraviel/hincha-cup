@@ -15,14 +15,11 @@ export function getCLIModelForAgent(agentName: string, frameworkPath: string): s
     const factory = getLLMFactory(configPath);
     const modelInfo = factory.getModelInfo(agentName);
 
-    // Claude CLI accepts short names derived from modelId
-    // e.g., "claude-sonnet-4-6" -> "sonnet", "claude-opus-4-6" -> "opus"
     const modelId = modelInfo.modelId.toLowerCase();
     if (modelId.includes('sonnet')) return 'sonnet';
     if (modelId.includes('opus')) return 'opus';
     if (modelId.includes('haiku')) return 'haiku';
 
-    // Default to sonnet for non-Anthropic models or unknown modelIds
     console.warn(
       `Warning: Unable to derive CLI model name from modelId '${modelInfo.modelId}' for agent '${agentName}'. Defaulting to 'sonnet'.`,
     );
@@ -49,19 +46,14 @@ export function getClaudeCLIPath(frameworkPath: string): {
   path: string;
   version: string;
 } {
-  // Use frameworkPath to locate the bundled Claude CLI
-  // frameworkPath points to framework root (e.g., /path/to/qubika-agentic-framework)
   const localClaudePath = path.join(frameworkPath, 'orchestration/node_modules/.bin/claude');
 
-  // Prefer local bundled Claude CLI (guaranteed v2.1+)
   if (fs.existsSync(localClaudePath)) {
     try {
-      // Verify version
       const version = execSync(`"${localClaudePath}" --version`, {
         encoding: 'utf-8',
       }).trim();
 
-      // Extract version number (e.g., "2.1.87 (Claude Code)" -> "2.1.87")
       const versionMatch = version.match(/^(\d+\.\d+\.\d+)/);
       if (versionMatch) {
         const [major, minor] = versionMatch[1].split('.').map(Number);
@@ -71,11 +63,9 @@ export function getClaudeCLIPath(frameworkPath: string): {
       }
     } catch (error) {
       logger.warn(`Local Claude CLI found but version check failed: ${error}`);
-      // Fall through to global check
     }
   }
 
-  // Fallback: Try global Claude CLI with version check
   try {
     const globalVersion = execSync('claude --version', {
       encoding: 'utf-8',
@@ -118,7 +108,6 @@ export function getClaudeCLIPath(frameworkPath: string): {
  * Returns comma-separated list of allowed tools or null if no restriction
  */
 export function parseToolsFromFrontmatter(agentContent: string): string | null {
-  // Match YAML frontmatter
   const frontmatterMatch = agentContent.match(/^---\n([\s\S]*?)\n---/);
   if (!frontmatterMatch) {
     return null;
@@ -126,17 +115,13 @@ export function parseToolsFromFrontmatter(agentContent: string): string | null {
 
   const frontmatter = frontmatterMatch[1];
 
-  // Match tools: field (can be on one line or multiple lines)
   const toolsMatch = frontmatter.match(/^tools:\s*(.+)$/m);
   if (!toolsMatch) {
     return null;
   }
 
-  // Parse tools list (comma-separated or space-separated)
   const toolsLine = toolsMatch[1].trim();
 
-  // Handle comma-separated: "Read, Grep, Glob"
-  // Handle space-separated: "Read Grep Glob"
   const tools = toolsLine
     .split(/[,\s]+/)
     .map((t) => t.trim())
