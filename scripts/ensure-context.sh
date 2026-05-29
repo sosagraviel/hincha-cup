@@ -307,14 +307,64 @@ HEAD_COMMIT="$(git_head)"
 GRAPH_DB="$PROJECT_PATH/.code-review-graph/graph.db"
 GRAPH_SHA="$(file_sha256 "$GRAPH_DB")"
 
+# Deterministic workspace topology — the single source of truth for the
+# /implement-ticket phases that branch / commit / push per git repo (Phase 4,
+# 8.4, 9). `register-submodules.sh` only DEFINES functions when sourced (its
+# CLI dispatch is guarded by `BASH_SOURCE == $0`), so this has no side effects.
+#
+# Detect a colocated framework checkout solely so is_multi_repo can exclude it
+# from nested-child-repo discovery. Empty when absent — _qaf_discover_children
+# treats an empty exclusion as "nothing to exclude", which is correct. Mirrors
+# detect_local_framework_dir in setup-code-graph.sh (keep them identical). We do
+# NOT call framework_path() here: the shipped resolve-paths.sh shim defines only
+# project_path(), so framework_path() is undefined in `.claude/scripts/` installs.
+detect_local_framework_dir() {
+  local candidate="$PROJECT_PATH/qubika-agentic-framework"
+  if [ -d "$candidate/scripts" ] && [ -f "$candidate/orchestration/package.json" ]; then
+    ( cd "$candidate" && pwd )
+    return 0
+  fi
+  echo ""
+}
+FRAMEWORK_PATH="$(detect_local_framework_dir)"
+# shellcheck source=lib/register-submodules.sh
+source "$SCRIPT_DIR/lib/register-submodules.sh"
+
+# Build a JSON string array from newline-separated paths without depending on
+# jq (this preflight must stay self-sufficient). Escapes \ and " per path.
+json_string_array() {
+  local first=1 line out="["
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    line="${line//\\/\\\\}"; line="${line//\"/\\\"}"
+    if [ "$first" -eq 1 ]; then first=0; else out+=","; fi
+    out+="\"$line\""
+  done
+  out+="]"
+  printf '%s' "$out"
+}
+
+if is_multi_repo "$PROJECT_PATH" "$FRAMEWORK_PATH"; then
+  WORKSPACE_MODE="multi"
+  CHILD_REPOS_JSON="$(_qaf_discover_children "$PROJECT_PATH" "$FRAMEWORK_PATH" | json_string_array)"
+else
+  WORKSPACE_MODE="single"
+  # Prefer the repo toplevel; fall back to PROJECT_PATH so a rev-parse hiccup
+  # can never abort an otherwise-good preflight (set -e is on).
+  SINGLE_ROOT="$( (cd "$PROJECT_PATH" && git rev-parse --show-toplevel 2>/dev/null) || printf '%s' "$PROJECT_PATH")"
+  CHILD_REPOS_JSON="$(printf '%s\n' "$SINGLE_ROOT" | json_string_array)"
+fi
+
 mkdir -p "$ARTIFACTS_DIR"
 cat > "$ARTIFACTS_DIR/.preflight-ok" << EOF
 {
   "git_head": "$HEAD_COMMIT",
   "graph_sha": "$GRAPH_SHA",
   "provider": "$PROVIDER",
+  "workspace_mode": "$WORKSPACE_MODE",
+  "child_repos": $CHILD_REPOS_JSON,
   "preflight_ran_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "preflight_version": 2
+  "preflight_version": 3
 }
 EOF
 
