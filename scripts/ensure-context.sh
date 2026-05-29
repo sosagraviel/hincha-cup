@@ -311,7 +311,22 @@ GRAPH_SHA="$(file_sha256 "$GRAPH_DB")"
 # /implement-ticket phases that branch / commit / push per git repo (Phase 4,
 # 8.4, 9). `register-submodules.sh` only DEFINES functions when sourced (its
 # CLI dispatch is guarded by `BASH_SOURCE == $0`), so this has no side effects.
-FRAMEWORK_PATH="$(framework_path)"
+#
+# Detect a colocated framework checkout solely so is_multi_repo can exclude it
+# from nested-child-repo discovery. Empty when absent — _qaf_discover_children
+# treats an empty exclusion as "nothing to exclude", which is correct. Mirrors
+# detect_local_framework_dir in setup-code-graph.sh (keep them identical). We do
+# NOT call framework_path() here: the shipped resolve-paths.sh shim defines only
+# project_path(), so framework_path() is undefined in `.claude/scripts/` installs.
+detect_local_framework_dir() {
+  local candidate="$PROJECT_PATH/qubika-agentic-framework"
+  if [ -d "$candidate/scripts" ] && [ -f "$candidate/orchestration/package.json" ]; then
+    ( cd "$candidate" && pwd )
+    return 0
+  fi
+  echo ""
+}
+FRAMEWORK_PATH="$(detect_local_framework_dir)"
 # shellcheck source=lib/register-submodules.sh
 source "$SCRIPT_DIR/lib/register-submodules.sh"
 
