@@ -107,8 +107,9 @@ This phase has two parts. **Part A (auto-bootstrap) is mandatory and runs first.
 **Part A — auto-bootstrap.** Run the deterministic preflight before doing anything else in this phase:
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"
-bash "$FRAMEWORK_PATH/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR"
+bash "{{CONFIG_DIR}}/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR"
 ```
 
 What the script does (handled automatically; you do not need to do any of this manually):

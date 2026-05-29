@@ -6,6 +6,7 @@ import { generateAgents, writeAgents } from './agent-generator.js';
 import type { StackProfile } from '../../../schemas/index.js';
 import { logger } from '../../../utils/logger.js';
 import { upsertCodeGraphMcpConfig } from '../../../services/framework/mcp-config.service.js';
+import { copyPreflightScripts } from '../../../services/framework/preflight-scripts.service.js';
 import { getActiveProvider, resolveFrameworkConfigPath } from '../../../utils/provider-paths.js';
 import { UTILITY_LANGUAGES } from '../phase4/constants.js';
 
@@ -111,6 +112,20 @@ export async function resourcesNode(
     const copiedSkillsCount = copyResolvedSkills(resolvedSkills, state.project_path);
 
     phaseLogger.success(`✓ Copied ${resolvedSkills.length} skills (${copiedSkillsCount} files)`);
+
+    phaseLogger.info(' Copying preflight shim scripts...');
+    const preflightResult = copyPreflightScripts({
+      projectPath: state.project_path,
+      frameworkPath: state.framework_path,
+      provider: getActiveProvider(),
+    });
+    if (preflightResult.changed) {
+      phaseLogger.success(
+        `✓ Copied ${preflightResult.files.length} preflight script(s) to ${preflightResult.scriptsDir}`,
+      );
+    } else {
+      phaseLogger.success(`✓ Preflight scripts already up to date (${preflightResult.scriptsDir})`);
+    }
 
     phaseLogger.info(' Generating agents...');
     const templatesPath = join(state.framework_path, 'agents', 'templates');

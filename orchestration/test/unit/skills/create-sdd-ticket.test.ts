@@ -72,7 +72,7 @@ describe('create-sdd-ticket SKILL.md structure regression', () => {
     it('Phase 0 invokes ensure-context.sh as its first concrete step', () => {
       const section = extractPhase0();
       expect(section).toMatch(
-        /bash\s+"?\$FRAMEWORK_PATH\/scripts\/ensure-context\.sh"?[^\n]*--artifacts-dir/,
+        /bash\s+"?\{\{CONFIG_DIR\}\}\/scripts\/ensure-context\.sh"?[^\n]*--artifacts-dir/,
       );
     });
 

@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as skillResolver from '../../../../../src/nodes/initialize-project/phase5/skill-resolver.js';
 import * as agentGenerator from '../../../../../src/nodes/initialize-project/phase5/agent-generator.js';
 import * as mcpConfigService from '../../../../../src/services/framework/mcp-config.service.js';
+import * as preflightScriptsService from '../../../../../src/services/framework/preflight-scripts.service.js';
 
 vi.mock('fs', () => ({
   mkdirSync: vi.fn(),
@@ -44,6 +45,10 @@ vi.mock('../../../../../src/nodes/initialize-project/phase5/agent-generator.js',
 
 vi.mock('../../../../../src/services/framework/mcp-config.service.js', () => ({
   upsertCodeGraphMcpConfig: vi.fn(),
+}));
+
+vi.mock('../../../../../src/services/framework/preflight-scripts.service.js', () => ({
+  copyPreflightScripts: vi.fn(),
 }));
 
 describe('resourcesNode', () => {
@@ -128,6 +133,16 @@ describe('resourcesNode', () => {
       configPath: '/test/project/.mcp.json',
       changed: true,
       backedUp: false,
+    });
+
+    vi.mocked(preflightScriptsService.copyPreflightScripts).mockReturnValue({
+      configDir: '.claude',
+      scriptsDir: '/test/project/.claude/scripts',
+      changed: true,
+      files: [
+        '/test/project/.claude/scripts/ensure-context.sh',
+        '/test/project/.claude/scripts/lib/resolve-paths.sh',
+      ],
     });
   });
 

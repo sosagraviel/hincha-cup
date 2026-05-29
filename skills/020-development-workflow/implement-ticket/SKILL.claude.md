@@ -75,7 +75,7 @@ Create each task using TaskCreate with these exact values:
 1. Phase 0: Preflight (Auto-bootstrap + Validation)
    subject: "Phase 0: Preflight (Auto-bootstrap + Validation)"
    activeForm: "Running deterministic preflight (auto-bootstrap + validation)"
-   Steps: (a) Run `bash $FRAMEWORK_PATH/scripts/ensure-context.sh --artifacts-dir "$ARTIFACTS_DIR"` — this auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or updates the graph, re-emits `.mcp.json`, and writes a success marker `$ARTIFACTS_DIR/.preflight-ok`. <3 s on the hot path. (b) If the script exits non-zero, STOP and surface its output verbatim — failure marker `$ARTIFACTS_DIR/.preflight-failed` carries `{reason, git_head, ran_at}`. (c) Defensive double-check: check git status (in a multi-repo workspace, run the status check in each child git repo, not at the workspace root), verify test commands work, verify build succeeds, detect primary language and stack, assert `.code-review-graph/graph.db`, assert `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools, assert `docs/llm-wiki/CLAUDE.md`, assert `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES}.md` exist, assert at least one `docs/llm-wiki/wiki/services/*.md` exists. Wiki staleness is no longer checked at preflight — Phase 8.5 handles it.
+   Steps: (a) Run `bash {{CONFIG_DIR}}/scripts/ensure-context.sh --artifacts-dir "$ARTIFACTS_DIR"` (anchored at the repository root via `cd "$(git rev-parse --show-toplevel)"`) — this auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or updates the graph, re-emits `.mcp.json`, and writes a success marker `$ARTIFACTS_DIR/.preflight-ok`. <3 s on the hot path. (b) If the script exits non-zero, STOP and surface its output verbatim — failure marker `$ARTIFACTS_DIR/.preflight-failed` carries `{reason, git_head, ran_at}`. (c) Defensive double-check: check git status (in a multi-repo workspace, run the status check in each child git repo, not at the workspace root), verify test commands work, verify build succeeds, detect primary language and stack, assert `.code-review-graph/graph.db`, assert `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools, assert `docs/llm-wiki/CLAUDE.md`, assert `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES}.md` exist, assert at least one `docs/llm-wiki/wiki/services/*.md` exists. Wiki staleness is no longer checked at preflight — Phase 8.5 handles it.
    Expected outputs: `$ARTIFACTS_DIR/.preflight-ok` exists and carries the current `git_head`, git is clean, tests pass, build succeeds, graph DB exists, project MCP config exists, graph tools are visible in the active Claude Code session, graph-aware agents are present, LLM wiki is present and well-formed; staleness warnings surfaced if applicable
    Constraint: If `ensure-context.sh` exits non-zero, STOP and surface its output. If any defensive assertion fails despite a fresh marker, delete the marker and rerun `ensure-context.sh` once; if it still fails, STOP. Staleness warnings do not block Phase 1 — Phase 8.5 resolves them automatically.
 
@@ -205,8 +205,9 @@ This phase has two parts. **Part A (auto-bootstrap) is mandatory and runs first.
 **Part A — auto-bootstrap.** Run the deterministic preflight before doing anything else in this phase:
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"
-bash "$FRAMEWORK_PATH/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR"
+bash "{{CONFIG_DIR}}/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR"
 ```
 
 What the script does (handled automatically; you do not need to do any of this manually):

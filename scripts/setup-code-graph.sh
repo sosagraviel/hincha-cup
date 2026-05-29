@@ -9,10 +9,37 @@ source "$SCRIPT_DIR/lib/resolve-paths.sh"
 # shellcheck source=lib/register-submodules.sh
 source "$SCRIPT_DIR/lib/register-submodules.sh"
 
-# PROJECT_PATH is locally scoped — never exported. Single source of truth is the
-# helper, which detects dogfooding via the qubika-agentic-framework -> . self-symlink.
+# PROJECT_PATH is locally scoped — never exported. Resolution works in both
+# layouts this script ships in:
+#   - Framework checkout: `<framework>/scripts/setup-code-graph.sh` — the full
+#     resolve-paths.sh detects framework markers and returns the parent.
+#   - Engineer projects: `<project>/.claude/scripts/setup-code-graph.sh` (or
+#     `.codex/`) — the shim resolve-paths.sh walks up to the config-dir parent.
 PROJECT_PATH="$(project_path)"
-FRAMEWORK_PATH="$(framework_path)"
+# Templates live next to this script in the shipped layout, or one level up
+# in the framework layout. Best-effort: an unusual relocation just disables
+# the seed/migrate steps, never blocks the graph build.
+if [ -d "$SCRIPT_DIR/templates" ]; then
+  TEMPLATES_DIR="$SCRIPT_DIR/templates"
+elif [ -d "$SCRIPT_DIR/../templates" ]; then
+  TEMPLATES_DIR="$(cd "$SCRIPT_DIR/../templates" && pwd)"
+else
+  TEMPLATES_DIR=""
+fi
+# Detect a colocated framework checkout solely so `is_multi_repo` can exclude
+# it from nested-child-repo discovery. Empty when the user has no local
+# framework — `_qaf_discover_children` treats an empty exclusion the same as
+# "nothing to exclude", which is correct because `.claude/` is not a git
+# repo and would never be detected as a child anyway.
+detect_local_framework_dir() {
+  local candidate="$PROJECT_PATH/qubika-agentic-framework"
+  if [ -d "$candidate/scripts" ] && [ -f "$candidate/orchestration/package.json" ]; then
+    ( cd "$candidate" && pwd )
+    return 0
+  fi
+  echo ""
+}
+FRAMEWORK_PATH="$(detect_local_framework_dir)"
 # Single canonical graph DB path. The legacy `.code-graph.db` snapshot at the
 # project root has been retired (see retired Phase 2 of init-refactor): no
 # `copy_graph_db_if_needed` step exists anymore, and any existing legacy file
@@ -360,7 +387,8 @@ ensure_ignore_file() {
   # from the project root, not from the framework. Seed it idempotently so
   # fresh targets get sane excludes (.claude/, node_modules, etc.).
   local target="$PROJECT_PATH/.code-review-graphignore"
-  local source="$FRAMEWORK_PATH/templates/code-review-graphignore"
+  [ -n "$TEMPLATES_DIR" ] || return 0
+  local source="$TEMPLATES_DIR/code-review-graphignore"
   if [ ! -f "$target" ] && [ -f "$source" ]; then
     log_info "Seeding $target from template"
     cp "$source" "$target"
@@ -372,7 +400,8 @@ ensure_ignore_file() {
 # absolute paths inside SQLite); only the lightweight metadata that lets every
 # teammate rebuild quickly is committed. Compare-then-write — idempotent.
 ensure_managed_gitignore() {
-  local source="$FRAMEWORK_PATH/templates/code-review-graph-gitignore"
+  [ -n "$TEMPLATES_DIR" ] || return 0
+  local source="$TEMPLATES_DIR/code-review-graph-gitignore"
   local target="$PROJECT_PATH/.code-review-graph/.gitignore"
   [ -f "$source" ] || return 0
   mkdir -p "$PROJECT_PATH/.code-review-graph"

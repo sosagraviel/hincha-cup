@@ -6,10 +6,13 @@
 # Single bash entry point that both skills call as their literal first phase.
 # Idempotent. Auto-installs every dependency it needs.
 #
-# Usage:
-#   bash $FRAMEWORK_PATH/scripts/ensure-context.sh \
+# Usage (engineer projects):
+#   bash <project>/.claude/scripts/ensure-context.sh \
 #     [--artifacts-dir <path>] \
 #     [--force-graph] [--quiet]
+#
+# The framework's own copy at `<framework>/scripts/ensure-context.sh` is the
+# single source of truth and is also runnable directly during dogfooding.
 #
 # What it does (in order):
 #   1. Auto-install code-review-graph if missing (existing setup-code-graph.sh
@@ -41,7 +44,36 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/resolve-paths.sh"
 
 PROJECT_PATH="$(project_path)"
-FRAMEWORK_PATH="$(framework_path)"
+
+# Every dependency this preflight needs ships as a sibling of this script,
+# either inside the framework checkout (`<framework>/scripts/`) or in the
+# engineer-facing copy (`<project>/.claude/scripts/`). No `qubika-agentic-framework/`
+# checkout is required at runtime in user projects.
+REQUIRED_SIBLING_FILES=(
+  "$SCRIPT_DIR/setup-code-graph.sh"
+  "$SCRIPT_DIR/code-review-graph-mcp.sh"
+  "$SCRIPT_DIR/lib/bootstrap-uv.sh"
+  "$SCRIPT_DIR/lib/register-submodules.sh"
+)
+for __required in "${REQUIRED_SIBLING_FILES[@]}"; do
+  if [ ! -f "$__required" ]; then
+    echo "[ensure-context] ERROR: required preflight file missing: $__required" >&2
+    echo "[ensure-context] The shipped scripts directory at $SCRIPT_DIR appears to be incomplete." >&2
+    echo "[ensure-context] Remediation: re-run the framework sync (\`pnpm --filter orchestration sync-framework-resources\`) or re-initialize the project to repopulate $SCRIPT_DIR." >&2
+    FAILED_DIR="${ARTIFACTS_DIR:-$PROJECT_PATH/.claude-temp/preflight}"
+    mkdir -p "$FAILED_DIR" 2>/dev/null || true
+    cat > "$FAILED_DIR/.preflight-failed" 2>/dev/null <<EOF
+{
+  "reason": "shipped_scripts_missing",
+  "missing": "$__required",
+  "scripts_dir": "$SCRIPT_DIR",
+  "ran_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+}
+EOF
+    exit 4
+  fi
+done
+unset __required REQUIRED_SIBLING_FILES
 
 # ---------- option parsing ----------
 ARTIFACTS_DIR=""
@@ -123,7 +155,7 @@ git_head() {
 
 write_claude_mcp_config() {
   local target="$PROJECT_PATH/.mcp.json"
-  local launcher="$FRAMEWORK_PATH/scripts/code-review-graph-mcp.sh"
+  local launcher="$SCRIPT_DIR/code-review-graph-mcp.sh"
 
   if command -v node >/dev/null 2>&1; then
     local expected
@@ -175,7 +207,7 @@ EOF
 
 write_codex_mcp_config() {
   local target="$PROJECT_PATH/.codex/config.toml"
-  local launcher="$FRAMEWORK_PATH/scripts/code-review-graph-mcp.sh"
+  local launcher="$SCRIPT_DIR/code-review-graph-mcp.sh"
   mkdir -p "$PROJECT_PATH/.codex"
 
   if command -v python3 >/dev/null 2>&1; then
@@ -247,7 +279,7 @@ if [ "$FORCE_GRAPH" -eq 1 ]; then
   export FORCE_REBUILD=1
 fi
 log_info "ensuring code graph is fresh..."
-bash "$FRAMEWORK_PATH/scripts/setup-code-graph.sh" || {
+bash "$SCRIPT_DIR/setup-code-graph.sh" || {
   log_error "code graph build failed; see output above"
   mkdir -p "$ARTIFACTS_DIR"
   cat > "$ARTIFACTS_DIR/.preflight-failed" << EOF
