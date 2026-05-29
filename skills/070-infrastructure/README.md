@@ -7,6 +7,7 @@
 ## Skills in This Category
 
 - **developing-with-docker**: Docker patterns and best practices for containerized development
+- **triage-incident**: AI-powered incident triage — queries Datadog, AWS, and Confluence via MCP, greps the codebase for evidence, and produces a root cause report with a copy-pasteable runbook
 
 ## When to Use
 

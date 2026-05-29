@@ -351,6 +351,28 @@
       "trigger_mode": "always"
     },
     {
+      "name": "triage-incident",
+      "path": "070-infrastructure/triage-incident",
+      "description": "Triage an infrastructure or application incident — root cause analysis grounded in Datadog, AWS, Confluence, and codebase signals, plus a copy-pasteable runbook saved to markdown.",
+      "trigger_mode": "triggered",
+      "triggers": [
+        "aws",
+        "gcloud",
+        "google-cloud",
+        "docker",
+        "docker-compose",
+        "kubernetes",
+        "helm",
+        "terraform",
+        "pulumi",
+        "serverless",
+        "sam",
+        "cdk",
+        "nginx"
+      ],
+      "is_linkable_to_agents": false
+    },
+    {
       "name": "wiki-ingest-external-docs",
       "path": "020-development-workflow/wiki-ingest-external-docs",
       "description": "Stage external descriptive docs (PDFs, DOCX, HTML, Notion/Confluence exports, GitHub issues, images) into docs/llm-wiki/raw/external/ following Karpathy's LLM-Wiki pattern. Content-addressed, manifest-indexed, export-first. Opt-in via wiki.cache_external in framework-config.json. wiki-refresh consumes the manifest on the next run.",
