@@ -1,7 +1,7 @@
 ---
 name: implement-ticket
-version: 3.7.0
-last-updated: 2026-05-13
+version: 3.8.0
+last-updated: 2026-05-29
 description: Implements a ticket end-to-end through a wiki-aware and graph-aware 14-phase workflow from planning to PR. Supports both single-repo projects and multi-repo workspaces (a parent folder containing N independent child git repos). Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 disable-model-invocation: true
@@ -72,6 +72,13 @@ This keeps artifacts out of PRs (already covered by `.gitignore`), keeps paths c
 
 The workspace may be a single git repo OR a parent folder containing multiple independent child git repos (each with its own GitHub remote). When operating on the working tree (status, branch, commit, push, tests), target each affected repo individually with `git -C <repo>` rather than assuming a single workspace root. The LLM wiki and code graph remain workspace-scoped (one shared `docs/llm-wiki/` and `.code-review-graph/` at the workspace root).
 
+Two values, never derived by eyeballing the tree:
+
+- **`WORKSPACE_MODE`** (`single`|`multi`) and **`child_repos`** — written deterministically into `.preflight-ok` by Phase 0. Read back, don't re-derive: `jq -r .workspace_mode "$ARTIFACTS_DIR/.preflight-ok"`.
+- **`AFFECTED_REPOS`** — the repos this change touches: `[<workspace-root>]` in `single`; the `child_repos` subset named in the plan's `Affected Repositories` in `multi`.
+
+Phase 9 keys on `len(AFFECTED_REPOS)`, not mode: `1` → `gh pr create`; `>1` → `/repo-fanout-pr`.
+
 ## Progress Tracking (file-based)
 
 Codex has no `TaskCreate` tool. Track phase progress by appending JSONL events to a progress file so state survives restarts and is observable from outside the session:
@@ -117,7 +124,7 @@ What the script does (handled automatically; you do not need to do any of this m
 - Auto-installs `uv` / `uvx` / `code-review-graph` via the framework's existing fallback chain (`uv tool install` → `bootstrap_uv` → `pipx` → `pip`).
 - Builds the code graph if missing, incrementally updates it if the local commit moved, or no-ops if it is already at HEAD (<3 s on the hot path).
 - Re-emits `.codex/config.toml`'s `[mcp_servers.code_graph]` block with this machine's local framework path. Compare-then-write — no-op when content already matches.
-- Writes a JSON success marker at `$ARTIFACTS_DIR/.preflight-ok` carrying `{git_head, graph_sha, provider, preflight_ran_at}`. Wiki staleness is no longer handled here — `/wiki-refresh` (Phase 8.5) owns it.
+- Writes a JSON success marker at `$ARTIFACTS_DIR/.preflight-ok` carrying `{git_head, graph_sha, provider, workspace_mode, child_repos, preflight_ran_at}`. `workspace_mode` (`single`|`multi`) + `child_repos` come from a deterministic probe (`register-submodules.sh is-multi-repo`, an exit code). Wiki staleness is no longer handled here — `/wiki-refresh` (Phase 8.5) owns it.
 
 **If the script exits non-zero, emit `failed` and STOP.** Surface its output verbatim to the user. Do NOT continue to Part B or any later phase. Failure modes (with structured marker `$ARTIFACTS_DIR/.preflight-failed`):
 
@@ -138,7 +145,7 @@ Steps:
 - Verify each of those wiki files starts with YAML frontmatter containing `document_type`, `summary`, and `last_updated` keys.
 - If `framework-config.json > wiki.services` is non-empty, verify at least one matching file exists under `docs/llm-wiki/wiki/services/`.
 
-Expected outputs: `$ARTIFACTS_DIR/.preflight-ok` exists and carries the current `git_head`; git clean, tests pass, build succeeds, graph DB exists, graph MCP tools are visible, LLM wiki is present and well-formed.
+Expected outputs: `$ARTIFACTS_DIR/.preflight-ok` exists and carries the current `git_head` plus non-empty `workspace_mode` + `child_repos`; git clean, tests pass, build succeeds, graph DB exists, graph MCP tools are visible, LLM wiki is present and well-formed. Export `WORKSPACE_MODE`/`CHILD_REPOS` from the marker for later phases.
 
 Constraint: If `ensure-context.sh` exits non-zero, emit `failed` and STOP. If any defensive assertion fails despite a fresh marker, delete the marker and rerun Part A once; if the assertion still fails, emit `failed` and STOP. Wiki staleness is no longer a preflight concern — Phase 8.5 handles it.
 
@@ -234,18 +241,18 @@ Produce an `Implementation Plan` containing:
 - `Graph Evidence` (cite the graph queries and results that justify the plan).
 - `Recommended Implementers` section — a non-empty ordered list, one entry per unique language bucket derived from `framework-config.json::stack_profile.services` (longest-prefix file→service match, dedupe by `language`; `python`→`implementer-python`, `typescript`/`javascript`→`implementer-typescript`, anything else or unmapped→`implementer-generic`). Each entry names its agent, the service IDs it covers, the scoped files within them, and a one-line rationale. Order matters — Phase 5 dispatches entries sequentially, so list producers before consumers (e.g., a backend stack before a frontend stack that consumes its endpoints).
 
-If the workspace contains multiple git repos and the change touches more than one, the plan SHOULD identify which repo each file belongs to so Phase 9 can fan out cleanly. `Recommended Implementers` and `Affected Repositories` are orthogonal — the former drives Phase 5 per-stack implementer dispatch, the latter drives Phase 8.4 commit + Phase 9 PR fanout per git repo.
+In `multi` mode the plan MUST add an `Affected Repositories` section mapping each touched repo (a `child_repos` path) to its files, so Phases 4/8.4/9 can fan out; omit in `single` mode. `Recommended Implementers` and `Affected Repositories` are orthogonal — the former drives Phase 5 per-stack implementer dispatch, the latter drives Phase 8.4 commit + Phase 9 PR fanout per git repo.
 
 Persist the plan verbatim to `$ARTIFACTS_DIR/plans/implementation-plan.md`.
 
-Expected outputs: `$ARTIFACTS_DIR/plans/implementation-plan.md` exists, contains `Wiki Evidence` and `Graph Evidence`, test strategy and target files are named, contains a `Recommended Implementers` section that is a non-empty ordered list where **every entry's agent name appears verbatim in `$AVAILABLE_IMPLEMENTERS`** (no recommending agents that are not installed under `{{CONFIG_DIR}}/agents/`), plus the service IDs and scoped files each entry covers, and (in `multi` mode) contains an `Affected Repositories` section listing each touched repo path with the files within it. In `single` mode the `Affected Repositories` section may be absent — the agent infers it as the single workspace repo.
+Expected outputs: `$ARTIFACTS_DIR/plans/implementation-plan.md` exists, contains `Wiki Evidence` and `Graph Evidence`, test strategy and target files are named, contains a `Recommended Implementers` section that is a non-empty ordered list where **every entry's agent name appears verbatim in `$AVAILABLE_IMPLEMENTERS`** (no recommending agents that are not installed under `{{CONFIG_DIR}}/agents/`), plus the service IDs and scoped files each entry covers, and (in `multi` mode) contains an `Affected Repositories` section mapping each touched `child_repos` path to its files. `single` mode may omit it — `AFFECTED_REPOS` is then the one workspace repo.
 
 Constraint: Do not proceed if the plan is missing, Wiki Evidence or Graph Evidence is absent, `Recommended Implementers` is missing/empty, or any entry's agent name is not present in `$AVAILABLE_IMPLEMENTERS` (i.e., not installed under `{{CONFIG_DIR}}/agents/`).
 
 ### Phase 4: Environment Setup
 
 Steps:
-- Create feature branch (e.g., `feature/PROJ-123-description`). **MUST branch from the currently active branch in each affected repo.** MUST NOT `git checkout`/`switch` to another branch first, and MUST NOT pass a base argument to `git checkout -b`. Branching from any base other than the active branch REQUIRES explicit user consent — obtain it as follows:
+- **Create one feature branch PER repo in `AFFECTED_REPOS`** (e.g. `feature/PROJ-123-description`), same name in each — loop `git -C <repo> checkout -b <new-branch>`. **MUST branch from each repo's currently active branch.** MUST NOT `git checkout`/`switch` first, and MUST NOT pass a base argument to `git checkout -b`. Any other base REQUIRES explicit per-repo user consent — obtain it as follows:
 
 ```bash
 if [[ -n "${QAF_ASK_USER_MCP_TOOL:-}" ]]; then
@@ -261,7 +268,7 @@ fi
 - Create docker-compose override (if needed).
 - Capture BEFORE screenshots into `$ARTIFACTS_DIR/screenshots/before/` (if frontend).
 
-Expected outputs: feature branch created in each affected repo, rooted at the branch that was active when Phase 4 started.
+Expected outputs: the same feature branch exists in EVERY repo in `AFFECTED_REPOS`, each rooted at that repo's previously-active branch.
 
 Constraint: STOP if branching from anything other than the active branch without explicit user consent.
 
@@ -351,7 +358,7 @@ Constraint: Do not proceed if doc-updater was not invoked.
 
 ### Phase 8.4: Implementation Commit
 
-For each affected repo (single workspace root, or each child repo from the planner's `Affected Repositories`):
+For each repo in `AFFECTED_REPOS` (single workspace root, or each child repo from the planner's `Affected Repositories`):
 
 1. List changed files with `git -C <repo> status --porcelain`; exclude `docs/llm-wiki/**` (Phase 8.5 owns it). Empty list → emit `failed` and STOP (single-repo) or skip with a note (multi-repo).
 2. `git -C <repo> add -- <files>` then `git -C <repo> commit -m "<message>"`. Never `git add .` / `-A` / `commit -a`. Do not skip hooks.
@@ -384,9 +391,11 @@ If `--skip-pr` flag: skip push and PR creation, emit `completed` with `note: "Sk
 
 Local commits from Phase 8.4 + Phase 8.5 remain on the branch.
 
-Otherwise, **single-repo path**:
+Otherwise, **choose by `len(AFFECTED_REPOS)`, NOT by `WORKSPACE_MODE`** (a `multi` workspace touching one repo still gets a single PR):
 
-- `git -C <workspace-root> push -u origin <branch>`
+**If `len(AFFECTED_REPOS) == 1`** (`<repo>` = the one entry):
+
+- `git -C <repo> push -u origin <branch>`
 - `gh pr create` with:
   - Auto-generated title from ticket.
   - Summary of changes.
@@ -394,7 +403,7 @@ Otherwise, **single-repo path**:
   - Link to original ticket.
 - Return the PR URL.
 
-**Multi-repo workspace**: if the change touches more than one git repo, delegate the fanout to `/repo-fanout-pr --no-commit --repos <abs1>,<abs2>,... --branch <branch> --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR` instead. The skill asserts every repo's working tree is clean and the branch is ahead of base, pushes each branch, opens one PR per repo, and cross-links the PR bodies. The orchestrator just consumes its returned `result.json`.
+**If `len(AFFECTED_REPOS) > 1`** — delegate to `/repo-fanout-pr --no-commit --repos <csv> --branch <branch> --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR`, where `<csv>` is `AFFECTED_REPOS` joined by commas (absolute paths, no spaces). It asserts each repo's tree is clean + branch ahead of base, pushes, opens one cross-linked PR per repo, and returns `fanout/result.json`.
 
 If Phase 8.5 wrote `$ARTIFACTS_DIR/wiki/wiki-warning.txt`, append its contents to every PR body created in this phase.
 
