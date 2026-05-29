@@ -597,12 +597,17 @@ walk the excluded subtree.
 ### 1. Run Once Per Project
 
 ```bash
-# Initial setup
+# Initial setup (full, AI-driven bootstrap — run once)
 ./qubika-agentic-framework/scripts/initialize-project.sh
 
-# Framework updates: re-run to sync new skills/agents
-./qubika-agentic-framework/scripts/initialize-project.sh
+# Framework updates: sync new skills/agents (fast, no re-analysis)
+./qubika-agentic-framework/scripts/sync-framework-resources.sh
 ```
+
+For routine framework updates, prefer the sync — see
+[Updating the Framework](/docs/guides/updating-the-framework). Re-running
+`initialize-project.sh` is only needed to switch providers, re-analyze the project, or
+regenerate `CLAUDE.md`.
 
 ### 2. Commit the Generated Config
 
@@ -620,11 +625,12 @@ For [Multi-Repository Setup](#multi-repository-setup), the parent folder is not 
 ### 3. Update After Major Changes
 
 ```bash
-# After adding a new tech stack or repository
+# After adding a new tech stack or repository (re-analyzes the project)
 ./qubika-agentic-framework/scripts/initialize-project.sh
-
-# New skills/agents will be synced
 ```
+
+For everything else — picking up new framework skills and agents — run
+`sync-framework-resources.sh` instead. See [Updating the Framework](/docs/guides/updating-the-framework).
 
 ### 4. Review Generated Files
 

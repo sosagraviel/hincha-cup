@@ -92,6 +92,52 @@ rm -rf .claude-temp/   # use .codex-temp/ when provider=codex
 
 ---
 
+## Syncing Framework Resources
+
+> For normal updates (pulling the latest skills/agents into your project), see the
+> [Updating the Framework](/docs/guides/updating-the-framework) guide. This section covers
+> errors you may hit while syncing.
+
+### `sync-framework-resources` fails with `ERR_MODULE_NOT_FOUND`
+
+You added a new skill and ran `sync-framework-resources` (without re-initializing), and the
+script failed with an error like:
+
+```text
+> orchestration@1.0.0 sync-framework-resources
+> tsx src/scripts/sync-framework-resources.ts
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'ora' imported from
+  .../orchestration/src/utils/logger.ts
+```
+
+**Why it happens**:
+
+- `sync-framework-resources` runs `tsx` directly with **no dependency-install step**, so it
+  assumes a working install in `orchestration/`.
+- Your `orchestration/node_modules/` is stale. The missing package (`ora` in the example above)
+  **is** declared as a dependency, but it can't be resolved at runtime — typically because it
+  was newly added by a recent framework release that your local install predates.
+
+**Fix — 2 commands**:
+
+```bash
+# 1. Refresh orchestration dependencies
+cd qubika-agentic-framework/orchestration && pnpm install
+
+# 2. Re-run the sync
+./qubika-agentic-framework/scripts/sync-framework-resources.sh
+```
+
+**Do I need to re-initialize?** No. A full re-init is not required for this — and re-init would
+not wipe your `.claude/skills/` directory anyway. `pnpm install` + re-running sync is enough.
+
+> **Note**: Hand-added skills with non-colliding names survive both sync and re-init.
+> Framework-managed resources are tracked in `framework-config.json`, and user-modified ones are
+> automatically skipped on sync — so syncing won't clobber your local changes.
+
+---
+
 ## Workflow Issues
 
 ### Implement Ticket
@@ -208,6 +254,63 @@ echo $OPENAI_API_KEY    | cut -c1-10  # Codex:  should start with 'sk-'
 # Test connection:
 curl -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/2/myself"
 ```
+
+---
+
+## MCP Connection Issues
+
+A skill that depends on an MCP server (e.g. Atlassian/Jira) will **pause and stop** if the server is
+not connected or authenticated. You'll see a message like the one below, asking you to run `/mcp` and
+authenticate before the workflow can continue:
+
+![Claude Code prompting for MCP authentication when fetching a Jira ticket](/img/mcp/mcp-auth-prompt.png)
+
+In the screenshot, `/implement-ticket --from-jira AIDM-783` cannot fetch the ticket because the
+Atlassian MCP connection is not authenticated. Follow the steps below to fix it.
+
+### Step 1 — Authenticate via `/mcp`
+
+```bash
+# In the Claude Code session, run:
+/mcp
+
+# Select the failing server (e.g. "claude.ai Atlassian") and complete the browser auth flow.
+# Then re-run your original command:
+/implement-ticket --from-jira AIDM-783
+```
+
+### Step 2 — Verify the server is connected
+
+```bash
+# List configured MCP servers and their connection status
+claude mcp list
+```
+
+### Step 3 — (Re)add the server if it's missing
+
+If the server doesn't appear in the list, add it manually, then re-authenticate with `/mcp`:
+
+```bash
+# Example: add the Atlassian MCP over HTTP transport
+claude mcp add --transport http atlassian https://mcp.atlassian.com/v1/mcp
+
+# Then authenticate the freshly added server
+/mcp
+```
+
+### Step 4 — Still failing?
+
+```bash
+# Remove and re-add the server, then restart the CLI
+claude mcp remove atlassian
+claude mcp add --transport http atlassian https://mcp.atlassian.com/v1/mcp
+
+# Confirm network access to the MCP endpoint
+curl -I https://mcp.atlassian.com/v1/mcp
+```
+
+> MCP server **configuration** (env vars, additional servers) is documented in
+> [Environment Variables → MCP Server Configuration](../configuration/environment-variables.md).
 
 ---
 
