@@ -1,8 +1,8 @@
 ---
 name: doc-updater
 description: Maintain {{INSTRUCTION_FILE}} (CLAUDE.md/AGENTS.md) and the three generated convention skills (code-conventions, multi-file-workflows, testing-conventions) accuracy after code changes. Surgical updates only; defers descriptive content to /wiki-refresh and graph maintenance to ensure-context.sh.
-version: 2.0.0
-last-updated: 2026-05-14
+version: 2.1.0
+last-updated: 2026-06-01
 ---
 
 # Documentation Updater Skill
@@ -44,7 +44,7 @@ This skill updates exactly four targets — nothing else:
 - The three convention skills are **prescriptive**: rules, examples, checklists
 - The wiki is **descriptive**: system shape, service inventory, request flows
 
-If a fact you would update is descriptive, it belongs in the wiki — invoke `/wiki-refresh` instead.
+If a fact you would update is descriptive ("the system uses RabbitMQ", "auth is OAuth2 PKCE"), it belongs in the wiki — invoke `/wiki-refresh` instead. Never duplicate descriptive content into a skill body.
 
 ---
 
@@ -74,26 +74,21 @@ A change qualifies for a convention update **only if** it satisfies at least one
 
 **(c)** It changes a **testing convention reusable by future work** — a new fixture pattern, mock boundary rule, coverage threshold change, or test-organisation rule that applies beyond this one ticket.
 
-Anything else is either descriptive (→ `/wiki-refresh`) or one-off implementation detail (→ no update).
+All three clauses require that the rule be **reusable by future work**, not specific to this ticket. Anything else is either descriptive (→ `/wiki-refresh`) or one-off implementation detail (→ no update).
+
+**Do NOT update if:**
+
+- Changes are simple bug fixes
+- Changes add new endpoints (endpoints must not be listed)
+- Changes add new entities (entity fields must not be listed)
+- Changes are implementation details discoverable by reading code
+- The candidate update is descriptive rather than prescriptive
 
 ---
 
 ## When to Use
 
-Invoke `$doc-updater` when:
-
-- After implementing a ticket (Phase 8 of implement-ticket)
-- After significant code changes
-- When architectural patterns change
-- When file placement conventions change
-- When new technology is added
-
-Do NOT invoke for:
-
-- Simple bug fixes
-- New endpoints (endpoints must not be listed in docs)
-- New entities (entity fields must not be listed in docs)
-- Implementation details discoverable from code
+Invoke `$doc-updater` after implementing a ticket (Phase 8 of implement-ticket), after significant code changes, or when architectural patterns, file-placement conventions, or the tech stack change.
 
 ---
 
@@ -112,14 +107,15 @@ This skill expects to be called from implement-ticket Phase 8 with:
 ### Progress tracking
 
 Codex appends progress events to a JSONL file instead of using tool-based
-task management. Each line is a JSON object:
+task management. Each line is a JSON object with `phase`, `status`
+(`in_progress` | `completed` | `skipped`), and `label`:
 
 ```bash
 echo '{"phase":"0","status":"in_progress","label":"Read current documentation"}' >> "$ARTIFACTS_DIR/doc-updater-progress.jsonl"
 ```
 
-Each line is a JSON object with `phase`, `status` (`in_progress` |
-`completed` | `skipped`), and `label`.
+This file is the skill's own progress log — it is namespaced per skill and
+must never replace or interfere with the caller's progress file.
 
 ### Sub-agent spawning
 
@@ -151,9 +147,11 @@ Under Codex, MCP tools follow the AGENTS.md naming convention:
 
 ## Workflow
 
-### Phase 0: Read Current Documentation
+Run the six phases below in order, appending one `in_progress` and one
+`completed` progress line per phase (shown in Phase 0; the same pattern
+applies to every phase).
 
-Append progress:
+### Phase 0: Read Current Documentation
 
 ```bash
 echo '{"phase":"0","status":"in_progress","label":"Read current documentation"}' >> "$ARTIFACTS_DIR/doc-updater-progress.jsonl"
@@ -182,8 +180,6 @@ cat {{CONFIG_DIR}}/skills/testing-conventions/SKILL.md
 echo '{"phase":"0","status":"completed","label":"Read current documentation"}' >> "$ARTIFACTS_DIR/doc-updater-progress.jsonl"
 ```
 
----
-
 ### Phase 1: Analyze Changed Files
 
 ```bash
@@ -210,136 +206,48 @@ Categorize changes:
 echo '{"phase":"1","status":"completed","label":"Analyze changed files for documentation impact"}' >> "$ARTIFACTS_DIR/doc-updater-progress.jsonl"
 ```
 
----
-
 ### Phase 2: Detect Documentation Impact
 
 ```bash
 echo '{"phase":"2","status":"in_progress","label":"Detect documentation impact"}' >> "$ARTIFACTS_DIR/doc-updater-progress.jsonl"
 ```
 
-#### {{INSTRUCTION_FILE}} Updates Needed When:
+For each of the four targets, decide whether an update is warranted. The per-target triggers below are the *only* reasons to update; how to apply each update is covered in Phase 4. Apply the binary rubric above — if none of clause (a), (b), (c) is satisfied, do not update.
 
-1. **New Technology Added**:
-   - New framework/library in package.json
-   - New language (e.g., Python scripts added)
-   - New database/service in docker-compose.yml
+**`{{INSTRUCTION_FILE}}` — update when:**
 
-2. **File Placement Changes**:
-   - New directory structure
-   - New file naming convention
-   - New module organization pattern
+- **New technology**: new framework/library in package.json, new language, new database/service in docker-compose.yml
+- **File placement changes**: new directory structure, file naming convention, or module-organisation pattern
+- **Common commands changed**: package.json scripts, Makefile targets, or new development-workflow commands
+- **Architecture changes**: monorepo structure modified, new path aliases, backend/frontend organisation changed
+- **Services & ports changed**: docker-compose services added/removed, port mappings changed
 
-3. **Common Commands Changed**:
-   - package.json scripts modified
-   - Makefile targets changed
-   - New development workflow commands
+**`code-conventions/SKILL.md` — update when** (rubric clause a/b/c satisfied; prescriptive rules only):
 
-4. **Architecture Changes**:
-   - Monorepo structure modified
-   - New path aliases added
-   - Backend/frontend organization changed
+- **New gotcha**: a bug fix surfaced a non-obvious, easy-to-get-wrong pattern → add a `### Title` block with WRONG/CORRECT examples
+- **Naming convention changed**: file or identifier convention modified
+- **Error-handling pattern changed**: new exception type/handler or response format that needs a prescriptive rule
+- **Data-layer rule changed**: repository/DAO pattern or transaction-handling rule modified
 
-5. **Services & Ports Changed**:
-   - docker-compose.yml services added/removed
-   - Port mappings changed
-   - New services deployed
+Descriptive facts ("there is a global error handler") go to the wiki; this skill carries prescriptive rules only ("ALWAYS wrap order writes in a transaction").
 
-#### code-conventions/SKILL.md Updates Needed When:
+**`multi-file-workflows/SKILL.md` — update when** (rubric clause b):
 
-Prescriptive code rules — gotchas, naming, error-handling, data-layer
-patterns. Applies only when the binary rubric clause (a), (b), or (c) is
-satisfied. Update when:
+- **New multi-file workflow**: the implementation surfaced an "and you must also update X" rule → add a `## Workflow Name` heading + numbered steps + gotcha note
+- **Existing workflow changed**: a new file joined an existing workflow, or step ordering matters and changed
 
-1. **New Gotcha Discovered**:
-   - A bug fix surfaced a non-obvious pattern that is easy to get wrong
-   - Add a `### Title` block with WRONG/CORRECT code examples
+**`testing-conventions/SKILL.md` — update when** (rubric clause c):
 
-2. **Naming Convention Changed**:
-   - File naming convention modified
-   - Identifier convention modified
+- **New "do not mock" rule**: a failure/incident proved a class must not be mocked
+- **New fixture convention**: a reusable fixture/builder pattern emerged
+- **Coverage expectation changed**: threshold moved or a per-area rule introduced
+- **New test pattern**: update the example code in the relevant section
 
-3. **Error Handling Pattern Changed**:
-   - New exception type or handler added that needs prescriptive rules
-   - Error response format changed
-
-4. **Data-Layer Rule Changed**:
-   - Repository / DAO pattern modified
-   - Transaction handling rule changed (e.g., new wrapping requirement)
-
-If the change is **descriptive** ("there is a global error handler"),
-it belongs in the wiki — invoke `/wiki-refresh` instead. This skill carries
-**prescriptive** rules only ("ALWAYS wrap order writes in a transaction").
-
-#### multi-file-workflows/SKILL.md Updates Needed When:
-
-Cross-cutting checklists — ordered steps for changes that touch many
-files. Applies only when rubric clause (b) is satisfied. Update when:
-
-1. **New Multi-File Workflow Discovered**:
-   - The implementation surfaced an "and you must also update X" rule
-   - Add a `## Workflow Name` heading + numbered steps + gotcha note
-
-2. **Existing Workflow Changed**:
-   - A new file is now part of an existing workflow (e.g., a new barrel export)
-   - The order of steps in an existing workflow matters and changed
-
-#### testing-conventions/SKILL.md Updates Needed When:
-
-Prescriptive test rules with example code. Applies only when rubric clause
-(c) is satisfied. Update when:
-
-1. **New "Do Not Mock" Rule Added**:
-   - Test failure or production incident proved a class must not be mocked
-
-2. **New Fixture Convention Added**:
-   - A reusable fixture / builder pattern emerged
-
-3. **Coverage Expectation Changed**:
-   - Threshold moved, or per-area coverage rule introduced
-
-4. **New Test Pattern Added**:
-   - Update the example code in the relevant section
-
-#### Architectural Narrative Updates (NOT this skill)
-
-If the change is **descriptive** — service boundaries shifted, request
-lifecycle steps changed, a new external integration was added — that
-content lives in `docs/llm-wiki/wiki/ARCHITECTURE.md` (or per-service
-docs). Do not update those here. Invoke `/wiki-refresh` instead; it
-re-runs the graph-grounded wiki generator over the current code.
-
-#### Do NOT update
-
-- Any file under `docs/llm-wiki/**`
-- README.md or any discoverable human documentation
-- `package.json`, `pyproject.toml`, `Cargo.toml`, or any package manifest version field
-- Any file not in the four targets listed in "In scope"
-
-#### Apply the Binary Rubric
-
-**CRITICAL**: Only update documentation when the change satisfies rubric
-clause (a), (b), or (c) above. All three clauses require that the rule be
-**reusable by future work**, not specific to this ticket.
-
-Ask: does this change (a) establish a new file-placement rule, (b)
-introduce or remove a cross-file workflow, or (c) change a testing
-convention applicable beyond this ticket? If none of (a), (b), (c) is
-true, do not update documentation.
-
-**DO NOT update if**:
-
-- Changes are simple bug fixes
-- Changes add new endpoints (endpoints must not be listed)
-- Changes add new entities (entity fields must not be listed)
-- Changes are implementation details discoverable by reading code
-- The candidate update is descriptive rather than prescriptive
+Descriptive narrative — service boundaries shifted, request-lifecycle steps changed, a new external integration was added — is **not** this skill. That lives in `docs/llm-wiki/wiki/ARCHITECTURE.md`; invoke `/wiki-refresh` instead.
 
 ```bash
 echo '{"phase":"2","status":"completed","label":"Detect documentation impact"}' >> "$ARTIFACTS_DIR/doc-updater-progress.jsonl"
 ```
-
----
 
 ### Phase 3: Generate Update Plan
 
@@ -387,17 +295,13 @@ Generate a JSON structure with your analysis:
 echo '{"phase":"3","status":"completed","label":"Generate structured update plan"}' >> "$ARTIFACTS_DIR/doc-updater-progress.jsonl"
 ```
 
----
-
 ### Phase 4: Apply Updates
 
 ```bash
 echo '{"phase":"4","status":"in_progress","label":"Apply documentation updates"}' >> "$ARTIFACTS_DIR/doc-updater-progress.jsonl"
 ```
 
-#### Update {{INSTRUCTION_FILE}}
-
-For each update in `updates.claudeMd`, use `mcp__filesystem__edit_file`:
+For each update in the plan, use `mcp__filesystem__edit_file` against the target file and verify the edit succeeded. The call shape is the same for every target — only `path` changes (`{{INSTRUCTION_FILE}}`, or `skills/code-conventions/SKILL.md`, `skills/multi-file-workflows/SKILL.md`, `skills/testing-conventions/SKILL.md`):
 
 ```json
 {
@@ -410,81 +314,42 @@ For each update in `updates.claudeMd`, use `mcp__filesystem__edit_file`:
 }
 ```
 
-**Update Strategy by Section**:
+**Update strategy by target:**
 
-1. **Tech Stack Section**:
-   - Update if new language/framework added
-   - Update versions if major version bump
-   - Keep list concise
+`{{INSTRUCTION_FILE}}` — keep every section concise and reference-only:
 
-2. **File Placement Guide**:
-   - Update if new file type pattern added
-   - Update if directory structure changed
-   - Ensure examples are real paths from codebase (verify with glob)
-
-3. **Common Commands**:
-   - Update if scripts in package.json changed
-   - Update if Makefile targets changed
-   - Keep commands organized by category
-
-4. **Architecture Section**:
-   - Update if monorepo structure changed
-   - Update if new path aliases added
-   - Keep brief, reference structure only
-
-5. **Conventions**:
-   - Update if code style rules changed
-   - Update if commit message format changed
-   - Update if new naming conventions added
-
-6. **Services & Ports**:
-   - Update if docker-compose.yml services changed
-   - Update if port mappings changed
-
-#### Update the Three Convention Skills
-
-For each update in `updates.codeConventions` /
-`updates.multiFileWorkflows` / `updates.testingConventions`, use
-`mcp__filesystem__edit_file` with the appropriate target path.
-
-**Update Strategy by Skill**:
+- **Tech Stack** — add new language/framework; bump versions only on a major change
+- **File Placement Guide** — add new file-type patterns / structure changes; verify every path exists with glob
+- **Common Commands** — reflect package.json script / Makefile changes; keep grouped by category
+- **Architecture** — reflect monorepo-structure or path-alias changes; structure only
+- **Conventions** — reflect code-style, commit-format, or naming changes
+- **Services & Ports** — reflect docker-compose service / port-mapping changes
 
 `code-conventions/SKILL.md`:
 
-1. **Gotchas section** — add a new `### Title` block with a one-line
-   description and WRONG/CORRECT fenced code examples. Keep examples
-   minimal and self-contained.
-2. **Naming** — update the rule, keep the rationale to one line.
-3. **Error Handling** — update the rule with one-line rationale.
-4. **Data Layer Rules** — update the rule with one-line rationale.
+1. **Gotchas** — add a `### Title` block with a one-line description and minimal WRONG/CORRECT fenced examples
+2. **Naming** — update the rule, one-line rationale
+3. **Error Handling** — update the rule, one-line rationale
+4. **Data Layer Rules** — update the rule, one-line rationale
 
 `multi-file-workflows/SKILL.md`:
 
-1. **Existing workflow** — modify the numbered steps in place; preserve
-   step ordering.
-2. **New workflow** — add a `## Adding a new <thing>` heading with
-   numbered steps and a `> Gotcha:` line where wrong order causes bugs.
-3. Keep checklists concrete: real file paths, `{placeholder}` for
-   varying segments only.
+1. **Existing workflow** — modify the numbered steps in place; preserve step ordering
+2. **New workflow** — add a `## Adding a new <thing>` heading with numbered steps and a `> Gotcha:` line where wrong order causes bugs
+3. Keep checklists concrete: real file paths, `{placeholder}` for varying segments only
 
 `testing-conventions/SKILL.md`:
 
-1. **Philosophy** — add or modify a "do test" / "do NOT test" bullet.
-2. **Unit / Integration / E2E patterns** — update the example test code
-   to match the new pattern.
-3. **What NOT to Mock** — add a bullet with one-line rationale.
-4. **Fixture Conventions** — update naming / location rules with the
-   example.
+1. **Philosophy** — add/modify a "do test" / "do NOT test" bullet
+2. **Unit / Integration / E2E patterns** — update the example test code to match the new pattern
+3. **What NOT to Mock** — add a bullet with one-line rationale
+4. **Fixture Conventions** — update naming/location rules with the example
 
-**If a fact you would add is descriptive** ("the system uses RabbitMQ
-for jobs", "auth is OAuth2 PKCE"), it belongs in the wiki, not in a
-skill. Invoke `/wiki-refresh` instead.
+If a fact you would add is descriptive, stop — it belongs in the wiki, not a skill. Invoke `/wiki-refresh` instead.
 
 ```bash
 echo '{"phase":"4","status":"completed","label":"Apply documentation updates"}' >> "$ARTIFACTS_DIR/doc-updater-progress.jsonl"
 ```
-
----
 
 ### Phase 5: Verify Updates
 
@@ -511,20 +376,7 @@ echo "=== Updated testing-conventions/SKILL.md ==="
 cat {{CONFIG_DIR}}/skills/testing-conventions/SKILL.md
 ```
 
-Verify:
-
-- Only necessary sections updated
-- Existing structure preserved
-- No exhaustive lists added
-- All referenced paths exist (use glob to verify)
-- Changes pass the binary rubric (a/b/c)
-- Each file remains within its line bounds:
-  - {{INSTRUCTION_FILE}} 30–250 lines
-  - code-conventions/SKILL.md 30–250 lines
-  - multi-file-workflows/SKILL.md 20–200 lines
-  - testing-conventions/SKILL.md 25–200 lines
-- No descriptive prose leaked into the skills (descriptive belongs in the wiki)
-- No file under `docs/llm-wiki/**` was touched
+Confirm the result against the Success Criteria below.
 
 ```bash
 echo '{"phase":"5","status":"completed","label":"Verify documentation updates"}' >> "$ARTIFACTS_DIR/doc-updater-progress.jsonl"
@@ -532,19 +384,29 @@ echo '{"phase":"5","status":"completed","label":"Verify documentation updates"}'
 
 ---
 
-## Important Rules
+## Completion
 
-1. **Minimal Updates**: Only update what's necessary. Do not rewrite entire sections.
+When all phases are done, emit a one-line summary to the caller — either the list of files updated, or `doc-updater: no prescriptive doc changes needed` when the rubric gated every target — and return control. The `doc-updater-progress.jsonl` file is this skill's own log; do not touch the caller's progress file. The calling skill owns its own progress tracking.
 
-2. **Preserve Structure**: Maintain existing formatting and organization.
+---
 
-3. **No Exhaustive Lists**: Never add endpoint lists, entity field lists, or similar comprehensive inventories.
+## Success Criteria
 
-4. **Hard-to-Discover Only**: Only document patterns that are not obvious from reading code.
+Your documentation update is successful if:
 
-5. **Verify Paths**: Only reference paths that exist (verify with glob).
-
-6. **Binary Rubric**: Apply clause (a), (b), or (c). If none is satisfied, do not update.
+- Only necessary sections are updated; existing structure and formatting preserved
+- No exhaustive lists added (no endpoint lists, entity-field lists, or similar inventories)
+- Only hard-to-discover patterns documented — nothing obvious from reading code
+- All referenced paths exist in the codebase (verified with glob)
+- Every change satisfies at least one binary rubric clause (a/b/c)
+- Each file remains within its line bounds:
+  - {{INSTRUCTION_FILE}} 30–250 lines
+  - code-conventions/SKILL.md 30–250 lines
+  - multi-file-workflows/SKILL.md 20–200 lines
+  - testing-conventions/SKILL.md 25–200 lines
+- No descriptive prose leaked into the skills (descriptive belongs in the wiki)
+- No file under `docs/llm-wiki/**`, no README, and no package-manifest version field was touched
+- `$ARTIFACTS_DIR/doc-updater-progress.jsonl` contains one completed entry per phase
 
 ---
 
@@ -578,39 +440,7 @@ echo '{"phase":"5","status":"completed","label":"Verify documentation updates"}'
 }
 ```
 
-### Example 2: File Placement Update (rubric clause a)
-
-```json
-{
-  "ticketId": "PROJ-456",
-  "changesDetected": {
-    "claudeMd": {
-      "updateNeeded": true,
-      "sections": ["File Placement Guide"],
-      "reason": "Rubric clause (a): new feature module pattern introduced for profile pages"
-    },
-    "codeConventions": { "updateNeeded": false, "sections": [], "reason": "No clause satisfied" },
-    "multiFileWorkflows": { "updateNeeded": false, "sections": [], "reason": "No cross-file workflow change" },
-    "testingConventions": { "updateNeeded": false, "sections": [], "reason": "No reusable test rule change" }
-  },
-  "updates": {
-    "claudeMd": [
-      {
-        "section": "File Placement Guide",
-        "action": "add",
-        "before": null,
-        "after": "| User Profile Page | src/features/profile/*.tsx | ProfilePage.tsx |",
-        "justification": "Rubric clause (a): new profile feature introduced with its own directory structure"
-      }
-    ],
-    "codeConventions": [],
-    "multiFileWorkflows": [],
-    "testingConventions": []
-  }
-}
-```
-
-### Example 3: New Gotcha + Cross-File Workflow (rubric clauses a and b)
+### Example 2: New Gotcha + Cross-File Workflow (rubric clauses a and b)
 
 ```json
 {
@@ -620,12 +450,12 @@ echo '{"phase":"5","status":"completed","label":"Verify documentation updates"}'
     "codeConventions": {
       "updateNeeded": true,
       "sections": ["Gotchas"],
-      "reason": "Rubric clause (a/b): transaction wrapper is a prescriptive rule — bare repo.save corrupts state"
+      "reason": "Rubric clause (a/b): transaction wrapper is a prescriptive rule — bare repo.save corrupts state on partial failure"
     },
     "multiFileWorkflows": {
       "updateNeeded": true,
       "sections": ["Adding a new entity"],
-      "reason": "Rubric clause (b): workflow now also requires registering the entity in EntityRegistry"
+      "reason": "Rubric clause (b): workflow now also requires registering the entity in EntityRegistry — cross-file step"
     },
     "testingConventions": { "updateNeeded": false, "sections": [], "reason": "No clause satisfied" }
   },
@@ -655,27 +485,9 @@ echo '{"phase":"5","status":"completed","label":"Verify documentation updates"}'
 
 ---
 
-## Success Criteria
-
-Your documentation update is successful if:
-
-- Only necessary sections are updated
-- Updates maintain existing structure and formatting
-- No exhaustive lists added
-- All referenced paths exist in codebase
-- Changes satisfy at least one binary rubric clause (a/b/c)
-- Documentation remains within line bounds ({{INSTRUCTION_FILE}} 30–250 lines; code-conventions 30–250; multi-file-workflows 20–200; testing-conventions 25–200)
-- Updates accurately reflect code changes
-- No file under `docs/llm-wiki/**` was touched
-- No README files were touched
-- No package manifest version fields were changed
-- `$ARTIFACTS_DIR/doc-updater-progress.jsonl` contains one completed entry per phase
-
----
-
 ## Integration with implement-ticket
 
-This skill is invoked from `implement-ticket` Phase 8 under Codex:
+This skill is invoked from `implement-ticket` Phase 8 under Codex. The caller derives the changed-file list and ticket ID, exports them, then invokes the skill:
 
 ```bash
 CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
@@ -686,10 +498,4 @@ export TICKET_ID="$TICKET_ID"
 $doc-updater
 ```
 
-The skill will:
-
-1. Detect changed files automatically via git
-2. Analyze each file for documentation impact using the binary rubric
-3. Update only the four in-scope targets when a rubric clause is satisfied
-4. Append a progress JSONL entry per phase
-5. Return success/failure status
+The skill detects changed files via git, analyzes each against the binary rubric, updates only the four in-scope targets when a clause is satisfied, appends a progress JSONL entry per phase, and returns a one-line completion summary (see Completion).
