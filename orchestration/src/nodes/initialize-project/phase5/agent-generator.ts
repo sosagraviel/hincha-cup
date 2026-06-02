@@ -185,7 +185,11 @@ function assertAgentRenderedShippable(agent: GeneratedAgent): void {
  *
  *   - Pre-flight render validation (always, see `assertAgentRenderedShippable`):
  *     refuses to write any agent whose body still carries Handlebars
- *     placeholders or has empty cells in the commands table.
+ *     placeholders or has empty cells in the commands table. Runs on the
+ *     framework-rendered body BEFORE Codex skill-body inlining — the checks
+ *     only concern content the framework templated, and inlined skill bodies
+ *     are verbatim markdown (JSX / code examples) that would otherwise produce
+ *     false `{{...}}` placeholder matches.
  */
 export function writeAgents(agents: GeneratedAgent[], projectPath: string): void {
   const agentsDir = resolveConfigPath(projectPath, 'agents');
@@ -200,6 +204,15 @@ export function writeAgents(agents: GeneratedAgent[], projectPath: string): void
     const agentPath = join(agentsDir, agent.filename);
     let content = rewriteAgentFrontmatter(agent.content, provider);
 
+    // Validate the framework-rendered body BEFORE inlining external skill
+    // bodies. The Handlebars-placeholder / empty-command-cell checks only
+    // concern content the framework templated (the agent template), which is
+    // fully present at this point. Inlined skill bodies are verbatim markdown
+    // (JSX, code examples — e.g. `defaultValues={{ status: 'draft' }}`) that
+    // was never passed through Handlebars; scanning it would mis-fire the
+    // `{{...}}` regex and reject a perfectly valid agent.
+    assertAgentRenderedShippable({ ...agent, content });
+
     if (provider === Provider.CODEX) {
       content = inlineSkillBodiesForCodex(content, {
         projectPath,
@@ -207,8 +220,6 @@ export function writeAgents(agents: GeneratedAgent[], projectPath: string): void
         resolveSkillPath: resolveCodexSkillPath,
       });
     }
-
-    assertAgentRenderedShippable({ ...agent, content });
 
     portableWriter.writeMarkdown(asAbsolutePath(agentPath), content);
     agent.path = agentPath;
