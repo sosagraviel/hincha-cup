@@ -386,7 +386,7 @@ echo '{"phase":"5","status":"completed","label":"Verify documentation updates"}'
 
 ## Completion
 
-When all phases are done, emit a one-line summary to the caller — either the list of files updated, or `doc-updater: no prescriptive doc changes needed` when the rubric gated every target — and return control. The `doc-updater-progress.jsonl` file is this skill's own log; do not touch the caller's progress file. The calling skill owns its own progress tracking.
+When all phases are done, emit a one-line summary to the caller — either the list of files updated, or `doc-updater: no prescriptive doc changes needed` when the rubric gated every target — and return control. This step **always runs, including the no-change case**: emitting the summary is a successful return to the caller, not the end of the run — the calling skill continues with its next phase. The `doc-updater-progress.jsonl` file is this skill's own log; do not touch the caller's progress file. The calling skill owns its own progress tracking.
 
 ---
 
@@ -440,6 +440,8 @@ Your documentation update is successful if:
 }
 ```
 
+→ Then report `doc-updater: no prescriptive doc changes needed` and **return control to the caller. This is a successful result, NOT the end of the run — `/implement-ticket` continues with Phase 8.4.**
+
 ### Example 2: New Gotcha + Cross-File Workflow (rubric clauses a and b)
 
 ```json
@@ -482,6 +484,8 @@ Your documentation update is successful if:
   }
 }
 ```
+
+→ Apply the edits above, then report `doc-updater: updated code-conventions/SKILL.md, multi-file-workflows/SKILL.md` and return control to the caller.
 
 ---
 

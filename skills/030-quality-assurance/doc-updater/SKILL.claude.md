@@ -280,7 +280,7 @@ Confirm the result against the Success Criteria below.
 
 ## Completion
 
-When all phases are done, emit a one-line summary to the caller — either the list of files updated, or `doc-updater: no prescriptive doc changes needed` when the rubric gated every target — and return control. Do not create tasks or todos; the calling skill owns progress tracking.
+When all phases are done, emit a one-line summary to the caller — either the list of files updated, or `doc-updater: no prescriptive doc changes needed` when the rubric gated every target — and return control. This step **always runs, including the no-change case**: emitting the summary is a successful return to the caller, not the end of the run — the calling skill continues with its next phase. Do not create tasks or todos; the calling skill owns progress tracking.
 
 ---
 
@@ -333,6 +333,8 @@ Your documentation update is successful if:
 }
 ```
 
+→ Then report `doc-updater: no prescriptive doc changes needed` and **return control to the caller. This is a successful result, NOT the end of the run — `/implement-ticket` continues with Phase 8.4.**
+
 ### Example 2: New Gotcha + Cross-File Workflow (rubric clauses a and b)
 
 ```json
@@ -375,6 +377,8 @@ Your documentation update is successful if:
   }
 }
 ```
+
+→ Apply the edits above, then report `doc-updater: updated code-conventions/SKILL.md, multi-file-workflows/SKILL.md` and return control to the caller.
 
 ---
 
