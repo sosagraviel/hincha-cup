@@ -8,6 +8,8 @@ import type {
   ResolvedSkill,
 } from '../../../../../src/nodes/initialize-project/phase5/types.js';
 import type { StackProfile } from '../../../../../src/schemas/index.js';
+import { setActiveProvider } from '../../../../../src/utils/provider-paths.js';
+import { Provider } from '../../../../../src/providers/types.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -611,6 +613,63 @@ Frontend: {{frameworks.frontend}}`;
           const msg = (err as Error).message;
           expect(msg).toMatch(/agent-generators\.ts/);
         }
+      });
+
+      // Regression (codex provider): the validator runs on the rendered
+      // template BEFORE Codex skill-body inlining. A skill body can legitimately
+      // contain `{{...}}` that is NOT Handlebars — e.g. the react-frontend skill
+      // ships JSX `defaultValues={{ status: 'draft' }}`. Inlining that into a
+      // codex agent must NOT trip the unrendered-placeholder guard.
+      describe('codex skill-body inlining', () => {
+        afterEach(() => {
+          // Restore the module-level provider so sibling tests keep their
+          // default (claude) path — vi.restoreAllMocks() does not reset it.
+          setActiveProvider(Provider.CLAUDE);
+        });
+
+        it('does NOT flag JSX double-braces from an inlined skill body', () => {
+          setActiveProvider(Provider.CODEX);
+
+          const skillBody = [
+            '# React Frontend',
+            '',
+            '```tsx',
+            'function CreateOrderDialog() {',
+            "  return <FormDialog defaultValues={{ status: 'draft' }} />;",
+            '}',
+            '```',
+          ].join('\n');
+
+          vi.mocked(fs.existsSync).mockReturnValue(true);
+          vi.mocked(fs.readFileSync).mockReturnValue(skillBody as never);
+
+          const agents: GeneratedAgent[] = [
+            {
+              name: 'planner',
+              filename: 'planner.md',
+              model: 'opus',
+              description: 'Planner',
+              content: '---\nname: planner\nmodel: opus\n---\n\n# Planner\n\nClean body.\n',
+              path: '',
+              assignedSkills: [
+                {
+                  name: 'react-frontend',
+                  path: '/test/path',
+                  relative_path: 'react-frontend',
+                  reason: 'frontend',
+                  description: 'React',
+                },
+              ],
+            },
+          ];
+
+          expect(() => writeAgents(agents, '/test/project')).not.toThrow();
+          expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+          const written = vi.mocked(fs.writeFileSync).mock.calls[0][1] as string;
+          // The JSX survived into the written agent (inlining happened) yet the
+          // guard did not reject it.
+          expect(written).toContain("defaultValues={{ status: 'draft' }}");
+        });
       });
     });
   });

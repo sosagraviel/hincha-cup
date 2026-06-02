@@ -95,7 +95,7 @@ rm -rf .claude-temp/   # use .codex-temp/ when provider=codex
 ## Syncing Framework Resources
 
 > For normal updates (pulling the latest skills/agents into your project), see the
-> [Updating the Framework](/docs/guides/updating-the-framework) guide. This section covers
+> [Sync Framework Resources](/docs/guides/sync-framework-resources) guide. This section covers
 > errors you may hit while syncing.
 
 ### `sync-framework-resources` fails with `ERR_MODULE_NOT_FOUND`

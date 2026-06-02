@@ -222,3 +222,64 @@ test.describe('Chat: Send message', () => {
 5. **Use fixtures** for common setup (auth, org, project)
 6. **Parameterize tests** for different user roles
 7. **Screenshot on failure** (configured in playwright.config.ts)
+
+## Configuration Hardening
+
+### playwright.config.ts — Recommended Setup
+
+Always generate or recommend a hardened `playwright.config.ts` that follows these patterns:
+
+```typescript
+import { defineConfig } from '@playwright/test';
+import dotenv from 'dotenv';
+dotenv.config();
+
+if (!process.env.APP_BASE_URL) {
+  throw new Error('APP_BASE_URL is not set. Copy .env.example to .env and set the required values.');
+}
+
+export default defineConfig({
+  testDir: './e2e', // Adapt to your project's test directory
+  fullyParallel: false,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 4 : 1,
+  globalTimeout: process.env.CI ? 60 * 60 * 1000 : undefined,
+  timeout: 30000,
+  use: {
+    baseURL: process.env.APP_BASE_URL!,
+    actionTimeout: 15000,
+    navigationTimeout: 30000,
+    screenshot: 'only-on-failure',
+    trace: 'on-first-retry',
+    headless: !!process.env.CI,
+    viewport: { width: 1280, height: 720 },
+  },
+  projects: [
+    { name: process.env.TEST_BROWSER || 'chromium', use: { browserName: (process.env.TEST_BROWSER || 'chromium') as 'chromium' | 'firefox' | 'webkit' } },
+  ],
+});
+```
+
+### Why each setting matters
+
+- **`fullyParallel`** — set to `false` by default so tests run sequentially within a file; set to `true` only if your tests are fully independent and stateless
+- **`baseURL`** — reads from `APP_BASE_URL` env var so tests run against any environment without code changes
+- **`retries`** — 2 retries in CI to handle flakiness; 0 locally for fast feedback
+- **`workers`** — 4 parallel workers in CI for speed; 1 locally to avoid resource contention
+- **`globalTimeout`** — 1 hour ceiling in CI so runaway suites do not block pipelines
+- **`timeout`** — 30s per test prevents hanging tests
+- **`navigationTimeout`** — 30s for page navigations
+- **`actionTimeout`** — 15s for individual user actions
+- **`headless`** — headless in CI, headed locally so you can see what is happening
+- **`screenshot`** — captures evidence only on failure to save storage
+- **`trace`** — enables tracing on first retry for debugging flaky tests
+
+### Environment Variables
+
+Reference `.env.example` in this directory for all required variables. At minimum:
+
+APP_BASE_URL=https://your-app-url.com
+TEST_BROWSER=chromium
+
+Never hardcode URLs, project codes, or API tokens in `playwright.config.ts`.

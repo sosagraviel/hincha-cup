@@ -57,20 +57,21 @@ $implement-ticket --from-input "Add dark mode toggle to settings page"
 | `--skip-tests` | Skip testing phase |
 | `--skip-visual` | Skip visual verification |
 | `--skip-pr` | Skip PR creation (commit only) |
-| `--branch NAME` | Custom branch name |
+
+Input modes (`--from-*`) are mutually exclusive.
 
 **Examples**:
 
 ```bash
 # Claude Code
-/implement-ticket --from-jira PROJ-123                            # Jira ticket
-/implement-ticket --from-jira PROJ-456 --skip-visual              # Skip visual tests for backend
-/implement-ticket --from-jira PROJ-789 --branch feature/custom-name  # Custom branch
+/implement-ticket --from-jira PROJ-123                  # Jira ticket
+/implement-ticket --from-jira PROJ-456 --skip-visual    # Skip visual tests for backend
+/implement-ticket --from-jira PROJ-789 --skip-pr        # Commit locally, no PR
 
 # Codex CLI
 $implement-ticket --from-jira PROJ-123
 $implement-ticket --from-jira PROJ-456 --skip-visual
-$implement-ticket --from-jira PROJ-789 --branch feature/custom-name
+$implement-ticket --from-jira PROJ-789 --skip-pr
 ```
 
 ---
@@ -83,34 +84,41 @@ Work in progress, not ready for production. Use the `/implement-ticket` skill in
 
 ---
 
-## 11-Phase Process
+## 14-Phase Process
 
 ```mermaid
 graph LR
-    A[Phase 0: Preflight<br/>30-60s] --> B[Phase 1: Context<br/>2-5min]
-    B --> C[Phase 2: Planning<br/>1-2min]
-    C --> D[Phase 3: Environment<br/>1-3min]
-    D --> E[Phase 4: Implementation<br/>3-8min]
-    E --> F[Phase 5: Testing<br/>2-5min]
-    F --> G[Phase 6: Visual<br/>2-4min]
-    G --> H[Phase 7: Documentation<br/>1-3min]
-    H --> I[Phase 8: PR Creation<br/>1-2min]
-    I --> J[Phase 9: Review<br/>2-4min]
-    J --> K[Phase 10: Cleanup<br/>1-2min]
+    P0[0: Preflight] --> P1[1: Context]
+    P1 --> P2[2: Wiki Preload]
+    P2 --> P3[3: Planning]
+    P3 --> P4[4: Environment]
+    P4 --> P5[5: Implementation]
+    P5 --> P6[6: Testing]
+    P6 --> P7[7: Visual]
+    P7 --> P8[8: Documentation]
+    P8 --> P84[8.4: Impl Commit]
+    P84 --> P85[8.5: Wiki Refresh]
+    P85 --> P9[9: PR Creation]
+    P9 --> P10[10: Review Loop]
+    P10 --> P11[11: Cleanup]
 ```
 
-**Phases**:
-0. Preflight - Validate environment, git status, prerequisites
-1. Context - Gather ticket context from Jira/markdown/input
-2. Planning - Create implementation plan with AI planner
-3. Environment - Create feature branch and setup
-4. Implementation - Generate code with AI implementer
-5. Testing - Run test suite with coverage validation
-6. Visual - Capture and analyze visual changes (UI only)
-7. Documentation - Update project documentation
-8. PR Creation - Commit changes and create pull request
-9. Review - Run automated quality and security reviews
-10. Cleanup - Clean up and archive artifacts
+**Phases** — 14 in total. The skill labels them `0`–`11`, with two extra steps (`8.4` and `8.5`) inserted after Documentation:
+
+1. **Phase 0 · Preflight** - Auto-bootstrap (build/refresh code graph, emit MCP config) + validate environment, git status, and prerequisites
+2. **Phase 1 · Context** - Gather ticket context from Jira/markdown/input
+3. **Phase 2 · Wiki Preload** - Load the relevant LLM wiki pages for graph- and wiki-aware planning
+4. **Phase 3 · Planning** - Create implementation plan with the AI planner agent
+5. **Phase 4 · Environment** - Create feature branch and set up
+6. **Phase 5 · Implementation** - Generate code with the AI implementer agent
+7. **Phase 6 · Testing** - Run test suite with coverage validation
+8. **Phase 7 · Visual** - Capture and analyze visual changes (UI only)
+9. **Phase 8 · Documentation** - Update project documentation
+10. **Phase 8.4 · Implementation Commit** - Commit the code + doc changes
+11. **Phase 8.5 · Wiki Refresh** - Run `/wiki-refresh` to update `docs/llm-wiki/` if high-level facts drifted
+12. **Phase 9 · PR Creation** - Push branch and open the pull request (multi-repo: one PR per affected repo)
+13. **Phase 10 · Review Loop** - Run automated quality and security reviews (`/pr-reviewer`, `/security-review`)
+14. **Phase 11 · Cleanup** - Clean up and archive artifacts
 
 ---
 
@@ -211,8 +219,8 @@ AI verifier checks:
 ## Troubleshooting
 
 ### "Planning phase timeout"
-- Use `MODEL_TIER=opus`
-- Break ticket into smaller parts
+- Break the ticket into smaller parts
+- Re-initialize with a higher model tier (`MODEL_TIER` is chosen at setup time — see [Custom Model Selection](#custom-model-selection))
 
 ### "Tests failing"
 - Review failures in output
@@ -228,18 +236,17 @@ AI verifier checks:
 - Use `--skip-visual` for backend changes
 - Tests skip automatically if no visual changes
 
-### Debug Mode
+### Inspecting Artifacts
+
+Every run writes its intermediate artifacts to a deterministic directory — inspect it to debug a failed or surprising run:
 
 ```bash
-export DEBUG=true
-
-# Claude Code
-/implement-ticket --from-jira PROJ-123
-# Codex CLI
-$implement-ticket --from-jira PROJ-123
-
-# Check artifacts (.claude-temp/ in Claude, .codex-temp/ in Codex)
+# Claude: .claude-temp/   |   Codex: .codex-temp/
 ls .claude-temp/tickets/PROJ-123/artifacts/
+
+# Preflight outcome markers live here too:
+#   .preflight-ok      → bootstrap + validation passed (carries git_head)
+#   .preflight-failed  → carries { reason, git_head, ran_at }
 ```
 
 ---
@@ -248,15 +255,24 @@ ls .claude-temp/tickets/PROJ-123/artifacts/
 
 ### Custom Model Selection
 
-```bash
-# Claude Code
-MODEL_TIER=haiku /implement-ticket --from-jira PROJ-123     # Simple fixes
-MODEL_TIER=opus  /implement-ticket --from-jira PROJ-123     # Complex changes
+`MODEL_TIER` is chosen at **setup time** — it configures the agents the framework generates, not a per-run flag. Re-run setup to change tiers:
 
-# Codex CLI
-MODEL_TIER=haiku $implement-ticket --from-jira PROJ-123
-MODEL_TIER=opus  $implement-ticket --from-jira PROJ-123
+```bash
+# Faster / cheaper models
+MODEL_TIER=fast     ./scripts/initialize-project.sh
+
+# Higher-capability models for complex codebases
+MODEL_TIER=advanced ./scripts/initialize-project.sh
 ```
+
+| Tier | Use for |
+|------|---------|
+| `fast` | Simple, high-volume changes (speed/cost) |
+| `standard` | Default — balanced |
+| `advanced` | Complex changes needing the strongest models |
+| `openai` / `gemini` | Use the OpenAI / Google provider instead of Anthropic |
+
+After re-initializing, run `/implement-ticket` normally.
 
 ### Batch Processing
 
@@ -276,14 +292,14 @@ $implement-ticket --from-jira PROJ-125
 
 ```bash
 # Claude Code
-/implement-ticket --from-jira PROJ-123 --branch feature/urgent   # Custom branch
 /implement-ticket --from-jira PROJ-123 --skip-pr                 # Skip PR for local testing
 /implement-ticket --from-jira PROJ-123 --skip-visual             # Backend only
+/implement-ticket --from-jira PROJ-123 --skip-tests --skip-pr    # Fast local spike
 
 # Codex CLI
-$implement-ticket --from-jira PROJ-123 --branch feature/urgent
 $implement-ticket --from-jira PROJ-123 --skip-pr
 $implement-ticket --from-jira PROJ-123 --skip-visual
+$implement-ticket --from-jira PROJ-123 --skip-tests --skip-pr
 ```
 
 ---

@@ -1,12 +1,13 @@
 ---
 sidebar_position: 6
-title: Updating the Framework
+title: Sync Framework Resources
 description: Pull the latest skills, agents, and scripts into your project with one command — no re-initialization needed.
 ---
 
-# Updating the Framework
+# Sync Framework Resources
 
-When a new framework version ships, you usually **don't** need to re-initialize your project.
+When a new framework version ships, you usually **don't** need to re-initialize your project (unless the version includes breaking changes in the project structure or configuration. For example [release: 2026-06-02](../release-notes/2026-06-02)).
+
 Re-running `initialize-project.sh` re-analyzes your entire codebase with AI agents — slow and
 costly. To simply pick up the latest skills, agents, and scripts, run the sync instead:
 
@@ -34,6 +35,8 @@ actually changed.
   are removed automatically.
 
 > **Restart your CLI** after a sync that changes MCP config so `/mcp` picks up `code_graph`.
+
+For the full picture of every file initialization generates, see the [Project Structure reference](/docs/reference/project-structure).
 
 ---
 

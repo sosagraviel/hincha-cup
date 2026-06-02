@@ -14,12 +14,11 @@ Complete workflows and best practices for using the AI Agentic Framework in your
 
 1. [Getting Started](#getting-started)
 2. [Core Workflows](#core-workflows)
-3. [Daily Development](#daily-development)
-4. [Commands Reference](#commands-reference)
-5. [Best Practices](#best-practices)
-6. [Team Collaboration](#team-collaboration)
-7. [Troubleshooting](#troubleshooting)
-8. [FAQ](#faq)
+3. [Skills Reference](#skills-reference)
+4. [Best Practices](#best-practices)
+5. [Team Collaboration](#team-collaboration)
+6. [Troubleshooting](#troubleshooting)
+7. [FAQ](#faq)
 
 ---
 
@@ -31,8 +30,8 @@ The framework works with two providers — skills are invoked the same way, but 
 
 | Provider   | Prefix | Example                              | List active skills |
 |------------|--------|--------------------------------------|--------------------|
-| Claude Code | `/`    | `/implement-ticket PROJ-123`         | auto-discovered    |
-| Codex CLI   | `$`    | `$implement-ticket PROJ-123`         | `/skills`          |
+| Claude Code | `/`    | `/implement-ticket --from-jira PROJ-123` | auto-discovered    |
+| Codex CLI   | `$`    | `$implement-ticket --from-jira PROJ-123` | `/skills`          |
 
 All examples in this guide show both forms. Pick whichever matches your provider.
 
@@ -49,9 +48,12 @@ git clone https://github.com/thisisqubika/qubika-agentic-framework.git qubika-ag
 
 This analyzes your codebase and generates (Claude layout shown — Codex writes to `.codex/` with `AGENTS.md`):
 - `CLAUDE.md` (or `AGENTS.md`) - Quick reference guide
-- `project-context/SKILL.md` - Deep context
+- Convention skills (`code-conventions`, `multi-file-workflows`, `testing-conventions`) - generated from your code
 - Stack-specific skills
 - Custom AI agents
+- The LLM wiki, code graph, and MCP config at your project root
+
+See the [Project Structure reference](/docs/reference/project-structure) for the complete tree.
 
 **Time**: ~10-15 minutes
 
@@ -78,10 +80,13 @@ graph LR
 
 ```bash
 # Claude Code
-/implement-ticket PROJ-123
+/implement-ticket --from-jira PROJ-123
 # Codex CLI
-$implement-ticket PROJ-123
+$implement-ticket --from-jira PROJ-123
 ```
+
+> You can also implement from a plain description (`--from-input "..."`) or a local SDD markdown
+> file (`--from-markdown ./specs/feature.md`).
 
 **What happens**:
 
@@ -99,145 +104,53 @@ $implement-ticket PROJ-123
 
 ---
 
-### Workflow 2: Bug Fixes
+### Workflow 2: Reviewing a PR
 
-Faster workflow for bug fixes with known root cause.
+Run an AI review on a pull request before (or alongside) human review.
 
 ```bash
 # Claude Code
-/implement-ticket BUG-456
+/pr-reviewer --pr-url https://github.com/org/repo/pull/123
 # Codex CLI
-$implement-ticket BUG-456
+$pr-reviewer --pr-url https://github.com/org/repo/pull/123
 ```
 
-**What's different**:
-- Skips architecture planning
-- Focuses on minimal changes
-- Includes regression tests
-- Faster execution
-
-**Time**: 3-8 minutes
-
-**When to use**: Bug fixes, small refactors, typo corrections
-
----
-
-### Workflow 3: Code Review
-
-Get AI review before human review.
-
-```bash
-# After implementing code
-/code-quality-check
-```
-
-**Checks**:
-- Linting errors
-- Type errors
-- Test coverage
+**What it checks** (specialist agents):
+- Bug / logic issues
 - Security vulnerabilities
-- Performance issues
+- Test coverage and quality
+- Performance
+- Project conventions
 
-**Time**: 1-3 minutes
+**Multi-repo**: pass `--repos <abs1>,<abs2>` to review across repos, then `--aggregate` for a
+cross-repo summary.
 
-**When to use**: Before creating PR, after manual code changes
-
----
-
-### Workflow 4: Writing Tests
-
-Generate tests for existing code.
-
-```bash
-# In Claude Code or Codex CLI (plain chat request, no skill prefix)
-Generate comprehensive tests for src/auth/oauth.service.ts
-```
-
-**What gets generated**:
-- Unit tests
-- Integration tests
-- Edge case coverage
-- Mocking where appropriate
-
-**Time**: 3-7 minutes
-
-**When to use**: Legacy code, coverage gaps, new test requirements
+**When to use**: On any open PR, before requesting human review
 
 ---
 
-## Daily Development
+### Workflow 3: Applying PR Feedback
 
-### Morning Routine
-
-**1. Check what's available**
+Apply reviewer feedback (a `CHANGES_REQUESTED` review) to the existing branch — no new PR is opened.
 
 ```bash
 # Claude Code
-claude code
+/apply-pr-feedback --pr-number 123 --branch feature/oauth-login --from-jira PROJ-123
 # Codex CLI
-codex
+$apply-pr-feedback --pr-number 123 --branch feature/oauth-login --from-jira PROJ-123
 ```
 
-In Claude, type `/` to browse skills. In Codex, run `/skills` to list the active skills in the session.
+By default it applies the most recent `CHANGES_REQUESTED` review; pass `--review-id <ID>` to target a
+specific one. `--from-jira` is optional but recommended so the changes stay anchored to the ticket.
 
-**2. Review overnight PRs** (if applicable)
-
-Check for PRs created by team members using the framework.
-
-**3. Pick next ticket**
-
-Choose from backlog based on priority.
-
----
-
-### During Development
-
-**Implementing Features**:
-
-```bash
-# Claude Code
-/implement-ticket PROJ-123
-
-# Codex CLI
-$implement-ticket PROJ-123
-```
-
-Need to understand the ticket context first? Ask the CLI in plain text (`Summarise ticket PROJ-123`) before invoking the skill.
-
-**Checking Quality**:
-
-Quality gates (lint, typecheck, coverage, PR creation) run automatically inside `/implement-ticket`. For manual checks, use your project's native commands (`npm run lint`, `npx tsc --noEmit`, `gh pr create`, etc.).
-
-**Getting Unstuck**:
-
-```bash
-# Claude Code — resume after a failure
-/implement-ticket PROJ-123 --resume
-# Codex CLI
-$implement-ticket PROJ-123 --resume
-
-# If tests fail repeatedly, inspect the artifacts:
-#   .claude-temp/tickets/PROJ-123/artifacts/   (Claude)
-#   .codex-temp/tickets/PROJ-123/artifacts/    (Codex)
-```
-
----
-
-### End of Day
-
-**1. Review completed work**
-
-`/implement-ticket` creates the PR as part of its run. Check `git log` and the PR description for what was shipped.
-
-**2. Update ticket status**
-
-Mark tickets as "In Review" or "Done".
+**When to use**: After a reviewer (human or `pr-reviewer`) requests changes on your PR
 
 ---
 
 ## Skills Reference
 
-> Prefix skills with `/` in Claude Code and `$` in Codex CLI. In Codex, run `/skills` to list the skills loaded in the current session.
+> Prefix skills with `/` in Claude Code and `$` in Codex CLI. In Codex, run `/skills` to list the
+> skills loaded in the current session.
 
 ### Project Setup
 
@@ -247,10 +160,18 @@ Mark tickets as "In Review" or "Done".
 
 ### Feature Development
 
-| Skill | Purpose | Time |
-|-------|---------|------|
-| `implement-ticket <ID>` | Full feature implementation (includes tests, quality gates, PR) | 5-15 min |
-| `create-sdd-ticket` | Turn an idea or Jira ticket into a spec-driven ticket | 3-5 min |
+| Skill | Purpose |
+|-------|---------|
+| `implement-ticket --from-jira <ID>` | Full feature/bug implementation (tests, quality gates, PR) |
+| `create-sdd-ticket --from-input "..."` | Turn an idea or Jira ticket into a spec-driven ticket |
+| `pr-reviewer --pr-url <URL>` | AI review of a pull request (bugs, security, tests, perf, conventions) |
+| `apply-pr-feedback --pr-number <N> --branch <branch>` | Apply requested-change feedback to an existing PR branch |
+
+### QA
+
+| Skill | Purpose |
+|-------|---------|
+| `generate-test-cases --from-jira <ID>` | Generate QA test cases and publish to Qase / Jira / TestRail / Xray / markdown |
 
 **See all skills**:
 - Claude Code — type `/` to browse.
@@ -391,9 +312,10 @@ If tests fail after 3 attempts:
    # Run tests to see failures
    npm test
 
-   # Fix the issue, then resume:
-   /implement-ticket PROJ-123 --resume    # Claude Code
-   $implement-ticket PROJ-123 --resume    # Codex CLI
+   # Fix the issue, then re-run the same command — implement-ticket resumes
+   # from its last completed phase via preflight markers:
+   /implement-ticket --from-jira PROJ-123    # Claude Code
+   $implement-ticket --from-jira PROJ-123    # Codex CLI
    ```
 
 3. **Report patterns**
@@ -424,15 +346,14 @@ If implementation gets stuck:
 **Daily Usage**:
 ```bash
 # Morning: Pick ticket
-/implement-ticket PROJ-123    # Claude Code
-$implement-ticket PROJ-123    # Codex CLI
+/implement-ticket --from-jira PROJ-123    # Claude Code
+$implement-ticket --from-jira PROJ-123    # Codex CLI
 
 # Afternoon: Review and merge
 # Check PR, test locally, merge
 ```
 
 **Benefits**:
-- 70-80% time savings
 - Consistent code quality
 - Less context switching
 
@@ -474,81 +395,13 @@ npm test
 
 ## Troubleshooting
 
-### Common Issues
-
-**Issue**: Initialization failed or incomplete
-
-**Solution**: Re-run initialization:
-```bash
-cd /path/to/your-project
-./qubika-agentic-framework/scripts/initialize-project.sh
-```
-
-Check logs for errors:
-```bash
-cat .claude-temp/initialization.log
-```
-
----
-
-**Issue**: Stack detection failed
-
-**Solution**: Ensure you have standard config files:
-- TypeScript: `package.json` + `tsconfig.json`
-- Python: `requirements.txt` or `pyproject.toml`
-- Go: `go.mod`
-- Java: `pom.xml` or `build.gradle`
-
----
-
-**Issue**: Tests failing consistently
-
-**Solution**:
-1. Run tests manually to understand failure
-2. Check if baseline is clean (`npm test` on main branch)
-3. Fix environment issues (DB, ports, env vars)
-4. Resume implementation: `/implement-ticket PROJ-123 --resume` (Claude) / `$implement-ticket PROJ-123 --resume` (Codex)
-
----
-
-**Issue**: Generated code doesn't match project style
-
-**Solution**:
-1. Re-run initialization (framework learns from more code over time)
-2. Check if patterns are consistent in your codebase
-3. Add style guide to project documentation
-
----
-
-**Issue**: Wrong framework detected
-
-**Solution**:
-1. Check `project-context/SKILL.md` for detected stack
-2. If wrong, ensure config files are correct
-3. Remove conflicting dependencies
-4. Re-run initialization: `./qubika-agentic-framework/scripts/initialize-project.sh`
-
----
-
-### Getting Help
-
-**Support**:
-- GitHub Issues: https://github.com/thisisqubika/qubika-agentic-framework/issues
-- Slack: #qubika-agentic-framework
+Common issues — installation and initialization failures, failing tests, authentication, MCP
+connection problems, performance, and getting help — are covered in the dedicated
+**[Troubleshooting Guide](/docs/getting-started/troubleshooting)**.
 
 ---
 
 ## FAQ
-
-**Q: How accurate is the framework?**
-
-A: **95%+** on average. Implementation accuracy includes:
-- Acceptance criteria met
-- Tests passing
-- Code following conventions
-- No critical issues
-
----
 
 **Q: Can I use this for large refactors?**
 
@@ -602,7 +455,7 @@ A: **Options**:
 
 A: **Best practices**:
 - Review security-related PRs thoroughly
-- Use framework's security review skill
+- Use the `security-review` skill
 - Add security tests to requirements
 - Never commit secrets (framework prevents this)
 
@@ -618,21 +471,12 @@ A: **Yes**:
 
 ---
 
-**Q: What's the typical time savings?**
-
-A: **70-80% reduction** in development time:
-- Simple features: 60 min → 10 min
-- Medium features: 4 hours → 45 min
-- Complex features: 2 days → 4 hours
-
----
-
 **Q: How do I track what the framework is doing?**
 
 A: **Logs and artifacts**:
 - Claude Code output shows progress
 - PR description includes detailed steps
-- Logs in `.claude/logs/` (if needed)
+- Per-phase artifacts in `.claude-temp/tickets/<ID>/artifacts/` (`.codex-temp/` for Codex)
 - All decisions are transparent
 
 ---

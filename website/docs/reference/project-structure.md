@@ -1,311 +1,212 @@
 ---
 sidebar_position: 4
 title: Project Structure
-description: Understanding the .claude directory and generated framework files
+description: The complete reference for every file the framework generates during initialization
 ---
 
 # Project Structure
 
-After running `/initialize-project`, the framework creates a `.claude/` directory containing all project-specific configuration, skills, and agents.
+Running `/initialize-project` (via [`scripts/initialize-project.sh`](https://github.com/thisisqubika/qubika-agentic-framework/blob/main/scripts/initialize-project.sh)) writes **more than just `.claude/`**. It also generates the LLM wiki, the code graph, and the MCP config at your project root.
+
+This page is the **single source of truth** for everything that gets generated. Other docs link here rather than repeating the structure.
+
+:::note
+The framework writes to provider-specific locations. **Claude** projects get `.claude/` + `CLAUDE.md`; **Codex** projects get `.codex/` + `AGENTS.md`. The trees below show the Claude layout — substitute `.codex/`/`AGENTS.md` for Codex.
+:::
 
 ---
 
-## The .claude Directory
-
-### Directory Structure
+## Full Directory Tree
 
 ```
-.claude/
-├── settings.json              # Framework configuration
-├── CLAUDE.md                  # Quick reference guide (30-200 lines)
+<project>/
+├── .claude/                       # or .codex/ when initialized for Codex
+│   ├── CLAUDE.md                  # or AGENTS.md on Codex — project AI reference
+│   ├── framework-config.json      # detected stack + framework config
+│   ├── skills/
+│   │   ├── code-conventions/         # generated from your code
+│   │   ├── multi-file-workflows/     # generated from your code
+│   │   ├── testing-conventions/      # generated from your code
+│   │   └── …                          # stack-specific skills copied in (mastering-*, etc.)
+│   ├── agents/
+│   │   ├── planner.md
+│   │   ├── implementer-<language>.md   # one per detected language (typescript, python, …)
+│   │   ├── implementer-generic.md
+│   │   └── visual-verifier.md          # only when a frontend service is detected
+│   └── scripts/                   # preflight automation (copied from framework)
+│       ├── ensure-context.sh
+│       ├── setup-code-graph.sh
+│       ├── code-review-graph-mcp.sh
+│       ├── lib/
+│       │   ├── resolve-paths.sh
+│       │   ├── bootstrap-uv.sh
+│       │   ├── register-submodules.sh
+│       │   └── patch-code-review-graph.py
+│       └── templates/
+│           ├── code-review-graphignore
+│           └── code-review-graph-gitignore
 │
-├── skills/                    # Stack-specific skills
-│   ├── project-context/       # Your project's context
-│   ├── mastering-typescript/  # TypeScript patterns
-│   ├── react-frontend/        # React patterns
-│   └── jest-coverage-automation/  # Jest testing
+├── docs/llm-wiki/                 # generated LLM wiki (graph-backed docs)
+│   ├── CLAUDE.md                  # router / entry point (AGENTS.md on Codex)
+│   ├── .state.json                # per-repo last-indexed commit (drives /wiki-refresh)
+│   └── wiki/
+│       ├── index.md               # routing table — one line per page
+│       ├── ARCHITECTURE.md
+│       ├── SERVICES.md
+│       ├── getting-started.md
+│       └── services/              # one page per detected service
 │
-└── agents/                    # Custom AI agents
-    ├── planner.md            # Medium-risk planning
-    ├── implementer-typescript.md  # TypeScript implementation
-    ├── tester-unit-typescript.md  # TypeScript testing
-    └── security-reviewer-typescript.md  # Security review
+├── .mcp.json                      # code_graph MCP server (Claude); .codex/config.toml on Codex
+├── .code-review-graph/            # code graph DB (graph.db + .state.json), built on first preflight
+└── .gitignore                     # updated to ignore .claude-temp/, .codex-temp/, .mcp.json, …
 ```
 
 ---
 
 ## Generated Files Explained
 
-### CLAUDE.md (Project Root)
+### CLAUDE.md / AGENTS.md
 
-**Purpose**: Quick reference guide for AI agents
+**Location**: `.claude/CLAUDE.md` (Claude) or `.codex/AGENTS.md` (Codex)
 
-**Location**: Root of project (`.claude/CLAUDE.md`)
-
-**Contains**:
-- Tech stack summary
-- Project patterns and conventions
-- Testing setup
-- Common commands
-- File organization
-
-**Size**: 30-200 lines (intentionally concise)
-
-**Updated**: Each time `/initialize-project` runs
-
-**Example Structure**:
-```markdown
-# Project Name
-
-## Tech Stack
-- TypeScript 5.x with ESM
-- React 18 with Vite
-- Jest + React Testing Library
-
-## Patterns
-- Atomic Design for components
-- Redux Toolkit for state
-- Axios for API calls
-
-## Testing
-npm test           # Unit tests
-npm run test:e2e   # E2E tests
-
-## Key Conventions
-- Components in src/components/
-- Tests colocated: Component.test.tsx
-- Coverage target: 80%
-```
+The quick reference guide for AI agents — tech stack, file placement, essential commands, services & ports, and a pointer into the LLM wiki. Intentionally concise (≈30-200 lines). Regenerated each time initialization runs.
 
 ---
 
-### settings.json
+### framework-config.json
 
-**Purpose**: Framework configuration and preferences
+**Location**: `.claude/framework-config.json` (or `.codex/`)
 
-**Location**: `.claude/settings.json`
+Machine-readable description of your project, consumed by the framework's skills and the `sync-framework-resources` flow. Generated by [`config-generator.ts`](https://github.com/thisisqubika/qubika-agentic-framework/blob/main/orchestration/src/nodes/initialize-project/phase4/config-generator.ts).
 
-**Contains**:
-- Model tier preferences
-- Quality gate thresholds
-- MCP configurations
-- Workflow customizations
+Top-level keys:
 
-**Example**:
-```json
-{
-  "modelTier": "standard",
-  "qualityGates": {
-    "coverageThreshold": 80,
-    "skipVisualRegression": false
-  },
-  "mcpServers": {
-    "jira": {
-      "enabled": true,
-      "url": "https://company.atlassian.net"
-    }
-  }
-}
-```
+- `stack_profile` — detected services, monorepo layout, package manager, infrastructure, per-language file counts, command catalog
+- `resource_state` — which skills/agents were copied and the last sync timestamp
+- `project_metadata` — last analysis time and an initialization hash
+- `version` / `schema_version` / `framework_version`
+
+> This replaces the older `settings.json` concept. The framework does **not** generate a `settings.json` — that file (`.claude/settings.local.json`) belongs to the Claude Code CLI, not to initialization.
 
 ---
 
-### project-context/SKILL.md
+### Convention Skills
 
-**Purpose**: Deep architectural knowledge of your project
+**Location**: `.claude/skills/{name}/SKILL.md`
 
-**Location**: `.claude/skills/project-context/SKILL.md`
+Three skills are **always** generated, synthesized from analysis of your actual code:
 
-**Contains**:
-- Architecture overview
-- Module organization
-- Data flows
-- Integration points
-- Conventions and patterns
-- Testing strategies
+| Skill | What it captures |
+| ----- | ---------------- |
+| `code-conventions` | Project-specific coding rules, gotchas, WRONG/CORRECT examples |
+| `multi-file-workflows` | Ordered checklists for cross-cutting changes |
+| `testing-conventions` | Fixture rules, mocking rules, test layout conventions |
 
-**Size**: 50-800 lines (comprehensive, scales with complexity)
-
-**Updated**: Each time initialization runs
-
-**Example Structure**:
-```markdown
-# Project Context: E-Commerce Platform
-
-## Architecture
-- Monorepo with pnpm workspaces
-- Frontend: React SPA
-- Backend: NestJS REST API
-- Database: PostgreSQL with TypeORM
-
-## Modules
-- auth/ - Authentication & authorization
-- users/ - User management
-- products/ - Product catalog
-- orders/ - Order processing
-
-## Data Flows
-User Login → AuthService → JWT Token → Protected Routes
-
-## Conventions
-- Services use dependency injection
-- DTOs for API validation
-- Repository pattern for database
-```
+Regenerated each time initialization runs.
 
 ---
 
-### Language Skills
+### Stack-Specific Skills
 
-**Purpose**: Language-specific patterns and best practices
+**Location**: `.claude/skills/{skill-name}/`
 
-**Location**: `.claude/skills/mastering-{language}/`
-
-**Copied from**: Framework skill library (`skills/` in framework repo)
-
-**Examples**:
-- `mastering-typescript/` - TypeScript patterns
-- `mastering-python-skill/` - Python patterns
-- `mastering-go/` - Go idioms
-
-**Updated**: Only when framework is updated (not on re-initialization)
+Copied from the framework's skill library based on detected technologies (e.g. `mastering-typescript`, `mastering-python-skill`, `react-frontend`, `jest-coverage-automation`). See [Skill Selection Logic](#skill-selection-logic) below. Updated only when the framework itself is updated (or via `sync-framework-resources`).
 
 ---
 
-### Framework Skills
-
-**Purpose**: Framework-specific patterns
-
-**Location**: `.claude/skills/{framework-name}/`
-
-**Copied from**: Framework skill library
-
-**Examples**:
-- `react-frontend/` - React patterns
-- `nestjs-patterns/` - NestJS patterns
-- `django-patterns/` - Django patterns
-
-**Updated**: Only when framework is updated
-
----
-
-### Testing Skills
-
-**Purpose**: Test framework patterns
-
-**Location**: `.claude/skills/{test-framework}/`
-
-**Examples**:
-- `jest-coverage-automation/` - Jest patterns
-- `playwright-e2e-automation/` - Playwright patterns
-- `pytest-patterns/` - Pytest patterns
-
-**Updated**: Only when framework is updated
-
----
-
-### Agent Files
-
-**Purpose**: AI agent definitions with skill mappings
+### Agents
 
 **Location**: `.claude/agents/{agent-name}.md`
 
-**Generated for**:
-- Planner (always)
-- Implementer per language (e.g., `implementer-typescript.md`)
-- Tester per language (e.g., `tester-unit-typescript.md`)
-- Security reviewer for primary language
+Agent files are **unnumbered**. Generated by [`agent-generator.ts`](https://github.com/thisisqubika/qubika-agentic-framework/blob/main/orchestration/src/nodes/initialize-project/phase5/agent-generator.ts):
 
-**Example**: `implementer-typescript.md`
-```markdown
+| Agent | When generated |
+| ----- | -------------- |
+| `planner.md` | Always |
+| `implementer-<language>.md` | One per detected, supported language (e.g. `implementer-typescript.md`, `implementer-python.md`) |
+| `implementer-generic.md` | Always — DevOps / full-stack / any-file-type |
+| `visual-verifier.md` | Only when a frontend service is detected |
+
+Each agent's frontmatter lists the skills it auto-loads. Regenerated each time initialization runs (Codex agents additionally get their skill bodies inlined).
+
 ---
-name: implementer-typescript
-description: TypeScript implementation specialist
-model-tier: standard
+
+### Preflight Scripts
+
+**Location**: `.claude/scripts/`
+
+Copied verbatim from the framework so engineers can run the preflight pipeline locally. `ensure-context.sh` is the entry point (invoked by skills like `/implement-ticket`); it transitively runs `setup-code-graph.sh` and `code-review-graph-mcp.sh`. The `lib/` helpers and `templates/` ignore-files support those scripts. Updated only when the framework is updated.
+
 ---
 
-You are a TypeScript implementation specialist.
+### LLM Wiki
 
-## Skills
-- project-context
-- mastering-typescript
-- react-frontend
+**Location**: `docs/llm-wiki/`
 
-## Instructions
-Implement features following conventions in CLAUDE.md.
-Output code changes as JSON.
-```
+Graph-backed documentation generated from the code graph plus LLM synthesis:
 
-**Updated**: Each time initialization runs (regenerated with current skills)
+- `CLAUDE.md` — the router / entry point (read first); `AGENTS.md` on Codex
+- `wiki/index.md` — routing table, one line per page
+- `wiki/ARCHITECTURE.md`, `wiki/SERVICES.md`, `wiki/getting-started.md` — core pages
+- `wiki/services/` — one page per detected service
+- `.state.json` — per-repo last-indexed commit, used by `/wiki-refresh` to do incremental updates
+
+---
+
+### MCP Config
+
+**Location**: `.mcp.json` (Claude) or `.codex/config.toml` (Codex)
+
+Registers the `code_graph` MCP server, which points at `.claude/scripts/code-review-graph-mcp.sh`. This is what gives agents token-efficient graph queries over your codebase.
+
+---
+
+### Code Graph
+
+**Location**: `.code-review-graph/`
+
+The structural knowledge graph of your code: `graph.db` (a Tree-sitter-parsed SQLite database) plus `.state.json` tracking the graph's commit/pipeline version. Built on the first preflight run and updated incrementally.
 
 ---
 
 ## Skill Selection Logic
 
-The framework intelligently selects which skills to copy based on project detection.
+The framework selects which stack-specific skills to copy based on project detection.
 
 ### Language Detection
 
 ```
-Detected: tsconfig.json
-→ Copy: mastering-typescript
-
-Detected: pyproject.toml
-→ Copy: mastering-python-skill
-
-Detected: go.mod
-→ Copy: mastering-go
+Detected: tsconfig.json    → mastering-typescript
+Detected: pyproject.toml   → mastering-python-skill
+Detected: go.mod           → mastering-go
 ```
 
 **Supports**: TypeScript, Python, Go, Java, Rust, Ruby, PHP, C#
 
----
-
 ### Framework Detection
 
 ```
-Detected: react in package.json
-→ Copy: react-frontend
-
-Detected: @nestjs/core in package.json
-→ Copy: nestjs-patterns
-
-Detected: django in requirements.txt
-→ Copy: django-patterns
+Detected: react in package.json        → react-frontend
+Detected: @nestjs/core in package.json  → nestjs-patterns
+Detected: django in requirements.txt    → django-patterns
 ```
 
 **Supports**: 40+ frameworks across all languages
 
----
-
 ### Test Framework Detection
 
 ```
-Detected: jest in package.json
-→ Copy: jest-coverage-automation
-
-Detected: playwright in package.json
-→ Copy: playwright-e2e-automation
-
-Detected: pytest in pyproject.toml
-→ Copy: pytest-patterns
+Detected: jest in package.json        → jest-coverage-automation
+Detected: playwright in package.json  → playwright-e2e-automation
+Detected: pytest in pyproject.toml    → pytest-patterns
 ```
-
-**Supports**: 10+ test frameworks
-
----
 
 ### Infrastructure Detection
 
 ```
-Detected: Dockerfile
-→ Copy: developing-with-docker
-
-Detected: aws-cdk in package.json
-→ Copy: mastering-aws-cdk
+Detected: Dockerfile             → developing-with-docker
+Detected: aws-cdk in package.json → mastering-aws-cdk
 ```
-
----
 
 ### Monorepo Handling
 
@@ -315,89 +216,65 @@ For monorepos, detection runs per workspace:
 Detected: pnpm-workspace.yaml
 
 Scan workspaces:
-  packages/frontend/
-    → Detect: TypeScript + React + Jest
-    → Copy: mastering-typescript, react-frontend, jest-coverage-automation
-  
-  packages/backend/
-    → Detect: TypeScript + NestJS
-    → Copy: mastering-typescript, nestjs-patterns
-  
-  services/worker/
-    → Detect: Python + FastAPI + Pytest
-    → Copy: mastering-python-skill, fastapi-patterns, pytest-patterns
+  packages/frontend/  → TypeScript + React + Jest
+  packages/backend/   → TypeScript + NestJS
+  services/worker/    → Python + FastAPI + Pytest
 ```
 
-**Result**: Only skills relevant to detected technologies (10-20 instead of 50+)
+**Result**: Only skills relevant to detected technologies (10-20 instead of 50+).
 
 ---
 
 ## What to Commit
 
-Understanding what should be tracked in version control.
-
 ### ✅ Should Commit
 
 ```
-.claude/
-├── settings.json              # ✅ Team configuration
-├── CLAUDE.md                  # ✅ Project reference
-├── skills/project-context/    # ✅ Project knowledge
-└── agents/                    # ✅ Custom agents
+.claude/CLAUDE.md                  # project reference
+.claude/framework-config.json      # detected stack + config
+.claude/skills/code-conventions/   # generated project knowledge
+.claude/skills/multi-file-workflows/
+.claude/skills/testing-conventions/
+.claude/agents/                    # generated agents
+docs/llm-wiki/                     # generated wiki (kept in version control)
 ```
 
-**Why**: These files are project-specific and valuable for the team.
+These are project-specific and valuable for the team.
 
----
-
-### ❌ Should NOT Commit
+### ❌ Can Be Regenerated
 
 ```
-.claude/
-├── skills/mastering-typescript/    # ❌ Framework skill
-├── skills/react-frontend/          # ❌ Framework skill
-└── commands/                       # ❌ Framework commands
+.claude/skills/mastering-*/        # framework skill copies
+.claude/skills/*-frontend/
+.claude/scripts/                   # framework preflight scripts
 ```
 
-**Why**: These are copied from the framework and can be regenerated.
-
----
+Copied from the framework — regenerate with `/initialize-project` or `sync-framework-resources`.
 
 ### 🚫 Never Commit
 
 ```
-.claude-temp/                  # 🚫 Runtime artifacts (gitignored)
-├── tickets/
-│   └── PROJ-123/
-│       └── artifacts/         # Workflow artifacts
+.claude-temp/ / .codex-temp/       # runtime workflow artifacts (gitignored)
+.mcp.json                          # generated MCP config (gitignored)
+.code-review-graph/                # local graph DB
 ```
-
-**Why**: Temporary runtime files, not needed in version control.
 
 ---
 
 ## Recommended .gitignore
 
-```gitignore
-# Framework-generated skills (regenerate with /initialize-project)
-.claude/skills/mastering-*/
-.claude/skills/*-frontend/
-.claude/skills/*-patterns/
-.claude/skills/*-automation/
-.claude/skills/developing-with-*/
+Initialization updates `.gitignore` for you, adding (if missing):
 
-# Runtime artifacts (always temporary)
+```gitignore
+# AI Agentic Framework
 .claude-temp/
+.claude-backups/
+.codex-temp/
+.codex-backups/
+.mcp.json
 ```
 
-**Commit**:
-```gitignore
-# Keep project-specific configuration
-!.claude/settings.json
-!.claude/CLAUDE.md
-!.claude/skills/project-context/
-!.claude/agents/
-```
+`framework-config.json` is intentionally **not** ignored — it's committed so the team shares the same detected stack.
 
 ---
 
@@ -405,102 +282,48 @@ Understanding what should be tracked in version control.
 
 ### During Initialization
 
-1. **Analyze project**:
-   - Scan for languages (tsconfig.json, pyproject.toml, etc.)
-   - Scan for frameworks (package.json, requirements.txt)
-   - Scan for test frameworks
-   - Scan for infrastructure tools
-
-2. **Generate CLAUDE.md**:
-   - Extract tech stack
-   - Document patterns
-   - List commands
-
-3. **Generate project-context**:
-   - Analyze architecture
-   - Document modules
-   - Map data flows
-
-4. **Copy relevant skills**:
-   - Language skills for detected languages
-   - Framework skills for detected frameworks
-   - Testing skills for detected test tools
-
-5. **Generate agents**:
-   - Planner (always)
-   - Implementer per language
-   - Tester per language
-   - Security reviewer (primary language)
-
-6. **Copy commands**:
-   - All framework commands
-
----
+1. **Analyze** the project (languages, frameworks, test tools, infrastructure) and build the code graph.
+2. **Generate** `CLAUDE.md`, the three convention skills, and `framework-config.json`.
+3. **Generate** the LLM wiki (`docs/llm-wiki/`).
+4. **Copy** stack-specific skills and the preflight scripts.
+5. **Generate** agents (planner, implementer per language, generic, visual-verifier if frontend).
+6. **Write** the MCP config and validate everything.
 
 ### During Updates
 
-**When to re-run `/initialize-project`**:
-- Added new language to project
-- Added new framework
-- Changed testing setup
-- Major architecture changes
-- Want to update project-context
+Re-run `/initialize-project` after major changes (new language, new framework, changed testing setup, architecture changes). What changes:
 
-**What gets updated**:
-- ✅ CLAUDE.md regenerated
-- ✅ project-context regenerated
-- ✅ Agents regenerated
-- ✅ New skills copied (if new tech detected)
-- ❌ settings.json preserved (unless conflicts)
+- ✅ `CLAUDE.md`, convention skills, agents, and `framework-config.json` regenerated
+- ✅ New stack-specific skills copied if new tech detected
+- ✅ Wiki refreshed (or use `/wiki-refresh` for an incremental update)
 
----
+To update only framework-supplied resources (skills, agents, scripts) without re-analyzing, use [`sync-framework-resources`](../guides/sync-framework-resources.md).
 
 ### During Workflows
 
-**Runtime artifacts** created during `/implement-ticket`:
+Runtime artifacts created during `/implement-ticket` live under `.claude-temp/` (or `.codex-temp/`):
 
 ```
 .claude-temp/tickets/PROJ-123/
 ├── artifacts/
-│   ├── context.json           # Ticket context
-│   ├── plan.json              # Implementation plan
-│   ├── changes.json           # Code changes
-│   ├── test-results.json      # Test results
-│   └── screenshots/           # Visual verification
+│   ├── context.json
+│   ├── plan.json
+│   ├── changes.json
+│   └── screenshots/
+└── .preflight-ok | .preflight-failed
 ```
 
-**Lifecycle**:
-- Created during workflow execution
-- Used for phase coordination
-- Cleaned up after workflow completion
-- Never committed to git
-
----
-
-## Directory Size
-
-Typical `.claude/` directory sizes:
-
-| Project Type | CLAUDE.md | project-context | Total Skills | Total Size |
-|--------------|-----------|-----------------|--------------|------------|
-| Small SPA | 50 lines | 100 lines | 5 skills | ~200 KB |
-| Medium Full-Stack | 100 lines | 300 lines | 10 skills | ~500 KB |
-| Large Monorepo | 200 lines | 800 lines | 20 skills | ~1.5 MB |
-
-**Note**: Framework skills are largest component. Consider gitignoring them.
+Created during execution, used for phase coordination, never committed.
 
 ---
 
 ## Best Practices
 
-1. **Commit settings.json**: Share team configuration
-2. **Commit CLAUDE.md**: Single source of truth for project
-3. **Commit project-context**: Valuable project knowledge
-4. **Commit agents**: Custom agent definitions
-5. **Gitignore framework skills**: Regenerate with `/initialize-project`
-6. **Gitignore .claude-temp**: Never commit runtime artifacts
-7. **Re-run initialization**: After major tech stack changes
-8. **Review generated files**: Verify accuracy after initialization
+1. **Commit** `CLAUDE.md`, `framework-config.json`, the convention skills, agents, and the wiki.
+2. **Gitignore** runtime artifacts (`.claude-temp/`), `.mcp.json`, and the local graph.
+3. **Regenerate** framework-supplied skills/scripts rather than hand-editing them.
+4. **Re-run initialization** (or `/wiki-refresh`) after major tech-stack changes.
+5. **Review** generated files after initialization to verify accuracy.
 
 ---
 
@@ -510,53 +333,29 @@ Typical `.claude/` directory sizes:
 
 ```
 ❌ Error: Skill mastering-typescript not found
-
-Solution: Run /initialize-project to copy skills
+→ Run /initialize-project (or sync-framework-resources) to copy skills.
 ```
 
----
-
-### Outdated project-context
+### Outdated Wiki or Context
 
 ```
-⚠️ Warning: project-context may be outdated
-
-Solution: Re-run /initialize-project to regenerate
+⚠️ Wiki / project context looks stale
+→ Run /wiki-refresh for an incremental update, or re-run /initialize-project.
 ```
-
----
 
 ### Wrong Skills Copied
 
 ```
-Issue: Python skills copied but project is TypeScript-only
-
-Cause: pyproject.toml exists for unrelated tool
-
-Solution: 
-1. Review detection logic in initialization output
-2. Manually remove unwanted skills from .claude/skills/
-3. Regenerate agents with /initialize-project
-```
-
----
-
-### Conflicts After Update
-
-```
-Issue: settings.json conflicts after re-initialization
-
-Solution:
-1. Back up current settings.json
-2. Run /initialize-project
-3. Merge custom settings back manually
+Issue: Python skills copied but the project is TypeScript-only
+Cause: a stray pyproject.toml for an unrelated tool
+→ Add the path to --ignore when running initialization, then re-run.
 ```
 
 ---
 
 ## Further Reading
 
-- [Commands Reference](./commands.md) - How commands use the structure
-- [Skills Catalog](./skills-catalog.md) - Available skills
-- [Agents Reference](./agents.md) - How agents are generated
-- [Getting Started](../getting-started/quickstart.md) - Initial setup guide
+- [Skills Reference](./skills-catalog.md) — invokable skills and available skills
+- [Agents Reference](./agents.md) — how agents are generated
+- [Code Graph & Wiki](../architecture/code-graph-and-wiki.md) — how the graph and wiki are built
+- [Getting Started](../getting-started/quickstart.md) — initial setup guide

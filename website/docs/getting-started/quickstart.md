@@ -56,10 +56,15 @@ cd ..  # Back to project root
 ls .claude/
 
 # Should see:
-# CLAUDE.md - Project AI guide (or AGENTS.md in Codex)
-# skills/ - AI knowledge (now the invocation surface)
-# agents/ - AI agents
-# framework-config.json - Config
+# CLAUDE.md             - Project AI guide (or AGENTS.md in Codex)
+# skills/               - AI knowledge (now the invocation surface)
+# agents/               - AI agents
+# scripts/              - preflight automation (code graph + MCP bootstrap)
+# framework-config.json - detected stack + framework config
+
+# Also created at the project root:
+# docs/llm-wiki/        - generated LLM wiki
+# .mcp.json             - code_graph MCP server (.codex/config.toml in Codex)
 ```
 
 ---
@@ -178,12 +183,9 @@ graph LR
 
 ### Generated Files
 
-```
-.claude/        # or .codex/ when initialized for Codex
-├── CLAUDE.md   # or AGENTS.md — project AI reference
-├── skills/     # codebase knowledge (also the invocation surface)
-└── agents/     # AI agents
-```
+Initialization writes more than just `.claude/` — it also generates the LLM wiki (`docs/llm-wiki/`), the code graph (`.code-review-graph/`), and the MCP config (`.mcp.json`) at your project root.
+
+For the complete, annotated tree of everything that gets generated — and what to commit — see the [Project Structure reference](/docs/reference/project-structure).
 
 ---
 
@@ -207,9 +209,8 @@ $implement-ticket --from-markdown ./specs/search.md
 
 ### Explore Advanced Features
 
-- Custom model tiers (`MODEL_TIER=opus`)
+- Custom model tiers, chosen at setup time (`MODEL_TIER=fast|standard|advanced ./scripts/initialize-project.sh`)
 - Visual regression testing (automatic for UI changes)
-- Custom branch naming (`--branch feature/name`)
 - Skip options (`--skip-tests`, `--skip-visual`, `--skip-pr`)
 
 ### Read Documentation
@@ -222,8 +223,8 @@ $implement-ticket --from-markdown ./specs/search.md
 
 **Need Help?**
 
-- Check artifacts: `.claude-temp/tickets/[TICKET-ID]/artifacts/`
-- Enable debug: `export DEBUG=true`
+- Check artifacts: `.claude-temp/tickets/[TICKET-ID]/artifacts/` (`.codex-temp/` on Codex)
+- Inspect preflight markers there: `.preflight-ok` / `.preflight-failed` (carries `{ reason, git_head, ran_at }`)
 - Review logs in console output
 
 ---

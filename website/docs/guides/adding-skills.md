@@ -8,7 +8,7 @@ description: Extend the framework with custom skills. Skills provide AI agents w
 
 Extend the framework with custom skills. Skills provide AI agents with context and capabilities.
 
-Skills are invoked the same way regardless of the target provider — only the prefix changes: `/skill-name` in Claude Code, `$skill-name` in Codex CLI. When the project is initialized for Codex, skills are written to `.codex/skills/` instead of `.claude/skills/` and the instruction file is `AGENTS.md` instead of `CLAUDE.md`; the skill definitions themselves are identical.
+Skills are invoked the same way regardless of the target provider — only the prefix changes: `/skill-name` in Claude Code, `$skill-name` in Codex CLI. When the project is initialized for Codex, skills are written to `.codex/skills/` instead of `.claude/skills/` and the instruction file is `AGENTS.md` instead of `CLAUDE.md`; the skill definitions themselves are identical. See the [Project Structure reference](../reference/project-structure.md) for where generated skills land.
 
 ---
 
@@ -30,10 +30,11 @@ Skills are invoked the same way regardless of the target provider — only the p
       "name": "skill-name",
       "path": "category-folder/skill-folder",
       "description": "Description",
-      "trigger_mode": "always" | "triggered" | "generated",
+      "trigger_mode": "always" | "triggered" | "generated",  // Optional, defaults to "triggered"
       "triggers": ["trigger1", "trigger2"],  // ONLY for "triggered"
       "compatible_languages": ["typescript"],  // Optional
-      "is_linkable_to_agents": true  // Optional
+      "is_linkable_to_agents": true,  // Optional
+      "agent_roles": ["planner", "implementer"]  // Optional
     }
   ]
 }
@@ -41,15 +42,16 @@ Skills are invoked the same way regardless of the target provider — only the p
 
 ### Field Reference
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Unique identifier (folder name in `.claude/skills/` (or `.codex/skills/`)) |
-| `path` | Yes | Relative from `skills/` directory |
-| `description` | Yes | Human-readable description |
-| `trigger_mode` | Yes | `always` (all projects), `triggered` (stack-based), `generated` (auto-created) |
-| `triggers` | Conditional | Required for `triggered` mode. Array of stack triggers |
-| `compatible_languages` | No | Languages this skill supports |
-| `is_linkable_to_agents` | No | Whether agents can invoke this skill |
+| Field | Required | Description | Impact (what it does at sync time) |
+|-------|----------|-------------|------------------------------------|
+| `name` | Yes | Unique identifier | Folder the skill is copied to (`.claude/skills/{name}/` or `.codex/skills/{name}/`) and the slash command users invoke (`/name`). Category nesting under `skills/` is flattened away. |
+| `path` | Yes | Relative from `skills/` directory | Where the resolver reads the skill's source files. A wrong path means the skill is silently not copied. |
+| `description` | Yes | Human-readable description | Catalog/config metadata only — **not** the text the agent reads (that lives in SKILL.md frontmatter). |
+| `trigger_mode` | No (default `triggered`) | `always` (all projects), `triggered` (stack-based), `generated` (auto-created) | Decides **whether** the skill is copied. `always` → every project. `triggered` → only if a trigger matches the detected stack. `generated` → never copied from `skills/`; created fresh during init. |
+| `triggers` | Conditional | Required for `triggered` mode. Array of stack triggers | If the end user's detected stack (`framework-config.json` → `stack_profile`) contains **any one** of these (OR logic), the skill gets copied. Ignored for `always`/`generated`. |
+| `compatible_languages` | No | Languages this skill applies to | Does **not** gate copying. Routes the skill to language-specific `implementer-{lang}` agents; if omitted, the skill attaches to the generic implementer instead. |
+| `is_linkable_to_agents` | No | Whether the skill is auto-attached to agents | Controls agent auto-attachment, not copying. `false` → still copied to disk and slash-invokable, but never added to any agent's frontmatter. Defaults to attached. |
+| `agent_roles` | No | `planner`, `implementer`, or both | Restricts which agent roles get the skill in their frontmatter (default: both). E.g. `["implementer"]` keeps tooling skills out of the planner's preloaded context. Only applies when `is_linkable_to_agents` is not `false`. |
 
 ### Trigger Modes
 
@@ -71,10 +73,10 @@ Skills are invoked the same way regardless of the target provider — only the p
 }
 ```
 
-**`generated`**: Generated during init (e.g., project-context)
+**`generated`**: Synthesized from your code during init (e.g., the convention skills `code-conventions`, `multi-file-workflows`, `testing-conventions`)
 ```json
 {
-  "name": "project-context",
+  "name": "code-conventions",
   "trigger_mode": "generated"
 }
 ```
@@ -110,7 +112,7 @@ Your skill documentation here...
 - `allowed-tools`: Optional tool restrictions
 
 **NOT in frontmatter** (managed in skills.config.json):
-- triggers, trigger_mode, compatible_languages, agents, priority
+- triggers, trigger_mode, compatible_languages, is_linkable_to_agents, agent_roles
 
 ---
 
@@ -186,13 +188,15 @@ ls /path/to/test-rust-project/.claude/skills/mastering-rust   # or .codex/skills
 
 **Process**:
 1. Load `skills.config.json`
-2. Detect project stack (languages, frameworks, packages)
+2. Read the detected project stack from `framework-config.json` → `stack_profile` (languages, frameworks, packages — written earlier during initialization)
 3. Match skills:
    - `always` → include
    - `triggered` → include if triggers match stack
    - `generated` → skip (created later)
-4. Copy to `.claude/skills/` (or `.codex/skills/`)
-5. Update `framework-config.json`
+4. Copy matched skills to `.claude/skills/` (or `.codex/skills/`), flattened to `{skill-name}/`
+5. Attach linkable skills to the relevant agents' frontmatter (gated by `is_linkable_to_agents` and `agent_roles`)
+
+> Skill loading **reads** `framework-config.json` for stack matching — it does not modify it. The config is written earlier, during context generation.
 
 **Matching logic**: `triggers` array uses OR logic - any match includes the skill.
 
@@ -283,15 +287,16 @@ cd /path/to/your-project
 
 Common skill categories in the framework:
 
-| Category | Number | Examples |
+| Category | Folder | Examples |
 |----------|--------|----------|
-| Workflows | 010 | implement-ticket, create-pr |
-| Development Workflow | 020 | code-quality-check, architect-agent |
-| Context | 030 | project-context, analyze-requirements |
-| Language Frameworks | 050 | mastering-typescript, mastering-python |
-| Testing | 060 | vitest, playwright, pytest |
-| Cloud & Infra | 070 | aws-cdk, docker |
-| Documentation | 080 | doc-updater, design-doc-mermaid |
+| Foundation | `010-foundation` | start-task, code-conventions, testing-conventions |
+| Development Workflow | `020-development-workflow` | implement-ticket, create-sdd-ticket, skill-creator, wiki-refresh |
+| Quality Assurance | `030-quality-assurance` | create-pr, pr-reviewer, security-review, jest-coverage-automation |
+| Integrations | `040-integrations` | jira, fetch-ticket-context, notion-document-manager, figma-design-fetcher |
+| Language Frameworks | `050-language-frameworks` | mastering-typescript, mastering-python-skill, react-frontend |
+| Documentation | `060-documentation` | design-doc-mermaid |
+| Infrastructure | `070-infrastructure` | developing-with-docker, triage-incident |
+| Cloud Platforms | `080-cloud-platforms` | mastering-aws-cdk, mastering-aws-cli, using-firebase |
 
 **Numbering convention**: Categories are numbered in steps of 10 to allow for future expansion.
 
@@ -299,7 +304,7 @@ Common skill categories in the framework:
 
 ## Advanced: Custom Agents
 
-Skills can be linked to custom agents using `is_linkable_to_agents`:
+Set `is_linkable_to_agents: true` to auto-attach a skill to the relevant agents' frontmatter (so it's preloaded into their context). Use `agent_roles` to scope which roles receive it; omit it to attach to both planner and implementer:
 
 ```json
 {
@@ -307,8 +312,9 @@ Skills can be linked to custom agents using `is_linkable_to_agents`:
   "path": "custom/validator",
   "description": "Custom validation logic",
   "trigger_mode": "always",
-  "is_linkable_to_agents": true
+  "is_linkable_to_agents": true,
+  "agent_roles": ["implementer"]
 }
 ```
 
-Agents can then invoke this skill during execution.
+With `compatible_languages` set, the skill attaches only to the matching `implementer-{lang}` agents; without it, it attaches to the generic implementer. Skills with `is_linkable_to_agents: false` are still copied to disk and remain slash-invokable — they just aren't preloaded into any agent.
