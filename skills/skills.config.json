@@ -460,6 +460,149 @@
       "triggers": ["expo", "expo-router", "eas"],
       "compatible_languages": ["typescript", "javascript"],
       "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-data-contracts",
+      "path": "080-cloud-platforms/qubika-data-contracts",
+      "description": "Define, enforce, and govern data contracts using Ontos — covering ODCS contract lifecycle, governance DSL automation, and data product ownership",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-data-quality",
+      "path": "080-cloud-platforms/qubika-data-quality",
+      "description": "Add data quality validation to Qubika pipelines using DQX (primary framework), Delta constraints, and DLT expectations",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "agent_roles": ["implementer"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-databricks-ai-functions",
+      "path": "080-cloud-platforms/qubika-databricks-ai-functions",
+      "description": "Use Databricks SQL AI functions (`ai_query`, `ai_classify`, `ai_extract`, `ai_summarize`) for Gold-layer LLM enrichment — with Qubika's cost guardrails, model-picking conventions, and watermarked re-run patterns. Read when enriching tabular data with an LLM in SQL rather than Python.",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "agent_roles": ["implementer"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-databricks-sdk",
+      "path": "080-cloud-platforms/qubika-databricks-sdk",
+      "description": "Use the Databricks Python SDK following Qubika conventions — profile-based auth, named catalogs, async-safe call patterns. Foundation skill for any Python code that talks to Databricks (jobs, UC, SQL, serving, secrets).",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "agent_roles": ["implementer"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-databricks-vector-search",
+      "path": "080-cloud-platforms/qubika-databricks-vector-search",
+      "description": "Build and query Databricks Vector Search indexes for RAG on Qubika data. Covers Delta Sync indexes from Delta tables, SQL `vector_search()` + Python SDK queries, metadata filters for tenancy isolation, hybrid search, and the reindex flow when embedding models change. Read when standing up RAG / similarity search on top of Gold or curated data.",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-federated-ingestion",
+      "path": "080-cloud-platforms/qubika-federated-ingestion",
+      "description": "Ingest data from external databases (SQL Server, Oracle, PostgreSQL, Redshift, Synapse) into Databricks using Lakefed-Ingest metadata-driven orchestration",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "agent_roles": ["implementer"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-jira-workflow",
+      "path": "080-cloud-platforms/qubika-jira-workflow",
+      "description": "Read Jira tickets from the Qubika DE board and translate them into Databricks pipeline tasks, following the standard ticket-to-code workflow",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-kafka-patterns",
+      "path": "080-cloud-platforms/qubika-kafka-patterns",
+      "description": "Kafka-specific patterns for Databricks streaming — Schema Registry + Avro, offset / DLQ / dedup strategies, EventHub Kafka-protocol mode, schema evolution, and the gotchas that bite in production. Read when integrating Kafka beyond a single hello-world topic.",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "agent_roles": ["implementer"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-lakebridge",
+      "path": "080-cloud-platforms/qubika-lakebridge",
+      "description": "Transpile legacy SQL (Snowflake, Oracle, Teradata, T-SQL, DataStage) to Databricks SQL and validate data accuracy after migration using Lakebridge",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "agent_roles": ["implementer"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-medallion-architecture",
+      "path": "080-cloud-platforms/qubika-medallion-architecture",
+      "description": "Build Bronze/Silver/Gold data lake pipelines following Qubika's medallion architecture conventions on Databricks Delta Lake",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-monitoring-observability",
+      "path": "080-cloud-platforms/qubika-monitoring-observability",
+      "description": "Set up observability for Databricks pipelines — job alerts, data freshness monitoring, SLA tracking, and incident response patterns",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-saas-api-ingestion",
+      "path": "080-cloud-platforms/qubika-saas-api-ingestion",
+      "description": "Ingest data from SaaS REST APIs (HubSpot, Salesforce, Zendesk, Stripe) into Bronze using secret-scope auth, cursor pagination, incremental watermarks, and retry/backoff",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "agent_roles": ["implementer"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-streaming-pipelines",
+      "path": "080-cloud-platforms/qubika-streaming-pipelines",
+      "description": "Build real-time data pipelines on Databricks using Auto Loader, Spark Structured Streaming, and Kafka integration following Qubika conventions",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-uc-migration",
+      "path": "080-cloud-platforms/qubika-uc-migration",
+      "description": "Migrate Hive Metastore tables and workspace assets to Unity Catalog using UCX, and replicate across workspaces with Databricks-Replicator",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "agent_roles": ["implementer"],
+      "is_linkable_to_agents": true
+    },
+    {
+      "name": "qubika-unity-catalog-governance",
+      "path": "080-cloud-platforms/qubika-unity-catalog-governance",
+      "description": "Create and govern Unity Catalog resources (catalogs, schemas, tables, volumes) following Qubika's naming, tagging, and access control conventions",
+      "trigger_mode": "triggered",
+      "triggers": ["databricks"],
+      "compatible_languages": ["python", "sql"],
+      "is_linkable_to_agents": true
     }
   ]
 }
