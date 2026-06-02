@@ -122,18 +122,7 @@ source ~/.bashrc
 
 ### Generated Files
 
-```
-.claude/                           # or .codex/ when provider=codex
-├── CLAUDE.md                      # project AI guide (AGENTS.md in Codex)
-├── framework-config.json          # configuration
-├── skills/                        # AI skills (also the invocation surface)
-│   ├── project-context/
-│   ├── create-sdd-ticket/
-│   ├── implement-ticket/
-│   └── mastering-[language]/
-└── agents/                        # AI agents
-    └── implementer-[language].md
-```
+Initialization writes `.claude/` (config, skills, agents, scripts) plus the LLM wiki, code graph, and MCP config at your project root. For the complete annotated tree and what to commit, see the [Project Structure reference](/docs/reference/project-structure).
 
 ### Environment Variables (Optional)
 

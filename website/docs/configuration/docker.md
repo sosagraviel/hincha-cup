@@ -196,11 +196,13 @@ claude-code run   # or `codex` for Codex runtimes
 # Run: ./qubika-agentic-framework/scripts/initialize-project.sh
 # Framework will:
 # 1. Detect tech stack
-# 2. Copy relevant skills
+# 2. Copy relevant skills + generate convention skills
 # 3. Generate agents
-# 4. Configure MCPs
-# 5. Create CLAUDE.md (or AGENTS.md) and project-context
+# 4. Configure MCPs + build the code graph and LLM wiki
+# 5. Create CLAUDE.md (or AGENTS.md) and framework-config.json
 ```
+
+See the [Project Structure reference](/docs/reference/project-structure) for the complete tree of generated files.
 
 ### Example 2: Implement Jira Ticket
 

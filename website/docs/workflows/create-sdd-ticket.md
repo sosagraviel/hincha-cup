@@ -121,23 +121,26 @@ The AI automatically:
 ### Phase 0: Project Context Injection
 
 Before any ticket analysis, gap detection, or question generation, the skill
-invokes the `project-context` skill (generated for your project during
-`initialize-project`). This loads:
+loads your project's context from the artifacts `initialize-project` generated:
 
-- conventions and patterns already used in the codebase
-- integration points and known constraints
-- naming, testing, and deployment expectations
-- project-specific gotchas that should influence gap detection
+- the **convention skills** (`code-conventions`, `testing-conventions`,
+  `multi-file-workflows`) for *prescriptive* rules — naming, error handling,
+  data-layer patterns, what to mock, fixture conventions, and project-specific
+  gotchas that should influence gap detection
+- the **LLM wiki** (`docs/llm-wiki/`) for *descriptive* context — architecture,
+  service boundaries, data flows, and integration points
 
 The result: every clarifying question and every BDD scenario is grounded in
 your project's actual reality — not generic best-practice guesses. A "should
 errors be returned as 4xx or as a problem-details body?" question only gets
 asked if your codebase doesn't already establish a convention.
 
-If the generated `project-context` skill isn't present (e.g. you've never run
+If those generated skills aren't present (e.g. you've never run
 `initialize-project`), the skill falls back to reading `CLAUDE.md` and doing
 explicit codebase inspection. Context loading is treated as required work
-either way — it's never skipped.
+either way — it's never skipped. See the
+[Project Structure reference](/docs/reference/project-structure) for where these
+generated files live.
 
 ### Gap Analysis
 
@@ -146,7 +149,7 @@ If the AI still needs more information after Phase 0, it asks questions like:
 - "What happens if the export takes more than 5 seconds?"
 - "Should users filter by date range?"
 
-Crucially, project-context-aware questions look more like:
+Crucially, convention-aware questions look more like:
 - "Your existing user list uses Algolia for search — should this export
   pipeline reuse it, or should we paginate the SQL query directly?"
 - "I see error handling currently follows the `problem-details` RFC 7807

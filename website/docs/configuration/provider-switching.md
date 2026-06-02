@@ -273,4 +273,4 @@ cat orchestration/config/model-config.json | jq ".tiers.$MODEL_TIER"
 
 - [Authentication](./authentication.md) - Configure API keys for providers
 - [Environment Variables](./environment-variables.md) - Complete environment variable reference
-- [Commands Reference](/docs/reference/commands.md) - CLI command options
+- [Skills Reference](/docs/reference/skills-catalog.md) - Invokable skills (commands) and options

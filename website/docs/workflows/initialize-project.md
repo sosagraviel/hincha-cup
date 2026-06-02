@@ -259,23 +259,7 @@ Yes. That is the standard single-repo flow and is fully independent from the mul
 
 ## Generated Structure
 
-```
-.claude/
-├── CLAUDE.md                    # Quick reference guide
-├── skills/                      # Tech-specific knowledge
-│   ├── project-context/         # Deep project understanding
-│   ├── typescript-development/  # TypeScript patterns
-│   └── react-development/       # React patterns (if detected)
-├── agents/                      # AI agents
-│   ├── planner.md              # Implementation planning
-│   ├── implementer.md          # Code implementation
-│   └── reviewer.md             # Code review
-├── commands/                    # Workflow automation
-│   ├── initialize-project/     # This workflow
-│   ├── implement-ticket/       # Feature implementation
-│   └── create-sdd-ticket/      # Ticket generation
-└── framework-config.json        # Configuration registry
-```
+Initialization writes `.claude/` (`CLAUDE.md`, the convention skills, stack-specific skills, agents, scripts, and `framework-config.json`) along with the LLM wiki, code graph, and MCP config at your project root. For the complete annotated tree and what to commit, see the [Project Structure reference](/docs/reference/project-structure).
 
 ## Workflow Phases
 
@@ -325,12 +309,13 @@ Generates human-readable project understanding from consolidated analysis.
 
 **Creates**:
 - `.claude/CLAUDE.md` - Quick reference for AI agents
-- `.claude/skills/project-context/SKILL.md` - Deep project knowledge
+- `.claude/skills/code-conventions/SKILL.md`, `multi-file-workflows/SKILL.md`, `testing-conventions/SKILL.md` - Generated convention skills
+- `.claude/framework-config.json` - Detected stack + framework config
 
 **Contains**:
 - Tech stack summary
 - Key patterns and conventions
-- Architecture overview
+- Testing and fixture rules
 - Development workflows
 
 ### Phase 5: Resource Sync (1-2 minutes)
@@ -605,7 +590,7 @@ walk the excluded subtree.
 ```
 
 For routine framework updates, prefer the sync — see
-[Updating the Framework](/docs/guides/updating-the-framework). Re-running
+[Sync Framework Resources](/docs/guides/sync-framework-resources). Re-running
 `initialize-project.sh` is only needed to switch providers, re-analyze the project, or
 regenerate `CLAUDE.md`.
 
@@ -630,17 +615,19 @@ For [Multi-Repository Setup](#multi-repository-setup), the parent folder is not 
 ```
 
 For everything else — picking up new framework skills and agents — run
-`sync-framework-resources.sh` instead. See [Updating the Framework](/docs/guides/updating-the-framework).
+`sync-framework-resources.sh` instead. See [Sync Framework Resources](/docs/guides/sync-framework-resources).
 
 ### 4. Review Generated Files
 
 ```bash
-# Inspect project-context skill
-cat .claude/skills/project-context/SKILL.md
+# Inspect a generated convention skill
+cat .claude/skills/code-conventions/SKILL.md
 
 # Verify CLAUDE.md
 cat .claude/CLAUDE.md
 ```
+
+See the [Project Structure reference](/docs/reference/project-structure) for the complete list of generated files.
 
 ## Next Steps
 
@@ -663,4 +650,4 @@ After initialization:
 - [Implement Ticket](./implement-ticket.md) - Feature implementation workflow
 - [Create SDD Ticket](./create-sdd-ticket.md) - Ticket generation workflow
 - [Project Structure Reference](/docs/reference/project-structure.md) - `.claude/` directory structure
-- [Skills Catalog](/docs/reference/skills-catalog.md) - Available skills
+- [Skills Reference](/docs/reference/skills-catalog.md) - Invokable skills (commands) and available skills
