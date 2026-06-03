@@ -103,11 +103,10 @@ test.describe('Ticket Board', () => {
 
       // User 1 creates ticket — orgId and projectId come from apiHelper.createOrg / createProject in beforeAll
       await page1.goto(URLS.board(seededOrgId, seededProjectId));
-      await page1.click(`[data-testid="${BOARD_IDS.createTicketBtn}"]`);
+      await page1.getByTestId(BOARD_IDS.createTicketBtn).click();
 
       // User 2 sees real-time update
-      await expect(page2.locator(`[data-testid="${BOARD_IDS.ticketItem}"]`))
-        .toBeVisible({ timeout: 5000 });
+      await expect(page2.getByTestId(BOARD_IDS.ticketItem), 'Ticket should appear for second user').toBeVisible();
     } finally {
       await context1.close();
       await context2.close();
@@ -197,14 +196,10 @@ test.describe('Chat: Send message', () => {
       await user1Page.goto(URLS.chatRoom(seededRoomId));
       await user2Page.goto(URLS.chatRoom(seededRoomId));
 
-      await user1Page.fill(`[data-testid="${CHAT_IDS.messageInput}"]`, CHAT_DATA.defaultMessage);
-      await user1Page.click(`[data-testid="${CHAT_IDS.sendBtn}"]`);
+      await user1Page.getByTestId(CHAT_IDS.messageInput).fill(CHAT_DATA.defaultMessage);
+      await user1Page.getByTestId(CHAT_IDS.sendBtn).click();
 
-      await expect(
-        user2Page.locator(`[data-testid="${CHAT_IDS.messageItem}"]`, {
-          hasText: CHAT_DATA.defaultMessage,
-        }),
-      ).toBeVisible({ timeout: 5000 });
+      await expect(user2Page.getByTestId(CHAT_IDS.messageItem).filter({ hasText: CHAT_DATA.defaultMessage }), 'Message should appear for second user').toBeVisible();
     } finally {
       await user1Context.close();
       await user2Context.close();
@@ -216,12 +211,113 @@ test.describe('Chat: Send message', () => {
 ## Best Practices
 
 1. **Use data-testid attributes** for stable selectors
-2. **Wait for network idle** before assertions
+2. **Rely on web-first auto-retrying assertions** instead of manual network waits
 3. **Test real-time with multiple contexts** for chat, tickets, boards
 4. **Clean up test data** in afterEach hooks
 5. **Use fixtures** for common setup (auth, org, project)
 6. **Parameterize tests** for different user roles
 7. **Screenshot on failure** (configured in playwright.config.ts)
+
+## Better Assertions
+
+Always use **web-first, auto-retrying assertions** — these automatically retry until they pass or the timeout is reached, eliminating flakiness caused by timing issues.
+
+The assertion timeout is configured globally in `playwright.config.ts` via the `expect.timeout` setting (default: 5 seconds). You can also override it per assertion by passing a `timeout` option: `await expect(locator, 'msg').toBeVisible({ timeout: 10000 })`. For slow operations, prefer increasing the global timeout in config rather than adding timeout overrides to every test.
+
+### Core Rules
+
+**1. Prefer web-first assertions over manual value extraction**
+```typescript
+import { AUTH_IDS } from '../constants/test-ids';
+
+// Correct — Playwright retries this automatically
+await expect(page.getByTestId(AUTH_IDS.loginBtn), 'Login button should be visible').toBeVisible();
+await expect(page.getByRole('heading'), 'Page title should match').toHaveText('Dashboard');
+
+// Avoid — reads value directly from DOM, Playwright will not retry if it fails
+const text = await page.locator('h1').innerText();
+expect(text).toBe('Dashboard');
+```
+
+**2. Always add a custom message**
+```typescript
+import { AUTH_IDS } from '../constants/test-ids';
+
+// Correct — failure message is immediately meaningful
+await expect(page.getByTestId(AUTH_IDS.errorMsg), 'Error message should be visible after failed login').toBeVisible();
+
+// Avoid — no context on failure
+await expect(page.getByTestId(AUTH_IDS.errorMsg)).toBeVisible();
+```
+
+**3. Always use stable, explicit selectors**
+```typescript
+import { AUTH_IDS } from '../constants/test-ids';
+
+// Correct
+page.getByTestId(AUTH_IDS.submitBtn)
+page.getByRole('button', { name: 'Login' })
+page.getByLabel('Username')
+
+// Avoid
+page.locator('button')
+page.locator('.btn-primary')
+page.locator('//button[1]')
+```
+
+**4. Store locators in variables, do not re-query the same element**
+```typescript
+import { AUTH_IDS } from '../constants/test-ids';
+
+// Correct — store locator, reuse across multiple assertions
+const errorMsg = page.getByTestId(AUTH_IDS.errorMsg);
+await expect(errorMsg, 'Error should be visible').toBeVisible();
+await expect(errorMsg, 'Error should contain correct text').toContainText('Invalid credentials');
+
+// Avoid — calling getByTestId twice for the same element
+await expect(page.getByTestId(AUTH_IDS.errorMsg)).toBeVisible();
+await expect(page.getByTestId(AUTH_IDS.errorMsg)).toContainText('Invalid credentials');
+```
+
+**5. Use soft assertions for non-critical checks**
+```typescript
+import { CART_IDS, INVENTORY_IDS, AUTH_IDS } from '../constants/test-ids';
+
+// Use when test should continue even if this check fails
+await expect.soft(page.getByTestId(CART_IDS.badge), 'Cart badge should show correct count').toHaveText('1');
+await expect.soft(page.getByTestId(INVENTORY_IDS.price), 'Price should be formatted correctly').toContainText('$');
+
+// Do NOT use soft assertions for critical flow elements
+// If a critical check fails softly, a broken flow will not stop the test
+// await expect.soft(page.getByTestId(AUTH_IDS.loginBtn), "Login button must exist").toBeVisible(); // Wrong - login button is critical
+// await expect(page.getByTestId(AUTH_IDS.loginBtn), "Login button must exist").toBeVisible();      // Correct - use hard assertion
+```
+
+### Assertion Reference
+
+| Use case | Assertion |
+|----------|-----------|
+| Element is visible | `await expect(locator, 'msg').toBeVisible()` |
+| Element is hidden | `await expect(locator, 'msg').toBeHidden()` |
+| Element has text | `await expect(locator, 'msg').toHaveText('text')` |
+| Element contains text | `await expect(locator, 'msg').toContainText('text')` |
+| Element has attribute | `await expect(locator, 'msg').toHaveAttribute('attr', 'value')` |
+| Element count | `await expect(locator, 'msg').toHaveCount(n)` |
+| Input has value | `await expect(locator, 'msg').toHaveValue('value')` |
+| Page URL | `await expect(page, 'msg').toHaveURL('/path')` |
+| Page title | `await expect(page, 'msg').toHaveTitle('title')` |
+| Element is enabled | `await expect(locator, 'msg').toBeEnabled()` |
+| Element is disabled | `await expect(locator, 'msg').toBeDisabled()` |
+| Checkbox is checked | `await expect(locator, 'msg').toBeChecked()` |
+
+### What to Avoid
+
+- `page.waitForSelector()` before assertions — Playwright handles waiting automatically
+- `page.waitForTimeout()` — never use fixed delays; use assertions like toBeVisible() which wait automatically
+- `page.locator().innerText()` for text assertions — use `toHaveText()` instead
+- Generic selectors like `button`, `.class`, or XPath — use `getByTestId`, `getByRole`, `getByLabel`
+- Duplicate assertions on the same element — store the locator in a variable
+- Assertions without custom messages — always describe what should happen
 
 ## Configuration Hardening
 
@@ -246,6 +342,7 @@ export default defineConfig({
   workers: process.env.CI ? 4 : 1,
   globalTimeout: process.env.CI ? 60 * 60 * 1000 : undefined,
   timeout: 30000,
+  expect: { timeout: 5000 },
   use: {
     baseURL: process.env.APP_BASE_URL!,
     actionTimeout: 15000,
@@ -256,7 +353,10 @@ export default defineConfig({
     viewport: { width: 1280, height: 720 },
   },
   projects: [
-    { name: process.env.TEST_BROWSER || 'chromium', use: { browserName: (process.env.TEST_BROWSER || 'chromium') as 'chromium' | 'firefox' | 'webkit' } },
+    {
+      name: process.env.TEST_BROWSER || 'chromium',
+      use: { browserName: (process.env.TEST_BROWSER || 'chromium') as 'chromium' | 'firefox' | 'webkit' },
+    },
   ],
 });
 ```
@@ -269,6 +369,7 @@ export default defineConfig({
 - **`workers`** — 4 parallel workers in CI for speed; 1 locally to avoid resource contention
 - **`globalTimeout`** — 1 hour ceiling in CI so runaway suites do not block pipelines
 - **`timeout`** — 30s per test prevents hanging tests
+- **`expect.timeout`** — 5s default timeout for each assertion; override per assertion with `{ timeout: 10000 }` for slow operations
 - **`navigationTimeout`** — 30s for page navigations
 - **`actionTimeout`** — 15s for individual user actions
 - **`headless`** — headless in CI, headed locally so you can see what is happening
@@ -279,7 +380,7 @@ export default defineConfig({
 
 Reference `.env.example` in this directory for all required variables. At minimum:
 
-APP_BASE_URL=https://your-app-url.com
-TEST_BROWSER=chromium
+`APP_BASE_URL=https://your-app-url.com`
+`TEST_BROWSER=chromium`
 
 Never hardcode URLs, project codes, or API tokens in `playwright.config.ts`.
