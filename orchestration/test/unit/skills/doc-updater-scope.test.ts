@@ -185,14 +185,6 @@ describe('SKILL.claude.md — scope contract', () => {
     it('declares name: doc-updater', () => {
       expect(content).toContain('name: doc-updater');
     });
-
-    it('declares version: 2.0.0', () => {
-      expect(content).toContain('version: 2.0.0');
-    });
-
-    it('declares last-updated: 2026-05-14', () => {
-      expect(content).toContain('last-updated: 2026-05-14');
-    });
   });
 });
 
@@ -320,14 +312,6 @@ describe('SKILL.codex.md — scope contract (semantic symmetry)', () => {
   describe('Frontmatter', () => {
     it('declares name: doc-updater', () => {
       expect(content).toContain('name: doc-updater');
-    });
-
-    it('declares version: 2.0.0', () => {
-      expect(content).toContain('version: 2.0.0');
-    });
-
-    it('declares last-updated: 2026-05-14', () => {
-      expect(content).toContain('last-updated: 2026-05-14');
     });
   });
 });

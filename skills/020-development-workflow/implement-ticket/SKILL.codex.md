@@ -352,7 +352,9 @@ Invoke `/doc-updater` skill. Do not skip this even if you think no docs need upd
 - Apply the maintenance test (update only if truly needed).
 - Update `{{INSTRUCTION_FILE}}` and the relevant convention skill (`code-conventions` / `multi-file-workflows` / `testing-conventions`) surgically if needed; descriptive context flows to the wiki via Phase 8.5, not into a skill body.
 
-Expected outputs: doc-updater ran and produced an analysis.
+`/doc-updater` returns control when done. **Continue to Phase 8.4 regardless of whether any docs were updated** — a `no prescriptive doc changes needed` result is the expected outcome for most tickets and counts as success. Do NOT treat doc-updater's internal steps as the implement-ticket phase list; your remaining phases (8.4, 8.5, 9, 10, 11) MUST still run after doc-updater returns.
+
+Expected outputs: doc-updater ran and produced an analysis (a no-change result is a valid completion).
 
 Constraint: Do not proceed if doc-updater was not invoked.
 

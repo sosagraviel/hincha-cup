@@ -442,11 +442,13 @@ CONTINUE WITH Phase 8.
 
 ### Phase 8: Documentation Update
 
-CRITICAL: You MUST invoke `/doc-updater` skill. Do not skip this even if you think no docs need updating.
+CRITICAL: You MUST invoke `/doc-updater` via the Skill tool. Do not skip this even if you think no docs need updating.
 
 - Analyze changed files for doc impact
 - Apply maintenance test (only update if truly needed)
 - Update {{INSTRUCTION_FILE}} and the relevant convention skill (`code-conventions` / `multi-file-workflows` / `testing-conventions`) surgically if needed; descriptive context flows to the wiki via Phase 8.5, not into a skill body
+
+`/doc-updater` returns control when done. **Continue to Phase 8.4 regardless of whether any docs were updated.** Do NOT treat doc-updater's internal steps as the implement-ticket task list — your phase task list (Phase 8.4, 8.5, 9, 10, 11) remains in effect and MUST still be completed after doc-updater returns.
 
 CONTINUE WITH Phase 8.4.
 
