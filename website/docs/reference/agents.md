@@ -80,7 +80,7 @@ The framework generates four kinds of agents. They are written to `.claude/agent
 - `multi-file-workflows`
 - `testing-conventions`
 
-**Tools**: `Read`, `Write`, `Edit`, `MultiEdit`, `Bash`, `Grep`, `Glob`, and the `mcp__code_graph__*` graph tools.
+**Tools**: `Read`, `Write`, `Edit`, `Bash`, `Grep`, `Glob`, and the `mcp__code_graph__*` graph tools.
 
 **Output**: Code changes plus a required `## Wiki Delta Hints` block (one JSON object per line) summarizing facts the wiki may need to absorb. Omitting this block is a Phase 5 completion failure.
 
@@ -284,7 +284,7 @@ Agents are configured via markdown files in `.claude/agents/`.
 name: implementer-typescript
 description: Expert typescript developer implementing features following best practices
 model: sonnet
-tools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob, mcp__code_graph__get_minimal_context_tool, ...
+tools: Read, Write, Edit, Bash, Grep, Glob, mcp__code_graph__get_minimal_context_tool, ...
 skills:
   - mastering-typescript
   - mastering-vitest

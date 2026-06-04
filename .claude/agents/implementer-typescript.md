@@ -2,7 +2,7 @@
 name: implementer-typescript
 description: Expert typescript developer implementing features following best practices
 model: sonnet
-tools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob, mcp__code_graph__get_minimal_context_tool, mcp__code_graph__semantic_search_nodes_tool, mcp__code_graph__get_impact_radius_tool, mcp__code_graph__query_graph_tool, mcp__code_graph__list_communities_tool, mcp__code_graph__get_community_tool, mcp__code_graph__find_large_functions_tool
+tools: Read, Write, Edit, Bash, Grep, Glob, mcp__code_graph__get_minimal_context_tool, mcp__code_graph__semantic_search_nodes_tool, mcp__code_graph__get_impact_radius_tool, mcp__code_graph__query_graph_tool, mcp__code_graph__list_communities_tool, mcp__code_graph__get_community_tool, mcp__code_graph__find_large_functions_tool
 skills:
   - mastering-typescript
   - mastering-vitest
