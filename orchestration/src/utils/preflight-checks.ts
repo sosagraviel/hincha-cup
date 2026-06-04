@@ -149,6 +149,7 @@ export async function runPreflightChecks(
   const requestedProvider = process.env.PROVIDER?.toLowerCase();
 
   const validateClaudeCLI = async (strict: boolean): Promise<boolean> => {
+    let bundledBroken = false;
     const localClaudePath = join(frameworkPath, 'orchestration/node_modules/.bin/claude');
 
     if (existsSync(localClaudePath)) {
@@ -180,6 +181,7 @@ export async function runPreflightChecks(
         }
         return false;
       } catch (error) {
+        bundledBroken = true;
         warnings.push(
           `Local Claude CLI found but failed to execute: ${(error as Error).message}\n` +
             `Path: ${localClaudePath}\n` +
@@ -220,13 +222,26 @@ export async function runPreflightChecks(
     } catch {
       if (strict) {
         errors.push(
-          `Claude CLI is not installed.\n` +
-            `\n` +
-            `Install framework dependencies:\n` +
-            `  cd ${frameworkPath}/orchestration && npm install\n` +
-            `\n` +
-            `Or install globally:\n` +
-            `  npm install -g @anthropic-ai/claude-code`,
+          bundledBroken
+            ? `Claude CLI is bundled but failed to run, and no working global CLI was found.\n` +
+                `\n` +
+                `The bundled CLI at ${localClaudePath} exists but its --version check failed —\n` +
+                `the platform-native binary was likely not installed (npm/pnpm ran with\n` +
+                `--ignore-scripts or --omit=optional).\n` +
+                `\n` +
+                `Repair it:\n` +
+                `  cd ${frameworkPath}/orchestration && rm -rf node_modules && npm install\n` +
+                `  (or: npm rebuild @anthropic-ai/claude-code)\n` +
+                `\n` +
+                `Or install/use a working global CLI:\n` +
+                `  npm install -g @anthropic-ai/claude-code`
+            : `Claude CLI is not installed.\n` +
+                `\n` +
+                `Install framework dependencies:\n` +
+                `  cd ${frameworkPath}/orchestration && npm install\n` +
+                `\n` +
+                `Or install globally:\n` +
+                `  npm install -g @anthropic-ai/claude-code`,
         );
       }
       return false;
@@ -234,6 +249,7 @@ export async function runPreflightChecks(
   };
 
   const validateCodexCLI = async (strict: boolean): Promise<boolean> => {
+    let bundledBroken = false;
     const localCodexPath = join(frameworkPath, 'orchestration/node_modules/.bin/codex');
 
     if (existsSync(localCodexPath)) {
@@ -272,6 +288,7 @@ export async function runPreflightChecks(
         }
         return false;
       } catch (error) {
+        bundledBroken = true;
         warnings.push(
           `Local Codex CLI found but failed to execute: ${(error as Error).message}\n` +
             `Path: ${localCodexPath}\n` +
@@ -320,13 +337,26 @@ export async function runPreflightChecks(
     } catch {
       if (strict) {
         errors.push(
-          `Codex CLI is not installed.\n` +
-            `\n` +
-            `Install framework dependencies:\n` +
-            `  cd ${frameworkPath}/orchestration && pnpm install\n` +
-            `\n` +
-            `Then authenticate:\n` +
-            `  ${frameworkPath}/orchestration/node_modules/.bin/codex login`,
+          bundledBroken
+            ? `Codex CLI is bundled but failed to run, and no working global CLI was found.\n` +
+                `\n` +
+                `The bundled CLI at ${localCodexPath} exists but its --version check failed —\n` +
+                `the platform-native binary was likely not installed (npm/pnpm ran with\n` +
+                `--ignore-scripts or --omit=optional).\n` +
+                `\n` +
+                `Repair it:\n` +
+                `  cd ${frameworkPath}/orchestration && rm -rf node_modules && pnpm install\n` +
+                `  (or: pnpm rebuild @openai/codex)\n` +
+                `\n` +
+                `Then authenticate:\n` +
+                `  ${localCodexPath} login`
+            : `Codex CLI is not installed.\n` +
+                `\n` +
+                `Install framework dependencies:\n` +
+                `  cd ${frameworkPath}/orchestration && pnpm install\n` +
+                `\n` +
+                `Then authenticate:\n` +
+                `  ${frameworkPath}/orchestration/node_modules/.bin/codex login`,
         );
       }
       return false;

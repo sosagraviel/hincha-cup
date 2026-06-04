@@ -74,12 +74,30 @@ export class AgentFactory {
       );
     } else if (this.authConfig.mode === AuthMode.CLAUDE_CLI) {
       if (!this.authConfig.claudeCLIVersion) {
-        throw new Error('Claude CLI version is required for CLAUDE_CLI mode');
+        throw new Error(
+          'Claude CLI was detected but its version could not be determined — the CLI is likely ' +
+            'broken (e.g. the bundled native binary was not installed because npm/pnpm ran with ' +
+            '--ignore-scripts or --omit=optional).\n' +
+            'Repair the bundled CLI:\n' +
+            '  cd orchestration && rm -rf node_modules && npm install\n' +
+            '  (or: npm rebuild @anthropic-ai/claude-code)\n' +
+            'Or install/repair a global CLI: npm install -g @anthropic-ai/claude-code\n' +
+            'See the orchestration logs above for the underlying `claude --version` error.',
+        );
       }
       return createCLIAgentImpl(config, this.authConfig.claudeCLIVersion);
     } else if (this.authConfig.mode === AuthMode.CODEX_CLI) {
       if (!this.authConfig.codexCLIVersion) {
-        throw new Error('Codex CLI version is required for CODEX_CLI mode');
+        throw new Error(
+          'Codex CLI was detected but its version could not be determined — the CLI is likely ' +
+            'broken (e.g. the bundled native binary was not installed because npm/pnpm ran with ' +
+            '--ignore-scripts or --omit=optional).\n' +
+            'Repair the bundled CLI:\n' +
+            '  cd orchestration && rm -rf node_modules && pnpm install\n' +
+            '  (or: pnpm rebuild @openai/codex)\n' +
+            'Or install/repair a global CLI: npm install -g @openai/codex\n' +
+            'See the orchestration logs above for the underlying `codex --version` error.',
+        );
       }
       return createCodexCLIAgentImpl(config, this.authConfig.codexCLIVersion);
     } else {

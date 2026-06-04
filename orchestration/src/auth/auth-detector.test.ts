@@ -4,8 +4,13 @@ import {
   AuthMode,
   isClaudeCLIAvailable,
   isClaudeCLIAuthenticated,
+  isCodexCLIAvailable,
   getAuthErrorMessage,
+  getClaudeCLIVersion,
+  getCodexCLIVersion,
+  resetLocalCLIPathCache,
 } from './auth-detector.js';
+import { logger } from '../utils/logger.js';
 
 vi.mock('child_process', () => ({
   execSync: vi.fn(),
@@ -18,6 +23,18 @@ vi.mock('fs', () => ({
   existsSync: vi.fn(),
   default: {
     existsSync: vi.fn(),
+  },
+}));
+
+// Mock logger so getClaudeCLIVersion/getCodexCLIVersion can surface (and we can
+// assert) the underlying failure without writing to the test console.
+vi.mock('../utils/logger.js', () => ({
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
@@ -37,6 +54,10 @@ describe('auth-detector', () => {
     delete process.env.ANTHROPIC_FOUNDRY_RESOURCE;
 
     vi.clearAllMocks();
+
+    // The local-CLI probe cache is process-lived; reset it between cases so a
+    // cached `null` from one test cannot poison another's existsSync/--version setup.
+    resetLocalCLIPathCache();
 
     const fs = await import('fs');
     vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -313,17 +334,55 @@ describe('auth-detector', () => {
       expect(result.hasAPIKey).toBe(false);
       expect(result.hasClaudeCLI).toBe(false);
     });
+
+    it('should fall back to the global CLI when the bundled CLI is broken (regression)', async () => {
+      process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key';
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+      // Bundled wrapper exists but its native binary is missing → `--version` fails.
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        // getClaudeCLIVersion runs with `encoding: 'utf-8'` and `.trim()`s the
+        // result, so the global probe must yield a string (a real exec would).
+        if (cmd === 'claude --version') return '2.1.150 (Claude Code)';
+        // The bundled probe (`"<abs-path>" --version`) and everything else fail.
+        throw new Error('claude native binary not installed');
+      });
+
+      const result = await detectAuthMode();
+
+      expect(result.mode).toBe(AuthMode.CLAUDE_CLI);
+      expect(result.hasClaudeCLI).toBe(true);
+      expect(result.claudeCLIVersion).toBeDefined();
+      expect(result.claudeCLIVersion).toContain('2.1.150');
+    });
+
+    it('should return NONE (never CLAUDE_CLI with undefined version) when bundled and global CLIs are both broken', async () => {
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('claude native binary not installed');
+      });
+
+      const result = await detectAuthMode();
+
+      expect(result.mode).toBe(AuthMode.NONE);
+      expect(result.hasClaudeCLI).toBe(false);
+      expect(result.claudeCLIVersion).toBeUndefined();
+    });
   });
 
   describe('isClaudeCLIAvailable', () => {
-    it('should return true when Claude CLI is installed', async () => {
+    it('should return true when global Claude CLI runs --version', async () => {
       const { execSync } = await import('child_process');
-      vi.mocked(execSync).mockReturnValue(Buffer.from('/usr/local/bin/claude'));
+      vi.mocked(execSync).mockReturnValue(Buffer.from('2.1.0 (Claude Code)'));
 
       const result = await isClaudeCLIAvailable();
 
       expect(result).toBe(true);
-      expect(execSync).toHaveBeenCalledWith('which claude', expect.any(Object));
+      // Availability is now defined by a working `--version`, not mere presence on PATH.
+      expect(execSync).toHaveBeenCalledWith('claude --version', expect.any(Object));
     });
 
     it('should return false when Claude CLI is not installed', async () => {
@@ -346,6 +405,80 @@ describe('auth-detector', () => {
       const result = await isClaudeCLIAvailable();
 
       expect(result).toBe(false);
+    });
+
+    it('should return false when the bundled CLI is broken AND no working global CLI exists', async () => {
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+      // Bundled wrapper is present...
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      // ...but every `--version` invocation (bundled and global) fails.
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('claude native binary not installed');
+      });
+
+      const result = await isClaudeCLIAvailable();
+
+      expect(result).toBe(false);
+    });
+
+    it('should return true via the global CLI even when the bundled CLI is broken', async () => {
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(execSync).mockImplementation((cmd: string) => {
+        // The bundled probe is quoted with an absolute path; the global probe is exactly `claude --version`.
+        if (cmd === 'claude --version') return Buffer.from('2.1.150 (Claude Code)');
+        throw new Error('claude native binary not installed');
+      });
+
+      const result = await isClaudeCLIAvailable();
+
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('getClaudeCLIVersion', () => {
+    it('should log a warning and return undefined when the version check fails', async () => {
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('claude native binary not installed');
+      });
+
+      const version = await getClaudeCLIVersion();
+
+      expect(version).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Claude CLI version check failed'),
+      );
+    });
+  });
+
+  describe('isCodexCLIAvailable', () => {
+    it('should probe with `codex --version` rather than `which codex`', async () => {
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockReturnValue(Buffer.from('codex 0.121.0'));
+
+      const result = await isCodexCLIAvailable();
+
+      expect(result).toBe(true);
+      expect(execSync).toHaveBeenCalledWith('codex --version', expect.any(Object));
+    });
+  });
+
+  describe('getCodexCLIVersion', () => {
+    it('should log a warning and return undefined when the version check fails', async () => {
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('codex native binary not installed');
+      });
+
+      const version = await getCodexCLIVersion();
+
+      expect(version).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Codex CLI version check failed'),
+      );
     });
   });
 

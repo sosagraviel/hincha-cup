@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { ensureCodexAuthentication } from './codex-auth.js';
 import { getFrameworkPath } from '../services/framework/paths.service.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Authentication modes supported by the framework
@@ -306,13 +307,28 @@ function resolveLocalCLIPath(binaryName: string): string | null {
 }
 
 /**
+ * Test-only helper: clear the per-process `resolveLocalCLIPath` probe cache.
+ *
+ * The cache is intentionally process-lived in production, but unit tests that
+ * vary `fs.existsSync` / `--version` outcomes across cases must reset it so a
+ * cached `null` from an earlier case does not poison later ones.
+ */
+export function resetLocalCLIPathCache(): void {
+  localCLIPathCache.clear();
+}
+
+/**
  * Check if Claude CLI is installed and available in PATH
  */
 export async function isClaudeCLIAvailable(): Promise<boolean> {
   if (resolveLocalCLIPath('claude')) return true;
 
+  // Probe the global CLI with `--version` (not `which`): availability must mean
+  // "actually runs", so it can never disagree with getClaudeCLIVersion(). A
+  // present-but-broken global binary therefore reports unavailable instead of
+  // yielding a CLAUDE_CLI mode with no version.
   try {
-    execSync('which claude', { stdio: 'ignore', timeout: 5000 });
+    execSync('claude --version', { stdio: ['ignore', 'ignore', 'ignore'], timeout: 5000 });
     return true;
   } catch {
     return false;
@@ -323,16 +339,23 @@ export async function isClaudeCLIAvailable(): Promise<boolean> {
  * Get Claude CLI version string
  */
 export async function getClaudeCLIVersion(): Promise<string | undefined> {
+  const localPath = resolveLocalCLIPath('claude');
+  const cmd = localPath ? `"${localPath}" --version` : 'claude --version';
   try {
-    const localPath = resolveLocalCLIPath('claude');
-    const cmd = localPath ? `"${localPath}" --version` : 'claude --version';
     const output = execSync(cmd, {
       encoding: 'utf-8',
       timeout: 5000,
       stdio: ['ignore', 'pipe', 'ignore'],
     });
     return output.trim();
-  } catch {
+  } catch (error) {
+    // Surface the underlying failure instead of swallowing it silently — a
+    // masked error here is what turns a broken CLI into the cryptic
+    // "Claude CLI version is required for CLAUDE_CLI mode" downstream.
+    logger.warn(
+      `Claude CLI version check failed (${localPath ? 'bundled' : 'global'} CLI): ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+    );
     return undefined;
   }
 }
@@ -346,8 +369,12 @@ export async function getClaudeCLIVersion(): Promise<string | undefined> {
 export async function isClaudeCLIAuthenticated(): Promise<boolean> {
   if (process.env.ANTHROPIC_API_KEY) return true;
 
+  // Probe the same binary the rest of the framework will use (bundled when it
+  // works, global otherwise) rather than always hitting the global `claude`.
+  const localPath = resolveLocalCLIPath('claude');
+  const cmd = localPath ? `"${localPath}" --help` : 'claude --help';
   try {
-    execSync('claude --help', {
+    execSync(cmd, {
       stdio: 'ignore',
       timeout: 5000,
     });
@@ -390,8 +417,9 @@ async function hasClaudeCredentials(): Promise<boolean> {
 export async function isCodexCLIAvailable(): Promise<boolean> {
   if (resolveLocalCLIPath('codex')) return true;
 
+  // Probe with `--version` (not `which`) — see isClaudeCLIAvailable for rationale.
   try {
-    execSync('which codex', { stdio: 'ignore', timeout: 5000 });
+    execSync('codex --version', { stdio: ['ignore', 'ignore', 'ignore'], timeout: 5000 });
     return true;
   } catch {
     return false;
@@ -402,16 +430,20 @@ export async function isCodexCLIAvailable(): Promise<boolean> {
  * Get Codex CLI version string
  */
 export async function getCodexCLIVersion(): Promise<string | undefined> {
+  const localPath = resolveLocalCLIPath('codex');
+  const cmd = localPath ? `"${localPath}" --version` : 'codex --version';
   try {
-    const localPath = resolveLocalCLIPath('codex');
-    const cmd = localPath ? `"${localPath}" --version` : 'codex --version';
     const output = execSync(cmd, {
       encoding: 'utf-8',
       timeout: 5000,
       stdio: ['ignore', 'pipe', 'ignore'],
     });
     return output.trim();
-  } catch {
+  } catch (error) {
+    logger.warn(
+      `Codex CLI version check failed (${localPath ? 'bundled' : 'global'} CLI): ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+    );
     return undefined;
   }
 }
