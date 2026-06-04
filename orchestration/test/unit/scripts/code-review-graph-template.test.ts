@@ -92,4 +92,30 @@ describe('scripts/setup-code-graph.sh — migration block', () => {
     // (e.g., a Docker build context, a tarball extraction).
     expect(body).toMatch(/git -C "\$PROJECT_PATH" rev-parse --git-dir/);
   });
+
+  it('find_python routes its "Using Python" log to stderr (no stdout pollution)', () => {
+    // Anti-regression: find_python's stdout is captured via $(find_python); the
+    // human-facing log line MUST go to stderr or it corrupts the resolved
+    // python_cmd into a two-line blob, which then fails the pip-fallback install
+    // path with a misleading `... command not found`. Only reproduces on machines
+    // without uv/uvx/pipx (the only path that reaches find_python).
+    expect(body).toMatch(/log_info "Using Python \$version \(\$candidate\)" >&2/);
+  });
+});
+
+describe('scripts/lib/bootstrap-uv.sh — uv bootstrap gating', () => {
+  const body = readFileSync(join(FRAMEWORK_ROOT, 'scripts/lib/bootstrap-uv.sh'), 'utf-8');
+
+  it('does NOT treat a bare python interpreter as a suitable tool', () => {
+    // A bare interpreter cannot run code-review-graph without a pip install that
+    // fails under PEP 668 (externally-managed-environment). Counting python3/python
+    // here wrongly suppresses the uv bootstrap and forces those users down the one
+    // install path that cannot work. Anti-regression on that gating.
+    expect(body).not.toMatch(/command -v python3? >\/dev\/null 2>&1 && return 0/);
+  });
+
+  it('still counts real runners/installers (uvx, uv, pipx)', () => {
+    expect(body).toMatch(/command -v uvx >\/dev\/null 2>&1 && return 0/);
+    expect(body).toMatch(/command -v pipx >\/dev\/null 2>&1 && return 0/);
+  });
 });

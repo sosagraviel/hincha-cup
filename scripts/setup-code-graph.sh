@@ -80,7 +80,7 @@ current = sys.version_info[:len(minimum)]
 sys.exit(0 if current >= minimum else 1)
 PY
     then
-      log_info "Using Python $version ($candidate)"
+      log_info "Using Python $version ($candidate)" >&2
       echo "$candidate"
       return 0
     fi

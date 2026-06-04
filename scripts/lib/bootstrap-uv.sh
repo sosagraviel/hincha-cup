@@ -49,13 +49,16 @@ _run_uv_installer() {
   return 0
 }
 
+# Only tools that can actually install or RUN code-review-graph count as
+# "suitable" — a bare interpreter does not. A bare python3/python requires a
+# `pip install` that fails on PEP 668 externally-managed environments (Homebrew,
+# Debian/Ubuntu 3.11+), so counting it here wrongly suppresses the uv bootstrap
+# and forces those users down the one install path that cannot work.
 _has_any_python_tool() {
   command -v code-review-graph >/dev/null 2>&1 && return 0
   command -v uvx >/dev/null 2>&1 && return 0
   command -v uv >/dev/null 2>&1 && return 0
   command -v pipx >/dev/null 2>&1 && return 0
-  command -v python3 >/dev/null 2>&1 && return 0
-  command -v python >/dev/null 2>&1 && return 0
   return 1
 }
 
