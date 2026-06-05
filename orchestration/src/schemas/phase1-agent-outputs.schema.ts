@@ -149,6 +149,41 @@ export const StructureAnalyzerServiceSchema = z
           'already in `inspection.manifests[]`; no new Reads required to apply ' +
           'this judgment.',
       ),
+    file_placement_patterns: z
+      .array(
+        z
+          .object({
+            type: z
+              .string()
+              .min(1)
+              .describe(
+                "Artefact kind, e.g. 'REST router', 'SQLAlchemy model', 'unit test', 'Alembic migration'",
+              ),
+            location: z
+              .string()
+              .min(1)
+              .describe(
+                'Real, repo-relative location pattern observed for this artefact kind. ' +
+                  "Use a `{placeholder}` only for the varying segment (e.g. 'src/entities/{domain}/model.py'). " +
+                  'MUST reflect the actual directory layout of THIS service — never a generic convention for the framework.',
+              ),
+            example: z
+              .string()
+              .min(1)
+              .describe(
+                "A concrete real file path that exists in the repo and matches `location` (e.g. 'src/entities/project/model.py'). " +
+                  'Every entry MUST be grounded in a file actually observed; do not invent.',
+              ),
+          })
+          .passthrough(),
+      )
+      .optional()
+      .describe(
+        'Grounded file-placement patterns DISCOVERED for this service by inspecting its real files. ' +
+          'Becomes the deterministic baseline the Phase 3 synthesizer elaborates into the CLAUDE.md ' +
+          'File Placement Guide. Omit (or leave empty) rather than guessing; fabricated/generic ' +
+          'patterns are worse than fewer rows.',
+      ),
   })
   .passthrough();
 export type StructureAnalyzerService = z.infer<typeof StructureAnalyzerServiceSchema>;

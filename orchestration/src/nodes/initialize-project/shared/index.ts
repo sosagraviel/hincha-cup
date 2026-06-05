@@ -20,6 +20,8 @@ export function getFrameworkAgentPath(frameworkPath: string, agentFile: string):
       'orchestration/src/nodes/initialize-project/phase1/data-flows-analyzer/prompts/agent.md',
     '05-architect-synthesizer.md':
       'orchestration/src/nodes/initialize-project/phase3/prompts/agent.md',
+    '08-context-verifier.md':
+      'orchestration/src/nodes/initialize-project/phase3_5/prompts/agent.md',
     '06-question-consolidator.md':
       'orchestration/src/nodes/initialize-project/phase2/question-consolidator/prompts/agent.md',
     '07-wiki-generator.md':

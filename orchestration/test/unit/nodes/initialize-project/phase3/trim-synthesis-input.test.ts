@@ -78,6 +78,63 @@ describe('trimSynthesisInput', () => {
     expect(trimmed.summary.monorepo).toEqual({ root: '.', workspace_tool: 'pnpm workspaces' });
   });
 
+  it('carries grounded file_placement_patterns through as the synthesizer baseline', () => {
+    const trimmed = trimSynthesisInput({
+      consolidated_findings: {
+        services: [
+          {
+            id: 'api',
+            type: 'backend',
+            language: 'python',
+            frameworks: { main: 'FastAPI' },
+            file_placement_patterns: [
+              {
+                type: 'SQLAlchemy model',
+                location: 'src/entities/{domain}/model.py',
+                example: 'src/entities/project/model.py',
+              },
+              // Dropped — missing a real example, so it is not grounded.
+              { type: 'service', location: 'src/services/{domain}.py' },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(trimmed.summary.services).toEqual([
+      {
+        id: 'api',
+        type: 'backend',
+        language: 'python',
+        framework_main: 'FastAPI',
+        file_placement_patterns: [
+          {
+            type: 'SQLAlchemy model',
+            location: 'src/entities/{domain}/model.py',
+            example: 'src/entities/project/model.py',
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('omits file_placement_patterns entirely when none are grounded', () => {
+    const trimmed = trimSynthesisInput({
+      consolidated_findings: {
+        services: [
+          {
+            id: 'api',
+            type: 'backend',
+            language: 'python',
+            frameworks: {},
+            file_placement_patterns: [{ type: 'model' }],
+          },
+        ],
+      },
+    });
+    expect(trimmed.summary.services[0]).not.toHaveProperty('file_placement_patterns');
+  });
+
   it('drops the heavy per-analyzer raw outputs', () => {
     const trimmed = trimSynthesisInput({
       consolidated_findings: {

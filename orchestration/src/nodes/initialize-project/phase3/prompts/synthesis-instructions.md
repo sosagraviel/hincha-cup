@@ -106,8 +106,9 @@ session reads this at startup. Keep it scannable.
 
 - `# [Project Name]` — name only, no tagline
 - `## Tech Stack` — bulleted list with exact versions, NO explanations
-- `## File Placement Guide` — table with 15–25 rows; for monorepos include a
-  "Shared vs Local Rules" subsection
+- `## File Placement Guide` — table built from the grounded baseline; see
+  "File Placement Guide rule" below. For monorepos include a "Shared vs Local
+  Rules" subsection
 - `## Directory Structure` — annotated tree, top-level only (5–15 lines)
 - `## Essential Commands` — table; NO explanations
 - `## Services & Ports` — table; see "Services & Ports rendering rule" below for required columns
@@ -127,7 +128,8 @@ session reads this at startup. Keep it scannable.
 
 - Tech Stack section MUST list ALL languages with file counts (aggregate from
   `services[]`)
-- File Placement Guide MUST cover ALL services and their language patterns
+- File Placement Guide MUST cover every service that has
+  `file_placement_patterns` (see "File Placement Guide rule")
 - Directory Structure MUST show ALL service directories (from `services[].path`)
 - Essential Commands MUST include commands for ALL services/languages
 
@@ -156,6 +158,32 @@ empty, render from `command_catalog` directly, preserving tier order
 `wrapper > readme > package_manager > ci`. Per-service `package_manager`
 rows go in a subtable BELOW the main table — never list a
 `package_manager`-tier command BEFORE its same-operation `wrapper` row.
+
+### File Placement Guide rule — LOAD-BEARING
+
+You are closed-book: you CANNOT read the project tree. The grounded baseline is
+`summary.services[].file_placement_patterns` — each entry is a real
+`{ type, location, example }` the structure analyzer observed in the actual repo.
+Treat it exactly like a `_source: deterministic` baseline: build the table FROM
+it, elaborate where you add value (clearer `type` wording, grouping related
+rows), but **do NOT invent paths and do NOT contradict the baseline**.
+
+Table columns:
+
+| File Type | Location Pattern | Example |
+| --------- | ---------------- | ------- |
+
+- One row per grounded pattern: `File Type` = `type`, `Location Pattern` =
+  `location`, `Example` = `example`. Copy `location`/`example` verbatim from the
+  baseline — never substitute a generic framework convention.
+- Cover ALL services that have patterns; in a monorepo, group rows by service
+  and add the "Shared vs Local Rules" subsection.
+- **Only emit rows backed by a baseline pattern.** If the grounded patterns
+  total fewer than 15 rows, emit fewer rows — a short, correct table beats a
+  padded one with fabricated paths. Never manufacture rows to reach a count.
+- If NO service has `file_placement_patterns`, emit the heading followed by a
+  single line: `_No file-placement patterns were discovered for this project._`
+  Do NOT fabricate a table.
 
 ### Services & Ports rendering rule — LOAD-BEARING
 

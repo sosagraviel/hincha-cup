@@ -3,8 +3,10 @@
  *
  * Keeps `consolidated_gaps`, `consolidation_metadata`, and a curated
  * `summary` block (services, languages, runtimes, build_tools, etc.).
- * Drops raw per-analyzer outputs, per-service dependency lists, and
- * file_placement tables — the synthesizer can Read on demand if needed.
+ * Drops raw per-analyzer outputs and per-service dependency lists. The
+ * synthesizer is closed-book (`tools: none`), so grounded per-service
+ * `file_placement_patterns` are carried through here as the baseline it
+ * elaborates into the CLAUDE.md File Placement Guide.
  *
  * Stack-agnostic: every kept field is a top-level shape; no
  * language-specific values are filtered or rewritten.
@@ -35,6 +37,7 @@ interface CuratedSynthesisInput {
       port?: number;
       port_applies?: boolean;
       port_applies_reason?: string;
+      file_placement_patterns?: Array<{ type: string; location: string; example: string }>;
     }>;
     infrastructure_services?: Array<{
       id: string;
@@ -102,6 +105,8 @@ export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInpu
       if (typeof env.port_applies_reason === 'string')
         entry.port_applies_reason = env.port_applies_reason;
     }
+    const placements = curateFilePlacementPatterns(s.file_placement_patterns);
+    if (placements.length > 0) entry.file_placement_patterns = placements;
     services.push(entry);
   }
 
@@ -203,6 +208,34 @@ function firstFromSources(sources: Record<string, unknown>[], ...keys: string[])
     }
   }
   return undefined;
+}
+
+/**
+ * Curate the structure analyzer's grounded `file_placement_patterns` for a
+ * single service into the synthesizer baseline shape. Entries missing any of
+ * `type` / `location` / `example` are dropped — a placement without a real
+ * example is not grounded and must not seed the File Placement Guide.
+ */
+function curateFilePlacementPatterns(
+  raw: unknown,
+): Array<{ type: string; location: string; example: string }> {
+  if (!Array.isArray(raw)) return [];
+  const out: Array<{ type: string; location: string; example: string }> = [];
+  for (const item of raw) {
+    if (!isObject(item)) continue;
+    const { type, location, example } = item;
+    if (
+      typeof type === 'string' &&
+      type.length > 0 &&
+      typeof location === 'string' &&
+      location.length > 0 &&
+      typeof example === 'string' &&
+      example.length > 0
+    ) {
+      out.push({ type, location, example });
+    }
+  }
+  return out;
 }
 
 function deriveProjectName(meta: unknown): string | undefined {

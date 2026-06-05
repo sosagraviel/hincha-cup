@@ -3,22 +3,23 @@
 `/initialize-project` is a six-phase pipeline that turns an unknown target project into a fully-configured QAF installation (`CLAUDE.md`, three skill bodies, an architectural narrative, an LLM wiki, agent prompts, validators). It is engineered so the LLM is a *composer*, not an investigator: every fact downstream phases ship is grounded in deterministic project signals — manifests, lock files, source files — with citation provenance.
 
 ```text
-Phase 0          Phase 1                  Phase 2                       Phase 3       Phase 4       Phase 4b       Phase 5    Phase 6
-inspection  →  4 parallel analyzers  →  consolidation + 4 views  →  synthesizer  →  context  →  wiki generator  →  agents  →  validators
-                                              ▲                          ▲             ▲                                          │
-                                              │ slice > analyzer >        │ closed-book │ deterministic                            │
-                                              │ deterministic > absent    │ readers     │ post-fills                               │
-                                              ▼                          ▼             ▼                                          ▼
-                                              composer views               CLAUDE.md / skills / arch narrative                  Stop hooks
+Phase 0          Phase 1                  Phase 2                       Phase 3       Phase 3.5      Phase 4       Phase 4b       Phase 5    Phase 6
+inspection  →  4 parallel analyzers  →  consolidation + 4 views  →  synthesizer  →  verifier  →  context  →  wiki generator  →  agents  →  validators
+                                              ▲                          ▲            ▲              ▲                                          │
+                                              │ slice > analyzer >        │ closed-book │ open-book   │ deterministic                            │
+                                              │ deterministic > absent    │ readers     │ repair      │ post-fills                               │
+                                              ▼                          ▼            ▼              ▼                                          ▼
+                                              composer views               CLAUDE.md / skills / arch narrative                              Stop hooks
 ```
 
 ## Where the LLM lives — and does not
 
-The LLM runs in exactly three places:
+The LLM runs in exactly four places:
 
-1. **Phase 1 analyzers (four in parallel)** — structure, tech-stack, code-patterns, data-flows. Each emits a Zod-validated JSON. Per-service judgment fields (`code_patterns[]`, `representative_examples[]`, `request_lifecycle[]`) carry mandatory `source_file` + `source_line` citations; Stop hooks reject un-cited entries and missing services.
-2. **Phase 3 synthesizer (closed-book)** — reads the four pre-flattened composer views, never grep / glob / MCP. Composes `CLAUDE.md` + three skill bodies + an architectural narrative.
-3. **Phase 4b wiki generator** — turns the architectural narrative into `docs/llm-wiki/` pages.
+1. **Phase 1 analyzers (four in parallel)** — structure, tech-stack, code-patterns, data-flows. Each emits a Zod-validated JSON. Per-service judgment fields (`code_patterns[]`, `representative_examples[]`, `request_lifecycle[]`) carry mandatory `source_file` + `source_line` citations; Stop hooks reject un-cited entries and missing services. The structure analyzer also emits grounded `file_placement_patterns` (`type → location → example`, observed on disk) that seed the CLAUDE.md File Placement Guide.
+2. **Phase 3 synthesizer (closed-book)** — reads the four pre-flattened composer views plus the grounded file-placement baseline, never grep / glob / MCP. Composes `CLAUDE.md` + three skill bodies + an architectural narrative.
+3. **Phase 3.5 context verifier (open-book)** — the one place an init-time agent is *allowed* `Read`/`Glob`/`Grep`. Audits the generated `CLAUDE.md`/`AGENTS.md` against the real tree and fixes/removes broken paths, directory-tree entries, and duplicate Services & Ports rows. Best-effort and non-blocking: on failure the original synthesis is kept.
+4. **Phase 4b wiki generator** — turns the architectural narrative into `docs/llm-wiki/` pages.
 
 Phase 0, Phase 2, the Phase 4 section extractor, Phase 5 agent-template instantiation, and Phase 6 validators are 100% deterministic.
 

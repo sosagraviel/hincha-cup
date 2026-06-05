@@ -26,6 +26,11 @@ export const INITIALIZE_PROJECT_PHASES: Record<string, PhaseSlot> = {
     phaseNumber: 3,
     phaseLabel: 'Phase 3 — Synthesis',
   },
+  phase3_5: {
+    phaseId: 'phase-3-5-context-verification',
+    phaseNumber: 3,
+    phaseLabel: 'Phase 3.5 — Context Verification',
+  },
   phase4: {
     phaseId: 'phase-4-context-generation',
     phaseNumber: 4,
