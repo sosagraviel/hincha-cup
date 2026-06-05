@@ -138,9 +138,9 @@ Create each task using TaskCreate with these exact values:
 9. Phase 8: Documentation Update
    subject: "Phase 8: Documentation Update"
    activeForm: "Updating documentation"
-   Steps: MUST invoke /doc-updater skill, analyze changed files for doc impact, apply maintenance test, update {{INSTRUCTION_FILE}} and the relevant convention skill (`code-conventions` / `multi-file-workflows` / `testing-conventions`) if needed
-   Expected outputs: doc-updater skill was invoked and analysis completed
-   Constraint: Do not proceed if doc-updater was not invoked.
+   Steps: MUST run doc-updater in an isolated subagent (`Task(subagent_type: "general-purpose", ...)`) that reads and follows the doc-updater skill against the changed files; on return, TaskUpdate this phase completed with the subagent's summary in the description
+   Expected outputs: doc-updater subagent returned a one-line summary (files updated OR "no prescriptive doc changes needed" — both valid)
+   Constraint: Do not proceed if the doc-updater subagent was not spawned. Do NOT invoke /doc-updater inline.
 
 10. Phase 8.4: Implementation Commit
     subject: "Phase 8.4: Implementation Commit"
@@ -442,13 +442,16 @@ CONTINUE WITH Phase 8.
 
 ### Phase 8: Documentation Update
 
-CRITICAL: You MUST invoke `/doc-updater` via the Skill tool. Do not skip this even if you think no docs need updating.
+CRITICAL: run documentation maintenance in an **isolated subagent**, NOT inline. Doc-updater's phases end in an "analyze → decide" conclusion that the model tends to emit as plain text; inline, that idle turn terminates the whole run (see "CRITICAL — headless execution"). A subagent runs its own loop, so its narrate-and-stop ends only the child and returns its text to you as a tool result.
 
-- Analyze changed files for doc impact
-- Apply maintenance test (only update if truly needed)
-- Update {{INSTRUCTION_FILE}} and the relevant convention skill (`code-conventions` / `multi-file-workflows` / `testing-conventions`) surgically if needed; descriptive context flows to the wiki via Phase 8.5, not into a skill body
+Spawn it with `Task(subagent_type: "general-purpose", prompt: ...)`. The prompt MUST contain:
 
-`/doc-updater` returns control when done. **Continue to Phase 8.4 regardless of whether any docs were updated.** Do NOT treat doc-updater's internal steps as the implement-ticket task list — your phase task list (Phase 8.4, 8.5, 9, 10, 11) remains in effect and MUST still be completed after doc-updater returns.
+- "Read and follow `{{CONFIG_DIR}}/skills/doc-updater/SKILL.md` exactly to maintain the four prescriptive doc targets ({{INSTRUCTION_FILE}} + the `code-conventions` / `multi-file-workflows` / `testing-conventions` skills). Edit nothing outside those four targets; descriptive context belongs in the wiki via Phase 8.5, not a skill body."
+- Changed files: the output of `git diff --name-only` across `AFFECTED_REPOS`, excluding `docs/llm-wiki/**`.
+- Artifact PATHS (not bodies): `$ARTIFACTS_DIR/context/ticket-context.md`, `$ARTIFACTS_DIR/plans/implementation-plan.md`.
+- "Return ONLY a one-line summary: the files updated, or `doc-updater: no prescriptive doc changes needed`."
+
+When the `Task` returns, **do NOT narrate** — your next action MUST be a tool call: immediately `TaskUpdate` Phase 8 → completed (put the subagent's summary line in the description), then proceed. A no-change result is the expected outcome for most tickets and counts as success. Do not re-run doc-updater inline.
 
 CONTINUE WITH Phase 8.4.
 
