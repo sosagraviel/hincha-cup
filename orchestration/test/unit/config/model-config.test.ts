@@ -51,6 +51,7 @@ const CANONICAL_AGENT_NAMES: ReadonlyArray<string> = [
   'data-flows-integrations-analyzer',
   'service-detail-extractor',
   'architect-synthesizer',
+  'context-verifier',
   'wiki-generator',
   'question-consolidator',
   // implement-ticket + scaffold agents
