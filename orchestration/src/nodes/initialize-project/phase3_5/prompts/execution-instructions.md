@@ -37,8 +37,15 @@ confirm the specific paths the cheat-sheet claims.
 
 ## Output
 
-Emit ONLY the corrected cheat-sheet markdown, starting with the `#` project
-heading. No preamble, no code fences, no closing remarks.
+Your entire response IS the file content written verbatim to `CLAUDE.md`. Emit
+ONLY the corrected cheat-sheet markdown:
+
+- First character is `#` (the project-name heading); last line is real content.
+- Do NOT prepend a summary of what you changed (e.g. "Dropping the two alias
+  rows…") — that sentence would be written into `CLAUDE.md`. It is a bug.
+- No trailing changelog/notes, no code fences, no `# CLAUDE.md Content` wrapper.
+
+Keep any explanation of your edits in your reasoning only — never in the output.
 
 ---
 

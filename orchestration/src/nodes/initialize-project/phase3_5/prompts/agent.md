@@ -48,7 +48,18 @@ rewrite prose, do not add commentary, do not change correct content.
 
 ## Output contract
 
-Return ONLY the corrected cheat-sheet markdown. First character MUST be `#`
-(the project-name heading). No preamble, no fences, no trailing notes, no
-`# CLAUDE.md Content` wrapper line. Use only project-relative paths — never
-absolute machine paths like `/Users/<name>/…` or `/home/<name>/…`.
+Return ONLY the corrected cheat-sheet markdown — it is written verbatim to the
+project's `CLAUDE.md`. The **first character MUST be `#`** (the project-name
+heading) and the **last line MUST be real cheat-sheet content**.
+
+Your response is the file, not a message to a human. Therefore:
+
+- **No preamble.** Do NOT begin with a summary of what you found or changed
+  (e.g. "All path claims are valid…", "Dropping the two alias rows…"). Such a
+  sentence written into `CLAUDE.md` is a corruption bug.
+- **No trailing notes / changelog / explanation** after the content.
+- No code fences, no `# CLAUDE.md Content` wrapper line.
+
+Any reasoning about your edits stays in your thinking — it must never appear in
+the emitted file. Use only project-relative paths — never absolute machine paths
+like `/Users/<name>/…` or `/home/<name>/…`.

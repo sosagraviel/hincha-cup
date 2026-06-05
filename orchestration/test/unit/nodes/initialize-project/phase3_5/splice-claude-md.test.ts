@@ -96,4 +96,28 @@ describe('normalizeVerifierOutput', () => {
   it('leaves clean output untouched', () => {
     expect(normalizeVerifierOutput('# my-api\n\ntext')).toBe('# my-api\n\ntext');
   });
+
+  it('strips a leading explanation preamble before the project heading', () => {
+    const raw =
+      'All path claims are valid. In the Services & Ports table, `cm-ai-api` is an alias ' +
+      'for the real docker service `api` (both on port 8000). Dropping the two alias rows.\n\n' +
+      '# cm-ai-api\n\n## Tech Stack\n- FastAPI';
+    expect(normalizeVerifierOutput(raw)).toBe('# cm-ai-api\n\n## Tech Stack\n- FastAPI');
+  });
+
+  it('strips preamble AND a re-emitted wrapper header, leaving only the body', () => {
+    const raw =
+      'Here is the corrected file:\n\n# CLAUDE.md Content\n\n# cm-ai-api\n\n## Tech Stack\n- FastAPI';
+    expect(normalizeVerifierOutput(raw)).toBe('# cm-ai-api\n\n## Tech Stack\n- FastAPI');
+  });
+
+  it('does not mistake a level-2 heading for the project heading', () => {
+    const raw = 'Summary of changes.\n\n## Not the title\n\n# real-title\n\nbody';
+    expect(normalizeVerifierOutput(raw)).toBe('# real-title\n\nbody');
+  });
+
+  it('returns prose unchanged when there is no top-level heading (so validation rejects it)', () => {
+    const raw = 'All path claims are valid. Nothing to change.';
+    expect(normalizeVerifierOutput(raw)).toBe('All path claims are valid. Nothing to change.');
+  });
 });

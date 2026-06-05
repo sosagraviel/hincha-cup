@@ -71,22 +71,35 @@ export function spliceClaudeMdBody(blob: string, correctedBody: string): string 
 }
 
 /**
- * Normalize raw verifier agent output into a clean cheat-sheet body: strip a
- * wrapping code fence, a mistakenly re-emitted `# CLAUDE.md Content` header
- * line, and surrounding whitespace.
+ * Normalize raw verifier agent output into a clean cheat-sheet body. The verifier
+ * is instructed to emit the corrected file only, but a model may wrap it in a code
+ * fence, re-emit the `# CLAUDE.md Content` header, or prepend a "what I changed"
+ * explanation. None of that may reach the file, so this strips, in order: a
+ * wrapping code fence; a `# CLAUDE.md Content` / `# AGENTS.md Content` wrapper found
+ * anywhere (handles a wrapper preceded by preamble); and any remaining leading
+ * preamble before the first top-level `# ` heading (the project-name line).
+ *
+ * When no top-level `# ` heading is present the text is returned unchanged so the
+ * downstream content validator rejects it and the retry loop fires — better than
+ * silently emitting prose.
  */
 export function normalizeVerifierOutput(raw: string): string {
   let out = raw.trim();
   const fenceMatch = out.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/);
   if (fenceMatch) out = fenceMatch[1].trim();
   for (const token of CLAUDE_HEADERS) {
-    if (out.startsWith(token)) {
+    const idx = out.indexOf(token);
+    if (idx !== -1) {
       out = out
-        .slice(token.length)
+        .slice(idx + token.length)
         .replace(/\n---\s*$/, '')
         .trim();
       break;
     }
+  }
+  const headingMatch = out.match(/^# \S.*$/m);
+  if (headingMatch && headingMatch.index !== undefined && headingMatch.index > 0) {
+    out = out.slice(headingMatch.index).trim();
   }
   return out;
 }
