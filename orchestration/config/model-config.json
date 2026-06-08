@@ -107,6 +107,10 @@
           "alias": "sonnet-latest",
           "reasoningEffort": "xhigh"
         },
+        "context-verifier": {
+          "alias": "sonnet-latest",
+          "reasoningEffort": "medium"
+        },
         "wiki-generator": {
           "alias": "sonnet-latest",
           "reasoningEffort": "high"
@@ -154,6 +158,10 @@
         "architect-synthesizer": {
           "alias": "haiku-latest",
           "reasoningEffort": "medium"
+        },
+        "context-verifier": {
+          "alias": "haiku-latest",
+          "reasoningEffort": "low"
         },
         "wiki-generator": {
           "alias": "haiku-latest",
@@ -203,6 +211,10 @@
           "alias": "opus-latest",
           "reasoningEffort": "xhigh"
         },
+        "context-verifier": {
+          "alias": "opus-latest",
+          "reasoningEffort": "medium"
+        },
         "wiki-generator": {
           "alias": "opus-latest",
           "reasoningEffort": "high"
@@ -251,6 +263,10 @@
           "alias": "gpt5-latest",
           "reasoningEffort": "high"
         },
+        "context-verifier": {
+          "alias": "gpt5-latest",
+          "reasoningEffort": "low"
+        },
         "wiki-generator": {
           "alias": "gpt5-latest",
           "reasoningEffort": "medium"
@@ -281,6 +297,7 @@
         "data-flows-integrations-analyzer": "gemini-flash",
         "service-detail-extractor": "gemini-flash",
         "architect-synthesizer": "gemini-latest",
+        "context-verifier": "gemini-flash",
         "wiki-generator": "gemini-latest",
         "question-consolidator": "gemini-latest"
       }
@@ -305,6 +322,7 @@
         "data-flows-integrations-analyzer": "gpt5-mini",
         "service-detail-extractor": "gpt5-mini",
         "architect-synthesizer": { "alias": "gpt5-mini", "reasoningEffort": "medium" },
+        "context-verifier": { "alias": "gpt5-mini", "reasoningEffort": "low" },
         "wiki-generator": { "alias": "gpt5-mini", "reasoningEffort": "low" },
         "question-consolidator": "gpt5-mini"
       }
@@ -320,6 +338,7 @@
       "service-detail-extractor": 0,
       "question-consolidator": 0,
       "architect-synthesizer": 8000,
+      "context-verifier": 2000,
       "wiki-generator": 2000
     }
   },

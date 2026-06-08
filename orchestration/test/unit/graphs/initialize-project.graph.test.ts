@@ -63,6 +63,16 @@ describe('initializeProjectGraph routing', () => {
     expect(edges).not.toContain('context_generation->wiki_generation');
   });
 
+  it('inserts the Phase 3.5 context_verification node between synthesis and context_generation', () => {
+    const graph = initializeProjectGraph as any;
+    const edges = Array.from(graph.allEdges).map((edge) => (edge as string[]).join('->'));
+
+    expect(Object.keys(graph.nodes)).toContain('context_verification');
+    expect(edges).toContain('synthesis->context_verification');
+    expect(edges).toContain('context_verification->context_generation');
+    expect(edges).not.toContain('synthesis->context_generation');
+  });
+
   it('routes wiki_preparation in parallel to the architecture + service-docs branches', () => {
     const route = routeAfterWikiPreparation({
       ...baseState,

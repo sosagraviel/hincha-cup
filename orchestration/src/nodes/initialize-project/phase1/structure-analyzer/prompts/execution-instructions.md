@@ -173,14 +173,32 @@ Hubs + community shapes already describe top-level pattern. Set
 `findings.architecture_pattern` to one of: `MVC` / `Vertical Slicing` /
 `Hexagonal` / `DDD` / `Flat` / `Microservices` / `Modular Monolith`.
 
-## Step 8 — File placement table
+## Step 8 — File placement patterns (per service, grounded)
 
-`query_graph({ pattern: "files_in", target: "<community>",
-detail_level: "minimal" })` per top-5 service. Build a 10-20 row
-markdown table with columns: `Package/Service | File Type |
-Location Pattern | File Count | Notes`. Report
-`findings.file_placement.{table_markdown, shared_packages,
-import_conventions}`.
+For each real service, emit `services[].file_placement_patterns` — the
+**grounded baseline** the Phase 3 synthesizer elaborates into the CLAUDE.md
+File Placement Guide. The synthesizer is closed-book and cannot Read the tree,
+so if you do not capture a placement here it will not exist downstream.
+
+Per service:
+
+1. `query_graph({ pattern: "files_in", target: "<community>",
+detail_level: "minimal" })` to list the service's real files. On empty
+   graph: service-scoped `Glob` by the service's language extensions.
+2. Group the observed files into artefact kinds the way THIS service is
+   actually laid out (e.g. `model`, `schema/DTO`, `service`, `REST router`,
+   `migration`, `unit test`). Derive kinds from what you see, not from a
+   generic framework template.
+3. Emit 4–10 entries per service, each:
+   - `type` — artefact kind (`"SQLAlchemy model"`, `"unit test"`, …)
+   - `location` — real repo-relative pattern, one `{placeholder}` for the
+     varying segment (`"src/entities/{domain}/model.py"`)
+   - `example` — a concrete path that ACTUALLY EXISTS and matches `location`
+     (`"src/entities/project/model.py"`)
+
+Every `example` MUST be a path you observed. Never invent a generic
+convention; if you cannot ground a kind, omit it. Fewer real rows beat more
+fabricated ones.
 
 ## Step 9 — Path aliases (graph cannot answer)
 

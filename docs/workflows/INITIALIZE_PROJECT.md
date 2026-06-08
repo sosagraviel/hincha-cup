@@ -44,6 +44,7 @@ const graph = new StateGraph(InitializeProjectAnnotation)
   .addNode("phase1", phase1ParallelAnalysis)
   .addNode("phase2", phase2Consolidation)
   .addNode("phase3", phase3Synthesis)
+  .addNode("phase3_5", phase3_5ContextVerification)
   .addNode("phase4", phase4FileWriting)
   .addNode("phase5", phase5ResourceSync)
   .addNode("phase6", phase6Validation)
@@ -60,6 +61,7 @@ const graph = new StateGraph(InitializeProjectAnnotation)
 | 1 | 2-5min | Analyze codebase (structure, stack, patterns, context) | 4 analyzers |
 | 2 | 30-60s | Consolidate analysis results | Sequential |
 | 3 | 1-2min | Synthesize project understanding | Sequential |
+| 3.5 | 30-90s | Verify generated CLAUDE.md claims against the real tree (open-book; best-effort) | Sequential |
 | 4 | 30-60s | Write CLAUDE.md and project-context | Sequential |
 | 5 | 1-2min | Sync skills and agents | Sequential |
 | 6 | 30-60s | Validate configuration | Sequential |
@@ -94,6 +96,18 @@ Merges Phase 1 analyzer outputs into unified analysis.
 Generates human-readable project understanding from consolidated analysis.
 
 **Writes**: `phase3-synthesis.md`
+
+### Phase 3.5: Context Verification
+
+Audits the generated `CLAUDE.md`/`AGENTS.md` cheat-sheet against the real
+repository. Unlike the closed-book synthesizer, this verifier is **open-book**
+(`Read`/`Glob`/`Grep`): it fixes or removes broken file-placement rows,
+directory-tree entries, and inline paths, and collapses duplicate/garbage
+Services & Ports rows (e.g. a docker-compose alias shadowing the real source
+service). Best-effort and non-blocking — if it cannot run or repair, the
+original synthesis is kept and the pipeline proceeds.
+
+**Rewrites**: `synthesis-raw.md` (the artifact Phase 4 extracts).
 
 ### Phase 4: File Writing
 

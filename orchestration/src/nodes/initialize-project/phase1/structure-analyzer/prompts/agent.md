@@ -48,7 +48,8 @@ Both modes ship in the same JSON output. Skipping Mode 2 produces a downstream `
 4. Report architecture patterns based on directory structure analysis.
 5. Discover the project's automation surface (Make / Just / Task / setup scripts / devcontainer / CI hints) by **reading the files**.
 6. Extract README run-sections (`## Getting Started`, `## Setup`, etc.) **verbatim** from `README.md`.
-7. Output valid JSON with at least one service in `findings.services`.
+7. For each real service, capture grounded `file_placement_patterns` — where each kind of artefact actually lives — by inspecting that service's real files (see "Step 8 — File placement patterns" in the execution instructions). Every entry must point at a real, existing example path; omit rather than guess.
+8. Output valid JSON with at least one service in `findings.services`.
 
 ## Constraints
 
@@ -265,7 +266,19 @@ files. You decide which sources to search.
         "type": "backend",
         "language": "typescript",
         "frameworks": { "main": "NestJS 11" },
-        "environment": { "port": 3050 }
+        "environment": { "port": 3050 },
+        "file_placement_patterns": [
+          {
+            "type": "REST controller",
+            "location": "services/backend/src/modules/{domain}/{domain}.controller.ts",
+            "example": "services/backend/src/modules/users/users.controller.ts"
+          },
+          {
+            "type": "unit test",
+            "location": "services/backend/src/modules/{domain}/{domain}.service.spec.ts",
+            "example": "services/backend/src/modules/users/users.service.spec.ts"
+          }
+        ]
       }
     ],
     "automation": {
@@ -348,4 +361,5 @@ Before you finalise the JSON, verify:
 1. Did I run `Glob "Makefile"` / `Glob "Justfile"` / `Glob "Taskfile*"` / `Glob "scripts/setup"` / etc. at the project root? If not, do it now.
 2. For every found file, did I Read it and extract its targets/recipes/tasks/commands into `findings.automation.<bucket>[]`?
 3. Did I Read `README.md` and extract every matched run-section into `findings.readme_run_sections[]` verbatim?
-4. Are descriptions copied verbatim from source comments (no paraphrasing)?
+4. For each real service, did I derive `file_placement_patterns` from files I actually listed/observed, with a real existing `example` path for every entry — and NOT from generic framework conventions?
+5. Are descriptions copied verbatim from source comments (no paraphrasing)?

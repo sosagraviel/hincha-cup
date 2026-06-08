@@ -9,6 +9,7 @@ import { codePatternsTestingAnalyzerNode } from '../nodes/initialize-project/pha
 import { dataFlowsIntegrationsAnalyzerNode } from '../nodes/initialize-project/phase1/data-flows-analyzer/data-flows-integrations-analyzer.node.js';
 import { consolidationNode } from '../nodes/initialize-project/phase2/question-consolidator/question-consolidator.node.js';
 import { synthesisNode } from '../nodes/initialize-project/phase3/synthesis.node.js';
+import { contextVerificationNode } from '../nodes/initialize-project/phase3_5/context-verification.node.js';
 import { contextGenerationNode } from '../nodes/initialize-project/phase4/context-generation.node.js';
 import { wikiPreparationNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-preparation.node.js';
 import { wikiArchitectureDocNode } from '../nodes/initialize-project/phase4/wiki-docs/wiki-architecture.node.js';
@@ -114,6 +115,7 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addNode('data_flows_integrations_analyzer', dataFlowsIntegrationsAnalyzerNode)
   .addNode('consolidation', consolidationNode)
   .addNode('synthesis', synthesisNode)
+  .addNode('context_verification', contextVerificationNode)
   .addNode('context_generation', contextGenerationNode)
   .addNode('wiki_preparation', wikiPreparationNode)
   .addNode('wiki_architecture_doc', wikiArchitectureDocNode)
@@ -128,7 +130,8 @@ export const initializeProjectGraph = new StateGraph(InitializeProjectAnnotation
   .addEdge('code_patterns_testing_analyzer', 'consolidation')
   .addEdge('data_flows_integrations_analyzer', 'consolidation')
   .addEdge('consolidation', 'synthesis')
-  .addEdge('synthesis', 'context_generation')
+  .addEdge('synthesis', 'context_verification')
+  .addEdge('context_verification', 'context_generation')
   .addEdge('context_generation', 'wiki_preparation')
   .addConditionalEdges('wiki_preparation', routeAfterWikiPreparation)
   .addEdge('wiki_architecture_doc', 'wiki_generation')
