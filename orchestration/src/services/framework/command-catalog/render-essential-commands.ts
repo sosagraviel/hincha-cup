@@ -12,9 +12,11 @@ import type {
 } from '../../../schemas/stack-profile.schema.js';
 
 /**
- * Human-readable action labels for the `Essential Commands` Action
- * column. Keys mirror `CommandCatalogOperation` exactly; unknown
- * operations fall through to a title-cased rendering of the key.
+ * Human-readable action labels for the `Essential Commands` table.
+ * Used as the Description fallback when a command carries no source
+ * comment, and as the per-service subtable's operation column headers.
+ * Keys mirror `CommandCatalogOperation` exactly; unknown operations
+ * fall through to a title-cased rendering of the key.
  */
 const ACTION_LABELS: Record<CommandCatalogOperation, string> = {
   setup: 'Setup',
@@ -66,10 +68,7 @@ export function renderEssentialCommandsMarkdown(
 
   if (ops.length === 0) {
     if (!options.fallbackPlaceholder) return '';
-    out.push('| Action | Command | Description |');
-    out.push('| ------ | ------- | ----------- |');
-    out.push('| (no commands discovered) | (run analyzers manually to verify) | — |');
-    out.push('');
+    pushNoCommandsPlaceholder(out);
     return out.join('\n');
   }
 
@@ -91,19 +90,18 @@ export function renderEssentialCommandsMarkdown(
     };
   });
 
-  out.push('| Action | Command | Description |');
-  out.push('| ------ | ------- | ----------- |');
+  out.push('| Command | Description |');
+  out.push('| ------- | ----------- |');
   let mainTableRows = 0;
   for (const g of grouped) {
     const top = g.wrapper ?? g.readme ?? g.ci;
     if (top) {
-      out.push(`| ${labelFor(g.op)} | \`${top.command}\` | ${cleanDescription(top.description)} |`);
+      out.push(`| \`${top.command}\` | ${describeCommand(top.description, g.op)} |`);
       mainTableRows += 1;
       continue;
     }
     for (const pm of g.packageManagerRows) {
-      const action = pm.per_service ? `${labelFor(g.op)} (${pm.per_service})` : labelFor(g.op);
-      out.push(`| ${action} | \`${pm.command}\` | ${cleanDescription(pm.description)} |`);
+      out.push(`| \`${pm.command}\` | ${describeCommand(pm.description, g.op, pm.per_service)} |`);
       mainTableRows += 1;
     }
   }
@@ -111,10 +109,7 @@ export function renderEssentialCommandsMarkdown(
   if (mainTableRows === 0) {
     out.length = 2;
     if (!options.fallbackPlaceholder) return '';
-    out.push('| Action | Command | Description |');
-    out.push('| ------ | ------- | ----------- |');
-    out.push('| (no commands discovered) | (run analyzers manually to verify) | — |');
-    out.push('');
+    pushNoCommandsPlaceholder(out);
     return out.join('\n');
   }
 
@@ -153,4 +148,32 @@ export function renderEssentialCommandsMarkdown(
 function cleanDescription(raw: string | undefined): string {
   if (!raw) return '—';
   return raw.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Resolve the `Description` cell for a command row. Prefers the source
+ * comment (Makefile / README / package-manager script text); when none
+ * exists, falls back to the human action label so the row never renders
+ * a bare `—`. A `per_service` marker is appended in parentheses to keep
+ * single-service disambiguation that the dropped Action column carried.
+ */
+function describeCommand(
+  raw: string | undefined,
+  op: CommandCatalogOperation,
+  perService?: string,
+): string {
+  const cleaned = cleanDescription(raw);
+  const text = cleaned !== '—' ? cleaned : labelFor(op);
+  return perService ? `${text} (${perService})` : text;
+}
+
+/**
+ * Emit the 2-column "no commands discovered" placeholder block,
+ * including its trailing blank line.
+ */
+function pushNoCommandsPlaceholder(out: string[]): void {
+  out.push('| Command | Description |');
+  out.push('| ------- | ----------- |');
+  out.push('| (no commands discovered) | (run analyzers manually to verify) |');
+  out.push('');
 }

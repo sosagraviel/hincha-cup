@@ -67,25 +67,18 @@ export const AnalysisResultsSchema = z.object({
 export type AnalysisResults = z.infer<typeof AnalysisResultsSchema>;
 
 /**
- * Project Metadata Schema. The file's own location is the project
- * anchor — no path is embedded.
- */
-export const ProjectMetadataSchema = z
-  .object({
-    last_analysis: z.string(),
-    initialization_hash: z.string(),
-  })
-  .passthrough();
-
-export type ProjectMetadata = z.infer<typeof ProjectMetadataSchema>;
-
-/**
  * Resource State Schema
+ *
+ * `last_sync` is a single top-level marker of when the sync flow last changed
+ * resource state. It is optional: the init writer omits it (keeping a fresh
+ * config deterministic) and the sync flow stamps it only when it actually
+ * mutates a resource. Per-resource `last_sync` timestamps were dropped — they
+ * churned on every sync and nothing read them.
  */
 export const ResourceStateSchema = z.object({
   skills: z.record(z.string(), ResourceInfoSchema),
   agents: z.record(z.string(), ResourceInfoSchema),
-  last_sync: z.string(),
+  last_sync: z.string().optional(),
 });
 
 export type ResourceState = z.infer<typeof ResourceStateSchema>;
@@ -112,7 +105,6 @@ export const FrameworkConfigSchema = z.object({
   version: z.string(),
   schema_version: z.string(),
   framework_version: z.string(),
-  project_metadata: ProjectMetadataSchema,
   analysis_results: AnalysisResultsSchema.optional(),
   stack_profile: StackProfileSchema,
   resource_state: ResourceStateSchema,

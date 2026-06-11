@@ -105,7 +105,8 @@ session reads this at startup. Keep it scannable.
 **Required structure:**
 
 - `# [Project Name]` — name only, no tagline
-- `## Tech Stack` — bulleted list with exact versions, NO explanations
+- `## Tech Stack` — **curated** bulleted list of the most important technologies
+  with exact versions, NO explanations (see "Tech Stack rule" below)
 - `## File Placement Guide` — table built from the grounded baseline; see
   "File Placement Guide rule" below. For monorepos include a "Shared vs Local
   Rules" subsection
@@ -126,8 +127,9 @@ session reads this at startup. Keep it scannable.
 
 **Multi-service / polyglot rules:**
 
-- Tech Stack section MUST list ALL languages with file counts (aggregate from
-  `services[]`)
+- Tech Stack section lists each service as one bullet (its language, framework,
+  and up to 5 key dependencies — see "Tech Stack rule"); shared repo-level lines
+  (runtime, package manager) stay above
 - File Placement Guide MUST cover every service that has
   `file_placement_patterns` (see "File Placement Guide rule")
 - Directory Structure MUST show ALL service directories (from `services[].path`)
@@ -135,7 +137,7 @@ session reads this at startup. Keep it scannable.
 
 ### Pre-rendered sections — paste each field VERBATIM
 
-The framework pre-renders four sections in TypeScript. **Each
+The framework pre-renders three sections in TypeScript. **Each
 `<section>_markdown` field already INCLUDES its own `## <heading>`
 line and body.** Paste each field VERBATIM into the CLAUDE.md
 output at its position in the section ordering — do NOT prefix it
@@ -144,10 +146,12 @@ heading). Do NOT rewrite, paraphrase, reorder rows, or reformat.
 
 | Position in CLAUDE.md  | Input field                    |
 | ---------------------- | ------------------------------ |
-| Tech Stack section     | `tech_stack_markdown`          |
 | Directory Structure    | `directory_structure_markdown` |
 | Services & Ports table | `services_and_ports_markdown`  |
 | Essential Commands     | `essential_commands_markdown`  |
+
+`tech_stack_markdown` is NOT in this list — it is a CANDIDATE list you curate,
+not a block you paste. See the "Tech Stack rule" below.
 
 If a field is empty / missing (older fixtures), fall back to
 rendering it yourself from the curated-summary structure
@@ -158,6 +162,36 @@ empty, render from `command_catalog` directly, preserving tier order
 `wrapper > readme > package_manager > ci`. Per-service `package_manager`
 rows go in a subtable BELOW the main table — never list a
 `package_manager`-tier command BEFORE its same-operation `wrapper` row.
+
+### Tech Stack rule — one line per service
+
+`tech_stack_markdown` is a CANDIDATE, grouped into one `### <service>` block per
+service (a single-repo has exactly ONE block). It is your raw material — NOT a
+block to paste. Build `## Tech Stack` the same way regardless of how many
+services there are:
+
+- For EACH `### <service>` block, emit exactly ONE bullet:
+
+  ```
+  - **<service-id>** (<language>) — <tech>, <tech>, … (at most 5 dependencies)
+  ```
+
+  Lead with the service's framework, then up to **5** of its most defining
+  dependencies (ORM / database driver + migration tool, auth, queue, the one or
+  two libraries it is built around). DROP incidental utilities — date/time
+  helpers, dotenv, multipart/body parsers, low-level async shims (greenlet,
+  aiosqlite), logging formatters, polyfills, type stubs, lint/format plugins.
+  (Illustrative categories — judge by relevance, not a fixed denylist.)
+
+- Keep the shared repo-level lines from the preamble (runtime versions, package
+  manager, workspace tool) as plain bullets ABOVE the per-service list.
+- Copy each tech's version VERBATIM from the block; NEVER invent, round, or alter
+  a version, and never add a technology that is not in the block (closed-book).
+- Do NOT deduplicate technologies shared across services here — the verification
+  step consolidates those into a `Shared` line.
+
+If `tech_stack_markdown` is empty / missing, fall back to rendering from
+`summary.services[]` (`framework_main` + `language`) and `summary.runtimes`.
 
 ### File Placement Guide rule — LOAD-BEARING
 

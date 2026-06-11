@@ -287,7 +287,7 @@ describe('validationNode', () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
       if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('framework-config.json')) {
-        return JSON.stringify({ project_metadata: {}, stack_profile: {} });
+        return JSON.stringify({ stack_profile: {} });
       }
       return 'x'.repeat(200);
     });
@@ -300,28 +300,11 @@ describe('validationNode', () => {
     );
   });
 
-  it('should fail if framework-config.json missing project_metadata', async () => {
-    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
-      if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
-      if (path.includes('framework-config.json')) {
-        return JSON.stringify({ version: '2.0.0', stack_profile: {} });
-      }
-      return 'x'.repeat(200);
-    });
-
-    const result = await validationNode(mockState);
-
-    expect(result.errors).toBeDefined();
-    expect(
-      result.errors?.some((e) => e.includes('framework-config.json missing project_metadata')),
-    ).toBe(true);
-  });
-
   it('should fail if framework-config.json missing stack_profile', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
       if (path.includes('.claude/agents')) return 'tools: Read, Grep, Glob, mcp__code_graph';
       if (path.includes('framework-config.json')) {
-        return JSON.stringify({ version: '2.0.0', project_metadata: {} });
+        return JSON.stringify({ version: '2.0.0' });
       }
       return 'x'.repeat(200);
     });

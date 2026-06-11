@@ -29,7 +29,9 @@
       "name": "apply-pr-feedback",
       "path": "020-development-workflow/apply-pr-feedback",
       "description": "Apply GitHub PR review feedback to an existing branch (no new PR; updates the same branch)",
-      "trigger_mode": "always"
+      "trigger_mode": "triggered",
+      "triggers": ["github"],
+      "is_linkable_to_agents": false
     },
     {
       "name": "wiki-refresh",
@@ -63,7 +65,9 @@
       "name": "create-pr",
       "path": "030-quality-assurance/create-pr",
       "description": "Pull request creation and management",
-      "trigger_mode": "always"
+      "trigger_mode": "triggered",
+      "triggers": ["github"],
+      "is_linkable_to_agents": false
     },
     {
       "name": "doc-updater",
@@ -88,6 +92,14 @@
       "path": "030-quality-assurance/generate-test-cases",
       "description": "Generate test cases from a ticket or description and publish to test management tools",
       "trigger_mode": "always"
+    },
+    {
+      "name": "qa-camunda",
+      "path": "030-quality-assurance/qa-camunda",
+      "description": "QA test Wayfinder changes in Camunda staging by starting process instances and validating execution",
+      "trigger_mode": "triggered",
+      "triggers": ["camunda", "bpmn"],
+      "is_linkable_to_agents": false
     },
     {
       "name": "jest-coverage-automation",
@@ -162,6 +174,13 @@
       "agent_roles": ["implementer"]
     },
     {
+      "name": "create-pr-azure",
+      "path": "030-quality-assurance/create-pr-azure",
+      "description": "Create and manage Azure DevOps Pull Requests using `az repos pr create` with Azure PR conventions, work item linking, and Azure Boards integration",
+      "trigger_mode": "triggered",
+      "triggers": ["azure-devops"]
+    },
+    {
       "name": "fetch-ticket-context",
       "path": "040-integrations/fetch-ticket-context",
       "description": "Fetch ticket context from external systems",
@@ -192,7 +211,16 @@
       "name": "mastering-github-cli",
       "path": "040-integrations/mastering-github-cli",
       "description": "GitHub CLI (gh) for viewing GitHub Actions logs, workflow run outputs, CI/CD failures, action results, workflow status, PR checks, downloading artifacts, monitoring workflows, checking run logs, viewing workflow failures, repository operations, issues, pull requests, and GitHub automation. Use for GitHub Actions, workflow logs, CI logs, action outputs, workflow monitoring, gh run commands, gh workflow commands, and GitHub repository management.",
-      "trigger_mode": "always",
+      "trigger_mode": "triggered",
+      "triggers": ["github"],
+      "is_linkable_to_agents": false
+    },
+    {
+      "name": "mastering-azure-devops-cli",
+      "path": "040-integrations/mastering-azure-devops-cli",
+      "description": "Azure DevOps CLI for PR creation, pipeline management, work items, and repo operations using `az devops` and `az repos`. Use for Azure Pipelines workflow logs, PR checks, pipeline runs, work item management, and Azure DevOps repository operations.",
+      "trigger_mode": "triggered",
+      "triggers": ["azure-devops"],
       "is_linkable_to_agents": true,
       "agent_roles": ["implementer"]
     },

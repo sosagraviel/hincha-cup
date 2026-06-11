@@ -6,12 +6,10 @@ import type {
 } from '../../../../src/services/framework/config-updater.service.js';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
-import * as childProcess from 'child_process';
 
 // Mock modules
 vi.mock('fs');
 vi.mock('fs/promises');
-vi.mock('child_process');
 vi.mock('ajv', () => {
   const mockValidate = Object.assign(vi.fn().mockReturnValue(true), { errors: null });
 
@@ -35,11 +33,6 @@ describe('ConfigUpdaterService', () => {
     version: '2.0.0',
     schema_version: '1.0.0',
     framework_version: '2.0.0',
-    project_metadata: {
-      project_path: '/test/project',
-      initialization_hash: 'abc123',
-      last_analysis: '2024-01-01T00:00:00Z',
-    },
     analysis_results: {
       phase1_analysis: {},
       phase2_consolidation: {},
@@ -94,7 +87,6 @@ describe('ConfigUpdaterService', () => {
     resource_state: {
       skills: {},
       agents: {},
-      last_sync: '2024-01-01T00:00:00Z',
     },
     ...overrides,
   });
@@ -162,6 +154,30 @@ describe('ConfigUpdaterService', () => {
       });
       expect(fsPromises.writeFile).toHaveBeenCalled();
     });
+
+    it('should strip legacy volatile fields before writing but keep top-level last_sync', async () => {
+      const legacyConfig = {
+        ...createMockConfig(),
+        project_metadata: { initialization_hash: 'abc123', last_analysis: '2024-01-01T00:00:00Z' },
+        resource_state: {
+          skills: { foo: { managed_by_framework: true, last_sync: '2024-01-01T00:00:00Z' } },
+          agents: {},
+          last_sync: '2024-01-01T00:00:00Z',
+        },
+      } as unknown as FrameworkConfig;
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
+
+      await service.writeConfig(legacyConfig);
+
+      const written = vi.mocked(fsPromises.writeFile).mock.calls[0][1] as string;
+      const parsed = JSON.parse(written) as Record<string, any>;
+      expect(Object.prototype.hasOwnProperty.call(parsed, 'project_metadata')).toBe(false);
+      expect(
+        Object.prototype.hasOwnProperty.call(parsed.resource_state.skills.foo, 'last_sync'),
+      ).toBe(false);
+      expect(parsed.resource_state.last_sync).toBe('2024-01-01T00:00:00Z');
+    });
   });
 
   describe('validateConfig', () => {
@@ -189,7 +205,7 @@ describe('ConfigUpdaterService', () => {
       // Create an invalid config with missing required fields
       const invalidConfig = {
         version: '2.0.0',
-        // Missing schema_version, framework_version, project_metadata, etc.
+        // Missing schema_version, framework_version, stack_profile, etc.
       } as any;
 
       const result = await service.validateConfig(invalidConfig);
@@ -339,7 +355,10 @@ describe('ConfigUpdaterService', () => {
       expect(result.resource_state.skills['test-skill']).toBeDefined();
       expect(result.resource_state.skills['test-skill'].managed_by_framework).toBe(true);
       expect(result.resource_state.skills['test-skill'].file_hash).toBe('hash123');
-      expect(result.resource_state.skills['test-skill'].last_sync).toBeDefined();
+      // Per-resource timestamps are not written...
+      expect(result.resource_state.skills['test-skill'].last_sync).toBeUndefined();
+      // ...but the top-level sync marker is stamped.
+      expect(result.resource_state.last_sync).toBeDefined();
     });
 
     it('should update agent resource state', async () => {
@@ -369,7 +388,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          last_sync: '2024-01-01T00:00:00Z',
         },
       });
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -395,7 +413,6 @@ describe('ConfigUpdaterService', () => {
             'skill-to-remove': { managed_by_framework: true },
           },
           agents: {},
-          last_sync: '2024-01-01T00:00:00Z',
         },
       });
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -501,7 +518,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          last_sync: '2024-01-01T00:00:00Z',
         },
       });
 
@@ -528,7 +544,6 @@ describe('ConfigUpdaterService', () => {
               file_hash: 'original-hash',
             },
           },
-          last_sync: '2024-01-01T00:00:00Z',
         },
       });
 
@@ -552,7 +567,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          last_sync: '2024-01-01T00:00:00Z',
         },
       });
 
@@ -573,7 +587,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          last_sync: '2024-01-01T00:00:00Z',
         },
       });
 
@@ -596,7 +609,6 @@ describe('ConfigUpdaterService', () => {
             },
           },
           agents: {},
-          last_sync: '2024-01-01T00:00:00Z',
         },
       });
 
@@ -694,104 +706,6 @@ describe('ConfigUpdaterService', () => {
       expect(result.updated).toBe(false);
       expect(result.current).toBe('2.0.0');
       expect(result.configured).toBe('2.0.0');
-    });
-  });
-
-  describe('generateProjectHash', () => {
-    it('should generate project hash using find command', () => {
-      vi.mocked(childProcess.execSync).mockReturnValue('abc123def456\n');
-
-      const hash = service.generateProjectHash();
-
-      expect(hash).toBe('abc123def456');
-      expect(childProcess.execSync).toHaveBeenCalledWith(
-        expect.stringContaining('find'),
-        expect.any(Object),
-      );
-    });
-
-    it('should return random hash if find command fails', () => {
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      vi.mocked(childProcess.execSync).mockImplementation(() => {
-        throw new Error('find failed');
-      });
-
-      const hash = service.generateProjectHash();
-
-      expect(hash).toBeDefined();
-      expect(hash.length).toBe(64);
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Could not generate project hash'),
-        expect.any(String),
-      );
-
-      consoleWarnSpy.mockRestore();
-    });
-  });
-
-  describe('detectProjectChanges', () => {
-    it('should detect project changes', async () => {
-      const mockConfig = createMockConfig({
-        project_metadata: {
-          project_path: '/test/project',
-          initialization_hash: 'old-hash',
-          last_analysis: '2024-01-01T00:00:00Z',
-        },
-      });
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
-      vi.mocked(childProcess.execSync).mockReturnValue('new-hash\n');
-
-      const result = await service.detectProjectChanges();
-
-      expect(result.changed).toBe(true);
-      expect(result.currentHash).toBe('new-hash');
-      expect(result.storedHash).toBe('old-hash');
-    });
-
-    it('should detect no changes', async () => {
-      const mockConfig = createMockConfig({
-        project_metadata: {
-          project_path: '/test/project',
-          initialization_hash: 'same-hash',
-          last_analysis: '2024-01-01T00:00:00Z',
-        },
-      });
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
-      vi.mocked(childProcess.execSync).mockReturnValue('same-hash\n');
-
-      const result = await service.detectProjectChanges();
-
-      expect(result.changed).toBe(false);
-      expect(result.currentHash).toBe('same-hash');
-    });
-  });
-
-  describe('updateProjectMetadata', () => {
-    it('should update project metadata', async () => {
-      const mockConfig = createMockConfig();
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
-      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
-      vi.mocked(childProcess.execSync).mockReturnValue('new-hash\n');
-
-      const result = await service.updateProjectMetadata({ custom_field: 'value' });
-
-      expect(result.project_metadata.custom_field).toBe('value');
-      expect(result.project_metadata.last_analysis).toBeDefined();
-      expect(result.project_metadata.initialization_hash).toBeDefined();
-    });
-
-    it('should not override provided initialization_hash', async () => {
-      const mockConfig = createMockConfig();
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fsPromises.readFile).mockResolvedValue(JSON.stringify(mockConfig));
-      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
-
-      const result = await service.updateProjectMetadata({ initialization_hash: 'custom-hash' });
-
-      expect(result.project_metadata.initialization_hash).toBe('custom-hash');
     });
   });
 

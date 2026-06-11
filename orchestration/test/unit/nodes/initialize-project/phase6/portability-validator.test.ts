@@ -1,3 +1,4 @@
+import { execFileSync } from 'child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -10,8 +11,15 @@ function buildProject(provider: 'claude' | 'codex'): string {
   return projectPath;
 }
 
+function buildGitProject(provider: 'claude' | 'codex'): string {
+  const projectPath = mkdtempSync(join(tmpdir(), 'portability-git-'));
+  mkdirSync(join(projectPath, `.${provider}`), { recursive: true });
+  execFileSync('git', ['-C', projectPath, 'init', '-q'], { stdio: 'ignore' });
+  return projectPath;
+}
+
 describe('validatePortability — housekeeping', () => {
-  it('strips stale project_metadata.project_path before scanning', () => {
+  it('strips stale volatile fields (project_metadata + per-resource last_sync) before scanning', () => {
     const projectPath = buildProject('codex');
     const cfgPath = join(projectPath, '.codex', 'framework-config.json');
     writeFileSync(
@@ -25,6 +33,11 @@ describe('validatePortability — housekeeping', () => {
             last_analysis: '2026-04-22T00:00:00.000Z',
           },
           stack_profile: { services: [] },
+          resource_state: {
+            skills: { foo: { managed_by_framework: true, last_sync: '2026-04-22T00:00:00.000Z' } },
+            agents: {},
+            last_sync: '2026-04-22T00:00:00.000Z',
+          },
         },
         null,
         2,
@@ -33,14 +46,16 @@ describe('validatePortability — housekeeping', () => {
 
     const result = validatePortability(projectPath);
 
-    // Field has been stripped from the on-disk file.
     const after = JSON.parse(readFileSync(cfgPath, 'utf-8')) as Record<string, unknown>;
-    const meta = after.project_metadata as Record<string, unknown>;
-    expect(Object.prototype.hasOwnProperty.call(meta, 'project_path')).toBe(false);
-    // Other fields are preserved.
-    expect(meta.initialization_hash).toBe('abc123');
-    expect(meta.last_analysis).toBe('2026-04-22T00:00:00.000Z');
+    // The entire volatile project_metadata block is gone.
+    expect(Object.prototype.hasOwnProperty.call(after, 'project_metadata')).toBe(false);
+    const resourceState = after.resource_state as Record<string, any>;
+    // Per-resource last_sync is stripped...
+    expect(Object.prototype.hasOwnProperty.call(resourceState.skills.foo, 'last_sync')).toBe(false);
+    // ...but the top-level sync marker and stable fields are preserved.
+    expect(resourceState.last_sync).toBe('2026-04-22T00:00:00.000Z');
     expect(after.stack_profile).toEqual({ services: [] });
+    expect(resourceState.skills.foo.managed_by_framework).toBe(true);
 
     // The resulting scan reports no violations from this file.
     expect(result.ok).toBe(true);
@@ -53,11 +68,10 @@ describe('validatePortability — housekeeping', () => {
     const original = JSON.stringify(
       {
         version: '1.0.0',
-        project_metadata: {
-          initialization_hash: 'xyz789',
-          last_analysis: '2026-04-28T00:00:00.000Z',
-        },
+        schema_version: '1.0.0',
+        framework_version: '1.0.0',
         stack_profile: { services: [{ id: 'api', path: 'services/api' }] },
+        resource_state: { skills: {}, agents: {} },
       },
       null,
       2,
@@ -158,6 +172,81 @@ describe('validatePortability — housekeeping', () => {
     expect(after).not.toContain('[mcp_servers.code_graph]');
     expect(after).toContain('[mcp_servers.atlassian]');
     expect(after).toContain('mcp-atlassian');
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('validatePortability — settings.local.json carve-out', () => {
+  it('skips settings.local.json (machine-local) but still reports committed leaks', () => {
+    const projectPath = buildProject('claude');
+    writeFileSync(
+      join(projectPath, '.claude', 'settings.local.json'),
+      JSON.stringify({
+        permissions: { allow: ['Bash(cd /home/jorgevergara-admin/projects/app && ls)'] },
+      }),
+    );
+    writeFileSync(
+      join(projectPath, '.claude', 'CLAUDE.md'),
+      '# Project\n\nSee /Users/realuser/projects/app/out.txt\n',
+    );
+
+    const result = validatePortability(projectPath);
+
+    // settings.local.json is never a hard violation...
+    expect(result.violations.some((v) => v.file.endsWith('settings.local.json'))).toBe(false);
+    // ...but the real leak in another committed file still fails the scan.
+    expect(result.ok).toBe(false);
+    expect(result.violations.some((v) => v.file.endsWith('CLAUDE.md'))).toBe(true);
+  });
+
+  it('skips settings.local.json even when the project is not a git repo', () => {
+    const projectPath = buildProject('claude'); // no git init
+    writeFileSync(
+      join(projectPath, '.claude', 'settings.local.json'),
+      JSON.stringify({ permissions: { allow: ['Bash(cd /home/dev/app && ls)'] } }),
+    );
+
+    const result = validatePortability(projectPath);
+    expect(result.violations.some((v) => v.file.endsWith('settings.local.json'))).toBe(false);
+    expect(result.ok).toBe(true);
+  });
+
+  it('does not fail on a git-tracked settings.local.json but reports it for untracking', () => {
+    const projectPath = buildGitProject('claude');
+    writeFileSync(
+      join(projectPath, '.claude', 'settings.local.json'),
+      JSON.stringify({
+        permissions: { allow: ['Bash(cd /home/jorgevergara-admin/projects/app && ls)'] },
+      }),
+    );
+    // Track the file (committed before any ignore rule existed).
+    // `-f` overrides any machine-global gitignore so the file is genuinely tracked.
+    execFileSync('git', ['-C', projectPath, 'add', '-f', '.claude/settings.local.json'], {
+      stdio: 'ignore',
+    });
+
+    const result = validatePortability(projectPath);
+
+    // Never a hard violation, even though it carries an absolute path.
+    expect(result.violations.some((v) => v.file.endsWith('settings.local.json'))).toBe(false);
+    expect(result.ok).toBe(true);
+    // ...but it IS surfaced so the caller can advise `git rm --cached`.
+    expect(result.trackedLocalSettings).toContain('.claude/settings.local.json');
+  });
+
+  it('does not report a tracked settings.local.json that has no absolute paths', () => {
+    const projectPath = buildGitProject('claude');
+    writeFileSync(
+      join(projectPath, '.claude', 'settings.local.json'),
+      JSON.stringify({ permissions: { allow: ['Bash(ls)'] } }),
+    );
+    // `-f` overrides any machine-global gitignore so the file is genuinely tracked.
+    execFileSync('git', ['-C', projectPath, 'add', '-f', '.claude/settings.local.json'], {
+      stdio: 'ignore',
+    });
+
+    const result = validatePortability(projectPath);
+    expect(result.trackedLocalSettings).toEqual([]);
     expect(result.ok).toBe(true);
   });
 });

@@ -111,6 +111,15 @@ if [ -z "$ARTIFACTS_DIR" ]; then
   fi
 fi
 
+# Anchor a caller-supplied relative --artifacts-dir (e.g. ".claude-temp/tickets/X/artifacts")
+# to the deterministic project root. PROJECT_PATH comes from resolve-paths.sh, which is
+# cwd-independent — so the marker, and every phase that reads it back, always lands under
+# the workspace root and never inside a child repo, regardless of the caller's cwd.
+case "$ARTIFACTS_DIR" in
+  /*) : ;;
+  *) ARTIFACTS_DIR="$PROJECT_PATH/$ARTIFACTS_DIR" ;;
+esac
+
 # ---------- logging ----------
 log_info() {
   if [ "$QUIET" -eq 0 ]; then
@@ -346,14 +355,42 @@ json_string_array() {
 
 if is_multi_repo "$PROJECT_PATH" "$FRAMEWORK_PATH"; then
   WORKSPACE_MODE="multi"
-  CHILD_REPOS_JSON="$(_qaf_discover_children "$PROJECT_PATH" "$FRAMEWORK_PATH" | json_string_array)"
+  REPO_LIST="$(_qaf_discover_children "$PROJECT_PATH" "$FRAMEWORK_PATH")"
 else
   WORKSPACE_MODE="single"
   # Prefer the repo toplevel; fall back to PROJECT_PATH so a rev-parse hiccup
   # can never abort an otherwise-good preflight (set -e is on).
-  SINGLE_ROOT="$( (cd "$PROJECT_PATH" && git rev-parse --show-toplevel 2>/dev/null) || printf '%s' "$PROJECT_PATH")"
-  CHILD_REPOS_JSON="$(printf '%s\n' "$SINGLE_ROOT" | json_string_array)"
+  REPO_LIST="$( (cd "$PROJECT_PATH" && git rev-parse --show-toplevel 2>/dev/null) || printf '%s' "$PROJECT_PATH")"
 fi
+CHILD_REPOS_JSON="$(printf '%s\n' "$REPO_LIST" | json_string_array)"
+
+# Defense-in-depth: ignore the provider temp dirs locally in every reachable repo
+# (workspace root + every child repo) via .git/info/exclude — the UNTRACKED local
+# ignore file. We deliberately avoid the tracked .gitignore: writing there would
+# dirty the working tree and trip the clean-tree assertion. Even if some phase ever
+# wrote .claude-temp into a child repo by mistake, it can never be staged or committed
+# into that repo's PR. Both provider variants are listed so a provider switch needs
+# no re-run. Idempotent: exact-line match before append.
+ensure_temp_excluded() {
+  local repo="$1" excl entry
+  git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  excl="$(git -C "$repo" rev-parse --git-path info/exclude 2>/dev/null)" || return 0
+  [ -n "$excl" ] || return 0
+  case "$excl" in /*) : ;; *) excl="$repo/$excl" ;; esac
+  mkdir -p "$(dirname "$excl")" 2>/dev/null || return 0
+  for entry in ".claude-temp/" ".codex-temp/"; do
+    if [ ! -f "$excl" ] || ! grep -qxF "$entry" "$excl" 2>/dev/null; then
+      printf '%s\n' "$entry" >> "$excl"
+    fi
+  done
+}
+ensure_temp_excluded "$PROJECT_PATH"
+while IFS= read -r __repo; do
+  [ -n "$__repo" ] || continue
+  ensure_temp_excluded "$__repo"
+done <<EOF
+$REPO_LIST
+EOF
 
 mkdir -p "$ARTIFACTS_DIR"
 cat > "$ARTIFACTS_DIR/.preflight-ok" << EOF
@@ -361,10 +398,12 @@ cat > "$ARTIFACTS_DIR/.preflight-ok" << EOF
   "git_head": "$HEAD_COMMIT",
   "graph_sha": "$GRAPH_SHA",
   "provider": "$PROVIDER",
+  "workspace_root": "$PROJECT_PATH",
+  "artifacts_dir": "$ARTIFACTS_DIR",
   "workspace_mode": "$WORKSPACE_MODE",
   "child_repos": $CHILD_REPOS_JSON,
   "preflight_ran_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "preflight_version": 3
+  "preflight_version": 4
 }
 EOF
 

@@ -15,7 +15,12 @@
  * Stack/structure-agnostic: checks PATH SHAPE only.
  */
 
-const HOME_PATH_RE = /(?:^|[\s'"`(<])(\/(?:Users|home)\/[A-Za-z0-9_.-]+\/[^\s'"`)>]+)/g;
+import { NON_PORTABLE_HOME_ROOTS } from '../../../../services/framework/portable-paths/patterns.js';
+
+const HOME_PATH_RE = new RegExp(
+  `(?:^|[\\s'"\`(<])(/(?:${NON_PORTABLE_HOME_ROOTS})/[A-Za-z0-9_.-]+/[^\\s'"\`)>]+)`,
+  'g',
+);
 const ALLOWED_PREFIXES = ['/usr/', '/opt/', '/etc/', '/tmp/', '/var/', '/dev/', '/bin/', '/sbin/'];
 
 export function detectNonPortableAbsolutePath(body: string): string | null {

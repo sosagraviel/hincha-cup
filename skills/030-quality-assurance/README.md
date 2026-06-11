@@ -10,6 +10,7 @@ Skills for code quality checks, security reviews, automated testing, and pull re
 - **playwright-e2e-automation**: Multi-step Playwright E2E test automation using Planner, Implementer, and Healer agents
 - **pr-reviewer**: Comprehensive GitHub Pull Request code review with structured feedback for review-loop integration
 - **pytest-patterns**: Pytest expertise covering fixtures, parametrization, mocking, coverage, and plugins
+- **qa-camunda**: QA test Wayfinder changes in Camunda staging by starting process instances via the REST API and validating execution
 - **security-review**: OWASP Top 10 scanning, secrets detection, and vulnerability analysis
 - **ui-testing**: Stack-agnostic UI testing orchestration across unit, component, E2E, and visual levels
 - **ui-visual-testing**: Dual-mode visual testing — Figma design fidelity and screenshot regression with an iterative fix loop

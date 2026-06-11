@@ -11,7 +11,7 @@
  */
 import { z } from 'zod';
 
-const NON_PORTABLE_ABSOLUTE_PATTERN = /(?<![A-Za-z])\/(?:Users|home)\/[a-zA-Z][a-zA-Z0-9_.-]*\//;
+import { NON_PORTABLE_ABSOLUTE_PATTERN } from '../services/framework/portable-paths/patterns.js';
 
 const ALLOWLIST_HINT_PREFIXES = ['/tmp/', 'https://', 'http://', 'file://'];
 

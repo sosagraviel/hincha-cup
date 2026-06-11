@@ -4,7 +4,7 @@ summary: >-
   `orchestration` is the TypeScript CLI at the heart of the Qubika Agentic
   Framework. It implements the framework's core developer workflows —
   `initialize-proj...
-last_updated: '2026-05-28T03:29:30.820Z'
+last_updated: '2026-06-05T19:52:35.000Z'
 tags:
   - service
   - typescript
@@ -63,7 +63,7 @@ A typical `initialize-project` invocation flows through these steps:
 3. **Graph build & agent validation** (`orchestration/src/utils/shared/agent-factory/agent-factory.ts:AgentFactory.createAgent`) — Validates agent frontmatter, resolves allow/deny permission rules, selects CLI implementation.
 4. **Phase 0 — deterministic analysis** — Walks the target repository's file tree and manifest files without any LLM call; produces provenance-tagged analyzer slices consumed by later phases.
 5. **Phase 1–3 — LLM synthesis** — Nodes invoke Claude CLI or Codex CLI subprocesses (`invokeCLI` / `invokeCodexCLI`); JSONL output is streamed and parsed. SQLite checkpoint written after each node.
-6. **Phase 4 — context generation** (`contextGenerationNode`) — Synthesizes analyzer slices into `.claude/CLAUDE.md` and skill definition files.
+6. **Phase 4 — context generation** (`contextGenerationNode`) — Synthesizes analyzer slices into `.claude/CLAUDE.md` and skill definition files. Also detects the VCS hosting platform (`github` / `gitlab` / `azure-devops` / `bitbucket`) by reading the `origin` remote URL and writes it to `stack_profile.software_version_control` in `framework-config.json`.
 7. **Phase 6 — validation** (`validationNode`) — Stop-hook validators run as subprocesses, checking service-completeness and output schema contracts; rejects incomplete outputs before they propagate.
 8. **Token metrics & transcript capture** — `emitTokenUsage` writes sidecar files; `locateClaudeTranscript` scans `~/.claude/projects` or Codex rollout dir for the JSONL transcript.
 9. **Checkpoint persist** (`attempt-recorder.ts:beginAttemptRecorder`) — Merges agent output metadata into LangGraph state; SQLite checkpoint finalized.

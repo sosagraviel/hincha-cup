@@ -35,13 +35,11 @@ export {
   ResourceInfoSchema,
   Phase3SynthesisSchema,
   AnalysisResultsSchema,
-  ProjectMetadataSchema,
   ResourceStateSchema,
   type FrameworkConfig,
   type ResourceInfo,
   type Phase3Synthesis,
   type AnalysisResults,
-  type ProjectMetadata,
   type ResourceState,
 } from './framework-config.schema.js';
 

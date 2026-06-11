@@ -30,9 +30,6 @@ export function validateFrameworkConfig(configPath: string | undefined): Validat
     if (!config.version) {
       errors.push('framework-config.json missing version');
     }
-    if (!config.project_metadata) {
-      errors.push('framework-config.json missing project_metadata');
-    }
     if (!config.stack_profile) {
       errors.push('framework-config.json missing stack_profile');
     }

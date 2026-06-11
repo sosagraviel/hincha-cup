@@ -22,24 +22,26 @@ interface DirStructureInput {
     path?: string;
     type?: string;
     framework_main?: string;
+    file_placement_patterns?: Array<{ type: string; location: string; example: string }>;
   }>;
 }
 
+/** Soft cap on rendered tree lines, honouring the spec's 5–15 line band. */
+const MAX_TREE_LINES = 15;
+
 export function renderDirectoryStructureMarkdown(input: DirStructureInput): string {
-  const services = (input.services ?? []).filter(
+  const allServices = input.services ?? [];
+  const services = allServices.filter(
     (s) => typeof s.path === 'string' && s.path !== '.' && s.path !== '',
   );
 
   if (services.length === 0) {
-    return [
-      '## Directory Structure',
-      '',
-      '```',
-      `${input.projectName}/`,
-      '└── (single-service / polyrepo — see service docs for layout)',
-      '```',
-      '',
-    ].join('\n');
+    const tree = deriveTreeFromPlacements(allServices);
+    const body =
+      tree.length > 0 ? tree : ['└── (layout not determined — see File Placement Guide)'];
+    return ['## Directory Structure', '', '```', `${input.projectName}/`, ...body, '```', ''].join(
+      '\n',
+    );
   }
 
   const groups = new Map<string, typeof services>();
@@ -102,4 +104,100 @@ function pad(annotation: string): string {
 
 function cleanFramework(raw: string): string {
   return raw.replace(/[\s^~>=<].*$/, '').replace(/^@[^/]+\//, '');
+}
+
+interface DerivedNode {
+  types: Set<string>;
+  children: Map<string, Set<string>>;
+}
+
+/**
+ * Derive a top-level annotated tree from the grounded
+ * `file_placement_patterns` of services that have no distinct path (the
+ * single-repo / root-service case the path-based branch can't render).
+ * Groups pattern locations by their first two directory segments and
+ * annotates each node with the distinct pattern `type`s observed under it.
+ * Returns the inner tree lines (no fence / heading); empty when no usable
+ * patterns exist.
+ */
+function deriveTreeFromPlacements(services: NonNullable<DirStructureInput['services']>): string[] {
+  const topLevels = new Map<string, DerivedNode>();
+  for (const svc of services) {
+    for (const pattern of svc.file_placement_patterns ?? []) {
+      const segments = directorySegments(pattern.location);
+      if (segments.length === 0) continue;
+      const top = segments[0];
+      if (!topLevels.has(top)) topLevels.set(top, { types: new Set(), children: new Map() });
+      const node = topLevels.get(top)!;
+      const second = segments[1];
+      if (second && !isPlaceholderSegment(second)) {
+        if (!node.children.has(second)) node.children.set(second, new Set());
+        node.children.get(second)!.add(pattern.type);
+      } else {
+        node.types.add(pattern.type);
+      }
+    }
+  }
+
+  const tops = Array.from(topLevels.keys()).sort();
+  if (tops.length === 0) return [];
+
+  const lines: string[] = [];
+  let truncated = false;
+  tops.forEach((top, idx) => {
+    if (lines.length >= MAX_TREE_LINES) {
+      truncated = true;
+      return;
+    }
+    const isLastTop = idx === tops.length - 1;
+    const node = topLevels.get(top)!;
+    const childNames = Array.from(node.children.keys()).sort();
+
+    if (childNames.length === 0) {
+      lines.push(`${isLastTop ? '└──' : '├──'} ${top}/${annotate(node.types)}`);
+      return;
+    }
+
+    lines.push(`${isLastTop ? '└──' : '├──'} ${top}/`);
+    childNames.forEach((child, cidx) => {
+      if (lines.length >= MAX_TREE_LINES) {
+        truncated = true;
+        return;
+      }
+      const isLastChild = cidx === childNames.length - 1;
+      const branch = isLastTop ? '    ' : '│   ';
+      const leaf = isLastChild ? '└──' : '├──';
+      lines.push(`${branch}${leaf} ${child}/${annotate(node.children.get(child)!)}`);
+    });
+  });
+
+  if (truncated) lines.push('… (truncated — see File Placement Guide)');
+  return lines;
+}
+
+/**
+ * Reduce a placement `location` to its directory segments: split on `/`,
+ * drop empty segments, and drop a trailing filename (any segment carrying a
+ * `.` extension, including templated ones like `{domain}.py` or `*.py`).
+ */
+function directorySegments(location: string): string[] {
+  const segments = location.split('/').filter((s) => s.length > 0);
+  if (segments.length === 0) return [];
+  if (segments[segments.length - 1].includes('.')) segments.pop();
+  return segments;
+}
+
+function isPlaceholderSegment(segment: string): boolean {
+  return segment.includes('{') || segment.includes('*') || segment.includes('<');
+}
+
+/**
+ * Render a `  # type, type, …` annotation from a set of pattern types,
+ * capped to keep tree lines scannable. Empty set → empty string.
+ */
+function annotate(types: Set<string>): string {
+  if (types.size === 0) return '';
+  let text = Array.from(types).slice(0, 4).join(', ');
+  if (text.length > 60) text = `${text.slice(0, 57)}…`;
+  return `  # ${text}`;
 }

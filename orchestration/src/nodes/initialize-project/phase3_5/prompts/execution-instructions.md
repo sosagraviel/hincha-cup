@@ -24,10 +24,16 @@ working directory; all paths in the cheat-sheet are relative to it.
    - Duplicate service rows (alias of a real source service on the same port) →
      keep the real service, drop the alias. Keep genuinely distinct services
      (e.g. a separate dev server on a different port is NOT a duplicate).
+   - Tech Stack with several service bullets repeating the same technology →
+     consolidate: factor the shared techs into one `- **Shared**: …` bullet at
+     the top of the section and leave each service bullet showing only its unique
+     techs. Confirm a tech is genuinely shared (it appears in those services'
+     manifests) before merging. Never drop a technology outright, never alter a
+     version. Leave a single-service Tech Stack unchanged.
 
-4. **Preserve the rest.** Leave correct rows, headings, ordering, and the
-   grounded sections (Tech Stack, Essential Commands) untouched. Do not add
-   sections, prose, or commentary.
+4. **Preserve the rest.** Leave correct rows, headings, ordering, the Essential
+   Commands section, and every version string untouched. Do not add sections,
+   prose, or commentary.
 
 ## Budget
 

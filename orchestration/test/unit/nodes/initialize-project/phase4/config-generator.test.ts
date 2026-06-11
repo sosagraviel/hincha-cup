@@ -81,12 +81,8 @@ describe('config-generator', () => {
       expect(config.version).toBe('2.0.0');
       expect(config.schema_version).toBe('1.0.0');
       expect(config.framework_version).toBe('2.0.0');
-      // project_metadata.project_path was retired (zero readers in codebase) —
-      // assert it's no longer present so a future regression that re-adds the
-      // absolute-path field is caught by this test.
-      expect((config.project_metadata as Record<string, unknown>).project_path).toBeUndefined();
-      expect(config.project_metadata.last_analysis).toBeDefined();
-      expect(config.project_metadata.initialization_hash).toBeDefined();
+      expect((config as Record<string, unknown>).project_metadata).toBeUndefined();
+      expect((config.resource_state as Record<string, unknown>).last_sync).toBeUndefined();
     });
 
     it('should read framework version from package.json', () => {
@@ -306,7 +302,7 @@ describe('config-generator', () => {
       });
     });
 
-    it('should generate unique initialization hash', () => {
+    it('should produce byte-identical output for identical input', () => {
       const phase1Data = createMockPhase1Data();
       const stackProfile = createMockStackProfile();
 
@@ -329,11 +325,7 @@ describe('config-generator', () => {
         '/test/framework',
       );
 
-      expect(config1.project_metadata.initialization_hash).toBeDefined();
-      expect(config2.project_metadata.initialization_hash).toBeDefined();
-      expect(config1.project_metadata.initialization_hash).not.toBe(
-        config2.project_metadata.initialization_hash,
-      );
+      expect(JSON.stringify(config1)).toBe(JSON.stringify(config2));
     });
 
     it('should include resource state', () => {
@@ -354,7 +346,7 @@ describe('config-generator', () => {
       expect(config.resource_state).toBeDefined();
       expect(config.resource_state.skills).toEqual({});
       expect(config.resource_state.agents).toEqual({});
-      expect(config.resource_state.last_sync).toBeDefined();
+      expect((config.resource_state as Record<string, unknown>).last_sync).toBeUndefined();
     });
 
     it('should handle empty stack profile', () => {
@@ -599,26 +591,6 @@ describe('config-generator', () => {
       const mobileServices = config.stack_profile.services.filter((s) => s.type === 'mobile');
       expect(mobileServices).toHaveLength(2);
       expect(mobileServices.map((s) => s.frameworks.main)).toEqual(['react-native', 'flutter']);
-    });
-
-    it('should generate ISO timestamp for last_analysis', () => {
-      const phase1Data = createMockPhase1Data();
-      const stackProfile = createMockStackProfile();
-
-      vi.mocked(fs.existsSync).mockReturnValue(false);
-
-      const config = generateFrameworkConfig(
-        '/test/project',
-        '/test/temp',
-        phase1Data,
-        '# Synthesis',
-        stackProfile,
-        '/test/framework',
-      );
-
-      expect(config.project_metadata.last_analysis).toMatch(
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
-      );
     });
 
     it('should handle package.json read error gracefully', () => {

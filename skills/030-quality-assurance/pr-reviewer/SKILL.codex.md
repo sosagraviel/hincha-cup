@@ -4,7 +4,7 @@ version: 4.0.0
 last-updated: 2026-05-14
 description: Reviews a GitHub Pull Request using a deterministic-glue plus specialist-agent pipeline. Invoked by /implement-ticket Phase 10 once per PR URL; also user-invocable directly. Supports single-repo and multi-repo modes.
 allowed-tools: Bash, Read, Grep, Glob
-argument-hint: '[--pr-url <URL>] [--jira-key <KEY>] [--mode automated|manual] [--repos <abs1>,<abs2>,...] [--aggregate]'
+argument-hint: '[--pr-url <URL>] [--jira-key <KEY>] [--mode automated|manual] [--artifacts-dir <abs>] [--repos <abs1>,<abs2>,...] [--aggregate]'
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -17,6 +17,7 @@ Parse the input for these flags:
 - `--pr-url <URL>` — GitHub PR URL to review (required unless `--aggregate`)
 - `--jira-key <KEY>` — JIRA ticket key for artifact namespacing
 - `--mode automated|manual` — automated writes JSON and returns; manual pauses for human edit before posting (default: automated)
+- `--artifacts-dir <abs>` — absolute dir to write output under (`<dir>/pr/...`); parsed into `$ARTIFACTS_DIR_FLAG`. Passed by `/implement-ticket`. When omitted, falls back to the relative default — see Artifact Paths.
 - `--repos <abs1>,<abs2>,...` — absolute paths to repo roots in multi-repo mode
 - `--aggregate` — skip review pipeline; run cross-repo aggregator over existing per-PR JSONs for this JIRA key
 
@@ -30,9 +31,15 @@ Sequence is **strictly linear** (no parallelism). Run all specialists in order: 
 
 ## Artifact Paths
 
+Resolve the base once: use `--artifacts-dir` (`$ARTIFACTS_DIR_FLAG`, absolute, passed by `/implement-ticket`) when given, else the prior relative default. Every path below is `$ARTIFACTS_BASE/pr/...`.
+
+```bash
+ARTIFACTS_BASE="${ARTIFACTS_DIR_FLAG:-{{TEMP_DIR}}/artifacts/${JIRA_KEY}}"
+```
+
 **Single-repo:**
 ```
-{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/review/
+$ARTIFACTS_BASE/pr/review/
   review-results.json
   review.md
   human.md
@@ -42,7 +49,7 @@ Sequence is **strictly linear** (no parallelism). Run all specialists in order: 
 
 **Multi-repo (per PR):**
 ```
-{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/<repo-basename>/review/
+$ARTIFACTS_BASE/pr/<repo-basename>/review/
   review-results.json
   review.md
   human.md
@@ -52,8 +59,8 @@ Sequence is **strictly linear** (no parallelism). Run all specialists in order: 
 
 **Cross-repo summary (--aggregate only):**
 ```
-{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/cross-repo-summary.json
-{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/cross-repo-summary.md
+$ARTIFACTS_BASE/pr/cross-repo-summary.json
+$ARTIFACTS_BASE/pr/cross-repo-summary.md
 ```
 
 ## Pipeline Architecture
@@ -75,14 +82,15 @@ Sequence is **strictly linear** (no parallelism). Run all specialists in order: 
  13. add_inline_comment.py              (deterministic: posts to GitHub via gh CLI)
 ```
 
-When `--aggregate` is passed and multiple per-PR JSONs exist under `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/`, load `agents/cross-repo-aggregator.md` as your role and skip steps 1–13.
+When `--aggregate` is passed and multiple per-PR JSONs exist under `$ARTIFACTS_BASE/pr/`, load `agents/cross-repo-aggregator.md` as your role and skip steps 1–13.
 
 ## Execution
 
 ### Step 1: Fetch PR Data
 
 ```bash
-REVIEW_DIR="{{TEMP_DIR}}/artifacts/${JIRA_KEY}/pr/${REPO_BASENAME}/review"
+ARTIFACTS_BASE="${ARTIFACTS_DIR_FLAG:-{{TEMP_DIR}}/artifacts/${JIRA_KEY}}"
+REVIEW_DIR="$ARTIFACTS_BASE/pr/${REPO_BASENAME}/review"
 mkdir -p "$REVIEW_DIR"
 
 python skills/030-quality-assurance/pr-reviewer/scripts/fetch_pr_data.py \
@@ -200,12 +208,13 @@ gh pr review <PR_NUMBER> --repo <OWNER>/<REPO> --approve
 
 When `--aggregate` is passed:
 
-1. Find all `review-results.json` files under `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/*/review/`
+0. Resolve `$ARTIFACTS_BASE` (see Artifact Paths) — same base the per-PR runs used.
+1. Find all `review-results.json` files under `$ARTIFACTS_BASE/pr/*/review/`
 2. If fewer than 2 exist, emit a warning and exit cleanly
 3. Load `agents/cross-repo-aggregator.md`. Adopt its persona.
 4. Produce:
-   - `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/cross-repo-summary.json`
-   - `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/cross-repo-summary.md`
+   - `$ARTIFACTS_BASE/pr/cross-repo-summary.json`
+   - `$ARTIFACTS_BASE/pr/cross-repo-summary.md`
 
 ## Output Schema
 
@@ -298,9 +307,9 @@ When `--aggregate` is passed:
 
 ## Multi-Repo Behaviour
 
-When invoked by `/implement-ticket` Phase 10 with multiple PR URLs, each invocation of `/pr-reviewer --pr-url <URL>` is independent and writes to its own `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/pr/<repo-basename>/review/` directory.
+When invoked by `/implement-ticket` Phase 10 with multiple PR URLs, each invocation of `/pr-reviewer --pr-url <URL> --artifacts-dir "$ARTIFACTS_DIR"` is independent and writes to its own `$ARTIFACTS_BASE/pr/<repo-basename>/review/` directory. The absolute `--artifacts-dir` keeps every tree at the workspace root, even though each invocation targets a child repo via `--repos`.
 
-After all per-PR invocations complete, `/implement-ticket` calls `/pr-reviewer --aggregate --jira-key <KEY>` once. That call reads all per-PR JSONs and produces the cross-repo summary.
+After all per-PR invocations complete, `/implement-ticket` calls `/pr-reviewer --aggregate --jira-key <KEY> --artifacts-dir "$ARTIFACTS_DIR"` once. It reads all per-PR JSONs and produces the cross-repo summary.
 
 ## References
 

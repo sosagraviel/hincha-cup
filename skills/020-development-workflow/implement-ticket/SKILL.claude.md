@@ -38,33 +38,39 @@ If the graph DB, MCP config, graph-aware agents, active graph tools, or the LLM 
 
 ## CRITICAL: Artifact Path Enforcement
 
-**ALL artifacts MUST be saved to the following deterministic structure:**
+**ALL artifacts MUST be saved under the workspace-root temp dir, in this deterministic structure:**
 
 ```
-{{TEMP_DIR}}/tickets/<TICKET_ID>/artifacts/
+<workspace-root>/{{TEMP_DIR}}/tickets/<TICKET_ID>/artifacts/
 ```
+
+`<workspace-root>` is the folder where this skill lives (the one containing `{{CONFIG_DIR}}/`). In a multi-repo workspace it is the PARENT folder, never one of the child repos.
 
 **NEVER save artifacts to:**
+- Inside any child repo (e.g. `<child-repo>/{{TEMP_DIR}}/...`) in a multi-repo workspace — the temp dir lives ONLY at the workspace root
 - `{{CONFIG_DIR}}/artifacts/`
 - `{{CONFIG_DIR}}/screenshots/`
 - `{{CONFIG_DIR}}/decisions/`
 - `orchestration/artifacts/`
 - Any other location
 
-When spawning agents or invoking skills, ALWAYS pass the ARTIFACTS_DIR variable:
+`ARTIFACTS_DIR` MUST be an **absolute** path anchored at the workspace root. Resolve it deterministically — never as a bare relative `{{TEMP_DIR}}/...`, which would resolve against the current working directory and leak into a child repo when `cwd` has drifted:
 ```bash
-ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"
+source "{{CONFIG_DIR}}/scripts/lib/resolve-paths.sh"
+ARTIFACTS_DIR="$(project_path)/{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"
 export ARTIFACTS_DIR
 ```
 
+`project_path()` resolves the workspace root independent of `cwd` (it self-locates from the shipped `{{CONFIG_DIR}}/scripts/` install path), so `ARTIFACTS_DIR` is always under the workspace root even when a later phase operates on a child repo via `git -C` or after a `cd`. Re-run this snippet at the start of any phase that needs the path; Phase 0 also records the resolved absolute value as `artifacts_dir` in `.preflight-ok` for cross-check. When invoking sub-skills, ALWAYS pass `--artifacts-dir "$ARTIFACTS_DIR"` so they inherit the same absolute anchor.
+
 This ensures:
-- Artifacts are excluded from PRs (via `.gitignore`)
+- Artifacts are excluded from PRs (locally ignored in every repo by Phase 0)
 - Consistent paths across all workflows
-- No artifact pollution in version control
+- No artifact pollution in version control, in single- or multi-repo workspaces
 
 ## Multi-Repository Awareness
 
-The workspace may be a single git repo OR a parent folder containing multiple independent child git repos (each with its own GitHub remote). When operating on the working tree (status, branch, commit, push, tests), target each affected repo individually with `git -C <repo>` rather than assuming a single workspace root. The LLM wiki and code graph remain workspace-scoped (one shared `docs/llm-wiki/` and `.code-review-graph/` at the workspace root).
+The workspace may be a single git repo OR a parent folder containing multiple independent child git repos (each with its own GitHub/GitLab/Azure remote). When operating on the working tree (status, branch, commit, push, tests), target each affected repo individually with `git -C <repo>` rather than assuming a single workspace root. The LLM wiki and code graph remain workspace-scoped (one shared `docs/llm-wiki/` and `.code-review-graph/` at the workspace root).
 
 Two values, never derived by eyeballing the tree:
 
@@ -166,7 +172,7 @@ Create each task using TaskCreate with these exact values:
 13. Phase 10: Review Loop
     subject: "Phase 10: Review Loop"
     activeForm: "Running review loop"
-    Steps: For each PR URL produced by Phase 9, invoke /pr-reviewer (`--pr-url <URL> --jira-key <ID> --mode automated [--repos <abs>]`) and /security-review (`--pr-url <URL> --jira-key <ID> [--repos <abs>] [--baseline <prior>]`). If blocking issues, spawn implementer for fixes and re-run tests; max 3 iterations global across all PRs. After the loop, in multi-repo mode only, run /pr-reviewer --aggregate --jira-key <ID> and /security-review --aggregate --jira-key <ID> to emit cross-repo summaries.
+    Steps: For each PR URL produced by Phase 9, invoke /pr-reviewer (`--pr-url <URL> --jira-key <ID> --mode automated --artifacts-dir "$ARTIFACTS_DIR" [--repos <abs>]`) and /security-review (`--pr-url <URL> --jira-key <ID> --artifacts-dir "$ARTIFACTS_DIR" [--repos <abs>] [--baseline <prior>]`). Always pass `--artifacts-dir "$ARTIFACTS_DIR"` so review/security artifacts land under the workspace-root ticket dir, never inside a child repo. If blocking issues, spawn implementer for fixes and re-run tests; max 3 iterations global across all PRs. After the loop, in multi-repo mode only, run /pr-reviewer --aggregate --jira-key <ID> --artifacts-dir "$ARTIFACTS_DIR" and /security-review --aggregate --jira-key <ID> --artifacts-dir "$ARTIFACTS_DIR" to emit cross-repo summaries.
     Expected outputs: PR review ran, security review ran, either no blocking issues or fixes applied
     Constraint: If max iterations reached with unresolved issues, report and proceed to cleanup.
 
@@ -209,13 +215,18 @@ Execute each phase sequentially. Do not proceed to the next phase until the curr
 
 This phase has two parts. **Part A (auto-bootstrap) is mandatory and runs first.** Part B (defensive double-check) is a belt-and-suspenders verification that the bootstrap succeeded.
 
-**Part A — auto-bootstrap.** Run the deterministic preflight before doing anything else in this phase:
+**Part A — auto-bootstrap.** Run the deterministic preflight before doing anything else in this phase. Anchor `ARTIFACTS_DIR` to the workspace root via `project_path()` (cwd-independent) so it can never resolve inside a child repo:
 
 ```bash
-cd "$(git rev-parse --show-toplevel)"
-ARTIFACTS_DIR="{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"
+cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+source "{{CONFIG_DIR}}/scripts/lib/resolve-paths.sh"
+cd "$(project_path)"
+ARTIFACTS_DIR="$(project_path)/{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"
+export ARTIFACTS_DIR
 bash "{{CONFIG_DIR}}/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR"
 ```
+
+`ensure-context.sh` records the resolved absolute `artifacts_dir` (and `workspace_root`) in `$ARTIFACTS_DIR/.preflight-ok`; later phases re-derive `ARTIFACTS_DIR` with the same two-line `source … ; ARTIFACTS_DIR="$(project_path)/{{TEMP_DIR}}/tickets/$TICKET_ID/artifacts"` snippet, so the path stays absolute and root-anchored regardless of the current working directory.
 
 What the script does (handled automatically; you do not need to do any of this manually):
 
@@ -491,11 +502,7 @@ Otherwise, **choose by `len(AFFECTED_REPOS)`, NOT by `WORKSPACE_MODE`** (a `mult
 **If `len(AFFECTED_REPOS) == 1`** (`<repo>` = the one entry):
 
 - `git -C <repo> push -u origin <branch>`
-- `gh pr create` with:
-  - Auto-generated title from ticket
-  - Summary of changes
-  - Test plan checklist
-  - Link to original ticket
+- Detect the git host provider from `git -C <repo> remote get-url origin` and create the PR/MR using the matching skill: `mastering-github-cli` for GitHub, `mastering-azure-devops-cli` for Azure DevOps, or the provider's native CLI for others — with: auto-generated title from ticket, summary of changes, test plan checklist, link to original ticket
 - Return PR URL
 
 **If `len(AFFECTED_REPOS) > 1`** — delegate to `/repo-fanout-pr --no-commit --repos <csv> --branch <branch> --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR`, where `<csv>` is `AFFECTED_REPOS` joined by commas (absolute paths, no spaces). It asserts each repo's tree is clean + branch ahead of base, pushes, opens one cross-linked PR per repo, and returns `fanout/result.json`.
@@ -510,8 +517,10 @@ CONTINUE WITH Phase 10.
 
 For each PR URL produced by Phase 9 (single-repo: one URL; multi-repo: one per affected repo):
 
-- Run PR review: `/pr-reviewer --pr-url <URL> --jira-key <TICKET-ID> --mode automated [--repos <abs-repo-path>]`
-- Run security review: `/security-review --pr-url <URL> --jira-key <TICKET-ID> [--repos <abs-repo-path>] [--baseline <prior-findings.json>]`
+- Run PR review: `/pr-reviewer --pr-url <URL> --jira-key <TICKET-ID> --mode automated --artifacts-dir "$ARTIFACTS_DIR" [--repos <abs-repo-path>]`
+- Run security review: `/security-review --pr-url <URL> --jira-key <TICKET-ID> --artifacts-dir "$ARTIFACTS_DIR" [--repos <abs-repo-path>] [--baseline <prior-findings.json>]`
+
+  `--artifacts-dir "$ARTIFACTS_DIR"` is the absolute, workspace-root-anchored ticket dir from Phase 0. Both skills write their output trees UNDER it (`$ARTIFACTS_DIR/pr/...`, `$ARTIFACTS_DIR/security/...`) — never inside a child repo, even though `--repos` points at one.
 - If blocking issues found:
   - Map each finding's file path back to its owning service (longest-prefix on `stack_profile.services[].path`); re-spawn ONLY the `Recommended Implementers` entries whose `Scoped Files` overlap with the finding set, in the original listed order
   - Re-run tests
@@ -522,8 +531,8 @@ In a multi-repo workspace, run the reviews once per PR URL produced by Phase 9 �
 
 **Multi-repo aggregation (after the loop):** when more than one PR URL was reviewed for the same ticket, run a final aggregation pass:
 
-- `/pr-reviewer --aggregate --jira-key <TICKET-ID>` — emits `{{TEMP_DIR}}/artifacts/<TICKET-ID>/pr/cross-repo-summary.{json,md}` describing cross-repo concerns (API contract mismatches, schema skew, shared-dep conflicts) and a recommended merge order.
-- `/security-review --aggregate --jira-key <TICKET-ID>` — emits `{{TEMP_DIR}}/artifacts/<TICKET-ID>/security/cross-repo-summary.{json,md}` describing cross-cutting security concerns (shared-dep CVEs, identical findings across repos) and a dependency-ordered remediation plan.
+- `/pr-reviewer --aggregate --jira-key <TICKET-ID> --artifacts-dir "$ARTIFACTS_DIR"` — emits `$ARTIFACTS_DIR/pr/cross-repo-summary.{json,md}` describing cross-repo concerns (API contract mismatches, schema skew, shared-dep conflicts) and a recommended merge order.
+- `/security-review --aggregate --jira-key <TICKET-ID> --artifacts-dir "$ARTIFACTS_DIR"` — emits `$ARTIFACTS_DIR/security/cross-repo-summary.{json,md}` describing cross-cutting security concerns (shared-dep CVEs, identical findings across repos) and a dependency-ordered remediation plan.
 
 Skip the aggregation pass in single-repo mode.
 
@@ -557,8 +566,8 @@ If a phase fails:
 - `/doc-updater`: Phase 8
 - `/wiki-refresh`: Phase 8.5 (auto-invoked with `--commit --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR`; reads per-repo commits from `.state.json`, surgically edits affected pages under a high-level-only conservatism rule, commits `docs/llm-wiki/**` itself when the wiki is git-tracked or emits a diff manifest + warning for Phase 9 otherwise)
 - `/repo-fanout-pr`: Phase 9 (multi-repo workspaces only — invoked with `--no-commit`; per-repo push + PR creation and cross-linking. The implementation commit is produced in Phase 8.4 before this skill runs.)
-- `/pr-reviewer`: Phase 10 (run once per PR URL)
-- `/security-review`: Phase 10 (run once per PR URL)
+- `/pr-reviewer`: Phase 10 (run once per PR URL; always passed `--artifacts-dir "$ARTIFACTS_DIR"` so output lands under the workspace-root ticket dir)
+- `/security-review`: Phase 10 (run once per PR URL; always passed `--artifacts-dir "$ARTIFACTS_DIR"` so output lands under the workspace-root ticket dir)
 - `aggregate-metrics` CLI: Phase 11 (final metrics summary)
 
 ## Prerequisites
@@ -572,7 +581,9 @@ If a phase fails:
 - LLM wiki exists at `docs/llm-wiki/` (workspace-scoped; lives at the workspace root in both single and multi mode) with `docs/llm-wiki/CLAUDE.md` present
 - Git: at least one git repository reachable. Two supported shapes:
   - **single-repo**: workspace root is itself a git repo; `origin/development` or `origin/main` reachable (required for Phase 9 base-branch resolution).
-  - **multi-repo**: workspace root is NOT a git repo but contains one or more child directories that ARE git repos (each with its own GitHub remote). Every child repo must have `origin/development` or `origin/main` reachable.
+  - **multi-repo**: workspace root is NOT a git repo but contains one or more child directories that ARE git repos. Every child repo must have `origin/development` or `origin/main` reachable.
 - Tests passing in current state — at the workspace root in single mode, in every child repo in multi mode
 - For `--from-jira`: Jira MCP configured
 - For GitHub PR: `gh` CLI configured and authenticated against every affected GitHub remote
+- For Azure DevOps PR: `az` CLI configured and authenticated against every affected Azure DevOps remote
+- For other Git hosts: the host's native CLI configured and authenticated against every affected remote

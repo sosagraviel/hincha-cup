@@ -189,6 +189,13 @@ export async function validationNode(
 
     phaseLogger.info(' Validating portability of generated .claude/ + .codex/ artifacts...');
     const portability = validatePortability(state.project_path);
+    if (portability.trackedLocalSettings.length > 0) {
+      validationWarnings.push(
+        `settings.local.json is git-tracked and contains machine-local paths the Claude CLI writes ` +
+          `(${portability.trackedLocalSettings.join(', ')}). This file is per-developer — add it to ` +
+          `.gitignore and run \`git rm --cached <path>\` so machine-specific paths aren't committed.`,
+      );
+    }
     if (!portability.ok) {
       phaseLogger.error(' ✗ Portability scan FAILED:');
       const TOP_N = 20;

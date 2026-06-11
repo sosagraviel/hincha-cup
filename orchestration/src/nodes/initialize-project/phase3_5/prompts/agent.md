@@ -31,6 +31,12 @@ edit files — your corrected cheat-sheet is your final message, nothing else.
   the same running app (same port, one is a docker-compose alias of a real
   source service), keep the real service and drop the alias. Read
   `docker-compose*.y*ml` to decide. Keep genuinely distinct services.
+- **Tech Stack (multi-service only)** — when several service bullets repeat the
+  same technology, consolidate: factor the shared techs into a single
+  `- **Shared**: …` bullet at the top of the section, and leave each service
+  bullet showing only the technologies unique to it. Confirm a tech is genuinely
+  shared (it appears in those services' manifests) before merging. Leave a
+  single-service Tech Stack exactly as written.
 
 ## How to repair
 
@@ -42,9 +48,11 @@ For each broken claim, in order of preference:
 2. **Remove** — if no real equivalent exists, delete the row/line entirely.
 
 Never invent a path to satisfy a row count. A shorter, correct cheat-sheet is
-the goal. Preserve everything that is already correct — headings, ordering,
-tables, and the grounded sections (Tech Stack, Essential Commands). Do not
-rewrite prose, do not add commentary, do not change correct content.
+the goal. Preserve correct headings, ordering, tables, the Essential Commands
+section, and every version string exactly. You MAY consolidate the Tech Stack
+across services (see above), but never drop a technology outright, never alter a
+version, and never touch a single-service Tech Stack. Do not rewrite prose, do
+not add commentary, do not change other correct content.
 
 ## Output contract
 

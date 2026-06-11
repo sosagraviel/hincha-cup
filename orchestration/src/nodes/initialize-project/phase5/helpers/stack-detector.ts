@@ -73,5 +73,11 @@ export function extractDetectedStack(stackProfile: StackProfile): DetectedStack 
     });
   }
 
+  if (stackProfile.software_version_control) {
+    const lower = stackProfile.software_version_control.toLowerCase();
+    normalized.add(lower.replace(/[^a-z0-9]/g, ''));
+    original.add(lower);
+  }
+
   return { normalized, original };
 }

@@ -54,9 +54,9 @@ export const ruby: LanguageConfig = {
   commandDefaults: {
     lint: 'bundle exec rubocop',
     format: 'bundle exec rubocop -a',
-    typecheck: '',
+    typecheck: 'bundle exec rubocop',
     test: 'bundle exec rspec',
-    build: '',
+    build: 'bundle install',
   },
   hasImplementerAgent: true,
 };

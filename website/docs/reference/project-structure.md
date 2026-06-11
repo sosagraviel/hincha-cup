@@ -82,9 +82,10 @@ Machine-readable description of your project, consumed by the framework's skills
 Top-level keys:
 
 - `stack_profile` — detected services, monorepo layout, package manager, infrastructure, per-language file counts, command catalog
-- `resource_state` — which skills/agents were copied and the last sync timestamp
-- `project_metadata` — last analysis time and an initialization hash
+- `resource_state` — which skills/agents were copied, with their content hashes; plus a single top-level `last_sync` marker of when the sync flow last changed resource state
 - `version` / `schema_version` / `framework_version`
+
+The file is deterministic for an unchanged repo: it carries no random hash and no per-resource timestamps, so re-running initialization produces no git diff. The one top-level `resource_state.last_sync` is written only when sync actually changes a resource, so a no-op run never touches it.
 
 > This replaces the older `settings.json` concept. The framework does **not** generate a `settings.json` — that file (`.claude/settings.local.json`) belongs to the Claude Code CLI, not to initialization.
 

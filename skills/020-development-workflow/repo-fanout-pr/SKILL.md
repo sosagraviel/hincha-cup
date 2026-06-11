@@ -102,10 +102,11 @@ Skipped entirely under `--skip-pr` (jump to Phase E with `skipped: true`).
 
 For each `<repo>` with a non-null `commit_sha`:
 
-1. Resolve GitHub coordinates from `git -C <repo> remote get-url origin`. Both forms are supported:
-   - SSH: `git@github.com:<owner>/<name>.git` → `<owner>/<name>`
-   - HTTPS: `https://github.com/<owner>/<name>.git` → `<owner>/<name>`
-   - Strip the trailing `.git` if present.
+1. Detect SCV and resolve coordinates from `git -C <repo> remote get-url origin`:
+   - **GitHub** (`github.com` in URL): parse `<owner>/<name>` from SSH (`git@github.com:<owner>/<name>.git`) or HTTPS (`https://github.com/<owner>/<name>.git`). Strip trailing `.git`.
+   - **Azure DevOps** (`dev.azure.com` or `visualstudio.com` in URL): parse `<org>`, `<project>`, `<repo-name>` from `https://dev.azure.com/<org>/<project>/_git/<repo-name>` or `https://<org>.visualstudio.com/<project>/_git/<repo-name>`.
+   - **GitLab** (`gitlab` in URL): parse `<namespace>/<name>` from SSH or HTTPS forms. Strip trailing `.git`.
+   - Unknown host: STOP with a clear error listing the origin URL and the supported providers.
 2. Resolve the base branch: prefer `--base` if passed; else attempt `origin/development`, fall back to `origin/main`. Use `git -C <repo> ls-remote --heads origin <branch>` to verify existence.
 3. Push: `git -C <repo> push -u origin <branch>`.
 4. Build the initial PR body at `<artifacts-dir>/fanout/<repo-basename>/pr-body.md`:
@@ -136,8 +137,9 @@ For each `<repo>` with a non-null `commit_sha`:
    _Will be populated after sibling PRs are created._
    ```
 
-5. Create the PR:
+5. Create the PR using the SCV detected in step 1:
 
+   **GitHub:**
    ```
    gh -R <owner>/<name> pr create \
      --base <base> \
@@ -146,9 +148,31 @@ For each `<repo>` with a non-null `commit_sha`:
      --body-file <artifacts-dir>/fanout/<repo-basename>/pr-body.md
    ```
 
+   **Azure DevOps:**
+   ```
+   az repos pr create \
+     --repository <repo-name> \
+     --org https://dev.azure.com/<org> \
+     --project <project> \
+     --source-branch <branch> \
+     --target-branch <base> \
+     --title "<TICKET_ID>: <ticket short title> (<repo-basename>)" \
+     --description @<artifacts-dir>/fanout/<repo-basename>/pr-body.md \
+     --open
+   ```
+
+   **GitLab:**
+   ```
+   glab mr create \
+     --source-branch <branch> \
+     --target-branch <base> \
+     --title "<TICKET_ID>: <ticket short title> (<repo-basename>)" \
+     --description "$(cat <artifacts-dir>/fanout/<repo-basename>/pr-body.md)"
+   ```
+
 6. Capture the returned URL.
 
-If `gh pr create` fails for a repo after a sibling PR already succeeded, do NOT auto-close the sibling. Record the failure in `result.json` (set `pr_url: null`, add a top-level `errors[]` entry with the repo path and stderr), and STOP. The caller surfaces the partial state to the user verbatim.
+If PR creation fails for a repo after a sibling PR already succeeded, do NOT auto-close the sibling. Record the failure in `result.json` (set `pr_url: null`, add a top-level `errors[]` entry with the repo path and stderr), and STOP. The caller surfaces the partial state to the user verbatim.
 
 ### Phase D — Cross-link pass
 
@@ -165,11 +189,17 @@ Once every repo with changes has a PR URL:
    ```
 
 2. For each PR, rewrite `pr-body.md` replacing the `## Related PRs` placeholder section with the cross-link block.
-3. `gh -R <owner>/<name> pr edit <number> --body-file <artifacts-dir>/fanout/<repo-basename>/pr-body.md`.
+3. Update each PR body using the SCV detected in Phase C step 1:
 
-PR numbers are derived from the URL (`.../pull/<number>`).
+   **GitHub:** `gh -R <owner>/<name> pr edit <number> --body-file <artifacts-dir>/fanout/<repo-basename>/pr-body.md`
 
-If `gh pr edit` fails for any PR, the PR itself still exists; record the failure in `result.json` under `errors[]` but do NOT STOP — cross-linking is best-effort. Surface the partial result to the caller.
+   **Azure DevOps:** `az repos pr update --id <number> --org https://dev.azure.com/<org> --project <project> --description @<artifacts-dir>/fanout/<repo-basename>/pr-body.md`
+
+   **GitLab:** `glab mr update <number> --description "$(cat <artifacts-dir>/fanout/<repo-basename>/pr-body.md)"`
+
+   PR numbers are derived from the URL (last path segment after `pull/` or `merge_requests/`).
+
+If the update fails for any PR, the PR itself still exists; record the failure in `result.json` under `errors[]` but do NOT STOP — cross-linking is best-effort. Surface the partial result to the caller.
 
 ### Phase E — Emit `result.json`
 
@@ -185,7 +215,7 @@ Write the structured result to `<artifacts-dir>/fanout/result.json`. Print the J
 
 ## Prerequisites
 
-- `gh` CLI installed and authenticated with access to every affected repo's GitHub remote.
+- SCV CLI installed and authenticated: `gh` for GitHub, `az` (Azure CLI with `azure-devops` extension) for Azure DevOps, `glab` for GitLab. Only the CLI matching the detected remote is required.
 - Each repo in `--repos` already has the feature branch `<branch>` checked out (created in Phase 4).
 - Default mode: each repo has changes staged-or-unstaged in the working tree (the implementer's edits from Phase 5). `--no-commit` mode: each repo's working tree is clean and the branch already carries the implementation commit (e.g., produced by `/implement-ticket` Phase 8.4) plus optionally the wiki-refresh commit from Phase 8.5.
 - `<artifacts-dir>` exists and is writable.

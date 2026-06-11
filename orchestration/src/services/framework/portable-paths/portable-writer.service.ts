@@ -13,7 +13,7 @@
  * by an ESLint rule shipped alongside this module (see eslint-plugin-local).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { dirname } from 'path';
+import { dirname, sep } from 'path';
 
 import type { AbsolutePath } from './types.js';
 import { PortabilityError } from './types.js';
@@ -68,12 +68,7 @@ export class PortableWriter {
    */
   private deepRelativize(value: unknown): unknown {
     if (typeof value === 'string') {
-      if (!isLikelyAbsoluteFsPath(value)) return value;
-      try {
-        return this.resolver.toProjectRelative(value as AbsolutePath);
-      } catch {
-        return value;
-      }
+      return this.relativizeString(value);
     }
     if (Array.isArray(value)) {
       return value.map((v) => this.deepRelativize(v));
@@ -86,6 +81,25 @@ export class PortableWriter {
       return out;
     }
     return value;
+  }
+
+  /**
+   * Rewrites in-project absolute paths inside a string to project-relative form.
+   *
+   * Every occurrence of the project-root prefix is stripped, whether the string
+   * *is* a bare in-project path or *embeds* one in prose — so a string holding
+   * several paths, or a path mid-sentence with trailing punctuation, is handled
+   * by one literal rewrite with no over-capture. The root itself collapses to
+   * ".". Out-of-project absolutes never match the prefix, so they survive intact
+   * for `assertPortable` to reject — the portability guarantee is preserved.
+   */
+  private relativizeString(value: string): string {
+    const root = this.resolver.getProjectRoot();
+    if (value === root) return '.';
+    const prefix = root.endsWith(sep) ? root : root + sep;
+    if (!value.includes(prefix)) return value;
+    const stripped = value.split(prefix).join('');
+    return stripped === '' ? '.' : stripped;
   }
 
   private assertPortable(content: string, target: string): void {
@@ -107,8 +121,4 @@ export class PortableWriter {
       );
     }
   }
-}
-
-function isLikelyAbsoluteFsPath(s: string): boolean {
-  return /^\/(?:Users|home|opt|var|etc|usr)\//.test(s) || /^\/[a-z][a-z0-9_-]*\//.test(s);
 }

@@ -60,7 +60,7 @@ This is the load-bearing constraint behind every other rule on this page: **no f
 | `.code-review-graph/.gitignore` | `templates/code-review-graph-gitignore` | Framework allowlist (overrides upstream tool's `*` to permit metadata files) | yes |
 | `.code-review-graphignore` | `templates/code-review-graphignore` | Seeded by `setup-code-graph.sh` if missing; editable by the project | yes |
 
-`framework-config.json` no longer carries `project_metadata.project_path`. It was an absolute path in a committed file and nothing read it.
+`framework-config.json` is deterministic for an unchanged repo. The whole `project_metadata` block (formerly `project_path` plus the volatile `initialization_hash` / `last_analysis`) and the per-resource `last_sync` timestamps were dropped — they churned on every run, produced noisy diffs and merge conflicts, and nothing read them. A single top-level `resource_state.last_sync` is kept as a marker of when the sync flow last changed resource state; it is written only on real changes, so it never churns a no-op run, and the init writer omits it entirely. What remains (`version`, `schema_version`, `framework_version`, `stack_profile`, `resource_state`) is stable and stays committed/shareable.
 
 `.code-review-graph/` commit policy: **only the lightweight metadata is committed; the graph DB is per-developer.** A teammate cloning the project gets the framework allowlist and the project's `.code-review-graphignore`, then the skill preflight (`ensure-context.sh`) builds their local `graph.db` (~4 s on a small repo) and writes their local `launcher.json` + `extraction-manifest.json`. No manual setup.
 
@@ -208,6 +208,6 @@ A unit test (`test/unit/skills/skill-portability.test.ts`) walks `<framework>/sk
 
 ### `framework-config.json` field allowlist
 
-The current writer never emits `project_metadata.project_path`; the field is runtime-derivable. Pre-existing files from older runs may still carry it, so Phase 6 housekeeping strips it before the portability scan runs (logging `[portability] stripped stale project_path field from …`). Other `project_metadata` fields (`initialization_hash`, `last_analysis`) are preserved.
+The current writer emits a deterministic config — no `project_metadata` block and no per-resource `last_sync` timestamps (the single top-level `resource_state.last_sync` is retained). Pre-existing files from older runs may still carry the volatile fields, so Phase 6 housekeeping strips them before the portability scan runs (logging `[portability] stripped stale volatile fields from …`): the whole `project_metadata` object and per-resource `last_sync` keys under `resource_state.skills` / `resource_state.agents`. The strip is compare-then-write, so it only rewrites when a stale field is actually present. The strip logic lives in `framework-config-normalizer.ts` (`stripVolatileFields`), shared by Phase 6, the sync flow, and the `config-updater` write chokepoint.
 
-If a future field needs the same treatment, add it to `stripStaleFrameworkConfigFields` in `portability-validator.ts` — surgical strips only, never a wholesale rewrite.
+If a future field needs the same treatment, add it to `stripVolatileFields` in `framework-config-normalizer.ts` — surgical strips only, never a wholesale rewrite.

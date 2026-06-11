@@ -236,3 +236,89 @@ describe('trimSynthesisInput', () => {
     expect(trimmedSize).toBeLessThan(rawSize / 5);
   });
 });
+
+/**
+ * End-to-end regression for the single-repo CLAUDE.md richness. A
+ * single-service project (service path `.`) must still produce a rich
+ * Tech Stack (framework + production deps, all version-bearing), a real
+ * Directory Structure tree derived from grounded placements, and a
+ * 2-column Essential Commands table — the three sections that previously
+ * collapsed under the closed-book renderers.
+ */
+describe('trimSynthesisInput — single-repo CLAUDE.md richness (regression)', () => {
+  const trimmed = trimSynthesisInput({
+    consolidated_findings: {
+      services: [
+        {
+          id: 'cm-ai-api',
+          type: 'backend',
+          language: 'python',
+          path: '.',
+          frameworks: { main: 'FastAPI' },
+          file_placement_patterns: [
+            {
+              type: 'REST router',
+              location: 'src/api/routers/rest/{domain}.py',
+              example: 'src/api/routers/rest/projects.py',
+            },
+            {
+              type: 'SQLAlchemy model',
+              location: 'src/models/{domain}.py',
+              example: 'src/models/project.py',
+            },
+            {
+              type: 'Alembic migration',
+              location: 'alembic/versions/{rev}.py',
+              example: 'alembic/versions/abc123.py',
+            },
+          ],
+        },
+      ],
+      runtimes: { python: '3.11' },
+      dependencies: {
+        by_service: {
+          'cm-ai-api': {
+            production: [
+              'fastapi>=0.115.0',
+              'SQLAlchemy>=2.0.36',
+              'alembic>=1.13.3',
+              'PyJWT>=2.10.1',
+            ],
+          },
+        },
+      },
+      automation: {
+        makefiles: [
+          {
+            path: 'Makefile',
+            targets: [
+              { name: 'setup', group: 'setup', description: 'Full local setup' },
+              { name: 'tests', group: 'test', description: 'Run all tests' },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  it('renders a per-service block with versioned framework and dependencies', () => {
+    expect(trimmed.tech_stack_markdown).toContain('### cm-ai-api (Python 3.11)');
+    expect(trimmed.tech_stack_markdown).toContain('- **FastAPI** >=0.115.0 — framework');
+    expect(trimmed.tech_stack_markdown).toContain('- **SQLAlchemy** >=2.0.36');
+    expect(trimmed.tech_stack_markdown).toContain('- **PyJWT** >=2.10.1');
+    expect(trimmed.tech_stack_markdown).not.toContain('(not determined by analysis)');
+  });
+
+  it('derives a Directory Structure tree instead of the single-repo placeholder', () => {
+    expect(trimmed.directory_structure_markdown).not.toContain('single-service / polyrepo');
+    expect(trimmed.directory_structure_markdown).toContain('src/');
+    expect(trimmed.directory_structure_markdown).toContain('# REST router');
+    expect(trimmed.directory_structure_markdown).toContain('# Alembic migration');
+  });
+
+  it('renders a 2-column Essential Commands table', () => {
+    expect(trimmed.essential_commands_markdown).toContain('| Command | Description |');
+    expect(trimmed.essential_commands_markdown).not.toContain('| Action | Command | Description |');
+    expect(trimmed.essential_commands_markdown).toContain('`make setup`');
+  });
+});

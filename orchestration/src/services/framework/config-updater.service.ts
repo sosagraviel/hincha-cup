@@ -9,7 +9,6 @@ import { readFile, writeFile, mkdir, readdir, stat } from 'fs/promises';
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { createHash } from 'crypto';
-import { execSync } from 'child_process';
 import { z } from 'zod';
 import {
   FrameworkConfigSchema,
@@ -17,11 +16,8 @@ import {
   type ResourceInfo,
 } from '../../schemas/index.js';
 import { type Service } from '../../schemas/stack-profile.schema.js';
-import {
-  resolveFrameworkConfigPath,
-  resolveConfigPath,
-  getAllProviderManagedDirs,
-} from '../../utils/provider-paths.js';
+import { resolveFrameworkConfigPath, resolveConfigPath } from '../../utils/provider-paths.js';
+import { stripVolatileFields } from './framework-config-normalizer.js';
 
 export type { FrameworkConfig, ResourceInfo };
 
@@ -73,6 +69,8 @@ export class ConfigUpdaterService {
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true });
     }
+
+    stripVolatileFields(config as unknown as Record<string, unknown>);
 
     await writeFile(this.configPath, JSON.stringify(config, null, 2));
   }
@@ -189,7 +187,6 @@ export class ConfigUpdaterService {
     config.resource_state[resourceType][resourceName] = {
       ...config.resource_state[resourceType][resourceName],
       ...metadata,
-      last_sync: new Date().toISOString(),
     };
 
     config.resource_state.last_sync = new Date().toISOString();
@@ -213,76 +210,6 @@ export class ConfigUpdaterService {
     }
 
     return false;
-  }
-
-  generateProjectHash(): string {
-    const extensions = ['*.js', '*.ts', '*.py', '*.json', '*.md', '*.go', '*.java', '*.rs', '*.rb'];
-    const excludes = [
-      'node_modules',
-      '.git',
-      ...getAllProviderManagedDirs(),
-      'dist',
-      'build',
-      '__pycache__',
-      'venv',
-      'target',
-    ];
-
-    try {
-      const findCmd = `find "${this.projectPath}" -type f \\( ${extensions.map((ext) => `-name "${ext}"`).join(' -o ')} \\) ${excludes.map((ex) => `-not -path "*/${ex}/*"`).join(' ')} | sort | xargs cat 2>/dev/null | sha256sum | cut -d' ' -f1`;
-
-      const hash = execSync(findCmd, { encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 }).trim();
-
-      return hash;
-    } catch (error) {
-      console.warn(
-        'Warning: Could not generate project hash:',
-        error instanceof Error ? error.message : String(error),
-      );
-      return createHash('sha256').update(Math.random().toString()).digest('hex');
-    }
-  }
-
-  async detectProjectChanges(): Promise<{
-    changed: boolean;
-    currentHash: string;
-    storedHash?: string;
-  }> {
-    const config = await this.readConfig();
-    const currentHash = this.generateProjectHash();
-    const storedHash = config.project_metadata.initialization_hash;
-
-    if (currentHash !== storedHash) {
-      return {
-        changed: true,
-        currentHash,
-        storedHash,
-      };
-    }
-
-    return {
-      changed: false,
-      currentHash,
-    };
-  }
-
-  async updateProjectMetadata(updates: Record<string, any>): Promise<FrameworkConfig> {
-    const config = await this.readConfig();
-
-    config.project_metadata = {
-      ...config.project_metadata,
-      ...updates,
-    };
-
-    if (updates.initialization_hash === undefined) {
-      config.project_metadata.initialization_hash = this.generateProjectHash();
-    }
-
-    config.project_metadata.last_analysis = new Date().toISOString();
-
-    await this.writeConfig(config);
-
-    return config;
   }
 
   hashFile(filePath: string): string {

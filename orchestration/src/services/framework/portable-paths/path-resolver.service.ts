@@ -11,10 +11,9 @@
  */
 import { isAbsolute, relative, resolve } from 'path';
 
+import { NON_PORTABLE_ABSOLUTE_PATTERN } from './patterns.js';
 import type { AbsolutePath, ProjectRelativePath } from './types.js';
 import { PortabilityError, asProjectRelativePath } from './types.js';
-
-const NON_PORTABLE_ABSOLUTE_PATTERN = /(?<![A-Za-z])\/(?:Users|home)\/[a-zA-Z][a-zA-Z0-9_.-]*\//;
 
 const ALLOWLIST_PREFIXES = ['/tmp/', 'https://', 'http://', 'file://'];
 

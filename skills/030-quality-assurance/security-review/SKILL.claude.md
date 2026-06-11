@@ -3,7 +3,7 @@ name: security-review
 version: 2.0.0
 last-updated: 2026-05-14
 description: Performs hybrid SAST + LLM-adjudicator security analysis across all detected languages, emitting per-repo SARIF 2.1.0, structured JSON, and a human-readable report. Triggered by /implement-ticket Phase 10 once per PR URL; also user-invocable standalone or in multi-repo mode with --repos.
-argument-hint: '[--pr-url <URL>] [--jira-key <KEY>] [--repos <abs1>,<abs2>,...] [--baseline <path>] [--aggregate]'
+argument-hint: '[--pr-url <URL>] [--jira-key <KEY>] [--artifacts-dir <abs>] [--repos <abs1>,<abs2>,...] [--baseline <path>] [--aggregate]'
 allowed-tools: Bash, Read, Write, Glob, Grep
 user-invocable: true
 disable-model-invocation: false
@@ -16,6 +16,7 @@ Input: $ARGUMENTS
 Parse flags from the input above:
 - `--pr-url <URL>` — GitHub PR URL providing diff context for LLM triage
 - `--jira-key <KEY>` — Jira ticket key used for artifact path namespacing
+- `--artifacts-dir <abs>` — absolute dir to write output under (`<dir>/security/...`); parsed into `$ARTIFACTS_DIR_FLAG`. Passed by `/implement-ticket`. When omitted, falls back to the relative default — see Artifact Paths.
 - `--repos <abs1>,<abs2>,...` — comma-separated absolute paths; each is scanned independently
 - `--baseline <path>` — JSON findings file; only new fingerprints appear in output
 - `--aggregate` — after per-repo scans, run cross-repo aggregator agent
@@ -25,28 +26,33 @@ When `--jira-key` is absent, derive a slug from the PR URL or use `adhoc-<date>`
 
 ## Artifact Paths
 
-**Single-repo:**
+Resolve the base once: use `--artifacts-dir` (`$ARTIFACTS_DIR_FLAG`, absolute, passed by `/implement-ticket`) when given, else the prior relative default. Per repo, derive the output dir and scanner dir (`$REPO_BASENAME` is empty in single-repo, the repo basename in multi-repo):
+
+```bash
+ARTIFACTS_BASE="${ARTIFACTS_DIR_FLAG:-{{TEMP_DIR}}/artifacts/${JIRA_KEY}}"
+ARTIFACTS_DIR="$ARTIFACTS_BASE/security${REPO_BASENAME:+/$REPO_BASENAME}"
+SCANNER_OUT="$ARTIFACTS_DIR/scanner-outputs"; mkdir -p "$SCANNER_OUT"
 ```
-{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/
+
+**Single-repo** (`$ARTIFACTS_DIR` = `$ARTIFACTS_BASE/security`):
+```
+$ARTIFACTS_BASE/security/
   sarif.json
   security-results.json
   security-report.md
   scanner-outputs/
 ```
 
-**Multi-repo (one entry per repo):**
+**Multi-repo (one entry per repo, `$ARTIFACTS_DIR` = `$ARTIFACTS_BASE/security/<repo-basename>`):**
 ```
-{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/<repo-basename>/
-  sarif.json
-  security-results.json
-  security-report.md
-  scanner-outputs/
+$ARTIFACTS_BASE/security/<repo-basename>/
+  (same files)
 ```
 
 **Cross-repo summary (only with --aggregate):**
 ```
-{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/cross-repo-summary.json
-{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/cross-repo-summary.md
+$ARTIFACTS_BASE/security/cross-repo-summary.json
+$ARTIFACTS_BASE/security/cross-repo-summary.md
 ```
 
 ## Stack Detection Table
@@ -69,7 +75,7 @@ When a language is detected but its scanner is not installed, emit a `scanner-mi
 
 ## Pipeline
 
-Run this pipeline for each target repo. Runs are independent and may proceed in parallel when multiple repos are given.
+Run this pipeline for each target repo. Runs are independent and may proceed in parallel when multiple repos are given. Before Step 1, set `$REPO_PATH`/`$REPO_BASENAME` for the repo and run the Artifact Paths snippet to define `$ARTIFACTS_DIR` and `$SCANNER_OUT` (always under the workspace-root base, never inside `$REPO_PATH`).
 
 ---
 
@@ -253,13 +259,13 @@ npx @microsoft/sarif-multitool validate "$ARTIFACTS_DIR/sarif.json" 2>/dev/null 
 
 ### Step 9 — Cross-Repo Aggregator (--aggregate only)
 
-When `--aggregate` is set and more than one repo was scanned, invoke `agents/cross-repo-aggregator.md`.
+When `--aggregate` is set and more than one repo was scanned, invoke `agents/cross-repo-aggregator.md`. Resolve `$ARTIFACTS_BASE` (see Artifact Paths) — same base the per-repo scans used.
 
-The aggregator reads all per-repo `security-results.json` files and produces:
+The aggregator reads all per-repo `security-results.json` files (under `$ARTIFACTS_BASE/security/*/`) and produces:
 - `cross-repo-summary.json` — structured summary (schema below)
 - `cross-repo-summary.md` — human-readable version
 
-Both files are written to `{{TEMP_DIR}}/artifacts/<JIRA_KEY>/security/`.
+Both files are written to `$ARTIFACTS_BASE/security/`.
 
 ---
 
@@ -363,7 +369,7 @@ interface ScannerSummary {
       "majorCount": 4,
       "minorCount": 1,
       "overallStatus": "FAIL",
-      "sarifPath": "{{TEMP_DIR}}/artifacts/PROJ-123/security/my-service/sarif.json"
+      "sarifPath": "<workspace-root>/{{TEMP_DIR}}/artifacts/PROJ-123/security/my-service/sarif.json"
     }
   ],
   "crossCuttingConcerns": [

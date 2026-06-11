@@ -2,10 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConfigUpdaterService } from '../../../src/services/framework/config-updater.service.js';
 import * as syncHelpers from '../../../src/services/framework/sync-helpers.service.js';
 import * as mcpConfigService from '../../../src/services/framework/mcp-config.service.js';
-import { syncMcpConfig } from '../../../src/scripts/sync-framework-resources.js';
+import * as normalizer from '../../../src/services/framework/framework-config-normalizer.js';
+import {
+  syncMcpConfig,
+  normalizeFrameworkConfig,
+} from '../../../src/scripts/sync-framework-resources.js';
 
 vi.mock('../../../src/services/framework/mcp-config.service.js', () => ({
   upsertCodeGraphMcpConfig: vi.fn(),
+}));
+
+vi.mock('../../../src/services/framework/framework-config-normalizer.js', () => ({
+  stripVolatileFrameworkConfigFile: vi.fn(),
 }));
 
 vi.mock('../../../src/utils/logger.js', () => ({
@@ -39,6 +47,31 @@ describe('sync-framework-resources script', () => {
     expect(syncHelpers.updateSingleSkill).toBeDefined();
     expect(syncHelpers.addSingleSkill).toBeDefined();
     expect(syncHelpers.regenerateSingleAgent).toBeDefined();
+  });
+
+  it('normalizes framework-config.json (strips legacy volatile fields)', () => {
+    vi.mocked(normalizer.stripVolatileFrameworkConfigFile).mockReturnValue(true);
+
+    const result = normalizeFrameworkConfig({
+      projectPath: '/project',
+      frameworkPath: '/framework',
+    });
+
+    expect(result.normalized).toBe(true);
+    expect(normalizer.stripVolatileFrameworkConfigFile).toHaveBeenCalledWith(
+      expect.stringContaining('framework-config.json'),
+    );
+  });
+
+  it('reports not-normalized when the config is already clean', () => {
+    vi.mocked(normalizer.stripVolatileFrameworkConfigFile).mockReturnValue(false);
+
+    const result = normalizeFrameworkConfig({
+      projectPath: '/project',
+      frameworkPath: '/framework',
+    });
+
+    expect(result.normalized).toBe(false);
   });
 
   it('should sync code graph MCP config', async () => {

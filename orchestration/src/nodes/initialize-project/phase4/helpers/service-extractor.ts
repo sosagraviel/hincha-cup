@@ -106,6 +106,31 @@ export function extractORMForService(
 }
 
 /**
+ * Reduce a raw analyzer environment object to the committed-config shape.
+ *
+ * `port_search_evidence` is Phase-1 validation narration — its only consumer is
+ * the port-discovery validation hooks that run on the raw analyzer output before
+ * extraction. It must never reach `framework-config.json`, which ships to every
+ * developer machine. Picking an explicit field set is the single normalization
+ * point that keeps narration (and any future analyzer-only field) out.
+ *
+ * @param env - Raw environment object from a Phase 1 analyzer service entry
+ * @returns Committed-config environment, or undefined when no environment exists
+ */
+export function normalizeServiceEnvironment(env: any): ServiceEnvironment | undefined {
+  if (!env) return undefined;
+
+  return {
+    port: env.port,
+    env_file: env.env_file,
+    deployment_target: env.deployment_target,
+    docker_image: env.docker_image,
+    port_applies: env.port_applies,
+    port_applies_reason: env.port_applies_reason,
+  };
+}
+
+/**
  * Extract environment configuration for a specific service
  *
  * @param serviceId - Service identifier
@@ -117,14 +142,7 @@ export function extractEnvironmentForService(
   structureFindings: any,
 ): ServiceEnvironment | undefined {
   const svcEnv = structureFindings?.services?.find((s: any) => s.id === serviceId)?.environment;
-  if (!svcEnv) return undefined;
-
-  return {
-    port: svcEnv.port,
-    env_file: svcEnv.env_file,
-    deployment_target: svcEnv.deployment_target,
-    docker_image: svcEnv.docker_image,
-  };
+  return normalizeServiceEnvironment(svcEnv);
 }
 
 /**
@@ -208,7 +226,9 @@ export function extractServicesFromPhase1Analyzers(
       },
       testing: extractTestingForService(svc.id, codePatternsFindings),
       databases: extractDatabasesForService(svc.id, techStackFindings, dataFlowsFindings),
-      environment: svc.environment || extractEnvironmentForService(svc.id, structureFindings),
+      environment:
+        normalizeServiceEnvironment(svc.environment) ??
+        extractEnvironmentForService(svc.id, structureFindings),
       file_count: svc.file_count,
       package_manager:
         svc.package_manager || extractPackageManagerForService(svc.id, techStackFindings),

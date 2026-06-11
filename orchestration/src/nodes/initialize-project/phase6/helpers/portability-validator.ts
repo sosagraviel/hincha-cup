@@ -7,23 +7,28 @@
  * past the type system + Zod refinement + PortableWriter assertion, the runtime
  * scan catches the leak before the run reports success.
  *
+ * Scope carve-out — `settings.local.json` is never a hard violation. The
+ * Claude/Codex CLI auto-writes machine-specific absolute paths into it; it is
+ * per-developer and not meant to be committed. It is always skipped. If it
+ * happens to be git-tracked *and* carries a non-portable path, the file is
+ * reported (as `trackedLocalSettings`) so the caller can advise `git rm
+ * --cached` — but it never fails the scan.
+ *
  * Allowlists mirror PortablePathResolver: `/tmp/` is POSIX-standard, URLs are
  * machine-agnostic, and explicit example fences let docs reference paths
  * intentionally without tripping the validator.
  */
+import { execFileSync } from 'child_process';
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
-import { extname, join, relative } from 'path';
+import { basename, extname, join, relative, sep } from 'path';
 
+import { NON_PORTABLE_ABSOLUTE_PATTERN } from '../../../../services/framework/portable-paths/patterns.js';
 import { removeCodeGraphMcpTomlBlock } from '../../../../services/framework/codex-mcp-toml.js';
+import { stripVolatileFrameworkConfigFile } from '../../../../services/framework/framework-config-normalizer.js';
 import { logger } from '../../../../utils/logger.js';
 import { getAllProviderConfigDirs } from '../../../../utils/provider-paths.js';
 
-/**
- * Regex used by both the runtime portability validator and the framework
- * skill-portability CI guard. Exported so the two stay in lockstep.
- */
-export const NON_PORTABLE_ABSOLUTE_PATTERN =
-  /(?<![A-Za-z])\/(?:Users|home)\/[a-zA-Z][a-zA-Z0-9_.-]*\//;
+export { NON_PORTABLE_ABSOLUTE_PATTERN };
 
 const TEXT_EXTENSIONS = new Set([
   '.md',
@@ -60,6 +65,14 @@ export interface PortabilityValidationResult {
   ok: boolean;
   violations: PortabilityViolation[];
   filesScanned: number;
+  /**
+   * Relative paths of `settings.local.json` files that are git-tracked AND
+   * carry non-portable absolute paths. The Claude/Codex CLI auto-writes
+   * machine-specific paths into this file, so it is never a hard violation —
+   * but if it is tracked the developer is committing those paths, so the
+   * caller surfaces an actionable `git rm --cached` warning. Never affects `ok`.
+   */
+  trackedLocalSettings: string[];
 }
 
 /**
@@ -76,6 +89,7 @@ export interface PortabilityValidationResult {
  */
 export function validatePortability(projectPath: string): PortabilityValidationResult {
   const violations: PortabilityViolation[] = [];
+  const trackedLocalSettings = new Set<string>();
   let filesScanned = 0;
 
   for (const configDir of getAllProviderConfigDirs()) {
@@ -83,6 +97,7 @@ export function validatePortability(projectPath: string): PortabilityValidationR
     if (!existsSync(root)) continue;
     stripStaleFrameworkConfigFields(root, projectPath);
     stripStaleCodexMcpServerBlock(root, projectPath);
+
     walkAndScan(
       root,
       projectPath,
@@ -92,6 +107,9 @@ export function validatePortability(projectPath: string): PortabilityValidationR
       () => {
         filesScanned += 1;
       },
+      (rel) => {
+        trackedLocalSettings.add(rel);
+      },
     );
   }
 
@@ -99,51 +117,57 @@ export function validatePortability(projectPath: string): PortabilityValidationR
     ok: violations.length === 0,
     violations,
     filesScanned,
+    trackedLocalSettings: Array.from(trackedLocalSettings).sort(),
   };
 }
 
 /**
+ * True when `rel` (relative to `projectPath`) is git-tracked. Used to decide
+ * whether a skipped `settings.local.json` warrants an actionable
+ * `git rm --cached` warning. Returns `false` on any git error / non-repo.
+ */
+function isPathTracked(projectPath: string, rel: string): boolean {
+  try {
+    const out = execFileSync('git', ['-C', projectPath, 'ls-files', '--cached', '--', rel], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return out.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** True when any line (outside example fences) carries a non-portable path. */
+function containsNonPortable(content: string): boolean {
+  return stripExampleFences(content)
+    .split('\n')
+    .some((line) => NON_PORTABLE_ABSOLUTE_PATTERN.test(line));
+}
+
+/**
  * Surgical strip of known-stale fields from `framework-config.json` files
- * left behind by older versions of the framework. Today the only such field
- * is `project_metadata.project_path` — the current writer never emits it,
- * but pre-existing files (e.g. an older `--provider codex` run) still
- * carry it and would otherwise fail the portability scan.
+ * left behind by older versions of the framework. The current writer emits a
+ * deterministic config, but pre-existing committed files still carry volatile
+ * fields that churned on every run — the whole `project_metadata` block
+ * (`project_path`, `initialization_hash`, `last_analysis`) and `last_sync`
+ * timestamps (top-level `resource_state.last_sync` plus per-resource entries).
+ * Stripping them here clears the noise on the next run even when only
+ * `sync-framework-resources` ran (a full regen would overwrite the file
+ * anyway).
  *
- * Surgical = preserve every other field (`initialization_hash`,
- * `last_analysis`, the entire `stack_profile`, etc.). We only touch the one
- * field whose presence we already disabled in the writer.
+ * Surgical = preserve every other field (the entire `stack_profile`, the
+ * `resource_state` entries minus their timestamps, etc.). Compare-then-write:
+ * the file is rewritten only when a stale field was actually present, so the
+ * pass is idempotent.
  */
 function stripStaleFrameworkConfigFields(configDirRoot: string, projectPath: string): void {
   const filePath = join(configDirRoot, 'framework-config.json');
-  if (!existsSync(filePath)) return;
-
-  let raw: string;
-  try {
-    raw = readFileSync(filePath, 'utf-8');
-  } catch {
-    return;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return;
-  }
-  if (!isObject(parsed)) return;
-
-  const meta = (parsed as Record<string, unknown>).project_metadata;
-  if (!isObject(meta)) return;
-
-  if (!Object.prototype.hasOwnProperty.call(meta, 'project_path')) return;
-
-  delete (meta as Record<string, unknown>).project_path;
-  try {
-    writeFileSync(filePath, JSON.stringify(parsed, null, 2) + '\n', 'utf-8');
+  if (stripVolatileFrameworkConfigFile(filePath)) {
     logger.info(
-      `[portability] stripped stale project_path field from ${relative(projectPath, filePath)}`,
+      `[portability] stripped stale volatile fields from ${relative(projectPath, filePath)}`,
     );
-  } catch {}
+  }
 }
 
 /**
@@ -182,15 +206,12 @@ function stripStaleCodexMcpServerBlock(configDirRoot: string, projectPath: strin
   } catch {}
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function walkAndScan(
   dir: string,
   projectPath: string,
   onViolation: (file: string, line: number, content: string) => void,
   onFile: () => void,
+  onTrackedLocalSettings: (rel: string) => void,
 ): void {
   let entries: string[];
   try {
@@ -209,11 +230,30 @@ function walkAndScan(
       continue;
     }
     if (s.isDirectory()) {
-      walkAndScan(full, projectPath, onViolation, onFile);
+      walkAndScan(full, projectPath, onViolation, onFile, onTrackedLocalSettings);
       continue;
     }
     if (!s.isFile()) continue;
     if (!TEXT_EXTENSIONS.has(extname(entry).toLowerCase())) continue;
+
+    // Normalize to POSIX separators so reported paths and the git pathspec
+    // below are stable across platforms (`path.relative` yields `\` on Windows).
+    const rel = relative(projectPath, full).split(sep).join('/');
+
+    // `settings.local.json` is CLI-managed and machine-local by design (the
+    // Claude/Codex CLI auto-writes absolute paths into it), so it is never a
+    // hard violation. If it is git-tracked AND carries a non-portable path,
+    // flag it so the caller can advise `git rm --cached`.
+    if (basename(full) === 'settings.local.json') {
+      if (isPathTracked(projectPath, rel)) {
+        let local = '';
+        try {
+          local = readFileSync(full, 'utf-8');
+        } catch {}
+        if (containsNonPortable(local)) onTrackedLocalSettings(rel);
+      }
+      continue;
+    }
 
     onFile();
     let content: string;
@@ -223,7 +263,7 @@ function walkAndScan(
       continue;
     }
     scanTextForViolations(stripExampleFences(content), (lineNum, lineText) => {
-      onViolation(relative(projectPath, full), lineNum, lineText.trim().slice(0, 200));
+      onViolation(rel, lineNum, lineText.trim().slice(0, 200));
     });
   }
 }

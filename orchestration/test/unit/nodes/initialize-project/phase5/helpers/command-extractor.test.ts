@@ -545,10 +545,12 @@ describe('getDefaultCommands — every language renders correct defaults', () =>
     expect(cmds.build).toBe('gradle build');
   });
 
-  it('Ruby uses bundle exec rspec', async () => {
+  it('Ruby uses bundle exec rspec and falls back to rubocop for typecheck', async () => {
     await touch('Gemfile', 'source "https://rubygems.org"\n');
     const cmds = getDefaultCommands('ruby', projectDir);
     expect(cmds.test).toBe('bundle exec rspec');
+    expect(cmds.typecheck).toBe('bundle exec rubocop');
+    expect(cmds.build).toBe('bundle install');
   });
 
   it('PHP uses composer scripts', async () => {

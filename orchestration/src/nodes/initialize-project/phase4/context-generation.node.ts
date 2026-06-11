@@ -19,6 +19,7 @@ import {
 } from './helpers/language-validator.js';
 import { extractFrameworks } from './helpers/framework-extractor.js';
 import { extractInfrastructure } from './helpers/infrastructure-extractor.js';
+import { detectVersionControl } from './helpers/version-control-extractor.js';
 import { extractServicesFromPhase1Analyzers } from './helpers/service-extractor.js';
 import { validateStackProfile } from './helpers/stack-profile-validator.js';
 import { UTILITY_LANGUAGES } from './constants.js';
@@ -330,6 +331,7 @@ export async function contextGenerationNode(
         normalisePackageManager(techStackFindings?.monorepo?.package_manager) ??
         normalisePackageManager(techStackFindings?.monorepo?.workspace_manager),
       infrastructure: infrastructureFromPhase1.length > 0 ? infrastructureFromPhase1 : undefined,
+      software_version_control: detectVersionControl(state.project_path),
       file_counts: fileCountResult
         ? {
             total: fileCountResult.total_files,

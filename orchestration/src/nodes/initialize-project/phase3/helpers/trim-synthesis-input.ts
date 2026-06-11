@@ -12,7 +12,6 @@
  * language-specific values are filtered or rewritten.
  */
 
-import { basename } from 'path';
 import { buildCatalogFromConsolidation } from './build-catalog-from-consolidation.js';
 import { renderEssentialCommandsMarkdown } from '../../../../services/framework/command-catalog/render-essential-commands.js';
 import { renderTechStackMarkdown } from '../../../../services/framework/synth-renderers/render-tech-stack.js';
@@ -58,6 +57,13 @@ interface CuratedSynthesisInput {
   command_catalog: CommandCatalog;
   /** Pre-rendered `## Essential Commands` markdown. The synthesizer copies this verbatim. */
   essential_commands_markdown: string;
+  /**
+   * CANDIDATE `## Tech Stack` list — every detected language / runtime /
+   * framework / production dependency, each with its version. The synthesizer
+   * CURATES this down to the most important entries (see the "Tech Stack rule"
+   * in synthesis-instructions.md); it is NOT pasted verbatim like the other
+   * pre-rendered sections. Do not move it back into the verbatim-paste set.
+   */
   tech_stack_markdown: string;
   services_and_ports_markdown: string;
   directory_structure_markdown: string;
@@ -165,6 +171,7 @@ export function trimSynthesisInput(consolidation: unknown): CuratedSynthesisInpu
       services: summary.services,
       build_tools: summary.build_tools,
       monorepo: summary.monorepo,
+      dependencies: firstFromSources(sources, 'dependencies'),
     }),
     services_and_ports_markdown: renderServicesAndPortsMarkdown({
       services: summary.services,
@@ -276,11 +283,4 @@ function pickConsolidationMetadata(root: Record<string, unknown>): unknown {
   if (isObject(root.consolidation_metadata)) return root.consolidation_metadata;
   if (isObject(root.question_consolidation)) return root.question_consolidation;
   return {};
-}
-
-function pickFirst(...candidates: unknown[]): unknown {
-  for (const c of candidates) {
-    if (c !== undefined && c !== null) return c;
-  }
-  return undefined;
 }

@@ -22,6 +22,7 @@ import { existsSync } from 'fs';
 import { join, resolve } from 'path';
 import { logger } from '../utils/logger.js';
 import { ConfigUpdaterService } from '../services/framework/config-updater.service.js';
+import { stripVolatileFrameworkConfigFile } from '../services/framework/framework-config-normalizer.js';
 import {
   updateSingleSkill,
   addSingleSkill,
@@ -542,6 +543,26 @@ export async function syncMcpConfig(config: SyncConfig): Promise<{
 }
 
 /**
+ * Normalize the committed `framework-config.json` before any sync writes.
+ *
+ * Strips legacy volatile fields (`project_metadata`, `resource_state.last_sync`,
+ * per-resource `last_sync`) left by older framework versions. Runs
+ * unconditionally so a no-op sync still converges the file to the deterministic
+ * shape, and runs before the resource reads/writes so nothing re-introduces
+ * them.
+ *
+ * @returns `{ normalized }` — true when the file was rewritten.
+ */
+export function normalizeFrameworkConfig(config: SyncConfig): { normalized: boolean } {
+  const cfgFile = resolveFrameworkConfigPath(config.projectPath);
+  const normalized = stripVolatileFrameworkConfigFile(cfgFile);
+  if (normalized) {
+    logger.info('  Normalized framework-config.json (removed legacy volatile fields)\n');
+  }
+  return { normalized };
+}
+
+/**
  * Main sync function
  */
 async function main() {
@@ -560,6 +581,8 @@ async function main() {
     logger.info(`  Provider:  ${provider} (config: ${providerPaths.configDir})\n`);
 
     await validatePrerequisites(config);
+
+    normalizeFrameworkConfig(config);
 
     const versionInfo = await detectFrameworkVersion(config);
 

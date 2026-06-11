@@ -9,13 +9,6 @@ import {
 import type { Phase1AnalysisData } from './types.js';
 
 /**
- * Generate project hash for tracking changes
- */
-function generateProjectHash(): string {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2);
-}
-
-/**
  * Generate framework configuration from disk files and stack profile
  * This function is idempotent - it reads from disk files, not state
  */
@@ -40,6 +33,7 @@ export function generateFrameworkConfig(
     workspace_tool: stackProfile.workspace_tool,
     package_manager: stackProfile.package_manager,
     infrastructure: stackProfile.infrastructure,
+    software_version_control: stackProfile.software_version_control,
     file_counts: stackProfile.file_counts,
     automation: stackProfile.automation,
     readme_run_sections: stackProfile.readme_run_sections,
@@ -50,15 +44,10 @@ export function generateFrameworkConfig(
     version: frameworkVersion,
     schema_version: '1.0.0',
     framework_version: frameworkVersion,
-    project_metadata: {
-      last_analysis: new Date().toISOString(),
-      initialization_hash: generateProjectHash(),
-    },
     stack_profile: stackProfileData,
     resource_state: {
       skills: {},
       agents: {},
-      last_sync: new Date().toISOString(),
     },
   };
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ControlVersionProvidersSchema } from '../nodes/initialize-project/phase4/helpers/version-control-extractor.js';
 
 /**
  * Stack profile schema (service-centric).
@@ -85,14 +86,6 @@ export const ServiceEnvironmentSchema = z.object({
         '(e.g. "AWS Lambda — invoked via API Gateway, no localhost port", ' +
         '"library — no runtime", "build step — runs and exits"). Required ' +
         'when port_applies=false.',
-    ),
-  port_search_evidence: z
-    .array(z.string())
-    .optional()
-    .describe(
-      'When port is omitted AND port_applies=false, list ≥2 search attempts ' +
-        'that established no port applies (e.g. ["Read firebase.json — no ' +
-        'emulators block", "Read serverless.yml — no provider.dev port"]).',
     ),
 });
 export type ServiceEnvironment = z.infer<typeof ServiceEnvironmentSchema>;
@@ -325,6 +318,10 @@ export const StackProfileSchema = z
       .array(z.string())
       .optional()
       .describe('Infrastructure tools detected (e.g., ["Docker", "Kubernetes", "Terraform"])'),
+    software_version_control: ControlVersionProvidersSchema.optional().describe(
+      'VCS hosting platform detected from the git origin remote ' +
+        '(e.g., "github", "gitlab", "azure-devops", "bitbucket")',
+    ),
     file_counts: z
       .object({
         total: z.number().describe('Total number of files in repository'),
