@@ -1,8 +1,8 @@
-# ai-agentic-framework — LLM Wiki router
+# qubika-agentic-framework — LLM Wiki router
 
 ## Wiki at a glance
 
-This directory is the LLM-owned knowledge base for **ai-agentic-framework**. 3 services: `orchestration`, `website`, `python-scripts`.
+This directory is the LLM-owned knowledge base for **qubika-agentic-framework**. 5 services: `orchestration`, `website`, `python-scripts`, `javascript-scripts`, `gritogol`.
 
 Top-level docs under `wiki/`: `index.md`, `ARCHITECTURE.md`, `SERVICES.md`. Per-service docs under `wiki/services/<id>.md`. Every page carries `document_type` / `summary` / `last_updated` / `tags` / `related` frontmatter; `index.md` aggregates that frontmatter inline so a single read serves Tier 1 retrieval. Prescriptive content (conventions, workflows, testing rules) lives in skills, not in the wiki.
 

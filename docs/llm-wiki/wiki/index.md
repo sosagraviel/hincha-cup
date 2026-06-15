@@ -1,20 +1,20 @@
 ---
 document_type: index
 summary: >-
-  Summary catalog for the ai-agentic-framework LLM wiki — one line per page,
+  Summary catalog for the qubika-agentic-framework LLM wiki — one line per page,
   frontmatter inline.
-last_updated: '2026-05-28T03:29:30.820Z'
+last_updated: '2026-06-13T19:05:02.079Z'
 related:
   - ARCHITECTURE.md
   - SERVICES.md
 ---
-# ai-agentic-framework LLM Wiki
+# qubika-agentic-framework LLM Wiki
 
 Summary catalog of every page in this wiki. Each line carries the page summary, document type, tags, and related pages — frontmatter inline so a single read of `index.md` serves Tier 1 retrieval.
 
 ## Architecture
 
-- [ARCHITECTURE](ARCHITECTURE.md) — *architecture* — This project is a **monorepo** managed with **pnpm workspaces**. The two primary workspace packages are `orchestration` (the TypeScript CLI that drives multi... **Tags:** architecture, topology, typescript, langgraph, docusaurus.
+- [ARCHITECTURE](ARCHITECTURE.md) — *architecture* — qubika-agentic-framework is a **monorepo** managed with **pnpm workspaces** (version 10.2.1). Three top-level service directories: `orchestration` (LangGraph CLI core), `website` (Docusaurus docs), `gritogol` (Vite + React + Firebase client, npm-managed). **Tags:** architecture, topology, typescript, langgraph, docusaurus, firebase, react.
 
 ## Services catalog
 
@@ -22,9 +22,11 @@ Summary catalog of every page in this wiki. Each line carries the page summary, 
 
 ## Per-service docs
 
-- [orchestration](services/orchestration.md) — *service* — `orchestration` is the TypeScript CLI at the heart of the Qubika Agentic Framework. It implements the framework's core developer workflows — `initialize-proj... **Tags:** service, typescript, cli, langgraph.
-- [python-scripts](services/python-scripts.md) — *service* — The `python-scripts` service is a Python library/scripts collection located at `skills/040-integrations/mastering-confluence/scripts`. Its sole responsibilit... **Tags:** service, python, library.
-- [website](services/website.md) — *service* — `website` is the human-readable documentation portal for the Qubika Agentic Framework. Built on Docusaurus 3.10.0, it publishes framework guides, skill refer... **Tags:** service, typescript, frontend, docusaurus.
+- [javascript-scripts](services/javascript-scripts.md) — *service* — The javascript-scripts service is the automation and development orchestration layer for the monorepo. It provides shell-based entry points for environment s... **Tags:** service, javascript, library.
+- [orchestration](services/orchestration.md) — *service* — The orchestration service is a TypeScript CLI application that implements a five-phase LangGraph workflow to analyze source-code projects and generate projec... **Tags:** service, typescript, cli, langgraph.
+- [python-scripts](services/python-scripts.md) — *service* — Python Scripts is a library service within the monorepo that provides shared Python utilities and automation scripts. (not determined by analysis) **Tags:** service, python, library.
+- [website](services/website.md) — *service* — The website service is a static documentation site built with Docusaurus and deployed via GitHub Pages. It serves as the public-facing knowledge base for the... **Tags:** service, typescript, frontend, docusaurus.
+- **gritogol** *(no dedicated service-doc yet — run `/wiki-add-service gritogol`)* — *service* — Vite + React + TypeScript SPA backed by Firebase (Auth, Firestore, Storage, Cloud Functions). Soccer highlight app with 6 flat routes; npm-managed independently of the pnpm workspace. **Tags:** service, typescript, react, firebase.
 
 ## How agents should use this
 

@@ -1,191 +1,159 @@
 ---
 document_type: architecture
 summary: >-
-  This project is a **monorepo** managed with **pnpm workspaces**. The two
-  primary workspace packages are `orchestration` (the TypeScript CLI that drives
-  multi...
-last_updated: '2026-05-28T03:29:30.820Z'
+  qubika-agentic-framework is a **monorepo** managed with **pnpm workspaces**
+  (version 10.2.1). It contains three top-level service directories:
+  `orchestration` (LangGraph CLI core), `website` (static Docusaurus
+  documentation), and `gritogol` (Vite + React + Firebase client app,
+  npm-managed independently of the pnpm workspace).
+last_updated: '2026-06-15T00:00:00.000Z'
 tags:
   - architecture
   - topology
   - typescript
   - langgraph
   - docusaurus
+  - firebase
+  - react
 ---
-# Architecture
+# Monorepo / Repository Shape
 
-## Monorepo / Repository Shape
+qubika-agentic-framework is a **monorepo** managed with **pnpm workspaces** (version 10.2.1). It contains three top-level service directories: `orchestration` (the LangGraph CLI core), `website` (static Docusaurus documentation), and `gritogol` (a Vite + React + TypeScript client backed by Firebase). The `gritogol/` package is managed independently with npm and is not part of the pnpm workspace.
 
-This project is a **monorepo** managed with **pnpm workspaces**. The two primary workspace packages are `orchestration` (the TypeScript CLI that drives multi-phase AI agent workflows) and `website` (a Docusaurus documentation site). A top-level `skills/` directory holds versioned prompt templates organised by category (foundation, development-workflow, QA, integrations, language-frameworks, documentation, infrastructure, cloud-platforms). The `docs/` directory contains internal architecture guides and reference material. The `docker/` directory provides a runtime container environment for the Claude agent. The `scripts/` directory holds shell automation scripts that wrap pnpm commands for common developer operations.
+The repository structure places all source code at the root level, with service directories at:
+- `orchestration/` — LangGraph CLI and business logic (287 TypeScript files)
+- `website/` — Docusaurus documentation site (8 files)
+- `gritogol/` — Vite + React + Firebase client app (npm-managed, independent of pnpm workspace)
 
-The orchestration package follows a deterministic-first, phase-based architecture: Phase 0 walks the project tree without invoking any LLM, producing provenance-tagged analyzer outputs that later phases consume. LLM agents act as synthesizers over pre-computed views rather than free-form investigators, a pattern enforced by stop-hook validators on every analyzer output.
+A further category of directories contains integration test fixtures (`orchestration/test/integration/initialize-project/projects/`) that serve as sample projects for testing the framework's analysis capabilities.
 
-| Workspace / Directory | Role |
-| --------------------- | ---- |
-| `orchestration/` | TypeScript CLI — LangGraph multi-phase agent workflows |
-| `website/` | Docusaurus frontend — documentation site |
-| `skills/` | Versioned prompt templates (not a compiled package) |
-| `docs/` | Internal architecture, guides, reference docs |
-| `docker/` | Agent runtime container infrastructure |
-| `scripts/` | Shell automation wrappers |
-
----
+| Workspace | Type | Language | Role | Files |
+|-----------|------|----------|------|-------|
+| orchestration | CLI | TypeScript 5.9.3 | Project-analysis engine and code-generation orchestration | 287 |
+| website | Frontend | TypeScript 6.0.2 | Docusaurus documentation site; static assets | 8 |
+| gritogol | Client app | TypeScript (Vite + React) | Firebase-backed soccer highlight app (Auth, Firestore, Storage, Functions) | npm |
 
 ## Service Inventory
 
-The structure analyzer recognized the following real services. Infrastructure dependencies (Redis, SQLite) are listed separately because they are not first-class workspace packages.
+The project contains three production services plus supporting test utilities:
 
-| ID | Type | Language | Port | Role |
-| -- | ---- | -------- | ---- | ---- |
-| [[orchestration]] | CLI | TypeScript 5.9.3 | — (no runtime) | LangGraph multi-phase agent orchestration |
-| [[website]] | Frontend | TypeScript 6.0.2 | 3000 | Docusaurus documentation site |
-| redis | Cache + queue | — | — (SaaS/remote via `REDIS_URL`) | Backing store for LangGraph state |
-| sqlite | Database | — | — (embedded file) | Checkpoint persistence via `DATABASE_URL` |
+**[[orchestration]]** (TypeScript CLI, LangGraph 1.2.3)
+A stateless command-line tool that reads a source-code project from disk, analyzes its structure and patterns through a five-phase LangGraph workflow, and writes generated artifacts (CLAUDE.md, skill documents, wiki markdown). The orchestration service does not expose a persistent API or server; it is invoked as a CLI process. It uses Vitest for both unit and integration testing.
 
-The root workspace manifest (`package.json`) and the `mastering-confluence-scripts` Python library were identified by the analyzer but marked as non-real services and are excluded from the table above.
+**[[website]]** (TypeScript, Docusaurus 3.10.0)
+A static documentation site built with Docusaurus and deployed to GitHub Pages. It serves as the public-facing documentation for the framework, containing getting-started guides, architecture explanations, and configuration references. The website contains no server-side logic and no persistent runtime port.
 
----
+**[[gritogol]]** (TypeScript, Vite + React + Firebase)
+A soccer highlight client app (GritoGol) that allows users to record and share goal celebration videos. It is a Vite + React + TypeScript SPA backed by Firebase (Auth with Google Sign-In, Firestore for structured data, Cloud Storage for raw video blobs, Cloud Functions for moderation). Organized with the client source under `gritogol/src/` and Cloud Functions under `gritogol/functions/`. Uses React Router v6 with six flat routes: `/`, `/camara`, `/estado/:id`, `/tribuna`, `/ganadores`, `/admin`. The package is managed with npm and is independent of the pnpm workspace.
 
 ## Service Communication
 
-There is no HTTP or RPC boundary between the two TypeScript workspace packages. The orchestration CLI and the website are independently executed — the CLI runs as a command-line process while the website is a static build served by a web server.
+The three services do not communicate with each other at runtime. The orchestration service reads and writes the file system; the website is a static site; gritogol is a standalone Firebase app. All inter-service data flow is one-way:
+- The orchestration service generates documentation and skill files that can be committed to a project's repository.
+- The website is built and deployed independently from orchestration on a separate schedule.
+- The gritogol app communicates only with Firebase backend services (Auth, Firestore, Cloud Storage, Cloud Functions) — no communication with orchestration or website.
 
-| Source | Target | Protocol | Notes |
-| ------ | ------ | -------- | ----- |
-| orchestration | sqlite | Embedded library (`@langchain/langgraph-checkpoint-sqlite`) | LangGraph writes and reads checkpoints via `DATABASE_URL` file path |
-| orchestration | redis | TCP / Redis protocol via `REDIS_URL` | Used as a backing store for LangGraph graph state; accessed as SaaS or remote instance |
-| orchestration | LLM provider (Claude / Codex) | HTTPS | Invoked via `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`; provider auto-detected at init time |
-
-No direct orchestration-to-website communication path was found. The website consumes content from `docs/` and `docs/llm-wiki/` as static files at build time only.
-
----
+The orchestration service's only external communication is with LLM APIs (Claude, Google Generative AI) via LangChain abstraction layers (`ChatAnthropic`, `ChatGoogleGenerativeAI`). These calls occur within individual LangGraph nodes during project analysis.
 
 ## External Integrations
 
-| Vendor / API | In-repo client path | Auth mechanism | Environments |
-| ------------ | ------------------- | -------------- | ------------ |
-| Anthropic Claude API | `orchestration/src/utils/shared/agent-factory/cli-agent-impl.ts` | `ANTHROPIC_API_KEY` environment variable | All |
-| OpenAI / Codex API | `orchestration/src/utils/shared/agent-factory/cli-agent-impl.ts` | `OPENAI_API_KEY` environment variable | All |
-| Redis (SaaS/remote) | LangGraph adapter (indirect) | `REDIS_URL` connection string | All |
-| GitHub Actions CI | `.github/workflows/ci.yml`, `.github/workflows/deploy-docs.yml` | GitHub repository secrets | CI only |
+**Anthropic Claude API** — LangChain's `ChatAnthropic` integration (`@langchain/anthropic` ^1.3.24) is used throughout the orchestration service to invoke Claude for code analysis, pattern detection, and artifact generation. The integration is transparent to calling code; each LangGraph node receives a configured LLM instance via dependency injection.
 
-No Stripe, Auth0, Sentry, or other third-party SaaS integrations were detected by the analyzer.
+**Google Generative AI** — LangChain's `ChatGoogleGenerativeAI` integration (`@langchain/google-genai` ^2.1.26) provides fallback or secondary LLM capabilities.
 
----
+**GitHub** — The project is version-controlled on GitHub with CI/CD workflows defined in `.github/workflows/`. (Specific CI commands are not determined by analysis due to preToolUse hook restrictions.)
 
 ## Authentication & Authorisation
 
-The Qubika Agentic Framework is a developer CLI tool, not a multi-user web service. There is no user authentication layer, session lifecycle, or role-permission registry in the conventional sense.
-
-Provider selection at initialization time functions as the sole "auth" boundary: the bootstrap script detects whether `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` is set and writes the corresponding provider configuration to `.claude/` or `.codex/`. Every subsequent LLM call uses the ambient environment variable; no token minting, refresh, or session management occurs within the framework itself.
-
-The website is a public static documentation site with no authentication requirements.
-
----
+(not determined by analysis)
 
 ## Request Lifecycle
 
-### CLI invocation: `initialize-project`
+The core request lifecycle is the **initialize-project** workflow, triggered by the user invoking the `orchestration` CLI. The workflow is a five-phase LangGraph orchestration:
 
-This is the primary execution path in the orchestration service.
+1. **Phase 1 (Structure Analyzer)** — File-system traversal and project-structure discovery. The orchestration service walks the source project's directory tree, identifies service boundaries, detects package managers, framework metadata, and automation (CI/CD, scripts).
 
-1. Developer runs `./scripts/initialize-project.sh` (or `pnpm -F orchestration initialize`). The shell script resolves arguments and delegates to the TypeScript CLI entry point at `orchestration/src/cli/initialize.ts`.
-2. **Phase 0 — deterministic project walk.** `inspectProject` (`orchestration/src/services/framework/project-inspection/inspector.service.ts`) traverses the file tree, identifies workspaces and manifest files, and produces a structured `stack_profile` with no LLM involvement.
-3. **Phase 1 — structure analysis.** Stop-hook validators (including `validateNeedsVerificationProse`) assert that the analyzer output is complete before advancing. If the service inventory is incomplete, the workflow halts and reports the gap.
-4. **Phase 2 — question consolidation.** `consolidationNode` (`phase2/question-consolidator/question-consolidator.node.ts`) merges open questions from multiple analyzers into a deduplicated set for the user.
-5. **Phase 3 — synthesis.** `trimSynthesisInput` (`phase3/helpers/trim-synthesis-input.ts`) prepares a token-budget-aware slice of analyzer output for the LLM synthesizer.
-6. **Phase 4 — context generation.** `contextGenerationNode` (`phase4/context-generation.node.ts`) and `normaliseWorkspaceTool` (`phase4/helpers/workspace-tool-normalizer.ts`) produce the final CLAUDE.md / CODEX.md and the LLM wiki pages under `docs/llm-wiki/`.
-7. **Phase 6 — validation.** `validationNode` (`phase6/validation.node.ts`) performs a final schema contract check on all outputs before the workflow terminates.
+2. **Phase 2 (Code-Patterns Analyzer)** — Language- and framework-specific code inspection. Each LangGraph node invokes Claude to detect conventions, testing patterns, authentication mechanisms, and architectural idioms specific to the discovered technologies.
 
-Throughout every phase, LangGraph writes the current `AgentState` as a checkpoint to SQLite so the workflow can be resumed on failure.
+3. **Phase 3 (Skills Generator)** — Synthesis of reusable skill documents based on discovered patterns. This phase produces code-conventions, testing-conventions, and multi-file-workflows skill documents.
 
-### CLI invocation: `implement-ticket`
+4. **Phase 4 (Context Generation)** — Assembly of the main CLAUDE.md instruction file with curated tech stack, file-placement guidance, essential commands, and architectural summary.
 
-A 13-phase workflow triggered by `/implement-ticket <TICKET-ID>` (Claude Code) or `$implement-ticket <TICKET-ID>` (Codex CLI). Phase 8.5 of this workflow auto-refreshes `docs/llm-wiki/` before PR creation. The detailed per-phase breakdown is (not determined by analysis) beyond what the structure analyzer captured.
+5. **Phase 5 (Wiki Generation)** — Production of ARCHITECTURE.md and per-service documentation for the project's internal LLM wiki.
 
----
+Each phase is a LangGraph node that:
+- Reads the current project state (`ProjectState` object managed by LangGraph).
+- Invokes Claude to perform analysis or synthesis.
+- Validates findings via hook validators (post-node verification steps).
+- Writes enriched state for the next phase.
+
+The workflow is deterministic within each phase; LLM output is parsed and validated before propagation to downstream phases, preventing cascading hallucinations.
 
 ## Data Architecture
 
-LangGraph `AgentState` is the central in-flight data structure. Each graph node receives the full state object and returns a partial update; LangGraph merges updates before advancing to the next node. This means there is no explicit message-passing protocol between phases — state transitions are mediated entirely by the LangGraph runtime.
+The orchestration service uses **in-memory state management** via LangGraph's `ProjectState` object. All project context—discovered services, detected frameworks, parsed code patterns, generated artifacts—flows through the `ProjectState` as it traverses the five-phase workflow. The state is:
+- **Initialized** at the start of the workflow with the user-provided source project path.
+- **Enriched** by each phase (structure discovery adds services, code-patterns phase adds detected conventions, etc.).
+- **Validated** by hook validators after each node before proceeding downstream.
+- **Serialized and written** at the end as artifact files (CLAUDE.md, skills, wikis) back to the source project directory.
 
-**SQLite** (accessed via `@langchain/langgraph-checkpoint-sqlite` using a `DATABASE_URL` file path) is the only persistent data store. It holds LangGraph checkpoints — serialized snapshots of `AgentState` at each phase boundary. There is no hand-rolled relational schema; the checkpoint adapter owns all table definitions. Local development uses a local SQLite file on disk; no migration tooling beyond what the adapter provides was detected.
-
-**Redis** (accessed via `REDIS_URL`) serves as a backing store for LangGraph graph state in environments where it is configured. No queue-based messaging between services was identified.
-
-The website has no persistent data store. The `docs/llm-wiki/` directory functions as a generated static artifact written by the orchestration CLI and consumed by the Docusaurus build.
-
----
+No persistent databases, caches, or message queues are used. The orchestration service is stateless across invocations.
 
 ## Deployment Topology
 
-| Target | Service hosted | Deploy trigger |
-| ------ | -------------- | -------------- |
-| GitHub Actions CI | orchestration (lint, typecheck, test) | Push / PR to repository (`.github/workflows/ci.yml`) |
-| GitHub Actions (docs deploy) | website | Push to default branch (`.github/workflows/deploy-docs.yml`) |
+**Orchestration CLI** — Deployed as a TypeScript/Node.js CLI binary distributed to developer machines. Invoked on-demand by users; does not run as a persistent service. No ingress ports or network endpoints.
 
-The orchestration CLI is not deployed as a long-running service. It runs on developer machines and in CI as an ephemeral process. Specific cloud deployment targets (Cloud Run, Lambda, Kubernetes, etc.) were not determined by analysis — the workflow files exist but their command contents were not captured.
+**Website** — Built from TypeScript source to static HTML/CSS/JS assets and deployed to GitHub Pages. Updated asynchronously from orchestration service changes; no persistent runtime port.
 
----
+**GritoGol (`gritogol/`)** — Vite SPA deployed to Firebase Hosting (Spark plan). Backed by Firebase Auth (Google Sign-In + anonymous), Firestore (Native mode), Cloud Storage (`videos-crudos/` bucket), and Cloud Functions v2 (`onVideoSubido` trigger). Dev server runs locally via `npm run dev` (Vite default port). Cloud Functions deployed from `gritogol/functions/` using the Firebase CLI.
+
+**Integration Test Fixtures** — Three sample projects (mini-microservices, mini-monorepo, mini-serverless) are embedded in the test directory and used by the integration test suite to validate the orchestration engine. These are not production services.
 
 ## Local Development
 
-A developer starting from scratch runs the bootstrap script once:
+Local development is bootstrapped via shell scripts:
 
-```
-./scripts/initialize-project.sh
-```
+- **`./scripts/initialize-project.sh`** — Full environment setup; installs pnpm dependencies, configures Node.js, and initializes the project.
+- **`./scripts/setup-code-graph.sh`** — Prepares the code-graph infrastructure for analysis (setup).
+- **`./scripts/ensure-context.sh`** — Development utility to ensure context is available.
+- **`./scripts/sync-framework-resources.sh`** — Synchronizes framework resources during development.
+- **`./scripts/code-review-graph-mcp.sh`** — Launches a development server for the code-review-graph MCP.
 
-This writes `.claude/` (for Claude Code) or `.codex/` (for Codex CLI) configuration and generates the initial `docs/llm-wiki/`. The script accepts `--provider claude|codex` (auto-detected from API keys when omitted) and `--ignore <path>` to exclude fixture directories from analysis.
+Unit and integration tests are run via pnpm:
+- `pnpm --filter orchestration test:unit` — Runs Vitest unit tests.
+- `pnpm --filter orchestration test:integration` — Runs Vitest integration tests against the sample fixtures.
 
-To start the code-review-graph MCP server used by the framework's graph-aware review features:
-
-```
-./scripts/code-review-graph-mcp.sh
-```
-
-The website runs on **port 3000** (standard Docusaurus dev server). No docker-compose file was detected for local orchestration of multiple services simultaneously. Redis is accessed as a SaaS or remote instance via `REDIS_URL`; no local Redis container configuration was found. SQLite is file-based and requires no local server.
-
----
+Type checking and linting:
+- `pnpm --filter orchestration typecheck` — TypeScript type checking.
+- `pnpm --filter orchestration lint` — Code linting.
 
 ## Automation & CI
 
-The primary automation interface is a set of **shell scripts** in `scripts/`. There is no Makefile, Justfile, or Taskfile; pnpm workspace scripts (`pnpm -r build`, `pnpm -r lint`, `pnpm -r typecheck`, `pnpm -r test`) cover per-package operations.
+**Automation Interface** — The project uses shell scripts as the primary automation interface. Eight shell scripts are defined in `scripts/`:
+- Setup: `initialize-project.sh`, `setup-code-graph.sh`
+- Development: `sync-framework-resources.sh`, `ensure-context.sh`, `code-review-graph-mcp.sh`
+- Testing: `lint-wiki.sh`, `security-check.sh`, `verify-mcp-payload.sh`
 
-| Script | Purpose |
-| ------ | ------- |
-| `scripts/initialize-project.sh` | One-time bootstrap (writes `.claude/`/`.codex/`, generates wiki) |
-| `scripts/setup-code-graph.sh` | Full local environment bootstrap for code-graph tooling |
-| `scripts/code-review-graph-mcp.sh` | Starts the code-review-graph MCP dev server |
-| `scripts/lint-wiki.sh` | Validates generated wiki pages (runs as test suite) |
-| `scripts/verify-mcp-payload.sh` | Validates MCP payload schema |
-| `scripts/sync-framework-resources.sh` | Syncs framework resources (purpose not fully determined by analysis) |
-| `scripts/ensure-context.sh` | Ensures context files are present (purpose not fully determined by analysis) |
-| `scripts/security-check.sh` | Security scan (purpose not fully determined by analysis) |
+**CI Provider** — GitHub Actions (`.github/workflows/`). Two main workflows are defined:
+- `ci.yml` — Primary continuous integration workflow.
+- `deploy-docs.yml` — Documentation deployment workflow for GitHub Pages.
 
-**CI provider: GitHub Actions.** Two workflows are present:
+(Specific commands run by each workflow are not determined by analysis due to preToolUse hook restrictions.)
 
-- `.github/workflows/ci.yml` — runs on push/PR; exact steps not determined by analysis.
-- `.github/workflows/deploy-docs.yml` — deploys the Docusaurus website; exact trigger not determined by analysis.
-
----
+**Build Tool** — pnpm workspaces with per-service package.json scripts. All build, test, and lint commands are invoked via pnpm with the `--filter orchestration` flag to target the CLI service.
 
 ## Coupling Hotspots
 
-The following nodes were identified as architectural hotspots by the code-graph coupling analysis. Hub nodes have the highest total degree (changes carry the largest blast radius); bridge nodes sit on the shortest paths between many node pairs (failures here disconnect multiple regions).
+The following are high-coupling hubs and bridges in the codebase, identified by structural analysis:
 
-### Hub nodes
+**Hubs** (high centrality, many dependents):
+- `orchestration/src/graphs/initialize-project.graph.ts` (LangGraph graph, score 9) — The main workflow orchestrator that composes all five phases.
+- `orchestration/src/nodes/initialize-project/phase1/structure-analyzer/structure-architecture-analyzer.node.ts` (LangGraph node, score 8) — The entry point to project analysis; outputs foundational service and structure discovery.
+- `orchestration/src/nodes/initialize-project/phase3/synthesis.node.ts` (LangGraph node, score 7) — Synthesizes skill documents and verifies findings.
 
-- `orchestration/src/nodes/initialize-project/phase4/context-generation.node.ts::contextGenerationNode` (Function, score 207)
-- `orchestration/src/nodes/initialize-project/phase4/helpers/workspace-tool-normalizer.ts::normaliseWorkspaceTool` (Function, score 162)
-- `orchestration/src/nodes/initialize-project/phase6/validation.node.ts::validationNode` (Function, score 159)
-- `orchestration/src/nodes/initialize-project/phase2/question-consolidator/question-consolidator.node.ts::consolidationNode` (Function, score 145)
-- `orchestration/src/utils/shared/agent-factory/cli-agent-impl.ts::invokeCLI` (Function, score 117)
+**Bridges** (cross-phase connectors, medium centrality):
+- `orchestration/src/nodes/initialize-project/phase4/context-generation.node.ts` (LangGraph node, score 5) — Assembles the main CLAUDE.md context file.
+- `orchestration/src/nodes/initialize-project/phase2/question-consolidator/question-consolidator.node.ts` (LangGraph node, score 5) — Consolidates code-pattern questions before synthesis.
+- `orchestration/src/nodes/initialize-project/phase1/shared/prompt-builder.ts` (Utility, score 6) — Shared prompt construction for multiple phases.
 
-### Bridge nodes
-
-- `orchestration/src/services/framework/project-inspection/inspector.service.ts::inspectProject` (Function, score 0.003093)
-- `orchestration/src/nodes/initialize-project/phase3/helpers/trim-synthesis-input.ts::trimSynthesisInput` (Function, score 0.002554)
-- `orchestration/src/nodes/initialize-project/phase1/shared/needs-verification-quality.ts::validateNeedsVerificationProse` (Function, score 0.00235)
-
-`contextGenerationNode` is the single highest-risk node in the codebase: it sits at the junction of every analyzer output and is responsible for writing the final CLAUDE.md and wiki artifacts. `invokeCLI` is the shared LLM call site used across all phases, making it a transitive dependency of nearly every node that touches an AI provider.
+These nodes and utilities are the primary refactoring risk points; changes to their interfaces or output shape will propagate through downstream phases.
