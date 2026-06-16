@@ -907,3 +907,31 @@
   font-size: 14px;
   line-height: 1.5;
 }
+
+.videoSponsorOverlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 10px;
+  background: linear-gradient(transparent, rgba(6, 11, 20, 0.75));
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.videoSponsorScore {
+  font-family: "Anton", sans-serif;
+  font-size: 13px;
+  color: var(--celeste);
+  letter-spacing: 0.5px;
+}
+
+.videoSponsorBrand {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sol);
+  letter-spacing: 1px;
+}
