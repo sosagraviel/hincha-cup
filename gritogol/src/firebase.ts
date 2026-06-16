@@ -45,10 +45,11 @@ export const storage = getStorage(app);
 export const functions = getFunctions(app, "us-central1");
 
 if (useEmulators) {
-  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
-  connectFirestoreEmulator(db, "127.0.0.1", 8081);
-  connectStorageEmulator(storage, "127.0.0.1", 9199);
-  connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+  const emulatorHost = import.meta.env.VITE_EMULATOR_HOST ?? "127.0.0.1";
+  connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
+  connectFirestoreEmulator(db, emulatorHost, 8081);
+  connectStorageEmulator(storage, emulatorHost, 9199);
+  connectFunctionsEmulator(functions, emulatorHost, 5001);
 }
 
 setPersistence(auth, browserLocalPersistence).catch((error: unknown) => {

@@ -7,5 +7,4 @@ qubika-agentic-framework
 dist
 build
 # === framework: --ignore (managed; do not edit by hand) ===
-orchestration/test/integration
 # === end framework: --ignore ===

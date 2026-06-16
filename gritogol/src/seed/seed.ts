@@ -278,7 +278,7 @@ export async function seed(): Promise<void> {
     golesProcesados: 3,
     equipoHinchada: "uruguay",
     sponsor: {
-      nombre: "MARCA ALIADA",
+      nombre: "QUBIKA",
       compromiso: "1 pelota por festejo",
     },
     destino: "Escuelas de Montevideo",
@@ -302,7 +302,7 @@ export async function seed(): Promise<void> {
     golesProcesados: 3,
     equipoHinchada: "argentina",
     sponsor: {
-      nombre: "MARCA ALIADA",
+      nombre: "QUBIKA",
       compromiso: "1 pelota cada 20 festejos · tope 100",
     },
     destino: "Club Defensoras de Ezeiza",

@@ -6,7 +6,7 @@ summary: >-
   `orchestration` (LangGraph CLI core), `website` (static Docusaurus
   documentation), and `gritogol` (Vite + React + Firebase client app,
   npm-managed independently of the pnpm workspace).
-last_updated: '2026-06-15T00:00:00.000Z'
+last_updated: '2026-06-16T00:00:00.000Z'
 tags:
   - architecture
   - topology
@@ -44,7 +44,7 @@ A stateless command-line tool that reads a source-code project from disk, analyz
 A static documentation site built with Docusaurus and deployed to GitHub Pages. It serves as the public-facing documentation for the framework, containing getting-started guides, architecture explanations, and configuration references. The website contains no server-side logic and no persistent runtime port.
 
 **[[gritogol]]** (TypeScript, Vite + React + Firebase)
-A soccer highlight client app (GritoGol) that allows users to record and share goal celebration videos. It is a Vite + React + TypeScript SPA backed by Firebase (Auth with Google Sign-In, Firestore for structured data, Cloud Storage for raw video blobs, Cloud Functions for moderation). Organized with the client source under `gritogol/src/` and Cloud Functions under `gritogol/functions/`. Uses React Router v6 with six flat routes: `/`, `/camara`, `/estado/:id`, `/tribuna`, `/ganadores`, `/admin`. The package is managed with npm and is independent of the pnpm workspace.
+A soccer highlight client app (GritoGol) that allows users to record and share goal celebration videos. It is a Vite + React + TypeScript SPA backed by Firebase (Auth with Google Sign-In, Firestore for structured data, Cloud Storage for raw video blobs, Cloud Functions for video moderation and live scores sync). Organized with the client source under `gritogol/src/` and Cloud Functions under `gritogol/functions/`. Uses React Router v6 with six flat routes: `/`, `/impacto`, `/perfil`, `/estado/:id`, `/ganadores`, `/admin`. The package is managed with npm and is independent of the pnpm workspace.
 
 ## Service Communication
 
@@ -105,7 +105,7 @@ No persistent databases, caches, or message queues are used. The orchestration s
 
 **Website** — Built from TypeScript source to static HTML/CSS/JS assets and deployed to GitHub Pages. Updated asynchronously from orchestration service changes; no persistent runtime port.
 
-**GritoGol (`gritogol/`)** — Vite SPA deployed to Firebase Hosting (Spark plan). Backed by Firebase Auth (Google Sign-In + anonymous), Firestore (Native mode), Cloud Storage (`videos-crudos/` bucket), and Cloud Functions v2 (`onVideoSubido` trigger). Dev server runs locally via `npm run dev` (Vite default port). Cloud Functions deployed from `gritogol/functions/` using the Firebase CLI.
+**GritoGol (`gritogol/`)** — Vite SPA deployed to Firebase Hosting (Spark plan). Backed by Firebase Auth (Google Sign-In + anonymous), Firestore (Native mode), Cloud Storage (`videos-crudos/` bucket), and Cloud Functions v2 (`onVideoSubido` Storage trigger for video moderation; `syncCopaScores` HTTP function for live Copa scores sync from api-football.com). The full local dev stack runs via Docker Compose (`make start`) which starts three containers: Firebase emulators, a seed container, and the Vite web server. Cloud Functions deployed from `gritogol/functions/` using the Firebase CLI.
 
 **Integration Test Fixtures** — Three sample projects (mini-microservices, mini-monorepo, mini-serverless) are embedded in the test directory and used by the integration test suite to validate the orchestration engine. These are not production services.
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import s from "../../styles/app.module.css";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -9,6 +9,7 @@ import {
 import type { Video } from "../../types/firestore";
 import { getIniciales } from "../../constants";
 import { formatoNumero, tiempoRelativo, formatoDuracion } from "../../utils/format";
+import { VideoSponsorOverlay } from "../video/VideoSponsorOverlay";
 
 interface FeedCardProps {
   video: { id: string } & Video;
@@ -28,6 +29,8 @@ export function FeedCard({ video }: FeedCardProps) {
   const [shares, setShares] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [duracion, setDuracion] = useState("");
+
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const esPropio = user?.uid === video.userId;
   const iniciales = getIniciales(video.autorAlias);
@@ -94,6 +97,7 @@ export function FeedCard({ video }: FeedCardProps) {
       </div>
 
       <div
+        ref={containerRef}
         className={s.video}
         role="img"
         aria-label={`Video del festejo de ${video.autorAlias}`}
@@ -131,6 +135,19 @@ export function FeedCard({ video }: FeedCardProps) {
           </button>
         )}
         {duracion && <span className={s.dur}>{duracion}</span>}
+        <VideoSponsorOverlay />
+        {url && playing && (
+          <button
+            type="button"
+            className={s.fullscreenBtn}
+            onClick={() => containerRef.current?.requestFullscreen()}
+            aria-label="Pantalla completa"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3" />
+            </svg>
+          </button>
+        )}
       </div>
 
       <div className={s.cardAcciones}>
