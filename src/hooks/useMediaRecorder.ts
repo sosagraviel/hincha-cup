@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 
 function mimePreferido(): string {
   const opciones = [
+    "video/mp4;codecs=avc1",
     "video/mp4",
     "video/webm;codecs=vp9",
     "video/webm;codecs=vp8",
@@ -13,6 +14,12 @@ function mimePreferido(): string {
     }
   }
   return "";
+}
+
+// iOS Safari records MP4 natively but isTypeSupported returns "" — detect actual format
+function resolverMime(rawMime: string): string {
+  if (!rawMime && /iP(ad|hone|od)/i.test(navigator.userAgent)) return "video/mp4";
+  return rawMime || "video/webm";
 }
 
 interface UseMediaRecorderResult {
@@ -140,7 +147,7 @@ export function useMediaRecorder(
       };
 
       recorderRef.current.onstop = () => {
-        const tipo = recorderRef.current?.mimeType || "video/webm";
+        const tipo = resolverMime(recorderRef.current?.mimeType ?? "");
         const blob = new Blob(partesRef.current, { type: tipo });
         const ext = tipo.includes("mp4") ? "mp4" : "webm";
         const file = new File([blob], `mi-festejo.${ext}`, { type: tipo });

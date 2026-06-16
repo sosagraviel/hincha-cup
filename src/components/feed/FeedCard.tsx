@@ -105,7 +105,6 @@ export function FeedCard({ video }: FeedCardProps) {
         {url && playing ? (
           <video
             className={s.videoEl}
-            src={url}
             controls
             playsInline
             preload="metadata"
@@ -115,7 +114,9 @@ export function FeedCard({ video }: FeedCardProps) {
                 setDuracion(formatoDuracion(v.duration));
               }
             }}
-          />
+          >
+            <source src={url} type={video.mimeType ?? "video/mp4"} />
+          </video>
         ) : (
           <button
             type="button"
