@@ -12,7 +12,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "emulators": "firebase emulators:start --only auth,firestore,storage,functions",
-    "seed:emulator": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8081 tsx src/seed/seed.ts",
+    "seed:emulator": "tsx src/seed/seed.ts",
+    "fetch:fixtures": "tsx scripts/fetch-fixture-ids.ts",
     "emulators:stop": "lsof -tiTCP:8080 -sTCP:LISTEN | xargs kill -9 2>/dev/null; lsof -tiTCP:8081 -sTCP:LISTEN | xargs kill -9 2>/dev/null; echo 'Puertos 8080/8081 liberados (si había procesos).'"
   },
   "dependencies": {

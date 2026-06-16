@@ -6,4 +6,11 @@ export default defineConfig({
   build: {
     target: "ES2024",
   },
+  server: {
+    host: "0.0.0.0",
+    port: 5173,
+    watch: {
+      usePolling: process.env["CHOKIDAR_USEPOLLING"] === "true",
+    },
+  },
 });

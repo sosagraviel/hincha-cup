@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
-import { PARTIDOS } from "../constants";
+import { PARTIDOS, FIXTURE_IDS } from "../constants";
 
 /** Must match `.firebaserc` default project when using Emulator Suite. */
 const EMULATOR_PROJECT_ID = "gritogol";
@@ -33,6 +33,10 @@ function resolveProjectId(): string {
 }
 
 loadEnvLocal();
+
+if (!process.env["FIRESTORE_EMULATOR_HOST"]) {
+  process.env["FIRESTORE_EMULATOR_HOST"] = "127.0.0.1:8081";
+}
 
 const projectId = resolveProjectId();
 
@@ -129,6 +133,128 @@ async function seedBeneficiarios(): Promise<void> {
   }
 }
 
+async function seedCopaFixtures(now: Timestamp): Promise<void> {
+  const fixtures = [
+    {
+      id: FIXTURE_IDS.uruguay,
+      equipoLocal: "Uruguay",
+      equipoVisitante: "España",
+      codigoLocal: "URU",
+      codigoVisitante: "ESP",
+      golesLocal: 2,
+      golesVisitante: 1,
+      minuto: 78,
+      statusShort: "2H",
+      estado: "en_vivo",
+      partidoId: PARTIDOS.uruguay,
+      fase: "Grupo H - 1",
+    },
+    {
+      id: FIXTURE_IDS.argentina,
+      equipoLocal: "Argentina",
+      equipoVisitante: "México",
+      codigoLocal: "ARG",
+      codigoVisitante: "MEX",
+      golesLocal: 2,
+      golesVisitante: 1,
+      minuto: 67,
+      statusShort: "2H",
+      estado: "en_vivo",
+      partidoId: PARTIDOS.argentina,
+      fase: "Grupo J - 1",
+    },
+    {
+      id: 999003,
+      equipoLocal: "Brazil",
+      equipoVisitante: "France",
+      codigoLocal: "BRA",
+      codigoVisitante: "FRA",
+      golesLocal: 1,
+      golesVisitante: 1,
+      minuto: 54,
+      statusShort: "2H",
+      estado: "en_vivo",
+      fase: "Grupo A - 2",
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    await db
+      .collection("copa_fixtures")
+      .doc(String(fixture.id))
+      .set({
+        fixtureId: fixture.id,
+        equipoLocal: fixture.equipoLocal,
+        equipoVisitante: fixture.equipoVisitante,
+        codigoLocal: fixture.codigoLocal,
+        codigoVisitante: fixture.codigoVisitante,
+        golesLocal: fixture.golesLocal,
+        golesVisitante: fixture.golesVisitante,
+        minuto: fixture.minuto,
+        statusShort: fixture.statusShort,
+        estado: fixture.estado,
+        fechaInicio: now,
+        fase: fixture.fase,
+        partidoId: fixture.partidoId ?? null,
+        updatedAt: now,
+      });
+  }
+}
+
+async function seedMockProvider(): Promise<void> {
+  const now = new Date().toISOString();
+  await db.collection("_sync_mock").doc("fixtures").set({
+    live: [
+      {
+        fixtureId: FIXTURE_IDS.uruguay,
+        equipoLocal: "Uruguay",
+        equipoVisitante: "España",
+        teamLocalId: 10,
+        teamVisitanteId: 20,
+        golesLocal: 2,
+        golesVisitante: 1,
+        minuto: 78,
+        statusShort: "2H",
+        estado: "en_vivo",
+        fechaInicio: now,
+        fase: "Grupo H - 1",
+        goalEvents: [],
+      },
+      {
+        fixtureId: FIXTURE_IDS.argentina,
+        equipoLocal: "Argentina",
+        equipoVisitante: "México",
+        teamLocalId: 30,
+        teamVisitanteId: 40,
+        golesLocal: 2,
+        golesVisitante: 1,
+        minuto: 67,
+        statusShort: "2H",
+        estado: "en_vivo",
+        fechaInicio: now,
+        fase: "Grupo J - 1",
+        goalEvents: [],
+      },
+      {
+        fixtureId: 999003,
+        equipoLocal: "Brazil",
+        equipoVisitante: "France",
+        teamLocalId: 50,
+        teamVisitanteId: 60,
+        golesLocal: 1,
+        golesVisitante: 1,
+        minuto: 54,
+        statusShort: "2H",
+        estado: "en_vivo",
+        fechaInicio: now,
+        fase: "Grupo A - 2",
+        goalEvents: [],
+      },
+    ],
+    byDate: {},
+  });
+}
+
 /** Seeds two live matches (Uruguay + Argentina) with demo impact data. */
 export async function seed(): Promise<void> {
   if (!process.env["FIRESTORE_EMULATOR_HOST"]) {
@@ -148,6 +274,8 @@ export async function seed(): Promise<void> {
     golesVisitante: 1,
     estado: "en_vivo",
     minuto: 78,
+    fixtureId: FIXTURE_IDS.uruguay,
+    golesProcesados: 3,
     equipoHinchada: "uruguay",
     sponsor: {
       nombre: "MARCA ALIADA",
@@ -170,6 +298,8 @@ export async function seed(): Promise<void> {
     golesVisitante: 1,
     estado: "en_vivo",
     minuto: 67,
+    fixtureId: FIXTURE_IDS.argentina,
+    golesProcesados: 3,
     equipoHinchada: "argentina",
     sponsor: {
       nombre: "MARCA ALIADA",
@@ -187,6 +317,8 @@ export async function seed(): Promise<void> {
 
   await db.collection("counters").doc("videos").set({ gritoNumero: 0 });
   await seedBeneficiarios();
+  await seedCopaFixtures(now);
+  await seedMockProvider();
 
   console.log("Seed completado:", PARTIDOS.uruguay, PARTIDOS.argentina);
 }

@@ -6,6 +6,8 @@ export interface Sponsor {
   compromiso: string;
 }
 
+export type CopaEstado = "programado" | "en_vivo" | "finalizado";
+
 export interface Partido {
   equipoLocal: string;
   equipoVisitante: string;
@@ -14,6 +16,9 @@ export interface Partido {
   estado: "en_vivo" | "finalizado";
   minuto: number;
   equipoHinchada: EquipoHinchada;
+  fixtureId?: number;
+  golesProcesados?: number;
+  ultimoSyncEn?: Timestamp;
   sponsor: Sponsor;
   destino: string;
   festejosPublicados: number;
@@ -25,11 +30,30 @@ export interface Partido {
   updatedAt: Timestamp;
 }
 
+export interface CopaFixture {
+  fixtureId: number;
+  equipoLocal: string;
+  equipoVisitante: string;
+  codigoLocal: string;
+  codigoVisitante: string;
+  golesLocal: number;
+  golesVisitante: number;
+  minuto: number;
+  statusShort: string;
+  estado: CopaEstado;
+  fechaInicio: Timestamp;
+  fase?: string;
+  grupo?: string;
+  partidoId?: string;
+  updatedAt: Timestamp;
+}
+
 export interface Evento {
   partidoId: string;
   equipo: string;
   minuto: number;
   golNumero: number;
+  externalEventKey?: string;
   ventanaAbreEn: Timestamp;
   ventanaCierraEn: Timestamp;
   createdAt: Timestamp;

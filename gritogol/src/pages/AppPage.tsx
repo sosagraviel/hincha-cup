@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import s from "../styles/app.module.css";
 import { AuthProvider } from "../context/AuthContext";
+import { CopaProvider } from "../context/CopaContext";
 import { PartidoProvider, usePartido } from "../context/PartidoContext";
 import { ToastProvider } from "../context/ToastContext";
 import { Header } from "../components/layout/Header";
 import { LiveBar } from "../components/layout/LiveBar";
+import { CopaTicker } from "../components/layout/CopaTicker";
 import { ImpactMarcador } from "../components/layout/ImpactMarcador";
 import { TabBar } from "../components/layout/TabBar";
 import { Toast } from "../components/ui/Toast";
@@ -68,6 +70,7 @@ function AppShellInner() {
     <div className={s.app}>
       <Header />
       <LiveBar />
+      <CopaTicker />
       <ImpactMarcador />
 
       <main ref={mainRef} className={s.main}>
@@ -95,9 +98,11 @@ export default function AppPage() {
   return (
     <AuthProvider>
       <PartidoProvider>
-        <ToastProvider>
-          <AppShellInner />
-        </ToastProvider>
+        <CopaProvider>
+          <ToastProvider>
+            <AppShellInner />
+          </ToastProvider>
+        </CopaProvider>
       </PartidoProvider>
     </AuthProvider>
   );

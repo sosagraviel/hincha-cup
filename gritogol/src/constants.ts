@@ -5,6 +5,38 @@ export const PARTIDOS: Record<EquipoHinchada, string> = {
   argentina: "partido-arg-mex-2026",
 };
 
+/** Placeholder IDs — replace with real API-Football fixture IDs via scripts/fetch-fixture-ids.ts */
+export const FIXTURE_IDS: Record<EquipoHinchada, number> = {
+  uruguay: 999001,
+  argentina: 999002,
+};
+
+export const TEAM_CODES: Record<string, string> = {
+  Uruguay: "URU",
+  España: "ESP",
+  Argentina: "ARG",
+  México: "MEX",
+  Brazil: "BRA",
+  France: "FRA",
+  Germany: "GER",
+  England: "ENG",
+  Spain: "ESP",
+  Mexico: "MEX",
+  USA: "USA",
+  Portugal: "POR",
+  Netherlands: "NED",
+  Italy: "ITA",
+  Belgium: "BEL",
+  Croatia: "CRO",
+  Japan: "JPN",
+  Colombia: "COL",
+  Chile: "CHI",
+  Ecuador: "ECU",
+  Paraguay: "PAR",
+  Peru: "PER",
+  Canada: "CAN",
+};
+
 export const EQUIPO_LABELS: Record<
   EquipoHinchada,
   { flag: string; label: string }

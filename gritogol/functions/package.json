@@ -10,6 +10,7 @@
     "build": "tsc",
     "build:watch": "tsc --watch",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "lint": "eslint . --ext .ts --max-warnings 0",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.17.12",
-    "typescript": "~5.7.2"
+    "typescript": "~5.7.2",
+    "vitest": "^3.0.2"
   }
 }

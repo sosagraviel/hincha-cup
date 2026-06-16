@@ -1,4 +1,5 @@
 import type { Timestamp } from "firebase/firestore";
+import { TEAM_CODES } from "../constants";
 
 export function formatoNumero(n: number): string {
   return n.toLocaleString("es-UY");
@@ -22,13 +23,7 @@ export function formatoDuracion(seconds: number): string {
 }
 
 export function abreviarEquipo(nombre: string): string {
-  const map: Record<string, string> = {
-    Uruguay: "URU",
-    España: "ESP",
-    Argentina: "ARG",
-    México: "MEX",
-  };
-  return map[nombre] ?? nombre.slice(0, 3).toUpperCase();
+  return TEAM_CODES[nombre] ?? nombre.slice(0, 3).toUpperCase();
 }
 
 export function codigosPartido(local: string, visitante: string): string {

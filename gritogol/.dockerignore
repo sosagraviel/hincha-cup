@@ -1,0 +1,14 @@
+node_modules
+functions/node_modules
+functions/lib
+dist
+.git
+.firebase
+*.log
+.env
+.env.local
+.env.*.local
+docker/.env
+coverage
+.vite
+.cursor

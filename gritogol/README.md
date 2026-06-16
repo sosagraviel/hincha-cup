@@ -30,7 +30,78 @@ npm install
 cd functions && npm install && cd ..
 ```
 
-## Comandos
+## Docker (recomendado para onboarding)
+
+Requisitos: **Docker Desktop** (o Docker Engine + Compose) y **Make**.
+
+### Inicio rápido
+
+```bash
+cd gritogol
+make start
+```
+
+1. **`make start`** — Crea `docker/.env` desde `docker/.env.example` si no existe, construye la imagen `gritogol-dev` y levanta tres servicios en orden:
+   - **`emulators`** — Firebase Emulator Suite (Auth, Firestore, Storage, Functions) con `USE_MOCK_SCORES=true`
+   - **`seed`** — Carga datos demo en Firestore (one-shot; el contenedor termina y queda detenido — es normal)
+   - **`web`** — Vite dev server con `VITE_USE_EMULATORS=true`
+2. Abrí **http://localhost:5173** (app) y **http://localhost:4000** (Emulator UI).
+
+La primera vez puede tardar 2–3 min (`npm ci` + build de functions). `make start` falla si el puerto **5173** está ocupado (por ejemplo por `npm run dev` local).
+
+### URLs
+
+| URL | Servicio |
+|-----|----------|
+| http://localhost:5173 | App (Vite) |
+| http://localhost:4000 | Firebase Emulator UI |
+| http://localhost:4000/firestore | Firestore emulator |
+| http://localhost:5001 | Cloud Functions emulator |
+
+### Comandos Make
+
+| Comando | Descripción |
+|---------|-------------|
+| `make start` | Levanta emuladores + seed + Vite (`docker compose up -d --build`) |
+| `make stop` | Para y elimina contenedores (`docker compose down`) |
+| `make rebuild` | Rebuild completo sin caché y vuelve a levantar (útil tras cambios en `Dockerfile`) |
+| `make logs` | Sigue los logs de todos los servicios (`docker compose logs -f`) |
+| `make seed` | Levanta solo emuladores y re-ejecuta el seed manualmente |
+| `make status` | Muestra el estado de los contenedores (`docker compose ps`) |
+| `make clean-docker` | Libera espacio en Docker (`docker system prune -af --volumes`); luego corré `make rebuild` |
+
+### Flujo de trabajo típico
+
+```bash
+make start          # primer arranque o después de clonar
+make logs           # ver qué pasa si algo falla
+make seed           # recargar partidos demo si Firestore quedó vacío
+make stop           # fin del día
+```
+
+Si cambiás el `Dockerfile` o tenés errores raros de build:
+
+```bash
+make rebuild
+```
+
+Si Docker se queda sin espacio (`ENOSPC: no space left on device`):
+
+```bash
+make clean-docker
+make rebuild
+```
+
+### Troubleshooting
+
+- **`seed-1` detenido** → Normal. Es un contenedor one-shot que corre una vez y sale. Si necesitás datos de nuevo: `make seed`.
+- **Puerto 5173 ocupado** → No corras Docker y `npm run dev` local a la vez. Pará uno u otro: `make stop` o matá el proceso en 5173.
+- **Pantalla en blanco** → Revisá la consola del navegador. Si ves `auth/invalid-api-key`, en emulador usá `VITE_USE_EMULATORS=true` y una key con formato `AIzaSy…` (ver `.env.example`).
+- **Error INTERNAL al usar ¡GOL! DEMO** → Reiniciá emuladores: `docker compose restart emulators` (o `make stop && make start`).
+- **Cambios en Dockerfile** → `make rebuild`
+- **App sin datos** → `make seed`
+
+## Comandos (sin Docker)
 
 | Comando | Descripción |
 |---------|-------------|
@@ -43,9 +114,9 @@ cd functions && npm install && cd ..
 | `npm run seed:emulator` | Carga datos demo en Firestore emulator |
 | `npm run emulators:stop` | Libera puertos 8080/8081 si quedaron procesos colgados |
 
-## Desarrollo local con emuladores
+## Desarrollo local con emuladores (manual)
 
-La app (frontend) corre con **Vite**. Los emuladores son el **backend** local (Firestore, Auth, etc.). Necesitás **3 terminales** abiertas al mismo tiempo:
+Si preferís no usar Docker, la app corre con **Vite** y los emuladores como **backend** local. Necesitás **3 terminales**:
 
 ### Terminal 1 — Emuladores
 
@@ -102,6 +173,45 @@ Puertos del Emulator Suite:
 | Functions | 5001 |
 
 **Nota:** Para que los videos subidos pasen a `publicado` en el muro, compilá las functions una vez: `cd functions && npm run build && cd ..`, y reiniciá `npm run emulators`.
+
+### Marcadores en vivo (Mundial 2026)
+
+Los marcadores se sincronizan desde **API-Football** (api-sports.io) vía la Cloud Function `syncCopaScores` (cada 1 min). El cliente lee `copa_fixtures` y `partidos` en Firestore — la API key **nunca** va al frontend.
+
+**Emulador (sin API key):**
+
+```bash
+cp functions/.env.example functions/.env   # USE_MOCK_SCORES=true
+cd functions && npm run build && cd ..
+npm run emulators
+npm run seed:emulator
+```
+
+El seed carga `copa_fixtures` (incluye un partido extra BRA–FRA para el ticker) y datos mock para `syncCopaScores`.
+
+**Simular un gol en emulador** (callable, sin login en mock mode):
+
+```javascript
+// DevTools console, con emuladores activos
+import { getFunctions, httpsCallable } from 'firebase/functions';
+const fn = httpsCallable(getFunctions(), 'simulateGoal');
+await fn({ partidoId: 'partido-uru-esp-2026' });
+```
+
+**Producción:**
+
+```bash
+firebase functions:secrets:set API_FOOTBALL_KEY
+firebase deploy --only functions
+```
+
+Obtener IDs reales de fixtures del Mundial:
+
+```bash
+API_FOOTBALL_KEY=tu-key npm run fetch:fixtures
+```
+
+Copiá los IDs a `FIXTURE_IDS` en `src/constants.ts` y en los docs `partidos` (`fixtureId`).
 
 ## Cloud Functions
 
