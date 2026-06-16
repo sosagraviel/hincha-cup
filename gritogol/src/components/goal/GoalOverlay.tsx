@@ -8,6 +8,7 @@ import { crearFestejo, obtenerVideo } from "../../services/videoService";
 import { useMediaRecorder } from "../../hooks/useMediaRecorder";
 import type { Evento } from "../../types/firestore";
 import { scoreCorto, formatoDuracion } from "../../utils/format";
+import { VideoSponsorOverlay } from "../video/VideoSponsorOverlay";
 
 type Paso = "gol" | "grabar" | "subiendo";
 
@@ -225,6 +226,7 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
                 muted
                 playsInline
               />
+              <VideoSponsorOverlay />
             </div>
             <div className={s.controles}>
               <button
