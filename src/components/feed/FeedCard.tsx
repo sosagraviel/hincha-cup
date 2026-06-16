@@ -9,6 +9,7 @@ import {
 import type { Video } from "../../types/firestore";
 import { getIniciales } from "../../constants";
 import { formatoNumero, tiempoRelativo, formatoDuracion } from "../../utils/format";
+import { VideoSponsorOverlay } from "../video/VideoSponsorOverlay";
 
 interface FeedCardProps {
   video: { id: string } & Video;
@@ -131,6 +132,7 @@ export function FeedCard({ video }: FeedCardProps) {
           </button>
         )}
         {duracion && <span className={s.dur}>{duracion}</span>}
+        <VideoSponsorOverlay />
       </div>
 
       <div className={s.cardAcciones}>
