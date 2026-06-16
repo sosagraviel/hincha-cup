@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import s from "../../styles/app.module.css";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -30,28 +30,8 @@ export function FeedCard({ video }: FeedCardProps) {
   const [playing, setPlaying] = useState(false);
   const [duracion, setDuracion] = useState("");
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const videoElRef = useRef<HTMLVideoElement>(null);
-
   const esPropio = user?.uid === video.userId;
   const iniciales = getIniciales(video.autorAlias);
-
-  // When the <video> enters native fullscreen, exit it and re-enter on the container
-  // so the overlay sibling remains visible.
-  useEffect(() => {
-    const videoEl = videoElRef.current;
-    const container = containerRef.current;
-    if (!videoEl || !container) return;
-    const onFullscreenChange = () => {
-      if (document.fullscreenElement === videoEl) {
-        document.exitFullscreen()
-          .then(() => container.requestFullscreen())
-          .catch(() => undefined);
-      }
-    };
-    videoEl.addEventListener("fullscreenchange", onFullscreenChange);
-    return () => videoEl.removeEventListener("fullscreenchange", onFullscreenChange);
-  }, [playing, url]);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,14 +95,12 @@ export function FeedCard({ video }: FeedCardProps) {
       </div>
 
       <div
-        ref={containerRef}
         className={s.video}
         role="img"
         aria-label={`Video del festejo de ${video.autorAlias}`}
       >
         {url && playing ? (
           <video
-            ref={videoElRef}
             className={s.videoEl}
             src={url}
             controls
