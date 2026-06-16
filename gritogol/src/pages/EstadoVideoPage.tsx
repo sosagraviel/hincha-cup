@@ -71,7 +71,7 @@ export default function EstadoVideoPage() {
             )}
           </>
         )}
-        <Link to="/">Volver al muro</Link>
+        <Link to="/" state={{ suppressOverlay: true }}>Volver al muro</Link>
       </main>
     </div>
   );
