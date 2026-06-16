@@ -30,7 +30,11 @@ function AppShellInner() {
   const [eventoActivo, setEventoActivo] = useState<
     ({ id: string } & Evento) | null
   >(null);
-  const [overlayDismissed, setOverlayDismissed] = useState(false);
+  const [overlayDismissed, setOverlayDismissed] = useState(
+    () =>
+      (location.state as { suppressOverlay?: boolean } | null)
+        ?.suppressOverlay === true
+  );
 
   useEffect(() => {
     seenEventsRef.current.clear();
