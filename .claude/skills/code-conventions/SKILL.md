@@ -1,64 +1,83 @@
 ---
 name: code-conventions
-description: Project-specific coding conventions, gotchas, and WRONG/CORRECT examples
+description: LangGraph orchestration patterns, TypeScript conventions, and node/service structure rules
 disable-model-invocation: false
 version: 1.0
 ---
 
 # Code Conventions
 
-## Naming Conventions
+## LangGraph Node Structure
 
-- **File names**: kebab-case (`prompt-loader.ts`, `workspace-detector.ts`). Consistent with Node.js ecosystem.
-- **Hook files**: suffix with `.hook.ts` (`restrict-agent-paths.hook.ts`). Distinguishes lifecycle hooks from general utilities.
-- **Test files**: suffix with `.test.ts` (`prompt-loader.test.ts`). Matches Jest default discovery.
-- **Classes**: PascalCase. **Functions and variables**: camelCase. **Constants**: SCREAMING_SNAKE_CASE.
-- **Node directories**: kebab-case matching phase and feature (`phase1/structure-analyzer`, `phase4/file-counter`).
+Each phase node must export a `StateGraph`-compatible runnable with input/output ports clearly defined. Node files follow the pattern `{feature}.node.ts` and declare both the node function and the graph assembly.
 
-## Error Handling
+```typescript
+// orchestration/src/nodes/initialize-project/phase1/structure-analyzer/structure-architecture-analyzer.node.ts
+import { RunnableConfig } from "@langchain/core/runnables";
+import { StateGraph } from "@langchain/langgraph";
+import { ProjectState } from "../../types";
 
-- LangGraph node functions return a partial `AgentState` — never throw unless the graph must halt entirely.
-- Catch errors inside nodes; set an error state key and return rather than propagating exceptions through the graph.
-- Shell scripts in `scripts/` must begin with `set -e`; write descriptive messages to stderr before any non-zero exit.
+export async function structureAnalyzerNode(state: ProjectState, config?: RunnableConfig) {
+  // Node implementation — agents call service layers here, not direct LLM
+  return { findings: {...}, nextPhase: "phase2" };
+}
 
-## Gotchas
+export function buildStructureAnalyzerGraph(): StateGraph<ProjectState> {
+  const graph = new StateGraph<ProjectState>();
+  graph.addNode("analyzer", structureAnalyzerNode);
+  return graph;
+}
+```
 
-### Load Prompts via `prompt-loader`, Not Raw File I/O
+## Service Layer Organization
 
-Raw `fs.readFile` bypasses template substitution and project-relative path resolution.
+Business logic lives in `orchestration/src/services/{domain}/{feature}.service.ts`. Services are instantiated once and injected into nodes; they do NOT import nodes.
+
+```typescript
+// WRONG — service importing from nodes creates circular coupling
+import { someNode } from "../../nodes/initialize-project/phase1/some.node";
+
+// CORRECT — nodes import and call services
+import { IncrementalService } from "../../services/discovery/incremental.service";
+const service = new IncrementalService();
+const result = await service.inspectProject(projectPath);
+```
+
+## Module Imports
+
+All TypeScript files use absolute imports via pnpm workspace paths. Relative imports are forbidden at the package boundary; prefer `@orchestration/...` when referring to sibling monorepo packages.
 
 ```typescript
 // WRONG
-import { readFileSync } from 'fs';
-const prompt = readFileSync('./prompts/analyze.md', 'utf-8');
-```
+import { something } from "../../../../services/foo";
 
-```typescript
 // CORRECT
-import { loadPrompt } from '../../utils/shared/prompt-loader';
-const prompt = await loadPrompt('analyze');
+import { ProjectInspector } from "@orchestration/services/framework/project-inspection/inspector.service";
 ```
 
-### Register Hooks Before `graph.compile()`
+## Async Error Handling in Nodes
 
-Hooks attached after compilation are silently ignored.
-
-```typescript
-// WRONG
-const app = graph.compile();
-app.hooks.push(myHook); // no-op
-```
+Nodes run in LangGraph's execution context and must propagate errors via `state.error` or throw synchronously. Do NOT swallow exceptions.
 
 ```typescript
-// CORRECT
-graph.addNode('validate', myHook);
-const app = graph.compile();
+// WRONG — error silently logged, graph continues
+try {
+  await riskyOperation();
+} catch (e) {
+  console.error(e);
+}
+
+// CORRECT — error surface to LangGraph decision logic
+try {
+  await riskyOperation();
+} catch (e) {
+  return { ...state, error: e.message, status: "failed" };
+}
 ```
 
 ## Code-Style Conventions
 
-- **Import order**: Node built-ins → third-party → monorepo-local → relative. ESLint `import/order` enforces this.
-- **No `any`**: use `unknown` + type guard or a named interface. Catches shape mismatches at compile time.
-- **`const` over `let`**: prevents accidental reassignment in async LangGraph callbacks. Never `var`.
-- **One export per file** for node functions; barrel `index.ts` only at the phase root, not nested deeper.
-- **No inline comments** describing what code does — function and variable names carry that meaning.
+- **File naming:** kebab-case for files (`structure-analyzer.node.ts`), PascalCase for classes/types, camelCase for functions/variables.
+- **Imports:** group by external packages, then absolute workspace paths, then relative; alphabetize within groups.
+- **Exports:** named exports for services/helpers, default export only for node functions.
+- **Comments:** only explain non-obvious intent (why we skip a check, why we call service X before Y); don't repeat what the code says.

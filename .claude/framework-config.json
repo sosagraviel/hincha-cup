@@ -2,10 +2,6 @@
   "version": "1.0.0",
   "schema_version": "1.0.0",
   "framework_version": "1.0.0",
-  "project_metadata": {
-    "last_analysis": "2026-05-28T03:29:30.814Z",
-    "initialization_hash": "mpoxpfpa2bmkmr51cca"
-  },
   "stack_profile": {
     "services": [
       {
@@ -17,21 +13,21 @@
         "language_version": "5.9.3",
         "frameworks": {
           "main": "LangGraph 1.2.3",
-          "testing": "vitest"
+          "testing": "Vitest"
         },
         "testing": {
           "unit": {
-            "framework": "vitest",
+            "framework": "Vitest",
             "config_file": "orchestration/package.json",
             "file_pattern": "test/unit/**/*.test.ts"
           },
           "integration": {
-            "framework": "vitest",
+            "framework": "Vitest",
             "config_file": "orchestration/package.json",
             "file_pattern": "test/integration/**/*.test.ts"
           }
         },
-        "file_count": 673,
+        "file_count": 287,
         "manifest_file": "orchestration/package.json"
       },
       {
@@ -42,12 +38,20 @@
         "language": "typescript",
         "language_version": "6.0.2",
         "frameworks": {
-          "main": "Docusaurus 3.10.0"
+          "main": "Docusaurus 3.10.0",
+          "testing": "No tests"
         },
-        "testing": {},
+        "testing": {
+          "unit": {
+            "framework": "No tests",
+            "config_file": "website/package.json"
+          }
+        },
         "environment": {
-          "port": 3000
+          "port_applies": false,
+          "port_applies_reason": "Static documentation site built with Docusaurus and deployed as GitHub Pages; no persistent runtime port"
         },
+        "file_count": 8,
         "manifest_file": "website/package.json"
       },
       {
@@ -57,21 +61,34 @@
         "type": "library",
         "language": "python",
         "frameworks": {},
-        "file_count": 37
+        "file_count": 48
+      },
+      {
+        "id": "javascript-scripts",
+        "name": "Javascript Scripts",
+        "path": ".",
+        "type": "library",
+        "language": "javascript",
+        "frameworks": {},
+        "file_count": 13
       }
     ],
     "is_monorepo": true,
     "workspace_tool": "pnpm workspaces",
     "package_manager": "pnpm",
+    "software_version_control": "github",
     "file_counts": {
-      "total": 550,
+      "total": 660,
       "by_language": {
-        "typescript": 452,
-        "shell": 46,
-        "python": 37,
+        "typescript": 509,
+        "shell": 66,
+        "python": 48,
+        "javascript": 13,
         "css": 7,
-        "javascript": 6,
-        "html": 2
+        "go": 7,
+        "html": 5,
+        "csharp": 4,
+        "sql": 1
       }
     },
     "automation": {
@@ -81,63 +98,45 @@
       "shell_scripts": [
         {
           "path": "scripts/initialize-project.sh",
-          "purpose": "bootstrap",
-          "shebang": "#!/bin/bash"
+          "purpose": "setup"
         },
         {
           "path": "scripts/setup-code-graph.sh",
-          "purpose": "setup",
-          "shebang": "#!/bin/bash"
-        },
-        {
-          "path": "scripts/security-check.sh",
-          "purpose": "unknown",
-          "shebang": "#!/bin/bash"
-        },
-        {
-          "path": "scripts/code-review-graph-mcp.sh",
-          "purpose": "dev",
-          "shebang": "#!/bin/bash"
-        },
-        {
-          "path": "scripts/lint-wiki.sh",
-          "purpose": "test",
-          "shebang": "#!/bin/bash"
+          "purpose": "setup"
         },
         {
           "path": "scripts/sync-framework-resources.sh",
-          "purpose": "unknown",
-          "shebang": "#!/usr/bin/env bash"
+          "purpose": "dev"
         },
         {
-          "path": "scripts/ensure-context.sh",
-          "purpose": "unknown",
-          "shebang": "#!/bin/bash"
+          "path": "scripts/lint-wiki.sh",
+          "purpose": "test"
+        },
+        {
+          "path": "scripts/security-check.sh",
+          "purpose": "test"
         },
         {
           "path": "scripts/verify-mcp-payload.sh",
-          "purpose": "test",
-          "shebang": "#!/usr/bin/env bash"
+          "purpose": "test"
+        },
+        {
+          "path": "scripts/ensure-context.sh",
+          "purpose": "dev"
+        },
+        {
+          "path": "scripts/code-review-graph-mcp.sh",
+          "purpose": "dev"
         }
       ],
       "ci_hints": []
     },
-    "readme_run_sections": [
-      {
-        "path": "README.md",
-        "heading": "Quick Start",
-        "body": "```bash\n# 1. Setup (one-time)\ngit clone https://github.com/thisisqubika/qubika-agentic-framework.git\n./qubika-agentic-framework/scripts/initialize-project.sh\n# → writes .claude/ (Claude Code) or .codex/ (Codex CLI)\n# → generates docs/llm-wiki/ — the LLM-owned knowledge base for this project\n\n# 2. Create ticket from idea\n# Claude Code — consults docs/llm-wiki/ before asking you questions\n/create-sdd-ticket --from-input \"Add dark mode toggle to settings page\"\n# Codex CLI\n$create-sdd-ticket --from-input \"Add dark mode toggle to settings page\"\n\n# 3. Implement ticket (13-phase workflow)\n# Claude Code — Phase 8.5 auto-refreshes docs/llm-wiki/ before PR creation\n/implement-ticket PROJ-456\n# Codex CLI\n$implement-ticket PROJ-456\n\n# Result: Production-ready pull request with an up-to-date LLM wiki\n```\n\nThe framework supports **Claude Code** (`/skill [args]`) and **Codex CLI** (`$skill [args]`, with `/skills` to list available skills). Initialize for either provider with `--provider claude|codex` (auto-detects from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` when omitted).\n\nIf your repository vendors test fixtures or sample sub-projects that should not be analyzed as real services, add `--ignore <path>` — additive to `.gitignore` and accepts both forms: repeatable (`--ignore a --ignore b`) or comma-separated (`--ignore a,b,c`). Example: `./qubika-agentic-framework/scripts/initialize-project.sh --ignore test/integration/fixtures,docs/legacy`.",
-        "fenced_blocks": [
-          "# 1. Setup (one-time)\ngit clone https://github.com/thisisqubika/qubika-agentic-framework.git\n./qubika-agentic-framework/scripts/initialize-project.sh\n# → writes .claude/ (Claude Code) or .codex/ (Codex CLI)\n# → generates docs/llm-wiki/ — the LLM-owned knowledge base for this project\n\n# 2. Create ticket from idea\n# Claude Code — consults docs/llm-wiki/ before asking you questions\n/create-sdd-ticket --from-input \"Add dark mode toggle to settings page\"\n# Codex CLI\n$create-sdd-ticket --from-input \"Add dark mode toggle to settings page\"\n\n# 3. Implement ticket (13-phase workflow)\n# Claude Code — Phase 8.5 auto-refreshes docs/llm-wiki/ before PR creation\n/implement-ticket PROJ-456\n# Codex CLI\n$implement-ticket PROJ-456\n\n# Result: Production-ready pull request with an up-to-date LLM wiki"
-        ]
-      }
-    ],
     "command_catalog": {
       "setup": [
         {
           "tier": "wrapper",
           "command": "./scripts/initialize-project.sh",
-          "description": "Bootstrap script.",
+          "description": "Setup script (full local-environment bootstrap).",
           "source": "scripts/initialize-project.sh"
         },
         {
@@ -145,12 +144,6 @@
           "command": "./scripts/setup-code-graph.sh",
           "description": "Setup script (full local-environment bootstrap).",
           "source": "scripts/setup-code-graph.sh"
-        },
-        {
-          "tier": "readme",
-          "command": "./qubika-agentic-framework/scripts/initialize-project.sh",
-          "description": "From README.md § Quick Start",
-          "source": "README.md#quick-start"
         }
       ],
       "start_dev": [
@@ -161,8 +154,20 @@
           "source": "scripts/code-review-graph-mcp.sh"
         },
         {
+          "tier": "wrapper",
+          "command": "./scripts/ensure-context.sh",
+          "description": "Dev-server launcher.",
+          "source": "scripts/ensure-context.sh"
+        },
+        {
+          "tier": "wrapper",
+          "command": "./scripts/sync-framework-resources.sh",
+          "description": "Dev-server launcher.",
+          "source": "scripts/sync-framework-resources.sh"
+        },
+        {
           "tier": "package_manager",
-          "command": "pnpm -F orchestration initialize",
+          "command": "tsx",
           "source": "documented_commands(package_json)",
           "per_service": "_root"
         }
@@ -176,13 +181,19 @@
         },
         {
           "tier": "wrapper",
+          "command": "./scripts/security-check.sh",
+          "description": "Test runner.",
+          "source": "scripts/security-check.sh"
+        },
+        {
+          "tier": "wrapper",
           "command": "./scripts/verify-mcp-payload.sh",
           "description": "Test runner.",
           "source": "scripts/verify-mcp-payload.sh"
         },
         {
           "tier": "package_manager",
-          "command": "pnpm -r test",
+          "command": "pnpm --filter orchestration test:unit",
           "source": "documented_commands(package_json)",
           "per_service": "_root"
         }
@@ -190,7 +201,7 @@
       "run_build": [
         {
           "tier": "package_manager",
-          "command": "pnpm -r build",
+          "command": "pnpm --filter orchestration build",
           "source": "documented_commands(package_json)",
           "per_service": "_root"
         }
@@ -198,7 +209,7 @@
       "run_lint": [
         {
           "tier": "package_manager",
-          "command": "pnpm -r lint",
+          "command": "pnpm --filter orchestration lint",
           "source": "documented_commands(package_json)",
           "per_service": "_root"
         }
@@ -206,7 +217,23 @@
       "run_typecheck": [
         {
           "tier": "package_manager",
-          "command": "pnpm -r typecheck",
+          "command": "pnpm --filter orchestration typecheck",
+          "source": "documented_commands(package_json)",
+          "per_service": "_root"
+        }
+      ],
+      "run_unit_tests": [
+        {
+          "tier": "package_manager",
+          "command": "pnpm --filter orchestration test:unit",
+          "source": "documented_commands(package_json)",
+          "per_service": "_root"
+        }
+      ],
+      "run_integration_tests": [
+        {
+          "tier": "package_manager",
+          "command": "pnpm --filter orchestration test:integration",
           "source": "documented_commands(package_json)",
           "per_service": "_root"
         }
@@ -215,7 +242,6 @@
   },
   "resource_state": {
     "skills": {},
-    "agents": {},
-    "last_sync": "2026-05-28T03:29:30.814Z"
+    "agents": {}
   }
 }

@@ -1,10 +1,10 @@
 ---
 document_type: service
 summary: >-
-  `website` is the human-readable documentation portal for the Qubika Agentic
-  Framework. Built on Docusaurus 3.10.0, it publishes framework guides, skill
-  refer...
-last_updated: '2026-05-28T03:29:30.820Z'
+  The website service is a static documentation site built with Docusaurus and
+  deployed via GitHub Pages. It serves as the public-facing knowledge base for
+  the...
+last_updated: '2026-06-13T19:05:02.079Z'
 tags:
   - service
   - typescript
@@ -12,77 +12,57 @@ tags:
   - docusaurus
 service_id: website
 ---
-# Website
+# website
 
 ## Purpose
 
-`website` is the human-readable documentation portal for the Qubika Agentic Framework. Built on Docusaurus 3.10.0, it publishes framework guides, skill references, and architectural documentation as a static site served on port 3000. It does not process framework artifacts at runtime — content is authored in MDX/Markdown under `website/docs/` and compiled to a static bundle during the build step. The orchestration package is its sole producer of narrative context but shares no network boundary or runtime coupling with it.
+The website service is a static documentation site built with Docusaurus and deployed via GitHub Pages. It serves as the public-facing knowledge base for the qubika-agentic-framework, providing getting-started guides, architecture explanations, and framework configuration references to developers adopting the framework.
 
 ## Public API / Surface
 
-The website exposes no programmatic API. Its public surface is the rendered static site:
+The website has no runtime API surface—it is a pre-rendered static site. Consumer access points are:
 
-| Entry point | Description |
-|---|---|
-| `http://localhost:3000` | Dev server root (Docusaurus hot-reload) |
-| `website/docs/{section}/{name}.md` | Authoring location for human-facing docs pages |
-| `docs/llm-wiki/` | Auto-generated LLM wiki (produced by orchestration; do not edit manually) |
+- **Entry point**: `website/src/pages/index.tsx` — homepage
+- **Page routes**: `website/src/pages/{page}.tsx` — statically generated page components
+- **Feature components**: `website/src/components/{Feature}/index.tsx` — reusable UI building blocks
+- **Styles**: `website/src/css/custom.css` (global), `website/src/components/{Component}/styles.module.css` (scoped)
 
-A CI workflow at `.github/workflows/deploy-docs.yml` handles production deployment; the exact deployment target is (not determined by analysis).
+Docusaurus automatically generates HTML routes from the `src/pages/` directory structure. Pages support both `.tsx` (React) and `.md` (Markdown) formats, with MDX support for embedding React components within Markdown content.
 
 ## Internal Architecture
 
-The site follows the standard Docusaurus v3 layout:
+The website follows a standard Docusaurus 3.10.0 structure:
 
-- **`website/src/components/`** — reusable React components (e.g., `HomepageFeatures/`) built as typed functional components with CSS Modules.
-- **`website/src/pages/`** — top-level page routes rendered by Docusaurus's file-based router.
-- **`website/docs/`** — MDX/Markdown content tree; the majority of site content lives here rather than in compiled React code.
-- **`website/docusaurus.config.*`** — site-wide Docusaurus configuration (plugins, navbar, footer, theme).
-- **`website/package.json`** — isolated dependency manifest; the workspace tool is pnpm but this package uses npm as its declared package manager.
+- **Pages layer** (`src/pages/`): React components or Markdown files that define top-level routes
+- **Components layer** (`src/components/`): Reusable React UI components (e.g., `HomepageFeatures`) with CSS modules for scoped styling
+- **Styles layer** (`src/css/`): Global CSS (`custom.css`) for theme and layout overrides
+- **Build output**: Static HTML+CSS+JS generated at build time by Docusaurus and deployed to GitHub Pages
 
-There is no server-side rendering pipeline, no API layer, and no background worker — Docusaurus outputs a fully pre-rendered static bundle at build time.
+No runtime server exists; Docusaurus pre-renders all pages during the build phase.
 
-## Request Lifecycle (or Job Lifecycle)
+## Request Lifecycle
 
-Because this is a static site there is no runtime request lifecycle. The build-time pipeline is:
-
-1. **Content authoring** — docs pages are written as MDX/Markdown in `website/docs/{section}/`.
-2. **Component composition** — React components in `website/src/components/` are imported by pages or MDX files.
-3. **Docusaurus build** (`pnpm -r build`) — Docusaurus compiles MDX, bundles React components, and emits a static `build/` directory.
-4. **Serve** — in development, `docusaurus start` serves the hot-reload dev server on port 3000; in production, the static bundle is deployed via the `deploy-docs.yml` workflow.
-
-During `pnpm -F orchestration initialize`, the orchestration CLI writes `docs/llm-wiki/` content; those files are picked up by the next Docusaurus build automatically because they fall inside the `docs/` tree.
+1. Developer triggers build (`pnpm --filter website build`)
+2. Docusaurus processes `src/pages/` and MDX documents, transpiling React/TypeScript
+3. Static HTML, CSS, and JavaScript bundles are generated to a `build/` directory
+4. Artifacts are deployed to GitHub Pages (via CI workflow)
+5. Browser requests fetch pre-rendered HTML; client-side React hydration provides interactivity
 
 ## Data Layer
 
-The website has no persistent data store. It holds no database, cache, or queue connection.
-
-Content is stored as files:
-
-| Location | Role |
-|---|---|
-| `website/docs/` | Authored MDX/Markdown pages |
-| `docs/llm-wiki/` | Auto-generated wiki pages (written by orchestration, read by Docusaurus at build time) |
+(not determined by analysis)
 
 ## Configuration
 
 (no environment variables consumed)
 
-The Docusaurus configuration is static (`website/docusaurus.config.*`) and does not read runtime environment variables beyond what Docusaurus itself injects during the build (e.g., `NODE_ENV`). No service-specific env vars are declared in the upstream analysis.
-
 ## Integrations
 
-The website has no inbound webhooks or outbound API calls at runtime. Its only integration is build-time:
-
-- **[[orchestration]]** — the orchestration CLI writes `docs/llm-wiki/` pages as a side-effect of the `initialize-project` skill. Those files are co-located in the monorepo and consumed by the next Docusaurus build. There is no network call between the two services.
-- **GitHub Actions** (`.github/workflows/deploy-docs.yml`) — CI/CD pipeline triggers a production build and deployment on merge; the deployment target is (not determined by analysis).
+The website service has no runtime dependency on [[orchestration]] or other services. It is built and deployed independently. The documentation it contains *describes* the orchestration framework and monorepo structure, but requires no functional integration.
 
 ## Service-Specific Patterns
 
-**Functional React components with typed props.** UI components follow a single pattern: a TypeScript interface defines the props shape, the component is a plain function destructuring that interface, and layout uses Docusaurus's `clsx` utility for conditional class composition. No class components, no Redux, no context providers are observed.
-
-**CSS Modules for component-scoped styles.** Each component imports a collocated `styles` object from a `.module.css` file; class names are referenced as `styles.featureName` rather than global strings.
-
-**MDX-first content model.** The bulk of the site is authored in MDX/Markdown rather than compiled React. React components appear at the edges (homepage features, custom layout wrappers) while documentation pages remain plain Markdown for maximum portability and ease of editing by non-frontend authors.
-
-**No test suite.** The `package.json` test script echoes `'No tests yet'` and exits 0. Website components are not covered by automated tests.
+- **Docusaurus plugins**: Extend build process (e.g., custom markdown processors, asset pipelines)
+- **React component composition**: Pages and components use TypeScript for type safety; styles use CSS modules to avoid global namespace pollution
+- **MDX documents**: Markdown files can embed React components, enabling interactive documentation examples
+- **Static site generation**: All content is pre-rendered at build time; no server-side rendering or dynamic APIs

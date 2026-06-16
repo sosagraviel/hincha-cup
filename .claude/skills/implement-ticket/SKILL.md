@@ -1,7 +1,7 @@
 ---
 name: implement-ticket
-version: 3.7.0
-last-updated: 2026-05-13
+version: 3.8.0
+last-updated: 2026-05-29
 description: Implements a ticket end-to-end through 14-phase workflow from planning to PR. Supports both single-repo projects and multi-repo workspaces (a parent folder containing N independent child git repos). Use when user says "implement ticket", "implement PROJ-123", or provides a Jira ID or markdown spec to implement.
 argument-hint: '[--from-jira TICKET-ID | --from-input "description" | --from-markdown PATH]'
 disable-model-invocation: true
@@ -38,33 +38,46 @@ If the graph DB, MCP config, graph-aware agents, active graph tools, or the LLM 
 
 ## CRITICAL: Artifact Path Enforcement
 
-**ALL artifacts MUST be saved to the following deterministic structure:**
+**ALL artifacts MUST be saved under the workspace-root temp dir, in this deterministic structure:**
 
 ```
-.claude-temp/tickets/<TICKET_ID>/artifacts/
+<workspace-root>/.claude-temp/tickets/<TICKET_ID>/artifacts/
 ```
+
+`<workspace-root>` is the folder where this skill lives (the one containing `.claude/`). In a multi-repo workspace it is the PARENT folder, never one of the child repos.
 
 **NEVER save artifacts to:**
+- Inside any child repo (e.g. `<child-repo>/.claude-temp/...`) in a multi-repo workspace — the temp dir lives ONLY at the workspace root
 - `.claude/artifacts/`
 - `.claude/screenshots/`
 - `.claude/decisions/`
 - `orchestration/artifacts/`
 - Any other location
 
-When spawning agents or invoking skills, ALWAYS pass the ARTIFACTS_DIR variable:
+`ARTIFACTS_DIR` MUST be an **absolute** path anchored at the workspace root. Resolve it deterministically — never as a bare relative `.claude-temp/...`, which would resolve against the current working directory and leak into a child repo when `cwd` has drifted:
 ```bash
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
+source ".claude/scripts/lib/resolve-paths.sh"
+ARTIFACTS_DIR="$(project_path)/.claude-temp/tickets/$TICKET_ID/artifacts"
 export ARTIFACTS_DIR
 ```
 
+`project_path()` resolves the workspace root independent of `cwd` (it self-locates from the shipped `.claude/scripts/` install path), so `ARTIFACTS_DIR` is always under the workspace root even when a later phase operates on a child repo via `git -C` or after a `cd`. Re-run this snippet at the start of any phase that needs the path; Phase 0 also records the resolved absolute value as `artifacts_dir` in `.preflight-ok` for cross-check. When invoking sub-skills, ALWAYS pass `--artifacts-dir "$ARTIFACTS_DIR"` so they inherit the same absolute anchor.
+
 This ensures:
-- Artifacts are excluded from PRs (via `.gitignore`)
+- Artifacts are excluded from PRs (locally ignored in every repo by Phase 0)
 - Consistent paths across all workflows
-- No artifact pollution in version control
+- No artifact pollution in version control, in single- or multi-repo workspaces
 
 ## Multi-Repository Awareness
 
-The workspace may be a single git repo OR a parent folder containing multiple independent child git repos (each with its own GitHub remote). When operating on the working tree (status, branch, commit, push, tests), target each affected repo individually with `git -C <repo>` rather than assuming a single workspace root. The LLM wiki and code graph remain workspace-scoped (one shared `docs/llm-wiki/` and `.code-review-graph/` at the workspace root).
+The workspace may be a single git repo OR a parent folder containing multiple independent child git repos (each with its own GitHub/GitLab/Azure remote). When operating on the working tree (status, branch, commit, push, tests), target each affected repo individually with `git -C <repo>` rather than assuming a single workspace root. The LLM wiki and code graph remain workspace-scoped (one shared `docs/llm-wiki/` and `.code-review-graph/` at the workspace root).
+
+Two values, never derived by eyeballing the tree:
+
+- **`WORKSPACE_MODE`** (`single`|`multi`) and **`child_repos`** — written deterministically into `.preflight-ok` by Phase 0. Read back, don't re-derive: `jq -r .workspace_mode "$ARTIFACTS_DIR/.preflight-ok"`.
+- **`AFFECTED_REPOS`** — the repos this change touches: `[<workspace-root>]` in `single`; the `child_repos` subset named in the plan's `Affected Repositories` in `multi`.
+
+Phase 9 keys on `len(AFFECTED_REPOS)`, not mode: `1` → `gh pr create`; `>1` → `/repo-fanout-pr`.
 
 ## CRITICAL: Task Tracking Setup
 
@@ -75,8 +88,8 @@ Create each task using TaskCreate with these exact values:
 1. Phase 0: Preflight (Auto-bootstrap + Validation)
    subject: "Phase 0: Preflight (Auto-bootstrap + Validation)"
    activeForm: "Running deterministic preflight (auto-bootstrap + validation)"
-   Steps: (a) Run `bash $FRAMEWORK_PATH/scripts/ensure-context.sh --artifacts-dir "$ARTIFACTS_DIR"` — this auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or updates the graph, re-emits `.mcp.json`, and writes a success marker `$ARTIFACTS_DIR/.preflight-ok`. <3 s on the hot path. (b) If the script exits non-zero, STOP and surface its output verbatim — failure marker `$ARTIFACTS_DIR/.preflight-failed` carries `{reason, git_head, ran_at}`. (c) Defensive double-check: check git status (in a multi-repo workspace, run the status check in each child git repo, not at the workspace root), verify test commands work, verify build succeeds, detect primary language and stack, assert `.code-review-graph/graph.db`, assert `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools, assert `docs/llm-wiki/CLAUDE.md`, assert `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES}.md` exist, assert at least one `docs/llm-wiki/wiki/services/*.md` exists. Wiki staleness is no longer checked at preflight — Phase 8.5 handles it.
-   Expected outputs: `$ARTIFACTS_DIR/.preflight-ok` exists and carries the current `git_head`, git is clean, tests pass, build succeeds, graph DB exists, project MCP config exists, graph tools are visible in the active Claude Code session, graph-aware agents are present, LLM wiki is present and well-formed; staleness warnings surfaced if applicable
+   Steps: (a) Run `bash .claude/scripts/ensure-context.sh --artifacts-dir "$ARTIFACTS_DIR"` (anchored at the repository root via `cd "$(git rev-parse --show-toplevel)"`) — this auto-installs `uv`/`uvx`/`code-review-graph` if missing, builds or updates the graph, re-emits `.mcp.json`, and writes a success marker `$ARTIFACTS_DIR/.preflight-ok` (including `workspace_mode` + `child_repos`). <3 s on the hot path. (b) If the script exits non-zero, STOP and surface its output verbatim — failure marker `$ARTIFACTS_DIR/.preflight-failed` carries `{reason, git_head, ran_at}`. (c) Defensive double-check: check git status (in a multi-repo workspace, run the status check in each child git repo, not at the workspace root), verify test commands work, verify build succeeds, detect primary language and stack, assert `.code-review-graph/graph.db`, assert `.mcp.json` has `mcpServers.code_graph`, verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools, assert `docs/llm-wiki/CLAUDE.md`, assert `docs/llm-wiki/wiki/{index,ARCHITECTURE,SERVICES}.md` exist, assert at least one `docs/llm-wiki/wiki/services/*.md` exists. Wiki staleness is no longer checked at preflight — Phase 8.5 handles it.
+   Expected outputs: `$ARTIFACTS_DIR/.preflight-ok` exists and carries the current `git_head` plus non-empty `workspace_mode` + `child_repos`, git is clean, tests pass, build succeeds, graph DB exists, project MCP config exists, graph tools are visible in the active Claude Code session, graph-aware agents are present, LLM wiki is present and well-formed; staleness warnings surfaced if applicable. Export `WORKSPACE_MODE`/`CHILD_REPOS` from the marker for later phases.
    Constraint: If `ensure-context.sh` exits non-zero, STOP and surface its output. If any defensive assertion fails despite a fresh marker, delete the marker and rerun `ensure-context.sh` once; if it still fails, STOP. Staleness warnings do not block Phase 1 — Phase 8.5 resolves them automatically.
 
 2. Phase 1: Context Gathering
@@ -96,15 +109,15 @@ Create each task using TaskCreate with these exact values:
 4. Phase 3: Planning
    subject: "Phase 3: Planning"
    activeForm: "Creating implementation plan"
-   Steps: MUST spawn planner agent, planner consumes the ticket context from Phase 1 and the Phase 2 wiki context (`WIKI_INDEX_SNAPSHOT`, `WIKI_CORE`, and the optional `get_minimal_context_tool` payload when present), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact, planner emits a `Recommended Implementers` section — a non-empty ordered list, one entry per unique language bucket derived from `framework-config.json::stack_profile.services` (longest-prefix file→service match, dedupe by `language`; `python`→`implementer-python`, `typescript`/`javascript`→`implementer-typescript`, anything else or unmapped→`implementer-generic`), each entry naming its agent, the service IDs it covers, and the scoped files within them. If the workspace contains multiple git repos and the change touches more than one, the plan SHOULD identify which repo each file belongs to so Phase 9 can fan out cleanly.
+   Steps: MUST spawn planner agent, planner consumes the ticket context from Phase 1 and the Phase 2 wiki context (`WIKI_INDEX_SNAPSHOT`, `WIKI_CORE`, and the optional `get_minimal_context_tool` payload when present), planner returns the only Phase 3 planning artifact named `Implementation Plan`, parent/main agent persists that returned plan under the normal artifact path, planner includes implementation strategy/files to create or modify/test strategy/Wiki Evidence/Graph Evidence in that artifact, planner emits a `Recommended Implementers` section — a non-empty ordered list, one entry per unique language bucket derived from `framework-config.json::stack_profile.services` (longest-prefix file→service match, dedupe by `language`; `python`→`implementer-python`, `typescript`/`javascript`→`implementer-typescript`, anything else or unmapped→`implementer-generic`), each entry naming its agent, the service IDs it covers, and the scoped files within them. In `multi` mode the plan MUST add an `Affected Repositories` section mapping each touched repo (a `child_repos` path) to its files, so Phases 4/8.4/9 can fan out; omit in `single` mode.
    Expected outputs: planner agent was spawned with the Phase 2 wiki context injected, parent/main agent saved the planner-authored `Implementation Plan` as the only Phase 3 planning artifact, Wiki Evidence exists and cites the wiki paths actually used, Graph Evidence exists, test strategy defined, files to create/modify identified, `Recommended Implementers` present as a non-empty ordered list with each entry naming one of `implementer-typescript` | `implementer-python` | `implementer-generic`, the service IDs it covers, and its scoped files.
    Constraint: Do not proceed if planner agent was not spawned, Wiki Evidence or Graph Evidence is absent, the planner-authored `Implementation Plan` does not exist, Phase 3 produced competing planning artifacts, `Recommended Implementers` is missing/empty, or any entry's agent name is not present in `$AVAILABLE_IMPLEMENTERS` (i.e., not installed under `.claude/agents/`).
 
 5. Phase 4: Environment Setup
    subject: "Phase 4: Environment Setup"
    activeForm: "Setting up environment"
-   Steps: MUST branch from the currently active branch in each affected repo. MUST NOT `git checkout`/`switch` to another branch first, and MUST NOT pass a base argument to `git checkout -b`. Branching from any base other than the active branch REQUIRES explicit user consent — when `QAF_ASK_USER_MCP_TOOL` is set, use the MCP payload path; otherwise use `AskUserQuestion` — never assume `main`/`master`/`development`. Then run `git -C <repo> checkout -b <new-branch>` per affected repo, and allocate ports / docker-compose override / env vars / BEFORE screenshots as needed.
-   Expected outputs: feature branch created in each affected repo, rooted at the branch that was active when Phase 4 started
+   Steps: Create ONE feature branch PER repo in `AFFECTED_REPOS`, same name in each — `git -C <repo> checkout -b <new-branch>`. MUST branch from each repo's currently active branch. MUST NOT `git checkout`/`switch` first, and MUST NOT pass a base argument to `git checkout -b`. Any other base REQUIRES explicit user consent — when `QAF_ASK_USER_MCP_TOOL` is set use the MCP payload path, else `AskUserQuestion`; never assume `main`/`master`/`development`. Also allocate ports / docker-compose override / env vars / BEFORE screenshots as needed.
+   Expected outputs: the same feature branch exists in EVERY repo in `AFFECTED_REPOS`, each rooted at that repo's previously-active branch
    Constraint: STOP if branching from anything other than the active branch without explicit user consent.
 
 6. Phase 5: Implementation
@@ -131,9 +144,9 @@ Create each task using TaskCreate with these exact values:
 9. Phase 8: Documentation Update
    subject: "Phase 8: Documentation Update"
    activeForm: "Updating documentation"
-   Steps: MUST invoke /doc-updater skill, analyze changed files for doc impact, apply maintenance test, update CLAUDE.md and the relevant convention skill (`code-conventions` / `multi-file-workflows` / `testing-conventions`) if needed
-   Expected outputs: doc-updater skill was invoked and analysis completed
-   Constraint: Do not proceed if doc-updater was not invoked.
+   Steps: MUST run doc-updater in an isolated subagent (`Task(subagent_type: "general-purpose", ...)`) that reads and follows the doc-updater skill against the changed files; on return, TaskUpdate this phase completed with the subagent's summary in the description
+   Expected outputs: doc-updater subagent returned a one-line summary (files updated OR "no prescriptive doc changes needed" — both valid)
+   Constraint: Do not proceed if the doc-updater subagent was not spawned. Do NOT invoke /doc-updater inline.
 
 10. Phase 8.4: Implementation Commit
     subject: "Phase 8.4: Implementation Commit"
@@ -152,14 +165,14 @@ Create each task using TaskCreate with these exact values:
 12. Phase 9: PR Creation
     subject: "Phase 9: PR Creation"
     activeForm: "Creating pull request"
-    Steps: If `--skip-pr` flag is set, mark completed as "Skipped via flag" (no push, no PR — commits stay local). This phase only pushes and opens PRs. Single-repo path runs `git push -u origin <branch>` then `gh pr create` with title/summary/test plan/ticket link. Multi-repo path delegates to `/repo-fanout-pr --no-commit ...` which validates the working tree is clean + branch is ahead of base in each affected repo, then pushes and opens one PR per repo with cross-linked bodies. If Phase 8.5 wrote `$ARTIFACTS_DIR/wiki/wiki-warning.txt`, embed it in every PR body.
+    Steps: If `--skip-pr` flag is set, mark completed as "Skipped via flag" (no push, no PR — commits stay local). This phase only pushes and opens PRs. **Path keyed on `len(AFFECTED_REPOS)`, not mode:** `1` → `git -C <repo> push -u origin <branch>` then `gh pr create` (title/summary/test plan/ticket link); `>1` → `/repo-fanout-pr --no-commit --repos <AFFECTED_REPOS csv> ...` (asserts clean tree + branch ahead of base per repo, one cross-linked PR per repo). If Phase 8.5 wrote `$ARTIFACTS_DIR/wiki/wiki-warning.txt`, embed it in every PR body.
     Expected outputs: branch pushed and PR created with URL in every affected repo, OR PR was skipped via `--skip-pr` (commits stay local in every affected repo). Multi-repo: every affected repo has its own PR (or local commits under `--skip-pr`), and the PR bodies are cross-linked.
     Constraint: Do not proceed if any expected PR was not created, unless `--skip-pr` was set in which case local commits in every affected repo are sufficient.
 
 13. Phase 10: Review Loop
     subject: "Phase 10: Review Loop"
     activeForm: "Running review loop"
-    Steps: For each PR URL produced by Phase 9, invoke /pr-reviewer (`--pr-url <URL> --jira-key <ID> --mode automated [--repos <abs>]`) and /security-review (`--pr-url <URL> --jira-key <ID> [--repos <abs>] [--baseline <prior>]`). If blocking issues, spawn implementer for fixes and re-run tests; max 3 iterations global across all PRs. After the loop, in multi-repo mode only, run /pr-reviewer --aggregate --jira-key <ID> and /security-review --aggregate --jira-key <ID> to emit cross-repo summaries.
+    Steps: For each PR URL produced by Phase 9, invoke /pr-reviewer (`--pr-url <URL> --jira-key <ID> --mode automated --artifacts-dir "$ARTIFACTS_DIR" [--repos <abs>]`) and /security-review (`--pr-url <URL> --jira-key <ID> --artifacts-dir "$ARTIFACTS_DIR" [--repos <abs>] [--baseline <prior>]`). Always pass `--artifacts-dir "$ARTIFACTS_DIR"` so review/security artifacts land under the workspace-root ticket dir, never inside a child repo. If blocking issues, spawn implementer for fixes and re-run tests; max 3 iterations global across all PRs. After the loop, in multi-repo mode only, run /pr-reviewer --aggregate --jira-key <ID> --artifacts-dir "$ARTIFACTS_DIR" and /security-review --aggregate --jira-key <ID> --artifacts-dir "$ARTIFACTS_DIR" to emit cross-repo summaries.
     Expected outputs: PR review ran, security review ran, either no blocking issues or fixes applied
     Constraint: If max iterations reached with unresolved issues, report and proceed to cleanup.
 
@@ -202,19 +215,25 @@ Execute each phase sequentially. Do not proceed to the next phase until the curr
 
 This phase has two parts. **Part A (auto-bootstrap) is mandatory and runs first.** Part B (defensive double-check) is a belt-and-suspenders verification that the bootstrap succeeded.
 
-**Part A — auto-bootstrap.** Run the deterministic preflight before doing anything else in this phase:
+**Part A — auto-bootstrap.** Run the deterministic preflight before doing anything else in this phase. Anchor `ARTIFACTS_DIR` to the workspace root via `project_path()` (cwd-independent) so it can never resolve inside a child repo:
 
 ```bash
-ARTIFACTS_DIR=".claude-temp/tickets/$TICKET_ID/artifacts"
-bash "$FRAMEWORK_PATH/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR"
+cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+source ".claude/scripts/lib/resolve-paths.sh"
+cd "$(project_path)"
+ARTIFACTS_DIR="$(project_path)/.claude-temp/tickets/$TICKET_ID/artifacts"
+export ARTIFACTS_DIR
+bash ".claude/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR"
 ```
+
+`ensure-context.sh` records the resolved absolute `artifacts_dir` (and `workspace_root`) in `$ARTIFACTS_DIR/.preflight-ok`; later phases re-derive `ARTIFACTS_DIR` with the same two-line `source … ; ARTIFACTS_DIR="$(project_path)/.claude-temp/tickets/$TICKET_ID/artifacts"` snippet, so the path stays absolute and root-anchored regardless of the current working directory.
 
 What the script does (handled automatically; you do not need to do any of this manually):
 
 - Auto-installs `uv` / `uvx` / `code-review-graph` via the framework's existing fallback chain (`uv tool install` → `bootstrap_uv` → `pipx` → `pip`).
 - Builds the code graph if missing, incrementally updates it if the local commit moved, or no-ops if it is already at HEAD (<3 s on the hot path).
 - Re-emits `.mcp.json` with `mcpServers.code_graph` pointed at this machine's local framework path. Compare-then-write — no-op when content already matches.
-- Writes a JSON success marker at `$ARTIFACTS_DIR/.preflight-ok` carrying `{git_head, graph_sha, provider, preflight_ran_at}`. Wiki staleness is no longer handled here — `/wiki-refresh` (Phase 8.5) owns it.
+- Writes a JSON success marker at `$ARTIFACTS_DIR/.preflight-ok` carrying `{git_head, graph_sha, provider, workspace_mode, child_repos, preflight_ran_at}`. `workspace_mode` (`single`|`multi`) + `child_repos` come from a deterministic probe (`register-submodules.sh is-multi-repo`, an exit code). Wiki staleness is no longer handled here — `/wiki-refresh` (Phase 8.5) owns it.
 
 **If the script exits non-zero, STOP.** Surface its output verbatim to the user. Do NOT continue to Part B or any later phase. Failure modes (with structured marker `$ARTIFACTS_DIR/.preflight-failed`):
 
@@ -229,6 +248,7 @@ What the script does (handled automatically; you do not need to do any of this m
 - Detect primary language and stack
 - Assert `.code-review-graph/graph.db` exists at the project root
 - Assert project root `.mcp.json` has `mcpServers.code_graph`
+- Assert `.preflight-ok` carries `workspace_mode` + `child_repos`; export `WORKSPACE_MODE`/`CHILD_REPOS` for Phases 4/8.4/9
 - Verify `/mcp` shows `code_graph` connected or active `mcp__code_graph__*` tools are visible in this Claude Code session
 - Verify generated planner and implementer agents expose exact `mcp__code_graph__*_tool` entries in their frontmatter, not only the broad `mcp__code_graph` server alias
 - Assert `docs/llm-wiki/CLAUDE.md` exists (confirms initialization ran for the Claude Code provider)
@@ -322,8 +342,7 @@ methodology. Include only:
 Persist the planner's returned markdown verbatim to
 `$ARTIFACTS_DIR/plans/implementation-plan.md`.
 
-Verify: plan file exists, contains `Wiki Evidence` and `Graph Evidence`, test strategy and target files are named, contains a `Recommended Implementers` section that is a non-empty ordered list where **every entry's agent name appears verbatim in `$AVAILABLE_IMPLEMENTERS`** (no recommending agents that are not installed under `.claude/agents/`), the service IDs it covers (derived from `framework-config.json::stack_profile.services`), and its scoped files; and (in `multi` mode) contains an `Affected Repositories` section listing each touched repo path with the files within it.
-In `single` mode the `Affected Repositories` section may be absent — the parent/main agent infers it as the single workspace repo. 
+Verify: plan file exists, contains `Wiki Evidence` and `Graph Evidence`, test strategy and target files are named, contains a `Recommended Implementers` section that is a non-empty ordered list where **every entry's agent name appears verbatim in `$AVAILABLE_IMPLEMENTERS`** (no recommending agents that are not installed under `.claude/agents/`), the service IDs it covers (derived from `framework-config.json::stack_profile.services`), and its scoped files; and (in `multi` mode) contains an `Affected Repositories` section mapping each touched `child_repos` path to its files. `single` mode may omit it — `AFFECTED_REPOS` is then the one workspace repo.
 
 `Recommended Implementers` and `Affected Repositories` are orthogonal: the former drives Phase 5 implementer dispatch (per stack), the latter drives Phase 8.4 commit + Phase 9 PR fanout (per git repo).
 
@@ -331,7 +350,7 @@ CONTINUE WITH Phase 4.
 
 ### Phase 4: Environment Setup
 
-- Create feature branch (e.g., `feature/PROJ-123-description`). **MUST branch from the currently active branch in each affected repo.** MUST NOT `git checkout`/`switch` to another branch first, and MUST NOT pass a base argument to `git checkout -b`. Branching from any base other than the active branch REQUIRES explicit user consent — obtain it as follows:
+- **Create one feature branch PER repo in `AFFECTED_REPOS`** (e.g. `feature/PROJ-123-description`), same name in each — loop `git -C <repo> checkout -b <new-branch>`. **MUST branch from each repo's currently active branch.** MUST NOT `git checkout`/`switch` first, and MUST NOT pass a base argument to `git checkout -b`. Any other base REQUIRES explicit per-repo user consent — obtain it as follows:
 
 ```bash
 if [[ -n "${QAF_ASK_USER_MCP_TOOL:-}" ]]; then
@@ -434,17 +453,22 @@ CONTINUE WITH Phase 8.
 
 ### Phase 8: Documentation Update
 
-CRITICAL: You MUST invoke `/doc-updater` skill. Do not skip this even if you think no docs need updating.
+CRITICAL: run documentation maintenance in an **isolated subagent**, NOT inline. Doc-updater's phases end in an "analyze → decide" conclusion that the model tends to emit as plain text; inline, that idle turn terminates the whole run (see "CRITICAL — headless execution"). A subagent runs its own loop, so its narrate-and-stop ends only the child and returns its text to you as a tool result.
 
-- Analyze changed files for doc impact
-- Apply maintenance test (only update if truly needed)
-- Update CLAUDE.md and the relevant convention skill (`code-conventions` / `multi-file-workflows` / `testing-conventions`) surgically if needed; descriptive context flows to the wiki via Phase 8.5, not into a skill body
+Spawn it with `Task(subagent_type: "general-purpose", prompt: ...)`. The prompt MUST contain:
+
+- "Read and follow `.claude/skills/doc-updater/SKILL.md` exactly to maintain the four prescriptive doc targets (CLAUDE.md + the `code-conventions` / `multi-file-workflows` / `testing-conventions` skills). Edit nothing outside those four targets; descriptive context belongs in the wiki via Phase 8.5, not a skill body."
+- Changed files: the output of `git diff --name-only` across `AFFECTED_REPOS`, excluding `docs/llm-wiki/**`.
+- Artifact PATHS (not bodies): `$ARTIFACTS_DIR/context/ticket-context.md`, `$ARTIFACTS_DIR/plans/implementation-plan.md`.
+- "Return ONLY a one-line summary: the files updated, or `doc-updater: no prescriptive doc changes needed`."
+
+When the `Task` returns, **do NOT narrate** — your next action MUST be a tool call: immediately `TaskUpdate` Phase 8 → completed (put the subagent's summary line in the description), then proceed. A no-change result is the expected outcome for most tickets and counts as success. Do not re-run doc-updater inline.
 
 CONTINUE WITH Phase 8.4.
 
 ### Phase 8.4: Implementation Commit
 
-For each affected repo (single workspace root, or each child repo from the planner's `Affected Repositories`):
+For each repo in `AFFECTED_REPOS` (single workspace root, or each child repo from the planner's `Affected Repositories`):
 
 1. List changed files with `git -C <repo> status --porcelain`; exclude `docs/llm-wiki/**` (Phase 8.5 owns it). Empty list → STOP (single-repo) or skip with a note (multi-repo).
 2. `git -C <repo> add -- <files>` then `git -C <repo> commit -m "<message>"`. Never `git add .` / `-A` / `commit -a`. Do not skip hooks.
@@ -473,17 +497,15 @@ CONTINUE WITH Phase 9.
 
 If `--skip-pr` flag: skip push and PR creation, mark completed as "Skipped via flag" and continue. Local commits from Phase 8.4 + Phase 8.5 remain on the branch for the user to inspect.
 
-Otherwise, **single-repo path**:
+Otherwise, **choose by `len(AFFECTED_REPOS)`, NOT by `WORKSPACE_MODE`** (a `multi` workspace touching one repo still gets a single PR):
 
-- `git -C <workspace-root> push -u origin <branch>`
-- `gh pr create` with:
-  - Auto-generated title from ticket
-  - Summary of changes
-  - Test plan checklist
-  - Link to original ticket
+**If `len(AFFECTED_REPOS) == 1`** (`<repo>` = the one entry):
+
+- `git -C <repo> push -u origin <branch>`
+- Detect the git host provider from `git -C <repo> remote get-url origin` and create the PR/MR using the matching skill: `mastering-github-cli` for GitHub, `mastering-azure-devops-cli` for Azure DevOps, or the provider's native CLI for others — with: auto-generated title from ticket, summary of changes, test plan checklist, link to original ticket
 - Return PR URL
 
-**Multi-repo workspace**: if the change touches more than one git repo, delegate the fanout to `/repo-fanout-pr --no-commit --repos <abs1>,<abs2>,... --branch <branch> --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR` instead. The skill asserts every repo's working tree is clean and the branch is ahead of base, pushes each branch, opens one PR per repo, and cross-links the PR bodies. The orchestrator just consumes its returned `result.json`.
+**If `len(AFFECTED_REPOS) > 1`** — delegate to `/repo-fanout-pr --no-commit --repos <csv> --branch <branch> --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR`, where `<csv>` is `AFFECTED_REPOS` joined by commas (absolute paths, no spaces). It asserts each repo's tree is clean + branch ahead of base, pushes, opens one cross-linked PR per repo, and returns `fanout/result.json`.
 
 If Phase 8.5 wrote `$ARTIFACTS_DIR/wiki/wiki-warning.txt`, append its contents to every PR body created in this phase.
 
@@ -495,8 +517,10 @@ CONTINUE WITH Phase 10.
 
 For each PR URL produced by Phase 9 (single-repo: one URL; multi-repo: one per affected repo):
 
-- Run PR review: `/pr-reviewer --pr-url <URL> --jira-key <TICKET-ID> --mode automated [--repos <abs-repo-path>]`
-- Run security review: `/security-review --pr-url <URL> --jira-key <TICKET-ID> [--repos <abs-repo-path>] [--baseline <prior-findings.json>]`
+- Run PR review: `/pr-reviewer --pr-url <URL> --jira-key <TICKET-ID> --mode automated --artifacts-dir "$ARTIFACTS_DIR" [--repos <abs-repo-path>]`
+- Run security review: `/security-review --pr-url <URL> --jira-key <TICKET-ID> --artifacts-dir "$ARTIFACTS_DIR" [--repos <abs-repo-path>] [--baseline <prior-findings.json>]`
+
+  `--artifacts-dir "$ARTIFACTS_DIR"` is the absolute, workspace-root-anchored ticket dir from Phase 0. Both skills write their output trees UNDER it (`$ARTIFACTS_DIR/pr/...`, `$ARTIFACTS_DIR/security/...`) — never inside a child repo, even though `--repos` points at one.
 - If blocking issues found:
   - Map each finding's file path back to its owning service (longest-prefix on `stack_profile.services[].path`); re-spawn ONLY the `Recommended Implementers` entries whose `Scoped Files` overlap with the finding set, in the original listed order
   - Re-run tests
@@ -507,8 +531,8 @@ In a multi-repo workspace, run the reviews once per PR URL produced by Phase 9 �
 
 **Multi-repo aggregation (after the loop):** when more than one PR URL was reviewed for the same ticket, run a final aggregation pass:
 
-- `/pr-reviewer --aggregate --jira-key <TICKET-ID>` — emits `.claude-temp/artifacts/<TICKET-ID>/pr/cross-repo-summary.{json,md}` describing cross-repo concerns (API contract mismatches, schema skew, shared-dep conflicts) and a recommended merge order.
-- `/security-review --aggregate --jira-key <TICKET-ID>` — emits `.claude-temp/artifacts/<TICKET-ID>/security/cross-repo-summary.{json,md}` describing cross-cutting security concerns (shared-dep CVEs, identical findings across repos) and a dependency-ordered remediation plan.
+- `/pr-reviewer --aggregate --jira-key <TICKET-ID> --artifacts-dir "$ARTIFACTS_DIR"` — emits `$ARTIFACTS_DIR/pr/cross-repo-summary.{json,md}` describing cross-repo concerns (API contract mismatches, schema skew, shared-dep conflicts) and a recommended merge order.
+- `/security-review --aggregate --jira-key <TICKET-ID> --artifacts-dir "$ARTIFACTS_DIR"` — emits `$ARTIFACTS_DIR/security/cross-repo-summary.{json,md}` describing cross-cutting security concerns (shared-dep CVEs, identical findings across repos) and a dependency-ordered remediation plan.
 
 Skip the aggregation pass in single-repo mode.
 
@@ -542,8 +566,8 @@ If a phase fails:
 - `/doc-updater`: Phase 8
 - `/wiki-refresh`: Phase 8.5 (auto-invoked with `--commit --ticket <TICKET-ID> --artifacts-dir $ARTIFACTS_DIR`; reads per-repo commits from `.state.json`, surgically edits affected pages under a high-level-only conservatism rule, commits `docs/llm-wiki/**` itself when the wiki is git-tracked or emits a diff manifest + warning for Phase 9 otherwise)
 - `/repo-fanout-pr`: Phase 9 (multi-repo workspaces only — invoked with `--no-commit`; per-repo push + PR creation and cross-linking. The implementation commit is produced in Phase 8.4 before this skill runs.)
-- `/pr-reviewer`: Phase 10 (run once per PR URL)
-- `/security-review`: Phase 10 (run once per PR URL)
+- `/pr-reviewer`: Phase 10 (run once per PR URL; always passed `--artifacts-dir "$ARTIFACTS_DIR"` so output lands under the workspace-root ticket dir)
+- `/security-review`: Phase 10 (run once per PR URL; always passed `--artifacts-dir "$ARTIFACTS_DIR"` so output lands under the workspace-root ticket dir)
 - `aggregate-metrics` CLI: Phase 11 (final metrics summary)
 
 ## Prerequisites
@@ -557,7 +581,9 @@ If a phase fails:
 - LLM wiki exists at `docs/llm-wiki/` (workspace-scoped; lives at the workspace root in both single and multi mode) with `docs/llm-wiki/CLAUDE.md` present
 - Git: at least one git repository reachable. Two supported shapes:
   - **single-repo**: workspace root is itself a git repo; `origin/development` or `origin/main` reachable (required for Phase 9 base-branch resolution).
-  - **multi-repo**: workspace root is NOT a git repo but contains one or more child directories that ARE git repos (each with its own GitHub remote). Every child repo must have `origin/development` or `origin/main` reachable.
+  - **multi-repo**: workspace root is NOT a git repo but contains one or more child directories that ARE git repos. Every child repo must have `origin/development` or `origin/main` reachable.
 - Tests passing in current state — at the workspace root in single mode, in every child repo in multi mode
 - For `--from-jira`: Jira MCP configured
 - For GitHub PR: `gh` CLI configured and authenticated against every affected GitHub remote
+- For Azure DevOps PR: `az` CLI configured and authenticated against every affected Azure DevOps remote
+- For other Git hosts: the host's native CLI configured and authenticated against every affected remote

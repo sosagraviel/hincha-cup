@@ -71,10 +71,11 @@ Exactly one input mode is required.
 Before any other phase — before reading the ticket source, before consulting the wiki, before asking gap questions — run the deterministic preflight bootstrap:
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 ARTIFACTS_DIR=".claude-temp/tickets/<draft-id>"
 PREFLIGHT_ARGS=()
 [ -n "${SKIP_WIKI:-}" ] && PREFLIGHT_ARGS+=("--skip-wiki")
-bash "$FRAMEWORK_PATH/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR" "${PREFLIGHT_ARGS[@]}"
+bash ".claude/scripts/ensure-context.sh" --artifacts-dir "$ARTIFACTS_DIR" "${PREFLIGHT_ARGS[@]}"
 ```
 
 What the script does (handled automatically; you do not need to do any of this manually):
