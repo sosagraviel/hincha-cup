@@ -14,7 +14,7 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../firebase";
 import type { Video, VideoEstado, Moderacion } from "../types/firestore";
 
@@ -27,10 +27,8 @@ interface CrearFestejoParams {
   blob: Blob;
 }
 
-/**
- * Uploads a celebration video blob to Storage and creates a Firestore document
- * in the "revisando" state. Returns the generated videoId.
- */
+const urlCache = new Map<string, string>();
+
 export async function crearFestejo(
   params: CrearFestejoParams,
 ): Promise<string> {
@@ -61,10 +59,15 @@ export async function crearFestejo(
   return videoId;
 }
 
-/**
- * Subscribes to the real-time feed of published videos for a match,
- * ordered by most recent first. Invokes the callback on every update.
- */
+export async function obtenerUrlVideo(storagePath: string): Promise<string> {
+  const cached = urlCache.get(storagePath);
+  if (cached) return cached;
+
+  const url = await getDownloadURL(ref(storage, storagePath));
+  urlCache.set(storagePath, url);
+  return url;
+}
+
 export function obtenerFeed(
   partidoId: string,
   cb: (videos: Array<{ id: string } & Video>) => void,
@@ -87,10 +90,29 @@ export function obtenerFeed(
   });
 }
 
-/**
- * Subscribes to real-time updates for a single video document.
- * Invokes the callback on every change, including when the estado transitions.
- */
+export function obtenerMisFestejos(
+  partidoId: string,
+  userId: string,
+  cb: (videos: Array<{ id: string } & Video>) => void,
+): Unsubscribe {
+  const q = query(
+    collection(db, "videos"),
+    where("partidoId", "==", partidoId),
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const videos = snapshot.docs.map(
+      (docSnap: QueryDocumentSnapshot<DocumentData>) => ({
+        id: docSnap.id,
+        ...(docSnap.data() as Video),
+      }),
+    );
+    cb(videos);
+  });
+}
+
 export function obtenerVideo(
   videoId: string,
   cb: (video: ({ id: string } & Video) | null) => void,
@@ -106,11 +128,6 @@ export function obtenerVideo(
   });
 }
 
-/**
- * Records an applause vote for a video. Uses a Firestore transaction on the
- * voto document (id = videoId_userId) to ensure exactly one vote per user per
- * video — idempotent regardless of how many times it is called.
- */
 export async function aplaudir(
   videoId: string,
   userId: string,
@@ -138,10 +155,6 @@ export async function aplaudir(
   });
 }
 
-/**
- * Updates a video's moderation state. Called only by the Cloud Function via
- * Admin SDK or by the onVideoSubido trigger — not intended for direct client use.
- */
 export async function actualizarEstado(
   videoId: string,
   estado: VideoEstado,

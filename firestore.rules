@@ -21,6 +21,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /beneficiarios/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /videos/{id} {
       allow read: if isAuth();
       allow create: if isAuth()

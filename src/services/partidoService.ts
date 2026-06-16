@@ -2,19 +2,21 @@ import {
   doc,
   collection,
   addDoc,
+  getDoc,
   onSnapshot,
   updateDoc,
   serverTimestamp,
   Timestamp,
+  query,
+  where,
+  orderBy,
   type Unsubscribe,
+  type DocumentData,
+  type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import type { Partido } from "../types/firestore";
+import type { Partido, Evento } from "../types/firestore";
 
-/**
- * Subscribes to real-time updates for a single match document.
- * Invokes the callback whenever the partido data changes.
- */
 export function suscribirPartido(
   id: string,
   cb: (partido: ({ id: string } & Partido) | null) => void,
@@ -30,31 +32,68 @@ export function suscribirPartido(
   });
 }
 
-/**
- * Creates a new goal event document for a match. Used by the /admin page
- * to simulate a goal during demos.
- */
-export async function dispararGol(partidoId: string): Promise<void> {
-  const now = Timestamp.now();
-  const ventanaCierraEn = Timestamp.fromMillis(
-    now.toMillis() + 10 * 60 * 1000,
+export function suscribirEventos(
+  partidoId: string,
+  cb: (eventos: Array<{ id: string } & Evento>) => void,
+): Unsubscribe {
+  const q = query(
+    collection(db, "eventos"),
+    where("partidoId", "==", partidoId),
+    orderBy("createdAt", "desc"),
   );
 
-  await addDoc(collection(db, "eventos"), {
+  return onSnapshot(q, (snapshot) => {
+    const eventos = snapshot.docs.map(
+      (docSnap: QueryDocumentSnapshot<DocumentData>) => ({
+        id: docSnap.id,
+        ...(docSnap.data() as Evento),
+      }),
+    );
+    cb(eventos);
+  });
+}
+
+export function eventoVentanaAbierta(evento: Evento): boolean {
+  const now = Date.now();
+  return (
+    evento.ventanaAbreEn.toMillis() <= now &&
+    now <= evento.ventanaCierraEn.toMillis()
+  );
+}
+
+export async function dispararGol(partidoId: string): Promise<string> {
+  const partidoRef = doc(db, "partidos", partidoId);
+  const partidoSnap = await getDoc(partidoRef);
+
+  if (!partidoSnap.exists()) {
+    throw new Error("Partido no encontrado");
+  }
+
+  const partido = partidoSnap.data() as Partido;
+  const now = Timestamp.now();
+  const ventanaCierraEn = Timestamp.fromMillis(now.toMillis() + 10 * 60 * 1000);
+  const golNumero = partido.golesLocal + partido.golesVisitante + 1;
+  const nuevoMinuto = Math.min(partido.minuto + 1, 90);
+
+  const eventoRef = await addDoc(collection(db, "eventos"), {
     partidoId,
-    equipo: "Local",
-    minuto: 0,
-    golNumero: 1,
+    equipo: partido.equipoLocal,
+    minuto: nuevoMinuto,
+    golNumero,
     ventanaAbreEn: now,
     ventanaCierraEn,
     createdAt: serverTimestamp(),
   });
+
+  await updateDoc(partidoRef, {
+    golesLocal: partido.golesLocal + 1,
+    minuto: nuevoMinuto,
+    updatedAt: serverTimestamp(),
+  });
+
+  return eventoRef.id;
 }
 
-/**
- * Sets the voting close timestamp on a match to the current server time,
- * effectively closing the celebration window. Used by the /admin page.
- */
 export async function cerrarVotacion(partidoId: string): Promise<void> {
   const partidoRef = doc(db, "partidos", partidoId);
   await updateDoc(partidoRef, {

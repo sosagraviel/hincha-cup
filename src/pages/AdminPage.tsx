@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { dispararGol, cerrarVotacion } from "../services/partidoService";
-import { seedPartidoId } from "./HomePage";
+import { getPartidoId } from "../constants";
 
 export default function AdminPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const partidoId = getPartidoId();
 
   async function handleDispararGol() {
     setLoading(true);
     setMessage(null);
     try {
-      await dispararGol(seedPartidoId);
+      await dispararGol(partidoId);
       setMessage("Gol disparado correctamente.");
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "Error desconocido";
@@ -24,7 +25,7 @@ export default function AdminPage() {
     setLoading(true);
     setMessage(null);
     try {
-      await cerrarVotacion(seedPartidoId);
+      await cerrarVotacion(partidoId);
       setMessage("Votación cerrada correctamente.");
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "Error desconocido";
@@ -37,7 +38,7 @@ export default function AdminPage() {
   return (
     <main>
       <h1>Admin</h1>
-      <p>Panel de administración del partido.</p>
+      <p>Panel de administración del partido ({partidoId}).</p>
       <div>
         <button onClick={() => void handleDispararGol()} disabled={loading}>
           Disparar Gol

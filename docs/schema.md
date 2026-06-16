@@ -6,19 +6,36 @@
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `equipoLocal` | `string` | e.g. "Argentina" |
-| `equipoVisitante` | `string` | e.g. "México" |
+| `equipoLocal` | `string` | e.g. "Uruguay" |
+| `equipoVisitante` | `string` | e.g. "España" |
 | `golesLocal` | `number` | |
 | `golesVisitante` | `number` | |
 | `estado` | `"en_vivo" \| "finalizado"` | |
 | `minuto` | `number` | Current match minute |
+| `equipoHinchada` | `"uruguay" \| "argentina"` | Campaign / fan base |
 | `sponsor` | `{ nombre: string, compromiso: string }` | |
 | `destino` | `string` | Charity/club destination |
 | `festejosPublicados` | `number` | Denormalized counter — updated by GG-07 |
 | `pelotasDesbloqueadas` | `number` | Denormalized counter — updated by GG-07 |
+| `becasDesbloqueadas` | `number` | Updated by GG-07 (every 10 festejos) |
+| `escuelasBeneficiadas` | `number` | Updated by GG-07 (every 20 festejos) |
 | `votacionCierraEn` | `Timestamp \| null` | Set by admin to close celebration window |
 | `createdAt` | `Timestamp` | |
 | `updatedAt` | `Timestamp` | |
+
+### `beneficiarios/{beneficiarioId}`
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `equipoHinchada` | `"uruguay" \| "argentina"` | Filter by campaign |
+| `nombre` | `string` | Institution name |
+| `ubicacion` | `string` | City / neighborhood |
+| `descripcion` | `string` | Short context |
+| `recibido` | `string` | What was delivered |
+| `tipoImpacto` | `"pelotas" \| "becas" \| "escuelas"` | UI icon variant |
+| `orden` | `number` | Display order |
+| `activo` | `boolean` | Soft hide |
+| `createdAt` | `Timestamp` | |
 
 ### `eventos/{eventoId}`
 
@@ -27,7 +44,7 @@
 | `partidoId` | `string` | Reference to `partidos` |
 | `equipo` | `string` | Team that scored |
 | `minuto` | `number` | Goal minute |
-| `golNumero` | `number` | Used in `/camara?gol=N` |
+| `golNumero` | `number` | Used in celebration flow |
 | `ventanaAbreEn` | `Timestamp` | Celebration window opens |
 | `ventanaCierraEn` | `Timestamp` | Celebration window closes (+10 min) |
 | `createdAt` | `Timestamp` | |
@@ -40,7 +57,7 @@
 | `eventoId` | `string` | |
 | `golNumero` | `number` | |
 | `userId` | `string` | Firebase Auth UID |
-| `autorAlias` | `string` | e.g. "@lucia_g" |
+| `autorAlias` | `string` | e.g. "Lucía R." |
 | `storagePath` | `string` | `videos-crudos/{partidoId}/{videoId}.webm` |
 | `estado` | `"revisando" \| "publicado" \| "rechazado"` | Managed by Cloud Function |
 | `gritoNumero` | `number \| null` | Sequential number assigned at publish |
@@ -85,4 +102,7 @@ Admin documents are managed exclusively via Firebase Admin SDK. No client-side w
 
 | Collection | Fields | Order |
 |------------|--------|-------|
-| `videos` | `partidoId` ASC, `estado` ASC, `createdAt` DESC | Feed query for published videos per match |
+| `videos` | `partidoId` ASC, `estado` ASC, `createdAt` DESC | Feed query |
+| `videos` | `partidoId` ASC, `userId` ASC, `createdAt` DESC | User profile festejos |
+| `eventos` | `partidoId` ASC, `createdAt` DESC | Goal events |
+| `beneficiarios` | `equipoHinchada` ASC, `activo` ASC, `orden` ASC | Impact tab |
