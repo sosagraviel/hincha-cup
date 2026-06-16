@@ -2,11 +2,12 @@ import { initializeApp } from "firebase/app";
 import {
   getAuth,
   GoogleAuthProvider,
+  connectAuthEmulator,
   setPersistence,
   browserLocalPersistence,
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getStorage, connectStorageEmulator } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -22,6 +23,14 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+const useEmulators = import.meta.env.VITE_USE_EMULATORS === "true";
+
+if (useEmulators) {
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "127.0.0.1", 8081);
+  connectStorageEmulator(storage, "127.0.0.1", 9199);
+}
 
 setPersistence(auth, browserLocalPersistence).catch((error: unknown) => {
   console.error("Failed to set auth persistence:", error);

@@ -1,0 +1,865 @@
+.app {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100dvh;
+  background: var(--noche);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  border-left: 1px solid #101a2c;
+  border-right: 1px solid #101a2c;
+}
+
+.header {
+  padding: 18px 18px 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.wordmark {
+  font-family: "Anton", sans-serif;
+  font-size: 30px;
+  letter-spacing: 1px;
+  color: var(--tiza);
+  line-height: 1;
+}
+
+.wordmarkAccent {
+  color: var(--celeste);
+}
+
+.tagline {
+  font-size: 11px;
+  color: var(--gris);
+  letter-spacing: 0.4px;
+}
+
+.headerMeta {
+  text-align: right;
+}
+
+.headerLabel {
+  font-size: 10px;
+  color: var(--gris);
+  letter-spacing: 1px;
+}
+
+.headerTeam {
+  font-size: 12px;
+  color: var(--celeste);
+  font-weight: 700;
+}
+
+.livebar {
+  margin: 4px 18px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rojo);
+  flex: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dotLive {
+    animation: pulso 1.4s infinite;
+  }
+}
+
+.livebarScore {
+  font-weight: 700;
+}
+
+.livebarMin {
+  margin-left: auto;
+  color: var(--gris);
+  font-variant-numeric: tabular-nums;
+}
+
+.marcador {
+  margin: 0 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--linea);
+  border-top: 3px solid var(--cesped);
+  border-radius: var(--radius);
+  padding: 14px 16px 12px;
+}
+
+.marcadorTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--cesped);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.cifras {
+  display: flex;
+  gap: 8px;
+}
+
+.cifra {
+  flex: 1;
+  text-align: center;
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 10px 4px 8px;
+}
+
+.cifraNum {
+  font-family: "Anton", sans-serif;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--tiza);
+  font-variant-numeric: tabular-nums;
+}
+
+.cifraLbl {
+  font-size: 11px;
+  color: var(--gris);
+  margin-top: 4px;
+}
+
+.sponsor {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--linea);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--gris);
+}
+
+.sponsorName {
+  color: var(--sol);
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.main {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 140px;
+  scrollbar-width: none;
+}
+
+.main::-webkit-scrollbar {
+  display: none;
+}
+
+.seccionTitulo {
+  padding: 2px 18px 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.seccionTitulo h3 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.seccionTitulo small {
+  font-size: 12px;
+  color: var(--gris);
+}
+
+.card {
+  margin: 0 18px 14px;
+  background: var(--surface);
+  border: 1px solid var(--linea);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.cardNuevo {
+  border-color: var(--celeste);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 10px;
+}
+
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.avCeleste {
+  background: #16344a;
+  color: var(--celeste);
+}
+
+.avSol {
+  background: #3a2c0c;
+  color: var(--sol);
+}
+
+.avVerde {
+  background: var(--cesped-osc);
+  color: var(--cesped);
+}
+
+.quien {
+  flex: 1;
+  min-width: 0;
+}
+
+.nombre {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--gris);
+}
+
+.badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badgeUno {
+  background: #3a2c0c;
+  color: var(--sol);
+  border: 1px solid #5a4514;
+}
+
+.badgeVivo {
+  background: #16344a;
+  color: var(--celeste);
+}
+
+.video {
+  position: relative;
+  background: #0a1626;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid var(--linea);
+  border-bottom: 1px solid var(--linea);
+}
+
+.videoEl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #0a1626;
+}
+
+.play {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(111, 195, 238, 0.14);
+  border: 1.5px solid var(--celeste);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.play svg {
+  margin-left: 3px;
+}
+
+.dur {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  font-size: 11px;
+  background: rgba(6, 11, 20, 0.75);
+  padding: 2px 7px;
+  border-radius: 6px;
+  color: var(--gris);
+  font-variant-numeric: tabular-nums;
+  z-index: 2;
+}
+
+.cardAcciones {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--gris);
+}
+
+.accion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--gris);
+}
+
+.accionGustado {
+  color: var(--rojo);
+}
+
+.chipImpacto {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cesped);
+}
+
+.fab {
+  position: absolute;
+  right: 16px;
+  bottom: 84px;
+  z-index: 30;
+  background: var(--celeste);
+  color: #06121e;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.3px;
+  padding: 14px 18px;
+  border-radius: 999px;
+  box-shadow: 0 6px 24px rgba(111, 195, 238, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fab small {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.65;
+  letter-spacing: 1px;
+}
+
+.fab:active {
+  transform: scale(0.96);
+}
+
+.tabbar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: rgba(8, 14, 25, 0.92);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--linea);
+  display: flex;
+}
+
+.tabbarBtn {
+  flex: 1;
+  padding: 10px 0 max(12px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--gris);
+  text-decoration: none;
+}
+
+.tabbarBtnActive {
+  color: var(--celeste);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(6, 11, 20, 0.96);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px;
+}
+
+.overlayVisible {
+  display: flex;
+}
+
+.golTitulo {
+  font-family: "Anton", sans-serif;
+  font-size: 72px;
+  line-height: 0.95;
+  color: var(--celeste);
+  letter-spacing: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .golTituloAnim {
+    animation: golpe 0.5s ease-out;
+  }
+}
+
+.golSub {
+  font-size: 16px;
+  color: var(--tiza);
+  margin: 10px 0 26px;
+}
+
+.golSub b {
+  color: var(--celeste);
+}
+
+.reloj {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 3px solid var(--linea);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.relojSeg {
+  font-family: "Anton", sans-serif;
+  font-size: 42px;
+  color: var(--sol);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.relojLbl {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--gris);
+  text-transform: uppercase;
+}
+
+.golPista {
+  font-size: 13px;
+  color: var(--gris);
+  margin-bottom: 26px;
+  max-width: 260px;
+}
+
+.btnGrande {
+  background: var(--cesped);
+  color: #06121e;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 16px 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btnGrande:active {
+  transform: scale(0.97);
+}
+
+.btnOutline {
+  background: none;
+  border: 1.5px solid var(--celeste);
+  color: var(--celeste);
+  margin-top: 12px;
+}
+
+.btnFantasma {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--gris);
+  padding: 10px;
+}
+
+.subiendo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.spinner {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 3px solid var(--linea);
+  border-top-color: var(--celeste);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .spinnerAnim {
+    animation: girar 0.9s linear infinite;
+  }
+}
+
+.grabador {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.marco {
+  width: 100%;
+  max-width: 300px;
+  aspect-ratio: 3 / 4;
+  background: #0a1626;
+  border: 1px solid var(--linea);
+  border-radius: 18px;
+  overflow: hidden;
+  position: relative;
+}
+
+.marcoGrabando {
+  border-color: var(--rojo);
+}
+
+.preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: scaleX(-1);
+}
+
+.recTag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: rgba(6, 11, 20, 0.75);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--rojo);
+  font-variant-numeric: tabular-nums;
+}
+
+.recTagVisible {
+  display: flex;
+}
+
+.recDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rojo);
+}
+
+.controles {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin-top: 18px;
+}
+
+.btnRec {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid var(--tiza);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btnRecNucleo {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--rojo);
+  transition: border-radius 0.2s, transform 0.2s;
+}
+
+.btnRecGrabando .btnRecNucleo {
+  border-radius: 8px;
+  transform: scale(0.55);
+}
+
+.permisoMsg {
+  font-size: 12.5px;
+  color: var(--gris);
+  margin-top: 12px;
+  max-width: 260px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.aliasInput {
+  width: 100%;
+  max-width: 280px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--linea);
+  background: var(--surface);
+  color: var(--tiza);
+  font-size: 14px;
+}
+
+.toast {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 150px;
+  z-index: 60;
+  background: var(--cesped);
+  color: #06121e;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 13px 16px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.25s, transform 0.25s;
+}
+
+.toastVisible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.beneficiario {
+  margin: 0 18px 12px;
+  background: var(--surface);
+  border: 1px solid var(--linea);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.beneficiarioIcono {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex: none;
+  background: var(--cesped-osc);
+  color: var(--cesped);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.beneficiarioIconoDorado {
+  background: #3a2c0c;
+  color: var(--sol);
+}
+
+.beneficiario h4 {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.beneficiario p {
+  font-size: 12px;
+  color: var(--gris);
+  margin-top: 2px;
+  line-height: 1.5;
+}
+
+.recibido {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cesped);
+}
+
+.notaImpacto {
+  margin: 4px 18px 16px;
+  font-size: 12px;
+  color: var(--gris);
+  line-height: 1.6;
+}
+
+.notaImpacto b {
+  color: var(--tiza);
+}
+
+.perfilCard {
+  margin: 0 18px 14px;
+  background: var(--surface);
+  border: 1px solid var(--linea);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+}
+
+.perfilAvatar {
+  width: 64px;
+  height: 64px;
+  font-size: 20px;
+  margin: 0 auto 10px;
+}
+
+.perfilCard h4 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.perfilCard p {
+  font-size: 12.5px;
+  color: var(--gris);
+  margin-top: 2px;
+}
+
+.perfilStats {
+  display: flex;
+  gap: 8px;
+  margin: 0 18px 14px;
+}
+
+.perfilStats .cifra {
+  background: var(--surface);
+  border: 1px solid var(--linea);
+}
+
+.insignia {
+  margin: 0 18px 14px;
+  border: 2px solid var(--sol);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #1a2540, #13203a);
+  background-color: var(--surface2);
+  padding: 22px 18px;
+  text-align: center;
+}
+
+.insigniaMini {
+  font-size: 10px;
+  letter-spacing: 2.5px;
+  color: var(--sol);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.insigniaGrande {
+  font-family: "Anton", sans-serif;
+  font-size: 34px;
+  color: var(--tiza);
+  margin: 6px 0 2px;
+}
+
+.insigniaPartido {
+  font-size: 13px;
+  color: var(--gris);
+}
+
+.insigniaLinea {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--linea);
+  font-size: 12.5px;
+  color: var(--cesped);
+  font-weight: 700;
+}
+
+.btnCompartir {
+  margin: 0 18px 20px;
+  width: calc(100% - 36px);
+  background: var(--celeste);
+  color: #06121e;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 14px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.emptyFeed {
+  margin: 0 18px;
+  font-size: 13px;
+  color: var(--gris);
+  line-height: 1.5;
+}
+
+.loading {
+  margin: 24px 18px;
+  color: var(--gris);
+  font-size: 14px;
+}
+
+.equipoSwitcher {
+  display: flex;
+  gap: 8px;
+  margin: 0 18px 12px;
+}
+
+.equipoBtn {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--linea);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gris);
+}
+
+.equipoBtnActive {
+  border-color: var(--celeste);
+  color: var(--celeste);
+  background: rgba(111, 195, 238, 0.08);
+}
+
+.estadoPage {
+  padding: 24px 18px;
+  text-align: center;
+}
+
+.estadoPage h1 {
+  font-size: 22px;
+  margin-bottom: 12px;
+}
+
+.estadoPage p {
+  color: var(--gris);
+  font-size: 14px;
+  line-height: 1.5;
+}

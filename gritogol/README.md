@@ -34,32 +34,74 @@ cd functions && npm install && cd ..
 
 | Comando | Descripción |
 |---------|-------------|
-| `npm run dev` | Dev server en http://localhost:5173 |
+| `npm run dev` | Dev server (Vite, usualmente http://localhost:5173) |
 | `npm run build` | Build de producción |
 | `npm run preview` | Preview del build |
 | `npm run typecheck` | TypeScript type checking |
 | `npm run lint` | ESLint |
-| `npm run emulators` | Firebase Emulator Suite |
+| `npm run emulators` | Firebase Emulator Suite (Auth, Firestore, Storage, Functions) |
+| `npm run seed:emulator` | Carga datos demo en Firestore emulator |
+| `npm run emulators:stop` | Libera puertos 8080/8081 si quedaron procesos colgados |
 
-## Firebase Emulators (desarrollo local)
+## Desarrollo local con emuladores
+
+La app (frontend) corre con **Vite**. Los emuladores son el **backend** local (Firestore, Auth, etc.). Necesitás **3 terminales** abiertas al mismo tiempo:
+
+### Terminal 1 — Emuladores
 
 ```bash
 npm run emulators
 ```
 
-Puertos usados:
-- Auth: 9099
-- Firestore: 8080
-- Storage: 9199
-- Functions: 5001
-- Hosting: 5000
-- UI: 4000
+Cuando esté listo, abrí el panel en **http://localhost:4000**.
 
-Para correr la app contra los emuladores, agregar en `.env.local`:
+Si falla por puerto ocupado:
+
+```bash
+npm run emulators:stop
+npm run emulators
+```
+
+### Terminal 2 — Datos demo
+
+Con los emuladores corriendo:
+
+```bash
+npm run seed:emulator
+```
+
+Deberías ver: `Seed completado: partido-uru-esp-2026 partido-arg-mex-2026`.
+
+En **http://localhost:4000/firestore** van a aparecer las colecciones `partidos`, `beneficiarios` y `counters`.
+
+### Terminal 3 — App
+
+```bash
+npm run dev
+```
+
+Abrí la URL que muestre Vite (por ejemplo **http://localhost:5173** o **http://localhost:5174** si 5173 está ocupado).
+
+### Configuración de `.env.local`
+
+Para desarrollo con emuladores, el `projectId` debe coincidir con `.firebaserc` (`gritogol`):
 
 ```
+VITE_FIREBASE_PROJECT_ID=gritogol
 VITE_USE_EMULATORS=true
 ```
+
+Puertos del Emulator Suite:
+
+| Servicio | Puerto |
+|----------|--------|
+| Emulator UI | 4000 |
+| Firestore | 8081 |
+| Auth | 9099 |
+| Storage | 9199 |
+| Functions | 5001 |
+
+**Nota:** Para que los videos subidos pasen a `publicado` en el muro, compilá las functions una vez: `cd functions && npm run build && cd ..`, y reiniciá `npm run emulators`.
 
 ## Cloud Functions
 
@@ -81,15 +123,15 @@ firebase deploy --only functions
 firebase deploy --only firestore:rules,storage,functions,hosting
 ```
 
-## Seed de datos
+## Seed de datos (producción)
 
-Para cargar el partido de demo (ARG 2–1 MEX, minuto 67):
+Con un proyecto Firebase real configurado en `.env.local`:
 
 ```bash
-npm run emulators  # en una terminal
-# En otra terminal:
 npx tsx src/seed/seed.ts
 ```
+
+Para emuladores, usá `npm run seed:emulator` (ver sección anterior).
 
 ## Estructura
 

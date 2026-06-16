@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "emulators": "firebase emulators:start"
+    "emulators": "firebase emulators:start --only auth,firestore,storage,functions",
+    "seed:emulator": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8081 tsx src/seed/seed.ts",
+    "emulators:stop": "lsof -tiTCP:8080 -sTCP:LISTEN | xargs kill -9 2>/dev/null; lsof -tiTCP:8081 -sTCP:LISTEN | xargs kill -9 2>/dev/null; echo 'Puertos 8080/8081 liberados (si había procesos).'"
   },
   "dependencies": {
     "firebase": "^10.14.1",
@@ -25,7 +27,9 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.17.0",
+    "firebase-admin": "^14.0.0",
     "globals": "^15.14.0",
+    "tsx": "^4.22.4",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.18.2",
     "vite": "^6.0.5",

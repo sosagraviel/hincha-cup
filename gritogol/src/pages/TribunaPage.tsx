@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { obtenerFeed } from "../services/videoService";
-import { seedPartidoId } from "./HomePage";
+import { getPartidoId } from "../constants";
 import type { Video } from "../types/firestore";
 
 export default function TribunaPage() {
   const [videos, setVideos] = useState<Array<{ id: string } & Video>>([]);
 
   useEffect(() => {
-    const unsubscribe = obtenerFeed(seedPartidoId, setVideos);
+    const unsubscribe = obtenerFeed(getPartidoId(), setVideos);
     return unsubscribe;
   }, []);
 

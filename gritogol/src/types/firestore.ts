@@ -1,4 +1,5 @@
 import type { Timestamp } from "firebase/firestore";
+import type { EquipoHinchada } from "../constants";
 
 export interface Sponsor {
   nombre: string;
@@ -12,10 +13,13 @@ export interface Partido {
   golesVisitante: number;
   estado: "en_vivo" | "finalizado";
   minuto: number;
+  equipoHinchada: EquipoHinchada;
   sponsor: Sponsor;
   destino: string;
   festejosPublicados: number;
   pelotasDesbloqueadas: number;
+  becasDesbloqueadas: number;
+  escuelasBeneficiadas: number;
   votacionCierraEn: Timestamp | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -32,6 +36,20 @@ export interface Evento {
 }
 
 export type VideoEstado = "revisando" | "publicado" | "rechazado";
+
+export type TipoImpacto = "pelotas" | "becas" | "escuelas";
+
+export interface Beneficiario {
+  equipoHinchada: EquipoHinchada;
+  nombre: string;
+  ubicacion: string;
+  descripcion: string;
+  recibido: string;
+  tipoImpacto: TipoImpacto;
+  orden: number;
+  activo: boolean;
+  createdAt: Timestamp;
+}
 
 export interface Moderacion {
   aprobado: boolean;
