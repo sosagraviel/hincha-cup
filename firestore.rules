@@ -16,6 +16,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /copa_fixtures/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /_sync_mock/{id} {
+      allow read: if false;
+      allow write: if false;
+    }
+
     match /eventos/{id} {
       allow read: if true;
       allow write: if isAdmin();

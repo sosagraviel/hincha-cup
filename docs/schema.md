@@ -12,6 +12,9 @@
 | `golesVisitante` | `number` | |
 | `estado` | `"en_vivo" \| "finalizado"` | |
 | `minuto` | `number` | Current match minute |
+| `fixtureId` | `number` (optional) | API-Football fixture ID for live sync |
+| `golesProcesados` | `number` (optional) | Goals already converted to `eventos` |
+| `ultimoSyncEn` | `Timestamp` (optional) | Last sync from API |
 | `equipoHinchada` | `"uruguay" \| "argentina"` | Campaign / fan base |
 | `sponsor` | `{ nombre: string, compromiso: string }` | |
 | `destino` | `string` | Charity/club destination |
@@ -21,6 +24,24 @@
 | `escuelasBeneficiadas` | `number` | Updated by GG-07 (every 20 festejos) |
 | `votacionCierraEn` | `Timestamp \| null` | Set by admin to close celebration window |
 | `createdAt` | `Timestamp` | |
+| `updatedAt` | `Timestamp` | |
+
+### `copa_fixtures/{fixtureId}`
+
+All World Cup matches synced from API-Football. Document ID = stringified `fixtureId`.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `fixtureId` | `number` | API-Football ID |
+| `equipoLocal`, `equipoVisitante` | `string` | Team names |
+| `codigoLocal`, `codigoVisitante` | `string` | FIFA-style codes (URU, ESP…) |
+| `golesLocal`, `golesVisitante` | `number` | |
+| `minuto` | `number` | Elapsed minute when live |
+| `statusShort` | `string` | 1H, HT, 2H, FT… |
+| `estado` | `"programado" \| "en_vivo" \| "finalizado"` | |
+| `fechaInicio` | `Timestamp` | Kickoff UTC |
+| `fase` | `string` (optional) | Round / group label |
+| `partidoId` | `string` (optional) | Linked GritoGol campaign match |
 | `updatedAt` | `Timestamp` | |
 
 ### `beneficiarios/{beneficiarioId}`
@@ -45,6 +66,7 @@
 | `equipo` | `string` | Team that scored |
 | `minuto` | `number` | Goal minute |
 | `golNumero` | `number` | Used in celebration flow |
+| `externalEventKey` | `string` (optional) | Dedup key from API-Football sync |
 | `ventanaAbreEn` | `Timestamp` | Celebration window opens |
 | `ventanaCierraEn` | `Timestamp` | Celebration window closes (+10 min) |
 | `createdAt` | `Timestamp` | |
@@ -106,3 +128,7 @@ Admin documents are managed exclusively via Firebase Admin SDK. No client-side w
 | `videos` | `partidoId` ASC, `userId` ASC, `createdAt` DESC | User profile festejos |
 | `eventos` | `partidoId` ASC, `createdAt` DESC | Goal events |
 | `beneficiarios` | `equipoHinchada` ASC, `activo` ASC, `orden` ASC | Impact tab |
+| `copa_fixtures` | `estado` ASC, `fechaInicio` ASC | Live ticker |
+| `copa_fixtures` | `fechaInicio` ASC, `estado` ASC | Today's fixtures |
+| `eventos` | `partidoId` ASC, `externalEventKey` ASC | Goal dedup |
+| `partidos` | `fixtureId` ASC | Link partido ↔ API fixture |

@@ -68,7 +68,10 @@ export const onVideoSubido = onObjectFinalized(
       });
 
       if (partidoSnap.exists) {
-        const updates: Record<string, unknown> = {
+        const updates: Record<
+          string,
+          admin.firestore.FieldValue | number
+        > = {
           festejosPublicados: admin.firestore.FieldValue.increment(1),
           pelotasDesbloqueadas: admin.firestore.FieldValue.increment(1),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),

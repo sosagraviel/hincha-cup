@@ -88,6 +88,50 @@
   font-variant-numeric: tabular-nums;
 }
 
+.copaTicker {
+  margin: 0 18px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.copaTicker::-webkit-scrollbar {
+  display: none;
+}
+
+.copaTickerTrack {
+  display: flex;
+  gap: 8px;
+  width: max-content;
+  padding-bottom: 2px;
+}
+
+.copaTickerItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.copaTickerDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rojo);
+  flex: none;
+}
+
+.copaTickerMin {
+  color: var(--gris);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
 .marcador {
   margin: 0 18px 16px;
   background: var(--surface);

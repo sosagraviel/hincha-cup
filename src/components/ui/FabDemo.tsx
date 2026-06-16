@@ -1,7 +1,11 @@
 import s from "../../styles/app.module.css";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../../firebase";
 import { dispararGol } from "../../services/partidoService";
 import { usePartido } from "../../context/PartidoContext";
 import { useToast } from "../../context/ToastContext";
+
+const useEmulators = import.meta.env.VITE_USE_EMULATORS === "true";
 
 export function FabDemo() {
   const { partidoId } = usePartido();
@@ -11,7 +15,15 @@ export function FabDemo() {
 
   async function handleClick() {
     try {
-      await dispararGol(partidoId);
+      if (useEmulators) {
+        const simulateGoal = httpsCallable<{ partidoId: string }, { golNumero: number }>(
+          functions,
+          "simulateGoal",
+        );
+        await simulateGoal({ partidoId });
+      } else {
+        await dispararGol(partidoId);
+      }
       showToast("¡Gol de demo disparado!");
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "Error";

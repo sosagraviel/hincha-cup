@@ -16,6 +16,7 @@ functions/lib/
 .env
 .env.local
 .env.*.local
+docker/.env
 *-firebase-adminsdk-*.json
 *serviceAccount*.json
 *credentials*.json

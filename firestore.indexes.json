@@ -34,6 +34,37 @@
         { "fieldPath": "activo", "order": "ASCENDING" },
         { "fieldPath": "orden", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "copa_fixtures",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "estado", "order": "ASCENDING" },
+        { "fieldPath": "fechaInicio", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "copa_fixtures",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fechaInicio", "order": "ASCENDING" },
+        { "fieldPath": "estado", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "eventos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "partidoId", "order": "ASCENDING" },
+        { "fieldPath": "externalEventKey", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "partidos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fixtureId", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
