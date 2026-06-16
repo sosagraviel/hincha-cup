@@ -36,10 +36,12 @@ export async function crearFestejo(
 
   const videoRef = doc(collection(db, "videos"));
   const videoId = videoRef.id;
-  const storagePath = `videos-crudos/${partidoId}/${videoId}.webm`;
+  const mimeType = blob.type || "video/webm";
+  const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+  const storagePath = `videos-crudos/${partidoId}/${videoId}.${ext}`;
 
   const storageRef = ref(storage, storagePath);
-  await uploadBytes(storageRef, blob);
+  await uploadBytes(storageRef, blob, { contentType: mimeType });
 
   await setDoc(videoRef, {
     partidoId,
@@ -48,6 +50,7 @@ export async function crearFestejo(
     userId,
     autorAlias: alias,
     storagePath,
+    mimeType,
     estado: "revisando" as VideoEstado,
     gritoNumero: null,
     aplausos: 0,
