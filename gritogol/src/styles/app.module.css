@@ -317,6 +317,18 @@
   border-bottom: 1px solid var(--linea);
 }
 
+.video:fullscreen {
+  aspect-ratio: unset;
+  width: 100vw;
+  height: 100vh;
+}
+
+.video:-webkit-full-screen {
+  aspect-ratio: unset;
+  width: 100vw;
+  height: 100vh;
+}
+
 .videoEl {
   position: absolute;
   inset: 0;
