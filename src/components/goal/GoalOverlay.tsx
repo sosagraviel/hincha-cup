@@ -23,6 +23,11 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [paso, setPaso] = useState<Paso>("gol");
@@ -169,8 +174,8 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
               de <b>{evento.equipo}</b> · {score}
             </p>
             <div className={s.reloj}>
-              <span className={s.relojSeg}>{segundos}</span>
-              <span className={s.relojLbl}>segundos</span>
+              <span className={s.relojSeg}>{formatoDuracion(segundos)}</span>
+              <span className={s.relojLbl}>restante</span>
             </div>
             <p className={s.golPista}>
               Mostrá tu grito y ganate un lugar en el Muro de la Hinchada

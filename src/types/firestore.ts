@@ -88,6 +88,7 @@ export interface Video {
   userId: string;
   autorAlias: string;
   storagePath: string;
+  mimeType?: string;
   estado: VideoEstado;
   gritoNumero: number | null;
   aplausos: number;

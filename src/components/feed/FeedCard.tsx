@@ -24,6 +24,7 @@ export function FeedCard({ video }: FeedCardProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [url, setUrl] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [liked, setLiked] = useState(false);
   const [aplausos, setAplausos] = useState(video.aplausos);
   const [shares, setShares] = useState(0);
@@ -37,13 +38,13 @@ export function FeedCard({ video }: FeedCardProps) {
 
   useEffect(() => {
     let cancelled = false;
-    void obtenerUrlVideo(video.storagePath).then((u) => {
-      if (!cancelled) setUrl(u);
-    });
-    return () => {
-      cancelled = true;
-    };
+    obtenerUrlVideo(video.storagePath)
+      .then((u) => { if (!cancelled) setUrl(u); })
+      .catch(() => { if (!cancelled) setNotFound(true); });
+    return () => { cancelled = true; };
   }, [video.storagePath]);
+
+  if (notFound) return null;
 
   async function handleLike() {
     if (!user || liked) return;
@@ -105,7 +106,6 @@ export function FeedCard({ video }: FeedCardProps) {
         {url && playing ? (
           <video
             className={s.videoEl}
-            src={url}
             controls
             playsInline
             preload="metadata"
@@ -115,7 +115,9 @@ export function FeedCard({ video }: FeedCardProps) {
                 setDuracion(formatoDuracion(v.duration));
               }
             }}
-          />
+          >
+            <source src={url} type={video.mimeType ?? "video/mp4"} />
+          </video>
         ) : (
           <button
             type="button"

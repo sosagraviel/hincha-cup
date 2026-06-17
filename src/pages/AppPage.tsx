@@ -30,6 +30,10 @@ function AppShellInner() {
   const [eventoActivo, setEventoActivo] = useState<
     ({ id: string } & Evento) | null
   >(null);
+  const suppressNextOverlayRef = useRef(
+    (location.state as { suppressOverlay?: boolean } | null)
+      ?.suppressOverlay === true,
+  );
   const [overlayDismissed, setOverlayDismissed] = useState(false);
 
   useEffect(() => {
@@ -49,6 +53,10 @@ function AppShellInner() {
       }
 
       seenEventsRef.current.add(abierto.id);
+      if (suppressNextOverlayRef.current) {
+        suppressNextOverlayRef.current = false;
+        return;
+      }
       setOverlayDismissed(false);
       setEventoActivo(abierto);
     });
@@ -73,7 +81,7 @@ function AppShellInner() {
       <CopaTicker />
       <ImpactMarcador />
 
-      <main ref={mainRef} className={s.main}>
+      <main ref={mainRef} className={`${s.main}${eventoActivo && !overlayDismissed ? ` ${s.mainFrozen}` : ""}`}>
         {renderTab()}
       </main>
 
