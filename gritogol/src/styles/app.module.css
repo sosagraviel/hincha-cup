@@ -204,6 +204,10 @@
   scrollbar-width: none;
 }
 
+.mainFrozen {
+  overflow: hidden;
+}
+
 .main::-webkit-scrollbar {
   display: none;
 }
@@ -481,7 +485,7 @@
 }
 
 .overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 50;
   background: rgba(6, 11, 20, 0.96);
@@ -490,7 +494,10 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 32px;
+  padding: max(32px, env(safe-area-inset-top))
+           max(32px, env(safe-area-inset-right))
+           max(32px, env(safe-area-inset-bottom))
+           max(32px, env(safe-area-inset-left));
 }
 
 .overlayVisible {
@@ -530,7 +537,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin-bottom: 8px;
+  margin: 0 auto 8px;
 }
 
 .relojSeg {
