@@ -2,13 +2,13 @@
   width: 100%;
   max-width: 430px;
   min-height: 100dvh;
-  background: var(--noche);
+  background: var(--background);
   display: flex;
   flex-direction: column;
   position: relative;
   overflow: hidden;
-  border-left: 1px solid #101a2c;
-  border-right: 1px solid #101a2c;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
 }
 
 .header {
@@ -19,20 +19,21 @@
 }
 
 .wordmark {
-  font-family: "Anton", sans-serif;
+  font-family: "Barlow Condensed", sans-serif;
   font-size: 30px;
+  font-weight: 700;
   letter-spacing: 1px;
-  color: var(--tiza);
+  color: var(--primary);
   line-height: 1;
 }
 
 .wordmarkAccent {
-  color: var(--celeste);
+  color: #3B82F6;
 }
 
 .tagline {
   font-size: 11px;
-  color: var(--gris);
+  color: var(--muted);
   letter-spacing: 0.4px;
 }
 
@@ -42,13 +43,13 @@
 
 .headerLabel {
   font-size: 10px;
-  color: var(--gris);
+  color: var(--muted);
   letter-spacing: 1px;
 }
 
 .headerTeam {
   font-size: 12px;
-  color: var(--celeste);
+  color: var(--primary);
   font-weight: 700;
 }
 
@@ -58,7 +59,7 @@
   align-items: center;
   gap: 10px;
   background: var(--surface);
-  border: 1px solid var(--linea);
+  border: 1px solid var(--border);
   border-radius: 999px;
   padding: 8px 14px;
   font-size: 13px;
@@ -68,7 +69,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--rojo);
+  background: var(--destructive);
   flex: none;
 }
 
@@ -84,7 +85,7 @@
 
 .livebarMin {
   margin-left: auto;
-  color: var(--gris);
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -109,8 +110,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--surface2);
-  border: 1px solid var(--linea);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 11px;
@@ -122,12 +123,12 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--rojo);
+  background: var(--destructive);
   flex: none;
 }
 
 .copaTickerMin {
-  color: var(--gris);
+  color: var(--muted);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
@@ -135,8 +136,8 @@
 .marcador {
   margin: 0 18px 16px;
   background: var(--surface);
-  border: 1px solid var(--linea);
-  border-top: 3px solid var(--cesped);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--success);
   border-radius: var(--radius);
   padding: 14px 16px 12px;
 }
@@ -146,7 +147,7 @@
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: var(--cesped);
+  color: var(--success);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -161,38 +162,38 @@
 .cifra {
   flex: 1;
   text-align: center;
-  background: var(--surface2);
+  background: var(--surface-2);
   border-radius: 10px;
   padding: 10px 4px 8px;
 }
 
 .cifraNum {
-  font-family: "Anton", sans-serif;
+  font-family: "Barlow Condensed", sans-serif;
   font-size: 28px;
   line-height: 1;
-  color: var(--tiza);
+  color: var(--foreground);
   font-variant-numeric: tabular-nums;
 }
 
 .cifraLbl {
   font-size: 11px;
-  color: var(--gris);
+  color: var(--muted);
   margin-top: 4px;
 }
 
 .sponsor {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px dashed var(--linea);
+  border-top: 1px dashed var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 11px;
-  color: var(--gris);
+  color: var(--muted);
 }
 
 .sponsorName {
-  color: var(--sol);
+  color: var(--gold);
   font-weight: 700;
   letter-spacing: 0.3px;
 }
@@ -226,19 +227,19 @@
 
 .seccionTitulo small {
   font-size: 12px;
-  color: var(--gris);
+  color: var(--muted);
 }
 
 .card {
   margin: 0 18px 14px;
   background: var(--surface);
-  border: 1px solid var(--linea);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
 }
 
 .cardNuevo {
-  border-color: var(--celeste);
+  border-color: var(--primary);
 }
 
 .cardHead {
@@ -261,18 +262,18 @@
 }
 
 .avCeleste {
-  background: #16344a;
-  color: var(--celeste);
+  background: var(--primary-light);
+  color: var(--primary);
 }
 
 .avSol {
-  background: #3a2c0c;
-  color: var(--sol);
+  background: var(--gold-light);
+  color: var(--gold);
 }
 
 .avVerde {
-  background: var(--cesped-osc);
-  color: var(--cesped);
+  background: var(--success-light);
+  color: var(--success);
 }
 
 .quien {
@@ -287,7 +288,7 @@
 
 .meta {
   font-size: 12px;
-  color: var(--gris);
+  color: var(--muted);
 }
 
 .badge {
@@ -300,14 +301,14 @@
 }
 
 .badgeUno {
-  background: #3a2c0c;
-  color: var(--sol);
-  border: 1px solid #5a4514;
+  background: var(--gold-light);
+  color: var(--gold);
+  border: 1px solid var(--gold);
 }
 
 .badgeVivo {
-  background: #16344a;
-  color: var(--celeste);
+  background: var(--primary-light);
+  color: var(--primary);
 }
 
 .video {
@@ -317,8 +318,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-top: 1px solid var(--linea);
-  border-bottom: 1px solid var(--linea);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
 .video:fullscreen {
@@ -369,8 +370,8 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: rgba(111, 195, 238, 0.14);
-  border: 1.5px solid var(--celeste);
+  background: rgba(59, 130, 246, 0.18);
+  border: 1.5px solid #3B82F6;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -389,7 +390,7 @@
   background: rgba(6, 11, 20, 0.75);
   padding: 2px 7px;
   border-radius: 6px;
-  color: var(--gris);
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
   z-index: 2;
 }
@@ -400,7 +401,7 @@
   gap: 18px;
   padding: 10px 14px;
   font-size: 13px;
-  color: var(--gris);
+  color: var(--muted);
 }
 
 .accion {
@@ -408,11 +409,11 @@
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--gris);
+  color: var(--muted);
 }
 
 .accionGustado {
-  color: var(--rojo);
+  color: var(--destructive);
 }
 
 .chipImpacto {
@@ -422,7 +423,7 @@
   gap: 5px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--cesped);
+  color: var(--success);
 }
 
 .fab {
@@ -430,14 +431,14 @@
   right: 16px;
   bottom: 84px;
   z-index: 30;
-  background: var(--celeste);
-  color: #06121e;
+  background: #3B82F6;
+  color: #FFFFFF;
   font-weight: 700;
   font-size: 14px;
   letter-spacing: 0.3px;
   padding: 14px 18px;
   border-radius: 999px;
-  box-shadow: 0 6px 24px rgba(111, 195, 238, 0.35);
+  box-shadow: 0 6px 24px rgba(59, 130, 246, 0.35);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -461,9 +462,9 @@
   left: 0;
   right: 0;
   z-index: 20;
-  background: rgba(8, 14, 25, 0.92);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(10px);
-  border-top: 1px solid var(--linea);
+  border-top: 1px solid var(--border);
   display: flex;
 }
 
@@ -476,12 +477,12 @@
   gap: 3px;
   font-size: 10.5px;
   font-weight: 500;
-  color: var(--gris);
+  color: var(--muted);
   text-decoration: none;
 }
 
 .tabbarBtnActive {
-  color: var(--celeste);
+  color: var(--primary);
 }
 
 .overlay {
@@ -498,6 +499,15 @@
            max(32px, env(safe-area-inset-right))
            max(32px, env(safe-area-inset-bottom))
            max(32px, env(safe-area-inset-left));
+  /* Restore dark-theme tokens for the dark overlay context */
+  color: #EEF2FF;
+  --foreground: #EEF2FF;
+  --muted: #92A6BE;
+  --primary: #6FC3EE;
+  --success: #3BC273;
+  --gold: #F4B63F;
+  --border: #26395A;
+  --surface: #0D1829;
 }
 
 .overlayVisible {
@@ -505,10 +515,10 @@
 }
 
 .golTitulo {
-  font-family: "Anton", sans-serif;
+  font-family: "Barlow Condensed", sans-serif;
   font-size: 72px;
   line-height: 0.95;
-  color: var(--celeste);
+  color: var(--primary);
   letter-spacing: 2px;
 }
 
@@ -520,19 +530,19 @@
 
 .golSub {
   font-size: 16px;
-  color: var(--tiza);
+  color: var(--foreground);
   margin: 10px 0 26px;
 }
 
 .golSub b {
-  color: var(--celeste);
+  color: var(--primary);
 }
 
 .reloj {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  border: 3px solid var(--linea);
+  border: 3px solid var(--border);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -541,9 +551,9 @@
 }
 
 .relojSeg {
-  font-family: "Anton", sans-serif;
+  font-family: "Barlow Condensed", sans-serif;
   font-size: 42px;
-  color: var(--sol);
+  color: var(--gold);
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
@@ -551,20 +561,20 @@
 .relojLbl {
   font-size: 10px;
   letter-spacing: 2px;
-  color: var(--gris);
+  color: var(--muted);
   text-transform: uppercase;
 }
 
 .golPista {
   font-size: 13px;
-  color: var(--gris);
+  color: var(--muted);
   margin-bottom: 26px;
   max-width: 260px;
 }
 
 .btnGrande {
-  background: var(--cesped);
-  color: #06121e;
+  background: var(--primary);
+  color: #FFFFFF;
   font-size: 16px;
   font-weight: 700;
   padding: 16px 28px;
@@ -580,15 +590,15 @@
 
 .btnOutline {
   background: none;
-  border: 1.5px solid var(--celeste);
-  color: var(--celeste);
+  border: 1.5px solid var(--primary);
+  color: var(--primary);
   margin-top: 12px;
 }
 
 .btnFantasma {
   margin-top: 14px;
   font-size: 13px;
-  color: var(--gris);
+  color: var(--muted);
   padding: 10px;
 }
 
@@ -603,8 +613,8 @@
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  border: 3px solid var(--linea);
-  border-top-color: var(--celeste);
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -625,14 +635,14 @@
   max-width: 300px;
   aspect-ratio: 3 / 4;
   background: #0a1626;
-  border: 1px solid var(--linea);
+  border: 1px solid var(--border);
   border-radius: 18px;
   overflow: hidden;
   position: relative;
 }
 
 .marcoGrabando {
-  border-color: var(--rojo);
+  border-color: var(--destructive);
 }
 
 .preview {
@@ -656,7 +666,7 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--rojo);
+  color: var(--destructive);
   font-variant-numeric: tabular-nums;
 }
 
@@ -668,7 +678,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--rojo);
+  background: var(--destructive);
 }
 
 .controles {
@@ -682,7 +692,7 @@
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  border: 3px solid var(--tiza);
+  border: 3px solid var(--foreground);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -692,7 +702,7 @@
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  background: var(--rojo);
+  background: var(--destructive);
   transition: border-radius 0.2s, transform 0.2s;
 }
 
@@ -703,7 +713,7 @@
 
 .permisoMsg {
   font-size: 12.5px;
-  color: var(--gris);
+  color: var(--muted);
   margin-top: 12px;
   max-width: 260px;
   text-align: center;
@@ -716,9 +726,9 @@
   margin-bottom: 16px;
   padding: 12px 14px;
   border-radius: 10px;
-  border: 1px solid var(--linea);
+  border: 1px solid var(--border);
   background: var(--surface);
-  color: var(--tiza);
+  color: var(--foreground);
   font-size: 14px;
 }
 
@@ -728,8 +738,8 @@
   right: 18px;
   bottom: 150px;
   z-index: 60;
-  background: var(--cesped);
-  color: #06121e;
+  background: var(--success);
+  color: #FFFFFF;
   font-size: 13.5px;
   font-weight: 700;
   padding: 13px 16px;
@@ -751,7 +761,7 @@
 .beneficiario {
   margin: 0 18px 12px;
   background: var(--surface);
-  border: 1px solid var(--linea);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px;
   display: flex;
@@ -764,16 +774,16 @@
   height: 40px;
   border-radius: 10px;
   flex: none;
-  background: var(--cesped-osc);
-  color: var(--cesped);
+  background: var(--success-light);
+  color: var(--success);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .beneficiarioIconoDorado {
-  background: #3a2c0c;
-  color: var(--sol);
+  background: var(--gold-light);
+  color: var(--gold);
 }
 
 .beneficiario h4 {
@@ -783,7 +793,7 @@
 
 .beneficiario p {
   font-size: 12px;
-  color: var(--gris);
+  color: var(--muted);
   margin-top: 2px;
   line-height: 1.5;
 }
@@ -792,24 +802,24 @@
   margin-top: 6px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--cesped);
+  color: var(--success);
 }
 
 .notaImpacto {
   margin: 4px 18px 16px;
   font-size: 12px;
-  color: var(--gris);
+  color: var(--muted);
   line-height: 1.6;
 }
 
 .notaImpacto b {
-  color: var(--tiza);
+  color: var(--foreground);
 }
 
 .perfilCard {
   margin: 0 18px 14px;
   background: var(--surface);
-  border: 1px solid var(--linea);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
   text-align: center;
@@ -829,7 +839,7 @@
 
 .perfilCard p {
   font-size: 12.5px;
-  color: var(--gris);
+  color: var(--muted);
   margin-top: 2px;
 }
 
@@ -841,15 +851,14 @@
 
 .perfilStats .cifra {
   background: var(--surface);
-  border: 1px solid var(--linea);
+  border: 1px solid var(--border);
 }
 
 .insignia {
   margin: 0 18px 14px;
-  border: 2px solid var(--sol);
+  border: 2px solid var(--gold);
   border-radius: var(--radius);
-  background: linear-gradient(180deg, #1a2540, #13203a);
-  background-color: var(--surface2);
+  background: var(--surface);
   padding: 22px 18px;
   text-align: center;
 }
@@ -857,37 +866,37 @@
 .insigniaMini {
   font-size: 10px;
   letter-spacing: 2.5px;
-  color: var(--sol);
+  color: var(--gold);
   font-weight: 700;
   text-transform: uppercase;
 }
 
 .insigniaGrande {
-  font-family: "Anton", sans-serif;
+  font-family: "Barlow Condensed", sans-serif;
   font-size: 34px;
-  color: var(--tiza);
+  color: var(--foreground);
   margin: 6px 0 2px;
 }
 
 .insigniaPartido {
   font-size: 13px;
-  color: var(--gris);
+  color: var(--muted);
 }
 
 .insigniaLinea {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px dashed var(--linea);
+  border-top: 1px dashed var(--border);
   font-size: 12.5px;
-  color: var(--cesped);
+  color: var(--success);
   font-weight: 700;
 }
 
 .btnCompartir {
   margin: 0 18px 20px;
   width: calc(100% - 36px);
-  background: var(--celeste);
-  color: #06121e;
+  background: var(--primary);
+  color: #FFFFFF;
   font-size: 15px;
   font-weight: 700;
   padding: 14px;
@@ -901,13 +910,13 @@
 .emptyFeed {
   margin: 0 18px;
   font-size: 13px;
-  color: var(--gris);
+  color: var(--muted);
   line-height: 1.5;
 }
 
 .loading {
   margin: 24px 18px;
-  color: var(--gris);
+  color: var(--muted);
   font-size: 14px;
 }
 
@@ -921,16 +930,16 @@
   flex: 1;
   padding: 8px;
   border-radius: 8px;
-  border: 1px solid var(--linea);
+  border: 1px solid var(--border);
   font-size: 12px;
   font-weight: 600;
-  color: var(--gris);
+  color: var(--muted);
 }
 
 .equipoBtnActive {
-  border-color: var(--celeste);
-  color: var(--celeste);
-  background: rgba(111, 195, 238, 0.08);
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
 }
 
 .estadoPage {
@@ -944,7 +953,7 @@
 }
 
 .estadoPage p {
-  color: var(--gris);
+  color: var(--muted);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -966,6 +975,6 @@
 .videoSponsorBrand {
   font-size: 20px;
   font-weight: 700;
-  color: var(--sol);
+  color: var(--gold);
   letter-spacing: 2px;
 }

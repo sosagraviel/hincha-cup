@@ -272,7 +272,7 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
             <p style={{ fontSize: 15, fontWeight: 700 }}>
               Subiendo tu festejo…
             </p>
-            <p style={{ fontSize: 12.5, color: "var(--gris)" }}>
+            <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
               comprimiendo video · {uploadLabel || "…"}
             </p>
           </div>

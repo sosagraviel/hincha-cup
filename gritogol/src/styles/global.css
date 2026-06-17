@@ -15,9 +15,9 @@ body,
 }
 
 body {
-  background: #060b14;
-  font-family: "Archivo", system-ui, sans-serif;
-  color: var(--tiza);
+  background: #F1F5F9;
+  font-family: "Barlow", system-ui, sans-serif;
+  color: var(--foreground);
   display: flex;
   justify-content: center;
   -webkit-font-smoothing: antialiased;
@@ -33,7 +33,7 @@ button {
 
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--celeste);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
   border-radius: 6px;
 }

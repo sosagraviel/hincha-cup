@@ -36,15 +36,15 @@ export function dibujarInsignia(
   ctx.textAlign = "center";
 
   ctx.fillStyle = "#F4B63F";
-  ctx.font = "700 38px Archivo, sans-serif";
+  ctx.font = "700 38px Barlow, sans-serif";
   ctx.fillText("★  I N S I G N I A   D E   H I N C H A  ★", 540, 300);
 
   ctx.fillStyle = "#EDF4FA";
-  ctx.font = "160px Anton, Impact, sans-serif";
+  ctx.font = "160px Barlow Condensed, sans-serif";
   ctx.fillText(puesto, 540, 560);
 
   ctx.fillStyle = "#92A6BE";
-  ctx.font = "44px Archivo, sans-serif";
+  ctx.font = "44px Barlow, sans-serif";
   ctx.fillText(partidoLabel, 540, 650);
 
   ctx.strokeStyle = "#26395A";
@@ -57,21 +57,21 @@ export function dibujarInsignia(
   ctx.setLineDash([]);
 
   ctx.fillStyle = "#3BC273";
-  ctx.font = "700 46px Archivo, sans-serif";
+  ctx.font = "700 46px Barlow, sans-serif";
   ctx.fillText("Mi grito desbloqueó 1 pelota", 540, 880);
   ctx.fillText("para quien más la necesita", 540, 945);
 
-  ctx.font = "110px Anton, Impact, sans-serif";
+  ctx.font = "110px Barlow Condensed, sans-serif";
   ctx.fillStyle = "#EDF4FA";
   ctx.fillText("GRITO", 488, 1170);
   const w = ctx.measureText("GRITO").width;
-  ctx.fillStyle = "#6FC3EE";
+  ctx.fillStyle = "#3B82F6";
   ctx.textAlign = "left";
   ctx.fillText("GOL", 488 + w / 2, 1170);
   ctx.textAlign = "center";
 
   ctx.fillStyle = "#92A6BE";
-  ctx.font = "34px Archivo, sans-serif";
+  ctx.font = "34px Barlow, sans-serif";
   ctx.fillText("tu grito vale un gol", 540, 1225);
 
   return c;
@@ -86,8 +86,8 @@ export async function compartirInsignia(
   const fontsReady =
     document.fonts &&
     Promise.all([
-      document.fonts.load("160px Anton"),
-      document.fonts.load("700 46px Archivo"),
+      document.fonts.load("700 160px 'Barlow Condensed'"),
+      document.fonts.load("700 46px Barlow"),
     ]).catch(() => undefined);
 
   await fontsReady;
