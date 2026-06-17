@@ -103,6 +103,15 @@ When `QAF_ASK_USER_MCP_TOOL` is unset, all skill behavior is identical to the co
 - **Issues**: [GitHub Issues](https://github.com/thisisqubika/qubika-agentic-framework/issues)
 - **Questions**: `#software-engineering-accelerate-ai` on Slack
 
+
+
+
+
+GRITO GOL - quick start
+1 - npm run emulators
+2 - npm run seed:emulator
+3 - npm run dev
+
 ---
 
 ## License
