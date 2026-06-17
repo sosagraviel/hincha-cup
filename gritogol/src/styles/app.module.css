@@ -23,12 +23,12 @@
   font-size: 30px;
   font-weight: 700;
   letter-spacing: 1px;
-  color: var(--primary);
+  color: var(--foreground);
   line-height: 1;
 }
 
 .wordmarkAccent {
-  color: #3B82F6;
+  color: var(--primary);
 }
 
 .tagline {
@@ -370,8 +370,8 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: rgba(59, 130, 246, 0.18);
-  border: 1.5px solid #3B82F6;
+  background: rgba(111, 195, 238, 0.14);
+  border: 1.5px solid var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -431,14 +431,14 @@
   right: 16px;
   bottom: 84px;
   z-index: 30;
-  background: #3B82F6;
-  color: #FFFFFF;
+  background: var(--primary);
+  color: #06121e;
   font-weight: 700;
   font-size: 14px;
   letter-spacing: 0.3px;
   padding: 14px 18px;
   border-radius: 999px;
-  box-shadow: 0 6px 24px rgba(59, 130, 246, 0.35);
+  box-shadow: 0 6px 24px rgba(111, 195, 238, 0.35);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -462,7 +462,7 @@
   left: 0;
   right: 0;
   z-index: 20;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(8, 14, 25, 0.92);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--border);
   display: flex;
@@ -499,19 +499,20 @@
            max(32px, env(safe-area-inset-right))
            max(32px, env(safe-area-inset-bottom))
            max(32px, env(safe-area-inset-left));
-  /* Restore dark-theme tokens for the dark overlay context */
-  color: #EEF2FF;
-  --foreground: #EEF2FF;
-  --muted: #92A6BE;
-  --primary: #6FC3EE;
-  --success: #3BC273;
-  --gold: #F4B63F;
-  --border: #26395A;
-  --surface: #0D1829;
 }
 
 .overlayVisible {
   display: flex;
+}
+
+/* The unstyled div wrapping the "gol" step content needs a fixed width
+   so that block-level and flex buttons stack vertically instead of flowing inline */
+.overlay > div:not([class]) {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .golTitulo {
@@ -573,14 +574,16 @@
 }
 
 .btnGrande {
-  background: var(--primary);
-  color: #FFFFFF;
+  background: var(--success);
+  color: #06121e;
   font-size: 16px;
   font-weight: 700;
   padding: 16px 28px;
   border-radius: 999px;
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   align-items: center;
+  justify-content: center;
   gap: 10px;
 }
 
@@ -739,7 +742,7 @@
   bottom: 150px;
   z-index: 60;
   background: var(--success);
-  color: #FFFFFF;
+  color: #06121e;
   font-size: 13.5px;
   font-weight: 700;
   padding: 13px 16px;
@@ -858,7 +861,8 @@
   margin: 0 18px 14px;
   border: 2px solid var(--gold);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: linear-gradient(180deg, #1a2540, #13203a);
+  background-color: var(--surface-2);
   padding: 22px 18px;
   text-align: center;
 }
@@ -896,7 +900,7 @@
   margin: 0 18px 20px;
   width: calc(100% - 36px);
   background: var(--primary);
-  color: #FFFFFF;
+  color: #06121e;
   font-size: 15px;
   font-weight: 700;
   padding: 14px;
@@ -943,19 +947,39 @@
 }
 
 .estadoPage {
-  padding: 24px 18px;
+  padding: 48px 24px 24px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
 
 .estadoPage h1 {
-  font-size: 22px;
-  margin-bottom: 12px;
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 4px;
 }
 
 .estadoPage p {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
+}
+
+.estadoPage strong {
+  color: var(--foreground);
+}
+
+.estadoPage a {
+  margin-top: 8px;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .videoSponsorOverlay {

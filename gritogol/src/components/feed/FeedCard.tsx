@@ -129,7 +129,7 @@ export function FeedCard({ video }: FeedCardProps) {
               width="20"
               height="20"
               viewBox="0 0 24 24"
-              fill="#3B82F6"
+              fill="#6FC3EE"
               aria-hidden="true"
             >
               <path d="M7 4l13 8-13 8z" />
