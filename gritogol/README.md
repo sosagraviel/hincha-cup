@@ -1,219 +1,229 @@
-# GritoGol
+# GritoGol ⚽
 
-React + Vite + Firebase app para festejar goles en tiempo real.
+React + Vite + Firebase app to celebrate goals in real-time.
 
-## Setup
+GritoGol connects business donations to schools and football clubs through an engaging voting competition. Users upload and share the best "grito gol" (goal celebrations), and the community votes for their favorites. Votes translate directly into visibility for businesses and donations for schools and clubs in need.
 
-### 1. Firebase Project
+---
 
-1. Ir a [Firebase Console](https://console.firebase.google.com) y crear un nuevo proyecto.
-2. **IMPORTANTE:** Seleccionar **Firestore en modo Native** (no Datastore). Este modo no se puede cambiar después.
-3. Habilitar los servicios:
-   - Authentication → Sign-in providers: Google, Anonymous
-   - Firestore Database (modo Native)
-   - Storage
-   - Functions (requiere upgrade a plan Blaze antes del deploy)
-   - Hosting
+## The Problem
 
-### 2. Variables de entorno
+Schools and football clubs across our communities lack access to basic equipment and resources. While businesses want to support these organizations, there's no engaging platform that benefits everyone involved. Traditional donation models are passive and don't create community excitement or business visibility. Football—a cornerstone of our culture—shouldn't be limited by resource constraints.
 
-```bash
-cp .env.example .env.local
-```
+---
 
-Completar `.env.local` con los valores de Firebase Console → Project settings → General → Web app.
+## The Solution
 
-### 3. Instalar dependencias
+GritoGol creates a win-win-win platform:
 
-```bash
-npm install
-cd functions && npm install && cd ..
-```
+- **For Users**: Upload your best goal celebration videos and compete daily for prizes. Every vote you cast matters.
+- **For Businesses**: Get featured visibility with real engagement metrics. Your participation directly translates to brand awareness tied to community support.
+- **For Schools & Clubs**: Donations are generated automatically based on voting activity. The more engagement, the more support reaches those who need it most.
 
-## Docker (recomendado para onboarding)
+**How It Works:**
+1. Users upload their "grito gol" (goal celebration video/moment)
+2. Community members vote for their favorites throughout the day
+3. Vote count = direct donation amount from participating businesses
+4. Daily winner receives prizes
+5. Businesses gain exposure proportional to engagement
 
-Requisitos: **Docker Desktop** (o Docker Engine + Compose) y **Make**.
+---
 
-### Inicio rápido
+## How AI Was Used
+
+### In the Product
+- **Claude**: Assisted in structuring the app's feature set and user flows, helping define how voting mechanics translate to donations
+- **Figma Maker**: Used for rapid UI/UX design iterations and prototype creation, accelerating screen design from concept to implementation
+
+### In Development
+- **Documentation Generation**: Claude was used to create initial app documentation and technical specifications from high-level requirements
+- **Screen Design**: Generated comprehensive UI documentation covering all user-facing screens
+- **Ticket Creation**: Documentation was systematically broken down into actionable development tickets
+- **Problem-Solving**: Used QAF translate specific feature challenges into structured tickets. For example:
+  - *"How to include an overlay into our videos?"* → Technical approach ticket with implementation details
+  - Video streaming and compression considerations
+  - Real-time voting UI updates
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend Framework** | React 18+ |
+| **Build Tool** | Vite |
+| **Database** | Firebase Firestore (Native mode) |
+| **Authentication** | Firebase Auth (Google, Anonymous) |
+| **File Storage** | Firebase Cloud Storage |
+| **Serverless Functions** | Firebase Cloud Functions |
+| **Hosting** | Firebase Hosting |
+| **Live Scores API** | API-Football (api-sports.io) |
+| **Package Manager** | npm |
+| **Containerization** | Docker + Docker Compose |
+| **Build Automation** | Make |
+| **UI Design Tools** | Figma |
+
+---
+
+## Quick Start
+
+### Option 1: Docker (Recommended for Onboarding)
+
+**Requirements:** Docker Desktop (or Docker Engine + Compose) and Make
 
 ```bash
 cd gritogol
 make start
 ```
 
-1. **`make start`** — Crea `docker/.env` desde `docker/.env.example` si no existe, construye la imagen `gritogol-dev` y levanta tres servicios en orden:
-   - **`emulators`** — Firebase Emulator Suite (Auth, Firestore, Storage, Functions) con `USE_MOCK_SCORES=true`
-   - **`seed`** — Carga datos demo en Firestore (one-shot; el contenedor termina y queda detenido — es normal)
-   - **`web`** — Vite dev server con `VITE_USE_EMULATORS=true`
-2. Abrí **http://localhost:5173** (app) y **http://localhost:4000** (Emulator UI).
+This will:
+1. Create `docker/.env` from `docker/.env.example` (if needed)
+2. Build the `gritogol-dev` Docker image
+3. Start three services:
+   - **`emulators`** — Firebase Emulator Suite (Auth, Firestore, Storage, Functions) with `USE_MOCK_SCORES=true`
+   - **`seed`** — Loads demo data into Firestore (one-shot; container exits after completion—this is normal)
+   - **`web`** — Vite dev server with `VITE_USE_EMULATORS=true`
 
-La primera vez puede tardar 2–3 min (`npm ci` + build de functions). `make start` falla si el puerto **5173** está ocupado (por ejemplo por `npm run dev` local).
+Open **http://localhost:5173** (app) and **http://localhost:4000** (Emulator UI).
 
-### URLs
+First startup may take 2–3 minutes (`npm ci` + functions build). `make start` will fail if port **5173** is already in use.
 
-| URL | Servicio |
-|-----|----------|
-| http://localhost:5173 | App (Vite) |
-| http://localhost:4000 | Firebase Emulator UI |
-| http://localhost:4000/firestore | Firestore emulator |
-| http://localhost:5001 | Cloud Functions emulator |
+### Make Commands
 
-### Comandos Make
-
-| Comando | Descripción |
+| Command | Description |
 |---------|-------------|
-| `make start` | Levanta emuladores + seed + Vite (`docker compose up -d --build`) |
-| `make stop` | Para y elimina contenedores (`docker compose down`) |
-| `make rebuild` | Rebuild completo sin caché y vuelve a levantar (útil tras cambios en `Dockerfile`) |
-| `make logs` | Sigue los logs de todos los servicios (`docker compose logs -f`) |
-| `make seed` | Levanta solo emuladores y re-ejecuta el seed manualmente |
-| `make status` | Muestra el estado de los contenedores (`docker compose ps`) |
-| `make clean-docker` | Libera espacio en Docker (`docker system prune -af --volumes`); luego corré `make rebuild` |
+| `make start` | Start emulators + seed + Vite (`docker compose up -d --build`) |
+| `make stop` | Stop and remove containers (`docker compose down`) |
+| `make rebuild` | Full rebuild without cache and restart (useful after Dockerfile changes) |
+| `make logs` | Follow logs from all services (`docker compose logs -f`) |
+| `make seed` | Run emulators and re-execute seed manually |
+| `make status` | Show container status (`docker compose ps`) |
+| `make clean-docker` | Free Docker space (`docker system prune -af --volumes`); then run `make rebuild` |
 
-### Flujo de trabajo típico
-
-```bash
-make start          # primer arranque o después de clonar
-make logs           # ver qué pasa si algo falla
-make seed           # recargar partidos demo si Firestore quedó vacío
-make stop           # fin del día
-```
-
-Si cambiás el `Dockerfile` o tenés errores raros de build:
+### Typical Workflow
 
 ```bash
-make rebuild
+make start          # first startup or after cloning
+make logs           # check what's happening if something fails
+make seed           # reload demo matches if Firestore is empty
+make stop           # end of day
 ```
 
-Si Docker se queda sin espacio (`ENOSPC: no space left on device`):
+### Troubleshooting Docker
+
+| Issue | Solution |
+|-------|----------|
+| **`seed-1` container stopped** | Normal. One-shot container that runs once and exits. If you need data again: `make seed`. |
+| **Port 5173 in use** | Don't run Docker and `npm run dev` locally at the same time. Stop one: `make stop` or kill the process on 5173. |
+| **Blank screen** | Check browser console. If you see `auth/invalid-api-key`, use `VITE_USE_EMULATORS=true` and a key like `AIzaSy…` (see `.env.example`). |
+| **INTERNAL error using ¡GOL! DEMO** | Restart emulators: `docker compose restart emulators` (or `make stop && make start`). |
+| **Dockerfile changes** | Run `make rebuild` |
+| **App has no data** | Run `make seed` |
+
+---
+
+## Option 2: Manual Local Development with Emulators
+
+If you prefer not to use Docker, the app runs with **Vite** and emulators as the **local backend**. You'll need **3 terminals**.
+
+### Firebase Setup (One-time)
+
+1. Go to [Firebase Console](https://console.firebase.google.com) and create a new project.
+2. **IMPORTANT:** Select **Firestore in Native mode** (not Datastore). This mode cannot be changed later.
+3. Enable these services:
+   - Authentication → Sign-in providers: Google, Anonymous
+   - Firestore Database (Native mode)
+   - Cloud Storage
+   - Cloud Functions (requires upgrade to Blaze plan before deployment)
+   - Hosting
+
+### Environment Variables
 
 ```bash
-make clean-docker
-make rebuild
+cp .env.example .env.local
 ```
 
-### Troubleshooting
+Fill in `.env.local` with values from Firebase Console → Project settings → General → Web app.
 
-- **`seed-1` detenido** → Normal. Es un contenedor one-shot que corre una vez y sale. Si necesitás datos de nuevo: `make seed`.
-- **Puerto 5173 ocupado** → No corras Docker y `npm run dev` local a la vez. Pará uno u otro: `make stop` o matá el proceso en 5173.
-- **Pantalla en blanco** → Revisá la consola del navegador. Si ves `auth/invalid-api-key`, en emulador usá `VITE_USE_EMULATORS=true` y una key con formato `AIzaSy…` (ver `.env.example`).
-- **Error INTERNAL al usar ¡GOL! DEMO** → Reiniciá emuladores: `docker compose restart emulators` (o `make stop && make start`).
-- **Cambios en Dockerfile** → `make rebuild`
-- **App sin datos** → `make seed`
-
-## Comandos (sin Docker)
-
-| Comando | Descripción |
-|---------|-------------|
-| `npm run dev` | Dev server (Vite, usualmente http://localhost:5173) |
-| `npm run build` | Build de producción |
-| `npm run preview` | Preview del build |
-| `npm run typecheck` | TypeScript type checking |
-| `npm run lint` | ESLint |
-| `npm run emulators` | Firebase Emulator Suite (Auth, Firestore, Storage, Functions) |
-| `npm run seed:emulator` | Carga datos demo en Firestore emulator |
-| `npm run emulators:stop` | Libera puertos 8080/8081 si quedaron procesos colgados |
-
-## Desarrollo local con emuladores (manual)
-
-Si preferís no usar Docker, la app corre con **Vite** y los emuladores como **backend** local. Necesitás **3 terminales**:
-
-### Terminal 1 — Emuladores
-
-```bash
-npm run emulators
-```
-
-Cuando esté listo, abrí el panel en **http://localhost:4000**.
-
-Si falla por puerto ocupado:
-
-```bash
-npm run emulators:stop
-npm run emulators
-```
-
-### Terminal 2 — Datos demo
-
-Con los emuladores corriendo:
-
-```bash
-npm run seed:emulator
-```
-
-Deberías ver: `Seed completado: partido-uru-esp-2026 partido-arg-mex-2026`.
-
-En **http://localhost:4000/firestore** van a aparecer las colecciones `partidos`, `beneficiarios` y `counters`.
-
-### Terminal 3 — App
-
-```bash
-npm run dev
-```
-
-Abrí la URL que muestre Vite (por ejemplo **http://localhost:5173** o **http://localhost:5174** si 5173 está ocupado).
-
-### Configuración de `.env.local`
-
-Para desarrollo con emuladores, el `projectId` debe coincidir con `.firebaserc` (`gritogol`):
+For development with emulators, your `projectId` must match `.firebaserc` (`gritogol`):
 
 ```
 VITE_FIREBASE_PROJECT_ID=gritogol
 VITE_USE_EMULATORS=true
 ```
 
-Puertos del Emulator Suite:
+### Install Dependencies
 
-| Servicio | Puerto |
-|----------|--------|
+```bash
+npm install
+cd functions && npm install && cd ..
+```
+
+### Terminal 1 — Firebase Emulators
+
+```bash
+npm run emulators
+```
+
+When ready, open the panel at **http://localhost:4000**.
+
+If it fails due to port conflict:
+
+```bash
+npm run emulators:stop
+npm run emulators
+```
+
+**Emulator Suite Ports:**
+
+| Service | Port |
+|---------|------|
 | Emulator UI | 4000 |
 | Firestore | 8081 |
 | Auth | 9099 |
 | Storage | 9199 |
 | Functions | 5001 |
 
-**Nota:** Para que los videos subidos pasen a `publicado` en el muro, compilá las functions una vez: `cd functions && npm run build && cd ..`, y reiniciá `npm run emulators`.
+### Terminal 2 — Load Demo Data
 
-### Marcadores en vivo (Mundial 2026)
-
-Los marcadores se sincronizan desde **API-Football** (api-sports.io) vía la Cloud Function `syncCopaScores` (cada 1 min). El cliente lee `copa_fixtures` y `partidos` en Firestore — la API key **nunca** va al frontend.
-
-**Emulador (sin API key):**
+With emulators running:
 
 ```bash
-cp functions/.env.example functions/.env   # USE_MOCK_SCORES=true
-cd functions && npm run build && cd ..
-npm run emulators
 npm run seed:emulator
 ```
 
-El seed carga `copa_fixtures` (incluye un partido extra BRA–FRA para el ticker) y datos mock para `syncCopaScores`.
+You should see: `Seed completed: partido-uru-esp-2026 partido-arg-mex-2026`.
 
-**Simular un gol en emulador** (callable, sin login en mock mode):
+In **http://localhost:4000/firestore**, you'll see collections `partidos`, `beneficiarios`, and `counters`.
 
-```javascript
-// DevTools console, con emuladores activos
-import { getFunctions, httpsCallable } from 'firebase/functions';
-const fn = httpsCallable(getFunctions(), 'simulateGoal');
-await fn({ partidoId: 'partido-uru-esp-2026' });
-```
-
-**Producción:**
+### Terminal 3 — Start the App
 
 ```bash
-firebase functions:secrets:set API_FOOTBALL_KEY
-firebase deploy --only functions
+npm run dev
 ```
 
-Obtener IDs reales de fixtures del Mundial:
+Open the URL shown by Vite (e.g., **http://localhost:5173**).
 
-```bash
-API_FOOTBALL_KEY=tu-key npm run fetch:fixtures
-```
+---
 
-Copiá los IDs a `FIXTURE_IDS` en `src/constants.ts` y en los docs `partidos` (`fixtureId`).
+## All npm Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Dev server (Vite, usually http://localhost:5173) |
+| `npm run build` | Production build |
+| `npm run preview` | Preview the build |
+| `npm run typecheck` | TypeScript type checking |
+| `npm run lint` | ESLint |
+| `npm run emulators` | Firebase Emulator Suite (Auth, Firestore, Storage, Functions) |
+| `npm run seed:emulator` | Load demo data into Firestore emulator |
+| `npm run emulators:stop` | Free ports 8080/8081 if processes are stuck |
+
+---
 
 ## Cloud Functions
+
+Build and deploy functions:
 
 ```bash
 cd functions
@@ -223,58 +233,121 @@ cd ..
 firebase deploy --only functions
 ```
 
-**Nota:** Las Cloud Functions tienen cold start de 5–15 segundos. Esto es absorbido por la pantalla de estado "revisando".
+**Note:** Cloud Functions have 5–15 second cold starts. This is handled by the "checking" status screen.
 
-**Nota:** El plan Spark (gratuito) no incluye Cloud Functions. Se requiere upgrade al plan Blaze (pay-as-you-go) antes del primer deploy de funciones.
+**Important:** The Spark plan (free) does not include Cloud Functions. Upgrade to the Blaze plan (pay-as-you-go) before your first functions deployment.
 
-## Deploy completo
+### Live Scores Synchronization (Copa 2026)
+
+Scores sync from **API-Football** (api-sports.io) via the `syncCopaScores` Cloud Function (every 1 minute). The client reads `copa_fixtures` and `partidos` in Firestore — the API key **never** goes to the frontend.
+
+**Emulator (without API key):**
+
+```bash
+cp functions/.env.example functions/.env   # USE_MOCK_SCORES=true
+cd functions && npm run build && cd ..
+npm run emulators
+npm run seed:emulator
+```
+
+The seed loads `copa_fixtures` (includes an extra BRA–FRA match for the ticker) and mock data for `syncCopaScores`.
+
+**Simulate a goal in emulator** (callable, no login in mock mode):
+
+```javascript
+// DevTools console, with emulators active
+import { getFunctions, httpsCallable } from 'firebase/functions';
+const fn = httpsCallable(getFunctions(), 'simulateGoal');
+await fn({ partidoId: 'partido-uru-esp-2026' });
+```
+
+**Production:**
+
+```bash
+firebase functions:secrets:set API_FOOTBALL_KEY
+firebase deploy --only functions
+```
+
+Get real fixture IDs for Copa 2026:
+
+```bash
+API_FOOTBALL_KEY=your-key npm run fetch:fixtures
+```
+
+Copy the IDs to `FIXTURE_IDS` in `src/constants.ts` and in the `partidos` documents (`fixtureId`).
+
+---
+
+## Deploy to Production
 
 ```bash
 firebase deploy --only firestore:rules,storage,functions,hosting
 ```
 
-## Seed de datos (producción)
+---
 
-Con un proyecto Firebase real configurado en `.env.local`:
+## Seed Production Data
+
+With a real Firebase project configured in `.env.local`:
 
 ```bash
 npx tsx src/seed/seed.ts
 ```
 
-Para emuladores, usá `npm run seed:emulator` (ver sección anterior).
+For emulators, use `npm run seed:emulator` (see earlier section).
 
-## Estructura
+---
+
+## Project Structure
 
 ```
 src/
-  firebase.ts         Inicialización Firebase; exporta app, auth, db, storage
-  router.tsx          React Router v6 con createBrowserRouter
-  App.tsx             Root component
-  main.tsx            Entry point
+  firebase.ts              Firebase initialization; exports app, auth, db, storage
+  router.tsx               React Router v6 with createBrowserRouter
+  App.tsx                  Root component
+  main.tsx                 Entry point
   types/
-    firestore.ts      Interfaces TypeScript para colecciones Firestore
+    firestore.ts           TypeScript interfaces for Firestore collections
   services/
-    authService.ts    Google + anonymous auth
-    videoService.ts   Upload, feed, aplausos
-    partidoService.ts Suscripción partido, disparar gol, cerrar votación
+    authService.ts         Google + anonymous auth
+    videoService.ts        Upload, feed, votes
+    partidoService.ts      Match subscription, trigger goal, close voting
   pages/
-    HomePage.tsx        /
-    CamaraPage.tsx      /camara?gol=N
-    EstadoVideoPage.tsx /estado/:id
-    TribunaPage.tsx     /tribuna
-    GanadoresPage.tsx   /ganadores
-    AdminPage.tsx       /admin
-    NotFoundPage.tsx    404
+    HomePage.tsx           /
+    CamaraPage.tsx         /camara?gol=N
+    EstadoVideoPage.tsx    /estado/:id
+    TribunaPage.tsx        /tribuna
+    GanadoresPage.tsx      /ganadores
+    AdminPage.tsx          /admin
+    NotFoundPage.tsx       404
   seed/
-    seed.ts           Datos de demo
+    seed.ts                Demo data
 functions/
   src/
-    index.ts          Exporta Cloud Functions
-    onVideoSubido.ts  Trigger Storage → asigna gritoNumero
+    index.ts               Exports Cloud Functions
+    onVideoSubido.ts       Storage trigger → assigns gritoNumero
 ```
 
-## Advertencias de seguridad
+---
 
-- `.env.local` **nunca** se commitea (está en `.gitignore`).
-- Las reglas de Firestore deben deployarse **antes** de abrir acceso público.
-- El campo `admins/{uid}` se gestiona únicamente via Firebase Admin SDK (no hay UI de admin para esto).
+## Security Warnings
+
+- `.env.local` **never** committed (included in `.gitignore`).
+- Firestore rules must be deployed **before** opening public access.
+- The `admins/{uid}` field is managed **only** via Firebase Admin SDK (no admin UI for this).
+
+---
+
+## Contact & Support
+
+For questions or support:
+- Open an issue on GitHub
+- Email: [your-email@example.com]
+
+---
+
+## Acknowledgments
+
+- Built with ❤️ for our communities
+- Powered by React, Firebase, and AI-assisted development
+- Special thanks to all participating schools and football clubs
