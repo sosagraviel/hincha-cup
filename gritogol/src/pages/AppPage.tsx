@@ -81,7 +81,7 @@ function AppShellInner() {
       <CopaTicker />
       <ImpactMarcador />
 
-      <main ref={mainRef} className={s.main}>
+      <main ref={mainRef} className={`${s.main}${eventoActivo && !overlayDismissed ? ` ${s.mainFrozen}` : ""}`}>
         {renderTab()}
       </main>
 
