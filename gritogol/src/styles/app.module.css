@@ -1,6 +1,6 @@
 .app {
   width: 100%;
-  max-width: 430px;
+  max-width: 600px;
   min-height: 100dvh;
   background: var(--background);
   display: flex;
@@ -12,7 +12,7 @@
 }
 
 .header {
-  padding: 18px 18px 10px;
+  padding: 18px 24px 10px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -54,7 +54,7 @@
 }
 
 .livebar {
-  margin: 4px 18px 14px;
+  margin: 4px 24px 14px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -90,7 +90,7 @@
 }
 
 .copaTicker {
-  margin: 0 18px 10px;
+  margin: 0 24px 10px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -134,7 +134,7 @@
 }
 
 .marcador {
-  margin: 0 18px 16px;
+  margin: 0 24px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-top: 3px solid var(--success);
@@ -201,7 +201,8 @@
 .main {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 140px;
+  /* padding clears the fixed tab bar + FAB + safe-area */
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   scrollbar-width: none;
 }
 
@@ -214,7 +215,7 @@
 }
 
 .seccionTitulo {
-  padding: 2px 18px 10px;
+  padding: 2px 24px 10px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -231,7 +232,7 @@
 }
 
 .card {
-  margin: 0 18px 14px;
+  margin: 0 24px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -427,16 +428,16 @@
 }
 
 .fab {
-  position: absolute;
-  right: 16px;
-  bottom: 84px;
+  position: fixed;
+  right: max(24px, calc(50% - 276px));
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   z-index: 30;
   background: var(--primary);
   color: #06121e;
   font-weight: 700;
   font-size: 14px;
   letter-spacing: 0.3px;
-  padding: 14px 18px;
+  padding: 14px 22px;
   border-radius: 999px;
   box-shadow: 0 6px 24px rgba(111, 195, 238, 0.35);
   display: flex;
@@ -457,10 +458,13 @@
 }
 
 .tabbar {
-  position: absolute;
+  position: fixed;
   bottom: 0;
-  left: 0;
-  right: 0;
+  /* centre-anchor to match the app's max-width constraint */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 600px;
   z-index: 20;
   background: rgba(8, 14, 25, 0.92);
   backdrop-filter: blur(10px);
@@ -737,8 +741,8 @@
 
 .toast {
   position: absolute;
-  left: 18px;
-  right: 18px;
+  left: 24px;
+  right: 24px;
   bottom: 150px;
   z-index: 60;
   background: var(--success);
@@ -762,7 +766,7 @@
 }
 
 .beneficiario {
-  margin: 0 18px 12px;
+  margin: 0 24px 12px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -809,7 +813,7 @@
 }
 
 .notaImpacto {
-  margin: 4px 18px 16px;
+  margin: 4px 24px 16px;
   font-size: 12px;
   color: var(--muted);
   line-height: 1.6;
@@ -820,7 +824,7 @@
 }
 
 .perfilCard {
-  margin: 0 18px 14px;
+  margin: 0 24px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -849,7 +853,7 @@
 .perfilStats {
   display: flex;
   gap: 8px;
-  margin: 0 18px 14px;
+  margin: 0 24px 14px;
 }
 
 .perfilStats .cifra {
@@ -858,12 +862,12 @@
 }
 
 .insignia {
-  margin: 0 18px 14px;
+  margin: 0 24px 14px;
   border: 2px solid var(--gold);
   border-radius: var(--radius);
   background: linear-gradient(180deg, #1a2540, #13203a);
   background-color: var(--surface-2);
-  padding: 22px 18px;
+  padding: 22px 24px;
   text-align: center;
 }
 
@@ -897,8 +901,8 @@
 }
 
 .btnCompartir {
-  margin: 0 18px 20px;
-  width: calc(100% - 36px);
+  margin: 0 24px 20px;
+  width: calc(100% - 48px);
   background: var(--primary);
   color: #06121e;
   font-size: 15px;
@@ -912,14 +916,14 @@
 }
 
 .emptyFeed {
-  margin: 0 18px;
+  margin: 0 24px;
   font-size: 13px;
   color: var(--muted);
   line-height: 1.5;
 }
 
 .loading {
-  margin: 24px 18px;
+  margin: 24px 24px;
   color: var(--muted);
   font-size: 14px;
 }
@@ -927,7 +931,7 @@
 .equipoSwitcher {
   display: flex;
   gap: 8px;
-  margin: 0 18px 12px;
+  margin: 0 24px 12px;
 }
 
 .equipoBtn {
