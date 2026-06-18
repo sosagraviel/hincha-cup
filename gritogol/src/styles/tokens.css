@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-background: #070C18;
+  --color-surface: #0D1829;
+  --color-surface-2: #132240;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-primary: #6FC3EE;
+  --color-primary-light: #0E2236;
+  --color-success: #3BC273;
+  --color-success-light: #0A2E1C;
+  --color-gold: #F5B942;
+  --color-gold-light: #2E1F06;
+  --color-foreground: #EEF2FF;
+  --color-muted: #7A8BAD;
+  --color-destructive: #EF4444;
+
+  /* Typography */
+  --font-display: "Barlow Condensed", sans-serif;
+  --font-body: "Barlow", system-ui, sans-serif;
+
+  /* Radius */
+  --radius-card: 14px;
+}
+
+/* Keep CSS custom properties for CSS modules compatibility during migration */
+:root {
+  --background: #070C18;
+  --surface: #0D1829;
+  --surface-2: #132240;
+  --border: rgba(255, 255, 255, 0.08);
+  --primary: #6FC3EE;
+  --primary-light: #0E2236;
+  --success: #3BC273;
+  --success-light: #0A2E1C;
+  --gold: #F5B942;
+  --gold-light: #2E1F06;
+  --foreground: #EEF2FF;
+  --muted: #7A8BAD;
+  --destructive: #EF4444;
+  --radius: 14px;
+}

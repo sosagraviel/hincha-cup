@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+
+# Lockfiles — keep committed (may need to override parent repo ignore)
+!package-lock.json
+!functions/package-lock.json
+
+# Build output
+dist/
+functions/lib/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Local environment & secrets (never push credentials)
+.env
+.env.local
+.env.*.local
+docker/.env
+*-firebase-adminsdk-*.json
+*serviceAccount*.json
+*credentials*.json
+
+# Firebase local / emulator
+.firebase/
+firebase-debug.log
+firestore-debug.log
+storage-debug.log
+ui-debug.log
+pubsub-debug.log
+database-debug.log
+*-debug.log
+
+# Test & coverage
+coverage/
+
+# Vite
+.vite/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Optional local tooling
+.cursor/

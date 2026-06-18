@@ -1,0 +1,42 @@
+{
+  "name": "gritogol",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "emulators": "firebase emulators:start --only auth,firestore,storage,functions",
+    "seed:emulator": "tsx src/seed/seed.ts",
+    "fetch:fixtures": "tsx scripts/fetch-fixture-ids.ts",
+    "emulators:stop": "lsof -tiTCP:8080 -sTCP:LISTEN | xargs kill -9 2>/dev/null; lsof -tiTCP:8081 -sTCP:LISTEN | xargs kill -9 2>/dev/null; echo 'Puertos 8080/8081 liberados (si había procesos).'"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.1",
+    "firebase": "^10.14.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "tailwindcss": "^4.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-basic-ssl": "^1.2.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^9.17.0",
+    "firebase-admin": "^14.0.0",
+    "globals": "^15.14.0",
+    "tsx": "^4.22.4",
+    "typescript": "~5.7.2",
+    "typescript-eslint": "^8.18.2",
+    "vite": "^6.0.5",
+    "vitest": "^3.0.2"
+  }
+}
