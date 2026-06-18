@@ -1,7 +1,7 @@
 ---
 document_type: service
 summary: Vite + React SPA where soccer fans record and share short "festejo" video clips when their team scores, backed by Firebase Auth, Firestore, Cloud Storage, and Cloud Functions v2.
-last_updated: '2026-06-18T16:30:00.000Z'
+last_updated: '2026-06-18T20:00:00.000Z'
 tags: [service, typescript, react, firebase, vite]
 related: [../ARCHITECTURE.md, ../SERVICES.md]
 service_id: gritogol
@@ -161,3 +161,4 @@ All persistence is managed by Firebase (no separate database server owned by thi
 - **notFound guard in FeedCard.** If `getDownloadURL()` rejects (e.g., video not yet in Storage), `FeedCard` sets a local `notFound` state and returns `null` — silently hiding the card instead of showing an error state.
 - **suppressOverlay ref pattern in AppPage.** The overlay-suppress logic uses a `useRef` instead of `useState` to hold the one-shot suppress flag, preventing an extra re-render cycle when returning from `EstadoVideoPage`.
 - **ScoresProvider interface.** `syncCopaScores` depends on a `ScoresProvider` interface satisfied by either `ApiFootballProvider` (production) or `MockScoresProvider` (dev/test). The implementation is selected at runtime via `USE_MOCK_SCORES` env var, enabling isolated local testing without hitting the external API.
+- **Standalone branch via git subtree split.** `make standalone-branch` (in `gritogol/Makefile`) runs `git subtree split --prefix=gritogol/ -b gritogol-standalone HEAD` and force-pushes to origin. The resulting `gritogol-standalone` branch has the `gritogol/` contents at root — no framework dirs, no pnpm workspace config — enabling `git clone <repo> --branch gritogol-standalone` to fetch only the GritoGol app.
