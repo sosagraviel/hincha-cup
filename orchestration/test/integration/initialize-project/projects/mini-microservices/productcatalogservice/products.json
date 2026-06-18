@@ -1,5 +1,0 @@
-[
-  { "ID": "p1", "Name": "Vintage Camera", "Description": "Classic film camera", "PriceUSD": 12000 },
-  { "ID": "p2", "Name": "Wool Sweater",   "Description": "Hand-knit wool",      "PriceUSD": 4800  },
-  { "ID": "p3", "Name": "Cast-iron Pan",  "Description": "Pre-seasoned 12in",   "PriceUSD": 3600  }
-]

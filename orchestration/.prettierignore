@@ -1,9 +1,0 @@
-dist/
-node_modules/
-coverage/
-*.min.js
-pnpm-lock.yaml
-# Fixtures are test data, not framework source. Their formatting is owned
-# by each fixture's per-language config; the framework's prettier rules
-# should not bleed into them.
-test/integration/initialize-project/projects/

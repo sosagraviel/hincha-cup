@@ -1,8 +1,0 @@
-node_modules
-dist
-build
-coverage
-pnpm-lock.yaml
-.claude-temp
-.codex-temp
-docs/llm-wiki

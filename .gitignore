@@ -50,3 +50,14 @@ qubika-agentic-framework/
 
 .mcp.json
 package-lock.json
+
+# Framework infrastructure — not GritoGol app code (GG-02)
+agents/
+docker/
+docs-site-content/
+examples/
+orchestration/
+scripts/
+skills/
+templates/
+website/
