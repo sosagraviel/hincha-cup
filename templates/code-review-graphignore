@@ -1,8 +1,0 @@
-.claude
-.github
-.code-review-graph
-docs/llm-wiki
-node_modules
-qubika-agentic-framework
-dist
-build

@@ -1,6 +1,0 @@
-{
-  "projects": {
-    "default": "mini-serverless-dev",
-    "production": "mini-serverless-prod"
-  }
-}

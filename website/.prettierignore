@@ -1,6 +1,0 @@
-build/
-node_modules/
-.docusaurus/
-*.min.js
-pnpm-lock.yaml
-.cache/

@@ -1,4 +1,0 @@
-* text=auto eol=lf
-*.png binary
-pnpm-lock.yaml linguist-generated=true
-poetry.lock linguist-generated=true

@@ -22,11 +22,11 @@ Summary catalog of every page in this wiki. Each line carries the page summary, 
 
 ## Per-service docs
 
+- [gritogol](services/gritogol.md) — *service* — Vite + React SPA where soccer fans record and share short "festejo" video clips when their team scores, backed by Firebase Auth, Firestore, Cloud Storage, and Cloud Functions v2. **Tags:** service, typescript, react, firebase, vite. **Related:** [[ARCHITECTURE]], [[SERVICES]].
 - [javascript-scripts](services/javascript-scripts.md) — *service* — The javascript-scripts service is the automation and development orchestration layer for the monorepo. It provides shell-based entry points for environment s... **Tags:** service, javascript, library.
 - [orchestration](services/orchestration.md) — *service* — The orchestration service is a TypeScript CLI application that implements a five-phase LangGraph workflow to analyze source-code projects and generate projec... **Tags:** service, typescript, cli, langgraph.
 - [python-scripts](services/python-scripts.md) — *service* — Python Scripts is a library service within the monorepo that provides shared Python utilities and automation scripts. (not determined by analysis) **Tags:** service, python, library.
 - [website](services/website.md) — *service* — The website service is a static documentation site built with Docusaurus and deployed via GitHub Pages. It serves as the public-facing knowledge base for the... **Tags:** service, typescript, frontend, docusaurus.
-- **gritogol** *(no dedicated service-doc yet — run `/wiki-add-service gritogol`)* — *service* — Vite + React + TypeScript SPA backed by Firebase (Auth, Firestore, Storage, Cloud Functions). Soccer highlight app with 6 flat routes; npm-managed independently of the pnpm workspace. **Tags:** service, typescript, react, firebase.
 
 ## How agents should use this
 

@@ -1,7 +1,0 @@
-packages:
-  - 'firebase'
-  - 'functions/js'
-  - 'web'
-  - 'devops'
-  - 'env-handlers'
-  - 'packages/*'
