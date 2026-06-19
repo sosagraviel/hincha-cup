@@ -42,6 +42,14 @@ coverage
 .claude-temp/
 .claude-backups/
 qubika-agentic-framework/
+qubika-agentic-framework
+
+# Generated code graph artifacts
+.code-review-graph/
+.code-review-graphignore
+
+# Personal IDE / tool settings
+settings.json
 
 .codex-temp/
 .codex-backups/
