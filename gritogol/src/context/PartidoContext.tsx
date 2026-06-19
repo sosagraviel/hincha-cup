@@ -15,6 +15,8 @@ import {
 } from "../constants";
 import { suscribirPartido } from "../services/partidoService";
 import type { Partido } from "../types/firestore";
+import { useSuscripcion } from "./SuscripcionContext";
+import { useCopa } from "./CopaContext";
 
 interface PartidoContextValue {
   equipo: EquipoHinchada;
@@ -31,7 +33,17 @@ export function PartidoProvider({ children }: { children: ReactNode }) {
     null,
   );
 
-  const partidoId = useMemo(() => getPartidoId(equipo), [equipo]);
+  const { fixtureFavorito } = useSuscripcion();
+  const { fixturesEnVivo } = useCopa();
+
+  const favoritoFixture = fixturesEnVivo.find(
+    (f) => f.fixtureId === fixtureFavorito,
+  );
+
+  const partidoId = useMemo(
+    () => favoritoFixture?.partidoId ?? getPartidoId(equipo),
+    [favoritoFixture, equipo],
+  );
 
   useEffect(() => {
     const unsubscribe = suscribirPartido(partidoId, setPartido);

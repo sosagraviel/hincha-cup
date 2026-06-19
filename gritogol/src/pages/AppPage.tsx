@@ -3,11 +3,11 @@ import { useLocation } from "react-router-dom";
 import s from "../styles/app.module.css";
 import { AuthProvider } from "../context/AuthContext";
 import { CopaProvider } from "../context/CopaContext";
+import { SuscripcionProvider } from "../context/SuscripcionContext";
 import { PartidoProvider, usePartido } from "../context/PartidoContext";
 import { ToastProvider } from "../context/ToastContext";
 import { Header } from "../components/layout/Header";
-import { LiveBar } from "../components/layout/LiveBar";
-import { CopaTicker } from "../components/layout/CopaTicker";
+import { MatchBar } from "../components/layout/MatchBar";
 import { ImpactMarcador } from "../components/layout/ImpactMarcador";
 import { TabBar } from "../components/layout/TabBar";
 import { Toast } from "../components/ui/Toast";
@@ -77,8 +77,7 @@ function AppShellInner() {
   return (
     <div className={s.app}>
       <Header />
-      <LiveBar />
-      <CopaTicker />
+      <MatchBar />
       <ImpactMarcador />
 
       <main ref={mainRef} className={`${s.main}${eventoActivo && !overlayDismissed ? ` ${s.mainFrozen}` : ""}`}>
@@ -105,13 +104,15 @@ function AppShellInner() {
 export default function AppPage() {
   return (
     <AuthProvider>
-      <PartidoProvider>
-        <CopaProvider>
-          <ToastProvider>
-            <AppShellInner />
-          </ToastProvider>
-        </CopaProvider>
-      </PartidoProvider>
+      <CopaProvider>
+        <SuscripcionProvider>
+          <PartidoProvider>
+            <ToastProvider>
+              <AppShellInner />
+            </ToastProvider>
+          </PartidoProvider>
+        </SuscripcionProvider>
+      </CopaProvider>
     </AuthProvider>
   );
 }
