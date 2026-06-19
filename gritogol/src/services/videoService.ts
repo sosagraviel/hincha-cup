@@ -15,7 +15,8 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "../firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, storage, functions } from "../firebase";
 import type { Video, VideoEstado, Moderacion } from "../types/firestore";
 
 interface CrearFestejoParams {
@@ -171,4 +172,38 @@ export async function actualizarEstado(
     moderacion,
     publishedAt: estado === "publicado" ? serverTimestamp() : null,
   });
+}
+
+export function extractFrameBase64(
+  src: Blob | string,
+  timeRatio = 0.5,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.crossOrigin = "anonymous";
+    const objectUrl = src instanceof Blob ? URL.createObjectURL(src) : null;
+    video.src = objectUrl ?? (src as string);
+    video.addEventListener("loadedmetadata", () => {
+      video.currentTime = video.duration * timeRatio;
+    });
+    video.addEventListener("seeked", () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d")!.drawImage(video, 0, 0);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL("image/png").split(",")[1] ?? "");
+    });
+    video.addEventListener("error", reject);
+    video.load();
+  });
+}
+
+export async function llamarModeracion(
+  videoId: string,
+  frameBase64: string,
+): Promise<void> {
+  const fn = httpsCallable(functions, "moderarVideo");
+  await fn({ videoId, frameBase64 });
 }
