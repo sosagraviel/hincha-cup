@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import s from "../../styles/app.module.css";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "../../firebase";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { functions, db } from "../../firebase";
 import { usePartido } from "../../context/PartidoContext";
 import { useSuscripcion } from "../../context/SuscripcionContext";
 import { useToast } from "../../context/ToastContext";
@@ -12,9 +13,17 @@ export function FabDemo() {
   const { fixtureFavorito } = useSuscripcion();
   const { showToast } = useToast();
   const [demoActive, setDemoActive] = useState(false);
+  const [mockModeracion, setMockModeracion] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
 
   useEffect(() => () => { stopRef.current?.(); }, []);
+
+  useEffect(() => {
+    const ref = doc(db, "config/moderation");
+    return onSnapshot(ref, (snap) => {
+      setMockModeracion(snap.exists() ? (snap.data()?.mockEnabled ?? false) : false);
+    });
+  }, []);
 
   if (!import.meta.env.DEV) return null;
 
@@ -39,6 +48,13 @@ export function FabDemo() {
       setDemoActive(true);
       showToast("Demo iniciado — gol en ~60 s");
     }
+  }
+
+  function handleToggleMock() {
+    const next = !mockModeracion;
+    void setDoc(doc(db, "config/moderation"), { mockEnabled: next }, { merge: true })
+      .then(() => showToast(next ? "Moderación desactivada (mock)" : "Moderación activada (GPT-4o)"))
+      .catch((e: Error) => showToast(`Error: ${e.message}`));
   }
 
   function handleGoalNow() {
@@ -71,6 +87,15 @@ export function FabDemo() {
         title="Disparar gol ahora"
       >
         ⚽
+      </button>
+      <button
+        type="button"
+        className={`${s.fabDemoBtn} ${mockModeracion ? s.fabDemoBtnActive : s.fabDemoBtnMod}`}
+        onClick={handleToggleMock}
+        aria-label={mockModeracion ? "Moderación OFF (mock)" : "Moderación ON (GPT-4o)"}
+        title={mockModeracion ? "Moderación OFF — click para activar" : "Moderación ON — click para desactivar"}
+      >
+        🛡
       </button>
     </div>
   );

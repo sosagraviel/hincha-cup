@@ -515,6 +515,11 @@
   animation: demoPulse 1.8s ease-in-out infinite;
 }
 
+.fabDemoBtnMod {
+  background: #16a34a;
+  color: #fff;
+}
+
 .fab {
   background: var(--celeste);
   color: #06121e;
