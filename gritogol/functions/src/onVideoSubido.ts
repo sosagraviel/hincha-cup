@@ -1,12 +1,10 @@
 import { onObjectFinalized } from "firebase-functions/v2/storage";
-import * as admin from "firebase-admin";
 import type { StorageObjectData } from "firebase-functions/v2/storage";
 
 /**
  * Triggered when a file is finalized in Cloud Storage.
- * Filters to the `videos-crudos/` path prefix, then atomically assigns
- * a sequential `gritoNumero`, transitions the video to "publicado", and
- * increments impact counters on the match document (GG-07).
+ * Logs the upload; publication and counter updates are handled by
+ * the moderarVideo callable after content moderation passes.
  */
 export const onVideoSubido = onObjectFinalized(
   { region: "us-central1" },
