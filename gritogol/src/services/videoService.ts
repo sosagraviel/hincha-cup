@@ -16,7 +16,8 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../firebase";
-import type { Video, VideoEstado, Moderacion } from "../types/firestore";
+import type { Video, VideoEstado, Moderacion, Competencia } from "../types/firestore";
+import { computeNivel } from "../constants/niveles";
 
 interface CrearFestejoParams {
   partidoId: string;
@@ -140,20 +141,31 @@ export async function aplaudir(
   const videoRef = doc(db, "videos", videoId);
 
   await runTransaction(db, async (transaction) => {
-    const votoSnap = await transaction.get(votoRef);
+    const [votoSnap, videoSnap] = await Promise.all([
+      transaction.get(votoRef),
+      transaction.get(videoRef),
+    ]);
 
-    if (votoSnap.exists()) {
-      return;
+    if (votoSnap.exists()) return;
+
+    const videoData = videoSnap.data() as Video;
+    if (videoData.userId === userId) {
+      throw new Error("self-vote");
     }
+
+    const newAplausos = (videoData.aplausos ?? 0) + 1;
+    const newNivel = computeNivel(newAplausos);
 
     transaction.set(votoRef, {
       videoId,
       userId,
+      competenciaId: videoData.competenciaId ?? null,
       createdAt: serverTimestamp(),
     });
 
     transaction.update(videoRef, {
       aplausos: increment(1),
+      nivelAlcanzado: newNivel,
     });
   });
 }
@@ -170,5 +182,24 @@ export async function actualizarEstado(
     gritoNumero,
     moderacion,
     publishedAt: estado === "publicado" ? serverTimestamp() : null,
+  });
+}
+
+export function obtenerCompetenciasDelPartido(
+  partidoId: string,
+  cb: (comps: Array<{ id: string } & Competencia>) => void,
+): Unsubscribe {
+  const q = query(
+    collection(db, "competencias"),
+    where("partidoId", "==", partidoId),
+    orderBy("cierraEn", "desc"),
+  );
+  return onSnapshot(q, (snap) => {
+    cb(
+      snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Competencia),
+      })),
+    );
   });
 }

@@ -1,5 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 import type { EquipoHinchada } from "../constants";
+import type { NivelAlcanzado } from "../constants/niveles";
 
 export interface Sponsor {
   nombre: string;
@@ -92,6 +93,8 @@ export interface Video {
   estado: VideoEstado;
   gritoNumero: number | null;
   aplausos: number;
+  nivelAlcanzado: NivelAlcanzado;
+  competenciaId?: string;
   moderacion: Moderacion | null;
   createdAt: Timestamp;
   publishedAt: Timestamp | null;
@@ -101,7 +104,21 @@ export interface Voto {
   videoId: string;
   partidoId: string;
   userId: string;
+  competenciaId?: string;
   createdAt: Timestamp;
+}
+
+export type CompetenciaEstado = "activa" | "cerrada";
+
+export interface Competencia {
+  eventoId: string;
+  partidoId: string;
+  iniciaEn: Timestamp;
+  cierraEn: Timestamp;
+  estado: CompetenciaEstado;
+  ganadorVideoId: string | null;
+  ganadorUserId: string | null;
+  videosParticipantes: string[];
 }
 
 export interface Usuario {

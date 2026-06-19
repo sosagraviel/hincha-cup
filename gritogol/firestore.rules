@@ -65,5 +65,10 @@ service cloud.firestore {
       allow read: if isAuth();
       allow write: if false;
     }
+
+    match /competencias/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }
