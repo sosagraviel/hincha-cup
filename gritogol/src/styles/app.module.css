@@ -1,7 +1,7 @@
 .app {
   width: 100%;
   max-width: 430px;
-  min-height: 100dvh;
+  height: 100dvh;
   background: var(--noche);
   display: flex;
   flex-direction: column;
@@ -202,14 +202,50 @@
   overflow-y: auto;
   padding-bottom: 160px;
   scrollbar-width: none;
+  position: relative;
+}
+
+/* Scroll shadow — indicates more content below */
+.main::after {
+  content: "";
+  position: sticky;
+  bottom: 0;
+  display: block;
+  height: 56px;
+  background: linear-gradient(to bottom, transparent, var(--noche));
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.mainAtBottom::after {
+  opacity: 0;
 }
 
 .mainFrozen {
   overflow: hidden;
 }
 
+/* Hide scrollbar on touch devices; show thin bar on desktop */
 .main::-webkit-scrollbar {
   display: none;
+}
+
+@media (pointer: fine) {
+  .main {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(111, 195, 238, 0.2) transparent;
+  }
+  .main::-webkit-scrollbar {
+    display: block;
+    width: 4px;
+  }
+  .main::-webkit-scrollbar-thumb {
+    background: rgba(111, 195, 238, 0.2);
+    border-radius: 4px;
+  }
+  .main::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
 
 .seccionTitulo {
