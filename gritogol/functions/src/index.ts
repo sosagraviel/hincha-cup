@@ -7,4 +7,5 @@ export {
   syncCopaScores,
   triggerCopaSync,
   simulateGoal,
+  tickMatch,
 } from "./syncCopaScores";

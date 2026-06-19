@@ -1,4 +1,4 @@
-.PHONY: start stop rebuild logs seed status clean-docker
+.PHONY: start stop rebuild logs seed status clean-docker standalone-branch
 
 COMPOSE := docker compose
 
@@ -31,3 +31,7 @@ status:
 clean-docker:
 	docker system prune -af --volumes
 	@echo "Docker disk cleaned. Run: make rebuild"
+
+standalone-branch:
+	git subtree split --prefix=gritogol/ -b gritogol-standalone HEAD
+	git push origin gritogol-standalone --force

@@ -1,7 +1,7 @@
 ---
 document_type: service
 summary: Vite + React SPA where soccer fans record and share short "festejo" video clips when their team scores, backed by Firebase Auth, Firestore, Cloud Storage, and Cloud Functions v2.
-last_updated: '2026-06-18T16:30:00.000Z'
+last_updated: '2026-06-18T22:00:00.000Z'
 tags: [service, typescript, react, firebase, vite]
 related: [../ARCHITECTURE.md, ../SERVICES.md]
 service_id: gritogol
@@ -49,25 +49,27 @@ All Cloud Functions are deployed to region `us-central1`.
 App.tsx (root)
 ├── router.tsx          React Router v6 createBrowserRouter
 ├── context/            React Context providers (injected at app root)
-│   ├── AuthContext     Firebase Auth state + Google Sign-In helpers
-│   ├── PartidoContext  Live Firestore subscription to current match
-│   ├── CopaContext     Copa fixture data (copa_fixtures collection)
-│   └── ToastContext    Global notification queue
+│   ├── AuthContext        Firebase Auth state + Google Sign-In helpers
+│   ├── CopaContext        Copa fixture data (copa_fixtures collection)
+│   ├── SuscripcionContext User match subscriptions (fixtureFavorito + fixturesSecundarios) from usuarios/{uid}
+│   ├── PartidoContext     Live Firestore subscription to the favorite match (falls back to EquipoHinchada)
+│   └── ToastContext       Global notification queue
 ├── pages/              Route-level components (one per route)
 ├── components/         Atomic UI; grouped by domain:
 │   ├── feed/           Video feed cards (FeedCard)
 │   ├── goal/           Goal overlay + recording trigger (GoalOverlay)
 │   ├── impact/         Impact metrics display
-│   ├── layout/         Shell, tab bar, nav
+│   ├── layout/         Shell, tab bar, nav; MatchBar (favorite+secondary cards), MatchPicker (first-time selection)
 │   ├── ui/             Shared primitives
 │   ├── video/          Recording component, sponsor overlay
 │   └── views/          Composite view wrappers
 ├── services/           Firebase façades (pure functions, no class instances)
 │   ├── videoService.ts upload blob + Firestore setDoc, URL caching via Map
 │   ├── authService.ts  auth state helpers
-│   ├── copaService.ts  copa_fixtures reads
-│   ├── impactoService  impact-counter reads
-│   └── partidoService  partidos doc reads
+│   ├── copaService.ts       copa_fixtures reads
+│   ├── impactoService       impact-counter reads
+│   ├── partidoService       partidos doc reads
+│   └── suscripcionService   usuarios/{uid} read/write (fixtureFavorito, fixturesSecundarios)
 ├── hooks/
 │   └── useMediaRecorder.ts  getUserMedia + MediaRecorder orchestration
 ├── types/
@@ -129,6 +131,7 @@ All persistence is managed by Firebase (no separate database server owned by thi
 | `admins` | Manual | Allowlist of admin UIDs |
 | `beneficiarios` | Admin | Beneficiary organisations receiving impact donations |
 | `counters` | `onVideoSubido` | Global counters (e.g., `gritoNumero`) via Firestore atomic increments |
+| `usuarios` | Client | Per-user match subscriptions: `fixtureFavorito` (number\|null) + `fixturesSecundarios` (number[]); works for anonymous UIDs |
 
 **Cloud Storage bucket:** `videos-crudos/` prefix — raw video blobs uploaded directly from the browser. No client-side download URL is stored; `videoService.obtenerUrlVideo()` calls `getDownloadURL()` and caches results in a module-level `Map`.
 
@@ -141,6 +144,7 @@ All persistence is managed by Firebase (no separate database server owned by thi
 | `votos` | authenticated | create/delete: owner only |
 | `admins` | self-read only | never from client |
 | `counters` | authenticated | never from client |
+| `usuarios` | owner only | owner only (read + write) |
 
 ## Integrations
 
@@ -161,3 +165,4 @@ All persistence is managed by Firebase (no separate database server owned by thi
 - **notFound guard in FeedCard.** If `getDownloadURL()` rejects (e.g., video not yet in Storage), `FeedCard` sets a local `notFound` state and returns `null` — silently hiding the card instead of showing an error state.
 - **suppressOverlay ref pattern in AppPage.** The overlay-suppress logic uses a `useRef` instead of `useState` to hold the one-shot suppress flag, preventing an extra re-render cycle when returning from `EstadoVideoPage`.
 - **ScoresProvider interface.** `syncCopaScores` depends on a `ScoresProvider` interface satisfied by either `ApiFootballProvider` (production) or `MockScoresProvider` (dev/test). The implementation is selected at runtime via `USE_MOCK_SCORES` env var, enabling isolated local testing without hitting the external API.
+- **Standalone branch via git subtree split.** `make standalone-branch` (in `gritogol/Makefile`) runs `git subtree split --prefix=gritogol/ -b gritogol-standalone HEAD` and force-pushes to origin. The resulting `gritogol-standalone` branch has the `gritogol/` contents at root — no framework dirs, no pnpm workspace config — enabling `git clone <repo> --branch gritogol-standalone` to fetch only the GritoGol app.

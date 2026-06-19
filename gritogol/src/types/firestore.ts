@@ -103,3 +103,9 @@ export interface Voto {
   userId: string;
   createdAt: Timestamp;
 }
+
+export interface Usuario {
+  fixtureFavorito: number | null;
+  fixturesSecundarios: number[];
+  updatedAt: Timestamp;
+}
