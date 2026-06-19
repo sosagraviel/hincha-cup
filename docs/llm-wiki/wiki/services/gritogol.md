@@ -1,7 +1,7 @@
 ---
 document_type: service
 summary: Vite + React SPA where soccer fans record and share short "festejo" video clips when their team scores, backed by Firebase Auth, Firestore, Cloud Storage, and Cloud Functions v2.
-last_updated: '2026-06-18T22:00:00.000Z'
+last_updated: '2026-06-19T00:00:00.000Z'
 tags: [service, typescript, react, firebase, vite]
 related: [../ARCHITECTURE.md, ../SERVICES.md]
 service_id: gritogol
@@ -38,6 +38,7 @@ The app exposes no HTTP API of its own. Its public entry points are the React Ro
 | `syncCopaScores` | Scheduled HTTP (`onSchedule`) | Fetches live + today's Copa fixtures from api-football.com; upserts `copa_fixtures` collection |
 | `triggerCopaSync` | Callable HTTP (`onCall`) | Manual trigger for `syncCopaScores` logic |
 | `simulateGoal` | Callable HTTP (`onCall`) | Injects a synthetic goal event for demo / QA use |
+| `tickMatch` | Callable HTTP (`onCall`) | Increments `copa_fixtures.minuto` and `partidos.minuto` by 1; emulator-only (throws `unavailable` in production) |
 
 All Cloud Functions are deployed to region `us-central1`.
 
