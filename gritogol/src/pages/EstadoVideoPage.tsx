@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  actualizarEstado,
   extractFrameBase64,
   llamarModeracion,
   obtenerUrlVideo,
   obtenerVideo,
 } from "../services/videoService";
+import { getModerationDisabled } from "../components/ui/FabDemo";
 import type { Video } from "../types/firestore";
 import s from "../styles/app.module.css";
 
@@ -34,6 +36,13 @@ export default function EstadoVideoPage() {
     async function moderar() {
       if (!id || !video) return;
       try {
+        if (getModerationDisabled()) {
+          setModerationState("moderating");
+          await actualizarEstado(id, "publicado", null, null);
+          setModerationState("done");
+          return;
+        }
+
         setModerationState("extracting");
         const videoUrl = await obtenerUrlVideo(video.storagePath);
         const frameBase64 = await extractFrameBase64(videoUrl);

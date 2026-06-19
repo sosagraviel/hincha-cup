@@ -392,11 +392,18 @@
   color: var(--success);
 }
 
-.fab {
+.fabContainer {
   position: fixed;
   right: max(24px, calc(50% - 276px));
   bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.fab {
   background: var(--primary);
   color: #06121e;
   font-weight: 700;
