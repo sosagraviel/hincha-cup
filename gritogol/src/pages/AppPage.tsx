@@ -26,6 +26,7 @@ function AppShellInner() {
   const { partidoId } = usePartido();
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
+  const [atBottom, setAtBottom] = useState(false);
   const seenEventsRef = useRef<Set<string>>(new Set());
   const [eventoActivo, setEventoActivo] = useState<
     ({ id: string } & Evento) | null
@@ -66,7 +67,14 @@ function AppShellInner() {
 
   useEffect(() => {
     mainRef.current?.scrollTo(0, 0);
+    setAtBottom(false);
   }, [location.pathname]);
+
+  function handleScroll() {
+    const el = mainRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 8);
+  }
 
   function renderTab() {
     if (location.pathname.startsWith("/impacto")) return <ImpactoView />;
@@ -80,7 +88,11 @@ function AppShellInner() {
       <MatchBar />
       <ImpactMarcador />
 
-      <main ref={mainRef} className={`${s.main}${eventoActivo && !overlayDismissed ? ` ${s.mainFrozen}` : ""}`}>
+      <main
+        ref={mainRef}
+        className={`${s.main}${eventoActivo && !overlayDismissed ? ` ${s.mainFrozen}` : ""}${atBottom ? ` ${s.mainAtBottom}` : ""}`}
+        onScroll={handleScroll}
+      >
         {renderTab()}
       </main>
 
