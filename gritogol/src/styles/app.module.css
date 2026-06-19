@@ -1060,3 +1060,133 @@
   color: var(--sol);
   letter-spacing: 2px;
 }
+
+/* --- Nivel badge + progress bar (FeedCard) --- */
+.nivelBadge {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sol);
+  background: #3a2c0c;
+  border-top: 1px solid var(--linea);
+  letter-spacing: 0.2px;
+}
+
+.nivelProgressWrap {
+  padding: 0 0 4px;
+  border-top: 1px solid var(--linea);
+}
+
+.nivelProgress {
+  height: 3px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+
+.nivelProgressBar {
+  height: 100%;
+  background: var(--celeste);
+  transition: width 0.4s ease;
+}
+
+.nivelProgressLabel {
+  display: block;
+  font-size: 10px;
+  color: var(--gris);
+  padding: 3px 14px 0;
+  text-align: right;
+}
+
+/* --- GanadoresPage --- */
+.ganadoresHeader {
+  padding: 20px 18px 10px;
+}
+
+.ganadoresTitulo {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--tiza);
+  margin: 0 0 4px;
+}
+
+.ganadoresSubtitulo {
+  font-size: 13px;
+  color: var(--gris);
+  margin: 0;
+}
+
+.ganadoresSeccion {
+  padding: 0 0 16px;
+}
+
+.ganadoresSectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gris);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 10px 18px 6px;
+  margin: 0;
+}
+
+.ganadoresCard {
+  margin: 0 14px 10px;
+  background: var(--surface);
+  border: 1px solid var(--linea);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ganadoresCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ganadoresMeta {
+  font-size: 11px;
+  color: var(--gris);
+}
+
+.ganadoresInfo {
+  font-size: 13px;
+  color: var(--gris);
+  margin: 0;
+}
+
+.ganadoresGanador {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ganadoresNombre {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tiza);
+}
+
+.ganadoresAplausos {
+  font-size: 13px;
+  color: var(--rojo);
+  font-weight: 600;
+}
+
+.ganadoresPremio {
+  font-size: 12px;
+  color: var(--sol);
+  font-weight: 600;
+  background: #3a2c0c;
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+
+.ganadoresVacio {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--gris);
+  font-size: 14px;
+}

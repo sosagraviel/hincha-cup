@@ -8,6 +8,13 @@ import {
 } from "../../services/videoService";
 import type { Video } from "../../types/firestore";
 import { getIniciales } from "../../constants";
+import {
+  NIVELES,
+  computeNivel,
+  nivelSiguiente,
+  umbralAnterior,
+  type NivelAlcanzado,
+} from "../../constants/niveles";
 import { formatoNumero, tiempoRelativo, formatoDuracion } from "../../utils/format";
 import { VideoSponsorOverlay } from "../video/VideoSponsorOverlay";
 
@@ -35,6 +42,8 @@ export function FeedCard({ video }: FeedCardProps) {
 
   const esPropio = user?.uid === video.userId;
   const iniciales = getIniciales(video.autorAlias);
+  const nivel = computeNivel(aplausos) as NivelAlcanzado;
+  const siguiente = nivelSiguiente(nivel);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,14 +57,22 @@ export function FeedCard({ video }: FeedCardProps) {
 
   async function handleLike() {
     if (!user || liked) return;
+    if (user.uid === video.userId) {
+      showToast("No podés aplaudir tu propio festejo");
+      return;
+    }
     setLiked(true);
     setAplausos((n) => n + 1);
     try {
       await aplaudir(video.id, user.uid);
-    } catch {
+    } catch (err: unknown) {
       setLiked(false);
       setAplausos(video.aplausos);
-      showToast("No se pudo aplaudir");
+      if (err instanceof Error && err.message === "self-vote") {
+        showToast("No podés aplaudir tu propio festejo");
+      } else {
+        showToast("No se pudo aplaudir");
+      }
     }
   }
 
@@ -151,6 +168,27 @@ export function FeedCard({ video }: FeedCardProps) {
           </button>
         )}
       </div>
+
+      {nivel > 0 && (
+        <div className={s.nivelBadge}>
+          {"⭐".repeat(nivel)} Nivel {nivel} — {NIVELES[nivel - 1]?.premio}
+        </div>
+      )}
+      {siguiente && (
+        <div className={s.nivelProgressWrap}>
+          <div className={s.nivelProgress}>
+            <div
+              className={s.nivelProgressBar}
+              style={{
+                width: `${Math.min(100, ((aplausos - umbralAnterior(nivel)) / (siguiente.umbral - umbralAnterior(nivel))) * 100)}%`,
+              }}
+            />
+          </div>
+          <span className={s.nivelProgressLabel}>
+            {aplausos} / {siguiente.umbral} para Nivel {siguiente.nivel}
+          </span>
+        </div>
+      )}
 
       <div className={s.cardAcciones}>
         <button

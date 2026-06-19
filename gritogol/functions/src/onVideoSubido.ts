@@ -38,12 +38,21 @@ export const onVideoSubido = onObjectFinalized(
     const counterRef = db.doc("counters/videos");
     const partidoRef = db.doc(`partidos/${partidoId}`);
 
+    let capturedEventoId: string | undefined;
+
     await db.runTransaction(async (tx) => {
       const videoSnap = await tx.get(videoRef);
       if (!videoSnap.exists) {
         console.error("Video doc not found:", videoId);
         return;
       }
+
+      const videoData = videoSnap.data() as {
+        eventoId: string;
+        partidoId: string;
+        [key: string]: unknown;
+      };
+      capturedEventoId = videoData.eventoId;
 
       const counterSnap = await tx.get(counterRef);
       const currentCount: number = counterSnap.exists
@@ -64,6 +73,7 @@ export const onVideoSubido = onObjectFinalized(
       tx.update(videoRef, {
         estado: "publicado",
         gritoNumero,
+        competenciaId: capturedEventoId,
         publishedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -90,5 +100,35 @@ export const onVideoSubido = onObjectFinalized(
         tx.update(partidoRef, updates);
       }
     });
+
+    if (capturedEventoId) {
+      const eventoId = capturedEventoId;
+      const compRef = db.doc(`competencias/${eventoId}`);
+      const compSnap = await compRef.get();
+
+      const VEINTICUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
+      const now = Date.now();
+
+      if (!compSnap.exists) {
+        await compRef.set({
+          eventoId,
+          partidoId,
+          iniciaEn: admin.firestore.Timestamp.fromMillis(now),
+          cierraEn: admin.firestore.Timestamp.fromMillis(
+            now + VEINTICUATRO_HORAS_MS,
+          ),
+          estado: "activa",
+          ganadorVideoId: null,
+          ganadorUserId: null,
+          videosParticipantes: [videoId],
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        await compRef.update({
+          videosParticipantes: admin.firestore.FieldValue.arrayUnion(videoId),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    }
   },
 );
