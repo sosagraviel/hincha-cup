@@ -6,7 +6,7 @@ import { MatchCardSecundario } from "./MatchCardSecundario";
 import { MatchPicker } from "./MatchPicker";
 
 export function MatchBar() {
-  const { fixtureFavorito, fixturesSecundarios } = useSuscripcion();
+  const { fixtureFavorito } = useSuscripcion();
   const { fixturesEnVivo } = useCopa();
 
   if (fixtureFavorito === null) {
@@ -17,9 +17,9 @@ export function MatchBar() {
     (f) => f.fixtureId === fixtureFavorito,
   );
 
-  const secundarios = fixturesSecundarios
-    .map((id) => fixturesEnVivo.find((f) => f.fixtureId === id))
-    .filter((f): f is NonNullable<typeof f> => f !== undefined);
+  const secundarios = fixturesEnVivo.filter(
+    (f) => f.fixtureId !== fixtureFavorito,
+  );
 
   return (
     <>

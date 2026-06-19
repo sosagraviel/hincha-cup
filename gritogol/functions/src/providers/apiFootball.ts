@@ -4,7 +4,6 @@ import type { CopaFixtureSnapshot, ScoresProvider } from "../types/copa";
 const BASE_URL = "https://v3.football.api-sports.io";
 const WC_LEAGUE_ID = 1;
 const WC_SEASON = 2026;
-const LIVE_STATUS = "1H-HT-2H-ET-P-BT-LIVE";
 
 interface ApiFootballListResponse {
   response: unknown[];
@@ -38,10 +37,10 @@ export class ApiFootballProvider implements ScoresProvider {
   }
 
   async fetchLiveFixtures(): Promise<CopaFixtureSnapshot[]> {
+    // Use live=all+league filter: avoids season gating on demo/free API plans
     const items = await this.request("/fixtures", {
+      live: "all",
       league: String(WC_LEAGUE_ID),
-      season: String(WC_SEASON),
-      status: LIVE_STATUS,
     });
 
     return mapApiFootballFixtures(
@@ -50,15 +49,19 @@ export class ApiFootballProvider implements ScoresProvider {
   }
 
   async fetchFixturesByDate(date: string): Promise<CopaFixtureSnapshot[]> {
-    const items = await this.request("/fixtures", {
-      league: String(WC_LEAGUE_ID),
-      season: String(WC_SEASON),
-      date,
-      timezone: "UTC",
-    });
-
-    return mapApiFootballFixtures(
-      items as Parameters<typeof mapApiFootballFixtures>[0],
-    );
+    try {
+      const items = await this.request("/fixtures", {
+        league: String(WC_LEAGUE_ID),
+        season: String(WC_SEASON),
+        date,
+        timezone: "UTC",
+      });
+      return mapApiFootballFixtures(
+        items as Parameters<typeof mapApiFootballFixtures>[0],
+      );
+    } catch {
+      // Demo/free API plans block season=2026; live fixtures still sync via fetchLiveFixtures
+      return [];
+    }
   }
 }

@@ -210,3 +210,43 @@ export const simulateGoal = onCall(
     return { golNumero, partidoId };
   },
 );
+
+export const tickMatch = onCall(
+  { region: "us-central1" },
+  async (request) => {
+    if (!isEmulatorRuntime()) {
+      throw new HttpsError("unavailable", "tickMatch is only available in emulator");
+    }
+
+    const { fixtureId, partidoId } = request.data as {
+      fixtureId: number;
+      partidoId?: string;
+    };
+    if (!fixtureId) {
+      throw new HttpsError("invalid-argument", "fixtureId is required");
+    }
+
+    const db = admin.firestore();
+    const fixtureRef = db.collection("copa_fixtures").doc(String(fixtureId));
+    const fixtureSnap = await fixtureRef.get();
+    const currentMinuto = (fixtureSnap.data()?.["minuto"] as number | undefined) ?? 0;
+    const nextMinuto = Math.min(currentMinuto + 1, 90);
+
+    const batch = db.batch();
+    batch.set(
+      fixtureRef,
+      { minuto: nextMinuto, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+    if (partidoId) {
+      batch.set(
+        db.collection("partidos").doc(partidoId),
+        { minuto: nextMinuto, updatedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    }
+    await batch.commit();
+
+    return { minuto: nextMinuto };
+  },
+);

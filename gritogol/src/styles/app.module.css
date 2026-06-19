@@ -200,7 +200,7 @@
 .main {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 140px;
+  padding-bottom: 160px;
   scrollbar-width: none;
 }
 
@@ -425,11 +425,61 @@
   color: var(--cesped);
 }
 
-.fab {
+.fabDemoGroup {
   position: absolute;
-  right: 16px;
-  bottom: 84px;
+  right: 12px;
+  bottom: 72px;
   z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(6, 18, 30, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 6px 8px 6px 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.fabDemoLabel {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.fabDemoBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.75);
+  transition: background 0.15s;
+}
+
+.fabDemoBtn:active {
+  transform: scale(0.9);
+}
+
+.fabDemoBtnPrimary {
+  background: var(--celeste);
+  color: #06121e;
+  font-weight: 700;
+}
+
+.fabDemoBtnActive {
+  background: #e85d04;
+  color: #fff;
+  animation: demoPulse 1.8s ease-in-out infinite;
+}
+
+.fab {
   background: var(--celeste);
   color: #06121e;
   font-weight: 700;
@@ -453,6 +503,11 @@
 
 .fab:active {
   transform: scale(0.96);
+}
+
+@keyframes demoPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 93, 4, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(232, 93, 4, 0); }
 }
 
 .tabbar {
