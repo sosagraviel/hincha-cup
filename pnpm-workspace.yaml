@@ -1,9 +1,0 @@
-packages:
-  - "orchestration"
-  - "website"
-allowBuilds:
-  '@anthropic-ai/claude-code': true
-  '@swc/core': true
-  better-sqlite3: true
-  core-js: true
-  esbuild: true

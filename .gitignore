@@ -59,7 +59,7 @@ settings.json
 .mcp.json
 package-lock.json
 
-# Framework infrastructure — not GritoGol app code (GG-02)
+# Framework infrastructure — not GritoGol app code
 agents/
 docker/
 docs-site-content/
@@ -69,3 +69,14 @@ scripts/
 skills/
 templates/
 website/
+
+# Agentic framework tooling (local-only)
+.claude/
+docs/
+specs/
+.github/
+.husky/
+WORKSPACE_COMMANDS.md
+package.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
