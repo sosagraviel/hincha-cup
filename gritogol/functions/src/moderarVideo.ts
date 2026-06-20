@@ -1,9 +1,10 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 interface ModeracionInput {
   videoId: string;
-  frameBase64: string;
+  framesBase64: string[];
 }
 
 interface VideoData {
@@ -13,30 +14,27 @@ interface VideoData {
   festejosPublicados?: number;
 }
 
-interface OpenAIModerationResult {
-  flagged: boolean;
-  categories: Record<string, boolean>;
-}
-
-interface OpenAIModerationResponse {
-  results?: OpenAIModerationResult[];
+interface GPTModerationResponse {
+  choices?: Array<{
+    message?: { content?: string };
+  }>;
 }
 
 export const moderarVideo = onCall(
-  { region: "us-central1", timeoutSeconds: 15 },
+  { region: "us-central1", timeoutSeconds: 30 },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Autenticación requerida.");
     }
 
     const data = request.data as ModeracionInput;
-    const { videoId, frameBase64 } = data;
+    const { videoId, framesBase64 } = data;
 
     if (!videoId || typeof videoId !== "string") {
       throw new HttpsError("invalid-argument", "videoId requerido.");
     }
-    if (!frameBase64 || typeof frameBase64 !== "string") {
-      throw new HttpsError("invalid-argument", "frameBase64 requerido.");
+    if (!Array.isArray(framesBase64) || framesBase64.length === 0) {
+      throw new HttpsError("invalid-argument", "framesBase64 requerido.");
     }
 
     const db = admin.firestore();
@@ -60,13 +58,18 @@ export const moderarVideo = onCall(
       return { ok: true, message: "Video ya procesado." };
     }
 
-    const useMock = process.env["USE_MOCK_MODERATION"] === "true";
+    const configSnap = await db.doc("config/moderation").get();
+    const firestoreMock = configSnap.exists ? (configSnap.data()?.["mockEnabled"] === true) : false;
+    const useMock = process.env["USE_MOCK_MODERATION"] === "true" || firestoreMock;
+    const totalSize = framesBase64.reduce((acc, f) => acc + f.length, 0);
+    console.log(`[moderarVideo] modo=${useMock ? "MOCK" : "REAL"} (env=${process.env["USE_MOCK_MODERATION"]} firestore=${firestoreMock}) videoId=${videoId} frames=${framesBase64.length} totalSize=${totalSize}`);
 
     let aprobado: boolean;
     let razon = "";
 
     if (useMock) {
       aprobado = true;
+      console.log("[moderarVideo] MOCK → aprobado automáticamente");
     } else {
       const apiKey = process.env["OPENAI_API_KEY"];
       if (!apiKey) {
@@ -76,44 +79,78 @@ export const moderarVideo = onCall(
         );
       }
 
-      const response = await fetch("https://api.openai.com/v1/moderations", {
+      const imageContent = framesBase64.map((frame) => ({
+        type: "image_url" as const,
+        image_url: { url: `data:image/png;base64,${frame}`, detail: "auto" as const },
+      }));
+
+      console.log(`[moderarVideo] Llamando a GPT-4o-mini con ${framesBase64.length} frames...`);
+
+      const gptResponse = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "omni-moderation-latest",
-          input: [
+          model: "gpt-4o-mini",
+          messages: [
             {
-              type: "image_url",
-              image_url: {
-                url: `data:image/png;base64,${frameBase64}`,
-              },
+              role: "system",
+              content: "Sos un moderador estricto de contenido para Gritogol, una app de festejos de goles de fútbol. Tu única tarea es decidir si las imágenes muestran a una persona festejando un gol. Respondé SOLO con JSON válido.",
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Analizá estos ${framesBase64.length} frames de un video subido a Gritogol.
+
+APROBADO únicamente si: ves claramente a una o más personas celebrando, festejando, gritando un gol de fútbol.
+
+RECHAZADO en cualquiera de estos casos:
+- Imágenes médicas (radiografías, ecografías, tomografías, resonancias)
+- Contenido violento, gore o sangre
+- Contenido sexual o nudez
+- Paisajes, objetos o escenas sin personas festejando
+- Contenido completamente irrelevante al fútbol
+- El video no muestra claramente un festejo de gol
+
+En caso de duda, rechazá. Respondé SOLO con JSON: {"aprobado": true/false, "razon": "descripción breve en español de qué se ve"}`,
+                },
+                ...imageContent,
+              ],
             },
           ],
+          response_format: { type: "json_object" },
+          max_tokens: 150,
+          temperature: 0,
         }),
       });
 
-      if (!response.ok) {
-        throw new HttpsError(
-          "internal",
-          `OpenAI API error: ${response.status} ${response.statusText}`,
-        );
+      if (!gptResponse.ok) {
+        const body = await gptResponse.text();
+        console.error(`[moderarVideo] GPT-4o-mini error ${gptResponse.status}: ${body}`);
+        throw new HttpsError("internal", `OpenAI API error: ${gptResponse.status} ${gptResponse.statusText}`);
       }
 
-      const result = (await response.json()) as OpenAIModerationResponse;
-      const outcome = result.results?.[0];
-      aprobado = !outcome?.flagged;
+      const gptResult = (await gptResponse.json()) as GPTModerationResponse;
+      const rawContent = gptResult.choices?.[0]?.message?.content ?? "{}";
+      console.log(`[moderarVideo] GPT-4o-mini respuesta raw: ${rawContent}`);
 
-      if (!aprobado && outcome) {
-        const fullRazon = Object.entries(outcome.categories)
-          .filter(([, flagged]) => flagged)
-          .map(([category]) => category)
-          .join(", ");
-        razon = fullRazon.slice(0, 500);
+      let parsed: { aprobado?: boolean; razon?: string } = {};
+      try {
+        parsed = JSON.parse(rawContent) as { aprobado?: boolean; razon?: string };
+      } catch {
+        console.error("[moderarVideo] Error parseando JSON de GPT:", rawContent);
+        throw new HttpsError("internal", "Respuesta inválida del modelo de moderación.");
       }
+
+      aprobado = parsed.aprobado === true;
+      razon = (parsed.razon ?? "").slice(0, 500);
     }
+
+    console.log(`[moderarVideo] resultado final → aprobado=${aprobado} razon="${razon}"`);
 
     if (aprobado) {
       const counterRef = db.doc("counters/videos");
@@ -132,14 +169,12 @@ export const moderarVideo = onCall(
         }
 
         const currentCount: number = counterSnap.exists
-          ? ((counterSnap.data() as { gritoNumero?: number })["gritoNumero"] ??
-            0)
+          ? ((counterSnap.data() as { gritoNumero?: number })["gritoNumero"] ?? 0)
           : 0;
         const gritoNumero = currentCount + 1;
 
         const festejosPrevios: number = partidoSnap.exists
-          ? ((partidoSnap.data() as { festejosPublicados?: number })
-              .festejosPublicados ?? 0)
+          ? ((partidoSnap.data() as { festejosPublicados?: number }).festejosPublicados ?? 0)
           : 0;
         const festejosNuevos = festejosPrevios + 1;
 
@@ -149,28 +184,23 @@ export const moderarVideo = onCall(
           gritoNumero,
           moderacion: {
             aprobado: true,
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: FieldValue.serverTimestamp(),
           },
-          publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+          publishedAt: FieldValue.serverTimestamp(),
         });
 
         if (partidoSnap.exists) {
-          const updates: Record<
-            string,
-            admin.firestore.FieldValue | number
-          > = {
-            festejosPublicados: admin.firestore.FieldValue.increment(1),
-            pelotasDesbloqueadas: admin.firestore.FieldValue.increment(1),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          const updates: Record<string, FieldValue | number> = {
+            festejosPublicados: FieldValue.increment(1),
+            pelotasDesbloqueadas: FieldValue.increment(1),
+            updatedAt: FieldValue.serverTimestamp(),
           };
 
           if (festejosNuevos % 10 === 0) {
-            updates["becasDesbloqueadas"] =
-              admin.firestore.FieldValue.increment(1);
+            updates["becasDesbloqueadas"] = FieldValue.increment(1);
           }
           if (festejosNuevos % 20 === 0) {
-            updates["escuelasBeneficiadas"] =
-              admin.firestore.FieldValue.increment(1);
+            updates["escuelasBeneficiadas"] = FieldValue.increment(1);
           }
 
           tx.update(partidoRef, updates);
@@ -182,7 +212,7 @@ export const moderarVideo = onCall(
         moderacion: {
           aprobado: false,
           razon,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: FieldValue.serverTimestamp(),
         },
       });
     }

@@ -5,12 +5,14 @@ import { useAuth } from "../../context/AuthContext";
 import { usePartido } from "../../context/PartidoContext";
 import { useToast } from "../../context/ToastContext";
 import { crearFestejo, obtenerVideo } from "../../services/videoService";
+import { llamarModerarVideo } from "../../services/moderacionService";
+import { extractFramesBase64 } from "../../utils/extractFrame";
 import { useMediaRecorder } from "../../hooks/useMediaRecorder";
 import type { Evento } from "../../types/firestore";
 import { scoreCorto, formatoDuracion } from "../../utils/format";
 import { VideoSponsorOverlay } from "../video/VideoSponsorOverlay";
 
-type Paso = "gol" | "grabar" | "subiendo";
+type Paso = "gol" | "grabar" | "subiendo" | "revisando";
 
 interface GoalOverlayProps {
   evento: ({ id: string } & Evento) | null;
@@ -42,6 +44,10 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
       setUploadLabel(formatoDuracion(0));
 
       try {
+        // 1. Extract frames locally before any network call
+        const framesBase64 = await extractFramesBase64(blob);
+
+        // 2. Upload video and create Firestore doc
         const videoId = await crearFestejo({
           partidoId,
           eventoId: evento.id,
@@ -50,6 +56,9 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
           alias,
           blob,
         });
+
+        // 3. Listen for moderation result
+        setPaso("revisando");
 
         const unsubscribe = obtenerVideo(videoId, (video) => {
           if (!video) return;
@@ -65,11 +74,16 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
           }
         });
 
+        // 4. Call moderation with frames already in hand
+        llamarModerarVideo(videoId, framesBase64).catch((err: unknown) => {
+          console.error("moderarVideo failed:", err);
+        });
+
         setTimeout(() => {
           unsubscribe();
           onClose();
-          navigate(`/estado/${videoId}`);
-        }, 15000);
+          navigate("/");
+        }, 30000);
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Error al subir";
         showToast(msg);
@@ -274,6 +288,18 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
             </p>
             <p style={{ fontSize: 12.5, color: "var(--gris)" }}>
               comprimiendo video · {uploadLabel || "…"}
+            </p>
+          </div>
+        )}
+
+        {paso === "revisando" && (
+          <div className={s.subiendo}>
+            <div className={`${s.spinner} ${s.spinnerAnim}`} aria-hidden="true" />
+            <p style={{ fontSize: 15, fontWeight: 700 }}>
+              El video está siendo revisado
+            </p>
+            <p style={{ fontSize: 12.5, color: "var(--gris)" }}>
+              consultando con IA…
             </p>
           </div>
         )}
