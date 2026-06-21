@@ -12,6 +12,7 @@ import { ImpactMarcador } from "../components/layout/ImpactMarcador";
 import { TabBar } from "../components/layout/TabBar";
 import { Toast } from "../components/ui/Toast";
 import { FabDemo } from "../components/ui/FabDemo";
+import { GanasteOverlay } from "../components/ui/GanasteOverlay";
 import { GoalOverlay } from "../components/goal/GoalOverlay";
 import {
   suscribirEventos,
@@ -36,6 +37,7 @@ function AppShellInner() {
       ?.suppressOverlay === true,
   );
   const [overlayDismissed, setOverlayDismissed] = useState(false);
+  const [showGanaste, setShowGanaste] = useState(false);
 
   useEffect(() => {
     seenEventsRef.current.clear();
@@ -96,9 +98,11 @@ function AppShellInner() {
         {renderTab()}
       </main>
 
-      <FabDemo />
+      <FabDemo onShowGanaste={() => setShowGanaste(true)} />
       <TabBar />
       <Toast />
+
+      {showGanaste && <GanasteOverlay onClose={() => setShowGanaste(false)} />}
 
       {eventoActivo && !overlayDismissed && (
         <GoalOverlay
