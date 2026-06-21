@@ -99,7 +99,7 @@ export function PerfilView() {
         ))}
       </div>
 
-      <div className="flex gap-2 mx-[18px] mb-[14px]">
+      <div className="flex gap-2 mx-[18px]" style={{ marginBottom: '24px' }}>
         <div className="flex-1 text-center bg-[var(--surface)] border border-[var(--linea)] rounded-[10px] py-[10px] px-1">
           <div className="font-['Anton',sans-serif] text-[28px] leading-none text-[var(--tiza)] [font-variant-numeric:tabular-nums]">{publicados.length}</div>
           <div className="text-[11px] text-[var(--gris)] mt-1">festejos</div>

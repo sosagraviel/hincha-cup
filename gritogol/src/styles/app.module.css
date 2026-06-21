@@ -200,7 +200,7 @@
 .main {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 160px;
+  padding-bottom: 88px;
   scrollbar-width: none;
   position: relative;
 }

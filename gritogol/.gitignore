@@ -57,3 +57,4 @@ pnpm-debug.log*
 
 # Optional local tooling
 .cursor/
+.claude/
