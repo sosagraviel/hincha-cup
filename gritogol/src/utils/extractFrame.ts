@@ -34,7 +34,7 @@ export async function extractFramesBase64(blob: Blob, count = 3): Promise<string
         frames.push(canvas.toDataURL("image/png").split(",")[1] ?? "");
         idx++;
         if (idx < positions.length) {
-          video.currentTime = positions[idx];
+          video.currentTime = positions[idx]!;
         } else {
           URL.revokeObjectURL(url);
           resolve(frames);
@@ -42,7 +42,7 @@ export async function extractFramesBase64(blob: Blob, count = 3): Promise<string
       };
 
       video.onseeked = captureFrame;
-      video.currentTime = positions[0];
+      video.currentTime = positions[0]!;
     };
 
     video.onerror = () => {
