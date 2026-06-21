@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import confetti from "canvas-confetti";
 import { useNavigate } from "react-router-dom";
 import s from "../../styles/app.module.css";
 import { useAuth } from "../../context/AuthContext";
@@ -35,6 +36,14 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
   const [paso, setPaso] = useState<Paso>("gol");
   const [segundos, setSegundos] = useState(0);
   const [uploadLabel, setUploadLabel] = useState("");
+
+  useEffect(() => {
+    if (paso !== "gol") return;
+    const colors = ["#6fc3ee", "#f4b63f", "#ffffff", "#3a7bd5"];
+    const shared = { particleCount: 60, spread: 70, colors, startVelocity: 45, gravity: 0.9, ticks: 180 };
+    void confetti({ ...shared, origin: { x: 0.1, y: 1 }, angle: 60 });
+    void confetti({ ...shared, origin: { x: 0.9, y: 1 }, angle: 120 });
+  }, [paso]);
 
   const procesarSubida = useCallback(
     async (blob: Blob) => {
@@ -188,16 +197,16 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
         aria-label="Gol"
       >
         {paso === "gol" && (
-          <div className="flex flex-col items-center w-full min-w-0 px-2">
+          <div className="flex flex-col items-center w-full min-w-0 px-2 gap-[18px]">
             <div className="font-['Anton',sans-serif] text-[72px] leading-[0.95] text-[var(--celeste)] tracking-[2px] [animation:golpe_0.6s_ease-out]">¡GOOOL!</div>
-            <p className="text-[16px] text-[var(--tiza)] mt-[10px] mb-[26px] [&_b]:text-[var(--celeste)]">
+            <p className="text-[16px] text-[var(--tiza)] [&_b]:text-[var(--celeste)]">
               de <b>{evento.equipo}</b> · {score}
             </p>
-            <div className="w-[120px] h-[120px] rounded-full border-[3px] border-[var(--linea)] flex flex-col items-center justify-center mx-auto mb-[8px]">
+            <div className="w-[120px] h-[120px] rounded-full border-[3px] border-[var(--linea)] flex flex-col items-center justify-center mx-auto">
               <span className="font-['Anton',sans-serif] text-[42px] text-[var(--sol)] [font-variant-numeric:tabular-nums] leading-none">{formatoDuracion(segundos)}</span>
               <span className="text-[10px] tracking-[2px] text-[var(--gris)] uppercase">restante</span>
             </div>
-            <p className="text-[13px] text-[var(--gris)] mb-[26px] max-w-[260px]">
+            <p className="text-[13px] text-[var(--gris)] max-w-[260px]">
               Mostrá tu grito y ganate un lugar en el Muro de la Hinchada
               Mundial
             </p>

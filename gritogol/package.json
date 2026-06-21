@@ -17,6 +17,7 @@
     "emulators:stop": "lsof -tiTCP:8080 -sTCP:LISTEN | xargs kill -9 2>/dev/null; lsof -tiTCP:8081 -sTCP:LISTEN | xargs kill -9 2>/dev/null; echo 'Puertos 8080/8081 liberados (si había procesos).'"
   },
   "dependencies": {
+    "canvas-confetti": "^1.9.4",
     "firebase": "^10.14.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@tailwindcss/vite": "^4.3.1",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-basic-ssl": "^1.2.0",

@@ -63,7 +63,6 @@ export function FabDemo() {
       "simulateGoal",
     );
     void simulateGoal({ partidoId })
-      .then(() => showToast("¡Gol disparado!"))
       .catch((e: Error) => showToast(`Error: ${e.message}`));
   }
 
