@@ -593,13 +593,6 @@
   padding: 10px;
 }
 
-.subiendo {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-}
-
 .spinner {
   width: 46px;
   height: 46px;

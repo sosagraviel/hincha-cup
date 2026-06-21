@@ -296,24 +296,24 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
         )}
 
         {paso === "subiendo" && (
-          <div className={s.subiendo}>
+          <div className="flex flex-col items-center justify-center text-center w-full px-6 gap-[18px]">
             <div className={`${s.spinner} ${s.spinnerAnim}`} aria-hidden="true" />
-            <p style={{ fontSize: 15, fontWeight: 700 }}>
+            <p className="text-[15px] font-bold text-[var(--tiza)]">
               Subiendo tu festejo…
             </p>
-            <p style={{ fontSize: 12.5, color: "var(--gris)" }}>
+            <p className="text-[12.5px] text-[var(--gris)]">
               comprimiendo video · {uploadLabel || "…"}
             </p>
           </div>
         )}
 
         {paso === "revisando" && (
-          <div className={s.subiendo}>
+          <div className="flex flex-col items-center justify-center text-center w-full px-6 gap-[18px]">
             <div className={`${s.spinner} ${s.spinnerAnim}`} aria-hidden="true" />
-            <p style={{ fontSize: 15, fontWeight: 700 }}>
+            <p className="text-[15px] font-bold text-[var(--tiza)]">
               El video está siendo revisado
             </p>
-            <p style={{ fontSize: 12.5, color: "var(--gris)" }}>
+            <p className="text-[12.5px] text-[var(--gris)]">
               consultando con IA…
             </p>
           </div>
