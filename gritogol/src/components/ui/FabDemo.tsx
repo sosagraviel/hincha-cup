@@ -8,7 +8,11 @@ import { useSuscripcion } from "../../context/SuscripcionContext";
 import { useToast } from "../../context/ToastContext";
 import { startDemoTicker } from "../../services/demoService";
 
-export function FabDemo() {
+interface FabDemoProps {
+  onShowGanaste?: () => void;
+}
+
+export function FabDemo({ onShowGanaste }: FabDemoProps) {
   const { partidoId } = usePartido();
   const { fixtureFavorito } = useSuscripcion();
   const { showToast } = useToast();
@@ -95,6 +99,15 @@ export function FabDemo() {
         title={mockModeracion ? "Moderación OFF — click para activar" : "Moderación ON — click para desactivar"}
       >
         🛡
+      </button>
+      <button
+        type="button"
+        className={s.fabDemoBtn}
+        onClick={() => onShowGanaste?.()}
+        aria-label="Mostrar pantalla Ganaste"
+        title="Mostrar pantalla Ganaste"
+      >
+        🏆
       </button>
     </div>
   );
