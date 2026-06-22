@@ -200,7 +200,7 @@
 .main {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 160px;
+  padding-bottom: 88px;
   scrollbar-width: none;
   position: relative;
 }
@@ -591,13 +591,6 @@
   font-size: 13px;
   color: var(--gris);
   padding: 10px;
-}
-
-.subiendo {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
 }
 
 .spinner {

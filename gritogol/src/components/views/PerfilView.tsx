@@ -48,35 +48,6 @@ export function PerfilView() {
   return (
     <>
       <div className="flex items-baseline justify-between px-[18px] pt-[2px] pb-[10px]">
-        <h3 className="text-[16px] font-bold">Tu perfil de hincha</h3>
-      </div>
-
-      <div className="mx-[18px] mb-[14px] bg-[var(--surface)] border border-[var(--linea)] rounded-[var(--radius)] p-5 text-center">
-        <div className={`${s.avatar} ${s.avCeleste} ${s.perfilAvatar}`}>
-          {getIniciales(alias)}
-        </div>
-        <h4 className="text-[17px] font-bold">{alias}</h4>
-        <p className="text-[12.5px] text-[var(--gris)] mt-0.5">Hincha desde el primer partido</p>
-        <input
-          className="w-full max-w-[280px] mb-4 px-[14px] py-3 rounded-[10px] border border-[var(--linea)] bg-[var(--surface)] text-[var(--tiza)] text-[14px] outline-none"
-          value={aliasDraft}
-          onChange={(e) => setAliasDraft(e.target.value)}
-          placeholder="Tu nombre en el muro"
-          aria-label="Tu nombre en el muro"
-        />
-        <button type="button" className={s.btnGrande} onClick={guardarAlias}>
-          Guardar nombre
-        </button>
-        <button
-          type="button"
-          className={`${s.btnGrande} ${s.btnOutline}`}
-          onClick={() => void signInGoogle()}
-        >
-          Iniciar con Google
-        </button>
-      </div>
-
-      <div className="flex items-baseline justify-between px-[18px] pt-[2px] pb-[10px]">
         <h3 className="text-[16px] font-bold">Tu hinchada</h3>
       </div>
       <div className="flex gap-2 mx-[18px] mb-3">
@@ -99,7 +70,7 @@ export function PerfilView() {
         ))}
       </div>
 
-      <div className="flex gap-2 mx-[18px] mb-[14px]">
+      <div className="flex gap-2 mx-[18px]" style={{ marginBottom: '24px' }}>
         <div className="flex-1 text-center bg-[var(--surface)] border border-[var(--linea)] rounded-[10px] py-[10px] px-1">
           <div className="font-['Anton',sans-serif] text-[28px] leading-none text-[var(--tiza)] [font-variant-numeric:tabular-nums]">{publicados.length}</div>
           <div className="text-[11px] text-[var(--gris)] mt-1">festejos</div>
@@ -162,6 +133,35 @@ export function PerfilView() {
           minutos para subir el tuyo y ganarte tu lugar en el muro.
         </p>
       )}
+
+      <div className="flex items-baseline justify-between px-[18px] pt-[2px] pb-[10px]">
+        <h3 className="text-[16px] font-bold">Tu perfil de hincha</h3>
+      </div>
+
+      <div className="mx-[18px] mb-[14px] bg-[var(--surface)] border border-[var(--linea)] rounded-[var(--radius)] p-5 text-center">
+        <div className={`${s.avatar} ${s.avCeleste} ${s.perfilAvatar}`}>
+          {getIniciales(alias)}
+        </div>
+        <h4 className="text-[17px] font-bold">{alias}</h4>
+        <p className="text-[12.5px] text-[var(--gris)] mt-0.5">Hincha desde el primer partido</p>
+        <input
+          className="w-full max-w-[280px] mb-4 px-[14px] py-3 rounded-[10px] border border-[var(--linea)] bg-[var(--surface)] text-[var(--tiza)] text-[14px] outline-none"
+          value={aliasDraft}
+          onChange={(e) => setAliasDraft(e.target.value)}
+          placeholder="Tu nombre en el muro"
+          aria-label="Tu nombre en el muro"
+        />
+        <button type="button" className={s.btnGrande} onClick={guardarAlias}>
+          Guardar nombre
+        </button>
+        <button
+          type="button"
+          className={`${s.btnGrande} ${s.btnOutline}`}
+          onClick={() => void signInGoogle()}
+        >
+          Iniciar con Google
+        </button>
+      </div>
     </>
   );
 }

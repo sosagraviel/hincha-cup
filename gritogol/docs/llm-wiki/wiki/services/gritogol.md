@@ -1,7 +1,7 @@
 ---
 document_type: service
 summary: Vite + React SPA where soccer fans record and share short "festejo" video clips when their team scores, backed by Firebase Auth, Firestore, Cloud Storage, and Cloud Functions v2.
-last_updated: '2026-06-21T13:00:00.000Z'
+last_updated: '2026-06-21T15:06:00.000Z'
 tags: [service, typescript, react, firebase, vite, tailwindcss]
 related: [../ARCHITECTURE.md, ../SERVICES.md]
 service_id: gritogol
@@ -167,7 +167,8 @@ All persistence is managed by Firebase (no separate database server owned by thi
 
 ## Service-Specific Patterns
 
-- **Tailwind CSS v4.** Added via `@tailwindcss/vite` plugin (no PostCSS config required). `GoalOverlay`'s "gol" step uses Tailwind utility classes referencing CSS design tokens via `[var(--token)]` arbitrary values. Shared component classes (`btnGrande`, `btnOutline`) remain in `app.module.css`.
+- **Tailwind CSS v4.** Added via `@tailwindcss/vite` plugin (no PostCSS config required). Most page-level views (`MuroView`, `ImpactoView`, `PerfilView`, `GanadoresPage`, `GoalOverlay`) use Tailwind utility classes referencing CSS design tokens via `[var(--token)]` arbitrary values. Shared component classes (`btnGrande`, `btnOutline`, `spinner`, `spinnerAnim`) remain in `app.module.css`.
+- **canvas-confetti animation.** `canvas-confetti` (^1.9.4) is a runtime dependency used in `GoalOverlay` to fire a dual-cannon confetti burst from the bottom corners when `paso === "gol"` first renders.
 - **Emulator-first local dev.** `VITE_USE_EMULATORS=true` switches all Firebase SDK connections to local emulators (ports defined in `firebase.json`). `HTTPS` in local dev is handled by `@vitejs/plugin-basic-ssl`. The full local stack runs via `make start` (Docker Compose) or `npm run emulators` + `npm run dev` independently.
 - **URL caching in videoService.** `getDownloadURL()` results are cached in a module-level `Map<storagePath, url>` to avoid redundant Storage calls when the same video renders multiple times in the feed.
 - **Atomic gritoNumero assignment.** `onVideoSubido` assigns the sequential `gritoNumero` inside a Firestore transaction to prevent races when multiple videos are uploaded concurrently for the same goal window.
