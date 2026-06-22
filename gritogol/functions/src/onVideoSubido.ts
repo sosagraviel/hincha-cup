@@ -1,3 +1,4 @@
+import * as admin from "firebase-admin";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import type { StorageObjectData } from "firebase-functions/v2/storage";
 
