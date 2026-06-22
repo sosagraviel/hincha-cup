@@ -65,6 +65,22 @@ GritoGol creates a win-win-win platform:
 
 ---
 
+## Running the Project
+
+There are two ways to interact with the app:
+
+### Local (Recommended — with dummy data)
+
+To run the project locally with dummy data and full interactivity (including goal simulation and admin buttons), follow the `make start` path described in the Quick Start section below.
+
+### Production
+
+The app is also deployed at **https://hincha-cup.vercel.app/**
+
+> **Warning:** This environment points to a free Football API. Data is not real, admin buttons are disabled, and goal scenarios cannot be simulated.
+
+---
+
 ## Quick Start
 
 ### Option 1: Docker (Recommended for Onboarding)
@@ -244,11 +260,19 @@ Scores sync from **API-Football** (api-sports.io) via the `syncCopaScores` Cloud
 **Emulator (without API key):**
 
 ```bash
-cp functions/.env.example functions/.env   # USE_MOCK_SCORES=true
+cp functions/.env.example functions/.env
 cd functions && npm run build && cd ..
 npm run emulators
 npm run seed:emulator
 ```
+
+`functions/.env.example` is pre-configured for demo mode — no external API keys required:
+
+| Variable | Demo value | Purpose |
+|---|---|---|
+| `USE_MOCK_SCORES` | `true` | Replaces live football data with mock scores |
+| `USE_MOCK_MODERATION` | `false` | Disables OpenAI content moderation |
+| `OPENAI_API_KEY` | `false` | Marks key as absent; moderation is skipped |
 
 The seed loads `copa_fixtures` (includes an extra BRA–FRA match for the ticker) and mock data for `syncCopaScores`.
 
@@ -343,6 +367,13 @@ functions/
 For questions or support:
 - Open an issue on GitHub
 - Email: [your-email@example.com]
+
+---
+
+## Team
+
+- Arian Picco (capitan)
+- Graviel Sosa
 
 ---
 
