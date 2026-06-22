@@ -24,25 +24,27 @@ export default function GanadoresPage() {
 
   return (
     <main className={s.main}>
-      <div className={s.ganadoresHeader}>
-        <h2 className={s.ganadoresTitulo}>Ganadores</h2>
-        <p className={s.ganadoresSubtitulo}>
+      <div className="px-[18px] pt-5 pb-[10px]">
+        <h2 className="text-[22px] font-bold text-[var(--tiza)] mb-1">Ganadores</h2>
+        <p className="text-[13px] text-[var(--gris)] m-0">
           Los mejores festejos de este partido
         </p>
       </div>
 
       {activas.length > 0 && (
-        <section className={s.ganadoresSeccion}>
-          <h3 className={s.ganadoresSectionTitle}>En competencia ahora</h3>
+        <section className="pb-4">
+          <h3 className="text-[11px] font-bold text-[var(--gris)] tracking-[1px] uppercase px-[18px] pt-[10px] pb-1.5 m-0">
+            En competencia ahora
+          </h3>
           {activas.map((comp) => (
-            <div key={comp.id} className={s.ganadoresCard}>
-              <div className={s.ganadoresCardHead}>
+            <div key={comp.id} className="mx-[14px] mb-[10px] bg-[var(--surface)] border border-[var(--linea)] rounded-[var(--radius)] px-[14px] py-3 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
                 <span className={s.badgeVivo}>EN VIVO</span>
-                <span className={s.ganadoresMeta}>
+                <span className="text-[11px] text-[var(--gris)]">
                   {comp.videosParticipantes.length} festejos compitiendo
                 </span>
               </div>
-              <p className={s.ganadoresInfo}>
+              <p className="text-[13px] text-[var(--gris)] m-0">
                 Cierra {tiempoRelativo(comp.cierraEn)}
               </p>
             </div>
@@ -51,7 +53,7 @@ export default function GanadoresPage() {
       )}
 
       {cerradas.length === 0 && activas.length === 0 && (
-        <div className={s.ganadoresVacio}>
+        <div className="py-[40px] px-6 text-center text-[var(--gris)] text-[14px]">
           <p>Las competencias aparecerán aquí cuando finalicen.</p>
           <p>
             <em>Sube un festejo para competir.</em>
@@ -60,8 +62,10 @@ export default function GanadoresPage() {
       )}
 
       {cerradas.length > 0 && (
-        <section className={s.ganadoresSeccion}>
-          <h3 className={s.ganadoresSectionTitle}>Competencias cerradas</h3>
+        <section className="pb-4">
+          <h3 className="text-[11px] font-bold text-[var(--gris)] tracking-[1px] uppercase px-[18px] pt-[10px] pb-1.5 m-0">
+            Competencias cerradas
+          </h3>
           {cerradas.map((comp) => {
             if (!comp.ganadorVideoId) return null;
             return <GanadorCard key={comp.id} comp={comp} />;
@@ -102,29 +106,29 @@ function GanadorCard({ comp }: { comp: { id: string } & Competencia }) {
   const premio = nivel > 0 ? NIVELES[nivel - 1]?.premio : null;
 
   return (
-    <div className={s.ganadoresCard}>
-      <div className={s.ganadoresCardHead}>
+    <div className="mx-[14px] mb-[10px] bg-[var(--surface)] border border-[var(--linea)] rounded-[var(--radius)] px-[14px] py-3 flex flex-col gap-2">
+      <div className="flex items-center justify-between">
         <span className={`${s.badge} ${s.badgeUno}`}>🏆 GANADOR</span>
-        <span className={s.ganadoresMeta}>
+        <span className="text-[11px] text-[var(--gris)]">
           cerrado {tiempoRelativo(comp.cierraEn)}
         </span>
       </div>
       {ganadorInfo ? (
         <>
-          <div className={s.ganadoresGanador}>
-            <span className={s.ganadoresNombre}>{ganadorInfo.autorAlias}</span>
-            <span className={s.ganadoresAplausos}>
+          <div className="flex items-center justify-between">
+            <span className="text-[15px] font-bold text-[var(--tiza)]">{ganadorInfo.autorAlias}</span>
+            <span className="text-[13px] text-[var(--rojo)] font-semibold">
               ❤️ {ganadorInfo.aplausos} aplausos
             </span>
           </div>
           {premio && (
-            <div className={s.ganadoresPremio}>
+            <div className="text-[12px] text-[var(--sol)] font-semibold bg-[#3a2c0c] px-[10px] py-[5px] rounded-[8px]">
               {"⭐".repeat(nivel)} Premio Nivel {nivel}: {premio}
             </div>
           )}
         </>
       ) : (
-        <p className={s.ganadoresInfo}>Cargando...</p>
+        <p className="text-[13px] text-[var(--gris)] m-0">Cargando...</p>
       )}
     </div>
   );

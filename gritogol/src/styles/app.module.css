@@ -248,23 +248,6 @@
   }
 }
 
-.seccionTitulo {
-  padding: 2px 18px 10px;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.seccionTitulo h3 {
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.seccionTitulo small {
-  font-size: 12px;
-  color: var(--gris);
-}
-
 .card {
   margin: 0 18px 14px;
   background: var(--surface);
@@ -728,18 +711,6 @@
   line-height: 1.5;
 }
 
-.aliasInput {
-  width: 100%;
-  max-width: 280px;
-  margin-bottom: 16px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--linea);
-  background: var(--surface);
-  color: var(--tiza);
-  font-size: 14px;
-}
-
 .toast {
   position: absolute;
   left: 18px;
@@ -813,26 +784,6 @@
   color: var(--cesped);
 }
 
-.notaImpacto {
-  margin: 4px 18px 16px;
-  font-size: 12px;
-  color: var(--gris);
-  line-height: 1.6;
-}
-
-.notaImpacto b {
-  color: var(--tiza);
-}
-
-.perfilCard {
-  margin: 0 18px 14px;
-  background: var(--surface);
-  border: 1px solid var(--linea);
-  border-radius: var(--radius);
-  padding: 20px;
-  text-align: center;
-}
-
 .perfilAvatar {
   width: 64px;
   height: 64px;
@@ -840,115 +791,10 @@
   margin: 0 auto 10px;
 }
 
-.perfilCard h4 {
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.perfilCard p {
-  font-size: 12.5px;
-  color: var(--gris);
-  margin-top: 2px;
-}
-
-.perfilStats {
-  display: flex;
-  gap: 8px;
-  margin: 0 18px 14px;
-}
-
-.perfilStats .cifra {
-  background: var(--surface);
-  border: 1px solid var(--linea);
-}
-
-.insignia {
-  margin: 0 18px 14px;
-  border: 2px solid var(--sol);
-  border-radius: var(--radius);
-  background: linear-gradient(180deg, #1a2540, #13203a);
-  background-color: var(--surface2);
-  padding: 22px 18px;
-  text-align: center;
-}
-
-.insigniaMini {
-  font-size: 10px;
-  letter-spacing: 2.5px;
-  color: var(--sol);
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.insigniaGrande {
-  font-family: "Anton", sans-serif;
-  font-size: 34px;
-  color: var(--tiza);
-  margin: 6px 0 2px;
-}
-
-.insigniaPartido {
-  font-size: 13px;
-  color: var(--gris);
-}
-
-.insigniaLinea {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--linea);
-  font-size: 12.5px;
-  color: var(--cesped);
-  font-weight: 700;
-}
-
-.btnCompartir {
-  margin: 0 18px 20px;
-  width: calc(100% - 36px);
-  background: var(--celeste);
-  color: #06121e;
-  font-size: 15px;
-  font-weight: 700;
-  padding: 14px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.emptyFeed {
-  margin: 0 18px;
-  font-size: 13px;
-  color: var(--gris);
-  line-height: 1.5;
-}
-
 .loading {
   margin: 24px 18px;
   color: var(--gris);
   font-size: 14px;
-}
-
-.equipoSwitcher {
-  display: flex;
-  gap: 8px;
-  margin: 0 18px 12px;
-}
-
-.equipoBtn {
-  flex: 1;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid var(--linea);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--gris);
-}
-
-.equipoBtnActive {
-  border-color: var(--celeste);
-  color: var(--celeste);
-  background: rgba(111, 195, 238, 0.08);
 }
 
 .estadoPage {
@@ -965,27 +811,6 @@
   color: var(--gris);
   font-size: 14px;
   line-height: 1.5;
-}
-
-.videoSponsorOverlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 8px 10px;
-  background: linear-gradient(transparent, rgba(6, 11, 20, 0.75));
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  z-index: 3;
-  pointer-events: none;
-}
-
-.videoSponsorBrand {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--sol);
-  letter-spacing: 2px;
 }
 
 /* --- Nivel badge + progress bar (FeedCard) --- */
@@ -1024,96 +849,3 @@
   text-align: right;
 }
 
-/* --- GanadoresPage --- */
-.ganadoresHeader {
-  padding: 20px 18px 10px;
-}
-
-.ganadoresTitulo {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--tiza);
-  margin: 0 0 4px;
-}
-
-.ganadoresSubtitulo {
-  font-size: 13px;
-  color: var(--gris);
-  margin: 0;
-}
-
-.ganadoresSeccion {
-  padding: 0 0 16px;
-}
-
-.ganadoresSectionTitle {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--gris);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  padding: 10px 18px 6px;
-  margin: 0;
-}
-
-.ganadoresCard {
-  margin: 0 14px 10px;
-  background: var(--surface);
-  border: 1px solid var(--linea);
-  border-radius: var(--radius);
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.ganadoresCardHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.ganadoresMeta {
-  font-size: 11px;
-  color: var(--gris);
-}
-
-.ganadoresInfo {
-  font-size: 13px;
-  color: var(--gris);
-  margin: 0;
-}
-
-.ganadoresGanador {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.ganadoresNombre {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--tiza);
-}
-
-.ganadoresAplausos {
-  font-size: 13px;
-  color: var(--rojo);
-  font-weight: 600;
-}
-
-.ganadoresPremio {
-  font-size: 12px;
-  color: var(--sol);
-  font-weight: 600;
-  background: #3a2c0c;
-  padding: 5px 10px;
-  border-radius: 8px;
-}
-
-.ganadoresVacio {
-  padding: 40px 24px;
-  text-align: center;
-  color: var(--gris);
-  font-size: 14px;
-}

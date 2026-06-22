@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import s from "../../styles/app.module.css";
 import { usePartido } from "../../context/PartidoContext";
 import { suscribirBeneficiarios } from "../../services/impactoService";
 import { BeneficiaryCard } from "../impact/BeneficiaryCard";
@@ -18,16 +17,16 @@ export function ImpactoView() {
 
   return (
     <>
-      <div className={s.seccionTitulo}>
-        <h3>A dónde va el impacto</h3>
-        <small>actualizado hoy</small>
+      <div className="flex items-baseline justify-between px-[18px] pt-[2px] pb-[10px]">
+        <h3 className="text-[16px] font-bold">A dónde va el impacto</h3>
+        <small className="text-[12px] text-[var(--gris)]">actualizado hoy</small>
       </div>
 
       {beneficiarios.map((b) => (
         <BeneficiaryCard key={b.id} beneficiario={b} />
       ))}
 
-      <p className={s.notaImpacto}>
+      <p className="mx-[18px] mb-4 mt-1 text-[12px] text-[var(--gris)] leading-[1.6] [&_b]:text-[var(--tiza)]">
         Cada festejo subido al muro suma puntos de impacto. Los sponsors
         convierten esos puntos en{" "}
         <b>pelotas, becas, útiles y equipamiento</b> para quien más lo
