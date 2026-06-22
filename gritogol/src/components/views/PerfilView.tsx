@@ -138,29 +138,37 @@ export function PerfilView() {
         <h3 className="text-[16px] font-bold">Tu perfil de hincha</h3>
       </div>
 
-      <div className="mx-[18px] mb-[14px] bg-[var(--surface)] border border-[var(--linea)] rounded-[var(--radius)] p-5 text-center">
+      <div className="mx-[18px] mb-[14px] bg-[var(--surface)] border border-[var(--linea)] rounded-[var(--radius)] p-5 text-center flex flex-col items-center gap-3" style={{ paddingBottom: '28px' }}>
         <div className={`${s.avatar} ${s.avCeleste} ${s.perfilAvatar}`}>
           {getIniciales(alias)}
         </div>
-        <h4 className="text-[17px] font-bold">{alias}</h4>
-        <p className="text-[12.5px] text-[var(--gris)] mt-0.5">Hincha desde el primer partido</p>
+        <div>
+          <h4 className="text-[17px] font-bold">{alias}</h4>
+          <p className="text-[12.5px] text-[var(--gris)] mt-0.5">Hincha desde el primer partido</p>
+        </div>
         <input
-          className="w-full max-w-[280px] mb-4 px-[14px] py-3 rounded-[10px] border border-[var(--linea)] bg-[var(--surface)] text-[var(--tiza)] text-[14px] outline-none"
+          className="w-full max-w-[280px] px-[14px] py-3 rounded-[10px] border border-[var(--linea)] bg-[var(--surface)] text-[var(--tiza)] text-[14px] outline-none"
           value={aliasDraft}
           onChange={(e) => setAliasDraft(e.target.value)}
           placeholder="Tu nombre en el muro"
           aria-label="Tu nombre en el muro"
         />
-        <button type="button" className={s.btnGrande} onClick={guardarAlias}>
-          Guardar nombre
-        </button>
-        <button
-          type="button"
-          className={`${s.btnGrande} ${s.btnOutline}`}
-          onClick={() => void signInGoogle()}
-        >
-          Iniciar con Google
-        </button>
+        <div className="flex gap-2 justify-center">
+          <button
+            type="button"
+            style={{ width: '130px', height: '32px', fontSize: '11px', fontWeight: 700, borderRadius: '999px', background: 'var(--cesped)', color: '#06121e', border: 'none', cursor: 'pointer' }}
+            onClick={guardarAlias}
+          >
+            Guardar nombre
+          </button>
+          <button
+            type="button"
+            style={{ width: '130px', height: '32px', fontSize: '11px', fontWeight: 700, borderRadius: '999px', background: 'none', color: 'var(--celeste)', border: '1.5px solid var(--celeste)', cursor: 'pointer' }}
+            onClick={() => void signInGoogle()}
+          >
+            Iniciar con Google
+          </button>
+        </div>
       </div>
     </>
   );

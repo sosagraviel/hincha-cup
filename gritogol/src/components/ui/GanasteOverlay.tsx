@@ -40,11 +40,8 @@ export function GanasteOverlay({ onClose }: GanasteOverlayProps) {
             </div>
           </div>
           <div className="border-t border-dashed border-[var(--linea)] pt-3">
-            <div className="text-[10px] tracking-[2px] text-[var(--gris)] uppercase mb-1">
-              Tu festejo ayudó a
-            </div>
             <div className="text-[13px] font-bold text-[var(--cesped)]">
-              ayudar a la escuela con 20 pelotas
+              tu video ayudó a la escuela con 20 pelotas
             </div>
           </div>
         </div>
