@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import confetti from "canvas-confetti";
 import { useNavigate } from "react-router-dom";
 import s from "../../styles/app.module.css";
 import { useAuth } from "../../context/AuthContext";
@@ -35,6 +36,14 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
   const [paso, setPaso] = useState<Paso>("gol");
   const [segundos, setSegundos] = useState(0);
   const [uploadLabel, setUploadLabel] = useState("");
+
+  useEffect(() => {
+    if (paso !== "gol") return;
+    const colors = ["#6fc3ee", "#f4b63f", "#ffffff", "#3a7bd5"];
+    const shared = { particleCount: 60, spread: 70, colors, startVelocity: 45, gravity: 0.9, ticks: 180 };
+    void confetti({ ...shared, origin: { x: 0.1, y: 1 }, angle: 60 });
+    void confetti({ ...shared, origin: { x: 0.9, y: 1 }, angle: 120 });
+  }, [paso]);
 
   const procesarSubida = useCallback(
     async (blob: Blob) => {
@@ -176,22 +185,28 @@ export function GoalOverlay({ evento, onClose }: GoalOverlayProps) {
       />
 
       <div
-        className={`${s.overlay} ${s.overlayVisible}`}
+        className="fixed inset-0 z-50 flex flex-col items-center justify-center text-center bg-[rgba(6,11,20,0.96)] [animation:golCelebracion_1.6s_ease-in-out]"
+        style={{
+          paddingTop: "max(32px, env(safe-area-inset-top))",
+          paddingRight: "max(32px, env(safe-area-inset-right))",
+          paddingBottom: "max(32px, env(safe-area-inset-bottom))",
+          paddingLeft: "max(32px, env(safe-area-inset-left))",
+        }}
         role="dialog"
         aria-modal="true"
         aria-label="Gol"
       >
         {paso === "gol" && (
-          <div>
-            <div className={`${s.golTitulo} ${s.golTituloAnim}`}>¡GOOOL!</div>
-            <p className={s.golSub}>
+          <div className="flex flex-col items-center w-full min-w-0 px-2 gap-[18px]">
+            <div className="font-['Anton',sans-serif] text-[72px] leading-[0.95] text-[var(--celeste)] tracking-[2px] [animation:golpe_0.6s_ease-out]">¡GOOOL!</div>
+            <p className="text-[16px] text-[var(--tiza)] [&_b]:text-[var(--celeste)]">
               de <b>{evento.equipo}</b> · {score}
             </p>
-            <div className={s.reloj}>
-              <span className={s.relojSeg}>{formatoDuracion(segundos)}</span>
-              <span className={s.relojLbl}>restante</span>
+            <div className="w-[120px] h-[120px] rounded-full border-[3px] border-[var(--linea)] flex flex-col items-center justify-center mx-auto">
+              <span className="font-['Anton',sans-serif] text-[42px] text-[var(--sol)] [font-variant-numeric:tabular-nums] leading-none">{formatoDuracion(segundos)}</span>
+              <span className="text-[10px] tracking-[2px] text-[var(--gris)] uppercase">restante</span>
             </div>
-            <p className={s.golPista}>
+            <p className="text-[13px] text-[var(--gris)] max-w-[260px]">
               Mostrá tu grito y ganate un lugar en el Muro de la Hinchada
               Mundial
             </p>
