@@ -1,5 +1,7 @@
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import type { StorageObjectData } from "firebase-functions/v2/storage";
+import * as admin from "firebase-admin";
+import { FieldValue, Timestamp, type Transaction } from "firebase-admin/firestore";
 
 /**
  * Triggered when a file is finalized in Cloud Storage.
@@ -7,7 +9,7 @@ import type { StorageObjectData } from "firebase-functions/v2/storage";
  * the moderarVideo callable after content moderation passes.
  */
 export const onVideoSubido = onObjectFinalized(
-  { region: "us-central1" },
+  { region: "us-east1" },
   async (event: { data: StorageObjectData }) => {
     const objectName = event.data.name;
 
@@ -38,7 +40,7 @@ export const onVideoSubido = onObjectFinalized(
 
     let capturedEventoId: string | undefined;
 
-    await db.runTransaction(async (tx) => {
+    await db.runTransaction(async (tx: Transaction) => {
       const videoSnap = await tx.get(videoRef);
       if (!videoSnap.exists) {
         console.error("Video doc not found:", videoId);
@@ -72,27 +74,22 @@ export const onVideoSubido = onObjectFinalized(
         estado: "publicado",
         gritoNumero,
         competenciaId: capturedEventoId,
-        publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+        publishedAt: FieldValue.serverTimestamp(),
       });
 
       if (partidoSnap.exists) {
-        const updates: Record<
-          string,
-          admin.firestore.FieldValue | number
-        > = {
-          festejosPublicados: admin.firestore.FieldValue.increment(1),
-          pelotasDesbloqueadas: admin.firestore.FieldValue.increment(1),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        const updates: Record<string, FieldValue | number> = {
+          festejosPublicados: FieldValue.increment(1),
+          pelotasDesbloqueadas: FieldValue.increment(1),
+          updatedAt: FieldValue.serverTimestamp(),
         };
 
         if (festejosNuevos % 10 === 0) {
-          updates["becasDesbloqueadas"] =
-            admin.firestore.FieldValue.increment(1);
+          updates["becasDesbloqueadas"] = FieldValue.increment(1);
         }
 
         if (festejosNuevos % 20 === 0) {
-          updates["escuelasBeneficiadas"] =
-            admin.firestore.FieldValue.increment(1);
+          updates["escuelasBeneficiadas"] = FieldValue.increment(1);
         }
 
         tx.update(partidoRef, updates);
@@ -111,20 +108,18 @@ export const onVideoSubido = onObjectFinalized(
         await compRef.set({
           eventoId,
           partidoId,
-          iniciaEn: admin.firestore.Timestamp.fromMillis(now),
-          cierraEn: admin.firestore.Timestamp.fromMillis(
-            now + VEINTICUATRO_HORAS_MS,
-          ),
+          iniciaEn: Timestamp.fromMillis(now),
+          cierraEn: Timestamp.fromMillis(now + VEINTICUATRO_HORAS_MS),
           estado: "activa",
           ganadorVideoId: null,
           ganadorUserId: null,
           videosParticipantes: [videoId],
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
       } else {
         await compRef.update({
-          videosParticipantes: admin.firestore.FieldValue.arrayUnion(videoId),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          videosParticipantes: FieldValue.arrayUnion(videoId),
+          updatedAt: FieldValue.serverTimestamp(),
         });
       }
     }

@@ -58,13 +58,6 @@
         { "fieldPath": "partidoId", "order": "ASCENDING" },
         { "fieldPath": "externalEventKey", "order": "ASCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "partidos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "fixtureId", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []

@@ -30,9 +30,16 @@ export function suscribirFixturesEnVivo(
     orderBy("fechaInicio", "asc"),
   );
 
-  return onSnapshot(q, (snapshot) => {
-    cb(snapshot.docs.map(mapCopaFixture));
-  });
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      cb(snapshot.docs.map(mapCopaFixture));
+    },
+    (error) => {
+      console.error("copa_fixtures en_vivo subscription failed:", error);
+      cb([]);
+    },
+  );
 }
 
 export function suscribirFixturesHoy(

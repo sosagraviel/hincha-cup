@@ -1,6 +1,5 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { ApiFootballProvider } from "./providers/apiFootball";
@@ -12,8 +11,6 @@ import {
   todayUtcDate,
 } from "./sync/syncLogic";
 
-const apiFootballKey = defineSecret("API_FOOTBALL_KEY");
-
 function useMockScores(): boolean {
   return process.env["USE_MOCK_SCORES"] === "true";
 }
@@ -24,11 +21,10 @@ function createProvider(db: admin.firestore.Firestore): ScoresProvider {
     return new MockScoresProvider(db);
   }
 
-  const key =
-    apiFootballKey.value() || process.env["API_FOOTBALL_KEY"] || "";
+  const key = process.env["API_FOOTBALL_KEY"] || "";
   if (!key) {
     throw new Error(
-      "API_FOOTBALL_KEY secret is not configured (set secret or USE_MOCK_SCORES=true)",
+      "API_FOOTBALL_KEY is not configured (set in functions/.env or USE_MOCK_SCORES=true)",
     );
   }
 
@@ -71,7 +67,6 @@ export const syncCopaScores = onSchedule(
   {
     schedule: "every 1 minutes",
     region: "us-central1",
-    secrets: [apiFootballKey],
     timeoutSeconds: 120,
   },
   async () => {
@@ -91,7 +86,6 @@ export const syncCopaScores = onSchedule(
 export const triggerCopaSync = onCall(
   {
     region: "us-central1",
-    secrets: [apiFootballKey],
   },
   async (request) => {
     if (!request.auth) {

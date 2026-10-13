@@ -13,6 +13,7 @@
     "test:run": "vitest run",
     "emulators": "firebase emulators:start --only auth,firestore,storage,functions",
     "seed:emulator": "tsx src/seed/seed.ts",
+    "seed:production": "SEED_PRODUCTION=true tsx src/seed/seed.ts",
     "fetch:fixtures": "tsx scripts/fetch-fixture-ids.ts",
     "emulators:stop": "lsof -tiTCP:8080 -sTCP:LISTEN | xargs kill -9 2>/dev/null; lsof -tiTCP:8081 -sTCP:LISTEN | xargs kill -9 2>/dev/null; echo 'Puertos 8080/8081 liberados (si había procesos).'"
   },

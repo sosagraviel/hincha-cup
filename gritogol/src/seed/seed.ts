@@ -34,7 +34,11 @@ function resolveProjectId(): string {
 
 loadEnvLocal();
 
-if (!process.env["FIRESTORE_EMULATOR_HOST"]) {
+const seedProduction = process.env["SEED_PRODUCTION"] === "true";
+
+if (seedProduction) {
+  delete process.env["FIRESTORE_EMULATOR_HOST"];
+} else if (process.env["FIRESTORE_EMULATOR_HOST"] === undefined) {
   process.env["FIRESTORE_EMULATOR_HOST"] = "127.0.0.1:8081";
 }
 
@@ -257,7 +261,7 @@ async function seedMockProvider(): Promise<void> {
 
 /** Seeds two live matches (Uruguay + Argentina) with demo impact data. */
 export async function seed(): Promise<void> {
-  if (!process.env["FIRESTORE_EMULATOR_HOST"]) {
+  if (!seedProduction && !process.env["FIRESTORE_EMULATOR_HOST"]) {
     console.warn(
       "FIRESTORE_EMULATOR_HOST no está definido. ¿Quisiste correr npm run seed:emulator?",
     );
@@ -324,6 +328,18 @@ export async function seed(): Promise<void> {
 }
 
 seed().catch((error: unknown) => {
-  console.error("Seed falló:", error);
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("Could not load the default credentials")) {
+    console.error(
+      "Seed falló: sin credenciales para Firestore de producción.\n" +
+        "Opción A: gcloud auth application-default login\n" +
+        "Opción B: descargá una service account key en Firebase Console → " +
+        "Configuración → Cuentas de servicio → Generar nueva clave privada, " +
+        "y corré:\n" +
+        "  GOOGLE_APPLICATION_CREDENTIALS=./tu-key.json npm run seed:production",
+    );
+  } else {
+    console.error("Seed falló:", error);
+  }
   process.exit(1);
 });
