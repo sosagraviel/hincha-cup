@@ -1,0 +1,99 @@
+{
+  "cases": {
+    "TC-CELEBMODER-001": {
+      "title": "Upload celebration after a goal — published on the wall",
+      "flow": "celebration-moderation-publication",
+      "priority": "P1",
+      "tier": "smoke",
+      "testgraph": {
+        "projectId": "cmv5k8ngn001g01t8pl40j9ip",
+        "suiteId": "cmv5k8rsg001i01t818uzd9vy",
+        "testCaseId": "cmv5k97qp001j01t87mon5h5w",
+        "scenarioId": "scenario-1-9b3df974-5b00-454f-a1e5-8c5bb2455118-4c58205d-02b4-4e5b-9e32-79ddfc14eb50-a9b0b3f6-26de-402e-8fa3-a6ac04487651-84fd793d-ea19-4e10-815d-1a2a61deb9bc-b464307a-ab28-4aa4-bcfa-7651eff05467-ab4de7ff-27a9-4b0e-bb5c-4fc790583d7f-36b9d0d8-40da-494a-9e50-7c989e32bcc8-909f5da5-ee22-47f3-8d3e-41e773634373-3a578c54-516b-45da-9a4d-dcc004378075",
+        "feature": "Celebration moderation and publication",
+        "area": "Celebrations"
+      },
+      "gherkinHash": "9819c08a2d724aeb",
+      "codeRefs": {
+        "src/pages/AppPage.tsx": "943b0e36aa107628",
+        "src/context/AuthContext.tsx": "ef9edbd0e6409e45",
+        "src/context/PartidoContext.tsx": "58b35e88da51285b",
+        "src/components/views/PerfilView.tsx": "6f71e3757b84f05a",
+        "src/constants.ts": "1755bd37cafee152",
+        "src/components/ui/FabDemo.tsx": "1d71f382c57e35aa",
+        "functions/src/syncCopaScores.ts": "d3cad0c21f1ecb60",
+        "src/components/goal/GoalOverlay.tsx": "ae313214d2d3bf9a",
+        "src/utils/extractFrame.ts": "e5e8e3523a4720b7",
+        "src/services/videoService.ts": "9a9c105339afda94",
+        "src/services/moderacionService.ts": "db20099faad28225",
+        "functions/src/moderarVideo.ts": "fada190e7c9a8fcb",
+        "functions/src/onVideoSubido.ts": "c04b4319c2f7ebce",
+        "functions/src/index.ts": "4996799a81e43676",
+        "src/components/ui/Toast.tsx": "02cc69204065123d",
+        "src/components/views/MuroView.tsx": "aa48175079dcc094",
+        "src/components/feed/FeedCard.tsx": "fa621ea4c4ceb8cb",
+        "src/components/layout/ImpactMarcador.tsx": "93b80c0c5d697183"
+      },
+      "feature": "src/test/resources/features/celebration-moderation-publication/celebration-moderation-publication.feature",
+      "lastStatus": "bug",
+      "bugs": [
+        {
+          "id": "BUG-001",
+          "severity": "critical",
+          "pattern": "deterministic"
+        },
+        {
+          "id": "BUG-002",
+          "severity": "minor",
+          "pattern": "deterministic"
+        },
+        {
+          "id": "BUG-003",
+          "severity": "major",
+          "pattern": "intermittent"
+        }
+      ],
+      "lastRunId": "run-20261012-175208",
+      "lastRunAt": "2026-10-12T18:36:17.357Z",
+      "firstSeenAt": "2026-10-12T18:36:17.357Z"
+    },
+    "TC-CELEBWALL-001": {
+      "title": "Applaud another fan's celebration — count goes up by one",
+      "flow": "celebration-wall-applause",
+      "priority": "P1",
+      "tier": "smoke",
+      "testgraph": {
+        "projectId": "cmv5k8ngn001g01t8pl40j9ip",
+        "suiteId": "cmv5k8ryq000w01s3zq50je0v",
+        "testCaseId": "cmv5k97xq000x01s3cwj8zsn2",
+        "scenarioId": "scenario-1-5a206cd8-98ab-4f3b-bca3-ec6b801d812c-38beec74-e2dc-4241-994e-2a465a4cebce-81ad0524-f855-46bf-9b7f-e7ab27f2e66c-c0bcd555-d40d-494b-8395-3e1f17346ebd-d4b393d4-5541-489f-9aa8-e82930b35e70-65be2bd7-1144-4fd8-aa3a-484b25f4d1d9-15017b8c-ed86-4f93-8f88-6709dd001b0f",
+        "feature": "Celebration wall and applause",
+        "area": "Celebrations"
+      },
+      "gherkinHash": "951816b7193b4660",
+      "codeRefs": {
+        "src/components/goal/GoalOverlay.tsx": "ae313214d2d3bf9a",
+        "functions/src/onVideoSubido.ts": "c04b4319c2f7ebce",
+        "src/services/videoService.ts": "9a9c105339afda94",
+        "src/context/AuthContext.tsx": "ef9edbd0e6409e45",
+        "src/components/views/MuroView.tsx": "aa48175079dcc094",
+        "src/components/feed/FeedCard.tsx": "fa621ea4c4ceb8cb",
+        "firestore.rules": "755827c0bd039d00",
+        "src/components/ui/Toast.tsx": "02cc69204065123d"
+      },
+      "feature": "src/test/resources/features/celebration-wall-applause/celebration-wall-applause.feature",
+      "lastStatus": "bug",
+      "bugs": [
+        {
+          "id": "BUG-101",
+          "severity": "critical",
+          "pattern": "deterministic"
+        }
+      ],
+      "lastRunId": "run-20261012-175208",
+      "lastRunAt": "2026-10-12T18:36:17.357Z",
+      "firstSeenAt": "2026-10-12T18:36:17.357Z"
+    }
+  },
+  "updatedAt": "2026-10-12T18:36:17.357Z"
+}

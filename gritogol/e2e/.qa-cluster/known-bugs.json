@@ -1,0 +1,14 @@
+{
+  "BUG-001": {
+    "signature": "moderacion.aprobado",
+    "title": "Celebration upload: video is published by the onVideoSubido Storage trigger without moderation (moderarVideo not exported, callable fails) instead of only after moderarVideo approves it"
+  },
+  "BUG-002": {
+    "signature": "Ya estás en el muro",
+    "title": "Celebration upload: toast '¡Estás en el muro! +1 pelota desbloqueada' instead of the confirmation '¡Ya estás en el muro!' that GG-MOD-01 says"
+  },
+  "BUG-101": {
+    "signature": "heart stayed at \"1\" + filled",
+    "title": "Wall: applauding another fan's celebration is rejected with 403 permission-denied and rolls back to 0 instead of counting +1"
+  }
+}

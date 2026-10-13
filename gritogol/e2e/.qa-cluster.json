@@ -1,0 +1,75 @@
+{
+  "generator": "qa-cluster",
+  "version": "0.7.5",
+  "layout": "src",
+  "createdAt": "2026-10-12T18:22:50.033Z",
+  "baseCommit": "e7beed2273cad5d61f78f22089bee8f2070526e6",
+  "runs": [
+    {
+      "runId": "run-20261012-175208",
+      "at": "2026-10-12T18:40:00.000Z",
+      "result": "completed",
+      "commit": "e7beed2273cad5d61f78f22089bee8f2070526e6",
+      "cases": 2,
+      "stable": 0,
+      "bugs": 3,
+      "inconclusive": 0,
+      "iterations": 1,
+      "report": "docs/qa-cluster-report.md"
+    }
+  ],
+  "ciProvider": "github-actions",
+  "ciFiles": [
+    "e2e/ci/github-actions.yml"
+  ],
+  "ciNote": "root .gitignore ignores .github/; move to <git root>/.github/workflows/qa-cluster-e2e.yml after un-ignoring /.github/",
+  "testgraph": {
+    "projectId": "cmv5k8ngn001g01t8pl40j9ip",
+    "runId": "cmv5leh37001j01s3i87uxll6",
+    "planId": "cmv5ledre001i01s3vqv6ju1g"
+  },
+  "files": {
+    ".env.example": "818e97cf6ecc9e233e388687d35d9f369921c5b010a5b7bd2730b6014579a036",
+    ".gitignore": "a5b5b110345284369bac50f44edf76212b7cc44f3d427ce025cb14fcb70c1e0c",
+    "README.md": "db995fea8debd20747480dd44ff3cfa7c189866fc0e47b304cf1c2f90c5f0962",
+    "ci/github-actions.yml": "89bd37776abf86f0f8b0e9db7cf5ae55b071badcee8c894b426246e025fc0e52",
+    "package.json": "374328df5f8e9a548651df25fa6d54a19e8b4ed005e0e16f44573c3700fccc77",
+    "playwright.config.ts": "d09f2f8d436f2629bd222316671f4ff194469f0c64e34c00d99ca404bf2de1c1",
+    "src/main/data/celebrations.ts": "7d14149f157e917cfc0ea5591c86bafce181bf39cab06b21f81cd8b568843b0f",
+    "src/main/data/factories.ts": "e43105cebbecb5a2c58ff5424667a6b747d2d0cd1431f08f1f4ac765092c8726",
+    "src/main/data/files/celebration.webm": "b888d14dd622910a7206a6be011ba6c73989e82dc271c0f58a64b441b3d7adff",
+    "src/main/fixtures/index.ts": "b4f2658a7b9ba0f3620f2fd0928729c7f4fd2e46704be1e508eeb100a1677607",
+    "src/main/pages/AppShell.ts": "bd820c1efc6b9eca9f63365c17fc1fd8055c7f18283d07f0338af395dc232353",
+    "src/main/pages/BasePage.ts": "63f9ae7ac176e9036f19d54afeea64456d262a2b448d1d6f07dcde9d22560545",
+    "src/main/pages/GoalOverlay.ts": "08a0776e4181d0ec2c3e73eb78538b3daf19e78f6ce8cd57ba0a69234e73c51f",
+    "src/main/pages/ProfilePage.ts": "96a4a871473b4e111f339eb73c28a5da79226bdef0e0f7f84b77166b86ff3a66",
+    "src/main/pages/WallPage.ts": "e144bb8c5fceff582d156b63bf6e2ef31921ddac25c477d2706d27ebe57b0d66",
+    "src/main/reporters/summary-reporter.ts": "e648cd892024672efd1ad23c3feab10ad29ce1eea28162c35e5efcb873a4464e",
+    "src/main/support/ScenarioContext.ts": "e9f890b853c370c807bc54f153d01be26af643c3dc3a49edf9e17def93ca177e",
+    "src/main/support/celebrationFlow.ts": "462f100b699db9ea3ed2ca37f3da2656f4d40cd454d6746a4c363323c1053b37",
+    "src/main/support/displayNames.ts": "33524b07d3b333eeda19909ae4a57775fbdc31472915c1ef567650c46eef5406",
+    "src/main/utils/firestoreEmulator.ts": "28e2ddea645d3d5755e1bb82cd8fcb0c1954db848803206dc9d87edb4c6a8be2",
+    "src/main/utils/seed.ts": "b6d3e5677497266dd52dc04237e735bcd72bb9160951c055875ecf600c415dcf",
+    "src/test/hooks/known-bugs.hooks.ts": "2ebe0cf6abf32eff5e276589d3a85914ff80a33630b6181c2bb85f2004a4606e",
+    "src/test/resources/features/celebration-moderation-publication/celebration-moderation-publication.feature": "f00a4d8ec82a2a9116ebc89d06cc38af4c480c8dc35caa6ea9275380f50f3ced",
+    "src/test/resources/features/celebration-wall-applause/celebration-wall-applause.feature": "5920bc454fb1d8830c68a037a38a6b346673daf12236032b806c7252da2de7ae",
+    "src/test/steps/celebration-moderation-publication.steps.ts": "f0f1bc5becb8b3c82e041a05f948f64816ba4da00626a1ba25c35559bf3912eb",
+    "src/test/steps/celebration-wall-applause.steps.ts": "c120d957d7035852543fd30afc1ae213867b029aa19e070eab0b187d0ec72cfc",
+    "tsconfig.json": "5a900287199dd2b23f1b87d46b192cb217013b646bf189b0e4cd5545cfa4f067"
+  },
+  "cases": {
+    "TC-CELEBMODER-001": {
+      "spec": "src/test/resources/features/celebration-moderation-publication/celebration-moderation-publication.feature",
+      "testCaseId": "cmv5k97qp001j01t87mon5h5w",
+      "status": "bug",
+      "bugId": "BUG-001"
+    },
+    "TC-CELEBWALL-001": {
+      "spec": "src/test/resources/features/celebration-wall-applause/celebration-wall-applause.feature",
+      "testCaseId": "cmv5k97xq000x01s3cwj8zsn2",
+      "status": "bug",
+      "bugId": "BUG-101"
+    }
+  },
+  "updatedAt": "2026-10-12T18:37:34.000Z"
+}

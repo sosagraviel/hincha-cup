@@ -58,3 +58,8 @@ pnpm-debug.log*
 # Optional local tooling
 .cursor/
 .claude/
+
+# QACluster artifacts
+.qa-run/
+qa-output/
+.testgraph/

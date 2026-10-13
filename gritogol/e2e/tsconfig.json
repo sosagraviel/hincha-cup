@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@pages/*": [
+        "src/main/pages/*"
+      ],
+      "@fixtures": [
+        "src/main/fixtures/index.ts"
+      ],
+      "@support/*": [
+        "src/main/support/*"
+      ],
+      "@data/*": [
+        "src/main/data/*"
+      ],
+      "@utils/*": [
+        "src/main/utils/*"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "playwright.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "playwright-report",
+    "test-results",
+    ".features-gen",
+    "cucumber-report"
+  ]
+}

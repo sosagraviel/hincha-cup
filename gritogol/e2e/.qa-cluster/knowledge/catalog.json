@@ -1,0 +1,156 @@
+{
+  "updatedAt": "2026-10-12T18:36:17.373Z",
+  "fixtures": [
+    "ctx",
+    "emulator",
+    "appShell",
+    "profilePage",
+    "goalOverlay",
+    "wallPage",
+    "secondFanPage",
+    "secondFanShell",
+    "secondFanGoalOverlay",
+    "secondFanWall"
+  ],
+  "pages": [
+    {
+      "file": "src/main/pages/AppShell.ts",
+      "classes": [
+        "AppShell"
+      ],
+      "methods": [
+        "expectLoaded",
+        "openFollowing",
+        "goToProfile",
+        "goToWall",
+        "tapDemoButton",
+        "pelotasCount",
+        "startRecordingToasts",
+        "toastMessagesDuringFirst"
+      ],
+      "routes": []
+    },
+    {
+      "file": "src/main/pages/BasePage.ts",
+      "classes": [
+        "BasePage"
+      ],
+      "methods": [
+        "goto",
+        "expectLoaded"
+      ],
+      "routes": []
+    },
+    {
+      "file": "src/main/pages/GoalOverlay.ts",
+      "classes": [
+        "GoalOverlay"
+      ],
+      "methods": [
+        "expectLoaded",
+        "countdownSeconds",
+        "dismiss",
+        "uploadCelebration",
+        "reviewState"
+      ],
+      "routes": []
+    },
+    {
+      "file": "src/main/pages/ProfilePage.ts",
+      "classes": [
+        "ProfilePage"
+      ],
+      "methods": [
+        "expectLoaded",
+        "saveDisplayName"
+      ],
+      "routes": []
+    },
+    {
+      "file": "src/main/pages/WallPage.ts",
+      "classes": [
+        "WallPage"
+      ],
+      "methods": [
+        "expectLoaded",
+        "reload",
+        "expectCardOf",
+        "applaud",
+        "applauseStatesDuringFirst"
+      ],
+      "routes": []
+    }
+  ],
+  "steps": [
+    {
+      "keyword": "Given",
+      "pattern": "the fan has saved the display name {string} in the {string} tab",
+      "file": "src/test/steps/celebration-moderation-publication.steps.ts"
+    },
+    {
+      "keyword": "When",
+      "pattern": "the fan taps the demo button {string}",
+      "file": "src/test/steps/celebration-moderation-publication.steps.ts"
+    },
+    {
+      "keyword": "Then",
+      "pattern": "the goal screen {string} is shown with a countdown and the button {string}",
+      "file": "src/test/steps/celebration-moderation-publication.steps.ts"
+    },
+    {
+      "keyword": "When",
+      "pattern": "the fan taps {string} and selects the video file {string}",
+      "file": "src/test/steps/celebration-moderation-publication.steps.ts"
+    },
+    {
+      "keyword": "Then",
+      "pattern": "the message {string} is shown",
+      "file": "src/test/steps/celebration-moderation-publication.steps.ts"
+    },
+    {
+      "keyword": "Then",
+      "pattern": "the confirmation {string} is shown",
+      "file": "src/test/steps/celebration-moderation-publication.steps.ts"
+    },
+    {
+      "keyword": "Then",
+      "pattern": "the first card on {string} is the celebration by {string}",
+      "file": "src/test/steps/celebration-moderation-publication.steps.ts"
+    },
+    {
+      "keyword": "Then",
+      "pattern": "the {string} counter under {string} goes from {string} to {string}",
+      "file": "src/test/steps/celebration-moderation-publication.steps.ts"
+    },
+    {
+      "keyword": "Given",
+      "pattern": "a celebration by {string} is published on the {string} of the {string} match with {string} applause",
+      "file": "src/test/steps/celebration-wall-applause.steps.ts"
+    },
+    {
+      "keyword": "When",
+      "pattern": "the second fan taps the applause button on the {string} celebration card",
+      "file": "src/test/steps/celebration-wall-applause.steps.ts"
+    },
+    {
+      "keyword": "Then",
+      "pattern": "the applause count on the {string} card shows {string} and the heart is filled",
+      "file": "src/test/steps/celebration-wall-applause.steps.ts"
+    },
+    {
+      "keyword": "Then",
+      "pattern": "the message {string} is not shown",
+      "file": "src/test/steps/celebration-wall-applause.steps.ts"
+    },
+    {
+      "keyword": "When",
+      "pattern": "the second fan reloads the page",
+      "file": "src/test/steps/celebration-wall-applause.steps.ts"
+    },
+    {
+      "keyword": "Then",
+      "pattern": "the {string} card still shows {string} applause",
+      "file": "src/test/steps/celebration-wall-applause.steps.ts"
+    }
+  ]
+}

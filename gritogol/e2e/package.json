@@ -1,0 +1,22 @@
+{
+  "name": "gritogol-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bddgen": "bddgen",
+    "test": "bddgen && playwright test",
+    "test:p1": "bddgen && playwright test --grep @P1",
+    "test:stability": "bddgen && playwright test --repeat-each=3 --retries=0",
+    "steps": "bddgen export",
+    "report": "playwright show-report",
+    "typecheck": "bddgen && tsc --noEmit",
+    "test:intermittent": "bddgen && RUN_INTERMITTENT=1 playwright test --grep @intermittent --repeat-each=4 --retries=0 --workers=1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/node": "^22.0.0",
+    "dotenv": "^16.4.5",
+    "playwright-bdd": "^9.2.1",
+    "typescript": "^5.6.0"
+  }
+}

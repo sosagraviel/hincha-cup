@@ -24,6 +24,6 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
-    ignores: ["dist/**", "node_modules/**", "functions/**"],
+    ignores: ["dist/**", "node_modules/**", "functions/**", "e2e/**"],
   },
 );

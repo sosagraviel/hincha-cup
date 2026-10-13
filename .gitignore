@@ -74,7 +74,8 @@ website/
 .claude/
 docs/
 specs/
-.github/
+.github/*
+!.github/workflows/
 .husky/
 WORKSPACE_COMMANDS.md
 package.json

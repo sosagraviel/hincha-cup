@@ -1,0 +1,15 @@
+node_modules/
+test-results/
+playwright-report/
+cucumber-report/
+.features-gen/
+.auth/
+.env
+
+# Keep the framework's own files even when a parent .gitignore (e.g. a monorepo root) ignores them
+!package.json
+!package-lock.json
+!tsconfig.json
+!playwright.config.ts
+!.env.example
+!ci/

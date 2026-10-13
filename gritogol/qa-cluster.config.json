@@ -1,0 +1,26 @@
+{
+  "start": [
+    "make start"
+  ],
+  "seed": [
+    "make seed"
+  ],
+  "reset": [
+    "make seed"
+  ],
+  "stop": [
+    "make stop"
+  ],
+  "localURL": "http://localhost:5173",
+  "testgraphProject": "GritoGol",
+  "healthPath": "/",
+  "startTimeoutSeconds": 300,
+  "requirements": {
+    "docs": [
+      "README.md",
+      "docs/**/*.md"
+    ],
+    "notes": "1) A fan can follow only one favorite match at a time; the live score bar shows that match. 2) A blank display name falls back to \"Vos\". 3) Only video files can be uploaded as a goal celebration; any other file type is rejected with an error message. 4) A fan cannot applaud their own celebration. 5) An uploaded celebration video is published on the wall after moderation; it must not stay \"under review\" forever. 6) Any signed-in fan can applaud another fan's celebration once, and the applause count goes up by one.",
+    "precedence": "docs"
+  }
+}

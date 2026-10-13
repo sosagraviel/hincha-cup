@@ -1,0 +1,98 @@
+{
+  "updatedAt": "2026-10-12T18:36:17.357Z",
+  "runId": "run-20261012-175208",
+  "fingerprint": {
+    ".env.example": "aa132bf1838a2ebe",
+    "Makefile": "536f0e8e741912b7",
+    "docker-compose.yml": "b6cee8d3a8aea47b",
+    "docker/.env.example": "d9e5582c2ea80919",
+    "docker/Dockerfile": "afd30cb7fb2f1eae",
+    "docker/entrypoint-common.sh": "0de11d2b019331eb",
+    "docker/entrypoint-emulators.sh": "44328bf12eb8dd0e",
+    "docker/entrypoint-seed.sh": "c6f29206541b98e9",
+    "docker/entrypoint-web.sh": "51a282d28332d405",
+    "firebase.json": "99029a386efface0",
+    "firestore.rules": "755827c0bd039d00",
+    "package-lock.json": "ba6a32c1f3f9087e",
+    "package.json": "0a2e565474954ef9",
+    "qa-cluster.config.json": "d721334cf8d5d397",
+    "storage.rules": "8cf908577134aef2",
+    "vite.config.ts": "d9f8dd19ea13e6d7"
+  },
+  "recon": {
+    "repo": {
+      "path": "/Users/gravielsosa/Desktop/graviel/decemberlabs/hincha-cup/gritogol",
+      "commit": "e7beed2273cad5d61f78f22089bee8f2070526e6",
+      "branch": "deploy-prod"
+    },
+    "stack": {
+      "frontend": "react",
+      "backend": "firebase-functions",
+      "db": "firestore (emulator)",
+      "packageManager": "npm"
+    },
+    "run": {
+      "method": "make",
+      "start": [
+        "make start"
+      ],
+      "seed": [
+        "make seed"
+      ],
+      "stop": [
+        "make stop"
+      ],
+      "reset": [
+        "make seed"
+      ]
+    },
+    "baseURL": "http://localhost:5173",
+    "auth": {
+      "type": "unknown",
+      "loginRoute": "/"
+    },
+    "routes": [
+      {
+        "path": "/",
+        "requiresAuth": false,
+        "sourceFile": "src/router.tsx"
+      },
+      {
+        "path": "/impacto",
+        "sourceFile": "src/router.tsx"
+      },
+      {
+        "path": "/perfil",
+        "requiresAuth": true,
+        "sourceFile": "src/router.tsx"
+      },
+      {
+        "path": "/ganadores",
+        "sourceFile": "src/router.tsx"
+      },
+      {
+        "path": "/admin",
+        "requiresAuth": true,
+        "sourceFile": "src/router.tsx"
+      },
+      {
+        "path": "*",
+        "sourceFile": "src/router.tsx"
+      }
+    ],
+    "testability": {
+      "hasTestIds": false,
+      "existingTests": [
+        "vitest unit tests (src)"
+      ]
+    },
+    "notes": [
+      "Docker compose stack (web 5173, firebase emulators auth 9099/firestore 8081/storage 9199/functions 5001/UI 4000); seed runs as part of make start.",
+      "Auth: Google popup (signInWithPopup) and anonymous sign-in via Firebase Auth emulator; no fixed seed credentials found; auth type not fully verified.",
+      "No data-testid in src; use roles/text locators.",
+      "Repo has uncommitted changes in working tree; a service-account JSON sits in repo root (not read).",
+      "UI copy is Spanish (rioplatense)."
+    ],
+    "configSource": "config-file"
+  }
+}
